@@ -1262,16 +1262,14 @@ function App() {
         item.type === "PHASE" ||
         item.type === "WORK_PACKAGE";
       const milestone =
-        item.type === "MILESTONE" ||
-        daysBetween(itemStart, itemEnd) === 0 ||
-        wbsMilestoneCodes.has(item.code);
+        item.type === "MILESTONE" || wbsMilestoneCodes.has(item.code);
       return {
         item,
         start: itemStart,
         end: itemEnd,
         offset: (daysBetween(start, itemStart) / totalDays) * 100,
         width: Math.max(
-          item.type === "MILESTONE" ? 0.8 : 3,
+          item.type === "MILESTONE" ? 0.8 : 0.15,
           ((daysBetween(itemStart, itemEnd) + 1) / totalDays) * 100,
         ),
         milestone,
@@ -3823,17 +3821,21 @@ function App() {
                                   const startX = line.fromX;
                                   const endX = line.toX;
                                   const horizontalGap = Math.abs(endX - startX);
+                                  const connectorStub =
+                                    horizontalGap === 0
+                                      ? 0.8
+                                      : horizontalGap >= 2.2
+                                        ? 1.1
+                                        : Math.max(0.2, horizontalGap / 2);
                                   const bendX =
                                     line.direction === "forward"
                                       ? Math.min(
                                           99,
-                                          startX +
-                                            Math.max(1.4, horizontalGap / 2),
+                                          startX + connectorStub,
                                         )
                                       : Math.max(
                                           1,
-                                          startX -
-                                            Math.max(1.4, horizontalGap / 2),
+                                          startX - connectorStub,
                                         );
                                   return (
                                     <path
