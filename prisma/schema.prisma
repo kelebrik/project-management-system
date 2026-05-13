@@ -224,8 +224,15 @@ model ExecutiveOverview {
   version          Int
   status           OverviewStatus @default(DRAFT)
   generatedAt      DateTime?
+  reviewRequestedAt DateTime?
+  approvedAt       DateTime?
+  approvedBy       String?
   publishedAt      DateTime?
   executiveSummary String
+  kpis             Json?
+  qualityGates     Json?
+  risks            Json?
+  nextSteps        Json?
   decisions        Json
   evidence         Json
   createdAt        DateTime       @default(now())

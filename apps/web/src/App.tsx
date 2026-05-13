@@ -265,8 +265,38 @@ type ExecutiveOverview = {
   version: number;
   status: string;
   generatedAt: string | null;
+  reviewRequestedAt: string | null;
+  approvedAt: string | null;
+  approvedBy: string | null;
   publishedAt: string | null;
   executiveSummary: string;
+  kpis: Array<{
+    label: string;
+    value: string;
+    secondary: string;
+    tone: "green" | "amber" | "red" | "neutral";
+    source: string;
+  }> | null;
+  qualityGates: Array<{
+    name: string;
+    status: "OK" | "WARN" | "BLOCKED";
+    detail: string;
+    source: string;
+  }> | null;
+  risks: Array<{
+    title: string;
+    severity: string;
+    owner: string;
+    impact: string;
+    dueDate: string | null;
+    source: string;
+  }> | null;
+  nextSteps: Array<{
+    title: string;
+    owner: string;
+    dueDate: string | null;
+    source: string;
+  }> | null;
   decisions: Array<{
     title: string;
     impactIfApproved: string;
@@ -472,6 +502,37 @@ function wbsTypeLabel(type: WbsItemType) {
     TASK: "Task",
   };
   return labels[type];
+}
+
+function overviewStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    DRAFT: "Draft",
+    GENERATED: "Generated",
+    PM_REVIEW: "PM review",
+    APPROVED: "Approved",
+    PUBLISHED: "Published",
+  };
+  return labels[status] ?? status;
+}
+
+function gateStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    OK: "OK",
+    WARN: "Warning",
+    BLOCKED: "Blocked",
+  };
+  return labels[status] ?? status;
+}
+
+function dateTime(value: string | null) {
+  if (!value) return "не задано";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function buildWbsTree(items: WbsItem[]) {
@@ -1595,6 +1656,37 @@ function App() {
     }
   }
 
+  async function moveOverviewStatus(status: "PM_REVIEW" | "APPROVED") {
+    if (!latestOverview) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/executive-overviews/${latestOverview.id}/status`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status,
+            approvedBy: status === "APPROVED" ? "PMO" : null,
+          }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error ?? "Не удалось сменить статус overview");
+      }
+      await refreshProject();
+      setNotice(`Executive overview v${result.version}: ${overviewStatusLabel(result.status)}`);
+    } catch (workflowError) {
+      setError(
+        workflowError instanceof Error
+          ? workflowError.message
+          : "Не удалось сменить статус overview",
+      );
+    }
+  }
+
   function selectProject(projectId: string, nextView: AppView = activeView) {
     const selected = projects.find((item) => item.id === projectId);
     setSelectedProjectId(projectId);
@@ -1840,9 +1932,7 @@ function App() {
               </section>
             )}
 
-            {project &&
-              activeView !== "portfolio" &&
-              activeView !== "project-create" && (
+            {project && activeView === "project-overview" && (
                 <section className="summary-grid">
                   <div className="metric">
                     <span>Project Health</span>
@@ -4087,7 +4177,7 @@ function App() {
                         onClick={publishOverview}
                         disabled={
                           !latestOverview ||
-                          latestOverview.status === "PUBLISHED" ||
+                          latestOverview.status !== "APPROVED" ||
                           publishingOverview
                         }
                       >
@@ -4102,24 +4192,92 @@ function App() {
                     <>
                       <div className="overview-status-line">
                         <span>
-                          Status: <b>{latestOverview.status}</b>
+                          Status:{" "}
+                          <b>{overviewStatusLabel(latestOverview.status)}</b>
                         </span>
                         <span>
                           Generated:{" "}
                           {latestOverview.generatedAt
-                            ? date(latestOverview.generatedAt)
+                            ? dateTime(latestOverview.generatedAt)
                             : "не задано"}
+                        </span>
+                        <span>
+                          Review: {dateTime(latestOverview.reviewRequestedAt)}
+                        </span>
+                        <span>
+                          Approved: {dateTime(latestOverview.approvedAt)}
                         </span>
                         <span>
                           Published:{" "}
                           {latestOverview.publishedAt
-                            ? date(latestOverview.publishedAt)
+                            ? dateTime(latestOverview.publishedAt)
                             : "not published"}
                         </span>
+                      </div>
+                      <div className="overview-workflow">
+                        <button
+                          type="button"
+                          onClick={() => moveOverviewStatus("PM_REVIEW")}
+                          disabled={
+                            latestOverview.status === "PM_REVIEW" ||
+                            latestOverview.status === "APPROVED" ||
+                            latestOverview.status === "PUBLISHED"
+                          }
+                        >
+                          Send to PM review
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveOverviewStatus("APPROVED")}
+                          disabled={
+                            latestOverview.status === "APPROVED" ||
+                            latestOverview.status === "PUBLISHED"
+                          }
+                        >
+                          Approve
+                        </button>
+                        {latestOverview.approvedBy && (
+                          <span>Approved by {latestOverview.approvedBy}</span>
+                        )}
                       </div>
                       <p className="overview-summary">
                         {latestOverview.executiveSummary}
                       </p>
+                      <section className="overview-pack">
+                        <h3>Executive KPI</h3>
+                        <div className="overview-kpis">
+                          {(latestOverview.kpis ?? []).map((item) => (
+                            <div
+                              className={`overview-kpi ${item.tone}`}
+                              key={item.label}
+                            >
+                              <span>{item.label}</span>
+                              <strong>{item.value}</strong>
+                              <small>{item.secondary}</small>
+                              <em>{item.source}</em>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                      <section className="overview-pack">
+                        <h3>Quality gates</h3>
+                        <div className="gate-list">
+                          {(latestOverview.qualityGates ?? []).map((gate) => (
+                            <div className="gate-row" key={gate.name}>
+                              <span
+                                className={`gate-status ${gate.status.toLowerCase()}`}
+                              >
+                                {gateStatusLabel(gate.status)}
+                              </span>
+                              <div>
+                                <strong>{gate.name}</strong>
+                                <p>{gate.detail}</p>
+                                <small>{gate.source}</small>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
                       <div className="overview-columns">
                         <section>
                           <h3>Нужные решения</h3>
@@ -4138,6 +4296,45 @@ function App() {
                           ))}
                         </section>
                         <section>
+                          <h3>Top risks / issues</h3>
+                          <div className="overview-list">
+                            {(latestOverview.risks ?? []).length === 0 && (
+                              <p>Ключевые риски и issues не зафиксированы.</p>
+                            )}
+                            {(latestOverview.risks ?? []).map((risk) => (
+                              <div className="risk-line" key={risk.title}>
+                                <strong>{risk.title}</strong>
+                                <span>
+                                  {risk.severity} / {risk.owner} /{" "}
+                                  {risk.dueDate ? date(risk.dueDate) : "no due"}
+                                </span>
+                                <p>{risk.impact}</p>
+                                <small>{risk.source}</small>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      </div>
+                      <div className="overview-columns">
+                        <section>
+                          <h3>Next actions</h3>
+                          <div className="overview-list">
+                            {(latestOverview.nextSteps ?? []).length === 0 && (
+                              <p>Следующие действия не сформированы.</p>
+                            )}
+                            {(latestOverview.nextSteps ?? []).map((step) => (
+                              <div className="action-line" key={step.title}>
+                                <strong>{step.title}</strong>
+                                <span>
+                                  {step.owner} /{" "}
+                                  {step.dueDate ? date(step.dueDate) : "no due"}
+                                </span>
+                                <small>{step.source}</small>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                        <section>
                           <h3>Evidence</h3>
                           <div className="evidence-list">
                             {latestOverview.evidence.map((item) => (
@@ -4148,6 +4345,20 @@ function App() {
                           </div>
                         </section>
                       </div>
+                      {project.overviews.length > 1 && (
+                        <section className="overview-pack">
+                          <h3>Version history</h3>
+                          <div className="overview-history">
+                            {project.overviews.map((item) => (
+                              <div key={item.id}>
+                                <strong>v{item.version}</strong>
+                                <span>{overviewStatusLabel(item.status)}</span>
+                                <small>{dateTime(item.generatedAt)}</small>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      )}
                     </>
                   )}
                   {!latestOverview && (

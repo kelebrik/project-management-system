@@ -179,7 +179,7 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
         include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
       },
       jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
-      overviews: { orderBy: { version: 'desc' }, take: 1 },
+      overviews: { orderBy: { version: 'desc' }, take: 8 },
       milestones: { orderBy: { dueDate: 'asc' } },
       wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
       artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
@@ -836,16 +836,49 @@ function money(value: unknown) {
   }).format(Number(value));
 }
 
+function isoDate(value: Date | null | undefined) {
+  return value ? value.toISOString().slice(0, 10) : null;
+}
+
+function daysSince(value: Date | null | undefined) {
+  if (!value) return null;
+  return Math.floor((Date.now() - value.getTime()) / 86_400_000);
+}
+
+function severityRank(severity: string) {
+  return { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 }[severity] ?? 0;
+}
+
+function overviewTone(value: 'green' | 'amber' | 'red' | 'neutral') {
+  return value;
+}
+
 function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectForOverviewGeneration>>) {
   if (!project) {
     throw new Error('Project not found');
   }
 
-  const budgetVariance = (Number(project.budgetForecast) / Number(project.budgetPlanned) - 1) * 100;
+  const budgetPlanned = Number(project.budgetPlanned);
+  const budgetForecast = Number(project.budgetForecast);
+  const budgetVariance = budgetPlanned === 0 ? 0 : (budgetForecast / budgetPlanned - 1) * 100;
   const criticalIssues = project.issues.filter((issue) => issue.severity === 'CRITICAL');
   const decisionIssues = project.issues.filter((issue) => issue.decisionRequired);
-  const topIssue = project.issues[0];
+  const topIssue = [...project.issues].sort(
+    (left, right) => severityRank(right.severity) - severityRank(left.severity),
+  )[0];
   const nextMilestone = project.milestones.find((milestone) => milestone.status !== 'Done');
+  const completedWbs = project.wbsItems.filter((item) => item.status === 'DONE').length;
+  const blockedWbs = project.wbsItems.filter((item) => item.status === 'BLOCKED').length;
+  const atRiskWbs = project.wbsItems.filter((item) => item.status === 'AT_RISK').length;
+  const missingWbsDates = project.wbsItems.filter((item) => !item.startDate || !item.dueDate).length;
+  const overdueMilestones = project.milestones.filter(
+    (milestone) => milestone.status !== 'Done' && milestone.dueDate.getTime() < Date.now(),
+  ).length;
+  const jiraSyncAge = daysSince(project.jiraIntegration?.lastSyncedAt);
+  const staleJiraIssues = project.jiraSnapshots.filter((issue) => daysSince(issue.updatedAt) !== null && Number(daysSince(issue.updatedAt)) > 7);
+  const artifactBaselineCount = project.artifacts.filter((artifact) =>
+    ['Approved', 'Baseline'].includes(artifact.status),
+  ).length;
   const scheduleText =
     project.scheduleVariance > 0
       ? `отклонение по срокам +${project.scheduleVariance} дней`
@@ -870,13 +903,134 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       : 'Новых решений от руководства сейчас не требуется.',
   ].join(' ');
 
+  const kpis = [
+    {
+      label: 'Health',
+      value: project.rag,
+      secondary: project.rag === 'RED' ? 'Critical' : project.rag === 'AMBER' ? 'At risk' : 'On track',
+      tone: overviewTone(project.rag === 'RED' ? 'red' : project.rag === 'AMBER' ? 'amber' : 'green'),
+      source: `Project ${project.code} passport`,
+    },
+    {
+      label: 'Progress',
+      value: `${project.progress}%`,
+      secondary: `${completedWbs}/${project.wbsItems.length || 0} WBS done`,
+      tone: overviewTone(project.progress >= 80 ? 'green' : project.progress >= 45 ? 'amber' : 'neutral'),
+      source: 'WBS baseline',
+    },
+    {
+      label: 'Schedule',
+      value: `${project.scheduleVariance > 0 ? '+' : ''}${project.scheduleVariance} дней`,
+      secondary: overdueMilestones > 0 ? `${overdueMilestones} overdue milestones` : 'baseline variance',
+      tone: overviewTone(project.scheduleVariance > 10 || overdueMilestones > 0 ? 'red' : project.scheduleVariance > 0 ? 'amber' : 'green'),
+      source: 'Project schedule',
+    },
+    {
+      label: 'Budget',
+      value: `${budgetVariance >= 0 ? '+' : ''}${budgetVariance.toFixed(1)}%`,
+      secondary: money(project.budgetForecast),
+      tone: overviewTone(budgetVariance > 10 ? 'red' : budgetVariance > 0 ? 'amber' : 'green'),
+      source: 'Finance forecast',
+    },
+    {
+      label: 'Open Issues',
+      value: String(project.issues.length),
+      secondary: `${criticalIssues.length} critical / ${decisionIssues.length} decisions`,
+      tone: overviewTone(criticalIssues.length > 0 ? 'red' : decisionIssues.length > 0 ? 'amber' : 'green'),
+      source: 'Open Issues List',
+    },
+  ];
+
+  const qualityGates = [
+    {
+      name: 'Project data freshness',
+      status: !project.jiraIntegration ? 'WARN' : jiraSyncAge === null || jiraSyncAge > 3 ? 'WARN' : 'OK',
+      detail: !project.jiraIntegration
+        ? 'Jira integration is not configured'
+        : jiraSyncAge === null
+          ? 'Jira has not been synchronized yet'
+          : `Jira sync age: ${jiraSyncAge} day(s)`,
+      source: 'Jira integration',
+    },
+    {
+      name: 'Plan completeness',
+      status: project.wbsItems.length === 0 || missingWbsDates > 0 ? 'WARN' : 'OK',
+      detail:
+        missingWbsDates > 0
+          ? `${missingWbsDates} WBS item(s) do not have both start and due dates`
+          : `${project.wbsItems.length} WBS item(s) have schedule data`,
+      source: 'WBS',
+    },
+    {
+      name: 'Blockers control',
+      status: criticalIssues.length > 0 || blockedWbs > 0 ? 'BLOCKED' : decisionIssues.length > 0 || atRiskWbs > 0 ? 'WARN' : 'OK',
+      detail: `${criticalIssues.length} critical issue(s), ${blockedWbs} blocked WBS item(s), ${decisionIssues.length} decision(s) required`,
+      source: 'Open Issues + WBS',
+    },
+    {
+      name: 'Management evidence',
+      status: artifactBaselineCount > 0 ? 'OK' : 'WARN',
+      detail: `${artifactBaselineCount} approved/baseline artifact(s) in project registry`,
+      source: 'Artifacts registry',
+    },
+  ];
+
+  const risks = [
+    ...project.issues.slice(0, 5).map((issue) => ({
+      title: issue.title,
+      severity: issue.severity,
+      owner: issue.owner,
+      impact: issue.impact,
+      dueDate: isoDate(issue.dueDate),
+      source:
+        issue.jiraLinks.length > 0
+          ? issue.jiraLinks.map((link) => link.jiraKey).join(', ')
+          : 'Internal RAID',
+    })),
+    ...project.wbsItems
+      .filter((item) => item.status === 'BLOCKED' || item.status === 'AT_RISK')
+      .slice(0, Math.max(0, 5 - Math.min(project.issues.length, 5)))
+      .map((item) => ({
+        title: `${item.code} ${item.title}`,
+        severity: item.status === 'BLOCKED' ? 'HIGH' : 'MEDIUM',
+        owner: item.owner,
+        impact: item.description ?? 'WBS item requires management attention',
+        dueDate: isoDate(item.dueDate),
+        source: 'WBS',
+      })),
+  ];
+
+  const nextSteps = [
+    ...decisionIssues.slice(0, 3).map((issue) => ({
+      title: `Resolve management decision: ${issue.title}`,
+      owner: issue.owner,
+      dueDate: isoDate(issue.dueDate),
+      source: 'Open Issues List',
+    })),
+    ...project.milestones
+      .filter((milestone) => milestone.status !== 'Done')
+      .slice(0, 3)
+      .map((milestone) => ({
+        title: `Prepare milestone: ${milestone.title}`,
+        owner: milestone.owner,
+        dueDate: isoDate(milestone.dueDate),
+        source: 'Milestones',
+      })),
+    ...staleJiraIssues.slice(0, 2).map((issue) => ({
+      title: `Refresh Jira status: ${issue.issueKey}`,
+      owner: issue.assignee ?? 'Project team',
+      dueDate: isoDate(issue.updatedAt),
+      source: 'Jira snapshot',
+    })),
+  ].slice(0, 6);
+
   const decisions = decisionIssues.slice(0, 5).map((issue) => ({
     title: issue.title,
     impactIfApproved: issue.impact,
     impactIfDelayed: `Сохраняется риск по владельцу ${issue.owner}; срок решения: ${
-      issue.dueDate ? issue.dueDate.toISOString().slice(0, 10) : 'не задан'
+      isoDate(issue.dueDate) ?? 'не задан'
     }`,
-    deadline: issue.dueDate ? issue.dueDate.toISOString().slice(0, 10) : null,
+    deadline: isoDate(issue.dueDate),
     source: issue.jiraLinks.length > 0 ? issue.jiraLinks.map((link) => link.jiraKey).join(', ') : 'Internal RAID',
   }));
 
@@ -909,6 +1063,10 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       metric: 'Milestones',
       source: `${project.milestones.length} project milestones`,
     },
+    {
+      metric: 'Artifacts',
+      source: `${project.artifacts.length} project artifacts / ${artifactBaselineCount} approved or baseline`,
+    },
     ...project.issues.slice(0, 3).map((issue) => ({
       metric: issue.title,
       source:
@@ -918,13 +1076,14 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     })),
   ];
 
-  return { executiveSummary, decisions, evidence };
+  return { executiveSummary, kpis, qualityGates, risks, nextSteps, decisions, evidence };
 }
 
 async function getProjectForOverviewGeneration(projectId: string) {
   return prisma.project.findUnique({
     where: { id: projectId },
     include: {
+      jiraIntegration: true,
       issues: {
         where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },
         orderBy: [{ decisionRequired: 'desc' }, { severity: 'desc' }, { updatedAt: 'desc' }],
@@ -933,6 +1092,7 @@ async function getProjectForOverviewGeneration(projectId: string) {
       jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
       milestones: { orderBy: { dueDate: 'asc' } },
       wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
+      artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
       overviews: { orderBy: { version: 'desc' }, take: 1 },
     },
   });
@@ -955,12 +1115,60 @@ app.post('/api/projects/:projectId/executive-overviews/generate', async (req, re
       status: 'GENERATED',
       generatedAt: new Date(),
       executiveSummary: generated.executiveSummary,
+      kpis: generated.kpis,
+      qualityGates: generated.qualityGates,
+      risks: generated.risks,
+      nextSteps: generated.nextSteps,
       decisions: generated.decisions,
       evidence: generated.evidence,
     },
   });
 
   res.status(201).json(overview);
+});
+
+const overviewTransitionSchema = z.object({
+  status: z.enum(['PM_REVIEW', 'APPROVED']),
+  approvedBy: z.string().trim().optional().nullable(),
+});
+
+app.post('/api/executive-overviews/:overviewId/status', async (req, res) => {
+  const parsed = overviewTransitionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const overview = await prisma.executiveOverview.findUnique({
+    where: { id: req.params.overviewId },
+  });
+
+  if (!overview) {
+    res.status(404).json({ error: 'Executive overview not found' });
+    return;
+  }
+
+  if (overview.status === 'PUBLISHED') {
+    res.status(400).json({ error: 'Published overview cannot change workflow status' });
+    return;
+  }
+
+  const updated = await prisma.executiveOverview.update({
+    where: { id: overview.id },
+    data:
+      parsed.data.status === 'PM_REVIEW'
+        ? {
+            status: 'PM_REVIEW',
+            reviewRequestedAt: new Date(),
+          }
+        : {
+            status: 'APPROVED',
+            approvedAt: new Date(),
+            approvedBy: parsed.data.approvedBy || 'PMO',
+          },
+  });
+
+  res.json(updated);
 });
 
 app.post('/api/executive-overviews/:overviewId/publish', async (req, res) => {
@@ -970,6 +1178,11 @@ app.post('/api/executive-overviews/:overviewId/publish', async (req, res) => {
 
   if (!overview) {
     res.status(404).json({ error: 'Executive overview not found' });
+    return;
+  }
+
+  if (overview.status !== 'APPROVED') {
+    res.status(400).json({ error: 'Executive overview must be approved before publication' });
     return;
   }
 
