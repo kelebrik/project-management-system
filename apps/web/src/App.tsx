@@ -557,7 +557,7 @@ const emptyWbsDependencyForm: WbsDependencyFormState = {
   lagDays: "0",
 };
 
-const GANTT_ROW_HEIGHT = 40;
+const GANTT_ROW_HEIGHT = 34;
 
 function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
   return {
@@ -1128,7 +1128,6 @@ function App() {
           fromY: number;
           toX: number;
           toY: number;
-          label: string;
           direction: "forward" | "backward";
         }>,
         height: 0,
@@ -1227,6 +1226,10 @@ function App() {
         item.status === "BLOCKED" ||
         item.status === "AT_RISK" ||
         (item.type === "MILESTONE" && item.status !== "DONE"),
+      summary:
+        item.children.length > 0 ||
+        item.type === "PHASE" ||
+        item.type === "WORK_PACKAGE",
       toneClass: wbsToneClass(item),
     }));
     const rowById = new Map(items.map((entry, index) => [entry.item.id, index]));
@@ -1259,7 +1262,6 @@ function App() {
           fromY: predecessorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
           toX: Math.max(0, Math.min(100, to)),
           toY: successorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
-          label: dependencyLabel(dependency),
           direction: to >= from ? ("forward" as const) : ("backward" as const),
         };
       })
@@ -1272,7 +1274,6 @@ function App() {
           fromY: number;
           toX: number;
           toY: number;
-          label: string;
           direction: "forward" | "backward";
         } => item !== null,
       );
@@ -3700,40 +3701,47 @@ function App() {
                                 </marker>
                               </defs>
                               {wbsGantt.dependencyLines.map((line) => {
+                                const horizontalGap = Math.abs(line.toX - line.fromX);
                                 const bendX =
                                   line.direction === "forward"
-                                    ? Math.max(line.fromX + 1.5, (line.fromX + line.toX) / 2)
-                                    : Math.min(line.fromX - 1.5, (line.fromX + line.toX) / 2);
+                                    ? Math.min(
+                                        99,
+                                        line.fromX + Math.max(1.2, horizontalGap / 2),
+                                      )
+                                    : Math.max(
+                                        1,
+                                        line.fromX - Math.max(1.2, horizontalGap / 2),
+                                      );
+                                const targetX =
+                                  line.direction === "forward"
+                                    ? Math.max(0, line.toX - 0.6)
+                                    : Math.min(100, line.toX + 0.6);
                                 return (
                                   <path
-                                    d={`M ${line.fromX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${line.toX} ${line.toY}`}
+                                    d={`M ${line.fromX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${targetX} ${line.toY}`}
                                     key={line.id}
                                     markerEnd="url(#gantt-arrow)"
                                   />
                                 );
                               })}
                             </svg>
-                            {wbsGantt.dependencyLines.map((line) => (
-                              <span
-                                className="gantt-link-label"
-                                key={line.id}
-                                style={{
-                                  left: `${Math.max(0, Math.min(96, (line.fromX + line.toX) / 2))}%`,
-                                  top: `${Math.max(4, Math.min(wbsGantt.height - 18, (line.fromY + line.toY) / 2 - 9))}px`,
-                                }}
-                              >
-                                {line.label}
-                              </span>
-                            ))}
                             {wbsGantt.items.map(
-                              ({ item, offset, width, milestone, critical, toneClass }) => (
+                              ({
+                                item,
+                                offset,
+                                width,
+                                milestone,
+                                critical,
+                                summary,
+                                toneClass,
+                              }) => (
                                 <div
                                   className="gantt-track-row"
                                   key={item.id}
                                   style={{ height: `${GANTT_ROW_HEIGHT}px` }}
                                 >
                                   <i
-                                    className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${critical ? "critical" : ""}`}
+                                    className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${summary ? "summary" : ""} ${critical ? "critical" : ""}`}
                                     style={{
                                       left: `${offset}%`,
                                       width: milestone ? undefined : `${width}%`,
