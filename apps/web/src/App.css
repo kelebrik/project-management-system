@@ -974,6 +974,7 @@ code {
 
 .gantt-timeline {
   background: #fff;
+  isolation: isolate;
   min-width: 520px;
   overflow: hidden;
   position: relative;
@@ -994,7 +995,7 @@ code {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 2;
+  z-index: 3;
 }
 
 .gantt-bar.done,
@@ -1062,6 +1063,10 @@ code {
   position: absolute;
 }
 
+.gantt-month-grid {
+  z-index: 0;
+}
+
 .gantt-month-grid span:nth-child(even) {
   background: transparent;
 }
@@ -1094,12 +1099,11 @@ code {
   height: 100%;
   overflow: visible;
   width: 100%;
-  z-index: 4;
+  z-index: 2;
 }
 
 .gantt-links path {
   fill: none;
-  marker-end: url(#gantt-arrow);
   opacity: 0.9;
   stroke: #f5a623;
   stroke-linecap: round;

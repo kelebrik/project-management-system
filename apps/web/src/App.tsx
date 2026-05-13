@@ -1172,8 +1172,12 @@ function App() {
         todayOffset: null as number | null,
         dependencyLines: [] as Array<{
           id: string;
+          fromSide: "start" | "end";
+          fromMilestone: boolean;
           fromX: number;
           fromY: number;
+          toSide: "start" | "end";
+          toMilestone: boolean;
           toX: number;
           toY: number;
           direction: "forward" | "backward";
@@ -1310,19 +1314,25 @@ function App() {
         const successorEnd = successor.milestone
           ? successor.offset
           : successor.offset + successor.width;
-        const from =
+        const fromSide =
           dependency.type === "SS" || dependency.type === "SF"
-            ? predecessorStart
-            : predecessorEnd;
-        const to =
+            ? ("start" as const)
+            : ("end" as const);
+        const toSide =
           dependency.type === "FF" || dependency.type === "SF"
-            ? successorEnd
-            : successorStart;
+            ? ("end" as const)
+            : ("start" as const);
+        const from = fromSide === "start" ? predecessorStart : predecessorEnd;
+        const to = toSide === "start" ? successorStart : successorEnd;
         const direction = to >= from ? ("forward" as const) : ("backward" as const);
         return {
           id: dependency.id,
+          fromSide,
+          fromMilestone: predecessor.milestone,
           fromX: Math.max(0, Math.min(100, from)),
           fromY: predecessorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
+          toSide,
+          toMilestone: successor.milestone,
           toX: Math.max(0, Math.min(100, to)),
           toY: successorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
           direction,
@@ -1333,8 +1343,12 @@ function App() {
           item,
         ): item is {
           id: string;
+          fromSide: "start" | "end";
+          fromMilestone: boolean;
           fromX: number;
           fromY: number;
+          toSide: "start" | "end";
+          toMilestone: boolean;
           toX: number;
           toY: number;
           direction: "forward" | "backward";
@@ -3805,21 +3819,32 @@ function App() {
                                 preserveAspectRatio="none"
                                 aria-hidden="true"
                               >
-                                <defs>
-                                  <marker
-                                    id="gantt-arrow"
-                                    markerHeight="4"
-                                    markerWidth="4"
-                                    orient="auto"
-                                    refX="3"
-                                    refY="2"
-                                  >
-                                    <path d="M0,0 L4,2 L0,4 Z" />
-                                  </marker>
-                                </defs>
                                 {wbsGantt.dependencyLines.map((line) => {
-                                  const startX = line.fromX;
-                                  const endX = line.toX;
+                                  const endpointInset = 0.35;
+                                  const startX = line.fromMilestone
+                                    ? line.fromX
+                                    : Math.max(
+                                        0,
+                                        Math.min(
+                                          100,
+                                          line.fromX +
+                                            (line.fromSide === "start"
+                                              ? endpointInset
+                                              : -endpointInset),
+                                        ),
+                                      );
+                                  const endX = line.toMilestone
+                                    ? line.toX
+                                    : Math.max(
+                                        0,
+                                        Math.min(
+                                          100,
+                                          line.toX +
+                                            (line.toSide === "start"
+                                              ? endpointInset
+                                              : -endpointInset),
+                                        ),
+                                      );
                                   const horizontalGap = Math.abs(endX - startX);
                                   const connectorStub =
                                     horizontalGap === 0
@@ -3841,7 +3866,6 @@ function App() {
                                     <path
                                       d={`M ${startX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${endX} ${line.toY}`}
                                       key={line.id}
-                                      markerEnd="url(#gantt-arrow)"
                                     />
                                   );
                                 })}
