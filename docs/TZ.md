@@ -598,6 +598,7 @@ flowchart LR
 - Jira issue snapshot обновляется по расписанию и вручную кнопкой “Sync now”.
 - Open Issues List показывает открытые blocker/high priority issues из Jira и внутренние issues из RAID в одном списке.
 - Один Open Issue может быть связан с несколькими Jira tickets; связи хранятся отдельным списком и используются в Executive Overview evidence.
+- Open Issue должен поддерживать жизненный цикл: Open, In Progress, Blocked, Resolved, Closed; закрытые проблемы исключаются из активного Open Issues List, но остаются в истории проекта.
 - Executive overview использует Open Issues List как источник блока “Key blockers / decisions required”.
 
 ### Эскиз

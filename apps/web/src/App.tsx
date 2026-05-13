@@ -71,6 +71,16 @@ type IssueFormState = {
   jiraLinks: JiraLinkDraft[];
 };
 
+type IssueEditDraft = {
+  title: string;
+  severity: Issue['severity'];
+  status: string;
+  owner: string;
+  impact: string;
+  decisionRequired: boolean;
+  dueDate: string;
+};
+
 type TaskJiraDraft = {
   jiraTicketKey: string;
   jiraTicketUrl: string;
@@ -146,6 +156,18 @@ const emptyIssueForm: IssueFormState = {
   jiraLinks: [{ jiraKey: '', jiraUrl: '' }],
 };
 
+function issueToDraft(issue: Issue): IssueEditDraft {
+  return {
+    title: issue.title,
+    severity: issue.severity,
+    status: issue.status,
+    owner: issue.owner,
+    impact: issue.impact,
+    decisionRequired: issue.decisionRequired,
+    dueDate: issue.dueDate ? issue.dueDate.slice(0, 10) : '',
+  };
+}
+
 function currency(value: string) {
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
@@ -189,6 +211,7 @@ function App() {
   const [issueForm, setIssueForm] = useState<IssueFormState>(emptyIssueForm);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>({});
   const [issueLinkDrafts, setIssueLinkDrafts] = useState<Record<string, JiraLinkDraft>>({});
+  const [issueEditDrafts, setIssueEditDrafts] = useState<Record<string, IssueEditDraft>>({});
 
   useEffect(() => {
     fetch(`${apiBase}/api/projects`)
@@ -259,6 +282,7 @@ function App() {
     setIssueLinkDrafts(
       Object.fromEntries(nextProject.issues.map((issue) => [issue.id, { jiraKey: '', jiraUrl: '' }])),
     );
+    setIssueEditDrafts(Object.fromEntries(nextProject.issues.map((issue) => [issue.id, issueToDraft(issue)])));
   }
 
   async function refreshProject(projectId = project?.id) {
@@ -411,6 +435,70 @@ function App() {
       setNotice('Jira ticket удален из Open Issue');
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : 'Не удалось удалить Jira ticket');
+    }
+  }
+
+  function updateIssueDraft(issueId: string, patch: Partial<IssueEditDraft>) {
+    const current = issueEditDrafts[issueId];
+    if (!current) return;
+    setIssueEditDrafts({
+      ...issueEditDrafts,
+      [issueId]: { ...current, ...patch },
+    });
+  }
+
+  async function saveOpenIssue(issueId: string) {
+    const draft = issueEditDrafts[issueId];
+    if (!draft) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/open-issues/${issueId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...draft,
+          dueDate: draft.dueDate || null,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось сохранить issue');
+      }
+      await refreshProject();
+      setNotice('Open Issue обновлен');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить issue');
+    }
+  }
+
+  async function closeOpenIssue(issueId: string) {
+    const current = issueEditDrafts[issueId];
+    if (!current) return;
+    setIssueEditDrafts({
+      ...issueEditDrafts,
+      [issueId]: { ...current, status: 'Resolved', decisionRequired: false },
+    });
+    await saveOpenIssueWithPayload(issueId, { status: 'Resolved', decisionRequired: false });
+  }
+
+  async function saveOpenIssueWithPayload(issueId: string, payload: Partial<IssueEditDraft>) {
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/open-issues/${issueId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось сохранить issue');
+      }
+      await refreshProject();
+      setNotice('Open Issue обновлен');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить issue');
     }
   }
 
@@ -618,6 +706,62 @@ function App() {
                         <span className={`severity ${issue.severity.toLowerCase()}`}>{issue.severity}</span>
                         <h3>{issue.title}</h3>
                         <p>{issue.impact}</p>
+                        {issueEditDrafts[issue.id] && (
+                          <div className="issue-edit-grid">
+                            <input
+                              value={issueEditDrafts[issue.id].title}
+                              onChange={(event) => updateIssueDraft(issue.id, { title: event.target.value })}
+                              placeholder="Title"
+                            />
+                            <select
+                              value={issueEditDrafts[issue.id].severity}
+                              onChange={(event) => updateIssueDraft(issue.id, { severity: event.target.value as Issue['severity'] })}
+                            >
+                              <option value="CRITICAL">Critical</option>
+                              <option value="HIGH">High</option>
+                              <option value="MEDIUM">Medium</option>
+                              <option value="LOW">Low</option>
+                            </select>
+                            <select
+                              value={issueEditDrafts[issue.id].status}
+                              onChange={(event) => updateIssueDraft(issue.id, { status: event.target.value })}
+                            >
+                              <option value="Open">Open</option>
+                              <option value="In Progress">In Progress</option>
+                              <option value="Blocked">Blocked</option>
+                              <option value="Resolved">Resolved</option>
+                              <option value="Closed">Closed</option>
+                            </select>
+                            <input
+                              value={issueEditDrafts[issue.id].owner}
+                              onChange={(event) => updateIssueDraft(issue.id, { owner: event.target.value })}
+                              placeholder="Owner"
+                            />
+                            <input
+                              type="date"
+                              value={issueEditDrafts[issue.id].dueDate}
+                              onChange={(event) => updateIssueDraft(issue.id, { dueDate: event.target.value })}
+                            />
+                            <label className="checkbox-line compact-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={issueEditDrafts[issue.id].decisionRequired}
+                                onChange={(event) => updateIssueDraft(issue.id, { decisionRequired: event.target.checked })}
+                              />
+                              Decision
+                            </label>
+                            <textarea
+                              className="span-2"
+                              value={issueEditDrafts[issue.id].impact}
+                              onChange={(event) => updateIssueDraft(issue.id, { impact: event.target.value })}
+                              rows={2}
+                            />
+                            <div className="issue-actions">
+                              <button type="button" onClick={() => saveOpenIssue(issue.id)}>Save issue</button>
+                              <button type="button" onClick={() => closeOpenIssue(issue.id)}>Resolve</button>
+                            </div>
+                          </div>
+                        )}
                         <div className="jira-link-list">
                           {issue.jiraLinks.map((link) => (
                             <span className="jira-chip" key={link.id}>

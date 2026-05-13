@@ -359,6 +359,44 @@ code {
   margin-top: 10px;
 }
 
+.issue-edit-grid {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(220px, 1fr) 140px 140px minmax(120px, 0.7fr) 150px 110px;
+  margin-top: 12px;
+  padding: 10px;
+}
+
+.issue-edit-grid input,
+.issue-edit-grid select,
+.issue-edit-grid textarea,
+.issue-edit-grid button {
+  font-size: 12px;
+  padding: 7px 8px;
+}
+
+.issue-edit-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+.compact-checkbox {
+  align-items: center;
+  align-content: center;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.issue-actions {
+  display: flex;
+  gap: 8px;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
 .issue-link-edit input,
 .issue-link-edit button {
   font-size: 12px;
@@ -566,6 +604,7 @@ code {
   .details,
   .form-grid,
   .two-col,
+  .issue-edit-grid,
   .issue-link-edit,
   .task-edit,
   .overview-columns {

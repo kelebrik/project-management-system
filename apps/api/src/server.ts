@@ -47,6 +47,7 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
       jiraIntegration: true,
       tasks: { orderBy: { updatedAt: 'desc' } },
       issues: {
+        where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },
         orderBy: [{ severity: 'desc' }, { updatedAt: 'desc' }],
         include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
       },
@@ -194,6 +195,49 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
   });
 
   res.status(201).json(issue);
+});
+
+const updateIssueSchema = z.object({
+  title: z.string().trim().min(3).optional(),
+  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
+  status: z.enum(['Open', 'In Progress', 'Blocked', 'Resolved', 'Closed']).optional(),
+  owner: z.string().trim().min(1).optional(),
+  impact: z.string().trim().min(3).optional(),
+  decisionRequired: z.boolean().optional(),
+  dueDate: z.string().trim().optional().nullable(),
+});
+
+app.patch('/api/open-issues/:issueId', async (req, res) => {
+  const parsed = updateIssueSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const issue = await prisma.issue.findUnique({
+    where: { id: req.params.issueId },
+  });
+
+  if (!issue) {
+    res.status(404).json({ error: 'Issue not found' });
+    return;
+  }
+
+  const updated = await prisma.issue.update({
+    where: { id: issue.id },
+    data: {
+      ...parsed.data,
+      dueDate:
+        parsed.data.dueDate === undefined
+          ? undefined
+          : parsed.data.dueDate
+            ? new Date(parsed.data.dueDate)
+            : null,
+    },
+    include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
+  });
+
+  res.json(updated);
 });
 
 const issueJiraLinkSchema = z.object({
