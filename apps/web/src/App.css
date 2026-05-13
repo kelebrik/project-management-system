@@ -431,6 +431,29 @@ code {
   padding: 8px 10px;
 }
 
+.overview-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.overview-status-line {
+  background: #f8fafc;
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+}
+
+.overview-status-line span {
+  color: #64748b;
+  font-size: 12px;
+}
+
 .overview-summary {
   color: #1f2937;
   font-size: 16px;
@@ -438,10 +461,23 @@ code {
   margin-bottom: 18px;
 }
 
+.overview-columns {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
 .decision {
   display: grid;
   justify-content: stretch;
   margin: 10px 0 18px;
+}
+
+.empty-state {
+  background: #f8fafc;
+  border-radius: 6px;
+  color: #64748b;
+  padding: 18px;
 }
 
 .evidence-list {
@@ -477,7 +513,8 @@ code {
   .details,
   .form-grid,
   .two-col,
-  .task-edit {
+  .task-edit,
+  .overview-columns {
     grid-template-columns: 1fr;
   }
 

@@ -10,7 +10,7 @@ Corporate project management system with PM web UI, admin back office scope, Jir
 - Jira ticket links on tasks.
 - Jira issue snapshot endpoint and sync skeleton.
 - Open Issues List from Jira/internal sources.
-- Executive Overview draft model.
+- Executive Overview deterministic generation, evidence list, versioning, and publish action.
 - Render blueprint in `render.yaml`.
 - Detailed technical specification in `docs/TZ.md`.
 

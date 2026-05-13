@@ -201,6 +201,129 @@ app.patch('/api/tasks/:taskId/jira-link', async (req, res) => {
   res.json(updated);
 });
 
+function money(value: unknown) {
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
+
+function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectForOverviewGeneration>>) {
+  if (!project) {
+    throw new Error('Project not found');
+  }
+
+  const budgetVariance = (Number(project.budgetForecast) / Number(project.budgetPlanned) - 1) * 100;
+  const criticalIssues = project.issues.filter((issue) => issue.severity === 'CRITICAL');
+  const decisionIssues = project.issues.filter((issue) => issue.decisionRequired);
+  const topIssue = project.issues[0];
+  const scheduleText =
+    project.scheduleVariance > 0
+      ? `отклонение по срокам +${project.scheduleVariance} дней`
+      : project.scheduleVariance < 0
+        ? `опережение графика ${Math.abs(project.scheduleVariance)} дней`
+        : 'отклонений по срокам нет';
+
+  const executiveSummary = [
+    `${project.name} находится в статусе ${project.rag}.`,
+    `Готовность составляет ${project.progress}%, ${scheduleText}.`,
+    `Бюджетный forecast: ${money(project.budgetForecast)} (${budgetVariance >= 0 ? '+' : ''}${budgetVariance.toFixed(1)}% к плану).`,
+    criticalIssues.length > 0
+      ? `Критических открытых проблем: ${criticalIssues.length}; ключевая проблема: ${topIssue?.title}.`
+      : topIssue
+        ? `Ключевая открытая проблема: ${topIssue.title}.`
+        : 'Критических открытых проблем не зафиксировано.',
+    decisionIssues.length > 0
+      ? `Для руководства требуется ${decisionIssues.length} решение(й).`
+      : 'Новых решений от руководства сейчас не требуется.',
+  ].join(' ');
+
+  const decisions = decisionIssues.slice(0, 5).map((issue) => ({
+    title: issue.title,
+    impactIfApproved: issue.impact,
+    impactIfDelayed: `Сохраняется риск по владельцу ${issue.owner}; срок решения: ${
+      issue.dueDate ? issue.dueDate.toISOString().slice(0, 10) : 'не задан'
+    }`,
+    deadline: issue.dueDate ? issue.dueDate.toISOString().slice(0, 10) : null,
+    source: issue.jiraTicketUrl ?? 'Internal RAID',
+  }));
+
+  const evidence = [
+    { metric: 'Project health', source: `Project ${project.code} / RAG ${project.rag}` },
+    { metric: 'Schedule variance', source: `Project plan snapshot / ${project.scheduleVariance} days` },
+    { metric: 'Budget forecast', source: `Finance forecast / ${money(project.budgetForecast)}` },
+    { metric: 'Open issues', source: `${project.issues.length} open issues in unified list` },
+    { metric: 'Jira snapshot', source: `${project.jiraSnapshots.length} synchronized Jira issues` },
+    ...project.issues.slice(0, 3).map((issue) => ({
+      metric: issue.title,
+      source: issue.jiraTicketUrl ?? `${issue.source} issue owned by ${issue.owner}`,
+    })),
+  ];
+
+  return { executiveSummary, decisions, evidence };
+}
+
+async function getProjectForOverviewGeneration(projectId: string) {
+  return prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      issues: {
+        where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },
+        orderBy: [{ decisionRequired: 'desc' }, { severity: 'desc' }, { updatedAt: 'desc' }],
+      },
+      jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
+      overviews: { orderBy: { version: 'desc' }, take: 1 },
+    },
+  });
+}
+
+app.post('/api/projects/:projectId/executive-overviews/generate', async (req, res) => {
+  const project = await getProjectForOverviewGeneration(req.params.projectId);
+
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const latestVersion = project.overviews[0]?.version ?? 0;
+  const generated = generateExecutiveSummary(project);
+  const overview = await prisma.executiveOverview.create({
+    data: {
+      projectId: project.id,
+      version: latestVersion + 1,
+      status: 'GENERATED',
+      generatedAt: new Date(),
+      executiveSummary: generated.executiveSummary,
+      decisions: generated.decisions,
+      evidence: generated.evidence,
+    },
+  });
+
+  res.status(201).json(overview);
+});
+
+app.post('/api/executive-overviews/:overviewId/publish', async (req, res) => {
+  const overview = await prisma.executiveOverview.findUnique({
+    where: { id: req.params.overviewId },
+  });
+
+  if (!overview) {
+    res.status(404).json({ error: 'Executive overview not found' });
+    return;
+  }
+
+  const published = await prisma.executiveOverview.update({
+    where: { id: overview.id },
+    data: {
+      status: 'PUBLISHED',
+      publishedAt: new Date(),
+    },
+  });
+
+  res.json(published);
+});
+
 app.post('/api/projects/:projectId/jira/sync', async (req, res) => {
   const project = await prisma.project.findUnique({
     where: { id: req.params.projectId },

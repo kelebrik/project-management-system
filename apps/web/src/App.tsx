@@ -107,12 +107,15 @@ type ExecutiveOverview = {
   id: string;
   version: number;
   status: string;
+  generatedAt: string | null;
+  publishedAt: string | null;
   executiveSummary: string;
   decisions: Array<{
     title: string;
     impactIfApproved: string;
     impactIfDelayed: string;
-    deadline: string;
+    deadline: string | null;
+    source?: string;
   }>;
   evidence: Array<{
     metric: string;
@@ -162,6 +165,8 @@ function App() {
   const [syncing, setSyncing] = useState(false);
   const [savingJira, setSavingJira] = useState(false);
   const [creatingIssue, setCreatingIssue] = useState(false);
+  const [generatingOverview, setGeneratingOverview] = useState(false);
+  const [publishingOverview, setPublishingOverview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [jiraForm, setJiraForm] = useState<JiraFormState>({
@@ -327,6 +332,50 @@ function App() {
       setNotice('Jira-ссылка задачи сохранена');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить ссылку');
+    }
+  }
+
+  async function generateOverview() {
+    if (!project) return;
+    setGeneratingOverview(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/projects/${project.id}/executive-overviews/generate`, {
+        method: 'POST',
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error ?? 'Не удалось сгенерировать overview');
+      }
+      await refreshProject(project.id);
+      setNotice(`Executive overview v${result.version} сгенерирован`);
+    } catch (generateError) {
+      setError(generateError instanceof Error ? generateError.message : 'Не удалось сгенерировать overview');
+    } finally {
+      setGeneratingOverview(false);
+    }
+  }
+
+  async function publishOverview() {
+    if (!latestOverview) return;
+    setPublishingOverview(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/executive-overviews/${latestOverview.id}/publish`, {
+        method: 'POST',
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error ?? 'Не удалось опубликовать overview');
+      }
+      await refreshProject();
+      setNotice(`Executive overview v${result.version} опубликован`);
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : 'Не удалось опубликовать overview');
+    } finally {
+      setPublishingOverview(false);
     }
   }
 
@@ -673,28 +722,58 @@ function App() {
                 <div className="panel-title">
                   <div>
                     <h2>Executive Overview</h2>
-                    <p>Черновик management pack для топ-менеджмента</p>
+                    <p>Детерминированная генерация management pack из текущих данных проекта</p>
                   </div>
-                  <span className="version">v{latestOverview?.version ?? 0}</span>
+                  <div className="overview-actions">
+                    <button type="button" onClick={generateOverview} disabled={generatingOverview}>
+                      {generatingOverview ? 'Generating...' : 'Generate new version'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={publishOverview}
+                      disabled={!latestOverview || latestOverview.status === 'PUBLISHED' || publishingOverview}
+                    >
+                      {publishingOverview ? 'Publishing...' : 'Publish'}
+                    </button>
+                    <span className="version">v{latestOverview?.version ?? 0}</span>
+                  </div>
                 </div>
                 {latestOverview && (
                   <>
+                    <div className="overview-status-line">
+                      <span>Status: <b>{latestOverview.status}</b></span>
+                      <span>Generated: {latestOverview.generatedAt ? date(latestOverview.generatedAt) : 'не задано'}</span>
+                      <span>Published: {latestOverview.publishedAt ? date(latestOverview.publishedAt) : 'not published'}</span>
+                    </div>
                     <p className="overview-summary">{latestOverview.executiveSummary}</p>
-                    <h3>Нужные решения</h3>
-                    {latestOverview.decisions.map((decision) => (
-                      <div className="decision" key={decision.title}>
-                        <strong>{decision.title}</strong>
-                        <span>Approve: {decision.impactIfApproved}</span>
-                        <span>Delay: {decision.impactIfDelayed}</span>
-                      </div>
-                    ))}
-                    <h3>Evidence</h3>
-                    <div className="evidence-list">
-                      {latestOverview.evidence.map((item) => (
-                        <span key={`${item.metric}-${item.source}`}>{item.metric}: {item.source}</span>
-                      ))}
+                    <div className="overview-columns">
+                      <section>
+                        <h3>Нужные решения</h3>
+                        {latestOverview.decisions.length === 0 && <p>Решения руководства не требуются.</p>}
+                        {latestOverview.decisions.map((decision) => (
+                          <div className="decision" key={decision.title}>
+                            <strong>{decision.title}</strong>
+                            <span>Approve: {decision.impactIfApproved}</span>
+                            <span>Delay: {decision.impactIfDelayed}</span>
+                            {decision.source && <span>Source: {decision.source}</span>}
+                          </div>
+                        ))}
+                      </section>
+                      <section>
+                        <h3>Evidence</h3>
+                        <div className="evidence-list">
+                          {latestOverview.evidence.map((item) => (
+                            <span key={`${item.metric}-${item.source}`}>{item.metric}: {item.source}</span>
+                          ))}
+                        </div>
+                      </section>
                     </div>
                   </>
+                )}
+                {!latestOverview && (
+                  <div className="empty-state">
+                    Нажмите Generate new version, чтобы собрать первый overview из health, бюджета, Jira snapshot и Open Issues List.
+                  </div>
                 )}
               </article>
             </section>
