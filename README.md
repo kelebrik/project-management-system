@@ -9,7 +9,7 @@ Corporate project management system with PM web UI, admin back office scope, Jir
 - Prisma/PostgreSQL data model.
 - Jira ticket links on tasks.
 - Jira issue snapshot endpoint and sync skeleton.
-- Open Issues List from Jira/internal sources.
+- Open Issues List from Jira/internal sources, with multiple Jira tickets linked to one open issue.
 - Executive Overview deterministic generation, evidence list, versioning, and publish action.
 - Render blueprint in `render.yaml`.
 - Detailed technical specification in `docs/TZ.md`.

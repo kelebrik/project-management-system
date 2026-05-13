@@ -70,6 +70,18 @@ async function main() {
             dueDate: new Date('2026-05-17T00:00:00.000Z'),
             jiraTicketKey: 'ERP-1842',
             jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1842',
+            jiraLinks: {
+              create: [
+                {
+                  jiraKey: 'ERP-1842',
+                  jiraUrl: 'https://example.atlassian.net/browse/ERP-1842',
+                },
+                {
+                  jiraKey: 'ERP-1843',
+                  jiraUrl: 'https://example.atlassian.net/browse/ERP-1843',
+                },
+              ],
+            },
           },
           {
             source: 'INTERNAL',
@@ -90,6 +102,14 @@ async function main() {
             decisionRequired: true,
             jiraTicketKey: 'ERP-1901',
             jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1901',
+            jiraLinks: {
+              create: [
+                {
+                  jiraKey: 'ERP-1901',
+                  jiraUrl: 'https://example.atlassian.net/browse/ERP-1901',
+                },
+              ],
+            },
           },
         ],
       },

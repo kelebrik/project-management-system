@@ -68,13 +68,23 @@ type IssueFormState = {
   impact: string;
   decisionRequired: boolean;
   dueDate: string;
-  jiraTicketKey: string;
-  jiraTicketUrl: string;
+  jiraLinks: JiraLinkDraft[];
 };
 
 type TaskJiraDraft = {
   jiraTicketKey: string;
   jiraTicketUrl: string;
+};
+
+type IssueJiraLink = {
+  id: string;
+  jiraKey: string;
+  jiraUrl: string;
+};
+
+type JiraLinkDraft = {
+  jiraKey: string;
+  jiraUrl: string;
 };
 
 type Issue = {
@@ -88,6 +98,7 @@ type Issue = {
   decisionRequired: boolean;
   dueDate: string | null;
   jiraTicketUrl: string | null;
+  jiraLinks: IssueJiraLink[];
 };
 
 type JiraIssueSnapshot = {
@@ -132,8 +143,7 @@ const emptyIssueForm: IssueFormState = {
   impact: '',
   decisionRequired: false,
   dueDate: '',
-  jiraTicketKey: '',
-  jiraTicketUrl: '',
+  jiraLinks: [{ jiraKey: '', jiraUrl: '' }],
 };
 
 function currency(value: string) {
@@ -178,6 +188,7 @@ function App() {
   });
   const [issueForm, setIssueForm] = useState<IssueFormState>(emptyIssueForm);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>({});
+  const [issueLinkDrafts, setIssueLinkDrafts] = useState<Record<string, JiraLinkDraft>>({});
 
   useEffect(() => {
     fetch(`${apiBase}/api/projects`)
@@ -245,6 +256,9 @@ function App() {
         ]),
       ),
     );
+    setIssueLinkDrafts(
+      Object.fromEntries(nextProject.issues.map((issue) => [issue.id, { jiraKey: '', jiraUrl: '' }])),
+    );
   }
 
   async function refreshProject(projectId = project?.id) {
@@ -288,8 +302,7 @@ function App() {
       const payload = {
         ...issueForm,
         dueDate: issueForm.dueDate || null,
-        jiraTicketKey: issueForm.jiraTicketKey || null,
-        jiraTicketUrl: issueForm.jiraTicketUrl || null,
+        jiraLinks: issueForm.jiraLinks.filter((link) => link.jiraKey.trim() && link.jiraUrl.trim()),
       };
       const response = await fetch(`${apiBase}/api/projects/${project.id}/open-issues`, {
         method: 'POST',
@@ -332,6 +345,72 @@ function App() {
       setNotice('Jira-ссылка задачи сохранена');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить ссылку');
+    }
+  }
+
+  function updateIssueFormLink(index: number, patch: Partial<JiraLinkDraft>) {
+    setIssueForm({
+      ...issueForm,
+      jiraLinks: issueForm.jiraLinks.map((link, linkIndex) =>
+        linkIndex === index ? { ...link, ...patch } : link,
+      ),
+    });
+  }
+
+  function addIssueFormLink() {
+    setIssueForm({
+      ...issueForm,
+      jiraLinks: [...issueForm.jiraLinks, { jiraKey: '', jiraUrl: '' }],
+    });
+  }
+
+  function removeIssueFormLink(index: number) {
+    setIssueForm({
+      ...issueForm,
+      jiraLinks:
+        issueForm.jiraLinks.length === 1
+          ? [{ jiraKey: '', jiraUrl: '' }]
+          : issueForm.jiraLinks.filter((_, linkIndex) => linkIndex !== index),
+    });
+  }
+
+  async function addIssueJiraLink(issueId: string) {
+    const draft = issueLinkDrafts[issueId];
+    if (!draft?.jiraKey || !draft?.jiraUrl) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/open-issues/${issueId}/jira-links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось добавить Jira ticket');
+      }
+      await refreshProject();
+      setNotice('Jira ticket добавлен к Open Issue');
+    } catch (addError) {
+      setError(addError instanceof Error ? addError.message : 'Не удалось добавить Jira ticket');
+    }
+  }
+
+  async function removeIssueJiraLink(issueId: string, linkId: string) {
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/open-issues/${issueId}/jira-links/${linkId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error ?? 'Не удалось удалить Jira ticket');
+      }
+      await refreshProject();
+      setNotice('Jira ticket удален из Open Issue');
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : 'Не удалось удалить Jira ticket');
     }
   }
 
@@ -537,8 +616,46 @@ function App() {
                     <div className="issue-row" key={issue.id}>
                       <div>
                         <span className={`severity ${issue.severity.toLowerCase()}`}>{issue.severity}</span>
-                        <h3>{issue.jiraTicketUrl ? <a href={issue.jiraTicketUrl} target="_blank" rel="noreferrer">{issue.title}</a> : issue.title}</h3>
+                        <h3>{issue.title}</h3>
                         <p>{issue.impact}</p>
+                        <div className="jira-link-list">
+                          {issue.jiraLinks.map((link) => (
+                            <span className="jira-chip" key={link.id}>
+                              <a href={link.jiraUrl} target="_blank" rel="noreferrer">{link.jiraKey}</a>
+                              <button type="button" onClick={() => removeIssueJiraLink(issue.id, link.id)}>x</button>
+                            </span>
+                          ))}
+                          {issue.jiraLinks.length === 0 && <span className="muted-inline">Jira tickets not linked</span>}
+                        </div>
+                        <div className="issue-link-edit">
+                          <input
+                            value={issueLinkDrafts[issue.id]?.jiraKey ?? ''}
+                            onChange={(event) =>
+                              setIssueLinkDrafts({
+                                ...issueLinkDrafts,
+                                [issue.id]: {
+                                  ...(issueLinkDrafts[issue.id] ?? { jiraUrl: '' }),
+                                  jiraKey: event.target.value,
+                                },
+                              })
+                            }
+                            placeholder="Jira key"
+                          />
+                          <input
+                            value={issueLinkDrafts[issue.id]?.jiraUrl ?? ''}
+                            onChange={(event) =>
+                              setIssueLinkDrafts({
+                                ...issueLinkDrafts,
+                                [issue.id]: {
+                                  ...(issueLinkDrafts[issue.id] ?? { jiraKey: '' }),
+                                  jiraUrl: event.target.value,
+                                },
+                              })
+                            }
+                            placeholder="Jira URL"
+                          />
+                          <button type="button" onClick={() => addIssueJiraLink(issue.id)}>Add</button>
+                        </div>
                       </div>
                       <div className="issue-meta">
                         <strong>{issue.source}</strong>
@@ -616,23 +733,24 @@ function App() {
                       Требует решения
                     </label>
                   </div>
-                  <div className="two-col">
-                    <label>
-                      Jira key
-                      <input
-                        value={issueForm.jiraTicketKey}
-                        onChange={(event) => setIssueForm({ ...issueForm, jiraTicketKey: event.target.value })}
-                        placeholder="ERP-1842"
-                      />
-                    </label>
-                    <label>
-                      Jira URL
-                      <input
-                        value={issueForm.jiraTicketUrl}
-                        onChange={(event) => setIssueForm({ ...issueForm, jiraTicketUrl: event.target.value })}
-                        placeholder="https://company.atlassian.net/browse/ERP-1842"
-                      />
-                    </label>
+                  <div className="jira-links-editor">
+                    <div className="subhead">Связанные Jira tickets</div>
+                    {issueForm.jiraLinks.map((link, index) => (
+                      <div className="issue-link-edit" key={index}>
+                        <input
+                          value={link.jiraKey}
+                          onChange={(event) => updateIssueFormLink(index, { jiraKey: event.target.value })}
+                          placeholder="ERP-1842"
+                        />
+                        <input
+                          value={link.jiraUrl}
+                          onChange={(event) => updateIssueFormLink(index, { jiraUrl: event.target.value })}
+                          placeholder="https://company.atlassian.net/browse/ERP-1842"
+                        />
+                        <button type="button" onClick={() => removeIssueFormLink(index)}>Remove</button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={addIssueFormLink}>+ Add Jira ticket</button>
                   </div>
                   <button type="submit" disabled={creatingIssue}>{creatingIssue ? 'Создаю...' : 'Создать issue'}</button>
                 </form>

@@ -581,7 +581,7 @@ flowchart LR
   - decision required;
   - escalation status;
   - source: Jira/Internal;
-  - link to Jira ticket or internal issue.
+  - links to one or more Jira tickets or internal issue.
 - Bulk operations.
 - Mentions, notifications, subscriptions.
 - SLA/overdue logic.
@@ -597,6 +597,7 @@ flowchart LR
 - У каждой задачи можно заполнить `jiraTicketUrl`; система валидирует URL по настроенному Jira base URL проекта.
 - Jira issue snapshot обновляется по расписанию и вручную кнопкой “Sync now”.
 - Open Issues List показывает открытые blocker/high priority issues из Jira и внутренние issues из RAID в одном списке.
+- Один Open Issue может быть связан с несколькими Jira tickets; связи хранятся отдельным списком и используются в Executive Overview evidence.
 - Executive overview использует Open Issues List как источник блока “Key blockers / decisions required”.
 
 ### Эскиз
@@ -1182,6 +1183,7 @@ overall_score =
 | BudgetLine | id, project_id, category, planned, actual, forecast |
 | Risk | id, project_id, probability, impact, score, owner, status |
 | Issue | id, project_id, source, jira_ticket_key, jira_ticket_url, severity, impact, owner, status, decision_required |
+| IssueJiraLink | id, issue_id, jira_key, jira_url, created_at |
 | JiraIntegration | id, project_id, base_url, board_url, project_key, issues_jql, open_issues_jql, sync_status |
 | JiraIssueSnapshot | id, project_id, issue_key, issue_url, summary, status, priority, assignee, issue_type, sprint, updated_at, synced_at |
 | ChangeRequest | id, project_id, type, impact, status, approval_route |

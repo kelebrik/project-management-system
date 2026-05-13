@@ -46,7 +46,10 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
     include: {
       jiraIntegration: true,
       tasks: { orderBy: { updatedAt: 'desc' } },
-      issues: { orderBy: [{ severity: 'desc' }, { updatedAt: 'desc' }] },
+      issues: {
+        orderBy: [{ severity: 'desc' }, { updatedAt: 'desc' }],
+        include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
+      },
       jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
       overviews: { orderBy: { version: 'desc' }, take: 1 },
     },
@@ -67,6 +70,7 @@ app.get('/api/projects/:projectId/open-issues', async (req, res) => {
       status: { notIn: ['Done', 'Closed', 'Resolved'] },
     },
     orderBy: [{ decisionRequired: 'desc' }, { severity: 'desc' }, { updatedAt: 'desc' }],
+    include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
   });
 
   res.json(issues);
@@ -121,6 +125,15 @@ const createIssueSchema = z.object({
   dueDate: z.string().trim().optional().nullable(),
   jiraTicketKey: z.string().trim().optional().nullable(),
   jiraTicketUrl: z.string().trim().url().optional().nullable(),
+  jiraLinks: z
+    .array(
+      z.object({
+        jiraKey: z.string().trim().min(1),
+        jiraUrl: z.string().trim().url(),
+      }),
+    )
+    .optional()
+    .default([]),
 });
 
 app.post('/api/projects/:projectId/open-issues', async (req, res) => {
@@ -140,8 +153,19 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
     return;
   }
 
+  const jiraLinks = [
+    ...parsed.data.jiraLinks,
+    ...(parsed.data.jiraTicketKey && parsed.data.jiraTicketUrl
+      ? [{ jiraKey: parsed.data.jiraTicketKey, jiraUrl: parsed.data.jiraTicketUrl }]
+      : []),
+  ].filter(
+    (link, index, allLinks) =>
+      allLinks.findIndex((candidate) => candidate.jiraKey === link.jiraKey) === index,
+  );
+
   const jiraBaseUrl = project.jiraIntegration?.baseUrl;
-  if (jiraBaseUrl && parsed.data.jiraTicketUrl && !parsed.data.jiraTicketUrl.startsWith(jiraBaseUrl)) {
+  const invalidLink = jiraLinks.find((link) => jiraBaseUrl && !link.jiraUrl.startsWith(jiraBaseUrl));
+  if (jiraBaseUrl && invalidLink) {
     res.status(400).json({ error: `Jira URL must start with ${jiraBaseUrl}` });
     return;
   }
@@ -149,7 +173,7 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
   const issue = await prisma.issue.create({
     data: {
       projectId: project.id,
-      source: parsed.data.jiraTicketUrl ? 'JIRA' : 'INTERNAL',
+      source: jiraLinks.length > 0 ? 'JIRA' : 'INTERNAL',
       title: parsed.data.title,
       severity: parsed.data.severity,
       status: 'Open',
@@ -157,12 +181,109 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
       impact: parsed.data.impact,
       decisionRequired: parsed.data.decisionRequired,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-      jiraTicketKey: parsed.data.jiraTicketKey,
-      jiraTicketUrl: parsed.data.jiraTicketUrl,
+      jiraTicketKey: jiraLinks[0]?.jiraKey,
+      jiraTicketUrl: jiraLinks[0]?.jiraUrl,
+      jiraLinks: {
+        create: jiraLinks.map((link) => ({
+          jiraKey: link.jiraKey,
+          jiraUrl: link.jiraUrl,
+        })),
+      },
     },
+    include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
   });
 
   res.status(201).json(issue);
+});
+
+const issueJiraLinkSchema = z.object({
+  jiraKey: z.string().trim().min(1),
+  jiraUrl: z.string().trim().url(),
+});
+
+app.post('/api/open-issues/:issueId/jira-links', async (req, res) => {
+  const parsed = issueJiraLinkSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const issue = await prisma.issue.findUnique({
+    where: { id: req.params.issueId },
+    include: { project: { include: { jiraIntegration: true } } },
+  });
+
+  if (!issue) {
+    res.status(404).json({ error: 'Issue not found' });
+    return;
+  }
+
+  const jiraBaseUrl = issue.project.jiraIntegration?.baseUrl;
+  if (jiraBaseUrl && !parsed.data.jiraUrl.startsWith(jiraBaseUrl)) {
+    res.status(400).json({ error: `Jira URL must start with ${jiraBaseUrl}` });
+    return;
+  }
+
+  const link = await prisma.issueJiraLink.upsert({
+    where: {
+      issueId_jiraKey: {
+        issueId: issue.id,
+        jiraKey: parsed.data.jiraKey,
+      },
+    },
+    create: {
+      issueId: issue.id,
+      jiraKey: parsed.data.jiraKey,
+      jiraUrl: parsed.data.jiraUrl,
+    },
+    update: {
+      jiraUrl: parsed.data.jiraUrl,
+    },
+  });
+
+  if (!issue.jiraTicketKey || !issue.jiraTicketUrl) {
+    await prisma.issue.update({
+      where: { id: issue.id },
+      data: {
+        source: 'JIRA',
+        jiraTicketKey: parsed.data.jiraKey,
+        jiraTicketUrl: parsed.data.jiraUrl,
+      },
+    });
+  }
+
+  res.status(201).json(link);
+});
+
+app.delete('/api/open-issues/:issueId/jira-links/:linkId', async (req, res) => {
+  const link = await prisma.issueJiraLink.findUnique({
+    where: { id: req.params.linkId },
+  });
+
+  if (!link || link.issueId !== req.params.issueId) {
+    res.status(404).json({ error: 'Jira link not found' });
+    return;
+  }
+
+  await prisma.issueJiraLink.delete({
+    where: { id: link.id },
+  });
+
+  const remainingLinks = await prisma.issueJiraLink.findMany({
+    where: { issueId: req.params.issueId },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  await prisma.issue.update({
+    where: { id: req.params.issueId },
+    data: {
+      source: remainingLinks.length > 0 ? 'JIRA' : 'INTERNAL',
+      jiraTicketKey: remainingLinks[0]?.jiraKey ?? null,
+      jiraTicketUrl: remainingLinks[0]?.jiraUrl ?? null,
+    },
+  });
+
+  res.status(204).send();
 });
 
 const updateTaskJiraSchema = z.object({
@@ -246,7 +367,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       issue.dueDate ? issue.dueDate.toISOString().slice(0, 10) : 'не задан'
     }`,
     deadline: issue.dueDate ? issue.dueDate.toISOString().slice(0, 10) : null,
-    source: issue.jiraTicketUrl ?? 'Internal RAID',
+    source: issue.jiraLinks.length > 0 ? issue.jiraLinks.map((link) => link.jiraKey).join(', ') : 'Internal RAID',
   }));
 
   const evidence = [
@@ -257,7 +378,10 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     { metric: 'Jira snapshot', source: `${project.jiraSnapshots.length} synchronized Jira issues` },
     ...project.issues.slice(0, 3).map((issue) => ({
       metric: issue.title,
-      source: issue.jiraTicketUrl ?? `${issue.source} issue owned by ${issue.owner}`,
+      source:
+        issue.jiraLinks.length > 0
+          ? issue.jiraLinks.map((link) => `${link.jiraKey}: ${link.jiraUrl}`).join('; ')
+          : `${issue.source} issue owned by ${issue.owner}`,
     })),
   ];
 
@@ -271,6 +395,7 @@ async function getProjectForOverviewGeneration(projectId: string) {
       issues: {
         where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },
         orderBy: [{ decisionRequired: 'desc' }, { severity: 'desc' }, { updatedAt: 'desc' }],
+        include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
       },
       jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
       overviews: { orderBy: { version: 'desc' }, take: 1 },

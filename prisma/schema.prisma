@@ -115,6 +115,19 @@ model Issue {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jiraLinks        IssueJiraLink[]
+}
+
+model IssueJiraLink {
+  id        String   @id @default(cuid())
+  issueId   String
+  jiraKey   String
+  jiraUrl   String
+  createdAt DateTime @default(now())
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([issueId, jiraKey])
+  @@index([jiraKey])
 }
 
 model JiraIssueSnapshot {

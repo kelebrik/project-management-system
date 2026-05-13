@@ -323,6 +323,59 @@ code {
   text-decoration: none;
 }
 
+.jira-link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.jira-chip {
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px 6px 4px 9px;
+}
+
+.jira-chip button {
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+}
+
+.muted-inline {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.issue-link-edit {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 110px minmax(180px, 1fr) 76px;
+  margin-top: 10px;
+}
+
+.issue-link-edit input,
+.issue-link-edit button {
+  font-size: 12px;
+  padding: 7px 8px;
+}
+
+.jira-links-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.subhead {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .severity {
   border-radius: 999px;
   display: inline-flex;
@@ -513,6 +566,7 @@ code {
   .details,
   .form-grid,
   .two-col,
+  .issue-link-edit,
   .task-edit,
   .overview-columns {
     grid-template-columns: 1fr;
