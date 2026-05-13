@@ -150,6 +150,31 @@ async function main() {
           },
         ],
       },
+      milestones: {
+        create: [
+          {
+            title: 'Архитектурный комитет',
+            dueDate: new Date('2026-05-15T00:00:00.000Z'),
+            status: 'Done',
+            owner: 'PMO',
+            description: 'Подтверждение архитектурного решения и интеграционных принципов.',
+          },
+          {
+            title: 'UAT старт',
+            dueDate: new Date('2026-05-22T00:00:00.000Z'),
+            status: 'At Risk',
+            owner: 'QA Lead',
+            description: 'Старт пользовательского тестирования зависит от решения по API SLA.',
+          },
+          {
+            title: 'Go/No-Go',
+            dueDate: new Date('2026-05-30T00:00:00.000Z'),
+            status: 'Planned',
+            owner: 'Sponsor',
+            description: 'Решение по готовности к следующей фазе.',
+          },
+        ],
+      },
       overviews: {
         create: {
           version: 1,

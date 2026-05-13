@@ -63,6 +63,22 @@ model Project {
   issues            Issue[]
   jiraSnapshots     JiraIssueSnapshot[]
   overviews         ExecutiveOverview[]
+  milestones        Milestone[]
+}
+
+model Milestone {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  dueDate     DateTime
+  status      String   @default("Planned")
+  owner       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, dueDate])
 }
 
 model JiraIntegration {

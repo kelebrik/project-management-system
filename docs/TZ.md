@@ -420,6 +420,20 @@ flowchart LR
   - KPI/benefits;
   - budget;
   - priority.
+- Редактирование паспорта проекта из PM UI:
+  - статус проекта;
+  - RAG;
+  - сроки;
+  - бюджет plan/forecast;
+  - progress;
+  - summary для управленческой отчетности.
+- Управление вехами проекта:
+  - title;
+  - due date;
+  - status: Planned, In Progress, At Risk, Done, Cancelled;
+  - owner;
+  - description;
+  - использование ближайшей активной вехи в Executive Overview.
 - Project health:
   - overall RAG;
   - schedule RAG;

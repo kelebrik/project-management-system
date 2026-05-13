@@ -40,6 +40,79 @@ app.get('/api/projects', async (_req, res) => {
   res.json(projects);
 });
 
+const projectSchema = z.object({
+  code: z.string().trim().min(2),
+  name: z.string().trim().min(3),
+  portfolio: z.string().trim().min(1),
+  sponsor: z.string().trim().min(1),
+  projectManager: z.string().trim().min(1),
+  status: z.enum(['DRAFT', 'ACTIVE', 'ON_HOLD', 'CLOSED']).default('ACTIVE'),
+  rag: z.enum(['GREEN', 'AMBER', 'RED']).default('GREEN'),
+  startDate: z.string().trim().min(1),
+  targetDate: z.string().trim().min(1),
+  budgetPlanned: z.coerce.number().nonnegative(),
+  budgetForecast: z.coerce.number().nonnegative(),
+  scheduleVariance: z.coerce.number().int().default(0),
+  progress: z.coerce.number().int().min(0).max(100).default(0),
+  summary: z.string().trim().min(3),
+});
+
+app.post('/api/projects', async (req, res) => {
+  const parsed = projectSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.create({
+    data: {
+      ...parsed.data,
+      startDate: new Date(parsed.data.startDate),
+      targetDate: new Date(parsed.data.targetDate),
+      budgetPlanned: parsed.data.budgetPlanned,
+      budgetForecast: parsed.data.budgetForecast,
+    },
+    include: {
+      jiraIntegration: true,
+      _count: {
+        select: { tasks: true, issues: true, jiraSnapshots: true },
+      },
+    },
+  });
+
+  res.status(201).json(project);
+});
+
+app.patch('/api/projects/:projectId', async (req, res) => {
+  const parsed = projectSchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+  });
+
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const updated = await prisma.project.update({
+    where: { id: project.id },
+    data: {
+      ...parsed.data,
+      startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : undefined,
+      targetDate: parsed.data.targetDate ? new Date(parsed.data.targetDate) : undefined,
+      budgetPlanned: parsed.data.budgetPlanned,
+      budgetForecast: parsed.data.budgetForecast,
+    },
+  });
+
+  res.json(updated);
+});
+
 app.get('/api/projects/:projectId/overview', async (req, res) => {
   const project = await prisma.project.findUnique({
     where: { id: req.params.projectId },
@@ -53,6 +126,7 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
       },
       jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
       overviews: { orderBy: { version: 'desc' }, take: 1 },
+      milestones: { orderBy: { dueDate: 'asc' } },
     },
   });
 
@@ -62,6 +136,71 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
   }
 
   res.json(project);
+});
+
+const milestoneSchema = z.object({
+  title: z.string().trim().min(3),
+  dueDate: z.string().trim().min(1),
+  status: z.enum(['Planned', 'In Progress', 'At Risk', 'Done', 'Cancelled']).default('Planned'),
+  owner: z.string().trim().min(1),
+  description: z.string().trim().optional().nullable(),
+});
+
+app.post('/api/projects/:projectId/milestones', async (req, res) => {
+  const parsed = milestoneSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+  });
+
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const milestone = await prisma.milestone.create({
+    data: {
+      projectId: project.id,
+      title: parsed.data.title,
+      dueDate: new Date(parsed.data.dueDate),
+      status: parsed.data.status,
+      owner: parsed.data.owner,
+      description: parsed.data.description,
+    },
+  });
+
+  res.status(201).json(milestone);
+});
+
+app.patch('/api/milestones/:milestoneId', async (req, res) => {
+  const parsed = milestoneSchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const milestone = await prisma.milestone.findUnique({
+    where: { id: req.params.milestoneId },
+  });
+
+  if (!milestone) {
+    res.status(404).json({ error: 'Milestone not found' });
+    return;
+  }
+
+  const updated = await prisma.milestone.update({
+    where: { id: milestone.id },
+    data: {
+      ...parsed.data,
+      dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : undefined,
+    },
+  });
+
+  res.json(updated);
 });
 
 app.get('/api/projects/:projectId/open-issues', async (req, res) => {
@@ -383,6 +522,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
   const criticalIssues = project.issues.filter((issue) => issue.severity === 'CRITICAL');
   const decisionIssues = project.issues.filter((issue) => issue.decisionRequired);
   const topIssue = project.issues[0];
+  const nextMilestone = project.milestones.find((milestone) => milestone.status !== 'Done');
   const scheduleText =
     project.scheduleVariance > 0
       ? `отклонение по срокам +${project.scheduleVariance} дней`
@@ -399,6 +539,9 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       : topIssue
         ? `Ключевая открытая проблема: ${topIssue.title}.`
         : 'Критических открытых проблем не зафиксировано.',
+    nextMilestone
+      ? `Ближайшая веха: ${nextMilestone.title}, срок ${nextMilestone.dueDate.toISOString().slice(0, 10)}, статус ${nextMilestone.status}.`
+      : 'Ближайшие вехи не заданы.',
     decisionIssues.length > 0
       ? `Для руководства требуется ${decisionIssues.length} решение(й).`
       : 'Новых решений от руководства сейчас не требуется.',
@@ -420,6 +563,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     { metric: 'Budget forecast', source: `Finance forecast / ${money(project.budgetForecast)}` },
     { metric: 'Open issues', source: `${project.issues.length} open issues in unified list` },
     { metric: 'Jira snapshot', source: `${project.jiraSnapshots.length} synchronized Jira issues` },
+    { metric: 'Milestones', source: `${project.milestones.length} project milestones` },
     ...project.issues.slice(0, 3).map((issue) => ({
       metric: issue.title,
       source:
@@ -442,6 +586,7 @@ async function getProjectForOverviewGeneration(projectId: string) {
         include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
       },
       jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
+      milestones: { orderBy: { dueDate: 'asc' } },
       overviews: { orderBy: { version: 'desc' }, take: 1 },
     },
   });

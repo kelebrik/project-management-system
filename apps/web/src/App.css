@@ -39,6 +39,7 @@
 .workspace {
   min-width: 0;
   padding: 24px;
+  overflow-x: hidden;
 }
 
 .topbar {
@@ -66,6 +67,7 @@ h2,
 h3,
 p {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 h1 {
@@ -100,6 +102,7 @@ button,
 input,
 textarea,
 select {
+  min-width: 0;
   width: 100%;
 }
 
@@ -205,6 +208,8 @@ button:disabled {
 
 .panel {
   min-height: 280px;
+  min-width: 0;
+  overflow: hidden;
   padding: 20px;
 }
 
@@ -251,6 +256,7 @@ code {
   color: #334155;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
+  overflow-wrap: anywhere;
   white-space: normal;
 }
 
@@ -264,6 +270,14 @@ code {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compact-form {
+  gap: 10px;
+}
+
+.compact-form label {
+  min-width: 0;
 }
 
 .stack-form {
@@ -310,10 +324,16 @@ code {
 .decision {
   background: #f8fafc;
   border-radius: 6px;
-  display: flex;
+  display: grid;
   gap: 14px;
-  justify-content: space-between;
+  grid-template-columns: minmax(0, 1fr);
   padding: 14px;
+}
+
+.issue-row > div,
+.task-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .issue-row a,
@@ -337,6 +357,7 @@ code {
   border-radius: 999px;
   display: inline-flex;
   gap: 6px;
+  max-width: 100%;
   padding: 4px 6px 4px 9px;
 }
 
@@ -355,8 +376,9 @@ code {
 .issue-link-edit {
   display: grid;
   gap: 8px;
-  grid-template-columns: 110px minmax(180px, 1fr) 76px;
+  grid-template-columns: minmax(96px, 0.7fr) minmax(120px, 1fr) auto;
   margin-top: 10px;
+  min-width: 0;
 }
 
 .issue-edit-grid {
@@ -365,8 +387,9 @@ code {
   border-radius: 6px;
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(220px, 1fr) 140px 140px minmax(120px, 0.7fr) 150px 110px;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   margin-top: 12px;
+  min-width: 0;
   padding: 10px;
 }
 
@@ -414,6 +437,39 @@ code {
   font-weight: 800;
 }
 
+.milestone-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+}
+
+.milestone-list {
+  display: grid;
+  gap: 10px;
+}
+
+.milestone-row {
+  align-items: start;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  padding: 12px;
+}
+
+.milestone-row p {
+  margin-top: 4px;
+}
+
+.milestone-row span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
 .severity {
   border-radius: 999px;
   display: inline-flex;
@@ -441,11 +497,11 @@ code {
 
 .issue-meta {
   color: #64748b;
-  display: grid;
-  flex: 0 0 132px;
+  display: flex;
+  flex-wrap: wrap;
   font-size: 12px;
   gap: 4px;
-  justify-items: end;
+  justify-content: flex-start;
 }
 
 .issue-meta b {
@@ -606,6 +662,8 @@ code {
   .two-col,
   .issue-edit-grid,
   .issue-link-edit,
+  .milestone-grid,
+  .milestone-row,
   .task-edit,
   .overview-columns {
     grid-template-columns: 1fr;

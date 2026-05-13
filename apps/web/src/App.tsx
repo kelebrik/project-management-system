@@ -10,7 +10,10 @@ type ProjectListItem = {
   portfolio: string;
   sponsor: string;
   projectManager: string;
+  status: 'DRAFT' | 'ACTIVE' | 'ON_HOLD' | 'CLOSED';
   rag: RagStatus;
+  startDate: string;
+  targetDate: string;
   progress: number;
   scheduleVariance: number;
   budgetPlanned: string;
@@ -39,6 +42,24 @@ type ProjectDetails = ProjectListItem & {
   issues: Issue[];
   jiraSnapshots: JiraIssueSnapshot[];
   overviews: ExecutiveOverview[];
+  milestones: Milestone[];
+};
+
+type ProjectFormState = {
+  code: string;
+  name: string;
+  portfolio: string;
+  sponsor: string;
+  projectManager: string;
+  status: 'DRAFT' | 'ACTIVE' | 'ON_HOLD' | 'CLOSED';
+  rag: RagStatus;
+  startDate: string;
+  targetDate: string;
+  budgetPlanned: string;
+  budgetForecast: string;
+  scheduleVariance: string;
+  progress: string;
+  summary: string;
 };
 
 type Task = {
@@ -69,6 +90,23 @@ type IssueFormState = {
   decisionRequired: boolean;
   dueDate: string;
   jiraLinks: JiraLinkDraft[];
+};
+
+type Milestone = {
+  id: string;
+  title: string;
+  dueDate: string;
+  status: string;
+  owner: string;
+  description: string | null;
+};
+
+type MilestoneFormState = {
+  title: string;
+  dueDate: string;
+  status: string;
+  owner: string;
+  description: string;
 };
 
 type IssueEditDraft = {
@@ -156,6 +194,31 @@ const emptyIssueForm: IssueFormState = {
   jiraLinks: [{ jiraKey: '', jiraUrl: '' }],
 };
 
+const emptyProjectForm: ProjectFormState = {
+  code: '',
+  name: '',
+  portfolio: '',
+  sponsor: '',
+  projectManager: '',
+  status: 'ACTIVE',
+  rag: 'GREEN',
+  startDate: '',
+  targetDate: '',
+  budgetPlanned: '0',
+  budgetForecast: '0',
+  scheduleVariance: '0',
+  progress: '0',
+  summary: '',
+};
+
+const emptyMilestoneForm: MilestoneFormState = {
+  title: '',
+  dueDate: '',
+  status: 'Planned',
+  owner: '',
+  description: '',
+};
+
 function issueToDraft(issue: Issue): IssueEditDraft {
   return {
     title: issue.title,
@@ -165,6 +228,25 @@ function issueToDraft(issue: Issue): IssueEditDraft {
     impact: issue.impact,
     decisionRequired: issue.decisionRequired,
     dueDate: issue.dueDate ? issue.dueDate.slice(0, 10) : '',
+  };
+}
+
+function projectToForm(project: ProjectDetails | ProjectListItem): ProjectFormState {
+  return {
+    code: project.code,
+    name: project.name,
+    portfolio: project.portfolio,
+    sponsor: project.sponsor,
+    projectManager: project.projectManager,
+    status: project.status,
+    rag: project.rag,
+    startDate: 'startDate' in project ? String(project.startDate).slice(0, 10) : '',
+    targetDate: 'targetDate' in project ? String(project.targetDate).slice(0, 10) : '',
+    budgetPlanned: String(project.budgetPlanned),
+    budgetForecast: String(project.budgetForecast),
+    scheduleVariance: String(project.scheduleVariance),
+    progress: String(project.progress),
+    summary: project.summary,
   };
 }
 
@@ -209,6 +291,9 @@ function App() {
     openIssuesJql: '',
   });
   const [issueForm, setIssueForm] = useState<IssueFormState>(emptyIssueForm);
+  const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
+  const [newProjectForm, setNewProjectForm] = useState<ProjectFormState>(emptyProjectForm);
+  const [milestoneForm, setMilestoneForm] = useState<MilestoneFormState>(emptyMilestoneForm);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>({});
   const [issueLinkDrafts, setIssueLinkDrafts] = useState<Record<string, JiraLinkDraft>>({});
   const [issueEditDrafts, setIssueEditDrafts] = useState<Record<string, IssueEditDraft>>({});
@@ -261,6 +346,7 @@ function App() {
 
   function applyProject(nextProject: ProjectDetails) {
     setProject(nextProject);
+    setProjectForm(projectToForm(nextProject));
     setJiraForm({
       baseUrl: nextProject.jiraIntegration?.baseUrl ?? '',
       boardUrl: nextProject.jiraIntegration?.boardUrl ?? '',
@@ -313,6 +399,113 @@ function App() {
       setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить Jira');
     } finally {
       setSavingJira(false);
+    }
+  }
+
+  async function reloadProjects(selectedId?: string) {
+    const response = await fetch(`${apiBase}/api/projects`);
+    const data: ProjectListItem[] = await response.json();
+    setProjects(data);
+    if (selectedId) {
+      setSelectedProjectId(selectedId);
+    }
+  }
+
+  function projectPayload(form: ProjectFormState) {
+    return {
+      ...form,
+      budgetPlanned: Number(form.budgetPlanned),
+      budgetForecast: Number(form.budgetForecast),
+      scheduleVariance: Number(form.scheduleVariance),
+      progress: Number(form.progress),
+    };
+  }
+
+  async function createProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(projectPayload(newProjectForm)),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось создать проект');
+      }
+      setNewProjectForm(emptyProjectForm);
+      await reloadProjects(result.id);
+      setNotice(`Проект ${result.code} создан`);
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : 'Не удалось создать проект');
+    }
+  }
+
+  async function saveProjectProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(projectPayload(projectForm)),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось сохранить проект');
+      }
+      await reloadProjects(project.id);
+      await refreshProject(project.id);
+      setNotice('Паспорт проекта обновлен');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить проект');
+    }
+  }
+
+  async function createMilestone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/projects/${project.id}/milestones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(milestoneForm),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось создать веху');
+      }
+      setMilestoneForm(emptyMilestoneForm);
+      await refreshProject(project.id);
+      setNotice('Веха создана');
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : 'Не удалось создать веху');
+    }
+  }
+
+  async function updateMilestoneStatus(milestoneId: string, status: string) {
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/milestones/${milestoneId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось обновить веху');
+      }
+      await refreshProject();
+      setNotice('Статус вехи обновлен');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Не удалось обновить веху');
     }
   }
 
@@ -617,6 +810,76 @@ function App() {
               <article className="panel project-card">
                 <div className="panel-title">
                   <div>
+                    <h2>Создать проект</h2>
+                    <p>Быстрый intake нового проекта с базовыми полями PMO</p>
+                  </div>
+                </div>
+                <form className="form-grid compact-form" onSubmit={createProject}>
+                  <label>
+                    Code
+                    <input value={newProjectForm.code} onChange={(event) => setNewProjectForm({ ...newProjectForm, code: event.target.value })} placeholder="CRM" />
+                  </label>
+                  <label>
+                    Name
+                    <input value={newProjectForm.name} onChange={(event) => setNewProjectForm({ ...newProjectForm, name: event.target.value })} placeholder="CRM migration" />
+                  </label>
+                  <label>
+                    Portfolio
+                    <input value={newProjectForm.portfolio} onChange={(event) => setNewProjectForm({ ...newProjectForm, portfolio: event.target.value })} placeholder="Digital Transformation" />
+                  </label>
+                  <label>
+                    PM
+                    <input value={newProjectForm.projectManager} onChange={(event) => setNewProjectForm({ ...newProjectForm, projectManager: event.target.value })} placeholder="Project manager" />
+                  </label>
+                  <label>
+                    Sponsor
+                    <input value={newProjectForm.sponsor} onChange={(event) => setNewProjectForm({ ...newProjectForm, sponsor: event.target.value })} placeholder="CFO / CIO" />
+                  </label>
+                  <label>
+                    RAG
+                    <select value={newProjectForm.rag} onChange={(event) => setNewProjectForm({ ...newProjectForm, rag: event.target.value as RagStatus })}>
+                      <option value="GREEN">Green</option>
+                      <option value="AMBER">Amber</option>
+                      <option value="RED">Red</option>
+                    </select>
+                  </label>
+                  <label>
+                    Start
+                    <input type="date" value={newProjectForm.startDate} onChange={(event) => setNewProjectForm({ ...newProjectForm, startDate: event.target.value })} />
+                  </label>
+                  <label>
+                    Target
+                    <input type="date" value={newProjectForm.targetDate} onChange={(event) => setNewProjectForm({ ...newProjectForm, targetDate: event.target.value })} />
+                  </label>
+                  <label>
+                    Budget planned
+                    <input type="number" value={newProjectForm.budgetPlanned} onChange={(event) => setNewProjectForm({ ...newProjectForm, budgetPlanned: event.target.value })} />
+                  </label>
+                  <label>
+                    Budget forecast
+                    <input type="number" value={newProjectForm.budgetForecast} onChange={(event) => setNewProjectForm({ ...newProjectForm, budgetForecast: event.target.value })} />
+                  </label>
+                  <label>
+                    Progress
+                    <input type="number" min="0" max="100" value={newProjectForm.progress} onChange={(event) => setNewProjectForm({ ...newProjectForm, progress: event.target.value })} />
+                  </label>
+                  <label>
+                    Schedule variance
+                    <input type="number" value={newProjectForm.scheduleVariance} onChange={(event) => setNewProjectForm({ ...newProjectForm, scheduleVariance: event.target.value })} />
+                  </label>
+                  <label className="span-2">
+                    Summary
+                    <textarea value={newProjectForm.summary} onChange={(event) => setNewProjectForm({ ...newProjectForm, summary: event.target.value })} rows={2} />
+                  </label>
+                  <div className="form-actions span-2">
+                    <button type="submit">Создать проект</button>
+                  </div>
+                </form>
+              </article>
+
+              <article className="panel project-card">
+                <div className="panel-title">
+                  <div>
                     <h2>{project.name}</h2>
                     <p>{project.portfolio} / Sponsor: {project.sponsor}</p>
                   </div>
@@ -635,6 +898,142 @@ function App() {
                 <div className="jql">
                   <span>Open issues JQL</span>
                   <code>{project.jiraIntegration?.openIssuesJql ?? 'Jira connector не настроен'}</code>
+                </div>
+              </article>
+
+              <article className="panel project-card">
+                <div className="panel-title">
+                  <div>
+                    <h2>Паспорт проекта</h2>
+                    <p>Управление health, сроками, бюджетом и базовой сводкой проекта</p>
+                  </div>
+                </div>
+                <form className="form-grid compact-form" onSubmit={saveProjectProfile}>
+                  <label>
+                    Name
+                    <input value={projectForm.name} onChange={(event) => setProjectForm({ ...projectForm, name: event.target.value })} />
+                  </label>
+                  <label>
+                    Portfolio
+                    <input value={projectForm.portfolio} onChange={(event) => setProjectForm({ ...projectForm, portfolio: event.target.value })} />
+                  </label>
+                  <label>
+                    Sponsor
+                    <input value={projectForm.sponsor} onChange={(event) => setProjectForm({ ...projectForm, sponsor: event.target.value })} />
+                  </label>
+                  <label>
+                    PM
+                    <input value={projectForm.projectManager} onChange={(event) => setProjectForm({ ...projectForm, projectManager: event.target.value })} />
+                  </label>
+                  <label>
+                    Status
+                    <select value={projectForm.status} onChange={(event) => setProjectForm({ ...projectForm, status: event.target.value as ProjectFormState['status'] })}>
+                      <option value="DRAFT">Draft</option>
+                      <option value="ACTIVE">Active</option>
+                      <option value="ON_HOLD">On hold</option>
+                      <option value="CLOSED">Closed</option>
+                    </select>
+                  </label>
+                  <label>
+                    RAG
+                    <select value={projectForm.rag} onChange={(event) => setProjectForm({ ...projectForm, rag: event.target.value as RagStatus })}>
+                      <option value="GREEN">Green</option>
+                      <option value="AMBER">Amber</option>
+                      <option value="RED">Red</option>
+                    </select>
+                  </label>
+                  <label>
+                    Start
+                    <input type="date" value={projectForm.startDate} onChange={(event) => setProjectForm({ ...projectForm, startDate: event.target.value })} />
+                  </label>
+                  <label>
+                    Target
+                    <input type="date" value={projectForm.targetDate} onChange={(event) => setProjectForm({ ...projectForm, targetDate: event.target.value })} />
+                  </label>
+                  <label>
+                    Budget planned
+                    <input type="number" value={projectForm.budgetPlanned} onChange={(event) => setProjectForm({ ...projectForm, budgetPlanned: event.target.value })} />
+                  </label>
+                  <label>
+                    Budget forecast
+                    <input type="number" value={projectForm.budgetForecast} onChange={(event) => setProjectForm({ ...projectForm, budgetForecast: event.target.value })} />
+                  </label>
+                  <label>
+                    Progress
+                    <input type="number" min="0" max="100" value={projectForm.progress} onChange={(event) => setProjectForm({ ...projectForm, progress: event.target.value })} />
+                  </label>
+                  <label>
+                    Schedule variance
+                    <input type="number" value={projectForm.scheduleVariance} onChange={(event) => setProjectForm({ ...projectForm, scheduleVariance: event.target.value })} />
+                  </label>
+                  <label className="span-2">
+                    Summary
+                    <textarea value={projectForm.summary} onChange={(event) => setProjectForm({ ...projectForm, summary: event.target.value })} rows={3} />
+                  </label>
+                  <div className="form-actions span-2">
+                    <button type="submit">Сохранить паспорт</button>
+                  </div>
+                </form>
+              </article>
+
+              <article className="panel project-card">
+                <div className="panel-title">
+                  <div>
+                    <h2>Milestones</h2>
+                    <p>Контроль ближайших вех проекта и их статусов для executive overview</p>
+                  </div>
+                </div>
+                <div className="milestone-grid">
+                  <div className="milestone-list">
+                    {project.milestones.map((milestone) => (
+                      <div className="milestone-row" key={milestone.id}>
+                        <div>
+                          <strong>{milestone.title}</strong>
+                          <p>{date(milestone.dueDate)} / {milestone.owner}</p>
+                          {milestone.description && <span>{milestone.description}</span>}
+                        </div>
+                        <select value={milestone.status} onChange={(event) => updateMilestoneStatus(milestone.id, event.target.value)}>
+                          <option value="Planned">Planned</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="At Risk">At Risk</option>
+                          <option value="Done">Done</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                    ))}
+                    {project.milestones.length === 0 && <div className="empty-state">Вехи еще не заданы.</div>}
+                  </div>
+                  <form className="stack-form compact-form" onSubmit={createMilestone}>
+                    <label>
+                      Title
+                      <input value={milestoneForm.title} onChange={(event) => setMilestoneForm({ ...milestoneForm, title: event.target.value })} placeholder="UAT старт" />
+                    </label>
+                    <div className="two-col">
+                      <label>
+                        Due date
+                        <input type="date" value={milestoneForm.dueDate} onChange={(event) => setMilestoneForm({ ...milestoneForm, dueDate: event.target.value })} />
+                      </label>
+                      <label>
+                        Status
+                        <select value={milestoneForm.status} onChange={(event) => setMilestoneForm({ ...milestoneForm, status: event.target.value })}>
+                          <option value="Planned">Planned</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="At Risk">At Risk</option>
+                          <option value="Done">Done</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label>
+                      Owner
+                      <input value={milestoneForm.owner} onChange={(event) => setMilestoneForm({ ...milestoneForm, owner: event.target.value })} placeholder="PMO / QA Lead / Sponsor" />
+                    </label>
+                    <label>
+                      Description
+                      <textarea value={milestoneForm.description} onChange={(event) => setMilestoneForm({ ...milestoneForm, description: event.target.value })} rows={3} />
+                    </label>
+                    <button type="submit">Добавить веху</button>
+                  </form>
                 </div>
               </article>
 
@@ -692,7 +1091,7 @@ function App() {
                 </form>
               </article>
 
-              <article className="panel">
+              <article className="panel overview-panel">
                 <div className="panel-title">
                   <div>
                     <h2>Open Issues List</h2>
@@ -812,7 +1211,7 @@ function App() {
                 </div>
               </article>
 
-              <article className="panel">
+              <article className="panel overview-panel">
                 <div className="panel-title">
                   <div>
                     <h2>Создать Open Issue</h2>
