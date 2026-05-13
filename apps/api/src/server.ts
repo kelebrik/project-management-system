@@ -182,6 +182,13 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
       overviews: { orderBy: { version: 'desc' }, take: 8 },
       milestones: { orderBy: { dueDate: 'asc' } },
       wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
+      wbsDependencies: {
+        orderBy: { createdAt: 'asc' },
+        include: {
+          predecessor: { select: { id: true, code: true, title: true } },
+          successor: { select: { id: true, code: true, title: true } },
+        },
+      },
       artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
       raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
       changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
@@ -545,6 +552,7 @@ app.delete('/api/change-requests/:requestId', async (req, res) => {
 });
 
 const milestoneSchema = z.object({
+  code: z.string().trim().optional().nullable(),
   title: z.string().trim().min(3),
   dueDate: z.string().trim().min(1),
   status: z.enum(['Planned', 'In Progress', 'At Risk', 'Done', 'Cancelled']).default('Planned'),
@@ -571,6 +579,7 @@ app.post('/api/projects/:projectId/milestones', async (req, res) => {
   const milestone = await prisma.milestone.create({
     data: {
       projectId: project.id,
+      code: parsed.data.code || null,
       title: parsed.data.title,
       dueDate: new Date(parsed.data.dueDate),
       status: parsed.data.status,
@@ -613,7 +622,7 @@ const wbsItemSchema = z.object({
   parentId: z.string().trim().optional().nullable(),
   code: z.string().trim().min(1),
   title: z.string().trim().min(3),
-  type: z.enum(['PHASE', 'WORK_PACKAGE', 'DELIVERABLE', 'TASK']).default('TASK'),
+  type: z.enum(['PHASE', 'WORK_PACKAGE', 'DELIVERABLE', 'MILESTONE', 'TASK']).default('TASK'),
   status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'AT_RISK', 'BLOCKED', 'DONE', 'CANCELLED']).default('NOT_STARTED'),
   owner: z.string().trim().min(1),
   startDate: z.string().trim().optional().nullable(),
@@ -792,6 +801,105 @@ app.delete('/api/wbs-items/:itemId', async (req, res) => {
     where: { id: existing.id },
   });
 
+  res.status(204).send();
+});
+
+const wbsDependencySchema = z.object({
+  predecessorId: z.string().trim().min(1),
+  successorId: z.string().trim().min(1),
+  type: z.enum(['FS', 'SS', 'FF', 'SF']).default('FS'),
+  lagDays: z.coerce.number().int().default(0),
+});
+
+async function wouldCreateDependencyCycle(projectId: string, predecessorId: string, successorId: string) {
+  const dependencies = await prisma.wbsDependency.findMany({
+    where: { projectId },
+    select: { predecessorId: true, successorId: true },
+  });
+  const graph = new Map<string, string[]>();
+  for (const dependency of dependencies) {
+    const next = graph.get(dependency.predecessorId) ?? [];
+    next.push(dependency.successorId);
+    graph.set(dependency.predecessorId, next);
+  }
+  graph.set(predecessorId, [...(graph.get(predecessorId) ?? []), successorId]);
+
+  const seen = new Set<string>();
+  const stack = [successorId];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || seen.has(current)) continue;
+    if (current === predecessorId) return true;
+    seen.add(current);
+    stack.push(...(graph.get(current) ?? []));
+  }
+  return false;
+}
+
+app.post('/api/projects/:projectId/wbs-dependencies', async (req, res) => {
+  const parsed = wbsDependencySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  if (parsed.data.predecessorId === parsed.data.successorId) {
+    res.status(400).json({ error: 'Dependency cannot link item to itself' });
+    return;
+  }
+
+  const items = await prisma.wbsItem.findMany({
+    where: {
+      projectId: req.params.projectId,
+      id: { in: [parsed.data.predecessorId, parsed.data.successorId] },
+    },
+  });
+  if (items.length !== 2) {
+    res.status(400).json({ error: 'Both WBS items must belong to the project' });
+    return;
+  }
+
+  if (await wouldCreateDependencyCycle(req.params.projectId, parsed.data.predecessorId, parsed.data.successorId)) {
+    res.status(400).json({ error: 'Dependency would create a cycle' });
+    return;
+  }
+
+  const dependency = await prisma.wbsDependency.upsert({
+    where: {
+      projectId_predecessorId_successorId_type: {
+        projectId: req.params.projectId,
+        predecessorId: parsed.data.predecessorId,
+        successorId: parsed.data.successorId,
+        type: parsed.data.type,
+      },
+    },
+    create: {
+      projectId: req.params.projectId,
+      ...parsed.data,
+    },
+    update: {
+      lagDays: parsed.data.lagDays,
+    },
+    include: {
+      predecessor: { select: { id: true, code: true, title: true } },
+      successor: { select: { id: true, code: true, title: true } },
+    },
+  });
+
+  res.status(201).json(dependency);
+});
+
+app.delete('/api/wbs-dependencies/:dependencyId', async (req, res) => {
+  const dependency = await prisma.wbsDependency.findUnique({
+    where: { id: req.params.dependencyId },
+  });
+
+  if (!dependency) {
+    res.status(404).json({ error: 'WBS dependency not found' });
+    return;
+  }
+
+  await prisma.wbsDependency.delete({ where: { id: dependency.id } });
   res.status(204).send();
 });
 
@@ -1428,6 +1536,13 @@ async function getProjectForOverviewGeneration(projectId: string) {
       jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
       milestones: { orderBy: { dueDate: 'asc' } },
       wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
+      wbsDependencies: {
+        orderBy: { createdAt: 'asc' },
+        include: {
+          predecessor: { select: { id: true, code: true, title: true } },
+          successor: { select: { id: true, code: true, title: true } },
+        },
+      },
       artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
       raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
       changeRequests: { orderBy: [{ updatedAt: 'desc' }] },

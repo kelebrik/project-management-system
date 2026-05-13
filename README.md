@@ -12,6 +12,7 @@ Corporate project management system with PM web UI, admin back office scope, Jir
 - Open Issues List from Jira/internal sources, with multiple Jira tickets linked to one open issue.
 - Open Issue lifecycle editing: status, severity, owner, due date, impact, decision flag, and resolve action.
 - Project management core: create project, edit project passport, manage milestones, and feed milestones into Executive Overview.
+- WBS/Gantt planning: hierarchy, milestones, dependency links, month scale, today marker, collapse/expand tree, and critical path highlighting.
 - Executive Overview deterministic generation, evidence list, versioning, and publish action.
 - Render blueprint in `render.yaml`.
 - Detailed technical specification in `docs/TZ.md`.

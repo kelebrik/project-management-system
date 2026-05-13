@@ -44,6 +44,7 @@ enum WbsItemType {
   PHASE
   WORK_PACKAGE
   DELIVERABLE
+  MILESTONE
   TASK
 }
 
@@ -87,6 +88,13 @@ enum ChangeRequestStatus {
   IMPLEMENTED
 }
 
+enum WbsDependencyType {
+  FS
+  SS
+  FF
+  SF
+}
+
 model Project {
   id               String              @id @default(cuid())
   parentId         String?
@@ -116,6 +124,7 @@ model Project {
   overviews        ExecutiveOverview[]
   milestones       Milestone[]
   wbsItems         WbsItem[]
+  wbsDependencies  WbsDependency[]
   artifacts        ProjectArtifact[]
   raidItems        RaidItem[]
   changeRequests   ChangeRequest[]
@@ -127,6 +136,7 @@ model Project {
 model Milestone {
   id          String   @id @default(cuid())
   projectId   String
+  code        String?
   title       String
   dueDate     DateTime
   status      String   @default("Planned")
@@ -137,6 +147,7 @@ model Milestone {
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, dueDate])
+  @@index([projectId, code])
 }
 
 model JiraIntegration {
@@ -196,10 +207,30 @@ model WbsItem {
   project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   parent        WbsItem?      @relation("WbsHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children      WbsItem[]     @relation("WbsHierarchy")
+  predecessors  WbsDependency[] @relation("WbsDependencySuccessor")
+  successors    WbsDependency[] @relation("WbsDependencyPredecessor")
 
   @@unique([projectId, code])
   @@index([projectId, parentId])
   @@index([projectId, sortOrder])
+}
+
+model WbsDependency {
+  id            String            @id @default(cuid())
+  projectId     String
+  predecessorId String
+  successorId   String
+  type          WbsDependencyType @default(FS)
+  lagDays       Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  project       Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  predecessor   WbsItem           @relation("WbsDependencyPredecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successor     WbsItem           @relation("WbsDependencySuccessor", fields: [successorId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, predecessorId, successorId, type])
+  @@index([projectId, predecessorId])
+  @@index([projectId, successorId])
 }
 
 model Issue {

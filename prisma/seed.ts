@@ -9,7 +9,29 @@ function getParentWbsCode(code: string) {
   return parts.length > 0 ? parts.join('.') : null;
 }
 
+function parsePredecessorCodes(description: string) {
+  const marker = 'Predecessors:';
+  const markerIndex = description.indexOf(marker);
+  if (markerIndex < 0) return [];
+
+  const rawValue = description
+    .slice(markerIndex + marker.length)
+    .split(/Lead \/ lag:|Work days:|Template color:/)[0];
+
+  return rawValue
+    .split(/[,;]/)
+    .map((value) => value.trim())
+    .map((value) => value.replace(/\.$/, ''))
+    .filter(Boolean);
+}
+
+function parseLagDays(description: string) {
+  const match = description.match(/Lead \/ lag:\s*(-?\d+)/);
+  return match ? Number(match[1]) : 0;
+}
+
 async function importTest001ProjectPlan(projectId: string) {
+  await prisma.wbsDependency.deleteMany({ where: { projectId } });
   await prisma.milestone.deleteMany({ where: { projectId } });
   await prisma.wbsItem.deleteMany({ where: { projectId } });
 
@@ -23,7 +45,7 @@ async function importTest001ProjectPlan(projectId: string) {
         parentId: parentCode ? (createdWbsIds.get(parentCode) ?? null) : null,
         code: item.code,
         title: item.title,
-        type: item.type,
+        type: item.description.includes('Work days: 0') ? 'MILESTONE' : item.type,
         status: item.status,
         owner: item.owner,
         startDate: new Date(item.startDate),
@@ -41,6 +63,7 @@ async function importTest001ProjectPlan(projectId: string) {
   await prisma.milestone.createMany({
     data: test001ProjectPlan.milestones.map((item) => ({
       projectId,
+      code: item.code,
       title: item.title,
       dueDate: new Date(item.dueDate),
       status: item.status,
@@ -48,6 +71,37 @@ async function importTest001ProjectPlan(projectId: string) {
       description: item.description,
     })),
   });
+
+  for (const item of test001ProjectPlan.wbsItems) {
+    const successorId = createdWbsIds.get(item.code);
+    if (!successorId) continue;
+
+    for (const predecessorCode of parsePredecessorCodes(item.description)) {
+      const predecessorId = createdWbsIds.get(predecessorCode);
+      if (!predecessorId || predecessorId === successorId) continue;
+
+      await prisma.wbsDependency.upsert({
+        where: {
+          projectId_predecessorId_successorId_type: {
+            projectId,
+            predecessorId,
+            successorId,
+            type: 'FS',
+          },
+        },
+        update: {
+          lagDays: parseLagDays(item.description),
+        },
+        create: {
+          projectId,
+          predecessorId,
+          successorId,
+          type: 'FS',
+          lagDays: parseLagDays(item.description),
+        },
+      });
+    }
+  }
 }
 
 async function main() {

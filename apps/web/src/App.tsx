@@ -2,7 +2,12 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 type RagStatus = "GREEN" | "AMBER" | "RED";
-type WbsItemType = "PHASE" | "WORK_PACKAGE" | "DELIVERABLE" | "TASK";
+type WbsItemType =
+  | "PHASE"
+  | "WORK_PACKAGE"
+  | "DELIVERABLE"
+  | "MILESTONE"
+  | "TASK";
 type WbsItemStatus =
   | "NOT_STARTED"
   | "IN_PROGRESS"
@@ -69,6 +74,7 @@ type ProjectDetails = ProjectListItem & {
   overviews: ExecutiveOverview[];
   milestones: Milestone[];
   wbsItems: WbsItem[];
+  wbsDependencies: WbsDependency[];
   artifacts: ProjectArtifact[];
   raidItems: RaidItem[];
   changeRequests: ChangeRequest[];
@@ -129,6 +135,25 @@ type WbsTreeItem = WbsItem & {
   level: number;
 };
 
+type WbsDependencyType = "FS" | "SS" | "FF" | "SF";
+
+type WbsDependency = {
+  id: string;
+  predecessorId: string;
+  successorId: string;
+  type: WbsDependencyType;
+  lagDays: number;
+  predecessor: Pick<WbsItem, "id" | "code" | "title">;
+  successor: Pick<WbsItem, "id" | "code" | "title">;
+};
+
+type WbsDependencyFormState = {
+  predecessorId: string;
+  successorId: string;
+  type: WbsDependencyType;
+  lagDays: string;
+};
+
 type WbsFormState = {
   parentId: string;
   code: string;
@@ -167,6 +192,7 @@ type IssueFormState = {
 
 type Milestone = {
   id: string;
+  code: string | null;
   title: string;
   dueDate: string;
   status: string;
@@ -524,6 +550,15 @@ const emptyWbsForm: WbsFormState = {
   sortOrder: "0",
 };
 
+const emptyWbsDependencyForm: WbsDependencyFormState = {
+  predecessorId: "",
+  successorId: "",
+  type: "FS",
+  lagDays: "0",
+};
+
+const GANTT_ROW_HEIGHT = 40;
+
 function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
   return {
     title: artifact.title,
@@ -691,9 +726,46 @@ function wbsTypeLabel(type: WbsItemType) {
     PHASE: "Phase",
     WORK_PACKAGE: "Work package",
     DELIVERABLE: "Deliverable",
+    MILESTONE: "Milestone",
     TASK: "Task",
   };
   return labels[type];
+}
+
+function dependencyLabel(dependency: Pick<WbsDependency, "type" | "lagDays">) {
+  const lag =
+    dependency.lagDays === 0
+      ? ""
+      : ` ${dependency.lagDays > 0 ? "+" : ""}${dependency.lagDays}d`;
+  return `${dependency.type}${lag}`;
+}
+
+function wbsToneClass(item: Pick<WbsItem, "description" | "status">) {
+  const templateColor = item.description
+    ?.match(/Template color:\s*([A-Z])/i)?.[1]
+    ?.toLowerCase();
+  if (templateColor && ["b", "g", "r", "o", "x"].includes(templateColor)) {
+    return `tone-${templateColor}`;
+  }
+  if (item.status === "DONE") return "tone-g";
+  if (item.status === "AT_RISK" || item.status === "BLOCKED") return "tone-r";
+  if (item.status === "IN_PROGRESS") return "tone-b";
+  return "tone-x";
+}
+
+function startOfMonth(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), 1);
+}
+
+function addMonths(value: Date, months: number) {
+  return new Date(value.getFullYear(), value.getMonth() + months, 1);
+}
+
+function monthLabel(value: Date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    month: "short",
+    year: "numeric",
+  }).format(value);
 }
 
 function raidTypeLabel(type: RaidItemType) {
@@ -876,6 +948,11 @@ function App() {
   const [wbsForm, setWbsForm] = useState<WbsFormState>(emptyWbsForm);
   const [wbsDrafts, setWbsDrafts] = useState<Record<string, WbsFormState>>({});
   const [expandedWbsId, setExpandedWbsId] = useState<string | null>(null);
+  const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [wbsDependencyForm, setWbsDependencyForm] =
+    useState<WbsDependencyFormState>(emptyWbsDependencyForm);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
     {},
   );
@@ -952,21 +1029,38 @@ function App() {
     () => buildWbsTree(project?.wbsItems ?? []),
     [project?.wbsItems],
   );
+  const visibleWbsTree = useMemo(() => {
+    const hiddenLevels: number[] = [];
+    return wbsTree.filter((item) => {
+      while (
+        hiddenLevels.length > 0 &&
+        item.level <= hiddenLevels[hiddenLevels.length - 1]
+      ) {
+        hiddenLevels.pop();
+      }
+      if (hiddenLevels.length > 0) return false;
+      if (collapsedWbsIds.has(item.id)) {
+        hiddenLevels.push(item.level);
+      }
+      return true;
+    });
+  }, [collapsedWbsIds, wbsTree]);
+  const wbsMilestoneCodes = useMemo(
+    () =>
+      new Set(
+        (project?.milestones ?? [])
+          .map((item) => item.code)
+          .filter((code): code is string => Boolean(code)),
+      ),
+    [project?.milestones],
+  );
   const wbsSummary = useMemo(() => {
     const items = project?.wbsItems ?? [];
-    const planned = items.reduce(
-      (sum, item) => sum + Number(item.plannedCost),
-      0,
-    );
-    const forecast = items.reduce(
-      (sum, item) => sum + Number(item.forecastCost),
-      0,
-    );
     const completed = items.filter((item) => item.status === "DONE").length;
     const atRisk = items.filter(
       (item) => item.status === "AT_RISK" || item.status === "BLOCKED",
     ).length;
-    return { planned, forecast, completed, atRisk };
+    return { completed, atRisk };
   }, [project?.wbsItems]);
   const raidSummary = useMemo(() => {
     const raidItems = project?.raidItems ?? [];
@@ -1003,8 +1097,7 @@ function App() {
     };
   }, [project?.changeRequests, project?.raidItems]);
   const wbsGantt = useMemo(() => {
-    const datedItems = wbsTree
-      .filter((item) => item.level <= 2)
+    const datedItems = visibleWbsTree
       .map((item) => {
         const start = item.startDate ? new Date(item.startDate) : null;
         const end = item.dueDate ? new Date(item.dueDate) : null;
@@ -1027,31 +1120,180 @@ function App() {
       return {
         start: null as Date | null,
         end: null as Date | null,
+        months: [] as Array<{ label: string; offset: number; width: number }>,
+        todayOffset: null as number | null,
+        dependencyLines: [] as Array<{
+          id: string;
+          fromX: number;
+          fromY: number;
+          toX: number;
+          toY: number;
+          label: string;
+          direction: "forward" | "backward";
+        }>,
+        height: 0,
+        criticalIds: new Set<string>(),
         items: [],
       };
     }
 
-    const start = new Date(
+    const rawStart = new Date(
       Math.min(...datedItems.map((item) => item.start.getTime())),
     );
-    const end = new Date(
+    const rawEnd = new Date(
       Math.max(...datedItems.map((item) => item.end.getTime())),
     );
-    const totalDays = Math.max(1, daysBetween(start, end) + 1);
+    const start = startOfMonth(rawStart);
+    const end = addMonths(startOfMonth(rawEnd), 1);
+    const totalDays = Math.max(1, daysBetween(start, end));
+    const months = [];
+    for (
+      let cursor = startOfMonth(start);
+      cursor < end;
+      cursor = addMonths(cursor, 1)
+    ) {
+      const monthEnd = addMonths(cursor, 1);
+      months.push({
+        label: monthLabel(cursor),
+        offset: (daysBetween(start, cursor) / totalDays) * 100,
+        width: (daysBetween(cursor, monthEnd) / totalDays) * 100,
+      });
+    }
+
+    const durationById = new Map(
+      datedItems.map(({ item, start: itemStart, end: itemEnd }) => [
+        item.id,
+        Math.max(1, daysBetween(itemStart, itemEnd) + 1),
+      ]),
+    );
+    const successorGraph = new Map<string, string[]>();
+    for (const dependency of project?.wbsDependencies ?? []) {
+      if (
+        !durationById.has(dependency.predecessorId) ||
+        !durationById.has(dependency.successorId)
+      ) {
+        continue;
+      }
+      successorGraph.set(dependency.predecessorId, [
+        ...(successorGraph.get(dependency.predecessorId) ?? []),
+        dependency.successorId,
+      ]);
+    }
+    const scoreCache = new Map<string, number>();
+    const score = (itemId: string, path = new Set<string>()): number => {
+      if (scoreCache.has(itemId)) return scoreCache.get(itemId) ?? 0;
+      if (path.has(itemId)) return 0;
+      const downstream = successorGraph.get(itemId) ?? [];
+      const value =
+        (durationById.get(itemId) ?? 1) +
+        Math.max(
+          0,
+          ...downstream.map((successorId) =>
+            score(successorId, new Set([...path, itemId])),
+          ),
+        );
+      scoreCache.set(itemId, value);
+      return value;
+    };
+    const criticalIds = new Set<string>();
+    if ((project?.wbsDependencies ?? []).length > 0) {
+      let current = datedItems
+        .map(({ item }) => item.id)
+        .sort((left, right) => score(right) - score(left))[0];
+      while (current) {
+        criticalIds.add(current);
+        const next = (successorGraph.get(current) ?? []).sort(
+          (left, right) => score(right) - score(left),
+        )[0];
+        current = next;
+      }
+    }
+
+    const items = datedItems.map(({ item, start: itemStart, end: itemEnd }) => ({
+      item,
+      start: itemStart,
+      end: itemEnd,
+      offset: (daysBetween(start, itemStart) / totalDays) * 100,
+      width: Math.max(
+        item.type === "MILESTONE" ? 0.8 : 3,
+        ((daysBetween(itemStart, itemEnd) + 1) / totalDays) * 100,
+      ),
+      milestone:
+        item.type === "MILESTONE" ||
+        daysBetween(itemStart, itemEnd) === 0 ||
+        wbsMilestoneCodes.has(item.code),
+      critical:
+        criticalIds.has(item.id) ||
+        item.status === "BLOCKED" ||
+        item.status === "AT_RISK" ||
+        (item.type === "MILESTONE" && item.status !== "DONE"),
+      toneClass: wbsToneClass(item),
+    }));
+    const rowById = new Map(items.map((entry, index) => [entry.item.id, index]));
+    const barById = new Map(items.map((entry) => [entry.item.id, entry]));
+    const dependencyLines = (project?.wbsDependencies ?? [])
+      .map((dependency) => {
+        const predecessor = barById.get(dependency.predecessorId);
+        const successor = barById.get(dependency.successorId);
+        const predecessorRow = rowById.get(dependency.predecessorId);
+        const successorRow = rowById.get(dependency.successorId);
+        if (
+          !predecessor ||
+          !successor ||
+          predecessorRow === undefined ||
+          successorRow === undefined
+        ) {
+          return null;
+        }
+        const from =
+          dependency.type === "SS" || dependency.type === "SF"
+            ? predecessor.offset
+            : predecessor.offset + predecessor.width;
+        const to =
+          dependency.type === "FF" || dependency.type === "SF"
+            ? successor.offset + successor.width
+            : successor.offset;
+        return {
+          id: dependency.id,
+          fromX: Math.max(0, Math.min(100, from)),
+          fromY: predecessorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
+          toX: Math.max(0, Math.min(100, to)),
+          toY: successorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
+          label: dependencyLabel(dependency),
+          direction: to >= from ? ("forward" as const) : ("backward" as const),
+        };
+      })
+      .filter(
+        (
+          item,
+        ): item is {
+          id: string;
+          fromX: number;
+          fromY: number;
+          toX: number;
+          toY: number;
+          label: string;
+          direction: "forward" | "backward";
+        } => item !== null,
+      );
+
+    const today = new Date();
+    const todayOffset =
+      today >= start && today < end
+        ? (daysBetween(start, today) / totalDays) * 100
+        : null;
 
     return {
       start,
       end,
-      items: datedItems.map(({ item, start: itemStart, end: itemEnd }) => ({
-        item,
-        offset: (daysBetween(start, itemStart) / totalDays) * 100,
-        width: Math.max(
-          3,
-          ((daysBetween(itemStart, itemEnd) + 1) / totalDays) * 100,
-        ),
-      })),
+      months,
+      todayOffset,
+      dependencyLines,
+      height: items.length * GANTT_ROW_HEIGHT,
+      criticalIds,
+      items,
     };
-  }, [wbsTree]);
+  }, [project?.wbsDependencies, visibleWbsTree, wbsMilestoneCodes]);
   const projectArtifacts = useMemo(() => {
     if (!project) return [];
     const systemArtifacts = [
@@ -1210,6 +1452,14 @@ function App() {
       nextProject.wbsItems.some((item) => item.id === currentItemId)
         ? currentItemId
         : null,
+    );
+    setCollapsedWbsIds(
+      (currentIds) =>
+        new Set(
+          [...currentIds].filter((itemId) =>
+            nextProject.wbsItems.some((item) => item.id === itemId),
+          ),
+        ),
     );
     setArtifactDrafts(
       Object.fromEntries(
@@ -1809,6 +2059,22 @@ function App() {
     });
   }
 
+  function toggleWbsCollapse(itemId: string) {
+    setCollapsedWbsIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  }
+
+  function toggleWbsDetails(itemId: string) {
+    setExpandedWbsId((current) => (current === itemId ? null : itemId));
+  }
+
   async function createWbsItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!project) return;
@@ -1893,6 +2159,69 @@ function App() {
         deleteError instanceof Error
           ? deleteError.message
           : "Не удалось удалить WBS элемент",
+      );
+    }
+  }
+
+  async function createWbsDependency(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/wbs-dependencies`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...wbsDependencyForm,
+            lagDays: Number(wbsDependencyForm.lagDays),
+          }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось создать связь WBS",
+        );
+      }
+      setWbsDependencyForm({
+        ...emptyWbsDependencyForm,
+        predecessorId: wbsDependencyForm.predecessorId,
+      });
+      await refreshProject(project.id);
+      setNotice("Связь WBS создана");
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Не удалось создать связь WBS",
+      );
+    }
+  }
+
+  async function deleteWbsDependency(dependencyId: string) {
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/wbs-dependencies/${dependencyId}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error ?? "Не удалось удалить связь WBS");
+      }
+      await refreshProject();
+      setNotice("Связь WBS удалена");
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Не удалось удалить связь WBS",
       );
     }
   }
@@ -3222,6 +3551,28 @@ function App() {
                         deliverables и задачи со связью на Jira
                       </p>
                     </div>
+                    <div className="wbs-toolbar" aria-label="WBS actions">
+                      <button
+                        type="button"
+                        onClick={() => setCollapsedWbsIds(new Set())}
+                      >
+                        Раскрыть все
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCollapsedWbsIds(
+                            new Set(
+                              wbsTree
+                                .filter((item) => item.children.length > 0)
+                                .map((item) => item.id),
+                            ),
+                          )
+                        }
+                      >
+                        Схлопнуть фазы
+                      </button>
+                    </div>
                   </div>
                   <div className="wbs-kpis">
                     <div>
@@ -3237,55 +3588,266 @@ function App() {
                       <strong>{wbsSummary.atRisk}</strong>
                     </div>
                     <div>
-                      <span>Forecast</span>
-                      <strong>{currency(String(wbsSummary.forecast))}</strong>
-                      <small>
-                        Plan: {currency(String(wbsSummary.planned))}
-                      </small>
+                      <span>Milestones</span>
+                      <strong>{project.milestones.length}</strong>
+                    </div>
+                    <div>
+                      <span>Dependencies</span>
+                      <strong>{project.wbsDependencies.length}</strong>
+                    </div>
+                    <div>
+                      <span>Visible</span>
+                      <strong>{visibleWbsTree.length}</strong>
+                      <small>С учетом схлопывания</small>
                     </div>
                   </div>
                   <div className="gantt-panel">
-                    <div className="gantt-scale">
-                      <span>
-                        {wbsGantt.start
-                          ? date(wbsGantt.start.toISOString())
-                          : "Start"}
-                      </span>
-                      <span>
-                        {wbsGantt.end
-                          ? date(wbsGantt.end.toISOString())
-                          : "Finish"}
-                      </span>
+                    <div className="gantt-head">
+                      <span>WBS / Work</span>
+                      <div className="gantt-scale">
+                        {wbsGantt.months.length > 0 ? (
+                          wbsGantt.months.map((month) => (
+                            <span
+                              key={month.label}
+                              style={{
+                                left: `${month.offset}%`,
+                                width: `${month.width}%`,
+                              }}
+                            >
+                              {month.label}
+                            </span>
+                          ))
+                        ) : (
+                          <span>Timeline</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="gantt-list">
-                      {wbsGantt.items.map(({ item, offset, width }) => (
-                        <div className="gantt-row" key={item.id}>
-                          <span
-                            className="gantt-label"
-                            style={{ paddingLeft: `${item.level * 14}px` }}
-                          >
-                            {item.code} {item.title}
-                          </span>
-                          <span className="gantt-track">
-                            <i
-                              className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")}`}
-                              style={{ left: `${offset}%`, width: `${width}%` }}
-                            />
-                          </span>
-                        </div>
-                      ))}
+                    <div className="gantt-body">
                       {wbsGantt.items.length === 0 && (
                         <div className="empty-state">
                           Для Гантта нужны start и due даты WBS элементов.
                         </div>
                       )}
-                      {project.wbsItems.length > wbsGantt.items.length && (
+                      {wbsGantt.items.length > 0 && (
+                        <>
+                          <div className="gantt-labels">
+                            {wbsGantt.items.map(({ item, critical, toneClass }) => (
+                              <div
+                                className={`gantt-label ${critical ? "critical" : ""}`}
+                                key={item.id}
+                                style={{ paddingLeft: `${item.level * 14 + 10}px` }}
+                              >
+                                {item.children.length > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="tree-toggle"
+                                    onClick={() => toggleWbsCollapse(item.id)}
+                                    aria-label={
+                                      collapsedWbsIds.has(item.id)
+                                        ? "Раскрыть WBS элемент"
+                                        : "Схлопнуть WBS элемент"
+                                    }
+                                  >
+                                    {collapsedWbsIds.has(item.id) ? "+" : "-"}
+                                  </button>
+                                ) : (
+                                  <span className="tree-spacer" />
+                                )}
+                                <span className={`wbs-color-dot ${toneClass}`} />
+                                <b>{item.code}</b>
+                                <span>{item.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div
+                            className="gantt-timeline"
+                            style={{ minHeight: `${wbsGantt.height}px` }}
+                          >
+                            <div className="gantt-month-grid" aria-hidden="true">
+                              {wbsGantt.months.map((month) => (
+                                <span
+                                  key={month.label}
+                                  style={{
+                                    left: `${month.offset}%`,
+                                    width: `${month.width}%`,
+                                  }}
+                                />
+                              ))}
+                            </div>
+                            {wbsGantt.todayOffset !== null && (
+                              <span
+                                className="gantt-today"
+                                style={{ left: `${wbsGantt.todayOffset}%` }}
+                                title={`Сегодня: ${date(new Date().toISOString())}`}
+                              />
+                            )}
+                            <svg
+                              className="gantt-links"
+                              viewBox={`0 0 100 ${wbsGantt.height}`}
+                              preserveAspectRatio="none"
+                              aria-hidden="true"
+                            >
+                              <defs>
+                                <marker
+                                  id="gantt-arrow"
+                                  markerHeight="4"
+                                  markerWidth="4"
+                                  orient="auto"
+                                  refX="3"
+                                  refY="2"
+                                >
+                                  <path d="M0,0 L4,2 L0,4 Z" />
+                                </marker>
+                              </defs>
+                              {wbsGantt.dependencyLines.map((line) => {
+                                const bendX =
+                                  line.direction === "forward"
+                                    ? Math.max(line.fromX + 1.5, (line.fromX + line.toX) / 2)
+                                    : Math.min(line.fromX - 1.5, (line.fromX + line.toX) / 2);
+                                return (
+                                  <path
+                                    d={`M ${line.fromX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${line.toX} ${line.toY}`}
+                                    key={line.id}
+                                    markerEnd="url(#gantt-arrow)"
+                                  />
+                                );
+                              })}
+                            </svg>
+                            {wbsGantt.dependencyLines.map((line) => (
+                              <span
+                                className="gantt-link-label"
+                                key={line.id}
+                                style={{
+                                  left: `${Math.max(0, Math.min(96, (line.fromX + line.toX) / 2))}%`,
+                                  top: `${Math.max(4, Math.min(wbsGantt.height - 18, (line.fromY + line.toY) / 2 - 9))}px`,
+                                }}
+                              >
+                                {line.label}
+                              </span>
+                            ))}
+                            {wbsGantt.items.map(
+                              ({ item, offset, width, milestone, critical, toneClass }) => (
+                                <div
+                                  className="gantt-track-row"
+                                  key={item.id}
+                                  style={{ height: `${GANTT_ROW_HEIGHT}px` }}
+                                >
+                                  <i
+                                    className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${critical ? "critical" : ""}`}
+                                    style={{
+                                      left: `${offset}%`,
+                                      width: milestone ? undefined : `${width}%`,
+                                    }}
+                                    title={`${item.code} ${item.title}: ${date(item.startDate)} - ${date(item.dueDate)}`}
+                                  />
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </>
+                      )}
+                      {project.wbsItems.length > visibleWbsTree.length && (
                         <div className="gantt-note">
-                          На Гантте показаны WBS уровни 1-3. Полная детализация
-                          доступна в списке ниже.
+                          Часть иерархии схлопнута. Раскройте нужные фазы,
+                          чтобы увидеть дочерние задачи и связи.
                         </div>
                       )}
                     </div>
+                  </div>
+                  <div className="dependency-panel">
+                    <div className="panel-title">
+                      <div>
+                        <h3>Связи WBS</h3>
+                        <p>FS / SS / FF / SF зависимости с lead/lag</p>
+                      </div>
+                    </div>
+                    <div className="dependency-list">
+                      {project.wbsDependencies.map((dependency) => (
+                        <div className="dependency-row" key={dependency.id}>
+                          <span>
+                            <b>{dependency.predecessor.code}</b>{" "}
+                            {dependency.predecessor.title}
+                          </span>
+                          <strong>{dependencyLabel(dependency)}</strong>
+                          <span>
+                            <b>{dependency.successor.code}</b>{" "}
+                            {dependency.successor.title}
+                          </span>
+                          <button
+                            type="button"
+                            className="plain-action"
+                            onClick={() => deleteWbsDependency(dependency.id)}
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                      ))}
+                      {project.wbsDependencies.length === 0 && (
+                        <div className="empty-state">
+                          Связи между задачами еще не заданы.
+                        </div>
+                      )}
+                    </div>
+                    <form className="dependency-form" onSubmit={createWbsDependency}>
+                      <select
+                        value={wbsDependencyForm.predecessorId}
+                        onChange={(event) =>
+                          setWbsDependencyForm({
+                            ...wbsDependencyForm,
+                            predecessorId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Predecessor</option>
+                        {wbsTree.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.code} - {item.title}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={wbsDependencyForm.type}
+                        onChange={(event) =>
+                          setWbsDependencyForm({
+                            ...wbsDependencyForm,
+                            type: event.target.value as WbsDependencyType,
+                          })
+                        }
+                      >
+                        <option value="FS">FS</option>
+                        <option value="SS">SS</option>
+                        <option value="FF">FF</option>
+                        <option value="SF">SF</option>
+                      </select>
+                      <input
+                        type="number"
+                        value={wbsDependencyForm.lagDays}
+                        onChange={(event) =>
+                          setWbsDependencyForm({
+                            ...wbsDependencyForm,
+                            lagDays: event.target.value,
+                          })
+                        }
+                        placeholder="Lag"
+                      />
+                      <select
+                        value={wbsDependencyForm.successorId}
+                        onChange={(event) =>
+                          setWbsDependencyForm({
+                            ...wbsDependencyForm,
+                            successorId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Successor</option>
+                        {wbsTree.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.code} - {item.title}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="submit">Добавить связь</button>
+                    </form>
                   </div>
                   <div className="wbs-layout">
                     <div className="wbs-list">
@@ -3295,24 +3857,50 @@ function App() {
                         <span>Owner</span>
                         <span />
                       </div>
-                      {wbsTree.map((item) => (
-                        <div className="wbs-item" key={item.id}>
-                          <button
-                            type="button"
+                      {visibleWbsTree.map((item) => (
+                        <div
+                          className={`wbs-item ${item.type === "MILESTONE" ? "milestone" : ""}`}
+                          key={item.id}
+                        >
+                          <div
                             className="wbs-row"
                             aria-expanded={expandedWbsId === item.id}
                             aria-controls={`wbs-details-${item.id}`}
-                            onClick={() =>
-                              setExpandedWbsId(
-                                expandedWbsId === item.id ? null : item.id,
-                              )
-                            }
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => toggleWbsDetails(item.id)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                toggleWbsDetails(item.id);
+                              }
+                            }}
                           >
                             <span
                               className="wbs-title"
                               style={{ paddingLeft: `${item.level * 18}px` }}
                             >
-                              <b>{item.code}</b>
+                              {item.children.length > 0 && (
+                                <button
+                                  type="button"
+                                  className="tree-toggle"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleWbsCollapse(item.id);
+                                  }}
+                                >
+                                  {collapsedWbsIds.has(item.id) ? "+" : "-"}
+                                </button>
+                              )}
+                              {item.children.length === 0 && (
+                                <span className="tree-spacer" />
+                              )}
+                              <b className={wbsToneClass(item)}>{item.code}</b>
+                              {item.type === "MILESTONE" && (
+                                <span
+                                  className={`milestone-dot ${wbsToneClass(item)}`}
+                                />
+                              )}
                               {item.title}
                             </span>
                             <span>{date(item.dueDate)}</span>
@@ -3320,7 +3908,7 @@ function App() {
                             <span className="issue-chevron" aria-hidden="true">
                               {expandedWbsId === item.id ? "-" : "+"}
                             </span>
-                          </button>
+                          </div>
                           {expandedWbsId === item.id && (
                             <div
                               className="wbs-details"
@@ -3328,6 +3916,11 @@ function App() {
                             >
                               <div className="wbs-detail-summary">
                                 <span>{wbsTypeLabel(item.type)}</span>
+                                {item.type === "MILESTONE" && (
+                                  <span className="milestone-chip">
+                                    Веха проекта
+                                  </span>
+                                )}
                                 <span
                                   className={`wbs-status ${item.status.toLowerCase().replaceAll("_", "-")}`}
                                 >
@@ -3425,6 +4018,9 @@ function App() {
                                       </option>
                                       <option value="DELIVERABLE">
                                         Deliverable
+                                      </option>
+                                      <option value="MILESTONE">
+                                        Milestone
                                       </option>
                                       <option value="TASK">Task</option>
                                     </select>
@@ -3678,6 +4274,7 @@ function App() {
                             <option value="PHASE">Phase</option>
                             <option value="WORK_PACKAGE">Work package</option>
                             <option value="DELIVERABLE">Deliverable</option>
+                            <option value="MILESTONE">Milestone</option>
                             <option value="TASK">Task</option>
                           </select>
                         </label>

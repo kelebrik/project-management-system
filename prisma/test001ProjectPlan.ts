@@ -2,7 +2,7 @@ export type ImportedWbsItem = {
   code: string;
   title: string;
   owner: string;
-  type: 'PHASE' | 'WORK_PACKAGE' | 'DELIVERABLE' | 'TASK';
+  type: 'PHASE' | 'WORK_PACKAGE' | 'DELIVERABLE' | 'MILESTONE' | 'TASK';
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'AT_RISK' | 'BLOCKED' | 'DONE' | 'CANCELLED';
   startDate: string;
   dueDate: string;
