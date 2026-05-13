@@ -451,6 +451,7 @@ type ExecutiveOverview = {
 
 type GanttCssProperties = CSSProperties & {
   "--gantt-wbs-width": string;
+  "--gantt-timeline-width": string;
 };
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -3712,6 +3713,10 @@ function App() {
                     style={
                       {
                         "--gantt-wbs-width": `${ganttWbsWidth}px`,
+                        "--gantt-timeline-width": `${Math.max(
+                          520,
+                          wbsGantt.months.length * 120,
+                        )}px`,
                       } as GanttCssProperties
                     }
                   >
