@@ -40,6 +40,22 @@ enum OverviewStatus {
   PUBLISHED
 }
 
+enum WbsItemType {
+  PHASE
+  WORK_PACKAGE
+  DELIVERABLE
+  TASK
+}
+
+enum WbsItemStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  AT_RISK
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
 model Project {
   id                String              @id @default(cuid())
   code              String              @unique
@@ -64,6 +80,7 @@ model Project {
   jiraSnapshots     JiraIssueSnapshot[]
   overviews         ExecutiveOverview[]
   milestones        Milestone[]
+  wbsItems          WbsItem[]
 }
 
 model Milestone {
@@ -113,6 +130,35 @@ model Task {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model WbsItem {
+  id            String        @id @default(cuid())
+  projectId     String
+  parentId      String?
+  code          String
+  title         String
+  type          WbsItemType   @default(TASK)
+  status        WbsItemStatus @default(NOT_STARTED)
+  owner         String
+  startDate     DateTime?
+  dueDate       DateTime?
+  plannedCost   Decimal       @default(0) @db.Decimal(14, 2)
+  forecastCost  Decimal       @default(0) @db.Decimal(14, 2)
+  progress      Int           @default(0)
+  jiraTicketKey String?
+  jiraTicketUrl String?
+  description   String?
+  sortOrder     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent        WbsItem?      @relation("WbsHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children      WbsItem[]     @relation("WbsHierarchy")
+
+  @@unique([projectId, code])
+  @@index([projectId, parentId])
+  @@index([projectId, sortOrder])
 }
 
 model Issue {

@@ -575,6 +575,229 @@ code {
   margin-top: 6px;
 }
 
+.wbs-kpis {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.wbs-kpis div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.wbs-kpis span,
+.wbs-kpis small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.wbs-kpis strong {
+  font-size: 20px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.wbs-layout {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
+}
+
+.wbs-list {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  overflow: hidden;
+}
+
+.wbs-head,
+.wbs-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1fr) 122px 132px 104px 76px 26px;
+}
+
+.wbs-head {
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 9px 12px;
+  text-transform: uppercase;
+}
+
+.wbs-item + .wbs-item {
+  border-top: 1px solid #e2e8f0;
+}
+
+.wbs-row {
+  align-items: center;
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  min-width: 0;
+  padding: 11px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.wbs-row:hover,
+.wbs-row:focus-visible {
+  background: #f8fafc;
+}
+
+.wbs-row > span {
+  color: #475569;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wbs-title {
+  align-items: center;
+  color: #1f2937 !important;
+  display: flex;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.wbs-title b {
+  background: #e0f2fe;
+  border-radius: 4px;
+  color: #075985;
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 3px 5px;
+}
+
+.wbs-status {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 11px !important;
+  font-weight: 800;
+  justify-self: start;
+  padding: 4px 8px;
+}
+
+.wbs-status.not-started {
+  background: #eef2f7;
+  color: #475569;
+}
+
+.wbs-status.in-progress {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.wbs-status.at-risk,
+.wbs-status.blocked {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.wbs-status.done {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.wbs-status.cancelled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.wbs-details {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  min-width: 0;
+  padding: 14px;
+}
+
+.wbs-detail-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.wbs-detail-summary span,
+.wbs-detail-summary a {
+  background: #eef2f7;
+  border-radius: 999px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  text-decoration: none;
+}
+
+.wbs-detail-summary a {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.wbs-description {
+  color: #334155;
+  margin-bottom: 10px;
+}
+
+.wbs-edit-grid {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 12px;
+}
+
+.wbs-edit-grid label {
+  color: #64748b;
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+  min-width: 0;
+}
+
+.wbs-edit-grid input,
+.wbs-edit-grid select,
+.wbs-edit-grid textarea,
+.wbs-edit-grid button {
+  font-size: 12px;
+  padding: 7px 8px;
+}
+
+.wbs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.danger-button {
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.wbs-form {
+  align-self: start;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px;
+}
+
 .severity {
   border-radius: 999px;
   display: inline-flex;
@@ -767,6 +990,9 @@ code {
   .issue-link-edit,
   .milestone-grid,
   .milestone-row,
+  .wbs-kpis,
+  .wbs-layout,
+  .wbs-edit-grid,
   .task-edit,
   .overview-columns {
     grid-template-columns: 1fr;
@@ -803,5 +1029,39 @@ code {
     align-self: center;
     grid-column: 2;
     grid-row: 1 / 4;
+  }
+
+  .wbs-list {
+    border: 0;
+    gap: 10px;
+    overflow: visible;
+  }
+
+  .wbs-head {
+    display: none;
+  }
+
+  .wbs-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .wbs-item + .wbs-item {
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .wbs-row {
+    grid-template-columns: minmax(0, 1fr) 28px;
+  }
+
+  .wbs-row > span {
+    grid-column: 1;
+    white-space: normal;
+  }
+
+  .wbs-row .issue-chevron {
+    grid-column: 2;
+    grid-row: 1 / 6;
   }
 }

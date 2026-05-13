@@ -127,6 +127,7 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
       jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
       overviews: { orderBy: { version: 'desc' }, take: 1 },
       milestones: { orderBy: { dueDate: 'asc' } },
+      wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
     },
   });
 
@@ -201,6 +202,203 @@ app.patch('/api/milestones/:milestoneId', async (req, res) => {
   });
 
   res.json(updated);
+});
+
+const wbsItemSchema = z.object({
+  parentId: z.string().trim().optional().nullable(),
+  code: z.string().trim().min(1),
+  title: z.string().trim().min(3),
+  type: z.enum(['PHASE', 'WORK_PACKAGE', 'DELIVERABLE', 'TASK']).default('TASK'),
+  status: z
+    .enum(['NOT_STARTED', 'IN_PROGRESS', 'AT_RISK', 'BLOCKED', 'DONE', 'CANCELLED'])
+    .default('NOT_STARTED'),
+  owner: z.string().trim().min(1),
+  startDate: z.string().trim().optional().nullable(),
+  dueDate: z.string().trim().optional().nullable(),
+  plannedCost: z.coerce.number().nonnegative().default(0),
+  forecastCost: z.coerce.number().nonnegative().default(0),
+  progress: z.coerce.number().int().min(0).max(100).default(0),
+  jiraTicketKey: z.string().trim().optional().nullable(),
+  jiraTicketUrl: z.string().trim().url().optional().nullable(),
+  description: z.string().trim().optional().nullable(),
+  sortOrder: z.coerce.number().int().default(0),
+});
+
+async function validateWbsProjectAndParent(
+  projectId: string,
+  parentId: string | null | undefined,
+  jiraTicketUrl: string | null | undefined,
+) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: { jiraIntegration: true },
+  });
+
+  if (!project) {
+    return { error: 'Project not found' as const };
+  }
+
+  if (parentId) {
+    const parent = await prisma.wbsItem.findUnique({
+      where: { id: parentId },
+    });
+    if (!parent || parent.projectId !== project.id) {
+      return { error: 'Parent WBS item not found in this project' as const };
+    }
+  }
+
+  const jiraBaseUrl = project.jiraIntegration?.baseUrl;
+  if (jiraBaseUrl && jiraTicketUrl && !jiraTicketUrl.startsWith(jiraBaseUrl)) {
+    return { error: `Jira URL must start with ${jiraBaseUrl}` as const };
+  }
+
+  return { project };
+}
+
+async function wouldCreateWbsCycle(itemId: string, nextParentId: string | null | undefined) {
+  let cursor = nextParentId;
+  while (cursor) {
+    if (cursor === itemId) {
+      return true;
+    }
+    const parent = await prisma.wbsItem.findUnique({
+      where: { id: cursor },
+      select: { parentId: true },
+    });
+    cursor = parent?.parentId ?? null;
+  }
+  return false;
+}
+
+app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
+  const parsed = wbsItemSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const validation = await validateWbsProjectAndParent(
+    req.params.projectId,
+    parsed.data.parentId,
+    parsed.data.jiraTicketUrl,
+  );
+  if ('error' in validation) {
+    res.status(validation.error === 'Project not found' ? 404 : 400).json({ error: validation.error });
+    return;
+  }
+
+  const item = await prisma.wbsItem.create({
+    data: {
+      projectId: validation.project.id,
+      parentId: parsed.data.parentId || null,
+      code: parsed.data.code,
+      title: parsed.data.title,
+      type: parsed.data.type,
+      status: parsed.data.status,
+      owner: parsed.data.owner,
+      startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
+      dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+      plannedCost: parsed.data.plannedCost,
+      forecastCost: parsed.data.forecastCost,
+      progress: parsed.data.progress,
+      jiraTicketKey: parsed.data.jiraTicketKey || null,
+      jiraTicketUrl: parsed.data.jiraTicketUrl || null,
+      description: parsed.data.description || null,
+      sortOrder: parsed.data.sortOrder,
+    },
+  });
+
+  res.status(201).json(item);
+});
+
+app.patch('/api/wbs-items/:itemId', async (req, res) => {
+  const parsed = wbsItemSchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const existing = await prisma.wbsItem.findUnique({
+    where: { id: req.params.itemId },
+  });
+
+  if (!existing) {
+    res.status(404).json({ error: 'WBS item not found' });
+    return;
+  }
+
+  if (parsed.data.parentId === existing.id) {
+    res.status(400).json({ error: 'WBS item cannot be its own parent' });
+    return;
+  }
+
+  const nextParentId = parsed.data.parentId === undefined ? existing.parentId : parsed.data.parentId;
+  const nextJiraUrl =
+    parsed.data.jiraTicketUrl === undefined ? existing.jiraTicketUrl : parsed.data.jiraTicketUrl;
+  const validation = await validateWbsProjectAndParent(existing.projectId, nextParentId, nextJiraUrl);
+  if ('error' in validation) {
+    res.status(validation.error === 'Project not found' ? 404 : 400).json({ error: validation.error });
+    return;
+  }
+
+  if (await wouldCreateWbsCycle(existing.id, nextParentId)) {
+    res.status(400).json({ error: 'WBS item cannot be moved under its own child' });
+    return;
+  }
+
+  const updated = await prisma.wbsItem.update({
+    where: { id: existing.id },
+    data: {
+      parentId:
+        parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
+      code: parsed.data.code,
+      title: parsed.data.title,
+      type: parsed.data.type,
+      status: parsed.data.status,
+      owner: parsed.data.owner,
+      startDate:
+        parsed.data.startDate === undefined
+          ? undefined
+          : parsed.data.startDate
+            ? new Date(parsed.data.startDate)
+            : null,
+      dueDate:
+        parsed.data.dueDate === undefined
+          ? undefined
+          : parsed.data.dueDate
+            ? new Date(parsed.data.dueDate)
+            : null,
+      plannedCost: parsed.data.plannedCost,
+      forecastCost: parsed.data.forecastCost,
+      progress: parsed.data.progress,
+      jiraTicketKey:
+        parsed.data.jiraTicketKey === undefined ? undefined : parsed.data.jiraTicketKey || null,
+      jiraTicketUrl:
+        parsed.data.jiraTicketUrl === undefined ? undefined : parsed.data.jiraTicketUrl || null,
+      description:
+        parsed.data.description === undefined ? undefined : parsed.data.description || null,
+      sortOrder: parsed.data.sortOrder,
+    },
+  });
+
+  res.json(updated);
+});
+
+app.delete('/api/wbs-items/:itemId', async (req, res) => {
+  const existing = await prisma.wbsItem.findUnique({
+    where: { id: req.params.itemId },
+  });
+
+  if (!existing) {
+    res.status(404).json({ error: 'WBS item not found' });
+    return;
+  }
+
+  await prisma.wbsItem.delete({
+    where: { id: existing.id },
+  });
+
+  res.status(204).send();
 });
 
 app.get('/api/projects/:projectId/open-issues', async (req, res) => {
@@ -561,6 +759,10 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     { metric: 'Project health', source: `Project ${project.code} / RAG ${project.rag}` },
     { metric: 'Schedule variance', source: `Project plan snapshot / ${project.scheduleVariance} days` },
     { metric: 'Budget forecast', source: `Finance forecast / ${money(project.budgetForecast)}` },
+    {
+      metric: 'WBS',
+      source: `${project.wbsItems.length} items / ${project.wbsItems.filter((item) => item.status === 'DONE').length} done`,
+    },
     { metric: 'Open issues', source: `${project.issues.length} open issues in unified list` },
     { metric: 'Jira snapshot', source: `${project.jiraSnapshots.length} synchronized Jira issues` },
     { metric: 'Milestones', source: `${project.milestones.length} project milestones` },
@@ -587,6 +789,7 @@ async function getProjectForOverviewGeneration(projectId: string) {
       },
       jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
       milestones: { orderBy: { dueDate: 'asc' } },
+      wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
       overviews: { orderBy: { version: 'desc' }, take: 1 },
     },
   });
