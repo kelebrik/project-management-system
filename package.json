@@ -18,7 +18,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
-    "render-build": "npm ci && npm run prisma:generate && npm run build && npm run prisma:deploy"
+    "render-build": "npm ci && npm run prisma:generate && npm run build && npm run prisma:deploy && if [ \"$SEED_DEMO_DATA\" = \"true\" ]; then npm run prisma:seed; fi"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3"

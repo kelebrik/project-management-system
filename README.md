@@ -40,7 +40,7 @@ Use the Blueprint flow and point Render to this repository. The included `render
 
 - one Node web service;
 - one PostgreSQL database;
-- environment variables for `DATABASE_URL`, `NODE_ENV`, `WEB_ORIGIN`;
+- environment variables for `DATABASE_URL`, `NODE_ENV`, `WEB_ORIGIN`, `SEED_DEMO_DATA`;
 - manual Jira secret variables.
 
 Render service settings if creating manually:
@@ -53,6 +53,7 @@ Render service settings if creating manually:
 - Environment:
   - `NODE_ENV=production`
   - `WEB_ORIGIN=*`
+  - `SEED_DEMO_DATA=true`
   - `DATABASE_URL=<Render PostgreSQL internal connection string>`
   - `JIRA_BASE_URL=<your Jira base URL>`
   - `JIRA_EMAIL=<integration user email>`
