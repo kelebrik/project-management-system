@@ -568,7 +568,7 @@ const emptyWbsDependencyForm: WbsDependencyFormState = {
   lagDays: "0",
 };
 
-const GANTT_ROW_HEIGHT = 34;
+const GANTT_ROW_HEIGHT = 36;
 
 function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
   return {
@@ -3820,28 +3820,20 @@ function App() {
                                   </marker>
                                 </defs>
                                 {wbsGantt.dependencyLines.map((line) => {
-                                  const sideOffset =
-                                    line.direction === "forward" ? 0.6 : -0.6;
-                                  const startX = Math.max(
-                                    0,
-                                    Math.min(100, line.fromX + sideOffset),
-                                  );
-                                  const endX = Math.max(
-                                    0,
-                                    Math.min(100, line.toX - sideOffset),
-                                  );
+                                  const startX = line.fromX;
+                                  const endX = line.toX;
                                   const horizontalGap = Math.abs(endX - startX);
                                   const bendX =
                                     line.direction === "forward"
                                       ? Math.min(
                                           99,
                                           startX +
-                                            Math.max(1.2, horizontalGap / 2),
+                                            Math.max(1.4, horizontalGap / 2),
                                         )
                                       : Math.max(
                                           1,
                                           startX -
-                                            Math.max(1.2, horizontalGap / 2),
+                                            Math.max(1.4, horizontalGap / 2),
                                         );
                                   return (
                                     <path
