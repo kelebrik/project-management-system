@@ -52,6 +52,7 @@ Render service settings if creating manually:
 - Health check path: `/api/health`
 - Environment:
   - `NODE_ENV=production`
+  - `NPM_CONFIG_PRODUCTION=false`
   - `WEB_ORIGIN=*`
   - `SEED_DEMO_DATA=true`
   - `DATABASE_URL=<Render PostgreSQL internal connection string>`
