@@ -1429,6 +1429,56 @@ code {
   padding: 7px 8px;
 }
 
+.wbs-predecessors {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.wbs-predecessors-title {
+  align-items: baseline;
+  color: #334155;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 8px;
+}
+
+.wbs-predecessors-title span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wbs-predecessor-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 28px minmax(0, 1fr) 76px 86px auto;
+}
+
+.wbs-predecessor-row > span:first-child {
+  background: #eef2f7;
+  border-radius: 999px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 5px 0;
+  text-align: center;
+}
+
+.dependency-chip {
+  background: #eff6ff;
+  border-radius: 999px;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+  justify-self: start;
+  padding: 5px 8px;
+}
+
 .wbs-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1447,63 +1497,6 @@ code {
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   padding: 12px;
-}
-
-.dependency-panel {
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  margin-bottom: 18px;
-  padding: 14px;
-}
-
-.dependency-list {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 12px;
-  max-height: 220px;
-  overflow: auto;
-}
-
-.dependency-row {
-  align-items: center;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
-  padding: 8px;
-}
-
-.dependency-row span {
-  color: #475569;
-  font-size: 12px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dependency-row strong {
-  background: #eff6ff;
-  border-radius: 999px;
-  color: #1d4ed8;
-  font-size: 11px;
-  padding: 4px 8px;
-}
-
-.dependency-form {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(0, 1fr) 78px 86px minmax(0, 1fr) auto;
-}
-
-.dependency-form input,
-.dependency-form select,
-.dependency-form button {
-  font-size: 12px;
-  min-width: 0;
-  padding: 7px 8px;
 }
 
 .artifact-layout {
@@ -2133,8 +2126,7 @@ code {
   .wbs-kpis,
   .wbs-layout,
   .wbs-edit-grid,
-  .dependency-row,
-  .dependency-form,
+  .wbs-predecessor-row,
   .raid-layout,
   .raid-edit-grid,
   .artifact-layout,

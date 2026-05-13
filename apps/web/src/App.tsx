@@ -154,9 +154,9 @@ type WbsDependency = {
   successor: Pick<WbsItem, "id" | "code" | "title">;
 };
 
-type WbsDependencyFormState = {
+type WbsPredecessorDraft = {
+  dependencyId: string;
   predecessorId: string;
-  successorId: string;
   type: WbsDependencyType;
   lagDays: string;
 };
@@ -562,9 +562,11 @@ const emptyWbsForm: WbsFormState = {
   sortOrder: "0",
 };
 
-const emptyWbsDependencyForm: WbsDependencyFormState = {
+const WBS_PREDECESSOR_SLOT_COUNT = 3;
+
+const emptyWbsPredecessorDraft: WbsPredecessorDraft = {
+  dependencyId: "",
   predecessorId: "",
-  successorId: "",
   type: "FS",
   lagDays: "0",
 };
@@ -744,12 +746,37 @@ function wbsTypeLabel(type: WbsItemType) {
   return labels[type];
 }
 
-function dependencyLabel(dependency: Pick<WbsDependency, "type" | "lagDays">) {
-  const lag =
-    dependency.lagDays === 0
-      ? ""
-      : ` ${dependency.lagDays > 0 ? "+" : ""}${dependency.lagDays}d`;
-  return `${dependency.type}${lag}`;
+function buildPredecessorDrafts(project: ProjectDetails) {
+  const dependenciesBySuccessor = new Map<string, WbsDependency[]>();
+  for (const dependency of project.wbsDependencies) {
+    dependenciesBySuccessor.set(dependency.successorId, [
+      ...(dependenciesBySuccessor.get(dependency.successorId) ?? []),
+      dependency,
+    ]);
+  }
+
+  return Object.fromEntries(
+    project.wbsItems.map((item) => {
+      const dependencies = (dependenciesBySuccessor.get(item.id) ?? []).slice(
+        0,
+        WBS_PREDECESSOR_SLOT_COUNT,
+      );
+      const drafts = Array.from(
+        { length: WBS_PREDECESSOR_SLOT_COUNT },
+        (_, index) => {
+          const dependency = dependencies[index];
+          if (!dependency) return { ...emptyWbsPredecessorDraft };
+          return {
+            dependencyId: dependency.id,
+            predecessorId: dependency.predecessorId,
+            type: dependency.type,
+            lagDays: String(dependency.lagDays),
+          };
+        },
+      );
+      return [item.id, drafts];
+    }),
+  );
 }
 
 function flattenWbsDescendants(item: WbsTreeItem): WbsTreeItem[] {
@@ -994,14 +1021,15 @@ function App() {
   >(null);
   const [wbsForm, setWbsForm] = useState<WbsFormState>(emptyWbsForm);
   const [wbsDrafts, setWbsDrafts] = useState<Record<string, WbsFormState>>({});
+  const [wbsPredecessorDrafts, setWbsPredecessorDrafts] = useState<
+    Record<string, WbsPredecessorDraft[]>
+  >({});
   const [expandedWbsId, setExpandedWbsId] = useState<string | null>(null);
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [showGanttDependencies, setShowGanttDependencies] = useState(true);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
-  const [wbsDependencyForm, setWbsDependencyForm] =
-    useState<WbsDependencyFormState>(emptyWbsDependencyForm);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
     {},
   );
@@ -1527,6 +1555,7 @@ function App() {
         nextProject.wbsItems.map((item) => [item.id, wbsToForm(item)]),
       ),
     );
+    setWbsPredecessorDrafts(buildPredecessorDrafts(nextProject));
     setExpandedWbsId((currentItemId) =>
       nextProject.wbsItems.some((item) => item.id === currentItemId)
         ? currentItemId
@@ -2138,6 +2167,24 @@ function App() {
     });
   }
 
+  function updateWbsPredecessorDraft(
+    itemId: string,
+    slotIndex: number,
+    patch: Partial<WbsPredecessorDraft>,
+  ) {
+    const current =
+      wbsPredecessorDrafts[itemId] ??
+      Array.from({ length: WBS_PREDECESSOR_SLOT_COUNT }, () => ({
+        ...emptyWbsPredecessorDraft,
+      }));
+    setWbsPredecessorDrafts({
+      ...wbsPredecessorDrafts,
+      [itemId]: current.map((slot, index) =>
+        index === slotIndex ? { ...slot, ...patch } : slot,
+      ),
+    });
+  }
+
   function toggleWbsCollapse(itemId: string) {
     setCollapsedWbsIds((current) => {
       const next = new Set(current);
@@ -2227,6 +2274,7 @@ function App() {
             "Не удалось сохранить WBS элемент",
         );
       }
+      await saveWbsPredecessors(itemId);
       await refreshProject();
       setNotice("WBS элемент обновлен");
     } catch (saveError) {
@@ -2235,6 +2283,71 @@ function App() {
           ? saveError.message
           : "Не удалось сохранить WBS элемент",
       );
+    }
+  }
+
+  async function saveWbsPredecessors(itemId: string) {
+    if (!project) return;
+    const desiredPredecessors = (wbsPredecessorDrafts[itemId] ?? [])
+      .filter((draft) => draft.predecessorId)
+      .map((draft) => ({
+        predecessorId: draft.predecessorId,
+        type: draft.type,
+        lagDays: Number(draft.lagDays),
+      }));
+    const uniquePredecessors = new Set(
+      desiredPredecessors.map((draft) => draft.predecessorId),
+    );
+    if (uniquePredecessors.size !== desiredPredecessors.length) {
+      throw new Error("Один predecessor нельзя указывать дважды");
+    }
+    if (uniquePredecessors.has(itemId)) {
+      throw new Error("WBS элемент не может быть своим predecessor");
+    }
+
+    const existingDependencies = project.wbsDependencies.filter(
+      (dependency) => dependency.successorId === itemId,
+    );
+    for (const dependency of existingDependencies) {
+      const shouldKeep = desiredPredecessors.some(
+        (draft) =>
+          draft.predecessorId === dependency.predecessorId &&
+          draft.type === dependency.type,
+      );
+      if (!shouldKeep) {
+        const response = await fetch(
+          `${apiBase}/api/wbs-dependencies/${dependency.id}`,
+          { method: "DELETE" },
+        );
+        if (!response.ok) {
+          const result = await response.json();
+          throw new Error(result.error ?? "Не удалось удалить связь WBS");
+        }
+      }
+    }
+
+    for (const draft of desiredPredecessors) {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/wbs-dependencies`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            predecessorId: draft.predecessorId,
+            successorId: itemId,
+            type: draft.type,
+            lagDays: draft.lagDays,
+          }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось сохранить связь WBS",
+        );
+      }
     }
   }
 
@@ -2257,69 +2370,6 @@ function App() {
         deleteError instanceof Error
           ? deleteError.message
           : "Не удалось удалить WBS элемент",
-      );
-    }
-  }
-
-  async function createWbsDependency(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!project) return;
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/projects/${project.id}/wbs-dependencies`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...wbsDependencyForm,
-            lagDays: Number(wbsDependencyForm.lagDays),
-          }),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось создать связь WBS",
-        );
-      }
-      setWbsDependencyForm({
-        ...emptyWbsDependencyForm,
-        predecessorId: wbsDependencyForm.predecessorId,
-      });
-      await refreshProject(project.id);
-      setNotice("Связь WBS создана");
-    } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : "Не удалось создать связь WBS",
-      );
-    }
-  }
-
-  async function deleteWbsDependency(dependencyId: string) {
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/wbs-dependencies/${dependencyId}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error ?? "Не удалось удалить связь WBS");
-      }
-      await refreshProject();
-      setNotice("Связь WBS удалена");
-    } catch (deleteError) {
-      setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Не удалось удалить связь WBS",
       );
     }
   }
@@ -3913,101 +3963,6 @@ function App() {
                       )}
                     </div>
                   </div>
-                  <div className="dependency-panel">
-                    <div className="panel-title">
-                      <div>
-                        <h3>Связи WBS</h3>
-                        <p>FS / SS / FF / SF зависимости с lead/lag</p>
-                      </div>
-                    </div>
-                    <div className="dependency-list">
-                      {project.wbsDependencies.map((dependency) => (
-                        <div className="dependency-row" key={dependency.id}>
-                          <span>
-                            <b>{dependency.predecessor.code}</b>{" "}
-                            {dependency.predecessor.title}
-                          </span>
-                          <strong>{dependencyLabel(dependency)}</strong>
-                          <span>
-                            <b>{dependency.successor.code}</b>{" "}
-                            {dependency.successor.title}
-                          </span>
-                          <button
-                            type="button"
-                            className="plain-action"
-                            onClick={() => deleteWbsDependency(dependency.id)}
-                          >
-                            Удалить
-                          </button>
-                        </div>
-                      ))}
-                      {project.wbsDependencies.length === 0 && (
-                        <div className="empty-state">
-                          Связи между задачами еще не заданы.
-                        </div>
-                      )}
-                    </div>
-                    <form className="dependency-form" onSubmit={createWbsDependency}>
-                      <select
-                        value={wbsDependencyForm.predecessorId}
-                        onChange={(event) =>
-                          setWbsDependencyForm({
-                            ...wbsDependencyForm,
-                            predecessorId: event.target.value,
-                          })
-                        }
-                      >
-                        <option value="">Predecessor</option>
-                        {wbsTree.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.code} - {item.title}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={wbsDependencyForm.type}
-                        onChange={(event) =>
-                          setWbsDependencyForm({
-                            ...wbsDependencyForm,
-                            type: event.target.value as WbsDependencyType,
-                          })
-                        }
-                      >
-                        <option value="FS">FS</option>
-                        <option value="SS">SS</option>
-                        <option value="FF">FF</option>
-                        <option value="SF">SF</option>
-                      </select>
-                      <input
-                        type="number"
-                        value={wbsDependencyForm.lagDays}
-                        onChange={(event) =>
-                          setWbsDependencyForm({
-                            ...wbsDependencyForm,
-                            lagDays: event.target.value,
-                          })
-                        }
-                        placeholder="Lag"
-                      />
-                      <select
-                        value={wbsDependencyForm.successorId}
-                        onChange={(event) =>
-                          setWbsDependencyForm({
-                            ...wbsDependencyForm,
-                            successorId: event.target.value,
-                          })
-                        }
-                      >
-                        <option value="">Successor</option>
-                        {wbsTree.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.code} - {item.title}
-                          </option>
-                        ))}
-                      </select>
-                      <button type="submit">Добавить связь</button>
-                    </form>
-                  </div>
                   <div className="wbs-layout">
                     <div className="wbs-list">
                       <div className="wbs-head">
@@ -4328,6 +4283,96 @@ function App() {
                                       rows={2}
                                     />
                                   </label>
+                                  <div className="wbs-predecessors span-2">
+                                    <div className="wbs-predecessors-title">
+                                      Предшественники
+                                      <span>До трех связей, как в базовом плане</span>
+                                    </div>
+                                    {(
+                                      wbsPredecessorDrafts[item.id] ??
+                                      Array.from(
+                                        { length: WBS_PREDECESSOR_SLOT_COUNT },
+                                        () => ({ ...emptyWbsPredecessorDraft }),
+                                      )
+                                    ).map((dependencyDraft, slotIndex) => (
+                                      <div
+                                        className="wbs-predecessor-row"
+                                        key={`${item.id}-predecessor-${slotIndex}`}
+                                      >
+                                        <span>{slotIndex + 1}</span>
+                                        <select
+                                          value={dependencyDraft.predecessorId}
+                                          onChange={(event) =>
+                                            updateWbsPredecessorDraft(
+                                              item.id,
+                                              slotIndex,
+                                              {
+                                                predecessorId:
+                                                  event.target.value,
+                                              },
+                                            )
+                                          }
+                                        >
+                                          <option value="">Predecessor</option>
+                                          {project.wbsItems
+                                            .filter(
+                                              (candidate) =>
+                                                candidate.id !== item.id,
+                                            )
+                                            .map((candidate) => (
+                                              <option
+                                                key={candidate.id}
+                                                value={candidate.id}
+                                              >
+                                                {candidate.code} -{" "}
+                                                {candidate.title}
+                                              </option>
+                                            ))}
+                                        </select>
+                                        <select
+                                          value={dependencyDraft.type}
+                                          onChange={(event) =>
+                                            updateWbsPredecessorDraft(
+                                              item.id,
+                                              slotIndex,
+                                              {
+                                                type: event.target
+                                                  .value as WbsDependencyType,
+                                              },
+                                            )
+                                          }
+                                        >
+                                          <option value="FS">FS</option>
+                                          <option value="SS">SS</option>
+                                          <option value="FF">FF</option>
+                                          <option value="SF">SF</option>
+                                        </select>
+                                        <input
+                                          type="number"
+                                          value={dependencyDraft.lagDays}
+                                          onChange={(event) =>
+                                            updateWbsPredecessorDraft(
+                                              item.id,
+                                              slotIndex,
+                                              {
+                                                lagDays: event.target.value,
+                                              },
+                                            )
+                                          }
+                                          placeholder="Lag"
+                                        />
+                                        {dependencyDraft.predecessorId && (
+                                          <span className="dependency-chip">
+                                            {dependencyDraft.type}
+                                            {Number(dependencyDraft.lagDays) !==
+                                            0
+                                              ? ` ${Number(dependencyDraft.lagDays) > 0 ? "+" : ""}${dependencyDraft.lagDays}d`
+                                              : ""}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
                                   <div className="wbs-actions span-2">
                                     <button
                                       type="button"
