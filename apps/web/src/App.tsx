@@ -951,6 +951,7 @@ function App() {
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [showGanttDependencies, setShowGanttDependencies] = useState(false);
   const [wbsDependencyForm, setWbsDependencyForm] =
     useState<WbsDependencyFormState>(emptyWbsDependencyForm);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
@@ -3555,6 +3556,15 @@ function App() {
                     <div className="wbs-toolbar" aria-label="WBS actions">
                       <button
                         type="button"
+                        className={showGanttDependencies ? "active" : ""}
+                        onClick={() =>
+                          setShowGanttDependencies((current) => !current)
+                        }
+                      >
+                        Связи
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setCollapsedWbsIds(new Set())}
                       >
                         Раскрыть все
@@ -3682,49 +3692,55 @@ function App() {
                                 title={`Сегодня: ${date(new Date().toISOString())}`}
                               />
                             )}
-                            <svg
-                              className="gantt-links"
-                              viewBox={`0 0 100 ${wbsGantt.height}`}
-                              preserveAspectRatio="none"
-                              aria-hidden="true"
-                            >
-                              <defs>
-                                <marker
-                                  id="gantt-arrow"
-                                  markerHeight="4"
-                                  markerWidth="4"
-                                  orient="auto"
-                                  refX="3"
-                                  refY="2"
-                                >
-                                  <path d="M0,0 L4,2 L0,4 Z" />
-                                </marker>
-                              </defs>
-                              {wbsGantt.dependencyLines.map((line) => {
-                                const horizontalGap = Math.abs(line.toX - line.fromX);
-                                const bendX =
-                                  line.direction === "forward"
-                                    ? Math.min(
-                                        99,
-                                        line.fromX + Math.max(1.2, horizontalGap / 2),
-                                      )
-                                    : Math.max(
-                                        1,
-                                        line.fromX - Math.max(1.2, horizontalGap / 2),
-                                      );
-                                const targetX =
-                                  line.direction === "forward"
-                                    ? Math.max(0, line.toX - 0.6)
-                                    : Math.min(100, line.toX + 0.6);
-                                return (
-                                  <path
-                                    d={`M ${line.fromX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${targetX} ${line.toY}`}
-                                    key={line.id}
-                                    markerEnd="url(#gantt-arrow)"
-                                  />
-                                );
-                              })}
-                            </svg>
+                            {showGanttDependencies && (
+                              <svg
+                                className="gantt-links"
+                                viewBox={`0 0 100 ${wbsGantt.height}`}
+                                preserveAspectRatio="none"
+                                aria-hidden="true"
+                              >
+                                <defs>
+                                  <marker
+                                    id="gantt-arrow"
+                                    markerHeight="4"
+                                    markerWidth="4"
+                                    orient="auto"
+                                    refX="3"
+                                    refY="2"
+                                  >
+                                    <path d="M0,0 L4,2 L0,4 Z" />
+                                  </marker>
+                                </defs>
+                                {wbsGantt.dependencyLines.map((line) => {
+                                  const horizontalGap = Math.abs(
+                                    line.toX - line.fromX,
+                                  );
+                                  const bendX =
+                                    line.direction === "forward"
+                                      ? Math.min(
+                                          99,
+                                          line.fromX +
+                                            Math.max(1.2, horizontalGap / 2),
+                                        )
+                                      : Math.max(
+                                          1,
+                                          line.fromX -
+                                            Math.max(1.2, horizontalGap / 2),
+                                        );
+                                  const targetX =
+                                    line.direction === "forward"
+                                      ? Math.max(0, line.toX - 0.6)
+                                      : Math.min(100, line.toX + 0.6);
+                                  return (
+                                    <path
+                                      d={`M ${line.fromX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${targetX} ${line.toY}`}
+                                      key={line.id}
+                                      markerEnd="url(#gantt-arrow)"
+                                    />
+                                  );
+                                })}
+                              </svg>
+                            )}
                             {wbsGantt.items.map(
                               ({
                                 item,
