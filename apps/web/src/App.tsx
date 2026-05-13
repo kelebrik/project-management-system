@@ -297,6 +297,7 @@ function App() {
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>({});
   const [issueLinkDrafts, setIssueLinkDrafts] = useState<Record<string, JiraLinkDraft>>({});
   const [issueEditDrafts, setIssueEditDrafts] = useState<Record<string, IssueEditDraft>>({});
+  const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${apiBase}/api/projects`)
@@ -369,6 +370,9 @@ function App() {
       Object.fromEntries(nextProject.issues.map((issue) => [issue.id, { jiraKey: '', jiraUrl: '' }])),
     );
     setIssueEditDrafts(Object.fromEntries(nextProject.issues.map((issue) => [issue.id, issueToDraft(issue)])));
+    setExpandedIssueId((currentIssueId) =>
+      nextProject.issues.some((issue) => issue.id === currentIssueId) ? currentIssueId : null,
+    );
   }
 
   async function refreshProject(projectId = project?.id) {
@@ -1099,113 +1103,136 @@ function App() {
                   </div>
                 </div>
                 <div className="issue-list">
+                  <div className="issue-list-head" aria-hidden="true">
+                    <span>Наименование</span>
+                    <span>Срок</span>
+                    <span>Ответственный</span>
+                    <span />
+                  </div>
                   {project.issues.map((issue) => (
                     <div className="issue-row" key={issue.id}>
-                      <div>
-                        <span className={`severity ${issue.severity.toLowerCase()}`}>{issue.severity}</span>
-                        <h3>{issue.title}</h3>
-                        <p>{issue.impact}</p>
-                        {issueEditDrafts[issue.id] && (
-                          <div className="issue-edit-grid">
-                            <input
-                              value={issueEditDrafts[issue.id].title}
-                              onChange={(event) => updateIssueDraft(issue.id, { title: event.target.value })}
-                              placeholder="Title"
-                            />
-                            <select
-                              value={issueEditDrafts[issue.id].severity}
-                              onChange={(event) => updateIssueDraft(issue.id, { severity: event.target.value as Issue['severity'] })}
-                            >
-                              <option value="CRITICAL">Critical</option>
-                              <option value="HIGH">High</option>
-                              <option value="MEDIUM">Medium</option>
-                              <option value="LOW">Low</option>
-                            </select>
-                            <select
-                              value={issueEditDrafts[issue.id].status}
-                              onChange={(event) => updateIssueDraft(issue.id, { status: event.target.value })}
-                            >
-                              <option value="Open">Open</option>
-                              <option value="In Progress">In Progress</option>
-                              <option value="Blocked">Blocked</option>
-                              <option value="Resolved">Resolved</option>
-                              <option value="Closed">Closed</option>
-                            </select>
-                            <input
-                              value={issueEditDrafts[issue.id].owner}
-                              onChange={(event) => updateIssueDraft(issue.id, { owner: event.target.value })}
-                              placeholder="Owner"
-                            />
-                            <input
-                              type="date"
-                              value={issueEditDrafts[issue.id].dueDate}
-                              onChange={(event) => updateIssueDraft(issue.id, { dueDate: event.target.value })}
-                            />
-                            <label className="checkbox-line compact-checkbox">
-                              <input
-                                type="checkbox"
-                                checked={issueEditDrafts[issue.id].decisionRequired}
-                                onChange={(event) => updateIssueDraft(issue.id, { decisionRequired: event.target.checked })}
-                              />
-                              Decision
-                            </label>
-                            <textarea
-                              className="span-2"
-                              value={issueEditDrafts[issue.id].impact}
-                              onChange={(event) => updateIssueDraft(issue.id, { impact: event.target.value })}
-                              rows={2}
-                            />
-                            <div className="issue-actions">
-                              <button type="button" onClick={() => saveOpenIssue(issue.id)}>Save issue</button>
-                              <button type="button" onClick={() => closeOpenIssue(issue.id)}>Resolve</button>
-                            </div>
+                      <button
+                        type="button"
+                        className="issue-summary-row"
+                        aria-expanded={expandedIssueId === issue.id}
+                        aria-controls={`issue-details-${issue.id}`}
+                        onClick={() => setExpandedIssueId(expandedIssueId === issue.id ? null : issue.id)}
+                      >
+                        <span className="issue-summary-title">{issue.title}</span>
+                        <span className="issue-summary-cell">{date(issue.dueDate)}</span>
+                        <span className="issue-summary-cell">{issue.owner || 'не назначен'}</span>
+                        <span className="issue-chevron" aria-hidden="true">
+                          {expandedIssueId === issue.id ? '-' : '+'}
+                        </span>
+                      </button>
+                      {expandedIssueId === issue.id && (
+                        <div className="issue-details-panel" id={`issue-details-${issue.id}`}>
+                          <div className="issue-detail-meta">
+                            <span className={`severity ${issue.severity.toLowerCase()}`}>{issue.severity}</span>
+                            <span>Статус: {issue.status}</span>
+                            <span>Источник: {issue.source}</span>
+                            {issue.decisionRequired && <b>Требует решения</b>}
                           </div>
-                        )}
-                        <div className="jira-link-list">
-                          {issue.jiraLinks.map((link) => (
-                            <span className="jira-chip" key={link.id}>
-                              <a href={link.jiraUrl} target="_blank" rel="noreferrer">{link.jiraKey}</a>
-                              <button type="button" onClick={() => removeIssueJiraLink(issue.id, link.id)}>x</button>
-                            </span>
-                          ))}
-                          {issue.jiraLinks.length === 0 && <span className="muted-inline">Jira tickets not linked</span>}
+                          <div className="issue-impact">
+                            <span>Impact</span>
+                            <p>{issue.impact}</p>
+                          </div>
+                          {issueEditDrafts[issue.id] && (
+                            <div className="issue-edit-grid">
+                              <input
+                                value={issueEditDrafts[issue.id].title}
+                                onChange={(event) => updateIssueDraft(issue.id, { title: event.target.value })}
+                                placeholder="Title"
+                              />
+                              <select
+                                value={issueEditDrafts[issue.id].severity}
+                                onChange={(event) => updateIssueDraft(issue.id, { severity: event.target.value as Issue['severity'] })}
+                              >
+                                <option value="CRITICAL">Critical</option>
+                                <option value="HIGH">High</option>
+                                <option value="MEDIUM">Medium</option>
+                                <option value="LOW">Low</option>
+                              </select>
+                              <select
+                                value={issueEditDrafts[issue.id].status}
+                                onChange={(event) => updateIssueDraft(issue.id, { status: event.target.value })}
+                              >
+                                <option value="Open">Open</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Blocked">Blocked</option>
+                                <option value="Resolved">Resolved</option>
+                                <option value="Closed">Closed</option>
+                              </select>
+                              <input
+                                value={issueEditDrafts[issue.id].owner}
+                                onChange={(event) => updateIssueDraft(issue.id, { owner: event.target.value })}
+                                placeholder="Owner"
+                              />
+                              <input
+                                type="date"
+                                value={issueEditDrafts[issue.id].dueDate}
+                                onChange={(event) => updateIssueDraft(issue.id, { dueDate: event.target.value })}
+                              />
+                              <label className="checkbox-line compact-checkbox">
+                                <input
+                                  type="checkbox"
+                                  checked={issueEditDrafts[issue.id].decisionRequired}
+                                  onChange={(event) => updateIssueDraft(issue.id, { decisionRequired: event.target.checked })}
+                                />
+                                Decision
+                              </label>
+                              <textarea
+                                className="span-2"
+                                value={issueEditDrafts[issue.id].impact}
+                                onChange={(event) => updateIssueDraft(issue.id, { impact: event.target.value })}
+                                rows={2}
+                              />
+                              <div className="issue-actions">
+                                <button type="button" onClick={() => saveOpenIssue(issue.id)}>Save issue</button>
+                                <button type="button" onClick={() => closeOpenIssue(issue.id)}>Resolve</button>
+                              </div>
+                            </div>
+                          )}
+                          <div className="jira-link-list">
+                            {issue.jiraLinks.map((link) => (
+                              <span className="jira-chip" key={link.id}>
+                                <a href={link.jiraUrl} target="_blank" rel="noreferrer">{link.jiraKey}</a>
+                                <button type="button" onClick={() => removeIssueJiraLink(issue.id, link.id)}>x</button>
+                              </span>
+                            ))}
+                            {issue.jiraLinks.length === 0 && <span className="muted-inline">Jira tickets not linked</span>}
+                          </div>
+                          <div className="issue-link-edit">
+                            <input
+                              value={issueLinkDrafts[issue.id]?.jiraKey ?? ''}
+                              onChange={(event) =>
+                                setIssueLinkDrafts({
+                                  ...issueLinkDrafts,
+                                  [issue.id]: {
+                                    ...(issueLinkDrafts[issue.id] ?? { jiraUrl: '' }),
+                                    jiraKey: event.target.value,
+                                  },
+                                })
+                              }
+                              placeholder="Jira key"
+                            />
+                            <input
+                              value={issueLinkDrafts[issue.id]?.jiraUrl ?? ''}
+                              onChange={(event) =>
+                                setIssueLinkDrafts({
+                                  ...issueLinkDrafts,
+                                  [issue.id]: {
+                                    ...(issueLinkDrafts[issue.id] ?? { jiraKey: '' }),
+                                    jiraUrl: event.target.value,
+                                  },
+                                })
+                              }
+                              placeholder="Jira URL"
+                            />
+                            <button type="button" onClick={() => addIssueJiraLink(issue.id)}>Add</button>
+                          </div>
                         </div>
-                        <div className="issue-link-edit">
-                          <input
-                            value={issueLinkDrafts[issue.id]?.jiraKey ?? ''}
-                            onChange={(event) =>
-                              setIssueLinkDrafts({
-                                ...issueLinkDrafts,
-                                [issue.id]: {
-                                  ...(issueLinkDrafts[issue.id] ?? { jiraUrl: '' }),
-                                  jiraKey: event.target.value,
-                                },
-                              })
-                            }
-                            placeholder="Jira key"
-                          />
-                          <input
-                            value={issueLinkDrafts[issue.id]?.jiraUrl ?? ''}
-                            onChange={(event) =>
-                              setIssueLinkDrafts({
-                                ...issueLinkDrafts,
-                                [issue.id]: {
-                                  ...(issueLinkDrafts[issue.id] ?? { jiraKey: '' }),
-                                  jiraUrl: event.target.value,
-                                },
-                              })
-                            }
-                            placeholder="Jira URL"
-                          />
-                          <button type="button" onClick={() => addIssueJiraLink(issue.id)}>Add</button>
-                        </div>
-                      </div>
-                      <div className="issue-meta">
-                        <strong>{issue.source}</strong>
-                        <span>{issue.owner}</span>
-                        <span>{date(issue.dueDate)}</span>
-                        {issue.decisionRequired && <b>Decision</b>}
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
