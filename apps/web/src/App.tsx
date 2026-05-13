@@ -1,4 +1,11 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import "./App.css";
 
 type RagStatus = "GREEN" | "AMBER" | "RED";
@@ -442,6 +449,10 @@ type ExecutiveOverview = {
   }>;
 };
 
+type GanttCssProperties = CSSProperties & {
+  "--gantt-wbs-width": string;
+};
+
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -740,7 +751,15 @@ function dependencyLabel(dependency: Pick<WbsDependency, "type" | "lagDays">) {
   return `${dependency.type}${lag}`;
 }
 
-function wbsToneClass(item: Pick<WbsItem, "description" | "status">) {
+function flattenWbsDescendants(item: WbsTreeItem): WbsTreeItem[] {
+  return item.children.flatMap((child) => [
+    child,
+    ...flattenWbsDescendants(child),
+  ]);
+}
+
+function wbsToneClass(item: Pick<WbsItem, "description" | "status" | "type">) {
+  if (item.type === "MILESTONE") return "tone-o";
   const templateColor = item.description
     ?.match(/Template color:\s*([A-Z])/i)?.[1]
     ?.toLowerCase();
@@ -751,6 +770,33 @@ function wbsToneClass(item: Pick<WbsItem, "description" | "status">) {
   if (item.status === "AT_RISK" || item.status === "BLOCKED") return "tone-r";
   if (item.status === "IN_PROGRESS") return "tone-b";
   return "tone-x";
+}
+
+function summaryToneClass(item: WbsTreeItem) {
+  const descendants = flattenWbsDescendants(item);
+  if (
+    descendants.length > 0 &&
+    descendants.every((descendant) => descendant.status === "DONE")
+  ) {
+    return "tone-g";
+  }
+  if (
+    item.status === "IN_PROGRESS" ||
+    descendants.some((descendant) => descendant.status === "IN_PROGRESS")
+  ) {
+    return "tone-b";
+  }
+  if (
+    item.status === "AT_RISK" ||
+    item.status === "BLOCKED" ||
+    descendants.some(
+      (descendant) =>
+        descendant.status === "AT_RISK" || descendant.status === "BLOCKED",
+    )
+  ) {
+    return "tone-r";
+  }
+  return wbsToneClass(item);
 }
 
 function startOfMonth(value: Date) {
@@ -951,7 +997,8 @@ function App() {
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [showGanttDependencies, setShowGanttDependencies] = useState(false);
+  const [showGanttDependencies, setShowGanttDependencies] = useState(true);
+  const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
   const [wbsDependencyForm, setWbsDependencyForm] =
     useState<WbsDependencyFormState>(emptyWbsDependencyForm);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
@@ -1209,30 +1256,38 @@ function App() {
       }
     }
 
-    const items = datedItems.map(({ item, start: itemStart, end: itemEnd }) => ({
-      item,
-      start: itemStart,
-      end: itemEnd,
-      offset: (daysBetween(start, itemStart) / totalDays) * 100,
-      width: Math.max(
-        item.type === "MILESTONE" ? 0.8 : 3,
-        ((daysBetween(itemStart, itemEnd) + 1) / totalDays) * 100,
-      ),
-      milestone:
-        item.type === "MILESTONE" ||
-        daysBetween(itemStart, itemEnd) === 0 ||
-        wbsMilestoneCodes.has(item.code),
-      critical:
-        criticalIds.has(item.id) ||
-        item.status === "BLOCKED" ||
-        item.status === "AT_RISK" ||
-        (item.type === "MILESTONE" && item.status !== "DONE"),
-      summary:
+    const items = datedItems.map(({ item, start: itemStart, end: itemEnd }) => {
+      const summary =
         item.children.length > 0 ||
         item.type === "PHASE" ||
-        item.type === "WORK_PACKAGE",
-      toneClass: wbsToneClass(item),
-    }));
+        item.type === "WORK_PACKAGE";
+      const milestone =
+        item.type === "MILESTONE" ||
+        daysBetween(itemStart, itemEnd) === 0 ||
+        wbsMilestoneCodes.has(item.code);
+      return {
+        item,
+        start: itemStart,
+        end: itemEnd,
+        offset: (daysBetween(start, itemStart) / totalDays) * 100,
+        width: Math.max(
+          item.type === "MILESTONE" ? 0.8 : 3,
+          ((daysBetween(itemStart, itemEnd) + 1) / totalDays) * 100,
+        ),
+        milestone,
+        critical:
+          !milestone &&
+          (criticalIds.has(item.id) ||
+            item.status === "BLOCKED" ||
+            item.status === "AT_RISK"),
+        summary,
+        toneClass: milestone
+          ? "tone-o"
+          : summary
+            ? summaryToneClass(item)
+            : wbsToneClass(item),
+      };
+    });
     const rowById = new Map(items.map((entry, index) => [entry.item.id, index]));
     const barById = new Map(items.map((entry) => [entry.item.id, entry]));
     const dependencyLines = (project?.wbsDependencies ?? [])
@@ -2075,6 +2130,25 @@ function App() {
 
   function toggleWbsDetails(itemId: string) {
     setExpandedWbsId((current) => (current === itemId ? null : itemId));
+  }
+
+  function startGanttResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = ganttWbsWidth;
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const nextWidth = Math.min(
+        640,
+        Math.max(260, startWidth + moveEvent.clientX - startX),
+      );
+      setGanttWbsWidth(nextWidth);
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
   }
 
   async function createWbsItem(event: FormEvent<HTMLFormElement>) {
@@ -3612,9 +3686,22 @@ function App() {
                       <small>С учетом схлопывания</small>
                     </div>
                   </div>
-                  <div className="gantt-panel">
+                  <div
+                    className="gantt-panel"
+                    style={
+                      {
+                        "--gantt-wbs-width": `${ganttWbsWidth}px`,
+                      } as GanttCssProperties
+                    }
+                  >
                     <div className="gantt-head">
                       <span>WBS / Work</span>
+                      <button
+                        type="button"
+                        className="gantt-resizer"
+                        onPointerDown={startGanttResize}
+                        aria-label="Изменить ширину WBS колонки"
+                      />
                       <div className="gantt-scale">
                         {wbsGantt.months.length > 0 ? (
                           wbsGantt.months.map((month) => (
@@ -3642,34 +3729,46 @@ function App() {
                       {wbsGantt.items.length > 0 && (
                         <>
                           <div className="gantt-labels">
-                            {wbsGantt.items.map(({ item, critical, toneClass }) => (
-                              <div
-                                className={`gantt-label ${critical ? "critical" : ""}`}
-                                key={item.id}
-                                style={{ paddingLeft: `${item.level * 14 + 10}px` }}
-                              >
-                                {item.children.length > 0 ? (
-                                  <button
-                                    type="button"
-                                    className="tree-toggle"
-                                    onClick={() => toggleWbsCollapse(item.id)}
-                                    aria-label={
-                                      collapsedWbsIds.has(item.id)
-                                        ? "Раскрыть WBS элемент"
-                                        : "Схлопнуть WBS элемент"
-                                    }
-                                  >
-                                    {collapsedWbsIds.has(item.id) ? "+" : "-"}
-                                  </button>
-                                ) : (
-                                  <span className="tree-spacer" />
-                                )}
-                                <span className={`wbs-color-dot ${toneClass}`} />
-                                <b>{item.code}</b>
-                                <span>{item.title}</span>
-                              </div>
-                            ))}
+                            {wbsGantt.items.map(
+                              ({ item, critical, milestone, toneClass }) => (
+                                <div
+                                  className={`gantt-label ${critical ? "critical" : ""}`}
+                                  key={item.id}
+                                  style={{
+                                    paddingLeft: `${item.level * 14 + 10}px`,
+                                  }}
+                                >
+                                  {item.children.length > 0 ? (
+                                    <button
+                                      type="button"
+                                      className="tree-toggle"
+                                      onClick={() => toggleWbsCollapse(item.id)}
+                                      aria-label={
+                                        collapsedWbsIds.has(item.id)
+                                          ? "Раскрыть WBS элемент"
+                                          : "Схлопнуть WBS элемент"
+                                      }
+                                    >
+                                      {collapsedWbsIds.has(item.id) ? "+" : "-"}
+                                    </button>
+                                  ) : (
+                                    <span className="tree-spacer" />
+                                  )}
+                                  <span
+                                    className={`wbs-color-dot ${milestone ? "tone-o" : toneClass}`}
+                                  />
+                                  <b>{item.code}</b>
+                                  <span>{item.title}</span>
+                                </div>
+                              ),
+                            )}
                           </div>
+                          <button
+                            type="button"
+                            className="gantt-resizer body"
+                            onPointerDown={startGanttResize}
+                            aria-label="Изменить ширину WBS колонки"
+                          />
                           <div
                             className="gantt-timeline"
                             style={{ minHeight: `${wbsGantt.height}px` }}

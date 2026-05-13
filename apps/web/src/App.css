@@ -882,7 +882,7 @@ code {
 .gantt-head {
   background: #f8fafc;
   display: grid;
-  grid-template-columns: minmax(240px, 0.32fr) minmax(520px, 1fr);
+  grid-template-columns: var(--gantt-wbs-width, 360px) 8px minmax(520px, 1fr);
 }
 
 .gantt-head > span {
@@ -919,7 +919,7 @@ code {
 
 .gantt-body {
   display: grid;
-  grid-template-columns: minmax(240px, 0.32fr) minmax(520px, 1fr);
+  grid-template-columns: var(--gantt-wbs-width, 360px) 8px minmax(520px, 1fr);
   max-height: 420px;
   overflow: auto;
   position: relative;
@@ -931,7 +931,7 @@ code {
 
 .gantt-labels {
   display: grid;
-  min-width: 240px;
+  min-width: var(--gantt-wbs-width, 360px);
   position: sticky;
   left: 0;
   z-index: 4;
@@ -1017,6 +1017,7 @@ code {
 }
 
 .gantt-bar.milestone {
+  background: #d97706;
   border-radius: 3px;
   height: 10px;
   min-width: 10px;
@@ -1025,27 +1026,9 @@ code {
 }
 
 .gantt-bar.summary {
-  background: #94a3b8;
   border-radius: 999px;
-  height: 4px;
+  height: 8px;
   min-width: 16px;
-  opacity: 0.82;
-}
-
-.gantt-bar.summary.tone-g {
-  background: #16a34a;
-}
-
-.gantt-bar.summary.tone-r {
-  background: #dc2626;
-}
-
-.gantt-bar.summary.tone-o {
-  background: #d97706;
-}
-
-.gantt-bar.summary.tone-x {
-  background: #94a3b8;
 }
 
 .gantt-bar.critical {
@@ -1110,17 +1093,42 @@ code {
 .gantt-links path {
   fill: none;
   marker-end: url(#gantt-arrow);
-  opacity: 0.38;
+  opacity: 0.62;
   stroke: #64748b;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 0.24;
+  stroke-width: 0.34;
   vector-effect: non-scaling-stroke;
 }
 
 .gantt-links marker path {
   fill: #64748b;
   stroke: none;
+}
+
+.gantt-resizer {
+  align-self: stretch;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid #dbe3ed;
+  border-radius: 0;
+  border-right: 1px solid #dbe3ed;
+  cursor: col-resize;
+  grid-column: 2;
+  min-width: 8px;
+  padding: 0;
+  position: sticky;
+  left: var(--gantt-wbs-width, 360px);
+  z-index: 6;
+}
+
+.gantt-resizer:hover,
+.gantt-resizer:focus-visible {
+  background: #dbeafe;
+}
+
+.gantt-resizer.body {
+  grid-row: 1;
 }
 
 .gantt-note {
@@ -2208,6 +2216,6 @@ code {
 
   .gantt-head,
   .gantt-body {
-    grid-template-columns: minmax(190px, 0.42fr) minmax(420px, 1fr);
+    grid-template-columns: var(--gantt-wbs-width, 320px) 8px minmax(420px, 1fr);
   }
 }
