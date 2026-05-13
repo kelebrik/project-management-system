@@ -1436,6 +1436,15 @@ function App() {
       : activeView === "portfolio"
         ? "Web UI Front / портфель"
         : "Web UI Front / проект";
+  const projectViews: AppView[] = [
+    "project-create",
+    "project-overview",
+    "project-passport",
+    "project-wbs",
+    "project-issues",
+    "project-artifacts",
+  ];
+  const isProjectView = projectViews.includes(activeView);
 
   if (loading) {
     return (
@@ -1461,8 +1470,18 @@ function App() {
           >
             Портфель проектов
           </button>
+          <button
+            type="button"
+            className={isProjectView ? "active" : ""}
+            onClick={() =>
+              setActiveView(
+                selectedProjectId ? "project-overview" : "project-create",
+              )
+            }
+          >
+            Проекты
+          </button>
           <div className="sidebar-group">
-            <div className="sidebar-group-title">Проекты</div>
             <button
               type="button"
               className={
@@ -1473,14 +1492,13 @@ function App() {
               Создать новый проект
             </button>
             <label className="project-picker">
-              <span>Проект</span>
               <input
                 list="project-options"
                 value={projectSearch}
                 onChange={(event) =>
                   selectProjectFromSearch(event.target.value)
                 }
-                placeholder="Поиск по наименованию"
+                placeholder="Поиск или выбор проекта"
               />
               <datalist id="project-options">
                 {projects.map((item) => (
@@ -1490,14 +1508,6 @@ function App() {
             </label>
             {selectedProjectListItem && (
               <div className="project-menu">
-                <div className="project-current">
-                  <small>Выбранный проект</small>
-                  <span
-                    className={`rag-dot ${selectedProjectListItem.rag.toLowerCase()}`}
-                  />
-                  <b>{selectedProjectListItem.code}</b>
-                  <span>{selectedProjectListItem.name}</span>
-                </div>
                 <button
                   type="button"
                   className={

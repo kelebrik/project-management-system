@@ -28,6 +28,96 @@ async function main() {
     },
   });
 
+  const demoProjects = [
+    {
+      code: 'TEST-002',
+      name: 'Второй тестовый проект',
+      sponsor: 'CIO',
+      projectManager: 'Петров П.П.',
+      rag: 'AMBER' as const,
+      progress: 35,
+      scheduleVariance: 5,
+      sortOrder: 20,
+      budgetPlanned: '18000000.00',
+      budgetForecast: '19200000.00',
+      startDate: '2026-06-01T00:00:00.000Z',
+      targetDate: '2026-10-15T00:00:00.000Z',
+      summary: 'Тестовый проект с умеренными рисками по срокам и уточняемым объемом работ.',
+    },
+    {
+      code: 'TEST-003',
+      name: 'Третий тестовый проект',
+      sponsor: 'COO',
+      projectManager: 'Сидорова М.М.',
+      rag: 'GREEN' as const,
+      progress: 72,
+      scheduleVariance: -3,
+      sortOrder: 30,
+      budgetPlanned: '24000000.00',
+      budgetForecast: '23100000.00',
+      startDate: '2026-03-10T00:00:00.000Z',
+      targetDate: '2026-07-30T00:00:00.000Z',
+      summary: 'Тестовый проект идет лучше baseline и подходит для проверки статуса Green.',
+    },
+    {
+      code: 'TEST-004',
+      name: 'Четвертый тестовый проект',
+      sponsor: 'CFO',
+      projectManager: 'Кузнецов И.И.',
+      rag: 'RED' as const,
+      progress: 18,
+      scheduleVariance: 21,
+      sortOrder: 40,
+      budgetPlanned: '32000000.00',
+      budgetForecast: '38900000.00',
+      startDate: '2026-04-20T00:00:00.000Z',
+      targetDate: '2026-12-20T00:00:00.000Z',
+      summary: 'Тестовый проект в критическом статусе для проверки переключения и executive overview.',
+    },
+  ];
+
+  const extraTestProjects = await Promise.all(
+    demoProjects.map((item) =>
+      prisma.project.upsert({
+        where: { code: item.code },
+        update: {
+          parentId: null,
+          name: item.name,
+          portfolio: 'Project Management',
+          sponsor: item.sponsor,
+          projectManager: item.projectManager,
+          status: 'ACTIVE',
+          rag: item.rag,
+          progress: item.progress,
+          scheduleVariance: item.scheduleVariance,
+          budgetPlanned: item.budgetPlanned,
+          budgetForecast: item.budgetForecast,
+          startDate: new Date(item.startDate),
+          targetDate: new Date(item.targetDate),
+          summary: item.summary,
+          sortOrder: item.sortOrder,
+        },
+        create: {
+          code: item.code,
+          name: item.name,
+          portfolio: 'Project Management',
+          sponsor: item.sponsor,
+          projectManager: item.projectManager,
+          status: 'ACTIVE',
+          rag: item.rag,
+          startDate: new Date(item.startDate),
+          targetDate: new Date(item.targetDate),
+          budgetPlanned: item.budgetPlanned,
+          budgetForecast: item.budgetForecast,
+          scheduleVariance: item.scheduleVariance,
+          progress: item.progress,
+          summary: item.summary,
+          sortOrder: item.sortOrder,
+        },
+      }),
+    ),
+  );
+
   const project = await prisma.project.upsert({
     where: { code: 'ERP' },
     update: {
@@ -363,7 +453,9 @@ async function main() {
     });
   }
 
-  console.log(`Seeded projects ${testProject.code}, ${project.code}`);
+  console.log(
+    `Seeded projects ${[testProject.code, ...extraTestProjects.map((item) => item.code), project.code].join(', ')}`,
+  );
 }
 
 main()
