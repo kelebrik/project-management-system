@@ -17,6 +17,7 @@ type AppView =
   | "project-passport"
   | "project-wbs"
   | "project-issues"
+  | "project-raid"
   | "project-artifacts"
   | "admin";
 
@@ -69,6 +70,8 @@ type ProjectDetails = ProjectListItem & {
   milestones: Milestone[];
   wbsItems: WbsItem[];
   artifacts: ProjectArtifact[];
+  raidItems: RaidItem[];
+  changeRequests: ChangeRequest[];
 };
 
 type ProjectFormState = {
@@ -188,6 +191,109 @@ type ProjectArtifact = {
   url: string | null;
   description: string | null;
   sortOrder: number;
+};
+
+type RaidItemType = "RISK" | "ASSUMPTION" | "DEPENDENCY";
+type RaidItemStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "MITIGATED"
+  | "VALIDATED"
+  | "BREACHED"
+  | "CLOSED";
+type ChangeRequestType = "SCOPE" | "BUDGET" | "SCHEDULE" | "RESOURCE";
+type ChangeRequestStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "IN_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "IMPLEMENTED";
+
+type RaidItem = {
+  id: string;
+  type: RaidItemType;
+  title: string;
+  description: string;
+  owner: string;
+  status: RaidItemStatus;
+  probability: number;
+  impact: number;
+  riskScore: number;
+  mitigationPlan: string | null;
+  contingencyPlan: string | null;
+  dueDate: string | null;
+  residualRisk: number;
+  validationDate: string | null;
+  linkedRiskId: string | null;
+  dependencyType: string | null;
+  predecessor: string | null;
+  successor: string | null;
+  supplier: string | null;
+  decisionRequired: boolean;
+  escalationLevel: string;
+  scheduleImpactDays: number;
+  budgetImpact: string;
+};
+
+type RaidFormState = {
+  type: RaidItemType;
+  title: string;
+  description: string;
+  owner: string;
+  status: RaidItemStatus;
+  probability: string;
+  impact: string;
+  mitigationPlan: string;
+  contingencyPlan: string;
+  dueDate: string;
+  residualRisk: string;
+  validationDate: string;
+  linkedRiskId: string;
+  dependencyType: string;
+  predecessor: string;
+  successor: string;
+  supplier: string;
+  decisionRequired: boolean;
+  escalationLevel: string;
+  scheduleImpactDays: string;
+  budgetImpact: string;
+};
+
+type ChangeRequest = {
+  id: string;
+  type: ChangeRequestType;
+  title: string;
+  description: string;
+  owner: string;
+  status: ChangeRequestStatus;
+  impactAnalysis: string;
+  affectedBaseline: string;
+  implementationPlan: string | null;
+  scheduleImpactDays: number;
+  budgetImpact: string;
+  scopeImpact: string | null;
+  approvalRoute: string;
+  decisionRequired: boolean;
+  dueDate: string | null;
+  approvedAt: string | null;
+};
+
+type ChangeRequestFormState = {
+  type: ChangeRequestType;
+  title: string;
+  description: string;
+  owner: string;
+  status: ChangeRequestStatus;
+  impactAnalysis: string;
+  affectedBaseline: string;
+  implementationPlan: string;
+  scheduleImpactDays: string;
+  budgetImpact: string;
+  scopeImpact: string;
+  approvalRoute: string;
+  decisionRequired: boolean;
+  dueDate: string;
 };
 
 type ArtifactStatus =
@@ -359,6 +465,47 @@ const emptyArtifactForm: ArtifactFormState = {
   sortOrder: "0",
 };
 
+const emptyRaidForm: RaidFormState = {
+  type: "RISK",
+  title: "",
+  description: "",
+  owner: "",
+  status: "OPEN",
+  probability: "3",
+  impact: "3",
+  mitigationPlan: "",
+  contingencyPlan: "",
+  dueDate: "",
+  residualRisk: "0",
+  validationDate: "",
+  linkedRiskId: "",
+  dependencyType: "",
+  predecessor: "",
+  successor: "",
+  supplier: "",
+  decisionRequired: false,
+  escalationLevel: "Project",
+  scheduleImpactDays: "0",
+  budgetImpact: "0",
+};
+
+const emptyChangeRequestForm: ChangeRequestFormState = {
+  type: "SCHEDULE",
+  title: "",
+  description: "",
+  owner: "",
+  status: "DRAFT",
+  impactAnalysis: "",
+  affectedBaseline: "Schedule baseline",
+  implementationPlan: "",
+  scheduleImpactDays: "0",
+  budgetImpact: "0",
+  scopeImpact: "",
+  approvalRoute: "PMO -> Sponsor",
+  decisionRequired: false,
+  dueDate: "",
+};
+
 const emptyWbsForm: WbsFormState = {
   parentId: "",
   code: "",
@@ -386,6 +533,51 @@ function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
     url: artifact.url ?? "",
     description: artifact.description ?? "",
     sortOrder: String(artifact.sortOrder),
+  };
+}
+
+function raidToForm(item: RaidItem): RaidFormState {
+  return {
+    type: item.type,
+    title: item.title,
+    description: item.description,
+    owner: item.owner,
+    status: item.status,
+    probability: String(item.probability),
+    impact: String(item.impact),
+    mitigationPlan: item.mitigationPlan ?? "",
+    contingencyPlan: item.contingencyPlan ?? "",
+    dueDate: item.dueDate ? item.dueDate.slice(0, 10) : "",
+    residualRisk: String(item.residualRisk),
+    validationDate: item.validationDate ? item.validationDate.slice(0, 10) : "",
+    linkedRiskId: item.linkedRiskId ?? "",
+    dependencyType: item.dependencyType ?? "",
+    predecessor: item.predecessor ?? "",
+    successor: item.successor ?? "",
+    supplier: item.supplier ?? "",
+    decisionRequired: item.decisionRequired,
+    escalationLevel: item.escalationLevel,
+    scheduleImpactDays: String(item.scheduleImpactDays),
+    budgetImpact: String(item.budgetImpact),
+  };
+}
+
+function changeRequestToForm(item: ChangeRequest): ChangeRequestFormState {
+  return {
+    type: item.type,
+    title: item.title,
+    description: item.description,
+    owner: item.owner,
+    status: item.status,
+    impactAnalysis: item.impactAnalysis,
+    affectedBaseline: item.affectedBaseline,
+    implementationPlan: item.implementationPlan ?? "",
+    scheduleImpactDays: String(item.scheduleImpactDays),
+    budgetImpact: String(item.budgetImpact),
+    scopeImpact: item.scopeImpact ?? "",
+    approvalRoute: item.approvalRoute,
+    decisionRequired: item.decisionRequired,
+    dueDate: item.dueDate ? item.dueDate.slice(0, 10) : "",
   };
 }
 
@@ -502,6 +694,45 @@ function wbsTypeLabel(type: WbsItemType) {
     TASK: "Task",
   };
   return labels[type];
+}
+
+function raidTypeLabel(type: RaidItemType) {
+  const labels: Record<RaidItemType, string> = {
+    RISK: "Risk",
+    ASSUMPTION: "Assumption",
+    DEPENDENCY: "Dependency",
+  };
+  return labels[type];
+}
+
+function raidStatusLabel(status: RaidItemStatus) {
+  const labels: Record<RaidItemStatus, string> = {
+    OPEN: "Open",
+    IN_PROGRESS: "In progress",
+    MITIGATED: "Mitigated",
+    VALIDATED: "Validated",
+    BREACHED: "Breached",
+    CLOSED: "Closed",
+  };
+  return labels[status];
+}
+
+function changeRequestStatusLabel(status: ChangeRequestStatus) {
+  const labels: Record<ChangeRequestStatus, string> = {
+    DRAFT: "Draft",
+    SUBMITTED: "Submitted",
+    IN_REVIEW: "In review",
+    APPROVED: "Approved",
+    REJECTED: "Rejected",
+    IMPLEMENTED: "Implemented",
+  };
+  return labels[status];
+}
+
+function riskTone(score: number) {
+  if (score >= 15) return "red";
+  if (score >= 8) return "amber";
+  return "green";
 }
 
 function overviewStatusLabel(status: string) {
@@ -629,6 +860,19 @@ function App() {
   const [expandedArtifactId, setExpandedArtifactId] = useState<string | null>(
     null,
   );
+  const [raidForm, setRaidForm] = useState<RaidFormState>(emptyRaidForm);
+  const [raidDrafts, setRaidDrafts] = useState<Record<string, RaidFormState>>(
+    {},
+  );
+  const [expandedRaidId, setExpandedRaidId] = useState<string | null>(null);
+  const [changeRequestForm, setChangeRequestForm] =
+    useState<ChangeRequestFormState>(emptyChangeRequestForm);
+  const [changeRequestDrafts, setChangeRequestDrafts] = useState<
+    Record<string, ChangeRequestFormState>
+  >({});
+  const [expandedChangeRequestId, setExpandedChangeRequestId] = useState<
+    string | null
+  >(null);
   const [wbsForm, setWbsForm] = useState<WbsFormState>(emptyWbsForm);
   const [wbsDrafts, setWbsDrafts] = useState<Record<string, WbsFormState>>({});
   const [expandedWbsId, setExpandedWbsId] = useState<string | null>(null);
@@ -724,6 +968,40 @@ function App() {
     ).length;
     return { planned, forecast, completed, atRisk };
   }, [project?.wbsItems]);
+  const raidSummary = useMemo(() => {
+    const raidItems = project?.raidItems ?? [];
+    const changeRequests = project?.changeRequests ?? [];
+    const activeRaid = raidItems.filter(
+      (item) => item.status !== "CLOSED" && item.status !== "VALIDATED",
+    );
+    const highRisks = activeRaid.filter(
+      (item) => item.type === "RISK" && item.riskScore >= 15,
+    );
+    const decisions = [
+      ...raidItems.filter((item) => item.decisionRequired),
+      ...changeRequests.filter((item) => item.decisionRequired),
+    ].length;
+    const pendingCr = changeRequests.filter((item) =>
+      ["SUBMITTED", "IN_REVIEW"].includes(item.status),
+    ).length;
+    const approvedImpact = changeRequests
+      .filter((item) => item.status === "APPROVED")
+      .reduce(
+        (sum, item) => ({
+          days: sum.days + item.scheduleImpactDays,
+          budget: sum.budget + Number(item.budgetImpact),
+        }),
+        { days: 0, budget: 0 },
+      );
+
+    return {
+      activeRaid: activeRaid.length,
+      highRisks: highRisks.length,
+      decisions,
+      pendingCr,
+      approvedImpact,
+    };
+  }, [project?.changeRequests, project?.raidItems]);
   const wbsGantt = useMemo(() => {
     const datedItems = wbsTree
       .filter((item) => item.level <= 2)
@@ -803,6 +1081,18 @@ function App() {
         status: project.issues.length > 0 ? "Active" : "Empty",
         source: `${project.issues.length} open issues`,
         action: "project-issues" as AppView,
+      },
+      {
+        id: "system-raid",
+        title: "RAID + Change Control",
+        type: "Management control",
+        owner: project.projectManager,
+        status:
+          project.raidItems.length + project.changeRequests.length > 0
+            ? "Active"
+            : "Empty",
+        source: `${project.raidItems.length} RAID / ${project.changeRequests.length} CR`,
+        action: "project-raid" as AppView,
       },
       {
         id: "system-overview",
@@ -929,6 +1219,29 @@ function App() {
     setExpandedArtifactId((currentArtifactId) =>
       nextProject.artifacts.some((item) => item.id === currentArtifactId)
         ? currentArtifactId
+        : null,
+    );
+    setRaidDrafts(
+      Object.fromEntries(
+        nextProject.raidItems.map((item) => [item.id, raidToForm(item)]),
+      ),
+    );
+    setExpandedRaidId((currentRaidId) =>
+      nextProject.raidItems.some((item) => item.id === currentRaidId)
+        ? currentRaidId
+        : null,
+    );
+    setChangeRequestDrafts(
+      Object.fromEntries(
+        nextProject.changeRequests.map((item) => [
+          item.id,
+          changeRequestToForm(item),
+        ]),
+      ),
+    );
+    setExpandedChangeRequestId((currentRequestId) =>
+      nextProject.changeRequests.some((item) => item.id === currentRequestId)
+        ? currentRequestId
         : null,
     );
   }
@@ -1234,6 +1547,239 @@ function App() {
         deleteError instanceof Error
           ? deleteError.message
           : "Не удалось удалить артефакт",
+      );
+    }
+  }
+
+  function raidPayload(form: RaidFormState) {
+    return {
+      ...form,
+      owner: form.owner || "",
+      probability: Number(form.probability),
+      impact: Number(form.impact),
+      mitigationPlan: form.mitigationPlan || null,
+      contingencyPlan: form.contingencyPlan || null,
+      dueDate: form.dueDate || null,
+      residualRisk: Number(form.residualRisk),
+      validationDate: form.validationDate || null,
+      linkedRiskId: form.linkedRiskId || null,
+      dependencyType: form.dependencyType || null,
+      predecessor: form.predecessor || null,
+      successor: form.successor || null,
+      supplier: form.supplier || null,
+      scheduleImpactDays: Number(form.scheduleImpactDays),
+      budgetImpact: Number(form.budgetImpact),
+    };
+  }
+
+  function updateRaidDraft(itemId: string, patch: Partial<RaidFormState>) {
+    const current = raidDrafts[itemId];
+    if (!current) return;
+    setRaidDrafts({
+      ...raidDrafts,
+      [itemId]: { ...current, ...patch },
+    });
+  }
+
+  async function createRaidItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/raid-items`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(raidPayload(raidForm)),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось создать RAID запись",
+        );
+      }
+      setRaidForm({ ...emptyRaidForm, type: raidForm.type });
+      await refreshProject(project.id);
+      setExpandedRaidId(result.id);
+      setNotice("RAID запись создана");
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Не удалось создать RAID запись",
+      );
+    }
+  }
+
+  async function saveRaidItem(itemId: string) {
+    const draft = raidDrafts[itemId];
+    if (!draft) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/raid-items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(raidPayload(draft)),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось сохранить RAID запись",
+        );
+      }
+      await refreshProject();
+      setNotice("RAID запись обновлена");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить RAID запись",
+      );
+    }
+  }
+
+  async function deleteRaidItem(itemId: string) {
+    if (!window.confirm("Удалить RAID запись?")) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/raid-items/${itemId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error ?? "Не удалось удалить RAID запись");
+      }
+      await refreshProject();
+      setNotice("RAID запись удалена");
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Не удалось удалить RAID запись",
+      );
+    }
+  }
+
+  function changeRequestPayload(form: ChangeRequestFormState) {
+    return {
+      ...form,
+      implementationPlan: form.implementationPlan || null,
+      scopeImpact: form.scopeImpact || null,
+      dueDate: form.dueDate || null,
+      scheduleImpactDays: Number(form.scheduleImpactDays),
+      budgetImpact: Number(form.budgetImpact),
+    };
+  }
+
+  function updateChangeRequestDraft(
+    requestId: string,
+    patch: Partial<ChangeRequestFormState>,
+  ) {
+    const current = changeRequestDrafts[requestId];
+    if (!current) return;
+    setChangeRequestDrafts({
+      ...changeRequestDrafts,
+      [requestId]: { ...current, ...patch },
+    });
+  }
+
+  async function createChangeRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/change-requests`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(changeRequestPayload(changeRequestForm)),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось создать change request",
+        );
+      }
+      setChangeRequestForm(emptyChangeRequestForm);
+      await refreshProject(project.id);
+      setExpandedChangeRequestId(result.id);
+      setNotice("Change request создан");
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Не удалось создать change request",
+      );
+    }
+  }
+
+  async function saveChangeRequest(requestId: string) {
+    const draft = changeRequestDrafts[requestId];
+    if (!draft) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/change-requests/${requestId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(changeRequestPayload(draft)),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось сохранить change request",
+        );
+      }
+      await refreshProject();
+      setNotice("Change request обновлен");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить change request",
+      );
+    }
+  }
+
+  async function deleteChangeRequest(requestId: string) {
+    if (!window.confirm("Удалить change request?")) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/change-requests/${requestId}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error ?? "Не удалось удалить change request");
+      }
+      await refreshProject();
+      setNotice("Change request удален");
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Не удалось удалить change request",
       );
     }
   }
@@ -1725,6 +2271,9 @@ function App() {
       : "Паспорт проекта",
     "project-wbs": project ? `${project.code} - WBS и Гантт` : "WBS и Гантт",
     "project-issues": project ? `${project.code} - Open Issues` : "Open Issues",
+    "project-raid": project
+      ? `${project.code} - RAID и изменения`
+      : "RAID и изменения",
     "project-artifacts": project
       ? `${project.code} - Артефакты проекта`
       : "Артефакты проекта",
@@ -1743,6 +2292,7 @@ function App() {
     "project-passport",
     "project-wbs",
     "project-issues",
+    "project-raid",
     "project-artifacts",
   ];
   const isProjectView = projectViews.includes(activeView);
@@ -1852,6 +2402,17 @@ function App() {
                   onClick={() => setActiveView("project-issues")}
                 >
                   Open Issues
+                </button>
+                <button
+                  type="button"
+                  className={
+                    activeView === "project-raid"
+                      ? "active nested child"
+                      : "nested child"
+                  }
+                  onClick={() => setActiveView("project-raid")}
+                >
+                  RAID и изменения
                 </button>
                 <button
                   type="button"
@@ -3847,6 +4408,823 @@ function App() {
                         )}
                       </div>
                     ))}
+                  </div>
+                </article>
+              )}
+
+              {project && activeView === "project-raid" && (
+                <article className="panel overview-panel">
+                  <div className="panel-title">
+                    <div>
+                      <h2>RAID и управление изменениями</h2>
+                      <p>
+                        Риски, допущения, зависимости и change requests с
+                        влиянием на сроки, бюджет и executive overview
+                      </p>
+                    </div>
+                  </div>
+                  <div className="wbs-kpis">
+                    <div>
+                      <span>Active RAID</span>
+                      <strong>{raidSummary.activeRaid}</strong>
+                      <small>open / in progress / breached</small>
+                    </div>
+                    <div>
+                      <span>High risks</span>
+                      <strong>{raidSummary.highRisks}</strong>
+                      <small>score 15+</small>
+                    </div>
+                    <div>
+                      <span>Pending CR</span>
+                      <strong>{raidSummary.pendingCr}</strong>
+                      <small>submitted / in review</small>
+                    </div>
+                    <div>
+                      <span>Approved impact</span>
+                      <strong>{raidSummary.approvedImpact.days} дн.</strong>
+                      <small>{currency(String(raidSummary.approvedImpact.budget))}</small>
+                    </div>
+                  </div>
+                  <div className="raid-layout">
+                    <section>
+                      <div className="subhead">RAID register</div>
+                      <div className="raid-list">
+                        <div className="raid-head">
+                          <span>Запись</span>
+                          <span>Тип</span>
+                          <span>Score</span>
+                          <span>Срок</span>
+                          <span>Владелец</span>
+                          <span />
+                        </div>
+                        {project.raidItems.map((item) => (
+                          <div className="raid-item" key={item.id}>
+                            <button
+                              type="button"
+                              className="raid-row"
+                              onClick={() =>
+                                setExpandedRaidId(
+                                  expandedRaidId === item.id ? null : item.id,
+                                )
+                              }
+                            >
+                              <span className="raid-title">{item.title}</span>
+                              <span>{raidTypeLabel(item.type)}</span>
+                              <span className={`risk-score ${riskTone(item.riskScore)}`}>
+                                {item.riskScore}
+                              </span>
+                              <span>{date(item.dueDate)}</span>
+                              <span>{item.owner}</span>
+                              <span className="issue-chevron">
+                                {expandedRaidId === item.id ? "-" : "+"}
+                              </span>
+                            </button>
+                            {expandedRaidId === item.id && raidDrafts[item.id] && (
+                              <div className="raid-details">
+                                <div className="raid-detail-meta">
+                                  <span>{raidStatusLabel(item.status)}</span>
+                                  <span>Residual: {item.residualRisk}</span>
+                                  <span>
+                                    Schedule: {item.scheduleImpactDays} days
+                                  </span>
+                                  <span>
+                                    Budget: {currency(item.budgetImpact)}
+                                  </span>
+                                  {item.decisionRequired && (
+                                    <b>Требует решения</b>
+                                  )}
+                                </div>
+                                <p>{item.description}</p>
+                                <div className="raid-edit-grid">
+                                  <select
+                                    value={raidDrafts[item.id].type}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        type: event.target.value as RaidItemType,
+                                      })
+                                    }
+                                  >
+                                    <option value="RISK">Risk</option>
+                                    <option value="ASSUMPTION">Assumption</option>
+                                    <option value="DEPENDENCY">Dependency</option>
+                                  </select>
+                                  <select
+                                    value={raidDrafts[item.id].status}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        status: event.target.value as RaidItemStatus,
+                                      })
+                                    }
+                                  >
+                                    <option value="OPEN">Open</option>
+                                    <option value="IN_PROGRESS">In progress</option>
+                                    <option value="MITIGATED">Mitigated</option>
+                                    <option value="VALIDATED">Validated</option>
+                                    <option value="BREACHED">Breached</option>
+                                    <option value="CLOSED">Closed</option>
+                                  </select>
+                                  <input
+                                    value={raidDrafts[item.id].title}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        title: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Title"
+                                  />
+                                  <input
+                                    value={raidDrafts[item.id].owner}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        owner: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Owner"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="5"
+                                    value={raidDrafts[item.id].probability}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        probability: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Probability"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="5"
+                                    value={raidDrafts[item.id].impact}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        impact: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Impact"
+                                  />
+                                  <input
+                                    type="date"
+                                    value={raidDrafts[item.id].dueDate}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        dueDate: event.target.value,
+                                      })
+                                    }
+                                  />
+                                  <input
+                                    type="date"
+                                    value={raidDrafts[item.id].validationDate}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        validationDate: event.target.value,
+                                      })
+                                    }
+                                  />
+                                  <input
+                                    value={raidDrafts[item.id].predecessor}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        predecessor: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Predecessor"
+                                  />
+                                  <input
+                                    value={raidDrafts[item.id].successor}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        successor: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Successor"
+                                  />
+                                  <input
+                                    value={raidDrafts[item.id].supplier}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        supplier: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Supplier"
+                                  />
+                                  <input
+                                    type="number"
+                                    value={raidDrafts[item.id].scheduleImpactDays}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        scheduleImpactDays: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Schedule days"
+                                  />
+                                  <input
+                                    type="number"
+                                    value={raidDrafts[item.id].budgetImpact}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        budgetImpact: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Budget impact"
+                                  />
+                                  <label className="checkbox-line compact-checkbox">
+                                    <input
+                                      type="checkbox"
+                                      checked={raidDrafts[item.id].decisionRequired}
+                                      onChange={(event) =>
+                                        updateRaidDraft(item.id, {
+                                          decisionRequired: event.target.checked,
+                                        })
+                                      }
+                                    />
+                                    Decision
+                                  </label>
+                                  <textarea
+                                    className="span-2"
+                                    value={raidDrafts[item.id].description}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        description: event.target.value,
+                                      })
+                                    }
+                                    rows={2}
+                                  />
+                                  <textarea
+                                    value={raidDrafts[item.id].mitigationPlan}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        mitigationPlan: event.target.value,
+                                      })
+                                    }
+                                    rows={2}
+                                    placeholder="Mitigation plan"
+                                  />
+                                  <textarea
+                                    value={raidDrafts[item.id].contingencyPlan}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        contingencyPlan: event.target.value,
+                                      })
+                                    }
+                                    rows={2}
+                                    placeholder="Contingency plan"
+                                  />
+                                  <div className="issue-actions">
+                                    <button
+                                      type="button"
+                                      onClick={() => saveRaidItem(item.id)}
+                                    >
+                                      Save RAID
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="danger-button"
+                                      onClick={() => deleteRaidItem(item.id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {project.raidItems.length === 0 && (
+                          <div className="empty-state">RAID записей пока нет.</div>
+                        )}
+                      </div>
+                    </section>
+                    <form className="raid-form stack-form" onSubmit={createRaidItem}>
+                      <h3>Новая RAID запись</h3>
+                      <div className="two-col">
+                        <label>
+                          Type
+                          <select
+                            value={raidForm.type}
+                            onChange={(event) =>
+                              setRaidForm({
+                                ...raidForm,
+                                type: event.target.value as RaidItemType,
+                              })
+                            }
+                          >
+                            <option value="RISK">Risk</option>
+                            <option value="ASSUMPTION">Assumption</option>
+                            <option value="DEPENDENCY">Dependency</option>
+                          </select>
+                        </label>
+                        <label>
+                          Owner
+                          <input
+                            value={raidForm.owner}
+                            onChange={(event) =>
+                              setRaidForm({
+                                ...raidForm,
+                                owner: event.target.value,
+                              })
+                            }
+                            placeholder="Risk owner"
+                          />
+                        </label>
+                      </div>
+                      <label>
+                        Title
+                        <input
+                          value={raidForm.title}
+                          onChange={(event) =>
+                            setRaidForm({
+                              ...raidForm,
+                              title: event.target.value,
+                            })
+                          }
+                          placeholder="Поставщик может не подтвердить SLA"
+                        />
+                      </label>
+                      <label>
+                        Description
+                        <textarea
+                          value={raidForm.description}
+                          onChange={(event) =>
+                            setRaidForm({
+                              ...raidForm,
+                              description: event.target.value,
+                            })
+                          }
+                          rows={3}
+                        />
+                      </label>
+                      <div className="two-col">
+                        <label>
+                          Probability
+                          <input
+                            type="number"
+                            min="0"
+                            max="5"
+                            value={raidForm.probability}
+                            onChange={(event) =>
+                              setRaidForm({
+                                ...raidForm,
+                                probability: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Impact
+                          <input
+                            type="number"
+                            min="0"
+                            max="5"
+                            value={raidForm.impact}
+                            onChange={(event) =>
+                              setRaidForm({
+                                ...raidForm,
+                                impact: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="two-col">
+                        <label>
+                          Due date
+                          <input
+                            type="date"
+                            value={raidForm.dueDate}
+                            onChange={(event) =>
+                              setRaidForm({
+                                ...raidForm,
+                                dueDate: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Budget impact
+                          <input
+                            type="number"
+                            value={raidForm.budgetImpact}
+                            onChange={(event) =>
+                              setRaidForm({
+                                ...raidForm,
+                                budgetImpact: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <label>
+                        Mitigation plan
+                        <textarea
+                          value={raidForm.mitigationPlan}
+                          onChange={(event) =>
+                            setRaidForm({
+                              ...raidForm,
+                              mitigationPlan: event.target.value,
+                            })
+                          }
+                          rows={2}
+                        />
+                      </label>
+                      <label className="checkbox-line">
+                        <input
+                          type="checkbox"
+                          checked={raidForm.decisionRequired}
+                          onChange={(event) =>
+                            setRaidForm({
+                              ...raidForm,
+                              decisionRequired: event.target.checked,
+                            })
+                          }
+                        />
+                        Требует решения
+                      </label>
+                      <button type="submit">Создать RAID запись</button>
+                    </form>
+                  </div>
+                </article>
+              )}
+
+              {project && activeView === "project-raid" && (
+                <article className="panel overview-panel">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Change Requests</h2>
+                      <p>
+                        Scope, budget, schedule и resource изменения с
+                        approval workflow
+                      </p>
+                    </div>
+                  </div>
+                  <div className="raid-layout">
+                    <section>
+                      <div className="raid-list">
+                        <div className="cr-head">
+                          <span>Change request</span>
+                          <span>Type</span>
+                          <span>Status</span>
+                          <span>Impact</span>
+                          <span>Owner</span>
+                          <span />
+                        </div>
+                        {project.changeRequests.map((request) => (
+                          <div className="raid-item" key={request.id}>
+                            <button
+                              type="button"
+                              className="cr-row"
+                              onClick={() =>
+                                setExpandedChangeRequestId(
+                                  expandedChangeRequestId === request.id
+                                    ? null
+                                    : request.id,
+                                )
+                              }
+                            >
+                              <span className="raid-title">
+                                {request.title}
+                              </span>
+                              <span>{request.type}</span>
+                              <span>{changeRequestStatusLabel(request.status)}</span>
+                              <span>
+                                {request.scheduleImpactDays} дн. /{" "}
+                                {currency(request.budgetImpact)}
+                              </span>
+                              <span>{request.owner}</span>
+                              <span className="issue-chevron">
+                                {expandedChangeRequestId === request.id
+                                  ? "-"
+                                  : "+"}
+                              </span>
+                            </button>
+                            {expandedChangeRequestId === request.id &&
+                              changeRequestDrafts[request.id] && (
+                                <div className="raid-details">
+                                  <div className="raid-detail-meta">
+                                    <span>{request.affectedBaseline}</span>
+                                    <span>{request.approvalRoute}</span>
+                                    {request.approvedAt && (
+                                      <span>
+                                        Approved: {date(request.approvedAt)}
+                                      </span>
+                                    )}
+                                    {request.decisionRequired && (
+                                      <b>Требует решения</b>
+                                    )}
+                                  </div>
+                                  <p>{request.description}</p>
+                                  <div className="raid-edit-grid">
+                                    <select
+                                      value={changeRequestDrafts[request.id].type}
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          type: event.target.value as ChangeRequestType,
+                                        })
+                                      }
+                                    >
+                                      <option value="SCOPE">Scope</option>
+                                      <option value="BUDGET">Budget</option>
+                                      <option value="SCHEDULE">Schedule</option>
+                                      <option value="RESOURCE">Resource</option>
+                                    </select>
+                                    <select
+                                      value={changeRequestDrafts[request.id].status}
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          status: event.target.value as ChangeRequestStatus,
+                                        })
+                                      }
+                                    >
+                                      <option value="DRAFT">Draft</option>
+                                      <option value="SUBMITTED">Submitted</option>
+                                      <option value="IN_REVIEW">In review</option>
+                                      <option value="APPROVED">Approved</option>
+                                      <option value="REJECTED">Rejected</option>
+                                      <option value="IMPLEMENTED">Implemented</option>
+                                    </select>
+                                    <input
+                                      value={changeRequestDrafts[request.id].title}
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          title: event.target.value,
+                                        })
+                                      }
+                                      placeholder="Title"
+                                    />
+                                    <input
+                                      value={changeRequestDrafts[request.id].owner}
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          owner: event.target.value,
+                                        })
+                                      }
+                                      placeholder="Owner"
+                                    />
+                                    <input
+                                      type="number"
+                                      value={
+                                        changeRequestDrafts[request.id]
+                                          .scheduleImpactDays
+                                      }
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          scheduleImpactDays: event.target.value,
+                                        })
+                                      }
+                                      placeholder="Schedule days"
+                                    />
+                                    <input
+                                      type="number"
+                                      value={
+                                        changeRequestDrafts[request.id]
+                                          .budgetImpact
+                                      }
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          budgetImpact: event.target.value,
+                                        })
+                                      }
+                                      placeholder="Budget impact"
+                                    />
+                                    <input
+                                      value={
+                                        changeRequestDrafts[request.id]
+                                          .affectedBaseline
+                                      }
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          affectedBaseline: event.target.value,
+                                        })
+                                      }
+                                      placeholder="Affected baseline"
+                                    />
+                                    <input
+                                      type="date"
+                                      value={changeRequestDrafts[request.id].dueDate}
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          dueDate: event.target.value,
+                                        })
+                                      }
+                                    />
+                                    <textarea
+                                      className="span-2"
+                                      value={
+                                        changeRequestDrafts[request.id]
+                                          .impactAnalysis
+                                      }
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          impactAnalysis: event.target.value,
+                                        })
+                                      }
+                                      rows={2}
+                                    />
+                                    <textarea
+                                      value={
+                                        changeRequestDrafts[request.id]
+                                          .implementationPlan
+                                      }
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          implementationPlan: event.target.value,
+                                        })
+                                      }
+                                      rows={2}
+                                      placeholder="Implementation plan"
+                                    />
+                                    <textarea
+                                      value={
+                                        changeRequestDrafts[request.id].scopeImpact
+                                      }
+                                      onChange={(event) =>
+                                        updateChangeRequestDraft(request.id, {
+                                          scopeImpact: event.target.value,
+                                        })
+                                      }
+                                      rows={2}
+                                      placeholder="Scope impact"
+                                    />
+                                    <label className="checkbox-line compact-checkbox">
+                                      <input
+                                        type="checkbox"
+                                        checked={
+                                          changeRequestDrafts[request.id]
+                                            .decisionRequired
+                                        }
+                                        onChange={(event) =>
+                                          updateChangeRequestDraft(request.id, {
+                                            decisionRequired:
+                                              event.target.checked,
+                                          })
+                                        }
+                                      />
+                                      Decision
+                                    </label>
+                                    <div className="issue-actions">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          saveChangeRequest(request.id)
+                                        }
+                                      >
+                                        Save CR
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="danger-button"
+                                        onClick={() =>
+                                          deleteChangeRequest(request.id)
+                                        }
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                          </div>
+                        ))}
+                        {project.changeRequests.length === 0 && (
+                          <div className="empty-state">
+                            Change requests пока нет.
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                    <form
+                      className="raid-form stack-form"
+                      onSubmit={createChangeRequest}
+                    >
+                      <h3>Новый Change Request</h3>
+                      <div className="two-col">
+                        <label>
+                          Type
+                          <select
+                            value={changeRequestForm.type}
+                            onChange={(event) =>
+                              setChangeRequestForm({
+                                ...changeRequestForm,
+                                type: event.target.value as ChangeRequestType,
+                              })
+                            }
+                          >
+                            <option value="SCOPE">Scope</option>
+                            <option value="BUDGET">Budget</option>
+                            <option value="SCHEDULE">Schedule</option>
+                            <option value="RESOURCE">Resource</option>
+                          </select>
+                        </label>
+                        <label>
+                          Owner
+                          <input
+                            value={changeRequestForm.owner}
+                            onChange={(event) =>
+                              setChangeRequestForm({
+                                ...changeRequestForm,
+                                owner: event.target.value,
+                              })
+                            }
+                            placeholder="Sponsor / PMO"
+                          />
+                        </label>
+                      </div>
+                      <label>
+                        Title
+                        <input
+                          value={changeRequestForm.title}
+                          onChange={(event) =>
+                            setChangeRequestForm({
+                              ...changeRequestForm,
+                              title: event.target.value,
+                            })
+                          }
+                          placeholder="Утвердить перенос UAT"
+                        />
+                      </label>
+                      <label>
+                        Description
+                        <textarea
+                          value={changeRequestForm.description}
+                          onChange={(event) =>
+                            setChangeRequestForm({
+                              ...changeRequestForm,
+                              description: event.target.value,
+                            })
+                          }
+                          rows={2}
+                        />
+                      </label>
+                      <label>
+                        Impact analysis
+                        <textarea
+                          value={changeRequestForm.impactAnalysis}
+                          onChange={(event) =>
+                            setChangeRequestForm({
+                              ...changeRequestForm,
+                              impactAnalysis: event.target.value,
+                            })
+                          }
+                          rows={3}
+                        />
+                      </label>
+                      <div className="two-col">
+                        <label>
+                          Schedule days
+                          <input
+                            type="number"
+                            value={changeRequestForm.scheduleImpactDays}
+                            onChange={(event) =>
+                              setChangeRequestForm({
+                                ...changeRequestForm,
+                                scheduleImpactDays: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Budget impact
+                          <input
+                            type="number"
+                            value={changeRequestForm.budgetImpact}
+                            onChange={(event) =>
+                              setChangeRequestForm({
+                                ...changeRequestForm,
+                                budgetImpact: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <label>
+                        Affected baseline
+                        <input
+                          value={changeRequestForm.affectedBaseline}
+                          onChange={(event) =>
+                            setChangeRequestForm({
+                              ...changeRequestForm,
+                              affectedBaseline: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="checkbox-line">
+                        <input
+                          type="checkbox"
+                          checked={changeRequestForm.decisionRequired}
+                          onChange={(event) =>
+                            setChangeRequestForm({
+                              ...changeRequestForm,
+                              decisionRequired: event.target.checked,
+                            })
+                          }
+                        />
+                        Требует решения
+                      </label>
+                      <button type="submit">Создать CR</button>
+                    </form>
                   </div>
                 </article>
               )}

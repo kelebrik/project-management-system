@@ -56,6 +56,37 @@ enum WbsItemStatus {
   CANCELLED
 }
 
+enum RaidItemType {
+  RISK
+  ASSUMPTION
+  DEPENDENCY
+}
+
+enum RaidItemStatus {
+  OPEN
+  IN_PROGRESS
+  MITIGATED
+  VALIDATED
+  BREACHED
+  CLOSED
+}
+
+enum ChangeRequestType {
+  SCOPE
+  BUDGET
+  SCHEDULE
+  RESOURCE
+}
+
+enum ChangeRequestStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  IMPLEMENTED
+}
+
 model Project {
   id               String              @id @default(cuid())
   parentId         String?
@@ -86,6 +117,8 @@ model Project {
   milestones       Milestone[]
   wbsItems         WbsItem[]
   artifacts        ProjectArtifact[]
+  raidItems        RaidItem[]
+  changeRequests   ChangeRequest[]
 
   @@index([parentId])
   @@index([sortOrder])
@@ -257,4 +290,66 @@ model ProjectArtifact {
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, sortOrder])
+}
+
+model RaidItem {
+  id                 String         @id @default(cuid())
+  projectId          String
+  type               RaidItemType
+  title              String
+  description        String
+  owner              String
+  status             RaidItemStatus @default(OPEN)
+  probability        Int            @default(0)
+  impact             Int            @default(0)
+  riskScore          Int            @default(0)
+  mitigationPlan     String?
+  contingencyPlan    String?
+  dueDate            DateTime?
+  residualRisk       Int            @default(0)
+  validationDate     DateTime?
+  linkedRiskId       String?
+  dependencyType     String?
+  predecessor        String?
+  successor          String?
+  supplier           String?
+  decisionRequired   Boolean        @default(false)
+  escalationLevel    String         @default("Project")
+  scheduleImpactDays Int            @default(0)
+  budgetImpact       Decimal        @default(0) @db.Decimal(14, 2)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  project            Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  linkedRisk         RaidItem?      @relation("RaidLinkedRisk", fields: [linkedRiskId], references: [id], onDelete: SetNull)
+  linkedAssumptions  RaidItem[]     @relation("RaidLinkedRisk")
+
+  @@index([projectId, type, status])
+  @@index([projectId, riskScore])
+  @@index([linkedRiskId])
+}
+
+model ChangeRequest {
+  id                 String              @id @default(cuid())
+  projectId          String
+  type               ChangeRequestType
+  title              String
+  description        String
+  owner              String
+  status             ChangeRequestStatus @default(DRAFT)
+  impactAnalysis     String
+  affectedBaseline   String
+  implementationPlan String?
+  scheduleImpactDays Int                 @default(0)
+  budgetImpact       Decimal             @default(0) @db.Decimal(14, 2)
+  scopeImpact        String?
+  approvalRoute      String              @default("PMO -> Sponsor")
+  decisionRequired   Boolean             @default(false)
+  dueDate            DateTime?
+  approvedAt         DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@index([projectId, updatedAt])
 }

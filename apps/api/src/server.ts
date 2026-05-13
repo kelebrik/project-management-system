@@ -183,6 +183,8 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
       milestones: { orderBy: { dueDate: 'asc' } },
       wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
       artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
+      raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
+      changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
     },
   });
 
@@ -274,6 +276,271 @@ app.delete('/api/project-artifacts/:artifactId', async (req, res) => {
     where: { id: artifact.id },
   });
 
+  res.status(204).send();
+});
+
+const raidItemSchema = z.object({
+  type: z.enum(['RISK', 'ASSUMPTION', 'DEPENDENCY']),
+  title: z.string().trim().min(3),
+  description: z.string().trim().min(3),
+  owner: z.string().trim().optional().default(''),
+  status: z.enum(['OPEN', 'IN_PROGRESS', 'MITIGATED', 'VALIDATED', 'BREACHED', 'CLOSED']).default('OPEN'),
+  probability: z.coerce.number().int().min(0).max(5).default(0),
+  impact: z.coerce.number().int().min(0).max(5).default(0),
+  mitigationPlan: z.string().trim().optional().nullable(),
+  contingencyPlan: z.string().trim().optional().nullable(),
+  dueDate: z.string().trim().optional().nullable(),
+  residualRisk: z.coerce.number().int().min(0).max(25).default(0),
+  validationDate: z.string().trim().optional().nullable(),
+  linkedRiskId: z.string().trim().optional().nullable(),
+  dependencyType: z.string().trim().optional().nullable(),
+  predecessor: z.string().trim().optional().nullable(),
+  successor: z.string().trim().optional().nullable(),
+  supplier: z.string().trim().optional().nullable(),
+  decisionRequired: z.boolean().default(false),
+  escalationLevel: z.string().trim().min(1).default('Project'),
+  scheduleImpactDays: z.coerce.number().int().default(0),
+  budgetImpact: z.coerce.number().default(0),
+});
+
+function calculatedRiskScore(probability: number, impact: number) {
+  return probability * impact;
+}
+
+function raidPayload(data: z.infer<typeof raidItemSchema>) {
+  return {
+    ...data,
+    owner: data.owner || 'Unassigned',
+    riskScore: calculatedRiskScore(data.probability, data.impact),
+    mitigationPlan: data.mitigationPlan || null,
+    contingencyPlan: data.contingencyPlan || null,
+    dueDate: data.dueDate ? new Date(data.dueDate) : null,
+    validationDate: data.validationDate ? new Date(data.validationDate) : null,
+    linkedRiskId: data.linkedRiskId || null,
+    dependencyType: data.dependencyType || null,
+    predecessor: data.predecessor || null,
+    successor: data.successor || null,
+    supplier: data.supplier || null,
+    budgetImpact: data.budgetImpact,
+  };
+}
+
+async function validateRaidItem(projectId: string, data: z.infer<typeof raidItemSchema>, itemId?: string) {
+  const score = calculatedRiskScore(data.probability, data.impact);
+  if (data.type === 'RISK' && score >= 15 && !data.owner.trim()) {
+    return 'High risk must have an owner';
+  }
+  if (data.type === 'RISK' && score >= 15 && !data.mitigationPlan?.trim()) {
+    return 'High risk must have a mitigation plan';
+  }
+  if (data.linkedRiskId) {
+    const linked = await prisma.raidItem.findUnique({ where: { id: data.linkedRiskId } });
+    if (!linked || linked.projectId !== projectId || linked.type !== 'RISK' || linked.id === itemId) {
+      return 'Linked risk must be a risk from the same project';
+    }
+  }
+  return null;
+}
+
+app.post('/api/projects/:projectId/raid-items', async (req, res) => {
+  const parsed = raidItemSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const validationError = await validateRaidItem(project.id, parsed.data);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
+    return;
+  }
+
+  const raidItem = await prisma.raidItem.create({
+    data: {
+      projectId: project.id,
+      ...raidPayload(parsed.data),
+    },
+  });
+
+  res.status(201).json(raidItem);
+});
+
+app.patch('/api/raid-items/:itemId', async (req, res) => {
+  const parsed = raidItemSchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const existing = await prisma.raidItem.findUnique({ where: { id: req.params.itemId } });
+  if (!existing) {
+    res.status(404).json({ error: 'RAID item not found' });
+    return;
+  }
+
+  const merged = {
+    type: parsed.data.type ?? existing.type,
+    title: parsed.data.title ?? existing.title,
+    description: parsed.data.description ?? existing.description,
+    owner: parsed.data.owner ?? existing.owner,
+    status: parsed.data.status ?? existing.status,
+    probability: parsed.data.probability ?? existing.probability,
+    impact: parsed.data.impact ?? existing.impact,
+    mitigationPlan: parsed.data.mitigationPlan === undefined ? existing.mitigationPlan : parsed.data.mitigationPlan,
+    contingencyPlan:
+      parsed.data.contingencyPlan === undefined ? existing.contingencyPlan : parsed.data.contingencyPlan,
+    dueDate: parsed.data.dueDate === undefined ? existing.dueDate?.toISOString().slice(0, 10) : parsed.data.dueDate,
+    residualRisk: parsed.data.residualRisk ?? existing.residualRisk,
+    validationDate:
+      parsed.data.validationDate === undefined
+        ? existing.validationDate?.toISOString().slice(0, 10)
+        : parsed.data.validationDate,
+    linkedRiskId: parsed.data.linkedRiskId === undefined ? existing.linkedRiskId : parsed.data.linkedRiskId,
+    dependencyType: parsed.data.dependencyType === undefined ? existing.dependencyType : parsed.data.dependencyType,
+    predecessor: parsed.data.predecessor === undefined ? existing.predecessor : parsed.data.predecessor,
+    successor: parsed.data.successor === undefined ? existing.successor : parsed.data.successor,
+    supplier: parsed.data.supplier === undefined ? existing.supplier : parsed.data.supplier,
+    decisionRequired: parsed.data.decisionRequired ?? existing.decisionRequired,
+    escalationLevel: parsed.data.escalationLevel ?? existing.escalationLevel,
+    scheduleImpactDays: parsed.data.scheduleImpactDays ?? existing.scheduleImpactDays,
+    budgetImpact: parsed.data.budgetImpact ?? Number(existing.budgetImpact),
+  };
+
+  const validationError = await validateRaidItem(existing.projectId, merged, existing.id);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
+    return;
+  }
+
+  const updated = await prisma.raidItem.update({
+    where: { id: existing.id },
+    data: raidPayload(merged),
+  });
+
+  res.json(updated);
+});
+
+app.delete('/api/raid-items/:itemId', async (req, res) => {
+  const existing = await prisma.raidItem.findUnique({ where: { id: req.params.itemId } });
+  if (!existing) {
+    res.status(404).json({ error: 'RAID item not found' });
+    return;
+  }
+
+  await prisma.raidItem.delete({ where: { id: existing.id } });
+  res.status(204).send();
+});
+
+const changeRequestSchema = z.object({
+  type: z.enum(['SCOPE', 'BUDGET', 'SCHEDULE', 'RESOURCE']),
+  title: z.string().trim().min(3),
+  description: z.string().trim().min(3),
+  owner: z.string().trim().min(1),
+  status: z.enum(['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'IMPLEMENTED']).default('DRAFT'),
+  impactAnalysis: z.string().trim().min(3),
+  affectedBaseline: z.string().trim().min(1),
+  implementationPlan: z.string().trim().optional().nullable(),
+  scheduleImpactDays: z.coerce.number().int().default(0),
+  budgetImpact: z.coerce.number().default(0),
+  scopeImpact: z.string().trim().optional().nullable(),
+  approvalRoute: z.string().trim().min(1).default('PMO -> Sponsor'),
+  decisionRequired: z.boolean().default(false),
+  dueDate: z.string().trim().optional().nullable(),
+});
+
+function changeRequestPayload(data: z.infer<typeof changeRequestSchema>) {
+  return {
+    ...data,
+    implementationPlan: data.implementationPlan || null,
+    scopeImpact: data.scopeImpact || null,
+    dueDate: data.dueDate ? new Date(data.dueDate) : null,
+    budgetImpact: data.budgetImpact,
+    approvedAt: data.status === 'APPROVED' ? new Date() : undefined,
+  };
+}
+
+app.post('/api/projects/:projectId/change-requests', async (req, res) => {
+  const parsed = changeRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const changeRequest = await prisma.changeRequest.create({
+    data: {
+      projectId: project.id,
+      ...changeRequestPayload(parsed.data),
+    },
+  });
+
+  res.status(201).json(changeRequest);
+});
+
+app.patch('/api/change-requests/:requestId', async (req, res) => {
+  const parsed = changeRequestSchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const existing = await prisma.changeRequest.findUnique({ where: { id: req.params.requestId } });
+  if (!existing) {
+    res.status(404).json({ error: 'Change request not found' });
+    return;
+  }
+
+  const nextStatus = parsed.data.status ?? existing.status;
+  const updated = await prisma.changeRequest.update({
+    where: { id: existing.id },
+    data: {
+      ...parsed.data,
+      implementationPlan:
+        parsed.data.implementationPlan === undefined ? undefined : parsed.data.implementationPlan || null,
+      scopeImpact: parsed.data.scopeImpact === undefined ? undefined : parsed.data.scopeImpact || null,
+      dueDate: parsed.data.dueDate === undefined ? undefined : parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+      budgetImpact: parsed.data.budgetImpact,
+      approvedAt:
+        nextStatus === 'APPROVED' && existing.status !== 'APPROVED'
+          ? new Date()
+          : parsed.data.status && nextStatus !== 'APPROVED'
+            ? null
+            : undefined,
+    },
+  });
+
+  if (nextStatus === 'APPROVED' && existing.status !== 'APPROVED') {
+    await prisma.project.update({
+      where: { id: existing.projectId },
+      data: {
+        scheduleVariance: { increment: updated.scheduleImpactDays },
+        budgetForecast: { increment: updated.budgetImpact },
+      },
+    });
+  }
+
+  res.json(updated);
+});
+
+app.delete('/api/change-requests/:requestId', async (req, res) => {
+  const existing = await prisma.changeRequest.findUnique({ where: { id: req.params.requestId } });
+  if (!existing) {
+    res.status(404).json({ error: 'Change request not found' });
+    return;
+  }
+
+  await prisma.changeRequest.delete({ where: { id: existing.id } });
   res.status(204).send();
 });
 
@@ -849,6 +1116,13 @@ function severityRank(severity: string) {
   return { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 }[severity] ?? 0;
 }
 
+function raidSeverity(score: number) {
+  if (score >= 20) return 'CRITICAL';
+  if (score >= 15) return 'HIGH';
+  if (score >= 8) return 'MEDIUM';
+  return 'LOW';
+}
+
 function overviewTone(value: 'green' | 'amber' | 'red' | 'neutral') {
   return value;
 }
@@ -863,6 +1137,12 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
   const budgetVariance = budgetPlanned === 0 ? 0 : (budgetForecast / budgetPlanned - 1) * 100;
   const criticalIssues = project.issues.filter((issue) => issue.severity === 'CRITICAL');
   const decisionIssues = project.issues.filter((issue) => issue.decisionRequired);
+  const activeRaidItems = project.raidItems.filter((item) => !['CLOSED', 'VALIDATED'].includes(item.status));
+  const highRaidItems = activeRaidItems.filter((item) => item.type === 'RISK' && item.riskScore >= 15);
+  const decisionChangeRequests = project.changeRequests.filter((request) => request.decisionRequired);
+  const pendingChangeRequests = project.changeRequests.filter((request) =>
+    ['SUBMITTED', 'IN_REVIEW'].includes(request.status),
+  );
   const topIssue = [...project.issues].sort(
     (left, right) => severityRank(right.severity) - severityRank(left.severity),
   )[0];
@@ -898,8 +1178,14 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     nextMilestone
       ? `Ближайшая веха: ${nextMilestone.title}, срок ${nextMilestone.dueDate.toISOString().slice(0, 10)}, статус ${nextMilestone.status}.`
       : 'Ближайшие вехи не заданы.',
-    decisionIssues.length > 0
-      ? `Для руководства требуется ${decisionIssues.length} решение(й).`
+    activeRaidItems.length > 0
+      ? `В RAID активно ${activeRaidItems.length} записей, high risks: ${highRaidItems.length}.`
+      : 'Активных RAID записей нет.',
+    pendingChangeRequests.length > 0
+      ? `На согласовании ${pendingChangeRequests.length} change request(s).`
+      : 'Change requests на согласовании отсутствуют.',
+    decisionIssues.length + decisionChangeRequests.length > 0
+      ? `Для руководства требуется ${decisionIssues.length + decisionChangeRequests.length} решение(й).`
       : 'Новых решений от руководства сейчас не требуется.',
   ].join(' ');
 
@@ -939,6 +1225,13 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       tone: overviewTone(criticalIssues.length > 0 ? 'red' : decisionIssues.length > 0 ? 'amber' : 'green'),
       source: 'Open Issues List',
     },
+    {
+      label: 'RAID / CR',
+      value: `${activeRaidItems.length}/${pendingChangeRequests.length}`,
+      secondary: `${highRaidItems.length} high risks / ${decisionChangeRequests.length} CR decisions`,
+      tone: overviewTone(highRaidItems.length > 0 ? 'red' : pendingChangeRequests.length > 0 ? 'amber' : 'green'),
+      source: 'RAID + Change Control',
+    },
   ];
 
   const qualityGates = [
@@ -973,6 +1266,12 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       detail: `${artifactBaselineCount} approved/baseline artifact(s) in project registry`,
       source: 'Artifacts registry',
     },
+    {
+      name: 'RAID discipline',
+      status: highRaidItems.some((item) => !item.mitigationPlan) ? 'BLOCKED' : highRaidItems.length > 0 ? 'WARN' : 'OK',
+      detail: `${highRaidItems.length} high risk(s), ${pendingChangeRequests.length} pending CR(s)`,
+      source: 'RAID + Change Control',
+    },
   ];
 
   const risks = [
@@ -987,9 +1286,22 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
           ? issue.jiraLinks.map((link) => link.jiraKey).join(', ')
           : 'Internal RAID',
     })),
+    ...activeRaidItems
+      .filter((item) => item.type === 'RISK')
+      .slice(0, Math.max(0, 5 - Math.min(project.issues.length, 5)))
+      .map((item) => ({
+        title: item.title,
+        severity: raidSeverity(item.riskScore),
+        owner: item.owner,
+        impact: `${item.description} Schedule: ${item.scheduleImpactDays} days, budget: ${money(item.budgetImpact)}. Mitigation: ${
+          item.mitigationPlan ?? 'not defined'
+        }`,
+        dueDate: isoDate(item.dueDate),
+        source: `RAID score ${item.riskScore}`,
+      })),
     ...project.wbsItems
       .filter((item) => item.status === 'BLOCKED' || item.status === 'AT_RISK')
-      .slice(0, Math.max(0, 5 - Math.min(project.issues.length, 5)))
+      .slice(0, Math.max(0, 5 - Math.min(project.issues.length + highRaidItems.length, 5)))
       .map((item) => ({
         title: `${item.code} ${item.title}`,
         severity: item.status === 'BLOCKED' ? 'HIGH' : 'MEDIUM',
@@ -1006,6 +1318,12 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       owner: issue.owner,
       dueDate: isoDate(issue.dueDate),
       source: 'Open Issues List',
+    })),
+    ...decisionChangeRequests.slice(0, 3).map((request) => ({
+      title: `Approve change request: ${request.title}`,
+      owner: request.owner,
+      dueDate: isoDate(request.dueDate),
+      source: `CR ${request.type}`,
     })),
     ...project.milestones
       .filter((milestone) => milestone.status !== 'Done')
@@ -1033,6 +1351,16 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     deadline: isoDate(issue.dueDate),
     source: issue.jiraLinks.length > 0 ? issue.jiraLinks.map((link) => link.jiraKey).join(', ') : 'Internal RAID',
   }));
+
+  decisions.push(
+    ...decisionChangeRequests.slice(0, 5 - decisions.length).map((request) => ({
+      title: request.title,
+      impactIfApproved: `${request.impactAnalysis}. Forecast impact: ${money(request.budgetImpact)}, schedule ${request.scheduleImpactDays} days.`,
+      impactIfDelayed: `Baseline ${request.affectedBaseline} remains blocked; owner ${request.owner}.`,
+      deadline: isoDate(request.dueDate),
+      source: `Change Request / ${request.type}`,
+    })),
+  );
 
   const evidence = [
     {
@@ -1067,6 +1395,14 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       metric: 'Artifacts',
       source: `${project.artifacts.length} project artifacts / ${artifactBaselineCount} approved or baseline`,
     },
+    {
+      metric: 'RAID',
+      source: `${activeRaidItems.length} active RAID items / ${highRaidItems.length} high risks`,
+    },
+    {
+      metric: 'Change requests',
+      source: `${project.changeRequests.length} CRs / ${pendingChangeRequests.length} pending approval`,
+    },
     ...project.issues.slice(0, 3).map((issue) => ({
       metric: issue.title,
       source:
@@ -1093,6 +1429,8 @@ async function getProjectForOverviewGeneration(projectId: string) {
       milestones: { orderBy: { dueDate: 'asc' } },
       wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
       artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
+      raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
+      changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
       overviews: { orderBy: { version: 'desc' }, take: 1 },
     },
   });

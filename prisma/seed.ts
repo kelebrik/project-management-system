@@ -383,6 +383,116 @@ async function main() {
 
   await importTest001ProjectPlan(testProject.id);
 
+  await prisma.changeRequest.deleteMany({ where: { projectId: testProject.id } });
+  await prisma.raidItem.deleteMany({ where: { projectId: testProject.id } });
+
+  const supplierRisk = await prisma.raidItem.create({
+    data: {
+      projectId: testProject.id,
+      type: 'RISK',
+      title: 'Поставщик может не подтвердить сроки FF',
+      description:
+        'Есть риск задержки поставки factory firmware baseline и сдвига интеграционного тестирования.',
+      owner: 'Vendor Manager',
+      status: 'IN_PROGRESS',
+      probability: 4,
+      impact: 4,
+      riskScore: 16,
+      mitigationPlan: 'Еженедельный контроль supplier plan, резервный слот интеграции и escalation на steering.',
+      contingencyPlan: 'Перенос части тестов на stub firmware и отдельный CR по графику.',
+      dueDate: new Date('2026-04-10T00:00:00.000Z'),
+      residualRisk: 8,
+      decisionRequired: true,
+      escalationLevel: 'Steering',
+      scheduleImpactDays: 7,
+      budgetImpact: '1200000.00',
+    },
+  });
+
+  await prisma.raidItem.createMany({
+    data: [
+      {
+        projectId: testProject.id,
+        type: 'ASSUMPTION',
+        title: 'AML стенд будет доступен для интеграции',
+        description:
+          'План проекта предполагает доступность AML стенда в окно интеграционного тестирования.',
+        owner: 'Integration Lead',
+        status: 'OPEN',
+        probability: 2,
+        impact: 4,
+        riskScore: 8,
+        validationDate: new Date('2026-03-20T00:00:00.000Z'),
+        linkedRiskId: supplierRisk.id,
+        decisionRequired: false,
+        escalationLevel: 'Project',
+        scheduleImpactDays: 3,
+        budgetImpact: '300000.00',
+      },
+      {
+        projectId: testProject.id,
+        type: 'DEPENDENCY',
+        title: 'Зависимость от готовности CVTE firmware package',
+        description: 'Сборка FF зависит от готовности firmware package и подтверждения supplier release notes.',
+        owner: 'Tech Lead',
+        status: 'OPEN',
+        probability: 3,
+        impact: 5,
+        riskScore: 15,
+        mitigationPlan: 'Запросить daily supplier status до закрытия firmware package.',
+        dueDate: new Date('2026-03-28T00:00:00.000Z'),
+        dependencyType: 'External supplier',
+        predecessor: 'Supplier firmware release',
+        successor: 'Integration test start',
+        supplier: 'CVTE',
+        decisionRequired: true,
+        escalationLevel: 'Sponsor',
+        scheduleImpactDays: 5,
+        budgetImpact: '800000.00',
+      },
+    ],
+  });
+
+  await prisma.changeRequest.createMany({
+    data: [
+      {
+        projectId: testProject.id,
+        type: 'SCHEDULE',
+        title: 'Сдвиг окна интеграционного тестирования',
+        description:
+          'Предлагается перенести старт интеграционного тестирования с учетом supplier firmware readiness.',
+        owner: 'PMO',
+        status: 'SUBMITTED',
+        impactAnalysis: 'Снижает риск повторного тестирования, но добавляет 5 дней к baseline.',
+        affectedBaseline: 'Schedule baseline',
+        implementationPlan: 'Обновить WBS dates, согласовать supplier slot и перепланировать QA capacity.',
+        scheduleImpactDays: 5,
+        budgetImpact: '650000.00',
+        scopeImpact: 'Scope не меняется',
+        approvalRoute: 'PMO -> Sponsor',
+        decisionRequired: true,
+        dueDate: new Date('2026-03-25T00:00:00.000Z'),
+      },
+      {
+        projectId: testProject.id,
+        type: 'BUDGET',
+        title: 'Резерв на дополнительный цикл тестирования',
+        description: 'Финансовый резерв на один дополнительный цикл regression тестов.',
+        owner: 'Finance Controller',
+        status: 'IN_REVIEW',
+        impactAnalysis: 'Добавляет резерв бюджета, но снижает риск незапланированных расходов при дефектах FF.',
+        affectedBaseline: 'Cost baseline',
+        implementationPlan: 'Добавить резерв в forecast после approval.',
+        scheduleImpactDays: 0,
+        budgetImpact: '950000.00',
+        scopeImpact: 'Scope не меняется',
+        approvalRoute: 'Finance -> Sponsor',
+        decisionRequired: false,
+        dueDate: new Date('2026-03-27T00:00:00.000Z'),
+      },
+    ],
+  });
+
   await prisma.projectArtifact.upsert({
     where: { id: 'test001_artifact_project_plan' },
     update: {
