@@ -972,6 +972,7 @@ code {
 .gantt-timeline {
   background: #fff;
   min-width: 520px;
+  overflow: hidden;
   position: relative;
 }
 
@@ -1087,6 +1088,7 @@ code {
 .gantt-links {
   height: 100%;
   overflow: visible;
+  width: 100%;
   z-index: 1;
 }
 
@@ -1097,7 +1099,7 @@ code {
   stroke: #64748b;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 0.34;
+  stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 

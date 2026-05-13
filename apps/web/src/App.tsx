@@ -1304,21 +1304,30 @@ function App() {
         ) {
           return null;
         }
+        const predecessorStart = predecessor.offset;
+        const predecessorEnd = predecessor.milestone
+          ? predecessor.offset
+          : predecessor.offset + predecessor.width;
+        const successorStart = successor.offset;
+        const successorEnd = successor.milestone
+          ? successor.offset
+          : successor.offset + successor.width;
         const from =
           dependency.type === "SS" || dependency.type === "SF"
-            ? predecessor.offset
-            : predecessor.offset + predecessor.width;
+            ? predecessorStart
+            : predecessorEnd;
         const to =
           dependency.type === "FF" || dependency.type === "SF"
-            ? successor.offset + successor.width
-            : successor.offset;
+            ? successorEnd
+            : successorStart;
+        const direction = to >= from ? ("forward" as const) : ("backward" as const);
         return {
           id: dependency.id,
           fromX: Math.max(0, Math.min(100, from)),
           fromY: predecessorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
           toX: Math.max(0, Math.min(100, to)),
           toY: successorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
-          direction: to >= from ? ("forward" as const) : ("backward" as const),
+          direction,
         };
       })
       .filter(
@@ -3811,28 +3820,32 @@ function App() {
                                   </marker>
                                 </defs>
                                 {wbsGantt.dependencyLines.map((line) => {
-                                  const horizontalGap = Math.abs(
-                                    line.toX - line.fromX,
+                                  const sideOffset =
+                                    line.direction === "forward" ? 0.6 : -0.6;
+                                  const startX = Math.max(
+                                    0,
+                                    Math.min(100, line.fromX + sideOffset),
                                   );
+                                  const endX = Math.max(
+                                    0,
+                                    Math.min(100, line.toX - sideOffset),
+                                  );
+                                  const horizontalGap = Math.abs(endX - startX);
                                   const bendX =
                                     line.direction === "forward"
                                       ? Math.min(
                                           99,
-                                          line.fromX +
+                                          startX +
                                             Math.max(1.2, horizontalGap / 2),
                                         )
                                       : Math.max(
                                           1,
-                                          line.fromX -
+                                          startX -
                                             Math.max(1.2, horizontalGap / 2),
                                         );
-                                  const targetX =
-                                    line.direction === "forward"
-                                      ? Math.max(0, line.toX - 0.6)
-                                      : Math.min(100, line.toX + 0.6);
                                   return (
                                     <path
-                                      d={`M ${line.fromX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${targetX} ${line.toY}`}
+                                      d={`M ${startX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${endX} ${line.toY}`}
                                       key={line.id}
                                       markerEnd="url(#gantt-arrow)"
                                     />
