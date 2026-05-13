@@ -855,7 +855,9 @@ code {
   border: 1px solid #d8e0eb;
   border-radius: 6px;
   margin-bottom: 18px;
+  max-height: 456px;
   overflow: auto;
+  position: relative;
 }
 
 .wbs-toolbar {
@@ -885,6 +887,9 @@ code {
   display: grid;
   grid-template-columns: var(--gantt-wbs-width, 360px) 8px var(--gantt-timeline-width, 520px);
   min-width: calc(var(--gantt-wbs-width, 360px) + 8px + var(--gantt-timeline-width, 520px));
+  position: sticky;
+  top: 0;
+  z-index: 8;
 }
 
 .gantt-head > span {
@@ -894,6 +899,14 @@ code {
   letter-spacing: 0.02em;
   padding: 11px 14px;
   text-transform: uppercase;
+}
+
+.gantt-head > span:first-child {
+  background: #f7f9fc;
+  box-shadow: 1px 0 0 #d8e0eb;
+  left: 0;
+  position: sticky;
+  z-index: 10;
 }
 
 .gantt-scale {
@@ -923,9 +936,7 @@ code {
 .gantt-body {
   display: grid;
   grid-template-columns: var(--gantt-wbs-width, 360px) 8px var(--gantt-timeline-width, 520px);
-  max-height: 420px;
   min-width: calc(var(--gantt-wbs-width, 360px) + 8px + var(--gantt-timeline-width, 520px));
-  overflow: auto;
   position: relative;
 }
 
@@ -938,7 +949,7 @@ code {
   min-width: var(--gantt-wbs-width, 360px);
   position: sticky;
   left: 0;
-  z-index: 5;
+  z-index: 7;
 }
 
 .gantt-label {
@@ -1131,7 +1142,7 @@ code {
   padding: 0;
   position: sticky;
   left: var(--gantt-wbs-width, 360px);
-  z-index: 6;
+  z-index: 9;
 }
 
 .gantt-resizer:hover,
