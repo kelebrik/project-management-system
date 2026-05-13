@@ -23,15 +23,25 @@
   gap: 8px;
 }
 
-.sidebar a {
+.sidebar a,
+.sidebar button {
+  background: transparent;
+  border: 0;
   border-radius: 6px;
   color: #aebdcb;
   cursor: default;
+  font-size: 13px;
+  font-weight: 700;
   padding: 10px 12px;
   text-align: left;
 }
 
-.sidebar a.active {
+.sidebar button {
+  cursor: pointer;
+}
+
+.sidebar a.active,
+.sidebar button.active {
   background: #314050;
   color: #fff;
 }
@@ -204,6 +214,90 @@ button:disabled {
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.projects-tree-section {
+  margin-bottom: 18px;
+}
+
+.project-tree-panel {
+  min-height: 0;
+}
+
+.project-tree-list {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.project-tree-row {
+  align-items: center;
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 180px 18px;
+  min-width: 0;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.project-tree-row + .project-tree-row {
+  border-top: 1px solid #e2e8f0;
+}
+
+.project-tree-row:hover,
+.project-tree-row.active {
+  background: #f8fafc;
+}
+
+.project-tree-title {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-tree-title b {
+  background: #e0f2fe;
+  border-radius: 4px;
+  color: #075985;
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 3px 5px;
+}
+
+.project-tree-row > span:not(.project-tree-title) {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rag-dot {
+  border-radius: 999px;
+  height: 9px;
+  width: 9px;
+}
+
+.rag-dot.green {
+  background: #22c55e;
+}
+
+.rag-dot.amber {
+  background: #f59e0b;
+}
+
+.rag-dot.red {
+  background: #ef4444;
 }
 
 .panel {
@@ -608,6 +702,7 @@ code {
 
 .wbs-layout {
   display: grid;
+  align-items: start;
   gap: 18px;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
 }
@@ -615,7 +710,6 @@ code {
 .wbs-list {
   border: 1px solid #e2e8f0;
   border-radius: 6px;
-  display: grid;
   overflow: hidden;
 }
 
@@ -623,7 +717,7 @@ code {
 .wbs-row {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(220px, 1fr) 122px 132px 104px 76px 26px;
+  grid-template-columns: minmax(220px, 1fr) 120px 160px 26px;
 }
 
 .wbs-head {
@@ -645,7 +739,8 @@ code {
   border: 0;
   border-radius: 0;
   min-width: 0;
-  padding: 11px 12px;
+  min-height: 44px;
+  padding: 9px 12px;
   text-align: left;
   width: 100%;
 }
@@ -735,6 +830,7 @@ code {
   background: #eef2f7;
   border-radius: 999px;
   color: #475569;
+  display: inline-flex;
   font-size: 11px;
   font-weight: 800;
   padding: 4px 8px;
@@ -993,6 +1089,7 @@ code {
   .wbs-kpis,
   .wbs-layout,
   .wbs-edit-grid,
+  .project-tree-row,
   .task-edit,
   .overview-columns {
     grid-template-columns: 1fr;
@@ -1032,9 +1129,8 @@ code {
   }
 
   .wbs-list {
-    border: 0;
-    gap: 10px;
-    overflow: visible;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
   }
 
   .wbs-head {
@@ -1042,8 +1138,6 @@ code {
   }
 
   .wbs-item {
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
     overflow: hidden;
   }
 

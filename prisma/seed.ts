@@ -3,10 +3,39 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
+  const testProject = await prisma.project.upsert({
+    where: { code: 'TEST-001' },
+    update: {
+      parentId: null,
+      sortOrder: 0,
+    },
+    create: {
+      code: 'TEST-001',
+      name: 'Первый тестовый проект',
+      portfolio: 'Project Management',
+      sponsor: 'PMO',
+      projectManager: 'Project Manager',
+      status: 'ACTIVE',
+      rag: 'GREEN',
+      startDate: new Date('2026-05-01T00:00:00.000Z'),
+      targetDate: new Date('2026-08-31T00:00:00.000Z'),
+      budgetPlanned: '10000000.00',
+      budgetForecast: '10000000.00',
+      scheduleVariance: 0,
+      progress: 0,
+      summary: 'Тестовый проект для настройки структуры проектов и WBS.',
+      sortOrder: 0,
+    },
+  });
+
   const project = await prisma.project.upsert({
     where: { code: 'ERP' },
-    update: {},
+    update: {
+      parentId: testProject.id,
+      sortOrder: 10,
+    },
     create: {
+      parentId: testProject.id,
       code: 'ERP',
       name: 'ERP rollout',
       portfolio: 'Digital Transformation',
@@ -19,6 +48,7 @@ async function main() {
       budgetForecast: '127000000.00',
       scheduleVariance: 12,
       progress: 65,
+      sortOrder: 10,
       summary:
         'Проект сохраняет бизнес-цель, но требует решения по SLA внешнего API и временному контуру обмена данными.',
       jiraIntegration: {
@@ -201,13 +231,13 @@ async function main() {
   });
 
   const wbsCount = await prisma.wbsItem.count({
-    where: { projectId: project.id },
+    where: { projectId: testProject.id },
   });
 
   if (wbsCount === 0) {
     const initiation = await prisma.wbsItem.create({
       data: {
-        projectId: project.id,
+        projectId: testProject.id,
         code: '1',
         title: 'Project initiation',
         type: 'PHASE',
@@ -225,7 +255,7 @@ async function main() {
 
     const delivery = await prisma.wbsItem.create({
       data: {
-        projectId: project.id,
+        projectId: testProject.id,
         code: '2',
         title: 'Solution delivery',
         type: 'PHASE',
@@ -243,7 +273,7 @@ async function main() {
 
     const readiness = await prisma.wbsItem.create({
       data: {
-        projectId: project.id,
+        projectId: testProject.id,
         code: '3',
         title: 'Go-live readiness',
         type: 'PHASE',
@@ -262,7 +292,7 @@ async function main() {
     await prisma.wbsItem.createMany({
       data: [
         {
-          projectId: project.id,
+          projectId: testProject.id,
           parentId: initiation.id,
           code: '1.1',
           title: 'Project charter approved',
@@ -278,7 +308,7 @@ async function main() {
           description: 'Scope, success criteria and governance model signed off.',
         },
         {
-          projectId: project.id,
+          projectId: testProject.id,
           parentId: delivery.id,
           code: '2.1',
           title: 'Integration work package',
@@ -296,7 +326,7 @@ async function main() {
           description: 'External API integration and workaround for unconfirmed SLA.',
         },
         {
-          projectId: project.id,
+          projectId: testProject.id,
           parentId: delivery.id,
           code: '2.2',
           title: 'Data migration package',
@@ -314,7 +344,7 @@ async function main() {
           description: 'Reference data migration and reconciliation.',
         },
         {
-          projectId: project.id,
+          projectId: testProject.id,
           parentId: readiness.id,
           code: '3.1',
           title: 'UAT completion',
@@ -333,7 +363,7 @@ async function main() {
     });
   }
 
-  console.log(`Seeded project ${project.code}`);
+  console.log(`Seeded projects ${testProject.code}, ${project.code}`);
 }
 
 main()

@@ -28,7 +28,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.get('/api/projects', async (_req, res) => {
   const projects = await prisma.project.findMany({
-    orderBy: { updatedAt: 'desc' },
+    orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
     include: {
       jiraIntegration: true,
       _count: {
@@ -41,6 +41,7 @@ app.get('/api/projects', async (_req, res) => {
 });
 
 const projectSchema = z.object({
+  parentId: z.string().trim().optional().nullable(),
   code: z.string().trim().min(2),
   name: z.string().trim().min(3),
   portfolio: z.string().trim().min(1),
@@ -55,7 +56,23 @@ const projectSchema = z.object({
   scheduleVariance: z.coerce.number().int().default(0),
   progress: z.coerce.number().int().min(0).max(100).default(0),
   summary: z.string().trim().min(3),
+  sortOrder: z.coerce.number().int().default(0),
 });
+
+async function wouldCreateProjectCycle(projectId: string, nextParentId: string | null | undefined) {
+  let cursor = nextParentId;
+  while (cursor) {
+    if (cursor === projectId) {
+      return true;
+    }
+    const parent = await prisma.project.findUnique({
+      where: { id: cursor },
+      select: { parentId: true },
+    });
+    cursor = parent?.parentId ?? null;
+  }
+  return false;
+}
 
 app.post('/api/projects', async (req, res) => {
   const parsed = projectSchema.safeParse(req.body);
@@ -64,9 +81,20 @@ app.post('/api/projects', async (req, res) => {
     return;
   }
 
+  if (parsed.data.parentId) {
+    const parent = await prisma.project.findUnique({
+      where: { id: parsed.data.parentId },
+    });
+    if (!parent) {
+      res.status(400).json({ error: 'Parent project not found' });
+      return;
+    }
+  }
+
   const project = await prisma.project.create({
     data: {
       ...parsed.data,
+      parentId: parsed.data.parentId || null,
       startDate: new Date(parsed.data.startDate),
       targetDate: new Date(parsed.data.targetDate),
       budgetPlanned: parsed.data.budgetPlanned,
@@ -99,10 +127,33 @@ app.patch('/api/projects/:projectId', async (req, res) => {
     return;
   }
 
+  if (parsed.data.parentId === project.id) {
+    res.status(400).json({ error: 'Project cannot be its own parent' });
+    return;
+  }
+
+  if (parsed.data.parentId) {
+    const parent = await prisma.project.findUnique({
+      where: { id: parsed.data.parentId },
+    });
+    if (!parent) {
+      res.status(400).json({ error: 'Parent project not found' });
+      return;
+    }
+  }
+
+  const nextParentId = parsed.data.parentId === undefined ? project.parentId : parsed.data.parentId;
+  if (await wouldCreateProjectCycle(project.id, nextParentId)) {
+    res.status(400).json({ error: 'Project cannot be moved under its own child' });
+    return;
+  }
+
   const updated = await prisma.project.update({
     where: { id: project.id },
     data: {
       ...parsed.data,
+      parentId:
+        parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
       startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : undefined,
       targetDate: parsed.data.targetDate ? new Date(parsed.data.targetDate) : undefined,
       budgetPlanned: parsed.data.budgetPlanned,

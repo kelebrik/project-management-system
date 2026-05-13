@@ -58,6 +58,7 @@ enum WbsItemStatus {
 
 model Project {
   id                String              @id @default(cuid())
+  parentId          String?
   code              String              @unique
   name              String
   portfolio         String
@@ -72,8 +73,11 @@ model Project {
   scheduleVariance  Int                 @default(0)
   progress          Int                 @default(0)
   summary           String
+  sortOrder         Int                 @default(0)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
+  parent            Project?            @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children          Project[]           @relation("ProjectHierarchy")
   jiraIntegration   JiraIntegration?
   tasks             Task[]
   issues            Issue[]
@@ -81,6 +85,9 @@ model Project {
   overviews         ExecutiveOverview[]
   milestones        Milestone[]
   wbsItems          WbsItem[]
+
+  @@index([parentId])
+  @@index([sortOrder])
 }
 
 model Milestone {

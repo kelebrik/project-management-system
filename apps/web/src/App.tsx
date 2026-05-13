@@ -7,6 +7,7 @@ type WbsItemStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'AT_RISK' | 'BLOCKED' | 'DO
 
 type ProjectListItem = {
   id: string;
+  parentId: string | null;
   code: string;
   name: string;
   portfolio: string;
@@ -21,12 +22,18 @@ type ProjectListItem = {
   budgetPlanned: string;
   budgetForecast: string;
   summary: string;
+  sortOrder: number;
   jiraIntegration: JiraIntegration | null;
   _count: {
     tasks: number;
     issues: number;
     jiraSnapshots: number;
   };
+};
+
+type ProjectTreeItem = ProjectListItem & {
+  children: ProjectTreeItem[];
+  level: number;
 };
 
 type JiraIntegration = {
@@ -49,6 +56,7 @@ type ProjectDetails = ProjectListItem & {
 };
 
 type ProjectFormState = {
+  parentId: string;
   code: string;
   name: string;
   portfolio: string;
@@ -63,6 +71,7 @@ type ProjectFormState = {
   scheduleVariance: string;
   progress: string;
   summary: string;
+  sortOrder: string;
 };
 
 type Task = {
@@ -240,6 +249,7 @@ const emptyIssueForm: IssueFormState = {
 };
 
 const emptyProjectForm: ProjectFormState = {
+  parentId: '',
   code: '',
   name: '',
   portfolio: '',
@@ -254,6 +264,7 @@ const emptyProjectForm: ProjectFormState = {
   scheduleVariance: '0',
   progress: '0',
   summary: '',
+  sortOrder: '0',
 };
 
 const emptyMilestoneForm: MilestoneFormState = {
@@ -316,6 +327,7 @@ function wbsToForm(item: WbsItem): WbsFormState {
 
 function projectToForm(project: ProjectDetails | ProjectListItem): ProjectFormState {
   return {
+    parentId: project.parentId ?? '',
     code: project.code,
     name: project.name,
     portfolio: project.portfolio,
@@ -330,6 +342,7 @@ function projectToForm(project: ProjectDetails | ProjectListItem): ProjectFormSt
     scheduleVariance: String(project.scheduleVariance),
     progress: String(project.progress),
     summary: project.summary,
+    sortOrder: String(project.sortOrder),
   };
 }
 
@@ -404,10 +417,39 @@ function buildWbsTree(items: WbsItem[]) {
   return flatten(roots);
 }
 
+function buildProjectTree(items: ProjectListItem[]) {
+  const byId = new Map<string, ProjectTreeItem>();
+  const roots: ProjectTreeItem[] = [];
+
+  items.forEach((item) => {
+    byId.set(item.id, { ...item, children: [], level: 0 });
+  });
+
+  items.forEach((item) => {
+    const treeItem = byId.get(item.id);
+    if (!treeItem) return;
+    const parent = item.parentId ? byId.get(item.parentId) : null;
+    if (parent) {
+      parent.children.push(treeItem);
+    } else {
+      roots.push(treeItem);
+    }
+  });
+
+  const flatten = (nodes: ProjectTreeItem[], level = 0): ProjectTreeItem[] =>
+    nodes.flatMap((node) => {
+      node.level = level;
+      return [node, ...flatten(node.children, level + 1)];
+    });
+
+  return flatten(roots);
+}
+
 function App() {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [project, setProject] = useState<ProjectDetails | null>(null);
+  const [activeSection, setActiveSection] = useState<'portfolio' | 'projects'>('projects');
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [savingJira, setSavingJira] = useState(false);
@@ -455,6 +497,7 @@ function App() {
   }, [selectedProjectId]);
 
   const latestOverview = project?.overviews[0];
+  const projectTree = useMemo(() => buildProjectTree(projects), [projects]);
   const budgetVariance = useMemo(() => {
     if (!project) return 0;
     return (Number(project.budgetForecast) / Number(project.budgetPlanned) - 1) * 100;
@@ -567,10 +610,12 @@ function App() {
   function projectPayload(form: ProjectFormState) {
     return {
       ...form,
+      parentId: form.parentId || null,
       budgetPlanned: Number(form.budgetPlanned),
       budgetForecast: Number(form.budgetForecast),
       scheduleVariance: Number(form.scheduleVariance),
       progress: Number(form.progress),
+      sortOrder: Number(form.sortOrder),
     };
   }
 
@@ -991,9 +1036,20 @@ function App() {
       <aside className="sidebar">
         <div className="brand">PM System</div>
         <nav>
-          <a className="active">Портфель</a>
-          <a>Проекты</a>
-          <a>WBS</a>
+          <button
+            type="button"
+            className={activeSection === 'portfolio' ? 'active' : ''}
+            onClick={() => setActiveSection('portfolio')}
+          >
+            Портфель
+          </button>
+          <button
+            type="button"
+            className={activeSection === 'projects' ? 'active' : ''}
+            onClick={() => setActiveSection('projects')}
+          >
+            Проекты
+          </button>
           <a>Open Issues</a>
           <a>Ресурсы</a>
           <a>Финансы</a>
@@ -1006,7 +1062,7 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">Web UI Front для проектных менеджеров</p>
-            <h1>Портфель проектов</h1>
+            <h1>{activeSection === 'projects' ? 'Проекты' : 'Портфель проектов'}</h1>
           </div>
           <select
             value={selectedProjectId ?? ''}
@@ -1050,76 +1106,123 @@ function App() {
               </div>
             </section>
 
+            {activeSection === 'projects' && (
+              <section className="projects-tree-section">
+                <article className="panel project-tree-panel">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Дерево проектов</h2>
+                      <p>Иерархия портфеля и выбранный проект для WBS</p>
+                    </div>
+                  </div>
+                  <div className="project-tree-list">
+                    {projectTree.map((item) => (
+                      <button
+                        type="button"
+                        className={`project-tree-row ${item.id === selectedProjectId ? 'active' : ''}`}
+                        key={item.id}
+                        onClick={() => setSelectedProjectId(item.id)}
+                      >
+                        <span className="project-tree-title" style={{ paddingLeft: `${item.level * 18}px` }}>
+                          <b>{item.code}</b>
+                          {item.name}
+                        </span>
+                        <span>{item.projectManager}</span>
+                        <span className={`rag-dot ${item.rag.toLowerCase()}`} />
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              </section>
+            )}
+
             <section className="content-grid">
-              <article className="panel project-card">
-                <div className="panel-title">
-                  <div>
-                    <h2>Создать проект</h2>
-                    <p>Быстрый intake нового проекта с базовыми полями PMO</p>
+              {activeSection === 'projects' && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Создать проект</h2>
+                      <p>Быстрый intake нового проекта с базовыми полями PMO</p>
+                    </div>
                   </div>
-                </div>
-                <form className="form-grid compact-form" onSubmit={createProject}>
-                  <label>
-                    Code
-                    <input value={newProjectForm.code} onChange={(event) => setNewProjectForm({ ...newProjectForm, code: event.target.value })} placeholder="CRM" />
-                  </label>
-                  <label>
-                    Name
-                    <input value={newProjectForm.name} onChange={(event) => setNewProjectForm({ ...newProjectForm, name: event.target.value })} placeholder="CRM migration" />
-                  </label>
-                  <label>
-                    Portfolio
-                    <input value={newProjectForm.portfolio} onChange={(event) => setNewProjectForm({ ...newProjectForm, portfolio: event.target.value })} placeholder="Digital Transformation" />
-                  </label>
-                  <label>
-                    PM
-                    <input value={newProjectForm.projectManager} onChange={(event) => setNewProjectForm({ ...newProjectForm, projectManager: event.target.value })} placeholder="Project manager" />
-                  </label>
-                  <label>
-                    Sponsor
-                    <input value={newProjectForm.sponsor} onChange={(event) => setNewProjectForm({ ...newProjectForm, sponsor: event.target.value })} placeholder="CFO / CIO" />
-                  </label>
-                  <label>
-                    RAG
-                    <select value={newProjectForm.rag} onChange={(event) => setNewProjectForm({ ...newProjectForm, rag: event.target.value as RagStatus })}>
-                      <option value="GREEN">Green</option>
-                      <option value="AMBER">Amber</option>
-                      <option value="RED">Red</option>
-                    </select>
-                  </label>
-                  <label>
-                    Start
-                    <input type="date" value={newProjectForm.startDate} onChange={(event) => setNewProjectForm({ ...newProjectForm, startDate: event.target.value })} />
-                  </label>
-                  <label>
-                    Target
-                    <input type="date" value={newProjectForm.targetDate} onChange={(event) => setNewProjectForm({ ...newProjectForm, targetDate: event.target.value })} />
-                  </label>
-                  <label>
-                    Budget planned
-                    <input type="number" value={newProjectForm.budgetPlanned} onChange={(event) => setNewProjectForm({ ...newProjectForm, budgetPlanned: event.target.value })} />
-                  </label>
-                  <label>
-                    Budget forecast
-                    <input type="number" value={newProjectForm.budgetForecast} onChange={(event) => setNewProjectForm({ ...newProjectForm, budgetForecast: event.target.value })} />
-                  </label>
-                  <label>
-                    Progress
-                    <input type="number" min="0" max="100" value={newProjectForm.progress} onChange={(event) => setNewProjectForm({ ...newProjectForm, progress: event.target.value })} />
-                  </label>
-                  <label>
-                    Schedule variance
-                    <input type="number" value={newProjectForm.scheduleVariance} onChange={(event) => setNewProjectForm({ ...newProjectForm, scheduleVariance: event.target.value })} />
-                  </label>
-                  <label className="span-2">
-                    Summary
-                    <textarea value={newProjectForm.summary} onChange={(event) => setNewProjectForm({ ...newProjectForm, summary: event.target.value })} rows={2} />
-                  </label>
-                  <div className="form-actions span-2">
-                    <button type="submit">Создать проект</button>
-                  </div>
-                </form>
-              </article>
+                  <form className="form-grid compact-form" onSubmit={createProject}>
+                    <label>
+                      Code
+                      <input value={newProjectForm.code} onChange={(event) => setNewProjectForm({ ...newProjectForm, code: event.target.value })} placeholder="CRM" />
+                    </label>
+                    <label>
+                      Name
+                      <input value={newProjectForm.name} onChange={(event) => setNewProjectForm({ ...newProjectForm, name: event.target.value })} placeholder="CRM migration" />
+                    </label>
+                    <label>
+                      Parent
+                      <select value={newProjectForm.parentId} onChange={(event) => setNewProjectForm({ ...newProjectForm, parentId: event.target.value })}>
+                        <option value="">Root</option>
+                        {projectTree.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {'- '.repeat(item.level)}{item.code} - {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Sort
+                      <input type="number" value={newProjectForm.sortOrder} onChange={(event) => setNewProjectForm({ ...newProjectForm, sortOrder: event.target.value })} />
+                    </label>
+                    <label>
+                      Portfolio
+                      <input value={newProjectForm.portfolio} onChange={(event) => setNewProjectForm({ ...newProjectForm, portfolio: event.target.value })} placeholder="Digital Transformation" />
+                    </label>
+                    <label>
+                      PM
+                      <input value={newProjectForm.projectManager} onChange={(event) => setNewProjectForm({ ...newProjectForm, projectManager: event.target.value })} placeholder="Project manager" />
+                    </label>
+                    <label>
+                      Sponsor
+                      <input value={newProjectForm.sponsor} onChange={(event) => setNewProjectForm({ ...newProjectForm, sponsor: event.target.value })} placeholder="CFO / CIO" />
+                    </label>
+                    <label>
+                      RAG
+                      <select value={newProjectForm.rag} onChange={(event) => setNewProjectForm({ ...newProjectForm, rag: event.target.value as RagStatus })}>
+                        <option value="GREEN">Green</option>
+                        <option value="AMBER">Amber</option>
+                        <option value="RED">Red</option>
+                      </select>
+                    </label>
+                    <label>
+                      Start
+                      <input type="date" value={newProjectForm.startDate} onChange={(event) => setNewProjectForm({ ...newProjectForm, startDate: event.target.value })} />
+                    </label>
+                    <label>
+                      Target
+                      <input type="date" value={newProjectForm.targetDate} onChange={(event) => setNewProjectForm({ ...newProjectForm, targetDate: event.target.value })} />
+                    </label>
+                    <label>
+                      Budget planned
+                      <input type="number" value={newProjectForm.budgetPlanned} onChange={(event) => setNewProjectForm({ ...newProjectForm, budgetPlanned: event.target.value })} />
+                    </label>
+                    <label>
+                      Budget forecast
+                      <input type="number" value={newProjectForm.budgetForecast} onChange={(event) => setNewProjectForm({ ...newProjectForm, budgetForecast: event.target.value })} />
+                    </label>
+                    <label>
+                      Progress
+                      <input type="number" min="0" max="100" value={newProjectForm.progress} onChange={(event) => setNewProjectForm({ ...newProjectForm, progress: event.target.value })} />
+                    </label>
+                    <label>
+                      Schedule variance
+                      <input type="number" value={newProjectForm.scheduleVariance} onChange={(event) => setNewProjectForm({ ...newProjectForm, scheduleVariance: event.target.value })} />
+                    </label>
+                    <label className="span-2">
+                      Summary
+                      <textarea value={newProjectForm.summary} onChange={(event) => setNewProjectForm({ ...newProjectForm, summary: event.target.value })} rows={2} />
+                    </label>
+                    <div className="form-actions span-2">
+                      <button type="submit">Создать проект</button>
+                    </div>
+                  </form>
+                </article>
+              )}
 
               <article className="panel project-card">
                 <div className="panel-title">
@@ -1168,6 +1271,23 @@ function App() {
                   <label>
                     PM
                     <input value={projectForm.projectManager} onChange={(event) => setProjectForm({ ...projectForm, projectManager: event.target.value })} />
+                  </label>
+                  <label>
+                    Parent
+                    <select value={projectForm.parentId} onChange={(event) => setProjectForm({ ...projectForm, parentId: event.target.value })}>
+                      <option value="">Root</option>
+                      {projectTree
+                        .filter((item) => item.id !== project.id)
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {'- '.repeat(item.level)}{item.code} - {item.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label>
+                    Sort
+                    <input type="number" value={projectForm.sortOrder} onChange={(event) => setProjectForm({ ...projectForm, sortOrder: event.target.value })} />
                   </label>
                   <label>
                     Status
@@ -1220,6 +1340,7 @@ function App() {
                 </form>
               </article>
 
+              {activeSection === 'projects' && (
               <article className="panel project-card">
                 <div className="panel-title">
                   <div>
@@ -1280,6 +1401,7 @@ function App() {
                   </form>
                 </div>
               </article>
+              )}
 
               <article className="panel project-card">
                 <div className="panel-title">
@@ -1311,10 +1433,8 @@ function App() {
                   <div className="wbs-list">
                     <div className="wbs-head">
                       <span>WBS / Work</span>
-                      <span>Status</span>
-                      <span>Owner</span>
                       <span>Due</span>
-                      <span>Progress</span>
+                      <span>Owner</span>
                       <span />
                     </div>
                     {wbsTree.map((item) => (
@@ -1330,12 +1450,8 @@ function App() {
                             <b>{item.code}</b>
                             {item.title}
                           </span>
-                          <span className={`wbs-status ${item.status.toLowerCase().replaceAll('_', '-')}`}>
-                            {wbsStatusLabel(item.status)}
-                          </span>
-                          <span>{item.owner}</span>
                           <span>{date(item.dueDate)}</span>
-                          <span>{item.progress}%</span>
+                          <span>{item.owner}</span>
                           <span className="issue-chevron" aria-hidden="true">
                             {expandedWbsId === item.id ? '-' : '+'}
                           </span>
@@ -1344,6 +1460,10 @@ function App() {
                           <div className="wbs-details" id={`wbs-details-${item.id}`}>
                             <div className="wbs-detail-summary">
                               <span>{wbsTypeLabel(item.type)}</span>
+                              <span className={`wbs-status ${item.status.toLowerCase().replaceAll('_', '-')}`}>
+                                {wbsStatusLabel(item.status)}
+                              </span>
+                              <span>Progress: {item.progress}%</span>
                               <span>Start: {date(item.startDate)}</span>
                               <span>Planned: {currency(item.plannedCost)}</span>
                               <span>Forecast: {currency(item.forecastCost)}</span>
