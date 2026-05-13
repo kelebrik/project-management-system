@@ -68,6 +68,7 @@ type ProjectDetails = ProjectListItem & {
   overviews: ExecutiveOverview[];
   milestones: Milestone[];
   wbsItems: WbsItem[];
+  artifacts: ProjectArtifact[];
 };
 
 type ProjectFormState = {
@@ -176,6 +177,34 @@ type MilestoneFormState = {
   status: string;
   owner: string;
   description: string;
+};
+
+type ProjectArtifact = {
+  id: string;
+  title: string;
+  type: string;
+  owner: string;
+  status: ArtifactStatus;
+  url: string | null;
+  description: string | null;
+  sortOrder: number;
+};
+
+type ArtifactStatus =
+  | "Draft"
+  | "In Review"
+  | "Approved"
+  | "Baseline"
+  | "Archived";
+
+type ArtifactFormState = {
+  title: string;
+  type: string;
+  owner: string;
+  status: ArtifactStatus;
+  url: string;
+  description: string;
+  sortOrder: string;
 };
 
 type IssueEditDraft = {
@@ -290,6 +319,16 @@ const emptyMilestoneForm: MilestoneFormState = {
   description: "",
 };
 
+const emptyArtifactForm: ArtifactFormState = {
+  title: "",
+  type: "Document",
+  owner: "",
+  status: "Draft",
+  url: "",
+  description: "",
+  sortOrder: "0",
+};
+
 const emptyWbsForm: WbsFormState = {
   parentId: "",
   code: "",
@@ -307,6 +346,18 @@ const emptyWbsForm: WbsFormState = {
   description: "",
   sortOrder: "0",
 };
+
+function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
+  return {
+    title: artifact.title,
+    type: artifact.type,
+    owner: artifact.owner,
+    status: artifact.status,
+    url: artifact.url ?? "",
+    description: artifact.description ?? "",
+    sortOrder: String(artifact.sortOrder),
+  };
+}
 
 function issueToDraft(issue: Issue): IssueEditDraft {
   return {
@@ -509,6 +560,14 @@ function App() {
     useState<ProjectFormState>(emptyProjectForm);
   const [milestoneForm, setMilestoneForm] =
     useState<MilestoneFormState>(emptyMilestoneForm);
+  const [artifactForm, setArtifactForm] =
+    useState<ArtifactFormState>(emptyArtifactForm);
+  const [artifactDrafts, setArtifactDrafts] = useState<
+    Record<string, ArtifactFormState>
+  >({});
+  const [expandedArtifactId, setExpandedArtifactId] = useState<string | null>(
+    null,
+  );
   const [wbsForm, setWbsForm] = useState<WbsFormState>(emptyWbsForm);
   const [wbsDrafts, setWbsDrafts] = useState<Record<string, WbsFormState>>({});
   const [expandedWbsId, setExpandedWbsId] = useState<string | null>(null);
@@ -656,8 +715,9 @@ function App() {
   }, [wbsTree]);
   const projectArtifacts = useMemo(() => {
     if (!project) return [];
-    return [
+    const systemArtifacts = [
       {
+        id: "system-passport",
         title: "Паспорт проекта",
         type: "Project charter",
         owner: project.projectManager,
@@ -666,6 +726,7 @@ function App() {
         action: "project-passport" as AppView,
       },
       {
+        id: "system-wbs",
         title: "WBS baseline",
         type: "Planning baseline",
         owner: "PMO",
@@ -674,6 +735,7 @@ function App() {
         action: "project-wbs" as AppView,
       },
       {
+        id: "system-issues",
         title: "Open Issues List",
         type: "RAID log",
         owner: project.projectManager,
@@ -682,6 +744,7 @@ function App() {
         action: "project-issues" as AppView,
       },
       {
+        id: "system-overview",
         title: "Executive Overview",
         type: "Management pack",
         owner: "PMO",
@@ -690,6 +753,7 @@ function App() {
         action: "project-overview" as AppView,
       },
       {
+        id: "system-jira",
         title: "Jira board snapshot",
         type: "Integration evidence",
         owner: "Admin Back",
@@ -697,6 +761,25 @@ function App() {
         source: `${project.jiraSnapshots.length} Jira issues`,
         action: "admin" as AppView,
       },
+    ];
+
+    return [
+      ...systemArtifacts.map((item) => ({
+        ...item,
+        kind: "system" as const,
+      })),
+      ...project.artifacts.map((item) => ({
+        id: item.id,
+        title: item.title,
+        type: item.type,
+        owner: item.owner,
+        status: item.status,
+        source: item.url ? "Link" : "Registry",
+        action: null,
+        url: item.url,
+        description: item.description,
+        kind: "project" as const,
+      })),
     ];
   }, [latestOverview, project]);
 
@@ -775,6 +858,16 @@ function App() {
     setExpandedWbsId((currentItemId) =>
       nextProject.wbsItems.some((item) => item.id === currentItemId)
         ? currentItemId
+        : null,
+    );
+    setArtifactDrafts(
+      Object.fromEntries(
+        nextProject.artifacts.map((item) => [item.id, artifactToForm(item)]),
+      ),
+    );
+    setExpandedArtifactId((currentArtifactId) =>
+      nextProject.artifacts.some((item) => item.id === currentArtifactId)
+        ? currentArtifactId
         : null,
     );
   }
@@ -965,6 +1058,121 @@ function App() {
         saveError instanceof Error
           ? saveError.message
           : "Не удалось обновить веху",
+      );
+    }
+  }
+
+  function artifactPayload(form: ArtifactFormState) {
+    return {
+      ...form,
+      url: form.url || null,
+      description: form.description || null,
+      sortOrder: Number(form.sortOrder),
+    };
+  }
+
+  function updateArtifactDraft(
+    artifactId: string,
+    patch: Partial<ArtifactFormState>,
+  ) {
+    const current = artifactDrafts[artifactId];
+    if (!current) return;
+    setArtifactDrafts({
+      ...artifactDrafts,
+      [artifactId]: { ...current, ...patch },
+    });
+  }
+
+  async function createArtifact(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/artifacts`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(artifactPayload(artifactForm)),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось создать артефакт",
+        );
+      }
+      setArtifactForm(emptyArtifactForm);
+      await refreshProject(project.id);
+      setExpandedArtifactId(result.id);
+      setNotice("Артефакт создан");
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Не удалось создать артефакт",
+      );
+    }
+  }
+
+  async function saveArtifact(artifactId: string) {
+    const draft = artifactDrafts[artifactId];
+    if (!draft) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/project-artifacts/${artifactId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(artifactPayload(draft)),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось сохранить артефакт",
+        );
+      }
+      await refreshProject();
+      setNotice("Артефакт обновлен");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить артефакт",
+      );
+    }
+  }
+
+  async function deleteArtifact(artifactId: string) {
+    if (!window.confirm("Удалить артефакт проекта?")) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/project-artifacts/${artifactId}`,
+        {
+          method: "DELETE",
+        },
+      );
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error ?? "Не удалось удалить артефакт");
+      }
+      await refreshProject();
+      setNotice("Артефакт удален");
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Не удалось удалить артефакт",
       );
     }
   }
@@ -3564,28 +3772,292 @@ function App() {
                       </p>
                     </div>
                   </div>
-                  <div className="artifact-list">
-                    <div className="artifact-head">
-                      <span>Артефакт</span>
-                      <span>Тип</span>
-                      <span>Владелец</span>
-                      <span>Статус</span>
-                      <span>Источник</span>
+                  <div className="artifact-layout">
+                    <div className="artifact-list">
+                      <div className="artifact-head">
+                        <span>Артефакт</span>
+                        <span>Тип</span>
+                        <span>Владелец</span>
+                        <span>Статус</span>
+                        <span>Источник</span>
+                      </div>
+                      {projectArtifacts.map((artifact) => (
+                        <div className="artifact-item" key={artifact.id}>
+                          <button
+                            type="button"
+                            className="artifact-row"
+                            onClick={() => {
+                              if (
+                                artifact.kind === "system" &&
+                                artifact.action
+                              ) {
+                                setActiveView(artifact.action);
+                                return;
+                              }
+                              setExpandedArtifactId(
+                                expandedArtifactId === artifact.id
+                                  ? null
+                                  : artifact.id,
+                              );
+                            }}
+                          >
+                            <span>{artifact.title}</span>
+                            <span>{artifact.type}</span>
+                            <span>{artifact.owner}</span>
+                            <span>{artifact.status}</span>
+                            <span>{artifact.source}</span>
+                          </button>
+                          {artifact.kind === "project" &&
+                            expandedArtifactId === artifact.id && (
+                              <div className="artifact-details">
+                                {artifact.url && (
+                                  <a
+                                    href={artifact.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Открыть ссылку
+                                  </a>
+                                )}
+                                {artifact.description && (
+                                  <p>{artifact.description}</p>
+                                )}
+                                <div className="artifact-edit-grid">
+                                  <label>
+                                    Название
+                                    <input
+                                      value={
+                                        artifactDrafts[artifact.id]?.title ?? ""
+                                      }
+                                      onChange={(event) =>
+                                        updateArtifactDraft(artifact.id, {
+                                          title: event.target.value,
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <label>
+                                    Тип
+                                    <input
+                                      value={
+                                        artifactDrafts[artifact.id]?.type ?? ""
+                                      }
+                                      onChange={(event) =>
+                                        updateArtifactDraft(artifact.id, {
+                                          type: event.target.value,
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <label>
+                                    Владелец
+                                    <input
+                                      value={
+                                        artifactDrafts[artifact.id]?.owner ?? ""
+                                      }
+                                      onChange={(event) =>
+                                        updateArtifactDraft(artifact.id, {
+                                          owner: event.target.value,
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <label>
+                                    Статус
+                                    <select
+                                      value={
+                                        artifactDrafts[artifact.id]?.status ??
+                                        "Draft"
+                                      }
+                                      onChange={(event) =>
+                                        updateArtifactDraft(artifact.id, {
+                                          status: event.target
+                                            .value as ArtifactStatus,
+                                        })
+                                      }
+                                    >
+                                      <option value="Draft">Draft</option>
+                                      <option value="In Review">
+                                        In Review
+                                      </option>
+                                      <option value="Approved">Approved</option>
+                                      <option value="Baseline">Baseline</option>
+                                      <option value="Archived">Archived</option>
+                                    </select>
+                                  </label>
+                                  <label>
+                                    Sort
+                                    <input
+                                      type="number"
+                                      value={
+                                        artifactDrafts[artifact.id]
+                                          ?.sortOrder ?? "0"
+                                      }
+                                      onChange={(event) =>
+                                        updateArtifactDraft(artifact.id, {
+                                          sortOrder: event.target.value,
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <label className="span-2">
+                                    URL
+                                    <input
+                                      value={
+                                        artifactDrafts[artifact.id]?.url ?? ""
+                                      }
+                                      onChange={(event) =>
+                                        updateArtifactDraft(artifact.id, {
+                                          url: event.target.value,
+                                        })
+                                      }
+                                      placeholder="https://..."
+                                    />
+                                  </label>
+                                  <label className="span-2">
+                                    Описание
+                                    <textarea
+                                      value={
+                                        artifactDrafts[artifact.id]
+                                          ?.description ?? ""
+                                      }
+                                      onChange={(event) =>
+                                        updateArtifactDraft(artifact.id, {
+                                          description: event.target.value,
+                                        })
+                                      }
+                                      rows={3}
+                                    />
+                                  </label>
+                                  <div className="artifact-actions span-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => saveArtifact(artifact.id)}
+                                    >
+                                      Сохранить
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="danger-button"
+                                      onClick={() =>
+                                        deleteArtifact(artifact.id)
+                                      }
+                                    >
+                                      Удалить
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                        </div>
+                      ))}
                     </div>
-                    {projectArtifacts.map((artifact) => (
-                      <button
-                        type="button"
-                        className="artifact-row"
-                        key={artifact.title}
-                        onClick={() => setActiveView(artifact.action)}
-                      >
-                        <span>{artifact.title}</span>
-                        <span>{artifact.type}</span>
-                        <span>{artifact.owner}</span>
-                        <span>{artifact.status}</span>
-                        <span>{artifact.source}</span>
-                      </button>
-                    ))}
+                    <form
+                      className="stack-form compact-form artifact-form"
+                      onSubmit={createArtifact}
+                    >
+                      <label>
+                        Название
+                        <input
+                          value={artifactForm.title}
+                          onChange={(event) =>
+                            setArtifactForm({
+                              ...artifactForm,
+                              title: event.target.value,
+                            })
+                          }
+                          placeholder="Solution design"
+                        />
+                      </label>
+                      <div className="two-col">
+                        <label>
+                          Тип
+                          <input
+                            value={artifactForm.type}
+                            onChange={(event) =>
+                              setArtifactForm({
+                                ...artifactForm,
+                                type: event.target.value,
+                              })
+                            }
+                            placeholder="Document / Link / Baseline"
+                          />
+                        </label>
+                        <label>
+                          Статус
+                          <select
+                            value={artifactForm.status}
+                            onChange={(event) =>
+                              setArtifactForm({
+                                ...artifactForm,
+                                status: event.target.value as ArtifactStatus,
+                              })
+                            }
+                          >
+                            <option value="Draft">Draft</option>
+                            <option value="In Review">In Review</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Baseline">Baseline</option>
+                            <option value="Archived">Archived</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className="two-col">
+                        <label>
+                          Владелец
+                          <input
+                            value={artifactForm.owner}
+                            onChange={(event) =>
+                              setArtifactForm({
+                                ...artifactForm,
+                                owner: event.target.value,
+                              })
+                            }
+                            placeholder="PMO / Architect"
+                          />
+                        </label>
+                        <label>
+                          Sort
+                          <input
+                            type="number"
+                            value={artifactForm.sortOrder}
+                            onChange={(event) =>
+                              setArtifactForm({
+                                ...artifactForm,
+                                sortOrder: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <label>
+                        URL
+                        <input
+                          value={artifactForm.url}
+                          onChange={(event) =>
+                            setArtifactForm({
+                              ...artifactForm,
+                              url: event.target.value,
+                            })
+                          }
+                          placeholder="https://..."
+                        />
+                      </label>
+                      <label>
+                        Описание
+                        <textarea
+                          value={artifactForm.description}
+                          onChange={(event) =>
+                            setArtifactForm({
+                              ...artifactForm,
+                              description: event.target.value,
+                            })
+                          }
+                          rows={3}
+                        />
+                      </label>
+                      <button type="submit">Добавить артефакт</button>
+                    </form>
                   </div>
                 </article>
               )}

@@ -1131,6 +1131,13 @@ code {
   padding: 12px;
 }
 
+.artifact-layout {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
+}
+
 .artifact-list {
   border: 1px solid #e2e8f0;
   border-radius: 6px;
@@ -1185,6 +1192,51 @@ code {
 .artifact-row span:first-child {
   color: #1f2937;
   font-weight: 800;
+}
+
+.artifact-item + .artifact-item {
+  border-top: 1px solid #e2e8f0;
+}
+
+.artifact-details {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.artifact-details a {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.artifact-details p {
+  color: #475569;
+  font-size: 12px;
+  margin: 0;
+}
+
+.artifact-edit-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.artifact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.artifact-form {
+  align-self: start;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px;
 }
 
 .severity {
@@ -1382,6 +1434,8 @@ code {
   .wbs-kpis,
   .wbs-layout,
   .wbs-edit-grid,
+  .artifact-layout,
+  .artifact-edit-grid,
   .project-tree-head,
   .project-tree-row,
   .gantt-row,

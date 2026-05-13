@@ -22,7 +22,11 @@ app.get('/api/health', async (_req, res) => {
     await prisma.$queryRaw`select 1`;
     res.json({ ok: true, database: 'ok', jiraConfigured: isJiraConfigured() });
   } catch {
-    res.status(503).json({ ok: false, database: 'unavailable', jiraConfigured: isJiraConfigured() });
+    res.status(503).json({
+      ok: false,
+      database: 'unavailable',
+      jiraConfigured: isJiraConfigured(),
+    });
   }
 });
 
@@ -152,8 +156,7 @@ app.patch('/api/projects/:projectId', async (req, res) => {
     where: { id: project.id },
     data: {
       ...parsed.data,
-      parentId:
-        parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
+      parentId: parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
       startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : undefined,
       targetDate: parsed.data.targetDate ? new Date(parsed.data.targetDate) : undefined,
       budgetPlanned: parsed.data.budgetPlanned,
@@ -179,6 +182,7 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
       overviews: { orderBy: { version: 'desc' }, take: 1 },
       milestones: { orderBy: { dueDate: 'asc' } },
       wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
+      artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
     },
   });
 
@@ -188,6 +192,89 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
   }
 
   res.json(project);
+});
+
+const artifactSchema = z.object({
+  title: z.string().trim().min(3),
+  type: z.string().trim().min(1),
+  owner: z.string().trim().min(1),
+  status: z.enum(['Draft', 'In Review', 'Approved', 'Baseline', 'Archived']).default('Draft'),
+  url: z.string().trim().url().optional().nullable(),
+  description: z.string().trim().optional().nullable(),
+  sortOrder: z.coerce.number().int().default(0),
+});
+
+app.post('/api/projects/:projectId/artifacts', async (req, res) => {
+  const parsed = artifactSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+  });
+
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const artifact = await prisma.projectArtifact.create({
+    data: {
+      projectId: project.id,
+      ...parsed.data,
+      url: parsed.data.url || null,
+      description: parsed.data.description || null,
+    },
+  });
+
+  res.status(201).json(artifact);
+});
+
+app.patch('/api/project-artifacts/:artifactId', async (req, res) => {
+  const parsed = artifactSchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const artifact = await prisma.projectArtifact.findUnique({
+    where: { id: req.params.artifactId },
+  });
+
+  if (!artifact) {
+    res.status(404).json({ error: 'Artifact not found' });
+    return;
+  }
+
+  const updated = await prisma.projectArtifact.update({
+    where: { id: artifact.id },
+    data: {
+      ...parsed.data,
+      url: parsed.data.url === undefined ? undefined : parsed.data.url || null,
+      description: parsed.data.description === undefined ? undefined : parsed.data.description || null,
+    },
+  });
+
+  res.json(updated);
+});
+
+app.delete('/api/project-artifacts/:artifactId', async (req, res) => {
+  const artifact = await prisma.projectArtifact.findUnique({
+    where: { id: req.params.artifactId },
+  });
+
+  if (!artifact) {
+    res.status(404).json({ error: 'Artifact not found' });
+    return;
+  }
+
+  await prisma.projectArtifact.delete({
+    where: { id: artifact.id },
+  });
+
+  res.status(204).send();
 });
 
 const milestoneSchema = z.object({
@@ -260,9 +347,7 @@ const wbsItemSchema = z.object({
   code: z.string().trim().min(1),
   title: z.string().trim().min(3),
   type: z.enum(['PHASE', 'WORK_PACKAGE', 'DELIVERABLE', 'TASK']).default('TASK'),
-  status: z
-    .enum(['NOT_STARTED', 'IN_PROGRESS', 'AT_RISK', 'BLOCKED', 'DONE', 'CANCELLED'])
-    .default('NOT_STARTED'),
+  status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'AT_RISK', 'BLOCKED', 'DONE', 'CANCELLED']).default('NOT_STARTED'),
   owner: z.string().trim().min(1),
   startDate: z.string().trim().optional().nullable(),
   dueDate: z.string().trim().optional().nullable(),
@@ -384,8 +469,7 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
   }
 
   const nextParentId = parsed.data.parentId === undefined ? existing.parentId : parsed.data.parentId;
-  const nextJiraUrl =
-    parsed.data.jiraTicketUrl === undefined ? existing.jiraTicketUrl : parsed.data.jiraTicketUrl;
+  const nextJiraUrl = parsed.data.jiraTicketUrl === undefined ? existing.jiraTicketUrl : parsed.data.jiraTicketUrl;
   const validation = await validateWbsProjectAndParent(existing.projectId, nextParentId, nextJiraUrl);
   if ('error' in validation) {
     res.status(validation.error === 'Project not found' ? 404 : 400).json({ error: validation.error });
@@ -400,8 +484,7 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
   const updated = await prisma.wbsItem.update({
     where: { id: existing.id },
     data: {
-      parentId:
-        parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
+      parentId: parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
       code: parsed.data.code,
       title: parsed.data.title,
       type: parsed.data.type,
@@ -414,20 +497,13 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
             ? new Date(parsed.data.startDate)
             : null,
       dueDate:
-        parsed.data.dueDate === undefined
-          ? undefined
-          : parsed.data.dueDate
-            ? new Date(parsed.data.dueDate)
-            : null,
+        parsed.data.dueDate === undefined ? undefined : parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
       plannedCost: parsed.data.plannedCost,
       forecastCost: parsed.data.forecastCost,
       progress: parsed.data.progress,
-      jiraTicketKey:
-        parsed.data.jiraTicketKey === undefined ? undefined : parsed.data.jiraTicketKey || null,
-      jiraTicketUrl:
-        parsed.data.jiraTicketUrl === undefined ? undefined : parsed.data.jiraTicketUrl || null,
-      description:
-        parsed.data.description === undefined ? undefined : parsed.data.description || null,
+      jiraTicketKey: parsed.data.jiraTicketKey === undefined ? undefined : parsed.data.jiraTicketKey || null,
+      jiraTicketUrl: parsed.data.jiraTicketUrl === undefined ? undefined : parsed.data.jiraTicketUrl || null,
+      description: parsed.data.description === undefined ? undefined : parsed.data.description || null,
       sortOrder: parsed.data.sortOrder,
     },
   });
@@ -545,12 +621,14 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
   const jiraLinks = [
     ...parsed.data.jiraLinks,
     ...(parsed.data.jiraTicketKey && parsed.data.jiraTicketUrl
-      ? [{ jiraKey: parsed.data.jiraTicketKey, jiraUrl: parsed.data.jiraTicketUrl }]
+      ? [
+          {
+            jiraKey: parsed.data.jiraTicketKey,
+            jiraUrl: parsed.data.jiraTicketUrl,
+          },
+        ]
       : []),
-  ].filter(
-    (link, index, allLinks) =>
-      allLinks.findIndex((candidate) => candidate.jiraKey === link.jiraKey) === index,
-  );
+  ].filter((link, index, allLinks) => allLinks.findIndex((candidate) => candidate.jiraKey === link.jiraKey) === index);
 
   const jiraBaseUrl = project.jiraIntegration?.baseUrl;
   const invalidLink = jiraLinks.find((link) => jiraBaseUrl && !link.jiraUrl.startsWith(jiraBaseUrl));
@@ -616,11 +694,7 @@ app.patch('/api/open-issues/:issueId', async (req, res) => {
     data: {
       ...parsed.data,
       dueDate:
-        parsed.data.dueDate === undefined
-          ? undefined
-          : parsed.data.dueDate
-            ? new Date(parsed.data.dueDate)
-            : null,
+        parsed.data.dueDate === undefined ? undefined : parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
     },
     include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
   });
@@ -807,16 +881,34 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
   }));
 
   const evidence = [
-    { metric: 'Project health', source: `Project ${project.code} / RAG ${project.rag}` },
-    { metric: 'Schedule variance', source: `Project plan snapshot / ${project.scheduleVariance} days` },
-    { metric: 'Budget forecast', source: `Finance forecast / ${money(project.budgetForecast)}` },
+    {
+      metric: 'Project health',
+      source: `Project ${project.code} / RAG ${project.rag}`,
+    },
+    {
+      metric: 'Schedule variance',
+      source: `Project plan snapshot / ${project.scheduleVariance} days`,
+    },
+    {
+      metric: 'Budget forecast',
+      source: `Finance forecast / ${money(project.budgetForecast)}`,
+    },
     {
       metric: 'WBS',
       source: `${project.wbsItems.length} items / ${project.wbsItems.filter((item) => item.status === 'DONE').length} done`,
     },
-    { metric: 'Open issues', source: `${project.issues.length} open issues in unified list` },
-    { metric: 'Jira snapshot', source: `${project.jiraSnapshots.length} synchronized Jira issues` },
-    { metric: 'Milestones', source: `${project.milestones.length} project milestones` },
+    {
+      metric: 'Open issues',
+      source: `${project.issues.length} open issues in unified list`,
+    },
+    {
+      metric: 'Jira snapshot',
+      source: `${project.jiraSnapshots.length} synchronized Jira issues`,
+    },
+    {
+      metric: 'Milestones',
+      source: `${project.milestones.length} project milestones`,
+    },
     ...project.issues.slice(0, 3).map((issue) => ({
       metric: issue.title,
       source:
@@ -959,7 +1051,9 @@ app.post('/api/projects/:projectId/jira/sync', async (req, res) => {
       where: { id: project.jiraIntegration.id },
       data: { syncStatus: 'ERROR' },
     });
-    res.status(502).json({ error: error instanceof Error ? error.message : 'Jira sync failed' });
+    res.status(502).json({
+      error: error instanceof Error ? error.message : 'Jira sync failed',
+    });
   }
 });
 

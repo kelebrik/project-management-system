@@ -383,6 +383,30 @@ async function main() {
 
   await importTest001ProjectPlan(testProject.id);
 
+  await prisma.projectArtifact.upsert({
+    where: { id: 'test001_artifact_project_plan' },
+    update: {
+      projectId: testProject.id,
+      title: 'CVTE CH AML 968d4 FF base project plan',
+      type: 'Project plan',
+      owner: 'Gladkov',
+      status: 'Baseline',
+      url: null,
+      description: 'Imported Excel baseline: WBS, dates, owners and milestones are loaded into TEST-001.',
+      sortOrder: 10,
+    },
+    create: {
+      id: 'test001_artifact_project_plan',
+      projectId: testProject.id,
+      title: 'CVTE CH AML 968d4 FF base project plan',
+      type: 'Project plan',
+      owner: 'Gladkov',
+      status: 'Baseline',
+      description: 'Imported Excel baseline: WBS, dates, owners and milestones are loaded into TEST-001.',
+      sortOrder: 10,
+    },
+  });
+
   console.log(
     `Seeded projects ${[testProject.code, ...extraTestProjects.map((item) => item.code), project.code].join(', ')}`,
   );

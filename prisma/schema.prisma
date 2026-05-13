@@ -57,34 +57,35 @@ enum WbsItemStatus {
 }
 
 model Project {
-  id                String              @id @default(cuid())
-  parentId          String?
-  code              String              @unique
-  name              String
-  portfolio         String
-  sponsor           String
-  projectManager    String
-  status            ProjectStatus       @default(ACTIVE)
-  rag               RagStatus           @default(GREEN)
-  startDate         DateTime
-  targetDate        DateTime
-  budgetPlanned     Decimal             @db.Decimal(14, 2)
-  budgetForecast    Decimal             @db.Decimal(14, 2)
-  scheduleVariance  Int                 @default(0)
-  progress          Int                 @default(0)
-  summary           String
-  sortOrder         Int                 @default(0)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  parent            Project?            @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children          Project[]           @relation("ProjectHierarchy")
-  jiraIntegration   JiraIntegration?
-  tasks             Task[]
-  issues            Issue[]
-  jiraSnapshots     JiraIssueSnapshot[]
-  overviews         ExecutiveOverview[]
-  milestones        Milestone[]
-  wbsItems          WbsItem[]
+  id               String              @id @default(cuid())
+  parentId         String?
+  code             String              @unique
+  name             String
+  portfolio        String
+  sponsor          String
+  projectManager   String
+  status           ProjectStatus       @default(ACTIVE)
+  rag              RagStatus           @default(GREEN)
+  startDate        DateTime
+  targetDate       DateTime
+  budgetPlanned    Decimal             @db.Decimal(14, 2)
+  budgetForecast   Decimal             @db.Decimal(14, 2)
+  scheduleVariance Int                 @default(0)
+  progress         Int                 @default(0)
+  summary          String
+  sortOrder        Int                 @default(0)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  parent           Project?            @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children         Project[]           @relation("ProjectHierarchy")
+  jiraIntegration  JiraIntegration?
+  tasks            Task[]
+  issues           Issue[]
+  jiraSnapshots    JiraIssueSnapshot[]
+  overviews        ExecutiveOverview[]
+  milestones       Milestone[]
+  wbsItems         WbsItem[]
+  artifacts        ProjectArtifact[]
 
   @@index([parentId])
   @@index([sortOrder])
@@ -121,22 +122,22 @@ model JiraIntegration {
 }
 
 model Task {
-  id             String    @id @default(cuid())
-  projectId      String
-  title          String
-  owner          String
-  status         String
-  priority       String
-  dueDate        DateTime?
-  jiraTicketKey  String?
-  jiraTicketUrl  String?
-  jiraStatus     String?
-  jiraAssignee   String?
-  jiraPriority   String?
-  jiraUpdatedAt  DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id            String    @id @default(cuid())
+  projectId     String
+  title         String
+  owner         String
+  status        String
+  priority      String
+  dueDate       DateTime?
+  jiraTicketKey String?
+  jiraTicketUrl String?
+  jiraStatus    String?
+  jiraAssignee  String?
+  jiraPriority  String?
+  jiraUpdatedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model WbsItem {
@@ -169,7 +170,7 @@ model WbsItem {
 }
 
 model Issue {
-  id               String        @id @default(cuid())
+  id               String          @id @default(cuid())
   projectId        String
   source           IssueSource
   title            String
@@ -177,13 +178,13 @@ model Issue {
   status           String
   owner            String
   impact           String
-  decisionRequired Boolean       @default(false)
+  decisionRequired Boolean         @default(false)
   dueDate          DateTime?
   jiraTicketKey    String?
   jiraTicketUrl    String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   jiraLinks        IssueJiraLink[]
 }
 
@@ -200,36 +201,53 @@ model IssueJiraLink {
 }
 
 model JiraIssueSnapshot {
-  id          String   @id @default(cuid())
-  projectId   String
-  issueKey    String
-  issueUrl    String
-  summary     String
-  status      String
-  priority    String
-  assignee    String?
-  issueType   String
-  sprint      String?
-  updatedAt   DateTime
-  syncedAt    DateTime @default(now())
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  projectId String
+  issueKey  String
+  issueUrl  String
+  summary   String
+  status    String
+  priority  String
+  assignee  String?
+  issueType String
+  sprint    String?
+  updatedAt DateTime
+  syncedAt  DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, issueKey])
 }
 
 model ExecutiveOverview {
-  id              String         @id @default(cuid())
-  projectId       String
-  version         Int
-  status          OverviewStatus @default(DRAFT)
-  generatedAt     DateTime?
-  publishedAt     DateTime?
+  id               String         @id @default(cuid())
+  projectId        String
+  version          Int
+  status           OverviewStatus @default(DRAFT)
+  generatedAt      DateTime?
+  publishedAt      DateTime?
   executiveSummary String
-  decisions       Json
-  evidence        Json
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  decisions        Json
+  evidence         Json
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, version])
+}
+
+model ProjectArtifact {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  type        String
+  owner       String
+  status      String   @default("Draft")
+  url         String?
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sortOrder])
 }
