@@ -1,29 +1,90 @@
 import { PrismaClient } from '@prisma/client';
+import { test001ProjectPlan } from './test001ProjectPlan';
 
 const prisma = new PrismaClient();
+
+function getParentWbsCode(code: string) {
+  const parts = code.split('.');
+  parts.pop();
+  return parts.length > 0 ? parts.join('.') : null;
+}
+
+async function importTest001ProjectPlan(projectId: string) {
+  await prisma.milestone.deleteMany({ where: { projectId } });
+  await prisma.wbsItem.deleteMany({ where: { projectId } });
+
+  const createdWbsIds = new Map<string, string>();
+
+  for (const item of test001ProjectPlan.wbsItems) {
+    const parentCode = getParentWbsCode(item.code);
+    const created = await prisma.wbsItem.create({
+      data: {
+        projectId,
+        parentId: parentCode ? (createdWbsIds.get(parentCode) ?? null) : null,
+        code: item.code,
+        title: item.title,
+        type: item.type,
+        status: item.status,
+        owner: item.owner,
+        startDate: new Date(item.startDate),
+        dueDate: new Date(item.dueDate),
+        plannedCost: '0.00',
+        forecastCost: '0.00',
+        progress: item.progress,
+        sortOrder: item.sortOrder,
+        description: item.description,
+      },
+    });
+    createdWbsIds.set(item.code, created.id);
+  }
+
+  await prisma.milestone.createMany({
+    data: test001ProjectPlan.milestones.map((item) => ({
+      projectId,
+      title: item.title,
+      dueDate: new Date(item.dueDate),
+      status: item.status,
+      owner: item.owner,
+      description: item.description,
+    })),
+  });
+}
 
 async function main() {
   const testProject = await prisma.project.upsert({
     where: { code: 'TEST-001' },
     update: {
       parentId: null,
+      name: test001ProjectPlan.name,
+      portfolio: test001ProjectPlan.portfolio,
+      sponsor: test001ProjectPlan.sponsor,
+      projectManager: test001ProjectPlan.projectManager,
+      status: test001ProjectPlan.status,
+      rag: test001ProjectPlan.rag,
+      startDate: new Date(test001ProjectPlan.startDate),
+      targetDate: new Date(test001ProjectPlan.targetDate),
+      budgetPlanned: test001ProjectPlan.budgetPlanned,
+      budgetForecast: test001ProjectPlan.budgetForecast,
+      scheduleVariance: test001ProjectPlan.scheduleVariance,
+      progress: test001ProjectPlan.progress,
+      summary: test001ProjectPlan.summary,
       sortOrder: 0,
     },
     create: {
-      code: 'TEST-001',
-      name: 'Первый тестовый проект',
-      portfolio: 'Project Management',
-      sponsor: 'PMO',
-      projectManager: 'Project Manager',
-      status: 'ACTIVE',
-      rag: 'GREEN',
-      startDate: new Date('2026-05-01T00:00:00.000Z'),
-      targetDate: new Date('2026-08-31T00:00:00.000Z'),
-      budgetPlanned: '10000000.00',
-      budgetForecast: '10000000.00',
-      scheduleVariance: 0,
-      progress: 0,
-      summary: 'Тестовый проект для настройки структуры проектов и WBS.',
+      code: test001ProjectPlan.code,
+      name: test001ProjectPlan.name,
+      portfolio: test001ProjectPlan.portfolio,
+      sponsor: test001ProjectPlan.sponsor,
+      projectManager: test001ProjectPlan.projectManager,
+      status: test001ProjectPlan.status,
+      rag: test001ProjectPlan.rag,
+      startDate: new Date(test001ProjectPlan.startDate),
+      targetDate: new Date(test001ProjectPlan.targetDate),
+      budgetPlanned: test001ProjectPlan.budgetPlanned,
+      budgetForecast: test001ProjectPlan.budgetForecast,
+      scheduleVariance: test001ProjectPlan.scheduleVariance,
+      progress: test001ProjectPlan.progress,
+      summary: test001ProjectPlan.summary,
       sortOrder: 0,
     },
   });
@@ -320,138 +381,7 @@ async function main() {
     },
   });
 
-  const wbsCount = await prisma.wbsItem.count({
-    where: { projectId: testProject.id },
-  });
-
-  if (wbsCount === 0) {
-    const initiation = await prisma.wbsItem.create({
-      data: {
-        projectId: testProject.id,
-        code: '1',
-        title: 'Project initiation',
-        type: 'PHASE',
-        status: 'DONE',
-        owner: 'PMO',
-        startDate: new Date('2026-02-01T00:00:00.000Z'),
-        dueDate: new Date('2026-02-15T00:00:00.000Z'),
-        plannedCost: '6000000.00',
-        forecastCost: '5800000.00',
-        progress: 100,
-        sortOrder: 10,
-        description: 'Charter, governance, baseline scope and delivery model.',
-      },
-    });
-
-    const delivery = await prisma.wbsItem.create({
-      data: {
-        projectId: testProject.id,
-        code: '2',
-        title: 'Solution delivery',
-        type: 'PHASE',
-        status: 'IN_PROGRESS',
-        owner: 'Delivery Lead',
-        startDate: new Date('2026-02-16T00:00:00.000Z'),
-        dueDate: new Date('2026-06-30T00:00:00.000Z'),
-        plannedCost: '68000000.00',
-        forecastCost: '72500000.00',
-        progress: 62,
-        sortOrder: 20,
-        description: 'Configuration, integrations, migration and testing work packages.',
-      },
-    });
-
-    const readiness = await prisma.wbsItem.create({
-      data: {
-        projectId: testProject.id,
-        code: '3',
-        title: 'Go-live readiness',
-        type: 'PHASE',
-        status: 'AT_RISK',
-        owner: 'PM',
-        startDate: new Date('2026-07-01T00:00:00.000Z'),
-        dueDate: new Date('2026-09-30T00:00:00.000Z'),
-        plannedCost: '46000000.00',
-        forecastCost: '48700000.00',
-        progress: 18,
-        sortOrder: 30,
-        description: 'UAT completion, cutover, training and go-live governance.',
-      },
-    });
-
-    await prisma.wbsItem.createMany({
-      data: [
-        {
-          projectId: testProject.id,
-          parentId: initiation.id,
-          code: '1.1',
-          title: 'Project charter approved',
-          type: 'DELIVERABLE',
-          status: 'DONE',
-          owner: 'Sponsor',
-          startDate: new Date('2026-02-01T00:00:00.000Z'),
-          dueDate: new Date('2026-02-07T00:00:00.000Z'),
-          plannedCost: '1500000.00',
-          forecastCost: '1400000.00',
-          progress: 100,
-          sortOrder: 11,
-          description: 'Scope, success criteria and governance model signed off.',
-        },
-        {
-          projectId: testProject.id,
-          parentId: delivery.id,
-          code: '2.1',
-          title: 'Integration work package',
-          type: 'WORK_PACKAGE',
-          status: 'BLOCKED',
-          owner: 'Integration Lead',
-          startDate: new Date('2026-03-01T00:00:00.000Z'),
-          dueDate: new Date('2026-05-20T00:00:00.000Z'),
-          plannedCost: '18000000.00',
-          forecastCost: '22200000.00',
-          progress: 58,
-          jiraTicketKey: 'ERP-1842',
-          jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1842',
-          sortOrder: 21,
-          description: 'External API integration and workaround for unconfirmed SLA.',
-        },
-        {
-          projectId: testProject.id,
-          parentId: delivery.id,
-          code: '2.2',
-          title: 'Data migration package',
-          type: 'WORK_PACKAGE',
-          status: 'AT_RISK',
-          owner: 'Data Lead',
-          startDate: new Date('2026-03-15T00:00:00.000Z'),
-          dueDate: new Date('2026-05-24T00:00:00.000Z'),
-          plannedCost: '16000000.00',
-          forecastCost: '17100000.00',
-          progress: 64,
-          jiraTicketKey: 'ERP-1901',
-          jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1901',
-          sortOrder: 22,
-          description: 'Reference data migration and reconciliation.',
-        },
-        {
-          projectId: testProject.id,
-          parentId: readiness.id,
-          code: '3.1',
-          title: 'UAT completion',
-          type: 'DELIVERABLE',
-          status: 'AT_RISK',
-          owner: 'QA Lead',
-          startDate: new Date('2026-05-22T00:00:00.000Z'),
-          dueDate: new Date('2026-06-14T00:00:00.000Z'),
-          plannedCost: '9000000.00',
-          forecastCost: '9800000.00',
-          progress: 12,
-          sortOrder: 31,
-          description: 'User acceptance testing completion with signed defects triage.',
-        },
-      ],
-    });
-  }
+  await importTest001ProjectPlan(testProject.id);
 
   console.log(
     `Seeded projects ${[testProject.code, ...extraTestProjects.map((item) => item.code), project.code].join(', ')}`,

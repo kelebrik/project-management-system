@@ -606,6 +606,7 @@ function App() {
   }, [project?.wbsItems]);
   const wbsGantt = useMemo(() => {
     const datedItems = wbsTree
+      .filter((item) => item.level <= 2)
       .map((item) => {
         const start = item.startDate ? new Date(item.startDate) : null;
         const end = item.dueDate ? new Date(item.dueDate) : null;
@@ -2417,6 +2418,12 @@ function App() {
                       {wbsGantt.items.length === 0 && (
                         <div className="empty-state">
                           Для Гантта нужны start и due даты WBS элементов.
+                        </div>
+                      )}
+                      {project.wbsItems.length > wbsGantt.items.length && (
+                        <div className="gantt-note">
+                          На Гантте показаны WBS уровни 1-3. Полная детализация
+                          доступна в списке ниже.
                         </div>
                       )}
                     </div>
