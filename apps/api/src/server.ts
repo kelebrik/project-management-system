@@ -72,6 +72,99 @@ app.get('/api/projects/:projectId/open-issues', async (req, res) => {
   res.json(issues);
 });
 
+const jiraIntegrationSchema = z.object({
+  baseUrl: z.string().trim().url(),
+  boardUrl: z.string().trim().url(),
+  projectKey: z.string().trim().min(1),
+  issuesJql: z.string().trim().min(1),
+  openIssuesJql: z.string().trim().min(1),
+});
+
+app.put('/api/projects/:projectId/jira-integration', async (req, res) => {
+  const parsed = jiraIntegrationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+  });
+
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const integration = await prisma.jiraIntegration.upsert({
+    where: { projectId: project.id },
+    create: {
+      projectId: project.id,
+      ...parsed.data,
+      syncStatus: 'CONFIGURED',
+    },
+    update: {
+      ...parsed.data,
+      syncStatus: 'CONFIGURED',
+    },
+  });
+
+  res.json(integration);
+});
+
+const createIssueSchema = z.object({
+  title: z.string().trim().min(3),
+  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  owner: z.string().trim().min(1),
+  impact: z.string().trim().min(3),
+  decisionRequired: z.boolean().default(false),
+  dueDate: z.string().trim().optional().nullable(),
+  jiraTicketKey: z.string().trim().optional().nullable(),
+  jiraTicketUrl: z.string().trim().url().optional().nullable(),
+});
+
+app.post('/api/projects/:projectId/open-issues', async (req, res) => {
+  const parsed = createIssueSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    include: { jiraIntegration: true },
+  });
+
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const jiraBaseUrl = project.jiraIntegration?.baseUrl;
+  if (jiraBaseUrl && parsed.data.jiraTicketUrl && !parsed.data.jiraTicketUrl.startsWith(jiraBaseUrl)) {
+    res.status(400).json({ error: `Jira URL must start with ${jiraBaseUrl}` });
+    return;
+  }
+
+  const issue = await prisma.issue.create({
+    data: {
+      projectId: project.id,
+      source: parsed.data.jiraTicketUrl ? 'JIRA' : 'INTERNAL',
+      title: parsed.data.title,
+      severity: parsed.data.severity,
+      status: 'Open',
+      owner: parsed.data.owner,
+      impact: parsed.data.impact,
+      decisionRequired: parsed.data.decisionRequired,
+      dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+      jiraTicketKey: parsed.data.jiraTicketKey,
+      jiraTicketUrl: parsed.data.jiraTicketUrl,
+    },
+  });
+
+  res.status(201).json(issue);
+});
+
 const updateTaskJiraSchema = z.object({
   jiraTicketKey: z.string().trim().min(1).optional().nullable(),
   jiraTicketUrl: z.string().trim().url().optional().nullable(),

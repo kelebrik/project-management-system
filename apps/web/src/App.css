@@ -84,6 +84,8 @@ h3 {
 }
 
 select,
+input,
+textarea,
 button,
 .button {
   background: #fff;
@@ -93,6 +95,16 @@ button,
   font: inherit;
   padding: 9px 12px;
   text-decoration: none;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+}
+
+textarea {
+  resize: vertical;
 }
 
 button,
@@ -112,6 +124,15 @@ button:disabled {
   border: 1px solid #fecaca;
   border-radius: 8px;
   color: #991b1b;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+}
+
+.notice {
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #166534;
   margin-bottom: 18px;
   padding: 12px 14px;
 }
@@ -239,6 +260,51 @@ code {
   gap: 12px;
 }
 
+.form-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stack-form {
+  display: grid;
+  gap: 14px;
+}
+
+.form-grid label,
+.stack-form label {
+  color: #64748b;
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.two-col {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.checkbox-line {
+  align-content: end;
+  display: flex !important;
+  gap: 8px !important;
+}
+
+.checkbox-line input {
+  width: auto;
+}
+
 .issue-row,
 .task-row,
 .decision {
@@ -344,6 +410,19 @@ code {
   color: #64748b;
 }
 
+.task-edit {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 120px minmax(220px, 1fr) 72px;
+  margin-top: 10px;
+}
+
+.task-edit input,
+.task-edit button {
+  font-size: 12px;
+  padding: 7px 8px;
+}
+
 .version {
   background: #202a36;
   border-radius: 6px;
@@ -395,7 +474,10 @@ code {
 
   .summary-grid,
   .content-grid,
-  .details {
+  .details,
+  .form-grid,
+  .two-col,
+  .task-edit {
     grid-template-columns: 1fr;
   }
 
@@ -407,5 +489,9 @@ code {
   .topbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .span-2 {
+    grid-column: span 1;
   }
 }

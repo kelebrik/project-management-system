@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import './App.css';
 
 type RagStatus = 'GREEN' | 'AMBER' | 'RED';
@@ -53,6 +53,30 @@ type Task = {
   jiraStatus: string | null;
 };
 
+type JiraFormState = {
+  baseUrl: string;
+  boardUrl: string;
+  projectKey: string;
+  issuesJql: string;
+  openIssuesJql: string;
+};
+
+type IssueFormState = {
+  title: string;
+  severity: Issue['severity'];
+  owner: string;
+  impact: string;
+  decisionRequired: boolean;
+  dueDate: string;
+  jiraTicketKey: string;
+  jiraTicketUrl: string;
+};
+
+type TaskJiraDraft = {
+  jiraTicketKey: string;
+  jiraTicketUrl: string;
+};
+
 type Issue = {
   id: string;
   source: 'INTERNAL' | 'JIRA';
@@ -98,6 +122,17 @@ type ExecutiveOverview = {
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? '';
 
+const emptyIssueForm: IssueFormState = {
+  title: '',
+  severity: 'HIGH',
+  owner: '',
+  impact: '',
+  decisionRequired: false,
+  dueDate: '',
+  jiraTicketKey: '',
+  jiraTicketUrl: '',
+};
+
 function currency(value: string) {
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
@@ -125,7 +160,19 @@ function App() {
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [savingJira, setSavingJira] = useState(false);
+  const [creatingIssue, setCreatingIssue] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [jiraForm, setJiraForm] = useState<JiraFormState>({
+    baseUrl: '',
+    boardUrl: '',
+    projectKey: '',
+    issuesJql: '',
+    openIssuesJql: '',
+  });
+  const [issueForm, setIssueForm] = useState<IssueFormState>(emptyIssueForm);
+  const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>({});
 
   useEffect(() => {
     fetch(`${apiBase}/api/projects`)
@@ -142,7 +189,7 @@ function App() {
     if (!selectedProjectId) return;
     fetch(`${apiBase}/api/projects/${selectedProjectId}/overview`)
       .then((response) => response.json())
-      .then((data: ProjectDetails) => setProject(data))
+      .then((data: ProjectDetails) => applyProject(data))
       .catch(() => setError('Не удалось загрузить проект'));
   }, [selectedProjectId]);
 
@@ -165,11 +212,121 @@ function App() {
         throw new Error(result.error ?? 'Jira sync failed');
       }
       const refreshed = await fetch(`${apiBase}/api/projects/${project.id}/overview`);
-      setProject(await refreshed.json());
+      applyProject(await refreshed.json());
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : 'Jira sync failed');
     } finally {
       setSyncing(false);
+    }
+  }
+
+  function applyProject(nextProject: ProjectDetails) {
+    setProject(nextProject);
+    setJiraForm({
+      baseUrl: nextProject.jiraIntegration?.baseUrl ?? '',
+      boardUrl: nextProject.jiraIntegration?.boardUrl ?? '',
+      projectKey: nextProject.jiraIntegration?.projectKey ?? '',
+      issuesJql: nextProject.jiraIntegration?.issuesJql ?? '',
+      openIssuesJql: nextProject.jiraIntegration?.openIssuesJql ?? '',
+    });
+    setTaskDrafts(
+      Object.fromEntries(
+        nextProject.tasks.map((task) => [
+          task.id,
+          {
+            jiraTicketKey: task.jiraTicketKey ?? '',
+            jiraTicketUrl: task.jiraTicketUrl ?? '',
+          },
+        ]),
+      ),
+    );
+  }
+
+  async function refreshProject(projectId = project?.id) {
+    if (!projectId) return;
+    const refreshed = await fetch(`${apiBase}/api/projects/${projectId}/overview`);
+    applyProject(await refreshed.json());
+  }
+
+  async function saveJiraIntegration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    setSavingJira(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/projects/${project.id}/jira-integration`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(jiraForm),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось сохранить Jira');
+      }
+      await refreshProject(project.id);
+      setNotice('Jira-настройки сохранены');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить Jira');
+    } finally {
+      setSavingJira(false);
+    }
+  }
+
+  async function createOpenIssue(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    setCreatingIssue(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const payload = {
+        ...issueForm,
+        dueDate: issueForm.dueDate || null,
+        jiraTicketKey: issueForm.jiraTicketKey || null,
+        jiraTicketUrl: issueForm.jiraTicketUrl || null,
+      };
+      const response = await fetch(`${apiBase}/api/projects/${project.id}/open-issues`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось создать issue');
+      }
+      setIssueForm(emptyIssueForm);
+      await refreshProject(project.id);
+      setNotice('Open issue создан');
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : 'Не удалось создать issue');
+    } finally {
+      setCreatingIssue(false);
+    }
+  }
+
+  async function saveTaskJiraLink(taskId: string) {
+    const draft = taskDrafts[taskId];
+    if (!draft) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/tasks/${taskId}/jira-link`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jiraTicketKey: draft.jiraTicketKey || null,
+          jiraTicketUrl: draft.jiraTicketUrl || null,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error?.formErrors?.join(', ') || result.error || 'Не удалось сохранить ссылку');
+      }
+      await refreshProject();
+      setNotice('Jira-ссылка задачи сохранена');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить ссылку');
     }
   }
 
@@ -211,6 +368,7 @@ function App() {
         </header>
 
         {error && <div className="alert">{error}</div>}
+        {notice && <div className="notice">{notice}</div>}
 
         {project && (
           <>
@@ -264,6 +422,60 @@ function App() {
                 </div>
               </article>
 
+              <article className="panel project-card">
+                <div className="panel-title">
+                  <div>
+                    <h2>Admin Back: Jira connector</h2>
+                    <p>Настройки проекта для deep links, snapshots и Open Issues JQL</p>
+                  </div>
+                </div>
+                <form className="form-grid" onSubmit={saveJiraIntegration}>
+                  <label>
+                    Jira base URL
+                    <input
+                      value={jiraForm.baseUrl}
+                      onChange={(event) => setJiraForm({ ...jiraForm, baseUrl: event.target.value })}
+                      placeholder="https://company.atlassian.net"
+                    />
+                  </label>
+                  <label>
+                    Jira board URL
+                    <input
+                      value={jiraForm.boardUrl}
+                      onChange={(event) => setJiraForm({ ...jiraForm, boardUrl: event.target.value })}
+                      placeholder="https://company.atlassian.net/jira/software/projects/ERP/boards/12"
+                    />
+                  </label>
+                  <label>
+                    Project key
+                    <input
+                      value={jiraForm.projectKey}
+                      onChange={(event) => setJiraForm({ ...jiraForm, projectKey: event.target.value })}
+                      placeholder="ERP"
+                    />
+                  </label>
+                  <label>
+                    Issues JQL
+                    <textarea
+                      value={jiraForm.issuesJql}
+                      onChange={(event) => setJiraForm({ ...jiraForm, issuesJql: event.target.value })}
+                      rows={2}
+                    />
+                  </label>
+                  <label className="span-2">
+                    Open issues JQL
+                    <textarea
+                      value={jiraForm.openIssuesJql}
+                      onChange={(event) => setJiraForm({ ...jiraForm, openIssuesJql: event.target.value })}
+                      rows={2}
+                    />
+                  </label>
+                  <div className="form-actions span-2">
+                    <button type="submit" disabled={savingJira}>{savingJira ? 'Сохраняю...' : 'Сохранить Jira настройки'}</button>
+                  </div>
+                </form>
+              </article>
+
               <article className="panel">
                 <div className="panel-title">
                   <div>
@@ -288,6 +500,93 @@ function App() {
                     </div>
                   ))}
                 </div>
+              </article>
+
+              <article className="panel">
+                <div className="panel-title">
+                  <div>
+                    <h2>Создать Open Issue</h2>
+                    <p>Внутренний RAID issue или управленческая проблема со ссылкой на Jira</p>
+                  </div>
+                </div>
+                <form className="stack-form" onSubmit={createOpenIssue}>
+                  <label>
+                    Заголовок
+                    <input
+                      value={issueForm.title}
+                      onChange={(event) => setIssueForm({ ...issueForm, title: event.target.value })}
+                      placeholder="Например: поставщик не подтвердил SLA"
+                    />
+                  </label>
+                  <div className="two-col">
+                    <label>
+                      Severity
+                      <select
+                        value={issueForm.severity}
+                        onChange={(event) => setIssueForm({ ...issueForm, severity: event.target.value as Issue['severity'] })}
+                      >
+                        <option value="CRITICAL">Critical</option>
+                        <option value="HIGH">High</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="LOW">Low</option>
+                      </select>
+                    </label>
+                    <label>
+                      Owner
+                      <input
+                        value={issueForm.owner}
+                        onChange={(event) => setIssueForm({ ...issueForm, owner: event.target.value })}
+                        placeholder="PM / Vendor / IT Ops"
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Impact
+                    <textarea
+                      value={issueForm.impact}
+                      onChange={(event) => setIssueForm({ ...issueForm, impact: event.target.value })}
+                      rows={3}
+                      placeholder="Влияние на сроки, бюджет, scope или решение руководства"
+                    />
+                  </label>
+                  <div className="two-col">
+                    <label>
+                      Due date
+                      <input
+                        type="date"
+                        value={issueForm.dueDate}
+                        onChange={(event) => setIssueForm({ ...issueForm, dueDate: event.target.value })}
+                      />
+                    </label>
+                    <label className="checkbox-line">
+                      <input
+                        type="checkbox"
+                        checked={issueForm.decisionRequired}
+                        onChange={(event) => setIssueForm({ ...issueForm, decisionRequired: event.target.checked })}
+                      />
+                      Требует решения
+                    </label>
+                  </div>
+                  <div className="two-col">
+                    <label>
+                      Jira key
+                      <input
+                        value={issueForm.jiraTicketKey}
+                        onChange={(event) => setIssueForm({ ...issueForm, jiraTicketKey: event.target.value })}
+                        placeholder="ERP-1842"
+                      />
+                    </label>
+                    <label>
+                      Jira URL
+                      <input
+                        value={issueForm.jiraTicketUrl}
+                        onChange={(event) => setIssueForm({ ...issueForm, jiraTicketUrl: event.target.value })}
+                        placeholder="https://company.atlassian.net/browse/ERP-1842"
+                      />
+                    </label>
+                  </div>
+                  <button type="submit" disabled={creatingIssue}>{creatingIssue ? 'Создаю...' : 'Создать issue'}</button>
+                </form>
               </article>
 
               <article className="panel">
@@ -328,6 +627,35 @@ function App() {
                       <div>
                         <h3>{task.title}</h3>
                         <p>{task.owner} / {task.status} / due {date(task.dueDate)}</p>
+                        <div className="task-edit">
+                          <input
+                            value={taskDrafts[task.id]?.jiraTicketKey ?? ''}
+                            onChange={(event) =>
+                              setTaskDrafts({
+                                ...taskDrafts,
+                                [task.id]: {
+                                  ...(taskDrafts[task.id] ?? { jiraTicketUrl: '' }),
+                                  jiraTicketKey: event.target.value,
+                                },
+                              })
+                            }
+                            placeholder="Jira key"
+                          />
+                          <input
+                            value={taskDrafts[task.id]?.jiraTicketUrl ?? ''}
+                            onChange={(event) =>
+                              setTaskDrafts({
+                                ...taskDrafts,
+                                [task.id]: {
+                                  ...(taskDrafts[task.id] ?? { jiraTicketKey: '' }),
+                                  jiraTicketUrl: event.target.value,
+                                },
+                              })
+                            }
+                            placeholder="Jira URL"
+                          />
+                          <button type="button" onClick={() => saveTaskJiraLink(task.id)}>Save</button>
+                        </div>
                       </div>
                       {task.jiraTicketUrl ? (
                         <a className="ticket" href={task.jiraTicketUrl} target="_blank" rel="noreferrer">
