@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="840" viewBox="0 0 1280 840">
+  <defs><style>.bg{fill:#f6f7f9}.panel{fill:#fff;stroke:#d9dee7;stroke-width:1.5}.soft{fill:#eef2f7}.text{font-family:Arial,Helvetica,sans-serif;fill:#1f2937}.muted{fill:#64748b}.title{font-size:24px;font-weight:700}.h{font-size:16px;font-weight:700}.s{font-size:13px}.xs{font-size:11px}.line{stroke:#d9dee7;stroke-width:1}.bar{fill:#2563eb}.crit{fill:#dc2626}.mile{fill:#f59e0b}</style></defs>
+  <rect class="bg" width="1280" height="840"/>
+  <rect class="panel" x="24" y="24" width="1232" height="70" rx="8"/>
+  <text class="text title" x="48" y="58">Планирование: WBS + Gantt + зависимости</text>
+  <text class="text muted s" x="48" y="80">Базовые линии, критический путь, авто-пересчет, календари и сценарии</text>
+  <rect class="soft" x="790" y="42" width="104" height="34" rx="6"/><text class="text s" x="814" y="64">Baseline</text>
+  <rect class="soft" x="906" y="42" width="124" height="34" rx="6"/><text class="text s" x="930" y="64">Сценарии</text>
+  <rect class="soft" x="1042" y="42" width="180" height="34" rx="6"/><text class="text s" x="1066" y="64">Пересчитать план</text>
+  <rect class="panel" x="24" y="118" width="398" height="674" rx="8"/>
+  <text class="text h" x="48" y="150">Структура работ</text>
+  <line class="line" x1="48" y1="178" x2="398" y2="178"/>
+  <text class="text muted xs" x="48" y="204">ID</text><text class="text muted xs" x="92" y="204">Задача</text><text class="text muted xs" x="292" y="204">%</text><text class="text muted xs" x="336" y="204">Owner</text>
+  <g class="text s">
+    <text x="48" y="240">1</text><text x="92" y="240">Инициация</text><text x="292" y="240">100</text><text x="336" y="240">PM</text>
+    <text x="48" y="278">2</text><text x="92" y="278">Анализ требований</text><text x="292" y="278">90</text><text x="336" y="278">BA</text>
+    <text x="48" y="316">2.1</text><text x="112" y="316">Интервью</text><text x="292" y="316">100</text><text x="336" y="316">BA</text>
+    <text x="48" y="354">2.2</text><text x="112" y="354">BRD</text><text x="292" y="354">80</text><text x="336" y="354">BA</text>
+    <text x="48" y="392">3</text><text x="92" y="392">Разработка</text><text x="292" y="392">52</text><text x="336" y="392">Tech</text>
+    <text x="48" y="430">3.1</text><text x="112" y="430">API слой</text><text x="292" y="430">45</text><text x="336" y="430">Dev</text>
+    <text x="48" y="468">3.2</text><text x="112" y="468">Миграция данных</text><text x="292" y="468">60</text><text x="336" y="468">Data</text>
+    <text x="48" y="506">4</text><text x="92" y="506">UAT</text><text x="292" y="506">0</text><text x="336" y="506">QA</text>
+    <text x="48" y="544">5</text><text x="92" y="544">Go-Live</text><text x="292" y="544">0</text><text x="336" y="544">PM</text>
+  </g>
+  <rect class="panel" x="446" y="118" width="810" height="674" rx="8"/>
+  <text class="text h" x="470" y="150">Диаграмма Ганта</text>
+  <line class="line" x1="470" y1="178" x2="1232" y2="178"/>
+  <g class="text muted xs">
+    <text x="492" y="204">Фев</text><text x="620" y="204">Мар</text><text x="748" y="204">Апр</text><text x="876" y="204">Май</text><text x="1004" y="204">Июн</text><text x="1132" y="204">Июл</text>
+  </g>
+  <g stroke="#e5e7eb" stroke-width="1">
+    <line x1="522" y1="218" x2="522" y2="748"/><line x1="650" y1="218" x2="650" y2="748"/><line x1="778" y1="218" x2="778" y2="748"/><line x1="906" y1="218" x2="906" y2="748"/><line x1="1034" y1="218" x2="1034" y2="748"/><line x1="1162" y1="218" x2="1162" y2="748"/>
+  </g>
+  <rect class="bar" x="492" y="232" width="104" height="18" rx="5"/>
+  <rect class="bar" x="562" y="270" width="196" height="18" rx="5"/>
+  <rect class="bar" x="576" y="308" width="110" height="18" rx="5"/>
+  <rect class="crit" x="690" y="346" width="156" height="18" rx="5"/>
+  <rect class="crit" x="790" y="384" width="270" height="18" rx="5"/>
+  <rect class="crit" x="818" y="422" width="176" height="18" rx="5"/>
+  <rect class="bar" x="854" y="460" width="188" height="18" rx="5"/>
+  <rect class="mile" x="1068" y="500" width="20" height="20" transform="rotate(45 1078 510)"/>
+  <rect class="mile" x="1146" y="538" width="20" height="20" transform="rotate(45 1156 548)"/>
+  <path d="M846 355 C900 355 900 431 818 431" fill="none" stroke="#dc2626" stroke-width="2" marker-end="url(#arrow)"/>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#dc2626"/></marker></defs>
+  <rect class="soft" x="470" y="704" width="740" height="44" rx="6"/>
+  <text class="text s" x="488" y="732">Нижняя панель: критический путь, конфликт календарей, отклонение baseline vs forecast, массовые операции.</text>
+</svg>

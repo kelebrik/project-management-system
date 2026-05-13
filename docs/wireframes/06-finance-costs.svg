@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="840" viewBox="0 0 1280 840">
+  <defs><style>.bg{fill:#f6f7f9}.panel{fill:#fff;stroke:#d9dee7;stroke-width:1.5}.soft{fill:#eef2f7}.text{font-family:Arial,Helvetica,sans-serif;fill:#1f2937}.muted{fill:#64748b}.title{font-size:24px;font-weight:700}.h{font-size:16px;font-weight:700}.s{font-size:13px}.xs{font-size:11px}.line{stroke:#d9dee7;stroke-width:1.5}.green{fill:#16a34a}.amber{fill:#f59e0b}.red{fill:#dc2626}.blue{fill:#2563eb}</style></defs>
+  <rect class="bg" width="1280" height="840"/>
+  <rect class="panel" x="24" y="24" width="1232" height="70" rx="8"/>
+  <text class="text title" x="48" y="58">Бюджет, фактические затраты и прогноз</text>
+  <text class="text muted s" x="48" y="80">План/факт, forecast, ставки ресурсов, закупки, earned value, лимиты согласования</text>
+  <rect class="panel" x="24" y="118" width="286" height="150" rx="8"/><text class="text h" x="48" y="150">Budget</text><text class="text" x="48" y="214" font-size="34" font-weight="700">120 млн</text>
+  <rect class="panel" x="334" y="118" width="286" height="150" rx="8"/><text class="text h" x="358" y="150">Actual</text><text class="text" x="358" y="214" font-size="34" font-weight="700">61 млн</text>
+  <rect class="panel" x="644" y="118" width="286" height="150" rx="8"/><text class="text h" x="668" y="150">Forecast</text><text class="text" x="668" y="214" font-size="34" font-weight="700">127 млн</text>
+  <rect class="panel" x="954" y="118" width="302" height="150" rx="8"/><text class="text h" x="978" y="150">Variance</text><text class="text red" x="978" y="214" font-size="34" font-weight="700">+5.8%</text>
+  <rect class="panel" x="24" y="292" width="708" height="500" rx="8"/>
+  <text class="text h" x="48" y="324">Кривая затрат</text>
+  <line class="line" x1="68" y1="722" x2="694" y2="722"/><line class="line" x1="68" y1="374" x2="68" y2="722"/>
+  <polyline points="82,704 170,668 258,612 346,556 434,484 522,424 610,360 684,326" fill="none" stroke="#2563eb" stroke-width="4"/>
+  <polyline points="82,708 170,680 258,636 346,586 434,526 522,470 610,408 684,348" fill="none" stroke="#f59e0b" stroke-width="4" stroke-dasharray="8 6"/>
+  <text class="text muted s" x="84" y="758">Синяя: baseline, пунктир: forecast. Клик открывает расшифровку по WBS/поставщикам.</text>
+  <rect class="panel" x="756" y="292" width="500" height="500" rx="8"/>
+  <text class="text h" x="780" y="324">Разрез затрат</text>
+  <rect class="soft" x="780" y="354" width="430" height="44" rx="6"/><text class="text s" x="800" y="382">Трудозатраты: 54%</text>
+  <rect class="soft" x="780" y="414" width="430" height="44" rx="6"/><text class="text s" x="800" y="442">Лицензии: 18%</text>
+  <rect class="soft" x="780" y="474" width="430" height="44" rx="6"/><text class="text s" x="800" y="502">Интегратор: 22%</text>
+  <rect class="soft" x="780" y="534" width="430" height="44" rx="6"/><text class="text s" x="800" y="562">Резерв рисков: 6%</text>
+  <line class="line" x1="780" y1="620" x2="1210" y2="620"/>
+  <text class="text h" x="780" y="656">Оповещения</text>
+  <text class="text s" x="780" y="692">Превышен лимит внешних работ по WBS 3.1.</text>
+  <text class="text s" x="780" y="724">Forecast изменит RAG проекта на At Risk.</text>
+</svg>

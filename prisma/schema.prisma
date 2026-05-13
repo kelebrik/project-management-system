@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RagStatus {
+  GREEN
+  AMBER
+  RED
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ON_HOLD
+  CLOSED
+}
+
+enum IssueSource {
+  INTERNAL
+  JIRA
+}
+
+enum IssueSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum OverviewStatus {
+  DRAFT
+  GENERATED
+  PM_REVIEW
+  APPROVED
+  PUBLISHED
+}
+
+model Project {
+  id                String              @id @default(cuid())
+  code              String              @unique
+  name              String
+  portfolio         String
+  sponsor           String
+  projectManager    String
+  status            ProjectStatus       @default(ACTIVE)
+  rag               RagStatus           @default(GREEN)
+  startDate         DateTime
+  targetDate        DateTime
+  budgetPlanned     Decimal             @db.Decimal(14, 2)
+  budgetForecast    Decimal             @db.Decimal(14, 2)
+  scheduleVariance  Int                 @default(0)
+  progress          Int                 @default(0)
+  summary           String
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  jiraIntegration   JiraIntegration?
+  tasks             Task[]
+  issues            Issue[]
+  jiraSnapshots     JiraIssueSnapshot[]
+  overviews         ExecutiveOverview[]
+}
+
+model JiraIntegration {
+  id            String    @id @default(cuid())
+  projectId     String    @unique
+  baseUrl       String
+  boardUrl      String
+  projectKey    String
+  issuesJql     String
+  openIssuesJql String
+  syncStatus    String    @default("NOT_CONFIGURED")
+  lastSyncedAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id             String    @id @default(cuid())
+  projectId      String
+  title          String
+  owner          String
+  status         String
+  priority       String
+  dueDate        DateTime?
+  jiraTicketKey  String?
+  jiraTicketUrl  String?
+  jiraStatus     String?
+  jiraAssignee   String?
+  jiraPriority   String?
+  jiraUpdatedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Issue {
+  id               String        @id @default(cuid())
+  projectId        String
+  source           IssueSource
+  title            String
+  severity         IssueSeverity
+  status           String
+  owner            String
+  impact           String
+  decisionRequired Boolean       @default(false)
+  dueDate          DateTime?
+  jiraTicketKey    String?
+  jiraTicketUrl    String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model JiraIssueSnapshot {
+  id          String   @id @default(cuid())
+  projectId   String
+  issueKey    String
+  issueUrl    String
+  summary     String
+  status      String
+  priority    String
+  assignee    String?
+  issueType   String
+  sprint      String?
+  updatedAt   DateTime
+  syncedAt    DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, issueKey])
+}
+
+model ExecutiveOverview {
+  id              String         @id @default(cuid())
+  projectId       String
+  version         Int
+  status          OverviewStatus @default(DRAFT)
+  generatedAt     DateTime?
+  publishedAt     DateTime?
+  executiveSummary String
+  decisions       Json
+  evidence        Json
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, version])
+}

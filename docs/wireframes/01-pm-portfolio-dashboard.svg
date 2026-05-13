@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="840" viewBox="0 0 1280 840">
+  <defs>
+    <style>
+      .bg{fill:#f6f7f9}.panel{fill:#fff;stroke:#d9dee7;stroke-width:1.5}.soft{fill:#eef2f7}.text{font-family:Arial,Helvetica,sans-serif;fill:#1f2937}.muted{fill:#64748b}.title{font-size:24px;font-weight:700}.h{font-size:16px;font-weight:700}.s{font-size:13px}.xs{font-size:11px}.nav{fill:#202a36}.line{stroke:#d9dee7;stroke-width:1.5}.blue{fill:#2563eb}.green{fill:#16a34a}.amber{fill:#f59e0b}.red{fill:#dc2626}
+    </style>
+  </defs>
+  <rect class="bg" width="1280" height="840"/>
+  <rect class="nav" x="0" y="0" width="232" height="840"/>
+  <text class="text" x="28" y="42" fill="#fff" font-size="20" font-weight="700">PM Front</text>
+  <text class="text" x="28" y="86" fill="#cbd5e1" font-size="14">Портфели</text>
+  <text class="text" x="28" y="122" fill="#94a3b8" font-size="14">Проекты</text>
+  <text class="text" x="28" y="158" fill="#94a3b8" font-size="14">Задачи</text>
+  <text class="text" x="28" y="194" fill="#94a3b8" font-size="14">Ресурсы</text>
+  <text class="text" x="28" y="230" fill="#94a3b8" font-size="14">Риски и изменения</text>
+  <text class="text" x="28" y="266" fill="#94a3b8" font-size="14">Overview для СЕО</text>
+  <rect class="panel" x="256" y="24" width="1000" height="76" rx="8"/>
+  <text class="text title" x="284" y="58">Портфель проектов</text>
+  <text class="text muted s" x="284" y="82">Сводка для проектного менеджера / PMO: здоровье, сроки, бюджет, ресурсы, риски</text>
+  <rect class="soft" x="1038" y="44" width="188" height="34" rx="6"/>
+  <text class="text s" x="1061" y="66">+ Новый проект</text>
+  <rect class="panel" x="256" y="124" width="228" height="112" rx="8"/>
+  <text class="text h" x="276" y="154">Всего проектов</text>
+  <text class="text" x="276" y="204" font-size="42" font-weight="700">42</text>
+  <text class="text muted s" x="358" y="204">8 критичных</text>
+  <rect class="panel" x="500" y="124" width="228" height="112" rx="8"/>
+  <text class="text h" x="520" y="154">On track</text>
+  <text class="text" x="520" y="204" font-size="42" font-weight="700">61%</text>
+  <circle class="green" cx="678" cy="188" r="12"/>
+  <rect class="panel" x="744" y="124" width="228" height="112" rx="8"/>
+  <text class="text h" x="764" y="154">Бюджет</text>
+  <text class="text" x="764" y="204" font-size="32" font-weight="700">-4.8%</text>
+  <text class="text muted s" x="848" y="204">прогноз</text>
+  <rect class="panel" x="988" y="124" width="268" height="112" rx="8"/>
+  <text class="text h" x="1008" y="154">Ресурсные конфликты</text>
+  <text class="text" x="1008" y="204" font-size="42" font-weight="700">7</text>
+  <text class="text muted s" x="1064" y="204">на 30 дней</text>
+  <rect class="panel" x="256" y="260" width="640" height="266" rx="8"/>
+  <text class="text h" x="280" y="292">Матрица портфеля</text>
+  <line class="line" x1="280" y1="318" x2="872" y2="318"/>
+  <text class="text muted xs" x="282" y="344">Проект</text>
+  <text class="text muted xs" x="512" y="344">RAG</text>
+  <text class="text muted xs" x="598" y="344">Срок</text>
+  <text class="text muted xs" x="690" y="344">Бюджет</text>
+  <text class="text muted xs" x="784" y="344">Владелец</text>
+  <g class="text s">
+    <text x="282" y="382">ERP rollout</text><circle class="amber" cx="522" cy="377" r="8"/><text x="598" y="382">+12 дн.</text><text x="690" y="382">+6%</text><text x="784" y="382">Иванов</text>
+    <text x="282" y="424">Data platform</text><circle class="green" cx="522" cy="419" r="8"/><text x="598" y="424">0 дн.</text><text x="690" y="424">-2%</text><text x="784" y="424">Петрова</text>
+    <text x="282" y="466">CRM migration</text><circle class="red" cx="522" cy="461" r="8"/><text x="598" y="466">+29 дн.</text><text x="690" y="466">+14%</text><text x="784" y="466">Смирнов</text>
+    <text x="282" y="508">Mobile app</text><circle class="green" cx="522" cy="503" r="8"/><text x="598" y="508">-4 дн.</text><text x="690" y="508">0%</text><text x="784" y="508">Ким</text>
+  </g>
+  <rect class="panel" x="920" y="260" width="336" height="266" rx="8"/>
+  <text class="text h" x="944" y="292">Что требует решения</text>
+  <rect class="soft" x="944" y="320" width="288" height="52" rx="6"/><text class="text s" x="960" y="350">Утвердить +2 аналитика для ERP</text>
+  <rect class="soft" x="944" y="386" width="288" height="52" rx="6"/><text class="text s" x="960" y="416">Согласовать перенос релиза CRM</text>
+  <rect class="soft" x="944" y="452" width="288" height="52" rx="6"/><text class="text s" x="960" y="482">Эскалация по поставщику интеграции</text>
+  <rect class="panel" x="256" y="552" width="488" height="240" rx="8"/>
+  <text class="text h" x="280" y="584">Динамика статуса</text>
+  <polyline points="292,738 370,706 448,724 526,654 604,674 682,620" fill="none" stroke="#2563eb" stroke-width="4"/>
+  <line class="line" x1="292" y1="746" x2="704" y2="746"/>
+  <line class="line" x1="292" y1="614" x2="292" y2="746"/>
+  <text class="text muted xs" x="300" y="770">6 недель</text>
+  <rect class="panel" x="768" y="552" width="488" height="240" rx="8"/>
+  <text class="text h" x="792" y="584">Ближайшие вехи</text>
+  <line class="line" x1="792" y1="628" x2="1220" y2="628"/>
+  <circle class="green" cx="840" cy="628" r="9"/><text class="text s" x="860" y="633">15.05 Архитектурный комитет</text>
+  <circle class="amber" cx="978" cy="628" r="9"/><text class="text s" x="998" y="633">22.05 UAT старт</text>
+  <circle class="red" cx="1116" cy="628" r="9"/><text class="text s" x="1136" y="633">30.05 Go/No-Go</text>
+  <rect class="soft" x="792" y="672" width="428" height="70" rx="6"/>
+  <text class="text s" x="812" y="702">Фильтры: портфель, владелец, статус, горизонт, бизнес-цель</text>
+  <text class="text muted s" x="812" y="726">Клик по любому индикатору открывает первичные данные.</text>
+</svg>

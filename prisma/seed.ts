@@ -1,0 +1,168 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  const project = await prisma.project.upsert({
+    where: { code: 'ERP' },
+    update: {},
+    create: {
+      code: 'ERP',
+      name: 'ERP rollout',
+      portfolio: 'Digital Transformation',
+      sponsor: 'CFO',
+      projectManager: 'Иванов А.А.',
+      rag: 'AMBER',
+      startDate: new Date('2026-02-01T00:00:00.000Z'),
+      targetDate: new Date('2026-09-30T00:00:00.000Z'),
+      budgetPlanned: '120000000.00',
+      budgetForecast: '127000000.00',
+      scheduleVariance: 12,
+      progress: 65,
+      summary:
+        'Проект сохраняет бизнес-цель, но требует решения по SLA внешнего API и временному контуру обмена данными.',
+      jiraIntegration: {
+        create: {
+          baseUrl: 'https://example.atlassian.net',
+          boardUrl: 'https://example.atlassian.net/jira/software/projects/ERP/boards/12',
+          projectKey: 'ERP',
+          issuesJql: 'project = ERP ORDER BY updated DESC',
+          openIssuesJql:
+            'project = ERP AND statusCategory != Done AND priority in (High, Highest) ORDER BY updated DESC',
+          syncStatus: 'SEEDED',
+          lastSyncedAt: new Date('2026-05-13T11:40:00.000Z'),
+        },
+      },
+      tasks: {
+        create: [
+          {
+            title: 'Согласовать workaround API',
+            owner: 'Sponsor',
+            status: 'Open',
+            priority: 'High',
+            dueDate: new Date('2026-05-17T00:00:00.000Z'),
+            jiraTicketKey: 'ERP-1842',
+            jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1842',
+            jiraStatus: 'Blocked',
+            jiraAssignee: 'Vendor',
+            jiraPriority: 'High',
+            jiraUpdatedAt: new Date('2026-05-13T08:20:00.000Z'),
+          },
+          {
+            title: 'Подготовить решение для steering committee',
+            owner: 'PMO',
+            status: 'In Progress',
+            priority: 'High',
+            dueDate: new Date('2026-05-15T00:00:00.000Z'),
+          },
+        ],
+      },
+      issues: {
+        create: [
+          {
+            source: 'JIRA',
+            title: 'ERP-1842: API SLA не подтвержден',
+            severity: 'CRITICAL',
+            status: 'Open',
+            owner: 'Vendor',
+            impact: '+12 дней к UAT, +4.2 млн к forecast',
+            decisionRequired: true,
+            dueDate: new Date('2026-05-17T00:00:00.000Z'),
+            jiraTicketKey: 'ERP-1842',
+            jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1842',
+          },
+          {
+            source: 'INTERNAL',
+            title: 'Нет доступа к тестовому контуру',
+            severity: 'HIGH',
+            status: 'Open',
+            owner: 'IT Ops',
+            impact: 'Риск задержки интеграционных тестов HR-контура',
+            dueDate: new Date('2026-05-16T00:00:00.000Z'),
+          },
+          {
+            source: 'JIRA',
+            title: 'ERP-1901: миграция справочников blocked',
+            severity: 'HIGH',
+            status: 'Open',
+            owner: 'Data Lead',
+            impact: 'Может заблокировать старт UAT',
+            decisionRequired: true,
+            jiraTicketKey: 'ERP-1901',
+            jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1901',
+          },
+        ],
+      },
+      jiraSnapshots: {
+        create: [
+          {
+            issueKey: 'ERP-1842',
+            issueUrl: 'https://example.atlassian.net/browse/ERP-1842',
+            summary: 'API SLA не подтвержден поставщиком',
+            status: 'Blocked',
+            priority: 'High',
+            assignee: 'Vendor',
+            issueType: 'Bug',
+            sprint: 'ERP Sprint 18',
+            updatedAt: new Date('2026-05-13T08:20:00.000Z'),
+          },
+          {
+            issueKey: 'ERP-1877',
+            issueUrl: 'https://example.atlassian.net/browse/ERP-1877',
+            summary: 'Интеграционные тесты HR',
+            status: 'In Dev',
+            priority: 'Medium',
+            assignee: 'QA Lead',
+            issueType: 'Task',
+            sprint: 'ERP Sprint 18',
+            updatedAt: new Date('2026-05-12T16:05:00.000Z'),
+          },
+          {
+            issueKey: 'ERP-1901',
+            issueUrl: 'https://example.atlassian.net/browse/ERP-1901',
+            summary: 'Миграция справочников заблокирована',
+            status: 'Open',
+            priority: 'High',
+            assignee: 'Data Lead',
+            issueType: 'Task',
+            sprint: 'ERP Sprint 18',
+            updatedAt: new Date('2026-05-13T09:10:00.000Z'),
+          },
+        ],
+      },
+      overviews: {
+        create: {
+          version: 1,
+          status: 'GENERATED',
+          generatedAt: new Date('2026-05-13T11:45:00.000Z'),
+          executiveSummary:
+            'ERP rollout находится в статусе At Risk: плановый бизнес-результат сохраняется, но требуется решение по временному контуру обмена данными из-за неподтвержденного SLA внешнего API.',
+          decisions: [
+            {
+              title: 'Утвердить workaround обмена данными',
+              impactIfApproved: 'Сохраняет UAT в мае с отклонением +12 дней',
+              impactIfDelayed: 'Рост задержки до 20+ дней',
+              deadline: '2026-05-17',
+            },
+          ],
+          evidence: [
+            { metric: 'Schedule variance', source: 'Gantt snapshot #223' },
+            { metric: 'Budget forecast', source: 'Finance actuals 2026-05-12' },
+            { metric: 'Critical blocker', source: 'Jira ERP-1842' },
+          ],
+        },
+      },
+    },
+  });
+
+  console.log(`Seeded project ${project.code}`);
+}
+
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

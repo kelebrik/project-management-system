@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="840" viewBox="0 0 1280 840">
+  <defs><style>.bg{fill:#f6f7f9}.panel{fill:#fff;stroke:#d9dee7;stroke-width:1.5}.soft{fill:#eef2f7}.text{font-family:Arial,Helvetica,sans-serif;fill:#1f2937}.muted{fill:#64748b}.title{font-size:24px;font-weight:700}.h{font-size:16px;font-weight:700}.s{font-size:13px}.xs{font-size:11px}.line{stroke:#d9dee7;stroke-width:1}.green{fill:#16a34a}.amber{fill:#f59e0b}.red{fill:#dc2626}.blue{fill:#2563eb}.page{fill:#fff;stroke:#cbd5e1;stroke-width:2}</style></defs>
+  <rect class="bg" width="1280" height="840"/>
+  <rect class="panel" x="24" y="24" width="1232" height="70" rx="8"/>
+  <text class="text title" x="48" y="58">Генератор Executive Overview</text>
+  <text class="text muted s" x="48" y="80">Отбор данных, авто-нарратив, контроль источников, редактура PM, согласование и публикация</text>
+  <rect class="soft" x="918" y="42" width="142" height="34" rx="6"/><text class="text s" x="944" y="64">Сгенерировать</text>
+  <rect class="soft" x="1076" y="42" width="146" height="34" rx="6"/><text class="text s" x="1110" y="64">На согласование</text>
+  <rect class="panel" x="24" y="118" width="300" height="674" rx="8"/>
+  <text class="text h" x="48" y="150">Параметры обзора</text>
+  <text class="text s" x="48" y="196">Аудитория</text><rect class="soft" x="48" y="210" width="246" height="36" rx="6"/><text class="text s" x="64" y="233">Правление / CEO-1</text>
+  <text class="text s" x="48" y="282">Горизонт</text><rect class="soft" x="48" y="296" width="246" height="36" rx="6"/><text class="text s" x="64" y="319">Последние 7 дней + 30 дней</text>
+  <text class="text s" x="48" y="368">Шаблон</text><rect class="soft" x="48" y="382" width="246" height="36" rx="6"/><text class="text s" x="64" y="405">Steering Committee Pack</text>
+  <line class="line" x1="48" y1="452" x2="294" y2="452"/>
+  <text class="text h" x="48" y="488">Включить блоки</text>
+  <text class="text s" x="48" y="526">☑ Executive summary</text>
+  <text class="text s" x="48" y="560">☑ Decisions required</text>
+  <text class="text s" x="48" y="594">☑ Schedule / budget</text>
+  <text class="text s" x="48" y="628">☑ Top risks</text>
+  <text class="text s" x="48" y="662">☑ Next milestones</text>
+  <text class="text s" x="48" y="696">☐ Detail appendix</text>
+  <rect class="panel" x="348" y="118" width="560" height="674" rx="8"/>
+  <text class="text h" x="372" y="150">Редактор management pack</text>
+  <rect class="page" x="408" y="184" width="440" height="540" rx="4"/>
+  <text class="text h" x="438" y="226">ERP rollout: executive overview</text>
+  <circle class="amber" cx="806" cy="220" r="12"/><text class="text xs" x="438" y="252">Status date: 13.05.2026 | Version: draft 18</text>
+  <rect class="soft" x="438" y="282" width="182" height="74" rx="6"/><text class="text s" x="456" y="312">Health: At Risk</text><text class="text muted xs" x="456" y="336">Schedule +12d</text>
+  <rect class="soft" x="636" y="282" width="182" height="74" rx="6"/><text class="text s" x="654" y="312">Budget: +5.8%</text><text class="text muted xs" x="654" y="336">Forecast 127m</text>
+  <text class="text s" x="438" y="400">1. Ключевой прогресс недели: завершены тесты HR-контуров.</text>
+  <text class="text s" x="438" y="434">2. Основной риск: внешний API не подтвердил SLA.</text>
+  <text class="text s" x="438" y="468">3. Решение для руководства: утвердить workaround и резерв.</text>
+  <rect class="soft" x="438" y="510" width="380" height="96" rx="6"/>
+  <text class="text s" x="456" y="540">Decision request</text>
+  <text class="text muted xs" x="456" y="566">Согласовать +4.2 млн на временный контур обмена данными.</text>
+  <text class="text muted xs" x="456" y="590">Impact if delayed: +12 дней к UAT.</text>
+  <rect class="panel" x="932" y="118" width="324" height="674" rx="8"/>
+  <text class="text h" x="956" y="150">Контроль источников</text>
+  <rect class="soft" x="956" y="184" width="260" height="60" rx="6"/><text class="text s" x="972" y="214">Срок: Gantt snapshot #223</text><text class="text muted xs" x="972" y="234">updated 13.05 10:32</text>
+  <rect class="soft" x="956" y="260" width="260" height="60" rx="6"/><text class="text s" x="972" y="290">Бюджет: Finance actuals</text><text class="text muted xs" x="972" y="310">updated 12.05 22:00</text>
+  <rect class="soft" x="956" y="336" width="260" height="60" rx="6"/><text class="text s" x="972" y="366">Риски: RAID R-31/I-12</text><text class="text muted xs" x="972" y="386">owner PM</text>
+  <line class="line" x1="956" y1="432" x2="1216" y2="432"/>
+  <text class="text h" x="956" y="468">Проверки перед публикацией</text>
+  <text class="text s" x="956" y="508">✓ все метрики имеют источник</text>
+  <text class="text s" x="956" y="542">✓ RAG не расходится с формулой</text>
+  <text class="text s" x="956" y="576">! вручную изменен текст решения</text>
+  <text class="text s" x="956" y="610">✓ доступ руководства проверен</text>
+  <line class="line" x1="956" y1="648" x2="1216" y2="648"/>
+  <text class="text muted s" x="956" y="686">Публикация создает версию, PDF/PPTX, web-view и задачи по решениям.</text>
+</svg>

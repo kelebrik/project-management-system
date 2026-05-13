@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="840" viewBox="0 0 1280 840">
+  <defs><style>.bg{fill:#f6f7f9}.panel{fill:#fff;stroke:#d9dee7;stroke-width:1.5}.soft{fill:#eef2f7}.text{font-family:Arial,Helvetica,sans-serif;fill:#1f2937}.muted{fill:#64748b}.title{font-size:24px;font-weight:700}.h{font-size:16px;font-weight:700}.s{font-size:13px}.xs{font-size:11px}.nav{fill:#1f2937}.line{stroke:#d9dee7;stroke-width:1}.green{fill:#16a34a}.amber{fill:#f59e0b}.red{fill:#dc2626}.blue{fill:#2563eb}</style></defs>
+  <rect class="bg" width="1280" height="840"/>
+  <rect class="nav" x="0" y="0" width="248" height="840"/>
+  <text class="text" x="28" y="42" fill="#fff" font-size="20" font-weight="700">Admin Back</text>
+  <text class="text" x="28" y="90" fill="#cbd5e1" font-size="14">Пользователи и роли</text>
+  <text class="text" x="28" y="126" fill="#94a3b8" font-size="14">Справочники</text>
+  <text class="text" x="28" y="162" fill="#94a3b8" font-size="14">Шаблоны проектов</text>
+  <text class="text" x="28" y="198" fill="#94a3b8" font-size="14">Workflow</text>
+  <text class="text" x="28" y="234" fill="#94a3b8" font-size="14">Интеграции</text>
+  <text class="text" x="28" y="270" fill="#94a3b8" font-size="14">Безопасность</text>
+  <text class="text" x="28" y="306" fill="#94a3b8" font-size="14">Аудит</text>
+  <text class="text" x="28" y="342" fill="#94a3b8" font-size="14">Состояние системы</text>
+  <rect class="panel" x="276" y="24" width="980" height="70" rx="8"/>
+  <text class="text title" x="300" y="58">Администрирование системы</text>
+  <text class="text muted s" x="300" y="80">Настройка платформы без вмешательства в код: роли, поля, справочники, маршруты, интеграции</text>
+  <rect class="panel" x="276" y="118" width="456" height="312" rx="8"/>
+  <text class="text h" x="300" y="150">RBAC / матрица доступа</text>
+  <line class="line" x1="300" y1="178" x2="708" y2="178"/>
+  <text class="text muted xs" x="302" y="204">Роль</text><text class="text muted xs" x="454" y="204">Проекты</text><text class="text muted xs" x="554" y="204">Финансы</text><text class="text muted xs" x="642" y="204">Admin</text>
+  <text class="text s" x="302" y="244">PM</text><text class="text s" x="454" y="244">edit</text><text class="text s" x="554" y="244">view</text><text class="text s" x="642" y="244">no</text>
+  <text class="text s" x="302" y="284">Sponsor</text><text class="text s" x="454" y="284">view</text><text class="text s" x="554" y="284">view</text><text class="text s" x="642" y="284">no</text>
+  <text class="text s" x="302" y="324">Admin</text><text class="text s" x="454" y="324">edit</text><text class="text s" x="554" y="324">edit</text><text class="text s" x="642" y="324">yes</text>
+  <rect class="panel" x="756" y="118" width="500" height="312" rx="8"/>
+  <text class="text h" x="780" y="150">Workflow согласований</text>
+  <rect class="soft" x="780" y="190" width="128" height="54" rx="6"/><text class="text s" x="804" y="222">Draft</text>
+  <rect class="soft" x="936" y="190" width="128" height="54" rx="6"/><text class="text s" x="960" y="222">Review</text>
+  <rect class="soft" x="1092" y="190" width="128" height="54" rx="6"/><text class="text s" x="1116" y="222">Approved</text>
+  <line class="line" x1="908" y1="217" x2="936" y2="217"/><line class="line" x1="1064" y1="217" x2="1092" y2="217"/>
+  <text class="text muted s" x="780" y="292">Для CR, budget change, overview publishing и baseline changes.</text>
+  <rect class="panel" x="276" y="454" width="456" height="338" rx="8"/>
+  <text class="text h" x="300" y="486">Справочники и шаблоны</text>
+  <rect class="soft" x="300" y="520" width="380" height="44" rx="6"/><text class="text s" x="320" y="548">Типы проектов, фазы, статусы, RAG formulas</text>
+  <rect class="soft" x="300" y="584" width="380" height="44" rx="6"/><text class="text s" x="320" y="612">Календари, ставки, навыки, оргструктура</text>
+  <rect class="soft" x="300" y="648" width="380" height="44" rx="6"/><text class="text s" x="320" y="676">Шаблоны WBS и executive overview</text>
+  <rect class="panel" x="756" y="454" width="500" height="338" rx="8"/>
+  <text class="text h" x="780" y="486">Состояние системы</text>
+  <text class="text s" x="780" y="530">API: OK</text><circle class="green" cx="1180" cy="524" r="9"/>
+  <text class="text s" x="780" y="570">PostgreSQL: OK, реплика 12 сек lag</text><circle class="green" cx="1180" cy="564" r="9"/>
+  <text class="text s" x="780" y="610">Очереди: 38 задач</text><circle class="amber" cx="1180" cy="604" r="9"/>
+  <text class="text s" x="780" y="650">Последний backup: 13.05.2026 02:00</text><circle class="green" cx="1180" cy="644" r="9"/>
+  <line class="line" x1="780" y1="688" x2="1220" y2="688"/>
+  <text class="text muted s" x="780" y="724">Админ видит аудит входов, действий, экспортов и публикаций.</text>
+</svg>

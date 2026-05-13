@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="840" viewBox="0 0 1280 840">
+  <defs><style>.bg{fill:#f6f7f9}.panel{fill:#fff;stroke:#d9dee7;stroke-width:1.5}.soft{fill:#eef2f7}.text{font-family:Arial,Helvetica,sans-serif;fill:#1f2937}.muted{fill:#64748b}.title{font-size:24px;font-weight:700}.h{font-size:16px;font-weight:700}.s{font-size:13px}.xs{font-size:11px}.line{stroke:#d9dee7;stroke-width:1.5}.green{fill:#16a34a}.amber{fill:#f59e0b}.red{fill:#dc2626}.blue{fill:#2563eb}</style></defs>
+  <rect class="bg" width="1280" height="840"/>
+  <rect class="panel" x="24" y="24" width="1232" height="72" rx="8"/>
+  <text class="text title" x="48" y="56">Карточка проекта: ERP rollout</text>
+  <text class="text muted s" x="48" y="80">Единая страница проекта: паспорт, статус, цели, команда, документы, последняя сводка</text>
+  <rect class="soft" x="1040" y="44" width="188" height="34" rx="6"/>
+  <text class="text s" x="1062" y="66">Опубликовать статус</text>
+  <rect class="panel" x="24" y="120" width="360" height="672" rx="8"/>
+  <text class="text h" x="48" y="152">Паспорт проекта</text>
+  <text class="text s" x="48" y="196">Владелец: Иванов А.А.</text>
+  <text class="text s" x="48" y="226">Спонсор: CFO</text>
+  <text class="text s" x="48" y="256">Цель: миграция ERP на единую платформу</text>
+  <text class="text s" x="48" y="286">Период: 01.02.2026 - 30.09.2026</text>
+  <text class="text s" x="48" y="316">Методология: Waterfall + Kanban</text>
+  <line class="line" x1="48" y1="346" x2="360" y2="346"/>
+  <text class="text h" x="48" y="382">Команда</text>
+  <rect class="soft" x="48" y="404" width="292" height="42" rx="6"/><text class="text s" x="64" y="430">PM, архитектор, 5 аналитиков, 8 dev</text>
+  <rect class="soft" x="48" y="462" width="292" height="42" rx="6"/><text class="text s" x="64" y="488">Поставщик: Integrator LLC</text>
+  <line class="line" x1="48" y1="530" x2="360" y2="530"/>
+  <text class="text h" x="48" y="566">Документы</text>
+  <text class="text s" x="64" y="602">BRD v2.1</text>
+  <text class="text s" x="64" y="632">Архитектурное решение</text>
+  <text class="text s" x="64" y="662">Протокол steering committee</text>
+  <rect class="panel" x="408" y="120" width="392" height="270" rx="8"/>
+  <text class="text h" x="432" y="152">Project Health</text>
+  <circle class="amber" cx="460" cy="204" r="28"/><text class="text" x="505" y="211" font-size="28" font-weight="700">At Risk</text>
+  <text class="text muted s" x="432" y="254">Причина: отклонение по срокам и зависимость от внешнего API.</text>
+  <line class="line" x1="432" y1="282" x2="776" y2="282"/>
+  <text class="text s" x="432" y="318">Срок: +12 дней</text><text class="text s" x="568" y="318">Бюджет: +6%</text><text class="text s" x="704" y="318">Scope: stable</text>
+  <rect class="soft" x="432" y="342" width="344" height="28" rx="5"/>
+  <rect class="blue" x="432" y="342" width="224" height="28" rx="5"/>
+  <text class="text xs" x="664" y="361">65% готово</text>
+  <rect class="panel" x="824" y="120" width="432" height="270" rx="8"/>
+  <text class="text h" x="848" y="152">Последняя статус-сводка</text>
+  <text class="text s" x="848" y="194">За неделю завершены интеграционные тесты HR-контуров.</text>
+  <text class="text s" x="848" y="224">Открыт блокер: поставщик не подтвердил SLA API.</text>
+  <text class="text s" x="848" y="254">Нужное решение: согласовать временный workaround.</text>
+  <line class="line" x1="848" y1="284" x2="1232" y2="284"/>
+  <text class="text muted s" x="848" y="318">Автор: PM, дата: 13.05.2026, версия: 17</text>
+  <rect class="soft" x="848" y="340" width="164" height="34" rx="6"/><text class="text s" x="876" y="362">История статусов</text>
+  <rect class="panel" x="408" y="414" width="392" height="378" rx="8"/>
+  <text class="text h" x="432" y="446">Цели и KPI</text>
+  <rect class="soft" x="432" y="474" width="344" height="62" rx="6"/><text class="text s" x="448" y="502">Сократить закрытие месяца с 6 до 3 дней</text>
+  <rect class="soft" x="432" y="552" width="344" height="62" rx="6"/><text class="text s" x="448" y="580">Единый справочник контрагентов</text>
+  <rect class="soft" x="432" y="630" width="344" height="62" rx="6"/><text class="text s" x="448" y="658">Доступность ERP 99.8%</text>
+  <rect class="panel" x="824" y="414" width="432" height="378" rx="8"/>
+  <text class="text h" x="848" y="446">Активность и решения</text>
+  <text class="text s" x="848" y="486">12.05: создан change request CR-18</text>
+  <text class="text s" x="848" y="522">11.05: риск R-31 переведен в issue</text>
+  <text class="text s" x="848" y="558">10.05: обновлена базовая линия v3</text>
+  <text class="text s" x="848" y="594">09.05: согласован бюджет на интеграцию</text>
+  <line class="line" x1="848" y1="630" x2="1232" y2="630"/>
+  <text class="text muted s" x="848" y="666">Все события имеют автора, время, объект изменения и ссылку на источник.</text>
+</svg>
