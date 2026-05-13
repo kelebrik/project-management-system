@@ -1446,7 +1446,13 @@ function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">PM System</div>
+        <div className="brand">
+          <span className="brand-mark">PM</span>
+          <span>
+            <b>PM System</b>
+            <small>Контур управления</small>
+          </span>
+        </div>
         <nav>
           <button
             type="button"
@@ -1485,6 +1491,7 @@ function App() {
             {selectedProjectListItem && (
               <div className="project-menu">
                 <div className="project-current">
+                  <small>Выбранный проект</small>
                   <span
                     className={`rag-dot ${selectedProjectListItem.rag.toLowerCase()}`}
                   />
