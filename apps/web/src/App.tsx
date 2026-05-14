@@ -726,10 +726,10 @@ function emptyWbsFormFromContext(
   return {
     parentId: "",
     code,
-    title: "",
+    title: "New task",
     type: "TASK",
     status: "NOT_STARTED",
-    owner: "",
+    owner: "TBD",
     startDate: "",
     dueDate: "",
     baselineStartDate: "",
@@ -1161,9 +1161,6 @@ function App() {
   );
   const [draggedWbsColumn, setDraggedWbsColumn] =
     useState<WbsTableColumnKey | null>(null);
-  const [wbsInsertHoverIndex, setWbsInsertHoverIndex] = useState<number | null>(
-    null,
-  );
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
     {},
   );
@@ -2573,6 +2570,7 @@ function App() {
     columnKey: WbsTableColumnKey,
     item: WbsTreeItem,
     draft: WbsFormState,
+    rowIndex: number,
   ) {
     switch (columnKey) {
       case "structure":
@@ -2583,6 +2581,13 @@ function App() {
               paddingLeft: `${wbsDraftDisplayLevel(item, draft) * 18 + 8}px`,
             }}
           >
+            <button
+              type="button"
+              className="wbs-inline-insert-button"
+              onClick={() => void insertWbsRow(rowIndex)}
+            >
+              +
+            </button>
             {item.children.length > 0 ? (
               <button
                 type="button"
@@ -2906,7 +2911,6 @@ function App() {
         method: "POST",
       });
       await refreshProject(project.id);
-      setWbsInsertHoverIndex(null);
       setNotice("WBS строка добавлена");
     } catch (insertError) {
       setError(
@@ -4529,25 +4533,6 @@ function App() {
                           return (
                             <div key={item.id} className="wbs-row-stack">
                               <div
-                                className="wbs-insert-slot"
-                                onMouseEnter={() => setWbsInsertHoverIndex(index)}
-                                onMouseLeave={() =>
-                                  setWbsInsertHoverIndex((current) =>
-                                    current === index ? null : current,
-                                  )
-                                }
-                              >
-                                {wbsInsertHoverIndex === index && (
-                                  <button
-                                    type="button"
-                                    className="wbs-insert-button"
-                                    onClick={() => void insertWbsRow(index)}
-                                  >
-                                    + Добавить строку
-                                  </button>
-                                )}
-                              </div>
-                              <div
                                 className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
                               >
                                 {orderedWbsColumns.map((column) => (
@@ -4563,7 +4548,7 @@ function App() {
                                           : "wbs-cell"
                                     }
                                   >
-                                    {renderWbsCell(column.key, item, draft)}
+                                    {renderWbsCell(column.key, item, draft, index)}
                                   </div>
                                 ))}
                               </div>
