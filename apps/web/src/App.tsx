@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  type DragEvent as ReactDragEvent,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -590,6 +591,7 @@ const WBS_TABLE_COLUMNS = [
 ] as const;
 
 type WbsTableColumnKey = (typeof WBS_TABLE_COLUMNS)[number]["key"];
+type WbsTableColumn = (typeof WBS_TABLE_COLUMNS)[number];
 
 const GANTT_ROW_HEIGHT = 36;
 
@@ -1082,6 +1084,11 @@ function App() {
       WBS_TABLE_COLUMNS.map((column) => [column.key, column.width]),
     ) as Record<WbsTableColumnKey, number>,
   );
+  const [wbsColumnOrder, setWbsColumnOrder] = useState<WbsTableColumnKey[]>(
+    () => WBS_TABLE_COLUMNS.map((column) => column.key),
+  );
+  const [draggedWbsColumn, setDraggedWbsColumn] =
+    useState<WbsTableColumnKey | null>(null);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
     {},
   );
@@ -1530,12 +1537,26 @@ function App() {
       items,
     };
   }, [project?.wbsDependencies, visibleWbsTree, wbsMilestoneCodes]);
+  const wbsColumnsByKey = useMemo(
+    () =>
+      new Map<WbsTableColumnKey, WbsTableColumn>(
+        WBS_TABLE_COLUMNS.map((column) => [column.key, column]),
+      ),
+    [],
+  );
+  const orderedWbsColumns = useMemo(
+    () =>
+      wbsColumnOrder
+        .map((key) => wbsColumnsByKey.get(key))
+        .filter((column): column is WbsTableColumn => Boolean(column)),
+    [wbsColumnOrder, wbsColumnsByKey],
+  );
   const wbsTableTemplate = useMemo(
     () =>
-      WBS_TABLE_COLUMNS.map(
-        (column) => `${wbsColumnWidths[column.key]}px`,
-      ).join(" "),
-    [wbsColumnWidths],
+      orderedWbsColumns
+        .map((column) => `${wbsColumnWidths[column.key]}px`)
+        .join(" "),
+    [orderedWbsColumns, wbsColumnWidths],
   );
   const projectArtifacts = useMemo(() => {
     if (!project) return [];
@@ -2370,6 +2391,274 @@ function App() {
     };
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
+  }
+
+  function moveWbsColumn(
+    sourceKey: WbsTableColumnKey,
+    targetKey: WbsTableColumnKey,
+  ) {
+    if (
+      sourceKey === targetKey ||
+      sourceKey === "structure" ||
+      sourceKey === "actions" ||
+      targetKey === "structure" ||
+      targetKey === "actions"
+    ) {
+      return;
+    }
+    setWbsColumnOrder((current) => {
+      const sourceIndex = current.indexOf(sourceKey);
+      const targetIndex = current.indexOf(targetKey);
+      if (sourceIndex === -1 || targetIndex === -1) return current;
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  }
+
+  function startWbsColumnDrag(
+    columnKey: WbsTableColumnKey,
+    event: ReactDragEvent<HTMLSpanElement>,
+  ) {
+    if (columnKey === "structure" || columnKey === "actions") {
+      event.preventDefault();
+      return;
+    }
+    setDraggedWbsColumn(columnKey);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", columnKey);
+  }
+
+  function dropWbsColumn(
+    targetKey: WbsTableColumnKey,
+    event: ReactDragEvent<HTMLSpanElement>,
+  ) {
+    event.preventDefault();
+    const sourceKey =
+      (event.dataTransfer.getData("text/plain") as WbsTableColumnKey) ||
+      draggedWbsColumn;
+    if (sourceKey) moveWbsColumn(sourceKey, targetKey);
+    setDraggedWbsColumn(null);
+  }
+
+  function renderWbsCell(
+    columnKey: WbsTableColumnKey,
+    item: WbsTreeItem,
+    draft: WbsFormState,
+  ) {
+    switch (columnKey) {
+      case "structure":
+        return (
+          <div
+            className="wbs-work-cell"
+            style={{
+              paddingLeft: `${wbsDraftDisplayLevel(item, draft) * 18 + 8}px`,
+            }}
+          >
+            {item.children.length > 0 ? (
+              <button
+                type="button"
+                className="tree-toggle"
+                onClick={() => toggleWbsCollapse(item.id)}
+                aria-label={
+                  collapsedWbsIds.has(item.id)
+                    ? "Раскрыть WBS элемент"
+                    : "Схлопнуть WBS элемент"
+                }
+              >
+                {collapsedWbsIds.has(item.id) ? "+" : "-"}
+              </button>
+            ) : (
+              <span className="tree-spacer" />
+            )}
+            <span
+              className={`wbs-color-dot ${item.type === "MILESTONE" ? "tone-o" : wbsToneClass(item)}`}
+            />
+            <input
+              className="wbs-code-input"
+              readOnly
+              value={draftWbsCodes.get(item.id) ?? draft.code}
+            />
+            <input
+              className="wbs-title-input"
+              value={draft.title}
+              onChange={(event) =>
+                updateWbsDraft(item.id, { title: event.target.value })
+              }
+            />
+          </div>
+        );
+      case "level":
+        return (
+          <input
+            type="number"
+            value={draft.wbsLevel}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { wbsLevel: event.target.value })
+            }
+          />
+        );
+      case "type":
+        return (
+          <select
+            value={draft.type}
+            onChange={(event) =>
+              updateWbsDraft(item.id, {
+                type: event.target.value as WbsItemType,
+              })
+            }
+          >
+            <option value="PHASE">Phase</option>
+            <option value="WORK_PACKAGE">Work package</option>
+            <option value="DELIVERABLE">Deliverable</option>
+            <option value="MILESTONE">Milestone</option>
+            <option value="TASK">Task</option>
+          </select>
+        );
+      case "status":
+        return (
+          <select
+            value={draft.status}
+            onChange={(event) =>
+              updateWbsDraft(item.id, {
+                status: event.target.value as WbsItemStatus,
+              })
+            }
+          >
+            <option value="NOT_STARTED">Not started</option>
+            <option value="IN_PROGRESS">In progress</option>
+            <option value="AT_RISK">At risk</option>
+            <option value="BLOCKED">Blocked</option>
+            <option value="DONE">Done</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+        );
+      case "owner":
+        return (
+          <input
+            value={draft.owner}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { owner: event.target.value })
+            }
+          />
+        );
+      case "start":
+        return (
+          <input
+            type="date"
+            value={draft.startDate}
+            onChange={(event) =>
+              updateWbsDraft(item.id, {
+                startDate: event.target.value,
+                excelStartDate: event.target.value,
+              })
+            }
+          />
+        );
+      case "due":
+        return (
+          <input
+            type="date"
+            value={draft.dueDate}
+            onChange={(event) =>
+              updateWbsDraft(item.id, {
+                dueDate: event.target.value,
+                excelEndDate: event.target.value,
+              })
+            }
+          />
+        );
+      case "workDays":
+        return (
+          <input
+            type="number"
+            value={draft.workDays}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { workDays: event.target.value })
+            }
+          />
+        );
+      case "calendarDays":
+        return (
+          <input
+            type="number"
+            value={draft.calendarDays}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { calendarDays: event.target.value })
+            }
+          />
+        );
+      case "progress":
+        return (
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={draft.progress}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { progress: event.target.value })
+            }
+          />
+        );
+      case "predecessor1":
+        return (
+          <input
+            value={draft.predecessor1}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { predecessor1: event.target.value })
+            }
+            placeholder="WBS code"
+          />
+        );
+      case "predecessor2":
+        return (
+          <input
+            value={draft.predecessor2}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { predecessor2: event.target.value })
+            }
+            placeholder="WBS code"
+          />
+        );
+      case "predecessor3":
+        return (
+          <input
+            value={draft.predecessor3}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { predecessor3: event.target.value })
+            }
+            placeholder="WBS code"
+          />
+        );
+      case "leadLag":
+        return (
+          <input
+            type="number"
+            value={draft.leadLagDays}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { leadLagDays: event.target.value })
+            }
+          />
+        );
+      case "actions":
+        return (
+          <div className="wbs-row-actions">
+            <button type="button" onClick={() => saveWbsItem(item.id)}>
+              Save
+            </button>
+            <button
+              type="button"
+              className="danger-button"
+              onClick={() => deleteWbsItem(item.id)}
+            >
+              Delete
+            </button>
+          </div>
+        );
+      default:
+        return null;
+    }
   }
 
   async function saveWbsItem(itemId: string) {
@@ -3949,8 +4238,33 @@ function App() {
                       style={{ "--wbs-table-template": wbsTableTemplate } as CSSProperties}
                     >
                       <div className="wbs-table-head">
-                        {WBS_TABLE_COLUMNS.map((column) => (
-                          <span key={column.key}>
+                        {orderedWbsColumns.map((column) => (
+                          <span
+                            key={column.key}
+                            draggable={
+                              column.key !== "structure" &&
+                              column.key !== "actions"
+                            }
+                            className={
+                              draggedWbsColumn === column.key
+                                ? "wbs-column-header dragging"
+                                : "wbs-column-header"
+                            }
+                            onDragStart={(event) =>
+                              startWbsColumnDrag(column.key, event)
+                            }
+                            onDragOver={(event) => {
+                              if (
+                                draggedWbsColumn &&
+                                column.key !== "structure" &&
+                                column.key !== "actions"
+                              ) {
+                                event.preventDefault();
+                              }
+                            }}
+                            onDrop={(event) => dropWbsColumn(column.key, event)}
+                            onDragEnd={() => setDraggedWbsColumn(null)}
+                          >
                             {column.label}
                             {column.key !== "actions" && (
                               <button
@@ -3973,194 +4287,20 @@ function App() {
                             className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
                             key={item.id}
                           >
-                            <div
-                              className="wbs-work-cell"
-                              style={{
-                                paddingLeft: `${
-                                  wbsDraftDisplayLevel(item, draft) * 18 + 8
-                                }px`,
-                              }}
-                            >
-                              {item.children.length > 0 ? (
-                                <button
-                                  type="button"
-                                  className="tree-toggle"
-                                  onClick={() => toggleWbsCollapse(item.id)}
-                                  aria-label={
-                                    collapsedWbsIds.has(item.id)
-                                      ? "Раскрыть WBS элемент"
-                                      : "Схлопнуть WBS элемент"
-                                  }
-                                >
-                                  {collapsedWbsIds.has(item.id) ? "+" : "-"}
-                                </button>
-                              ) : (
-                                <span className="tree-spacer" />
-                              )}
-                              <span
-                                className={`wbs-color-dot ${item.type === "MILESTONE" ? "tone-o" : wbsToneClass(item)}`}
-                              />
-                              <input
-                                className="wbs-code-input"
-                                readOnly
-                                value={draftWbsCodes.get(item.id) ?? draft.code}
-                              />
-                              <input
-                                className="wbs-title-input"
-                                value={draft.title}
-                                onChange={(event) =>
-                                  updateWbsDraft(item.id, {
-                                    title: event.target.value,
-                                  })
+                            {orderedWbsColumns.map((column) => (
+                              <div
+                                key={`${item.id}-${column.key}`}
+                                className={
+                                  column.key === "structure"
+                                    ? "wbs-cell-structure"
+                                    : column.key === "actions"
+                                      ? "wbs-cell-actions"
+                                      : "wbs-cell"
                                 }
-                              />
-                            </div>
-                            <input
-                              type="number"
-                              value={draft.wbsLevel}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  wbsLevel: event.target.value,
-                                })
-                              }
-                            />
-                            <select
-                              value={draft.type}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  type: event.target.value as WbsItemType,
-                                })
-                              }
-                            >
-                              <option value="PHASE">Phase</option>
-                              <option value="WORK_PACKAGE">Work package</option>
-                              <option value="DELIVERABLE">Deliverable</option>
-                              <option value="MILESTONE">Milestone</option>
-                              <option value="TASK">Task</option>
-                            </select>
-                            <select
-                              value={draft.status}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  status: event.target.value as WbsItemStatus,
-                                })
-                              }
-                            >
-                              <option value="NOT_STARTED">Not started</option>
-                              <option value="IN_PROGRESS">In progress</option>
-                              <option value="AT_RISK">At risk</option>
-                              <option value="BLOCKED">Blocked</option>
-                              <option value="DONE">Done</option>
-                              <option value="CANCELLED">Cancelled</option>
-                            </select>
-                            <input
-                              value={draft.owner}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  owner: event.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="date"
-                              value={draft.startDate}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  startDate: event.target.value,
-                                  excelStartDate: event.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="date"
-                              value={draft.dueDate}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  dueDate: event.target.value,
-                                  excelEndDate: event.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="number"
-                              value={draft.workDays}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  workDays: event.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="number"
-                              value={draft.calendarDays}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  calendarDays: event.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={draft.progress}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  progress: event.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              value={draft.predecessor1}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  predecessor1: event.target.value,
-                                })
-                              }
-                              placeholder="WBS code"
-                            />
-                            <input
-                              value={draft.predecessor2}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  predecessor2: event.target.value,
-                                })
-                              }
-                              placeholder="WBS code"
-                            />
-                            <input
-                              value={draft.predecessor3}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  predecessor3: event.target.value,
-                                })
-                              }
-                              placeholder="WBS code"
-                            />
-                            <input
-                              type="number"
-                              value={draft.leadLagDays}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  leadLagDays: event.target.value,
-                                })
-                              }
-                            />
-                            <div className="wbs-row-actions">
-                              <button
-                                type="button"
-                                onClick={() => saveWbsItem(item.id)}
                               >
-                                Save
-                              </button>
-                              <button
-                                type="button"
-                                className="danger-button"
-                                onClick={() => deleteWbsItem(item.id)}
-                              >
-                                Delete
-                              </button>
-                            </div>
+                                {renderWbsCell(column.key, item, draft)}
+                              </div>
+                            ))}
                           </div>
                         );
                       })}
