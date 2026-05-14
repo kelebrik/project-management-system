@@ -943,10 +943,37 @@ function wbsDraftDisplayLevel(
   return Math.max(0, (draftLevel ?? item.wbsLevel ?? item.level + 1) - 1);
 }
 
+function buildRenumberedWbsCodes(
+  items: WbsTreeItem[],
+  drafts: Record<string, WbsFormState>,
+) {
+  const counters: number[] = [];
+  const codes = new Map<string, string>();
+  let previousLevel = 0;
+
+  for (const item of items) {
+    const draft = drafts[item.id];
+    const requestedLevel = draft?.wbsLevel
+      ? Number(draft.wbsLevel)
+      : item.wbsLevel ?? item.level + 1;
+    const level = Math.max(
+      1,
+      Math.min(requestedLevel, previousLevel === 0 ? 1 : previousLevel + 1),
+    );
+    counters[level - 1] = (counters[level - 1] ?? 0) + 1;
+    counters.length = level;
+    codes.set(item.id, counters.join("."));
+    previousLevel = level;
+  }
+
+  return codes;
+}
+
 function parentIdFromWbsLevel(
   itemId: string,
   nextLevel: number | null,
   items: WbsTreeItem[],
+  drafts: Record<string, WbsFormState>,
 ) {
   if (!nextLevel || nextLevel <= 1) return null;
   const itemIndex = items.findIndex((item) => item.id === itemId);
@@ -954,7 +981,10 @@ function parentIdFromWbsLevel(
 
   for (let index = itemIndex - 1; index >= 0; index -= 1) {
     const candidate = items[index];
-    const candidateLevel = candidate.wbsLevel ?? candidate.level + 1;
+    const candidateDraft = drafts[candidate.id];
+    const candidateLevel = candidateDraft?.wbsLevel
+      ? Number(candidateDraft.wbsLevel)
+      : candidate.wbsLevel ?? candidate.level + 1;
     if (candidateLevel < nextLevel) return candidate.id;
   }
 
@@ -1145,6 +1175,10 @@ function App() {
       return true;
     });
   }, [collapsedWbsIds, wbsTree]);
+  const draftWbsCodes = useMemo(
+    () => buildRenumberedWbsCodes(wbsTree, wbsDrafts),
+    [wbsDrafts, wbsTree],
+  );
   const wbsMilestoneCodes = useMemo(
     () =>
       new Set(
@@ -2241,13 +2275,14 @@ function App() {
     const nextLevel = form.wbsLevel ? Number(form.wbsLevel) : null;
     return {
       ...form,
-      parentId: parentIdFromWbsLevel(itemId, nextLevel, wbsTree),
+      parentId: parentIdFromWbsLevel(itemId, nextLevel, wbsTree, wbsDrafts),
       startDate: form.startDate || null,
       dueDate: form.dueDate || null,
       baselineStartDate: form.baselineStartDate || null,
       baselineDueDate: form.baselineDueDate || null,
       forecastStartDate: form.forecastStartDate || null,
       forecastDueDate: form.forecastDueDate || null,
+      code: draftWbsCodes.get(itemId) ?? form.code,
       wbsLevel: nextLevel,
       predecessor1: form.predecessor1 || null,
       predecessor2: form.predecessor2 || null,
@@ -3932,12 +3967,8 @@ function App() {
                               />
                               <input
                                 className="wbs-code-input"
-                                value={draft.code}
-                                onChange={(event) =>
-                                  updateWbsDraft(item.id, {
-                                    code: event.target.value,
-                                  })
-                                }
+                                readOnly
+                                value={draftWbsCodes.get(item.id) ?? draft.code}
                               />
                               <input
                                 className="wbs-title-input"
