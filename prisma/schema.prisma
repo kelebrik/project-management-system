@@ -199,6 +199,19 @@ model WbsItem {
   baselineDueDate   DateTime?
   forecastStartDate DateTime?
   forecastDueDate   DateTime?
+  wbsLevel      Int?
+  predecessor1  String?
+  predecessor2  String?
+  predecessor3  String?
+  leadLagDays   Int           @default(0)
+  workDays      Int?
+  calendarDays  Int?
+  excelStartDate DateTime?
+  excelEndDate   DateTime?
+  planWorkDays     Int?
+  planCalendarDays Int?
+  templateColor String?
+  priority      String?
   plannedCost   Decimal       @default(0) @db.Decimal(14, 2)
   forecastCost  Decimal       @default(0) @db.Decimal(14, 2)
   progress      Int           @default(0)

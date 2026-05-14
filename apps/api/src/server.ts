@@ -631,6 +631,19 @@ const wbsItemSchema = z.object({
   baselineDueDate: z.string().trim().optional().nullable(),
   forecastStartDate: z.string().trim().optional().nullable(),
   forecastDueDate: z.string().trim().optional().nullable(),
+  wbsLevel: z.coerce.number().int().optional().nullable(),
+  predecessor1: z.string().trim().optional().nullable(),
+  predecessor2: z.string().trim().optional().nullable(),
+  predecessor3: z.string().trim().optional().nullable(),
+  leadLagDays: z.coerce.number().int().default(0),
+  workDays: z.coerce.number().int().optional().nullable(),
+  calendarDays: z.coerce.number().int().optional().nullable(),
+  excelStartDate: z.string().trim().optional().nullable(),
+  excelEndDate: z.string().trim().optional().nullable(),
+  planWorkDays: z.coerce.number().int().optional().nullable(),
+  planCalendarDays: z.coerce.number().int().optional().nullable(),
+  templateColor: z.string().trim().optional().nullable(),
+  priority: z.string().trim().optional().nullable(),
   plannedCost: z.coerce.number().nonnegative().default(0),
   forecastCost: z.coerce.number().nonnegative().default(0),
   progress: z.coerce.number().int().min(0).max(100).default(0),
@@ -734,6 +747,27 @@ app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
         : parsed.data.dueDate
           ? new Date(parsed.data.dueDate)
           : null,
+      wbsLevel: parsed.data.wbsLevel ?? null,
+      predecessor1: parsed.data.predecessor1 || null,
+      predecessor2: parsed.data.predecessor2 || null,
+      predecessor3: parsed.data.predecessor3 || null,
+      leadLagDays: parsed.data.leadLagDays,
+      workDays: parsed.data.workDays ?? null,
+      calendarDays: parsed.data.calendarDays ?? null,
+      excelStartDate: parsed.data.excelStartDate
+        ? new Date(parsed.data.excelStartDate)
+        : parsed.data.startDate
+          ? new Date(parsed.data.startDate)
+          : null,
+      excelEndDate: parsed.data.excelEndDate
+        ? new Date(parsed.data.excelEndDate)
+        : parsed.data.dueDate
+          ? new Date(parsed.data.dueDate)
+          : null,
+      planWorkDays: parsed.data.planWorkDays ?? null,
+      planCalendarDays: parsed.data.planCalendarDays ?? null,
+      templateColor: parsed.data.templateColor || null,
+      priority: parsed.data.priority || null,
       plannedCost: parsed.data.plannedCost,
       forecastCost: parsed.data.forecastCost,
       progress: parsed.data.progress,
@@ -822,6 +856,30 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
           : parsed.data.forecastDueDate
             ? new Date(parsed.data.forecastDueDate)
             : null,
+      wbsLevel: parsed.data.wbsLevel === undefined ? undefined : parsed.data.wbsLevel ?? null,
+      predecessor1: parsed.data.predecessor1 === undefined ? undefined : parsed.data.predecessor1 || null,
+      predecessor2: parsed.data.predecessor2 === undefined ? undefined : parsed.data.predecessor2 || null,
+      predecessor3: parsed.data.predecessor3 === undefined ? undefined : parsed.data.predecessor3 || null,
+      leadLagDays: parsed.data.leadLagDays,
+      workDays: parsed.data.workDays === undefined ? undefined : parsed.data.workDays ?? null,
+      calendarDays: parsed.data.calendarDays === undefined ? undefined : parsed.data.calendarDays ?? null,
+      excelStartDate:
+        parsed.data.excelStartDate === undefined
+          ? undefined
+          : parsed.data.excelStartDate
+            ? new Date(parsed.data.excelStartDate)
+            : null,
+      excelEndDate:
+        parsed.data.excelEndDate === undefined
+          ? undefined
+          : parsed.data.excelEndDate
+            ? new Date(parsed.data.excelEndDate)
+            : null,
+      planWorkDays: parsed.data.planWorkDays === undefined ? undefined : parsed.data.planWorkDays ?? null,
+      planCalendarDays:
+        parsed.data.planCalendarDays === undefined ? undefined : parsed.data.planCalendarDays ?? null,
+      templateColor: parsed.data.templateColor === undefined ? undefined : parsed.data.templateColor || null,
+      priority: parsed.data.priority === undefined ? undefined : parsed.data.priority || null,
       plannedCost: parsed.data.plannedCost,
       forecastCost: parsed.data.forecastCost,
       progress: parsed.data.progress,

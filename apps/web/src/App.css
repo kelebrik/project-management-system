@@ -1197,15 +1197,13 @@ code {
 }
 
 .wbs-excel-table {
-  min-width: 3850px;
+  min-width: max-content;
 }
 
 .wbs-table-head,
 .wbs-table-row {
   display: grid;
-  grid-template-columns:
-    420px 220px 78px 132px 136px 150px 138px 138px 138px 138px 138px 138px
-    82px 112px 112px 72px 270px 270px 270px 280px 300px 132px;
+  grid-template-columns: var(--wbs-table-template);
 }
 
 .wbs-table-head {
@@ -1229,7 +1227,8 @@ code {
   align-items: center;
   display: flex;
   min-height: 34px;
-  padding: 8px;
+  padding: 8px 14px 8px 8px;
+  position: relative;
 }
 
 .wbs-table-row {
@@ -1285,6 +1284,26 @@ code {
   z-index: 8;
 }
 
+.wbs-column-resizer {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  bottom: 0;
+  cursor: col-resize;
+  min-height: 0;
+  padding: 0;
+  position: absolute;
+  right: -4px;
+  top: 0;
+  width: 8px;
+  z-index: 4;
+}
+
+.wbs-column-resizer:hover,
+.wbs-column-resizer:focus-visible {
+  background: rgba(37, 99, 235, 0.16);
+}
+
 .wbs-code-input {
   color: #075985 !important;
   font-weight: 900;
@@ -1308,15 +1327,10 @@ code {
   color: #b91c1c;
 }
 
-.wbs-predecessor-inline,
 .wbs-jira-cell,
 .wbs-row-actions {
   display: grid;
   gap: 0;
-}
-
-.wbs-predecessor-inline {
-  grid-template-columns: minmax(0, 1fr) 58px 54px;
 }
 
 .wbs-jira-cell {

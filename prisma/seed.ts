@@ -9,27 +9,6 @@ function getParentWbsCode(code: string) {
   return parts.length > 0 ? parts.join('.') : null;
 }
 
-function parsePredecessorCodes(description: string) {
-  const marker = 'Predecessors:';
-  const markerIndex = description.indexOf(marker);
-  if (markerIndex < 0) return [];
-
-  const rawValue = description
-    .slice(markerIndex + marker.length)
-    .split(/Lead \/ lag:|Work days:|Template color:/)[0];
-
-  return rawValue
-    .split(/[,;]/)
-    .map((value) => value.trim())
-    .map((value) => value.replace(/\.$/, ''))
-    .filter(Boolean);
-}
-
-function parseLagDays(description: string) {
-  const match = description.match(/Lead \/ lag:\s*(-?\d+)/);
-  return match ? Number(match[1]) : 0;
-}
-
 async function importTest001ProjectPlan(projectId: string) {
   await prisma.wbsDependency.deleteMany({ where: { projectId } });
   await prisma.milestone.deleteMany({ where: { projectId } });
@@ -50,10 +29,23 @@ async function importTest001ProjectPlan(projectId: string) {
         owner: item.owner,
         startDate: new Date(item.startDate),
         dueDate: new Date(item.dueDate),
-        baselineStartDate: new Date(item.startDate),
-        baselineDueDate: new Date(item.dueDate),
-        forecastStartDate: new Date(item.startDate),
-        forecastDueDate: new Date(item.dueDate),
+        baselineStartDate: new Date(item.baselineStartDate),
+        baselineDueDate: new Date(item.baselineDueDate),
+        forecastStartDate: new Date(item.forecastStartDate),
+        forecastDueDate: new Date(item.forecastDueDate),
+        wbsLevel: item.wbsLevel,
+        predecessor1: item.predecessor1,
+        predecessor2: item.predecessor2,
+        predecessor3: item.predecessor3,
+        leadLagDays: item.leadLagDays,
+        workDays: item.workDays,
+        calendarDays: item.calendarDays,
+        excelStartDate: item.excelStartDate ? new Date(item.excelStartDate) : null,
+        excelEndDate: item.excelEndDate ? new Date(item.excelEndDate) : null,
+        planWorkDays: item.planWorkDays,
+        planCalendarDays: item.planCalendarDays,
+        templateColor: item.templateColor,
+        priority: item.priority,
         plannedCost: '0.00',
         forecastCost: '0.00',
         progress: item.progress,
@@ -80,7 +72,8 @@ async function importTest001ProjectPlan(projectId: string) {
     const successorId = createdWbsIds.get(item.code);
     if (!successorId) continue;
 
-    for (const predecessorCode of parsePredecessorCodes(item.description)) {
+    for (const predecessorCode of [item.predecessor1, item.predecessor2, item.predecessor3]) {
+      if (!predecessorCode) continue;
       const predecessorId = createdWbsIds.get(predecessorCode);
       if (!predecessorId || predecessorId === successorId) continue;
 
@@ -94,14 +87,14 @@ async function importTest001ProjectPlan(projectId: string) {
           },
         },
         update: {
-          lagDays: parseLagDays(item.description),
+          lagDays: item.leadLagDays,
         },
         create: {
           projectId,
           predecessorId,
           successorId,
           type: 'FS',
-          lagDays: parseLagDays(item.description),
+          lagDays: item.leadLagDays,
         },
       });
     }
