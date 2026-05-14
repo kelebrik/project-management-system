@@ -4478,8 +4478,8 @@ function App() {
                               }
                             className={
                               draggedWbsColumn === column.key
-                                ? `wbs-column-header ${column.key === "level" ? "level-column" : ""} dragging`
-                                : `wbs-column-header ${column.key === "level" ? "level-column" : ""}`
+                                ? `wbs-column-header ${column.key === "level" ? "level-column" : ""} ${column.key === "structure" ? "structure-column" : ""} dragging`
+                                : `wbs-column-header ${column.key === "level" ? "level-column" : ""} ${column.key === "structure" ? "structure-column" : ""}`
                             }
                               onDragStart={(event) =>
                                 startWbsColumnDrag(column.key, event)

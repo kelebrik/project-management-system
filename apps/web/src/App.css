@@ -1384,6 +1384,14 @@ code {
   z-index: 9;
 }
 
+.wbs-column-header.structure-column,
+.wbs-cell-structure {
+  background: #eef2f7;
+  left: 84px;
+  position: sticky;
+  z-index: 8;
+}
+
 .wbs-cell-level {
   background: inherit;
   z-index: 4;
@@ -1478,13 +1486,6 @@ code {
   position: sticky;
   left: 0;
   z-index: 3;
-}
-
-.wbs-cell-structure {
-  background: #eef2f7;
-  left: 84px;
-  position: sticky;
-  z-index: 8;
 }
 
 .wbs-cell-structure {
