@@ -1545,7 +1545,7 @@ code {
   font-weight: 900;
   height: 22px;
   justify-content: center;
-  left: 8px;
+  left: 150px;
   opacity: 0;
   padding: 0;
   pointer-events: none;
@@ -1584,7 +1584,7 @@ code {
 
 .wbs-row-drag-handle {
   cursor: grab;
-  left: 86px;
+  left: 92px;
 }
 
 .wbs-row-drag-handle:active {
@@ -1592,7 +1592,7 @@ code {
 }
 
 .wbs-row-delete-button {
-  left: 110px;
+  left: 116px;
 }
 
 .wbs-row-stack:hover .wbs-inline-insert-button,
