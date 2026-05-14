@@ -2426,6 +2426,21 @@ function App() {
     });
   }
 
+  function saveWbsDraftPatch(
+    itemId: string,
+    patch: Partial<WbsFormState>,
+    options: { silent?: boolean } = {},
+  ) {
+    const current = wbsDrafts[itemId];
+    if (!current) return;
+    const nextDraft = { ...current, ...patch };
+    setWbsDrafts({
+      ...wbsDrafts,
+      [itemId]: nextDraft,
+    });
+    void saveWbsItem(itemId, { ...options, draftOverride: nextDraft });
+  }
+
   function toggleWbsCollapse(itemId: string) {
     setCollapsedWbsIds((current) => {
       const next = new Set(current);
@@ -2592,8 +2607,48 @@ function App() {
       case "level":
         return (
           <div className="wbs-level-cell">
+            <div
+              className="wbs-level-stepper"
+              aria-label="Изменить уровень вложения"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  const currentLevel = draft.wbsLevel
+                    ? Number(draft.wbsLevel)
+                    : 1;
+                  const nextLevel = String(Math.max(1, currentLevel - 1));
+                  saveWbsDraftPatch(
+                    item.id,
+                    { wbsLevel: nextLevel },
+                    { silent: true },
+                  );
+                }}
+                aria-label="Уменьшить уровень вложения"
+              >
+                -
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentLevel = draft.wbsLevel
+                    ? Number(draft.wbsLevel)
+                    : 1;
+                  const nextLevel = String(Math.min(12, currentLevel + 1));
+                  saveWbsDraftPatch(
+                    item.id,
+                    { wbsLevel: nextLevel },
+                    { silent: true },
+                  );
+                }}
+                aria-label="Увеличить уровень вложения"
+              >
+                +
+              </button>
+            </div>
             <input
               type="number"
+              className="wbs-level-input"
               value={draft.wbsLevel}
               onChange={(event) =>
                 updateWbsDraft(item.id, { wbsLevel: event.target.value })
@@ -2776,9 +2831,12 @@ function App() {
     }
   }
 
-  async function saveWbsItem(itemId: string, options: { silent?: boolean } = {}) {
+  async function saveWbsItem(
+    itemId: string,
+    options: { silent?: boolean; draftOverride?: WbsFormState } = {},
+  ) {
     if (!project) return;
-    const draft = wbsDrafts[itemId];
+    const draft = options.draftOverride ?? wbsDrafts[itemId];
     if (!draft) return;
     const currentItem = project.wbsItems.find((item) => item.id === itemId);
     if (
