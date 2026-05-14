@@ -140,17 +140,17 @@ WITH project AS (
 )
 UPDATE "WbsItem" target
 SET
-  "wbsLevel" = excel_data."wbsLevel",
+  "wbsLevel" = excel_data."wbsLevel"::integer,
   "predecessor1" = excel_data."predecessor1",
   "predecessor2" = excel_data."predecessor2",
   "predecessor3" = excel_data."predecessor3",
-  "leadLagDays" = excel_data."leadLagDays",
-  "workDays" = excel_data."workDays",
-  "calendarDays" = excel_data."calendarDays",
-  "excelStartDate" = excel_data."excelStartDate",
-  "excelEndDate" = excel_data."excelEndDate",
-  "planWorkDays" = excel_data."planWorkDays",
-  "planCalendarDays" = excel_data."planCalendarDays",
+  "leadLagDays" = excel_data."leadLagDays"::integer,
+  "workDays" = excel_data."workDays"::integer,
+  "calendarDays" = excel_data."calendarDays"::integer,
+  "excelStartDate" = excel_data."excelStartDate"::timestamp,
+  "excelEndDate" = excel_data."excelEndDate"::timestamp,
+  "planWorkDays" = excel_data."planWorkDays"::integer,
+  "planCalendarDays" = excel_data."planCalendarDays"::integer,
   "templateColor" = excel_data."templateColor",
   "priority" = excel_data."priority"
 FROM project, excel_data
