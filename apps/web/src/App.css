@@ -6,6 +6,10 @@
   color: #1f2937;
 }
 
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 76px 1fr;
+}
+
 .sidebar {
   background: #ffffff;
   border-right: 1px solid #dce3eb;
@@ -18,9 +22,10 @@
   align-items: center;
   display: grid;
   gap: 10px;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr) 28px;
   margin-bottom: 18px;
   padding: 0 6px 14px;
+  position: relative;
 }
 
 .brand-mark {
@@ -58,6 +63,21 @@
   margin-top: 2px;
 }
 
+.sidebar-toggle {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  color: #475569;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 900;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  width: 28px;
+}
+
 .sidebar nav {
   display: grid;
   gap: 4px;
@@ -80,12 +100,65 @@
 }
 
 .sidebar button {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 28px minmax(0, 1fr);
+}
+
+.sidebar button {
   cursor: pointer;
+}
+
+.nav-icon {
+  align-items: center;
+  background: #eef2f7;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  color: #475569;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 900;
+  height: 28px;
+  justify-content: center;
+  letter-spacing: 0;
+  width: 28px;
+}
+
+.nav-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-tooltip {
+  background: #111827;
+  border-radius: 6px;
+  color: #fff;
+  display: none;
+  font-size: 12px;
+  font-weight: 800;
+  left: 50%;
+  max-width: 220px;
+  padding: 7px 9px;
+  pointer-events: none;
+  position: absolute;
+  top: -8px;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+  z-index: 40;
 }
 
 .sidebar a.active,
 .sidebar button.active {
   background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.sidebar button.active .nav-icon {
+  background: #dbeafe;
+  border-color: #bfdbfe;
   color: #1d4ed8;
 }
 
@@ -163,6 +236,73 @@
 .project-menu {
   display: grid;
   gap: 3px;
+}
+
+.sidebar-collapsed .sidebar {
+  padding: 18px 10px;
+  overflow: visible;
+}
+
+.sidebar-collapsed .brand {
+  gap: 0;
+  grid-template-columns: 36px;
+  justify-content: center;
+  padding: 0 0 14px;
+}
+
+.sidebar-collapsed .brand-text {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-toggle {
+  bottom: -16px;
+  position: absolute;
+  right: 4px;
+}
+
+.sidebar-collapsed .sidebar nav {
+  justify-items: center;
+}
+
+.sidebar-collapsed .sidebar button {
+  gap: 0;
+  grid-template-columns: 28px;
+  justify-content: center;
+  padding: 7px;
+  text-align: center;
+  width: 42px;
+}
+
+.sidebar-collapsed .sidebar button:hover .nav-tooltip,
+.sidebar-collapsed .sidebar button:focus-visible .nav-tooltip {
+  display: block;
+}
+
+.sidebar-collapsed .nav-text {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar button.active::before {
+  left: 0;
+}
+
+.sidebar-collapsed .sidebar-group {
+  gap: 4px;
+  margin: 2px 0 8px;
+  padding-left: 0;
+}
+
+.sidebar-collapsed .project-picker {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar button.child {
+  margin-left: 0;
+  width: 42px;
+}
+
+.sidebar-collapsed .sidebar button.child::after {
+  display: none;
 }
 
 .workspace {

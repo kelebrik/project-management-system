@@ -1092,6 +1092,7 @@ function App() {
     Record<string, IssueEditDraft>
   >({});
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     fetch(`${apiBase}/api/projects`)
@@ -2896,6 +2897,15 @@ function App() {
     "project-artifacts",
   ];
   const isProjectView = projectViews.includes(activeView);
+  const navLabel = (icon: string, label: string) => (
+    <>
+      <span className="nav-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="nav-text">{label}</span>
+      {sidebarCollapsed && <span className="nav-tooltip">{label}</span>}
+    </>
+  );
 
   if (loading) {
     return (
@@ -2904,22 +2914,40 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">PM</span>
-          <span>
+          <span className="brand-text">
             <b>PM System</b>
             <small>Контур управления</small>
           </span>
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed((current) => !current)}
+            aria-label={
+              sidebarCollapsed
+                ? "Развернуть боковую панель"
+                : "Свернуть боковую панель"
+            }
+            title={
+              sidebarCollapsed
+                ? "Развернуть боковую панель"
+                : "Свернуть боковую панель"
+            }
+          >
+            {sidebarCollapsed ? ">" : "<"}
+          </button>
         </div>
         <nav>
           <button
             type="button"
             className={activeView === "portfolio" ? "active" : ""}
             onClick={() => setActiveView("portfolio")}
+            aria-label="Портфель проектов"
           >
-            Портфель проектов
+            {navLabel("PF", "Портфель проектов")}
           </button>
           <button
             type="button"
@@ -2929,8 +2957,9 @@ function App() {
                 selectedProjectId ? "project-overview" : "project-create",
               )
             }
+            aria-label="Проекты"
           >
-            Проекты
+            {navLabel("PR", "Проекты")}
           </button>
           <div className="sidebar-group">
             <button
@@ -2939,8 +2968,9 @@ function App() {
                 activeView === "project-create" ? "active nested" : "nested"
               }
               onClick={() => setActiveView("project-create")}
+              aria-label="Создать новый проект"
             >
-              Создать новый проект
+              {navLabel("+", "Создать новый проект")}
             </button>
             <label className="project-picker">
               <select
@@ -2969,8 +2999,9 @@ function App() {
                       : "nested child"
                   }
                   onClick={() => setActiveView("project-overview")}
+                  aria-label="Обзор и вехи"
                 >
-                  Обзор и вехи
+                  {navLabel("OV", "Обзор и вехи")}
                 </button>
                 <button
                   type="button"
@@ -2980,8 +3011,9 @@ function App() {
                       : "nested child"
                   }
                   onClick={() => setActiveView("project-passport")}
+                  aria-label="Паспорт проекта"
                 >
-                  Паспорт проекта
+                  {navLabel("PP", "Паспорт проекта")}
                 </button>
                 <button
                   type="button"
@@ -2991,8 +3023,9 @@ function App() {
                       : "nested child"
                   }
                   onClick={() => setActiveView("project-wbs")}
+                  aria-label="WBS и Гантт"
                 >
-                  WBS и Гантт
+                  {navLabel("WB", "WBS и Гантт")}
                 </button>
                 <button
                   type="button"
@@ -3002,8 +3035,9 @@ function App() {
                       : "nested child"
                   }
                   onClick={() => setActiveView("project-issues")}
+                  aria-label="Open Issues"
                 >
-                  Open Issues
+                  {navLabel("OI", "Open Issues")}
                 </button>
                 <button
                   type="button"
@@ -3013,8 +3047,9 @@ function App() {
                       : "nested child"
                   }
                   onClick={() => setActiveView("project-raid")}
+                  aria-label="RAID и изменения"
                 >
-                  RAID и изменения
+                  {navLabel("RI", "RAID и изменения")}
                 </button>
                 <button
                   type="button"
@@ -3024,8 +3059,9 @@ function App() {
                       : "nested child"
                   }
                   onClick={() => setActiveView("project-artifacts")}
+                  aria-label="Артефакты проекта"
                 >
-                  Артефакты проекта
+                  {navLabel("AR", "Артефакты проекта")}
                 </button>
               </div>
             )}
@@ -3034,8 +3070,9 @@ function App() {
             type="button"
             className={activeView === "admin" ? "active" : ""}
             onClick={() => setActiveView("admin")}
+            aria-label="Admin Back"
           >
-            Admin Back
+            {navLabel("AD", "Admin Back")}
           </button>
         </nav>
       </aside>
