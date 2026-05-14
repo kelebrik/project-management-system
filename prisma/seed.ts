@@ -432,7 +432,12 @@ async function main() {
     },
   });
 
-  await importTest001ProjectPlan(testProject.id);
+  const hasImportedProjectPlan =
+    (await prisma.wbsItem.count({ where: { projectId: testProject.id } })) > 0 ||
+    (await prisma.milestone.count({ where: { projectId: testProject.id } })) > 0;
+  if (!hasImportedProjectPlan) {
+    await importTest001ProjectPlan(testProject.id);
+  }
 
   await prisma.changeRequest.deleteMany({ where: { projectId: testProject.id } });
   await prisma.raidItem.deleteMany({ where: { projectId: testProject.id } });

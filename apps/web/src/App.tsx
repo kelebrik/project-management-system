@@ -52,6 +52,7 @@ type ProjectListItem = {
   budgetForecast: string;
   summary: string;
   sortOrder: number;
+  uiState: ProjectUiState | null;
   jiraIntegration: JiraIntegration | null;
   _count: {
     tasks: number;
@@ -86,6 +87,12 @@ type ProjectDetails = ProjectListItem & {
   artifacts: ProjectArtifact[];
   raidItems: RaidItem[];
   changeRequests: ChangeRequest[];
+};
+
+type ProjectUiState = {
+  sidebarCollapsed?: boolean;
+  wbsColumnOrder?: WbsTableColumnKey[];
+  wbsColumnWidths?: Partial<Record<WbsTableColumnKey, number>>;
 };
 
 type ProjectFormState = {
@@ -1694,6 +1701,16 @@ function App() {
 
   function applyProject(nextProject: ProjectDetails) {
     setProject(nextProject);
+    setSidebarCollapsed(nextProject.uiState?.sidebarCollapsed ?? false);
+    setWbsColumnOrder(
+      nextProject.uiState?.wbsColumnOrder?.length
+        ? nextProject.uiState.wbsColumnOrder
+        : WBS_TABLE_COLUMNS.map((column) => column.key),
+    );
+    setWbsColumnWidths((current) => ({
+      ...current,
+      ...(nextProject.uiState?.wbsColumnWidths ?? {}),
+    }));
     setProjectForm(projectToForm(nextProject));
     setJiraForm({
       baseUrl: nextProject.jiraIntegration?.baseUrl ?? "",
@@ -1829,6 +1846,36 @@ function App() {
     setProjects(data);
     if (selectedId) {
       setSelectedProjectId(selectedId);
+    }
+  }
+
+  async function saveProjectUiState(
+    patch: ProjectUiState,
+    options?: {
+      sidebarCollapsed?: boolean;
+      wbsColumnOrder?: WbsTableColumnKey[];
+      wbsColumnWidths?: Record<WbsTableColumnKey, number>;
+    },
+  ) {
+    if (!project) return;
+    const nextUiState: ProjectUiState = {
+      ...(project.uiState ?? {}),
+      sidebarCollapsed: options?.sidebarCollapsed ?? sidebarCollapsed,
+      wbsColumnOrder: options?.wbsColumnOrder ?? wbsColumnOrder,
+      wbsColumnWidths: options?.wbsColumnWidths ?? wbsColumnWidths,
+      ...patch,
+    };
+    setProject((current) =>
+      current ? { ...current, uiState: nextUiState } : current,
+    );
+    const response = await fetch(`${apiBase}/api/projects/${project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uiState: nextUiState }),
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => null);
+      throw new Error(result?.error ?? "Не удалось сохранить настройки интерфейса");
     }
   }
 
@@ -2399,19 +2446,27 @@ function App() {
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = wbsColumnWidths[columnKey];
+    let latestWidths = wbsColumnWidths;
     const onPointerMove = (moveEvent: PointerEvent) => {
       const nextWidth = Math.min(
         760,
         Math.max(56, startWidth + moveEvent.clientX - startX),
       );
-      setWbsColumnWidths((current) => ({
-        ...current,
-        [columnKey]: nextWidth,
-      }));
+      setWbsColumnWidths((current) => {
+        latestWidths = {
+          ...current,
+          [columnKey]: nextWidth,
+        };
+        return latestWidths;
+      });
     };
-    const onPointerUp = () => {
+    const onPointerUp = async () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      await saveProjectUiState(
+        { wbsColumnWidths: latestWidths },
+        { wbsColumnWidths: latestWidths },
+      );
     };
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
@@ -2437,6 +2492,10 @@ function App() {
       const next = [...current];
       const [moved] = next.splice(sourceIndex, 1);
       next.splice(targetIndex, 0, moved);
+      void saveProjectUiState(
+        { wbsColumnOrder: next },
+        { wbsColumnOrder: next },
+      );
       return next;
     });
   }
@@ -3275,7 +3334,14 @@ function App() {
           <button
             type="button"
             className="sidebar-toggle"
-            onClick={() => setSidebarCollapsed((current) => !current)}
+            onClick={() => {
+              const nextCollapsed = !sidebarCollapsed;
+              setSidebarCollapsed(nextCollapsed);
+              void saveProjectUiState(
+                { sidebarCollapsed: nextCollapsed },
+                { sidebarCollapsed: nextCollapsed },
+              );
+            }}
             aria-label={
               sidebarCollapsed
                 ? "Развернуть боковую панель"

@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express from 'express';
+import { Prisma } from '@prisma/client';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -61,7 +62,15 @@ const projectSchema = z.object({
   progress: z.coerce.number().int().min(0).max(100).default(0),
   summary: z.string().trim().min(3),
   sortOrder: z.coerce.number().int().default(0),
+  uiState: z.record(z.string(), z.unknown()).optional().nullable(),
 });
+
+function sanitizeProjectUiState(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return Prisma.JsonNull;
+  }
+  return value;
+}
 
 async function wouldCreateProjectCycle(projectId: string, nextParentId: string | null | undefined) {
   let cursor = nextParentId;
@@ -103,6 +112,7 @@ app.post('/api/projects', async (req, res) => {
       targetDate: new Date(parsed.data.targetDate),
       budgetPlanned: parsed.data.budgetPlanned,
       budgetForecast: parsed.data.budgetForecast,
+      uiState: sanitizeProjectUiState(parsed.data.uiState),
     },
     include: {
       jiraIntegration: true,
@@ -161,6 +171,10 @@ app.patch('/api/projects/:projectId', async (req, res) => {
       targetDate: parsed.data.targetDate ? new Date(parsed.data.targetDate) : undefined,
       budgetPlanned: parsed.data.budgetPlanned,
       budgetForecast: parsed.data.budgetForecast,
+      uiState:
+        parsed.data.uiState === undefined
+          ? undefined
+          : sanitizeProjectUiState(parsed.data.uiState),
     },
   });
 
