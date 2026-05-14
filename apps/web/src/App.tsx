@@ -969,6 +969,30 @@ function buildRenumberedWbsCodes(
   return codes;
 }
 
+function resolveDraftPredecessorCode(
+  code: string,
+  items: WbsTreeItem[],
+  drafts: Record<string, WbsFormState>,
+  renumberedCodes: Map<string, string>,
+) {
+  const normalizedCode = code.trim();
+  if (!normalizedCode) return "";
+
+  const currentItem = items.find((item) => item.code === normalizedCode);
+  if (currentItem) {
+    return renumberedCodes.get(currentItem.id) ?? currentItem.code;
+  }
+
+  const draftItem = items.find(
+    (item) => (drafts[item.id]?.code ?? item.code) === normalizedCode,
+  );
+  if (draftItem) {
+    return renumberedCodes.get(draftItem.id) ?? draftItem.code;
+  }
+
+  return normalizedCode;
+}
+
 function parentIdFromWbsLevel(
   itemId: string,
   nextLevel: number | null,
@@ -2604,7 +2628,12 @@ function App() {
       case "predecessor1":
         return (
           <input
-            value={draft.predecessor1}
+            value={resolveDraftPredecessorCode(
+              draft.predecessor1,
+              wbsTree,
+              wbsDrafts,
+              draftWbsCodes,
+            )}
             onChange={(event) =>
               updateWbsDraft(item.id, { predecessor1: event.target.value })
             }
@@ -2614,7 +2643,12 @@ function App() {
       case "predecessor2":
         return (
           <input
-            value={draft.predecessor2}
+            value={resolveDraftPredecessorCode(
+              draft.predecessor2,
+              wbsTree,
+              wbsDrafts,
+              draftWbsCodes,
+            )}
             onChange={(event) =>
               updateWbsDraft(item.id, { predecessor2: event.target.value })
             }
@@ -2624,7 +2658,12 @@ function App() {
       case "predecessor3":
         return (
           <input
-            value={draft.predecessor3}
+            value={resolveDraftPredecessorCode(
+              draft.predecessor3,
+              wbsTree,
+              wbsDrafts,
+              draftWbsCodes,
+            )}
             onChange={(event) =>
               updateWbsDraft(item.id, { predecessor3: event.target.value })
             }
@@ -2707,11 +2746,33 @@ function App() {
     if (!project) return;
     const draft = wbsDrafts[itemId];
     if (!draft) return;
-    const wbsByCode = new Map(project.wbsItems.map((item) => [item.code, item]));
+    const wbsByCode = new Map<string, WbsItem>();
+    for (const item of project.wbsItems) {
+      wbsByCode.set(item.code, item);
+      const draftCode = draftWbsCodes.get(item.id);
+      if (draftCode) {
+        wbsByCode.set(draftCode, item);
+      }
+    }
     const desiredPredecessors = [
-      draft.predecessor1,
-      draft.predecessor2,
-      draft.predecessor3,
+      resolveDraftPredecessorCode(
+        draft.predecessor1,
+        wbsTree,
+        wbsDrafts,
+        draftWbsCodes,
+      ),
+      resolveDraftPredecessorCode(
+        draft.predecessor2,
+        wbsTree,
+        wbsDrafts,
+        draftWbsCodes,
+      ),
+      resolveDraftPredecessorCode(
+        draft.predecessor3,
+        wbsTree,
+        wbsDrafts,
+        draftWbsCodes,
+      ),
     ]
       .map((code) => code.trim())
       .filter(Boolean)
