@@ -576,24 +576,16 @@ const WBS_TABLE_COLUMNS = [
   { key: "level", label: "Level", width: 72 },
   { key: "type", label: "Type", width: 132 },
   { key: "status", label: "Status", width: 136 },
-  { key: "owner", label: "Owner", width: 150 },
+  { key: "owner", label: "Исполнитель", width: 150 },
   { key: "start", label: "Start", width: 138 },
   { key: "due", label: "Due", width: 138 },
   { key: "workDays", label: "Work days", width: 96 },
   { key: "calendarDays", label: "Cal. days", width: 96 },
-  { key: "baselineStart", label: "Baseline start", width: 138 },
-  { key: "baselineDue", label: "Baseline due", width: 138 },
-  { key: "forecastStart", label: "Forecast start", width: 138 },
-  { key: "forecastDue", label: "Forecast due", width: 138 },
-  { key: "variance", label: "Variance", width: 86 },
   { key: "progress", label: "%", width: 72 },
   { key: "predecessor1", label: "Predecessor 1", width: 132 },
   { key: "predecessor2", label: "Predecessor 2", width: 132 },
   { key: "predecessor3", label: "Predecessor 3", width: 132 },
   { key: "leadLag", label: "Lead / Lag", width: 92 },
-  { key: "color", label: "Color", width: 70 },
-  { key: "jira", label: "Jira", width: 280 },
-  { key: "description", label: "Description", width: 320 },
   { key: "actions", label: "", width: 132 },
 ] as const;
 
@@ -937,6 +929,36 @@ function buildWbsTree(items: WbsItem[]) {
     });
 
   return flatten(roots);
+}
+
+function wbsDisplayLevel(item: Pick<WbsTreeItem, "level" | "wbsLevel">) {
+  return Math.max(0, (item.wbsLevel ?? item.level + 1) - 1);
+}
+
+function wbsDraftDisplayLevel(
+  item: Pick<WbsTreeItem, "level" | "wbsLevel">,
+  draft: Pick<WbsFormState, "wbsLevel">,
+) {
+  const draftLevel = draft.wbsLevel ? Number(draft.wbsLevel) : null;
+  return Math.max(0, (draftLevel ?? item.wbsLevel ?? item.level + 1) - 1);
+}
+
+function parentIdFromWbsLevel(
+  itemId: string,
+  nextLevel: number | null,
+  items: WbsTreeItem[],
+) {
+  if (!nextLevel || nextLevel <= 1) return null;
+  const itemIndex = items.findIndex((item) => item.id === itemId);
+  if (itemIndex <= 0) return null;
+
+  for (let index = itemIndex - 1; index >= 0; index -= 1) {
+    const candidate = items[index];
+    const candidateLevel = candidate.wbsLevel ?? candidate.level + 1;
+    if (candidateLevel < nextLevel) return candidate.id;
+  }
+
+  return null;
 }
 
 function buildProjectTree(items: ProjectListItem[]) {
@@ -2215,17 +2237,18 @@ function App() {
     }
   }
 
-  function wbsPayload(form: WbsFormState) {
+  function wbsPayload(itemId: string, form: WbsFormState) {
+    const nextLevel = form.wbsLevel ? Number(form.wbsLevel) : null;
     return {
       ...form,
-      parentId: form.parentId || null,
+      parentId: parentIdFromWbsLevel(itemId, nextLevel, wbsTree),
       startDate: form.startDate || null,
       dueDate: form.dueDate || null,
       baselineStartDate: form.baselineStartDate || null,
       baselineDueDate: form.baselineDueDate || null,
       forecastStartDate: form.forecastStartDate || null,
       forecastDueDate: form.forecastDueDate || null,
-      wbsLevel: form.wbsLevel ? Number(form.wbsLevel) : null,
+      wbsLevel: nextLevel,
       predecessor1: form.predecessor1 || null,
       predecessor2: form.predecessor2 || null,
       predecessor3: form.predecessor3 || null,
@@ -2324,7 +2347,7 @@ function App() {
       const response = await fetch(`${apiBase}/api/wbs-items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(wbsPayload(draft)),
+        body: JSON.stringify(wbsPayload(itemId, draft)),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -3864,14 +3887,6 @@ function App() {
                       {visibleWbsTree.map((item) => {
                         const draft = wbsDrafts[item.id];
                         if (!draft) return null;
-                        const varianceDays =
-                          draft.baselineDueDate && draft.forecastDueDate
-                            ? daysBetween(
-                                new Date(draft.baselineDueDate),
-                                new Date(draft.forecastDueDate),
-                              )
-                            : null;
-
                         return (
                           <div
                             className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
@@ -3879,7 +3894,11 @@ function App() {
                           >
                             <div
                               className="wbs-work-cell"
-                              style={{ paddingLeft: `${item.level * 18 + 8}px` }}
+                              style={{
+                                paddingLeft: `${
+                                  wbsDraftDisplayLevel(item, draft) * 18 + 8
+                                }px`,
+                              }}
                             >
                               {item.children.length > 0 ? (
                                 <button
@@ -4004,49 +4023,6 @@ function App() {
                               }
                             />
                             <input
-                              type="date"
-                              value={draft.baselineStartDate}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  baselineStartDate: event.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="date"
-                              value={draft.baselineDueDate}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  baselineDueDate: event.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="date"
-                              value={draft.forecastStartDate}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  forecastStartDate: event.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="date"
-                              value={draft.forecastDueDate}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  forecastDueDate: event.target.value,
-                                })
-                              }
-                            />
-                            <span
-                              className={`wbs-variance ${varianceDays && varianceDays > 0 ? "slipped" : ""}`}
-                            >
-                              {varianceDays === null
-                                ? "-"
-                                : `${varianceDays > 0 ? "+" : ""}${varianceDays}`}
-                            </span>
-                            <input
                               type="number"
                               min="0"
                               max="100"
@@ -4092,43 +4068,6 @@ function App() {
                                   leadLagDays: event.target.value,
                                 })
                               }
-                            />
-                            <input
-                              value={draft.templateColor}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  templateColor: event.target.value,
-                                })
-                              }
-                            />
-                            <div className="wbs-jira-cell">
-                              <input
-                                value={draft.jiraTicketKey}
-                                onChange={(event) =>
-                                  updateWbsDraft(item.id, {
-                                    jiraTicketKey: event.target.value,
-                                  })
-                                }
-                                placeholder="Key"
-                              />
-                              <input
-                                value={draft.jiraTicketUrl}
-                                onChange={(event) =>
-                                  updateWbsDraft(item.id, {
-                                    jiraTicketUrl: event.target.value,
-                                  })
-                                }
-                                placeholder="URL"
-                              />
-                            </div>
-                            <input
-                              value={draft.description}
-                              onChange={(event) =>
-                                updateWbsDraft(item.id, {
-                                  description: event.target.value,
-                                })
-                              }
-                              placeholder="Description"
                             />
                             <div className="wbs-row-actions">
                               <button
@@ -4206,7 +4145,7 @@ function App() {
                                   className={`gantt-label ${critical ? "critical" : ""}`}
                                   key={item.id}
                                   style={{
-                                    paddingLeft: `${item.level * 14 + 10}px`,
+                                    paddingLeft: `${wbsDisplayLevel(item) * 14 + 10}px`,
                                   }}
                                 >
                                   {item.children.length > 0 ? (

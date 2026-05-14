@@ -1259,6 +1259,11 @@ code {
   width: 100%;
 }
 
+.wbs-table-row select {
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
 .wbs-table-row input:focus,
 .wbs-table-row select:focus {
   background: #fff;
