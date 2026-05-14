@@ -1487,8 +1487,7 @@ code {
   padding: 0;
   pointer-events: none;
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  top: -11px;
   transition: opacity 120ms ease;
   width: 22px;
   z-index: 12;

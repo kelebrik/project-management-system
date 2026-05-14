@@ -2886,20 +2886,44 @@ function App() {
     const form = emptyWbsFormFromContext(nextCode, previousLevel, sortOrder);
 
     try {
+      const createPayload = {
+        parentId,
+        code: temporaryCode,
+        title: form.title,
+        type: form.type,
+        status: form.status,
+        owner: form.owner,
+        startDate: null,
+        dueDate: null,
+        baselineStartDate: null,
+        baselineDueDate: null,
+        forecastStartDate: null,
+        forecastDueDate: null,
+        wbsLevel: previousLevel,
+        predecessor1: null,
+        predecessor2: null,
+        predecessor3: null,
+        leadLagDays: 0,
+        workDays: null,
+        calendarDays: null,
+        excelStartDate: null,
+        excelEndDate: null,
+        planWorkDays: null,
+        planCalendarDays: null,
+        templateColor: null,
+        priority: null,
+        plannedCost: 0,
+        forecastCost: 0,
+        progress: 0,
+        jiraTicketKey: null,
+        jiraTicketUrl: null,
+        description: null,
+        sortOrder,
+      };
       const response = await fetch(`${apiBase}/api/projects/${project.id}/wbs-items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          parentId,
-          code: temporaryCode,
-          wbsLevel: previousLevel,
-          leadLagDays: 0,
-          plannedCost: 0,
-          forecastCost: 0,
-          progress: 0,
-          sortOrder,
-        }),
+        body: JSON.stringify(createPayload),
       });
       const result = await response.json();
       if (!response.ok) {
