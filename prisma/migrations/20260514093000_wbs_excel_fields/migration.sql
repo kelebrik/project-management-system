@@ -1,17 +1,17 @@
 ALTER TABLE "WbsItem"
-ADD COLUMN "wbsLevel" INTEGER,
-ADD COLUMN "predecessor1" TEXT,
-ADD COLUMN "predecessor2" TEXT,
-ADD COLUMN "predecessor3" TEXT,
-ADD COLUMN "leadLagDays" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN "workDays" INTEGER,
-ADD COLUMN "calendarDays" INTEGER,
-ADD COLUMN "excelStartDate" TIMESTAMP(3),
-ADD COLUMN "excelEndDate" TIMESTAMP(3),
-ADD COLUMN "planWorkDays" INTEGER,
-ADD COLUMN "planCalendarDays" INTEGER,
-ADD COLUMN "templateColor" TEXT,
-ADD COLUMN "priority" TEXT;
+ADD COLUMN IF NOT EXISTS "wbsLevel" INTEGER,
+ADD COLUMN IF NOT EXISTS "predecessor1" TEXT,
+ADD COLUMN IF NOT EXISTS "predecessor2" TEXT,
+ADD COLUMN IF NOT EXISTS "predecessor3" TEXT,
+ADD COLUMN IF NOT EXISTS "leadLagDays" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS "workDays" INTEGER,
+ADD COLUMN IF NOT EXISTS "calendarDays" INTEGER,
+ADD COLUMN IF NOT EXISTS "excelStartDate" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "excelEndDate" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "planWorkDays" INTEGER,
+ADD COLUMN IF NOT EXISTS "planCalendarDays" INTEGER,
+ADD COLUMN IF NOT EXISTS "templateColor" TEXT,
+ADD COLUMN IF NOT EXISTS "priority" TEXT;
 
 UPDATE "WbsItem"
 SET
@@ -160,6 +160,9 @@ WHERE target."projectId" = project."id"
 DELETE FROM "WbsDependency"
 WHERE "projectId" = (SELECT "id" FROM "Project" WHERE "code" = 'TEST-001' LIMIT 1);
 
+WITH project AS (
+  SELECT "id" FROM "Project" WHERE "code" = 'TEST-001' LIMIT 1
+)
 INSERT INTO "WbsDependency" ("id", "projectId", "predecessorId", "successorId", "type", "lagDays", "createdAt", "updatedAt")
 SELECT
   'test001_dep_' || replace(successor."code", '.', '_') || '_' || predecessor_slot.slot_number,
