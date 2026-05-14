@@ -2581,13 +2581,6 @@ function App() {
               paddingLeft: `${wbsDraftDisplayLevel(item, draft) * 18 + 8}px`,
             }}
           >
-            <button
-              type="button"
-              className="wbs-inline-insert-button"
-              onClick={() => void insertWbsRow(rowIndex)}
-            >
-              +
-            </button>
             {item.children.length > 0 ? (
               <button
                 type="button"
@@ -2623,13 +2616,22 @@ function App() {
         );
       case "level":
         return (
-          <input
-            type="number"
-            value={draft.wbsLevel}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { wbsLevel: event.target.value })
-            }
-          />
+          <div className="wbs-level-cell">
+            <button
+              type="button"
+              className="wbs-inline-insert-button"
+              onClick={() => void insertWbsRow(rowIndex)}
+            >
+              +
+            </button>
+            <input
+              type="number"
+              value={draft.wbsLevel}
+              onChange={(event) =>
+                updateWbsDraft(item.id, { wbsLevel: event.target.value })
+              }
+            />
+          </div>
         );
       case "type":
         return (
