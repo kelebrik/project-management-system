@@ -635,10 +635,10 @@ app.patch('/api/milestones/:milestoneId', async (req, res) => {
 const wbsItemSchema = z.object({
   parentId: z.string().trim().optional().nullable(),
   code: z.string().trim().min(1),
-  title: z.string().trim().min(3),
+  title: z.string().trim(),
   type: z.enum(['PHASE', 'WORK_PACKAGE', 'DELIVERABLE', 'MILESTONE', 'TASK']).default('TASK'),
   status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'AT_RISK', 'BLOCKED', 'DONE', 'CANCELLED']).default('NOT_STARTED'),
-  owner: z.string().trim().min(1),
+  owner: z.string().trim(),
   startDate: z.string().trim().optional().nullable(),
   dueDate: z.string().trim().optional().nullable(),
   baselineStartDate: z.string().trim().optional().nullable(),

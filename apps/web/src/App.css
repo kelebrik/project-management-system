@@ -1329,6 +1329,11 @@ code {
   grid-column: 1 / -1;
 }
 
+.wbs-gantt-layout {
+  display: grid;
+  gap: 18px;
+}
+
 .wbs-table-shell {
   border: 1px solid #d8e0eb;
   border-radius: 6px;
@@ -1366,9 +1371,16 @@ code {
 .wbs-column-header {
   align-items: center;
   display: flex;
-  min-height: 34px;
+  min-height: 48px;
   padding: 8px 14px 8px 8px;
   position: relative;
+}
+
+.wbs-column-title {
+  display: block;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .wbs-column-header[draggable="true"] {
@@ -1383,6 +1395,31 @@ code {
   background: #fff;
   border-top: 1px solid #e2e8f0;
   min-height: 42px;
+}
+
+.wbs-row-stack {
+  position: relative;
+}
+
+.wbs-insert-slot {
+  align-items: center;
+  display: flex;
+  height: 10px;
+  justify-content: center;
+  margin: -5px 0;
+  position: relative;
+  z-index: 6;
+}
+
+.wbs-insert-button {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 800;
+  min-height: 24px;
+  padding: 3px 10px;
 }
 
 .wbs-table-row:hover {
@@ -1446,6 +1483,10 @@ code {
 .wbs-cell-actions,
 .wbs-cell {
   min-width: 0;
+}
+
+.wbs-cell {
+  overflow: hidden;
 }
 
 .wbs-column-resizer {

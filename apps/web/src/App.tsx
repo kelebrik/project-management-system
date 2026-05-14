@@ -580,8 +580,8 @@ const emptyChangeRequestForm: ChangeRequestFormState = {
 };
 
 const WBS_TABLE_COLUMNS = [
+  { key: "level", label: "Level", width: 76 },
   { key: "structure", label: "Структура", width: 420 },
-  { key: "level", label: "Level", width: 72 },
   { key: "type", label: "Type", width: 132 },
   { key: "status", label: "Status", width: 136 },
   { key: "owner", label: "Исполнитель", width: 150 },
@@ -715,6 +715,47 @@ function wbsToForm(item: WbsItem): WbsFormState {
     jiraTicketUrl: item.jiraTicketUrl ?? "",
     description: item.description ?? "",
     sortOrder: String(item.sortOrder),
+  };
+}
+
+function emptyWbsFormFromContext(
+  code: string,
+  level: number,
+  sortOrder: number,
+): WbsFormState {
+  return {
+    parentId: "",
+    code,
+    title: "",
+    type: "TASK",
+    status: "NOT_STARTED",
+    owner: "",
+    startDate: "",
+    dueDate: "",
+    baselineStartDate: "",
+    baselineDueDate: "",
+    forecastStartDate: "",
+    forecastDueDate: "",
+    wbsLevel: String(level),
+    predecessor1: "",
+    predecessor2: "",
+    predecessor3: "",
+    leadLagDays: "0",
+    workDays: "",
+    calendarDays: "",
+    excelStartDate: "",
+    excelEndDate: "",
+    planWorkDays: "",
+    planCalendarDays: "",
+    templateColor: "",
+    priority: "",
+    plannedCost: "0",
+    forecastCost: "0",
+    progress: "0",
+    jiraTicketKey: "",
+    jiraTicketUrl: "",
+    description: "",
+    sortOrder: String(sortOrder),
   };
 }
 
@@ -1120,6 +1161,9 @@ function App() {
   );
   const [draggedWbsColumn, setDraggedWbsColumn] =
     useState<WbsTableColumnKey | null>(null);
+  const [wbsInsertHoverIndex, setWbsInsertHoverIndex] = useState<number | null>(
+    null,
+  );
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
     {},
   );
@@ -2801,6 +2845,65 @@ function App() {
     }
   }
 
+  async function insertWbsRow(afterIndex: number) {
+    if (!project) return;
+    const previousItem = visibleWbsTree[afterIndex];
+    if (!previousItem) return;
+    const nextItem = visibleWbsTree[afterIndex + 1] ?? null;
+    const previousLevel = previousItem.wbsLevel ?? previousItem.level + 1;
+    const previousCode = draftWbsCodes.get(previousItem.id) ?? previousItem.code;
+    const parentCode = previousCode.includes(".")
+      ? previousCode.split(".").slice(0, -1).join(".")
+      : "";
+    const lastSegment = Number(previousCode.split(".").at(-1) ?? "0");
+    const nextCode = `${parentCode ? `${parentCode}.` : ""}${lastSegment + 1}`;
+    const previousSortOrder = previousItem.sortOrder;
+    const nextSortOrder =
+      nextItem?.sortOrder ?? previousSortOrder + 10;
+    const sortOrder =
+      nextSortOrder > previousSortOrder
+        ? Math.floor((previousSortOrder + nextSortOrder) / 2)
+        : previousSortOrder + 1;
+    const parentId =
+      previousLevel > 1
+        ? parentIdFromWbsLevel(
+            previousItem.id,
+            previousLevel,
+            wbsTree,
+            wbsDrafts,
+          )
+        : null;
+    const form = emptyWbsFormFromContext(nextCode, previousLevel, sortOrder);
+
+    const response = await fetch(`${apiBase}/api/projects/${project.id}/wbs-items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...form,
+        parentId,
+        code: nextCode,
+        wbsLevel: previousLevel,
+        leadLagDays: 0,
+        plannedCost: 0,
+        forecastCost: 0,
+        progress: 0,
+        sortOrder,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(
+        result.error?.formErrors?.join(", ") ||
+          result.error ||
+          "Не удалось вставить WBS строку",
+      );
+    }
+    await fetch(`${apiBase}/api/projects/${project.id}/wbs-items/renumber`, {
+      method: "POST",
+    });
+    await refreshProject(project.id);
+  }
+
   async function saveWbsPredecessors(itemId: string) {
     if (!project) return;
     const draft = wbsDrafts[itemId];
@@ -4359,95 +4462,116 @@ function App() {
                       <small>С учетом схлопывания</small>
                     </div>
                   </div>
-                  <div className="wbs-table-shell">
-                    <div
-                      className="wbs-excel-table"
-                      style={{ "--wbs-table-template": wbsTableTemplate } as CSSProperties}
-                    >
-                      <div className="wbs-table-head">
-                        {orderedWbsColumns.map((column) => (
-                          <span
-                            key={column.key}
-                            draggable={
-                              column.key !== "structure" &&
-                              column.key !== "actions"
-                            }
-                            className={
-                              draggedWbsColumn === column.key
-                                ? "wbs-column-header dragging"
-                                : "wbs-column-header"
-                            }
-                            onDragStart={(event) =>
-                              startWbsColumnDrag(column.key, event)
-                            }
-                            onDragOver={(event) => {
-                              if (
-                                draggedWbsColumn &&
+                  <div className="wbs-gantt-layout">
+                    <div className="wbs-table-shell">
+                      <div
+                        className="wbs-excel-table"
+                        style={{ "--wbs-table-template": wbsTableTemplate } as CSSProperties}
+                      >
+                        <div className="wbs-table-head">
+                          {orderedWbsColumns.map((column) => (
+                            <span
+                              key={column.key}
+                              draggable={
                                 column.key !== "structure" &&
                                 column.key !== "actions"
-                              ) {
-                                event.preventDefault();
                               }
-                            }}
-                            onDrop={(event) => dropWbsColumn(column.key, event)}
-                            onDragEnd={() => setDraggedWbsColumn(null)}
-                          >
-                            {column.label}
-                            {column.key !== "actions" && (
-                              <button
-                                type="button"
-                                className="wbs-column-resizer"
-                                onPointerDown={(event) =>
-                                  startWbsColumnResize(column.key, event)
+                              className={
+                                draggedWbsColumn === column.key
+                                  ? "wbs-column-header dragging"
+                                  : "wbs-column-header"
+                              }
+                              onDragStart={(event) =>
+                                startWbsColumnDrag(column.key, event)
+                              }
+                              onDragOver={(event) => {
+                                if (
+                                  draggedWbsColumn &&
+                                  column.key !== "structure" &&
+                                  column.key !== "actions"
+                                ) {
+                                  event.preventDefault();
                                 }
-                                aria-label={`Изменить ширину колонки ${column.label}`}
-                              />
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                      {visibleWbsTree.map((item) => {
-                        const draft = wbsDrafts[item.id];
-                        if (!draft) return null;
-                        return (
-                          <div
-                            className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
-                            key={item.id}
-                          >
-                            {orderedWbsColumns.map((column) => (
+                              }}
+                              onDrop={(event) => dropWbsColumn(column.key, event)}
+                              onDragEnd={() => setDraggedWbsColumn(null)}
+                            >
+                              <span className="wbs-column-title">{column.label}</span>
+                              {column.key !== "actions" && (
+                                <button
+                                  type="button"
+                                  className="wbs-column-resizer"
+                                  onPointerDown={(event) =>
+                                    startWbsColumnResize(column.key, event)
+                                  }
+                                  aria-label={`Изменить ширину колонки ${column.label}`}
+                                />
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                        {visibleWbsTree.map((item, index) => {
+                          const draft = wbsDrafts[item.id];
+                          if (!draft) return null;
+                          return (
+                            <div key={item.id} className="wbs-row-stack">
                               <div
-                                key={`${item.id}-${column.key}`}
-                                className={
-                                  column.key === "structure"
-                                    ? "wbs-cell-structure"
-                                    : column.key === "actions"
-                                      ? "wbs-cell-actions"
-                                      : "wbs-cell"
+                                className="wbs-insert-slot"
+                                onMouseEnter={() => setWbsInsertHoverIndex(index)}
+                                onMouseLeave={() =>
+                                  setWbsInsertHoverIndex((current) =>
+                                    current === index ? null : current,
+                                  )
                                 }
                               >
-                                {renderWbsCell(column.key, item, draft)}
+                                {wbsInsertHoverIndex === index && (
+                                  <button
+                                    type="button"
+                                    className="wbs-insert-button"
+                                    onClick={() => void insertWbsRow(index)}
+                                  >
+                                    + Добавить строку
+                                  </button>
+                                )}
                               </div>
-                            ))}
-                          </div>
-                        );
-                      })}
-                      {project.wbsItems.length === 0 && (
-                        <div className="empty-state">WBS еще не создан.</div>
-                      )}
+                              <div
+                                className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
+                              >
+                                {orderedWbsColumns.map((column) => (
+                                  <div
+                                    key={`${item.id}-${column.key}`}
+                                    className={
+                                      column.key === "structure"
+                                        ? "wbs-cell-structure"
+                                        : column.key === "actions"
+                                          ? "wbs-cell-actions"
+                                          : "wbs-cell"
+                                    }
+                                  >
+                                    {renderWbsCell(column.key, item, draft)}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {project.wbsItems.length === 0 && (
+                          <div className="empty-state">WBS еще не создан.</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div
-                    className="gantt-panel"
-                    style={
-                      {
-                        "--gantt-wbs-width": `${ganttWbsWidth}px`,
-                        "--gantt-timeline-width": `${Math.max(
-                          520,
-                          wbsGantt.months.length * 120,
-                        )}px`,
-                      } as GanttCssProperties
-                    }
-                  >
+                    <div
+                      className="gantt-panel"
+                      style={
+                        {
+                          "--gantt-wbs-width": `${ganttWbsWidth}px`,
+                          "--gantt-timeline-width": `${Math.max(
+                            520,
+                            wbsGantt.months.length * 120,
+                          )}px`,
+                        } as GanttCssProperties
+                      }
+                    >
                     <div className="gantt-head">
                       <span>Структура</span>
                       <button
@@ -4662,6 +4786,7 @@ function App() {
                           чтобы увидеть дочерние задачи и связи.
                         </div>
                       )}
+                    </div>
                     </div>
                   </div>
                 </article>
