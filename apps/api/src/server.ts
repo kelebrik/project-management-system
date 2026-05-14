@@ -699,6 +699,97 @@ async function wouldCreateWbsCycle(itemId: string, nextParentId: string | null |
   return false;
 }
 
+function levelFromWbsCode(code: string) {
+  return Math.max(1, code.split('.').filter(Boolean).length);
+}
+
+async function renumberProjectWbs(projectId: string) {
+  const items = await prisma.wbsItem.findMany({
+    where: { projectId },
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+  });
+  const dependencies = await prisma.wbsDependency.findMany({
+    where: { projectId },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+
+  const counters: number[] = [];
+  const parentByLevel = new Map<number, string>();
+  const codeById = new Map<string, string>();
+  const normalizedRows: Array<{
+    id: string;
+    level: number;
+    parentId: string | null;
+    code: string;
+  }> = [];
+  let previousLevel = 0;
+
+  for (const item of items) {
+    const requestedLevel = item.wbsLevel ?? levelFromWbsCode(item.code);
+    const level = Math.max(
+      1,
+      Math.min(requestedLevel, previousLevel === 0 ? 1 : previousLevel + 1),
+    );
+    counters[level - 1] = (counters[level - 1] ?? 0) + 1;
+    counters.length = level;
+
+    let parentId: string | null = null;
+    for (let parentLevel = level - 1; parentLevel >= 1; parentLevel -= 1) {
+      const candidateParentId = parentByLevel.get(parentLevel);
+      if (candidateParentId) {
+        parentId = candidateParentId;
+        break;
+      }
+    }
+
+    for (const existingLevel of [...parentByLevel.keys()]) {
+      if (existingLevel >= level) parentByLevel.delete(existingLevel);
+    }
+    parentByLevel.set(level, item.id);
+
+    const code = counters.join('.');
+    codeById.set(item.id, code);
+    normalizedRows.push({ id: item.id, level, parentId, code });
+    previousLevel = level;
+  }
+
+  const predecessorsBySuccessor = new Map<string, string[]>();
+  for (const dependency of dependencies) {
+    const predecessorCode = codeById.get(dependency.predecessorId);
+    if (!predecessorCode) continue;
+    predecessorsBySuccessor.set(dependency.successorId, [
+      ...(predecessorsBySuccessor.get(dependency.successorId) ?? []),
+      predecessorCode,
+    ]);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const row of normalizedRows) {
+      await tx.wbsItem.update({
+        where: { id: row.id },
+        data: { code: `__renumber_${row.id}` },
+      });
+    }
+
+    for (const row of normalizedRows) {
+      const predecessors = predecessorsBySuccessor.get(row.id) ?? [];
+      await tx.wbsItem.update({
+        where: { id: row.id },
+        data: {
+          code: row.code,
+          parentId: row.parentId,
+          wbsLevel: row.level,
+          predecessor1: predecessors[0] ?? null,
+          predecessor2: predecessors[1] ?? null,
+          predecessor3: predecessors[2] ?? null,
+        },
+      });
+    }
+  });
+
+  return normalizedRows.length;
+}
+
 app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
   const parsed = wbsItemSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -891,6 +982,20 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
   });
 
   res.json(updated);
+});
+
+app.post('/api/projects/:projectId/wbs-items/renumber', async (req, res) => {
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const updatedCount = await renumberProjectWbs(project.id);
+  res.json({ updatedCount });
 });
 
 app.delete('/api/wbs-items/:itemId', async (req, res) => {

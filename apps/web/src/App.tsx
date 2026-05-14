@@ -2339,6 +2339,7 @@ function App() {
   }
 
   async function saveWbsItem(itemId: string) {
+    if (!project) return;
     const draft = wbsDrafts[itemId];
     if (!draft) return;
     setError(null);
@@ -2358,6 +2359,16 @@ function App() {
         );
       }
       await saveWbsPredecessors(itemId);
+      const renumberResponse = await fetch(
+        `${apiBase}/api/projects/${project.id}/wbs-items/renumber`,
+        { method: "POST" },
+      );
+      if (!renumberResponse.ok) {
+        const renumberResult = await renumberResponse.json();
+        throw new Error(
+          renumberResult.error ?? "Не удалось перенумеровать WBS",
+        );
+      }
       await refreshProject();
       setNotice("WBS элемент обновлен");
     } catch (saveError) {
