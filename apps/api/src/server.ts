@@ -667,6 +667,11 @@ const wbsItemSchema = z.object({
   sortOrder: z.coerce.number().int().default(0),
 });
 
+const wbsInsertAfterSchema = z.object({
+  afterItemId: z.string().trim().min(1),
+  beforeItemId: z.string().trim().optional().nullable(),
+});
+
 async function validateWbsProjectAndParent(
   projectId: string,
   parentId: string | null | undefined,
@@ -715,6 +720,10 @@ async function wouldCreateWbsCycle(itemId: string, nextParentId: string | null |
 
 function levelFromWbsCode(code: string) {
   return Math.max(1, code.split('.').filter(Boolean).length);
+}
+
+function levelFromWbsItem(item: { code: string; wbsLevel: number | null }) {
+  return Math.max(1, item.wbsLevel ?? levelFromWbsCode(item.code));
 }
 
 async function renumberProjectWbs(projectId: string) {
@@ -801,6 +810,91 @@ async function renumberProjectWbs(projectId: string) {
 
   return normalizedRows.length;
 }
+
+app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => {
+  const parsed = wbsInsertAfterSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.projectId },
+      select: { id: true },
+    });
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const items = await prisma.wbsItem.findMany({
+      where: { projectId: project.id },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const afterIndex = items.findIndex((item) => item.id === parsed.data.afterItemId);
+    if (afterIndex === -1) {
+      res.status(404).json({ error: 'WBS item not found in this project' });
+      return;
+    }
+
+    let insertIndex = afterIndex + 1;
+    if (parsed.data.beforeItemId) {
+      const beforeIndex = items.findIndex((item) => item.id === parsed.data.beforeItemId);
+      if (beforeIndex === -1) {
+        res.status(404).json({ error: 'Next WBS item not found in this project' });
+        return;
+      }
+      if (beforeIndex > afterIndex) {
+        insertIndex = beforeIndex;
+      }
+    }
+
+    const afterItem = items[afterIndex];
+    const insertedLevel = levelFromWbsItem(afterItem);
+    let parentId: string | null = null;
+    for (let index = insertIndex - 1; index >= 0; index -= 1) {
+      const candidate = items[index];
+      if (levelFromWbsItem(candidate) < insertedLevel) {
+        parentId = candidate.id;
+        break;
+      }
+    }
+
+    const temporaryCode = `__insert_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const created = await prisma.$transaction(async (tx) => {
+      for (const [index, item] of items.entries()) {
+        await tx.wbsItem.update({
+          where: { id: item.id },
+          data: { sortOrder: (index < insertIndex ? index + 1 : index + 2) * 10 },
+        });
+      }
+
+      return tx.wbsItem.create({
+        data: {
+          projectId: project.id,
+          parentId,
+          code: temporaryCode,
+          title: '',
+          type: 'TASK',
+          status: 'NOT_STARTED',
+          owner: '',
+          wbsLevel: insertedLevel,
+          sortOrder: (insertIndex + 1) * 10,
+        },
+      });
+    });
+
+    await renumberProjectWbs(project.id);
+    const item = await prisma.wbsItem.findUnique({ where: { id: created.id } });
+    res.status(201).json(item);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to insert WBS item',
+    });
+  }
+});
 
 app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
   const parsed = wbsItemSchema.safeParse(req.body);

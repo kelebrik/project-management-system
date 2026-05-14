@@ -718,47 +718,6 @@ function wbsToForm(item: WbsItem): WbsFormState {
   };
 }
 
-function emptyWbsFormFromContext(
-  code: string,
-  level: number,
-  sortOrder: number,
-): WbsFormState {
-  return {
-    parentId: "",
-    code,
-    title: "New task",
-    type: "TASK",
-    status: "NOT_STARTED",
-    owner: "TBD",
-    startDate: "",
-    dueDate: "",
-    baselineStartDate: "",
-    baselineDueDate: "",
-    forecastStartDate: "",
-    forecastDueDate: "",
-    wbsLevel: String(level),
-    predecessor1: "",
-    predecessor2: "",
-    predecessor3: "",
-    leadLagDays: "0",
-    workDays: "",
-    calendarDays: "",
-    excelStartDate: "",
-    excelEndDate: "",
-    planWorkDays: "",
-    planCalendarDays: "",
-    templateColor: "",
-    priority: "",
-    plannedCost: "0",
-    forecastCost: "0",
-    progress: "0",
-    jiraTicketKey: "",
-    jiraTicketUrl: "",
-    description: "",
-    sortOrder: String(sortOrder),
-  };
-}
-
 function projectToForm(
   project: ProjectDetails | ProjectListItem,
 ): ProjectFormState {
@@ -2570,7 +2529,6 @@ function App() {
     columnKey: WbsTableColumnKey,
     item: WbsTreeItem,
     draft: WbsFormState,
-    rowIndex: number,
   ) {
     switch (columnKey) {
       case "structure":
@@ -2617,13 +2575,6 @@ function App() {
       case "level":
         return (
           <div className="wbs-level-cell">
-            <button
-              type="button"
-              className="wbs-inline-insert-button"
-              onClick={() => void insertWbsRow(rowIndex)}
-            >
-              +
-            </button>
             <input
               type="number"
               value={draft.wbsLevel}
@@ -2859,83 +2810,27 @@ function App() {
     const previousItem = visibleWbsTree[afterIndex];
     if (!previousItem) return;
     const nextItem = visibleWbsTree[afterIndex + 1] ?? null;
-    const previousLevel = previousItem.wbsLevel ?? previousItem.level + 1;
-    const previousCode = draftWbsCodes.get(previousItem.id) ?? previousItem.code;
-    const parentCode = previousCode.includes(".")
-      ? previousCode.split(".").slice(0, -1).join(".")
-      : "";
-    const lastSegment = Number(previousCode.split(".").at(-1) ?? "0");
-    const nextCode = `${parentCode ? `${parentCode}.` : ""}${lastSegment + 1}`;
-    const temporaryCode = `__new_${Date.now()}_${afterIndex}`;
-    const previousSortOrder = previousItem.sortOrder;
-    const nextSortOrder =
-      nextItem?.sortOrder ?? previousSortOrder + 10;
-    const sortOrder =
-      nextSortOrder > previousSortOrder
-        ? Math.floor((previousSortOrder + nextSortOrder) / 2)
-        : previousSortOrder + 1;
-    const parentId =
-      previousLevel > 1
-        ? parentIdFromWbsLevel(
-            previousItem.id,
-            previousLevel,
-            wbsTree,
-            wbsDrafts,
-          )
-        : null;
-    const form = emptyWbsFormFromContext(nextCode, previousLevel, sortOrder);
 
     try {
-      const createPayload = {
-        parentId,
-        code: temporaryCode,
-        title: form.title,
-        type: form.type,
-        status: form.status,
-        owner: form.owner,
-        startDate: null,
-        dueDate: null,
-        baselineStartDate: null,
-        baselineDueDate: null,
-        forecastStartDate: null,
-        forecastDueDate: null,
-        wbsLevel: previousLevel,
-        predecessor1: null,
-        predecessor2: null,
-        predecessor3: null,
-        leadLagDays: 0,
-        workDays: null,
-        calendarDays: null,
-        excelStartDate: null,
-        excelEndDate: null,
-        planWorkDays: null,
-        planCalendarDays: null,
-        templateColor: null,
-        priority: null,
-        plannedCost: 0,
-        forecastCost: 0,
-        progress: 0,
-        jiraTicketKey: null,
-        jiraTicketUrl: null,
-        description: null,
-        sortOrder,
-      };
-      const response = await fetch(`${apiBase}/api/projects/${project.id}/wbs-items`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createPayload),
-      });
-      const result = await response.json();
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/wbs-items/insert-after`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            afterItemId: previousItem.id,
+            beforeItemId: nextItem?.id ?? null,
+          }),
+        },
+      );
+      const result = await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
+          result?.error?.formErrors?.join(", ") ||
+            result?.error ||
             "Не удалось вставить WBS строку",
         );
       }
-      await fetch(`${apiBase}/api/projects/${project.id}/wbs-items/renumber`, {
-        method: "POST",
-      });
       await refreshProject(project.id);
       setNotice("WBS строка добавлена");
     } catch (insertError) {
@@ -4558,6 +4453,14 @@ function App() {
                           if (!draft) return null;
                           return (
                             <div key={item.id} className="wbs-row-stack">
+                              <button
+                                type="button"
+                                className="wbs-inline-insert-button"
+                                onClick={() => void insertWbsRow(index)}
+                                aria-label="Добавить WBS строку ниже"
+                              >
+                                +
+                              </button>
                               <div
                                 className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
                               >
@@ -4574,7 +4477,7 @@ function App() {
                                           : "wbs-cell"
                                     }
                                   >
-                                    {renderWbsCell(column.key, item, draft, index)}
+                                    {renderWbsCell(column.key, item, draft)}
                                   </div>
                                 ))}
                               </div>

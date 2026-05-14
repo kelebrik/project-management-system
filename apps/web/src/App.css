@@ -1482,12 +1482,12 @@ code {
   font-weight: 900;
   height: 22px;
   justify-content: center;
-  left: 6px;
+  left: 8px;
   opacity: 0;
   padding: 0;
   pointer-events: none;
   position: absolute;
-  top: -11px;
+  top: calc(100% - 11px);
   transition: opacity 120ms ease;
   width: 22px;
   z-index: 12;
