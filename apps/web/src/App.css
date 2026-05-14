@@ -1423,13 +1423,13 @@ code {
 }
 
 .wbs-insert-slot {
-  align-items: center;
-  display: flex;
-  height: 10px;
-  justify-content: center;
+  height: 14px;
+  left: 8px;
   margin: -5px 0;
-  position: relative;
-  z-index: 6;
+  position: absolute;
+  right: 0;
+  top: -7px;
+  z-index: 10;
 }
 
 .wbs-insert-button {
@@ -1441,6 +1441,11 @@ code {
   font-weight: 800;
   min-height: 24px;
   padding: 3px 10px;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
 }
 
 .wbs-table-row:hover {

@@ -2847,6 +2847,8 @@ function App() {
 
   async function insertWbsRow(afterIndex: number) {
     if (!project) return;
+    setError(null);
+    setNotice(null);
     const previousItem = visibleWbsTree[afterIndex];
     if (!previousItem) return;
     const nextItem = visibleWbsTree[afterIndex + 1] ?? null;
@@ -2875,33 +2877,43 @@ function App() {
         : null;
     const form = emptyWbsFormFromContext(nextCode, previousLevel, sortOrder);
 
-    const response = await fetch(`${apiBase}/api/projects/${project.id}/wbs-items`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        parentId,
-        code: nextCode,
-        wbsLevel: previousLevel,
-        leadLagDays: 0,
-        plannedCost: 0,
-        forecastCost: 0,
-        progress: 0,
-        sortOrder,
-      }),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(
-        result.error?.formErrors?.join(", ") ||
-          result.error ||
-          "Не удалось вставить WBS строку",
+    try {
+      const response = await fetch(`${apiBase}/api/projects/${project.id}/wbs-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          parentId,
+          code: nextCode,
+          wbsLevel: previousLevel,
+          leadLagDays: 0,
+          plannedCost: 0,
+          forecastCost: 0,
+          progress: 0,
+          sortOrder,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось вставить WBS строку",
+        );
+      }
+      await fetch(`${apiBase}/api/projects/${project.id}/wbs-items/renumber`, {
+        method: "POST",
+      });
+      await refreshProject(project.id);
+      setWbsInsertHoverIndex(null);
+      setNotice("WBS строка добавлена");
+    } catch (insertError) {
+      setError(
+        insertError instanceof Error
+          ? insertError.message
+          : "Не удалось вставить WBS строку",
       );
     }
-    await fetch(`${apiBase}/api/projects/${project.id}/wbs-items/renumber`, {
-      method: "POST",
-    });
-    await refreshProject(project.id);
   }
 
   async function saveWbsPredecessors(itemId: string) {
