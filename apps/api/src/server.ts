@@ -627,6 +627,10 @@ const wbsItemSchema = z.object({
   owner: z.string().trim().min(1),
   startDate: z.string().trim().optional().nullable(),
   dueDate: z.string().trim().optional().nullable(),
+  baselineStartDate: z.string().trim().optional().nullable(),
+  baselineDueDate: z.string().trim().optional().nullable(),
+  forecastStartDate: z.string().trim().optional().nullable(),
+  forecastDueDate: z.string().trim().optional().nullable(),
   plannedCost: z.coerce.number().nonnegative().default(0),
   forecastCost: z.coerce.number().nonnegative().default(0),
   progress: z.coerce.number().int().min(0).max(100).default(0),
@@ -710,6 +714,26 @@ app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
       owner: parsed.data.owner,
       startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+      baselineStartDate: parsed.data.baselineStartDate
+        ? new Date(parsed.data.baselineStartDate)
+        : parsed.data.startDate
+          ? new Date(parsed.data.startDate)
+          : null,
+      baselineDueDate: parsed.data.baselineDueDate
+        ? new Date(parsed.data.baselineDueDate)
+        : parsed.data.dueDate
+          ? new Date(parsed.data.dueDate)
+          : null,
+      forecastStartDate: parsed.data.forecastStartDate
+        ? new Date(parsed.data.forecastStartDate)
+        : parsed.data.startDate
+          ? new Date(parsed.data.startDate)
+          : null,
+      forecastDueDate: parsed.data.forecastDueDate
+        ? new Date(parsed.data.forecastDueDate)
+        : parsed.data.dueDate
+          ? new Date(parsed.data.dueDate)
+          : null,
       plannedCost: parsed.data.plannedCost,
       forecastCost: parsed.data.forecastCost,
       progress: parsed.data.progress,
@@ -774,6 +798,30 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
             : null,
       dueDate:
         parsed.data.dueDate === undefined ? undefined : parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+      baselineStartDate:
+        parsed.data.baselineStartDate === undefined
+          ? undefined
+          : parsed.data.baselineStartDate
+            ? new Date(parsed.data.baselineStartDate)
+            : null,
+      baselineDueDate:
+        parsed.data.baselineDueDate === undefined
+          ? undefined
+          : parsed.data.baselineDueDate
+            ? new Date(parsed.data.baselineDueDate)
+            : null,
+      forecastStartDate:
+        parsed.data.forecastStartDate === undefined
+          ? undefined
+          : parsed.data.forecastStartDate
+            ? new Date(parsed.data.forecastStartDate)
+            : null,
+      forecastDueDate:
+        parsed.data.forecastDueDate === undefined
+          ? undefined
+          : parsed.data.forecastDueDate
+            ? new Date(parsed.data.forecastDueDate)
+            : null,
       plannedCost: parsed.data.plannedCost,
       forecastCost: parsed.data.forecastCost,
       progress: parsed.data.progress,

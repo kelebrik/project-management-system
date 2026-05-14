@@ -195,6 +195,10 @@ model WbsItem {
   owner         String
   startDate     DateTime?
   dueDate       DateTime?
+  baselineStartDate DateTime?
+  baselineDueDate   DateTime?
+  forecastStartDate DateTime?
+  forecastDueDate   DateTime?
   plannedCost   Decimal       @default(0) @db.Decimal(14, 2)
   forecastCost  Decimal       @default(0) @db.Decimal(14, 2)
   progress      Int           @default(0)

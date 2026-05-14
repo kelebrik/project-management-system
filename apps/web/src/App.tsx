@@ -128,6 +128,10 @@ type WbsItem = {
   owner: string;
   startDate: string | null;
   dueDate: string | null;
+  baselineStartDate: string | null;
+  baselineDueDate: string | null;
+  forecastStartDate: string | null;
+  forecastDueDate: string | null;
   plannedCost: string;
   forecastCost: string;
   progress: number;
@@ -170,6 +174,10 @@ type WbsFormState = {
   owner: string;
   startDate: string;
   dueDate: string;
+  baselineStartDate: string;
+  baselineDueDate: string;
+  forecastStartDate: string;
+  forecastDueDate: string;
   plannedCost: string;
   forecastCost: string;
   progress: string;
@@ -544,24 +552,6 @@ const emptyChangeRequestForm: ChangeRequestFormState = {
   dueDate: "",
 };
 
-const emptyWbsForm: WbsFormState = {
-  parentId: "",
-  code: "",
-  title: "",
-  type: "TASK",
-  status: "NOT_STARTED",
-  owner: "",
-  startDate: "",
-  dueDate: "",
-  plannedCost: "0",
-  forecastCost: "0",
-  progress: "0",
-  jiraTicketKey: "",
-  jiraTicketUrl: "",
-  description: "",
-  sortOrder: "0",
-};
-
 const WBS_PREDECESSOR_SLOT_COUNT = 3;
 
 const emptyWbsPredecessorDraft: WbsPredecessorDraft = {
@@ -652,6 +642,18 @@ function wbsToForm(item: WbsItem): WbsFormState {
     owner: item.owner,
     startDate: item.startDate ? item.startDate.slice(0, 10) : "",
     dueDate: item.dueDate ? item.dueDate.slice(0, 10) : "",
+    baselineStartDate: item.baselineStartDate
+      ? item.baselineStartDate.slice(0, 10)
+      : "",
+    baselineDueDate: item.baselineDueDate
+      ? item.baselineDueDate.slice(0, 10)
+      : "",
+    forecastStartDate: item.forecastStartDate
+      ? item.forecastStartDate.slice(0, 10)
+      : "",
+    forecastDueDate: item.forecastDueDate
+      ? item.forecastDueDate.slice(0, 10)
+      : "",
     plannedCost: String(item.plannedCost),
     forecastCost: String(item.forecastCost),
     progress: String(item.progress),
@@ -721,29 +723,6 @@ function ragLabel(rag: RagStatus) {
     : rag === "AMBER"
       ? "At Risk"
       : "Critical";
-}
-
-function wbsStatusLabel(status: WbsItemStatus) {
-  const labels: Record<WbsItemStatus, string> = {
-    NOT_STARTED: "Not started",
-    IN_PROGRESS: "In progress",
-    AT_RISK: "At risk",
-    BLOCKED: "Blocked",
-    DONE: "Done",
-    CANCELLED: "Cancelled",
-  };
-  return labels[status];
-}
-
-function wbsTypeLabel(type: WbsItemType) {
-  const labels: Record<WbsItemType, string> = {
-    PHASE: "Phase",
-    WORK_PACKAGE: "Work package",
-    DELIVERABLE: "Deliverable",
-    MILESTONE: "Milestone",
-    TASK: "Task",
-  };
-  return labels[type];
 }
 
 function buildPredecessorDrafts(project: ProjectDetails) {
@@ -975,7 +954,6 @@ function App() {
   );
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [activeView, setActiveView] = useState<AppView>("portfolio");
-  const [projectSearch, setProjectSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [savingJira, setSavingJira] = useState(false);
@@ -1019,16 +997,16 @@ function App() {
   const [expandedChangeRequestId, setExpandedChangeRequestId] = useState<
     string | null
   >(null);
-  const [wbsForm, setWbsForm] = useState<WbsFormState>(emptyWbsForm);
   const [wbsDrafts, setWbsDrafts] = useState<Record<string, WbsFormState>>({});
   const [wbsPredecessorDrafts, setWbsPredecessorDrafts] = useState<
     Record<string, WbsPredecessorDraft[]>
   >({});
-  const [expandedWbsId, setExpandedWbsId] = useState<string | null>(null);
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [showGanttDependencies, setShowGanttDependencies] = useState(true);
+  const [showGanttBaseline, setShowGanttBaseline] = useState(true);
+  const [showGanttForecast, setShowGanttForecast] = useState(true);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
     {},
@@ -1048,7 +1026,6 @@ function App() {
         const firstProject = data[0];
         setProjects(data);
         setSelectedProjectId(firstProject?.id ?? null);
-        setProjectSearch(firstProject ? projectOptionLabel(firstProject) : "");
       })
       .catch(() => setError("Не удалось загрузить список проектов"))
       .finally(() => setLoading(false));
@@ -1137,7 +1114,29 @@ function App() {
     const atRisk = items.filter(
       (item) => item.status === "AT_RISK" || item.status === "BLOCKED",
     ).length;
-    return { completed, atRisk };
+    const scheduleVarianceDays = items
+      .filter((item) => item.baselineDueDate && item.forecastDueDate)
+      .reduce(
+        (maxVariance, item) =>
+          Math.max(
+            maxVariance,
+            daysBetween(
+              new Date(item.baselineDueDate as string),
+              new Date(item.forecastDueDate as string),
+            ),
+          ),
+        0,
+      );
+    const slipped = items.filter(
+      (item) =>
+        item.baselineDueDate &&
+        item.forecastDueDate &&
+        daysBetween(
+          new Date(item.baselineDueDate),
+          new Date(item.forecastDueDate),
+        ) > 0,
+    ).length;
+    return { completed, atRisk, scheduleVarianceDays, slipped };
   }, [project?.wbsItems]);
   const raidSummary = useMemo(() => {
     const raidItems = project?.raidItems ?? [];
@@ -1174,23 +1173,39 @@ function App() {
     };
   }, [project?.changeRequests, project?.raidItems]);
   const wbsGantt = useMemo(() => {
+    const validDate = (value: string | null) => {
+      const parsed = value ? new Date(value) : null;
+      return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+    };
     const datedItems = visibleWbsTree
       .map((item) => {
-        const start = item.startDate ? new Date(item.startDate) : null;
-        const end = item.dueDate ? new Date(item.dueDate) : null;
-        if (
-          !start ||
-          !end ||
-          Number.isNaN(start.getTime()) ||
-          Number.isNaN(end.getTime())
-        ) {
+        const start = validDate(item.startDate);
+        const end = validDate(item.dueDate);
+        if (!start || !end) {
           return null;
         }
-        return { item, start, end };
+        return {
+          item,
+          start,
+          end,
+          baselineStart: validDate(item.baselineStartDate),
+          baselineEnd: validDate(item.baselineDueDate),
+          forecastStart: validDate(item.forecastStartDate),
+          forecastEnd: validDate(item.forecastDueDate),
+        };
       })
       .filter(
-        (item): item is { item: WbsTreeItem; start: Date; end: Date } =>
-          item !== null,
+        (
+          item,
+        ): item is {
+          item: WbsTreeItem;
+          start: Date;
+          end: Date;
+          baselineStart: Date | null;
+          baselineEnd: Date | null;
+          forecastStart: Date | null;
+          forecastEnd: Date | null;
+        } => item !== null,
       );
 
     if (datedItems.length === 0) {
@@ -1217,11 +1232,21 @@ function App() {
       };
     }
 
+    const timelineDates = datedItems.flatMap((entry) =>
+      [
+        entry.start,
+        entry.end,
+        entry.baselineStart,
+        entry.baselineEnd,
+        entry.forecastStart,
+        entry.forecastEnd,
+      ].filter((dateValue): dateValue is Date => dateValue !== null),
+    );
     const rawStart = new Date(
-      Math.min(...datedItems.map((item) => item.start.getTime())),
+      Math.min(...timelineDates.map((item) => item.getTime())),
     );
     const rawEnd = new Date(
-      Math.max(...datedItems.map((item) => item.end.getTime())),
+      Math.max(...timelineDates.map((item) => item.getTime())),
     );
     const start = startOfMonth(rawStart);
     const end = addMonths(startOfMonth(rawEnd), 1);
@@ -1289,7 +1314,27 @@ function App() {
       }
     }
 
-    const items = datedItems.map(({ item, start: itemStart, end: itemEnd }) => {
+    const range = (rangeStart: Date | null, rangeEnd: Date | null) => {
+      if (!rangeStart || !rangeEnd) return null;
+      return {
+        offset: (daysBetween(start, rangeStart) / totalDays) * 100,
+        width: Math.max(
+          0.15,
+          ((daysBetween(rangeStart, rangeEnd) + 1) / totalDays) * 100,
+        ),
+      };
+    };
+
+    const items = datedItems.map(
+      ({
+        item,
+        start: itemStart,
+        end: itemEnd,
+        baselineStart,
+        baselineEnd,
+        forecastStart,
+        forecastEnd,
+      }) => {
       const summary =
         item.children.length > 0 ||
         item.type === "PHASE" ||
@@ -1312,13 +1357,18 @@ function App() {
             item.status === "BLOCKED" ||
             item.status === "AT_RISK"),
         summary,
+        baselineRange: range(baselineStart, baselineEnd),
+        forecastRange: range(forecastStart, forecastEnd),
+        scheduleVarianceDays:
+          baselineEnd && forecastEnd ? daysBetween(baselineEnd, forecastEnd) : 0,
         toneClass: milestone
           ? "tone-o"
           : summary
             ? summaryToneClass(item)
             : wbsToneClass(item),
       };
-    });
+      },
+    );
     const rowById = new Map(items.map((entry, index) => [entry.item.id, index]));
     const barById = new Map(items.map((entry) => [entry.item.id, entry]));
     const dependencyLines = (project?.wbsDependencies ?? [])
@@ -1556,11 +1606,6 @@ function App() {
       ),
     );
     setWbsPredecessorDrafts(buildPredecessorDrafts(nextProject));
-    setExpandedWbsId((currentItemId) =>
-      nextProject.wbsItems.some((item) => item.id === currentItemId)
-        ? currentItemId
-        : null,
-    );
     setCollapsedWbsIds(
       (currentIds) =>
         new Set(
@@ -1654,8 +1699,6 @@ function App() {
     setProjects(data);
     if (selectedId) {
       setSelectedProjectId(selectedId);
-      const selected = data.find((item) => item.id === selectedId);
-      setProjectSearch(selected ? projectOptionLabel(selected) : "");
     }
   }
 
@@ -2148,6 +2191,10 @@ function App() {
       parentId: form.parentId || null,
       startDate: form.startDate || null,
       dueDate: form.dueDate || null,
+      baselineStartDate: form.baselineStartDate || null,
+      baselineDueDate: form.baselineDueDate || null,
+      forecastStartDate: form.forecastStartDate || null,
+      forecastDueDate: form.forecastDueDate || null,
       plannedCost: Number(form.plannedCost),
       forecastCost: Number(form.forecastCost),
       progress: Number(form.progress),
@@ -2197,10 +2244,6 @@ function App() {
     });
   }
 
-  function toggleWbsDetails(itemId: string) {
-    setExpandedWbsId((current) => (current === itemId ? null : itemId));
-  }
-
   function startGanttResize(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault();
     const startX = event.clientX;
@@ -2218,41 +2261,6 @@ function App() {
     };
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
-  }
-
-  async function createWbsItem(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!project) return;
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/projects/${project.id}/wbs-items`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(wbsPayload(wbsForm)),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось создать WBS элемент",
-        );
-      }
-      setWbsForm({ ...emptyWbsForm, parentId: wbsForm.parentId });
-      await refreshProject(project.id);
-      setExpandedWbsId(result.id);
-      setNotice("WBS элемент создан");
-    } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : "Не удалось создать WBS элемент",
-      );
-    }
   }
 
   async function saveWbsItem(itemId: string) {
@@ -2711,30 +2719,12 @@ function App() {
   }
 
   function selectProject(projectId: string, nextView: AppView = activeView) {
-    const selected = projects.find((item) => item.id === projectId);
     setSelectedProjectId(projectId);
-    setProjectSearch(selected ? projectOptionLabel(selected) : "");
     setActiveView(
       nextView === "portfolio" || nextView === "project-create"
         ? "project-overview"
         : nextView,
     );
-  }
-
-  function selectProjectFromSearch(value: string) {
-    setProjectSearch(value);
-    const query = value.trim().toLowerCase();
-    const match = projects.find((item) => {
-      const label = projectOptionLabel(item).toLowerCase();
-      return (
-        label === query ||
-        item.name.toLowerCase() === query ||
-        item.code.toLowerCase() === query
-      );
-    });
-    if (match) {
-      selectProject(match.id, "project-overview");
-    }
   }
 
   const viewTitle: Record<AppView, string> = {
@@ -2820,19 +2810,21 @@ function App() {
               Создать новый проект
             </button>
             <label className="project-picker">
-              <input
-                list="project-options"
-                value={projectSearch}
-                onChange={(event) =>
-                  selectProjectFromSearch(event.target.value)
-                }
-                placeholder="Поиск или выбор проекта"
-              />
-              <datalist id="project-options">
+              <select
+                value={selectedProjectId ?? ""}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    selectProject(event.target.value, "project-overview");
+                  }
+                }}
+              >
+                <option value="">Выбрать проект</option>
                 {projects.map((item) => (
-                  <option key={item.id} value={projectOptionLabel(item)} />
+                  <option key={item.id} value={item.id}>
+                    {projectOptionLabel(item)}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </label>
             {selectedProjectListItem && (
               <div className="project-menu">
@@ -3711,6 +3703,24 @@ function App() {
                       </button>
                       <button
                         type="button"
+                        className={showGanttBaseline ? "active" : ""}
+                        onClick={() =>
+                          setShowGanttBaseline((current) => !current)
+                        }
+                      >
+                        Baseline
+                      </button>
+                      <button
+                        type="button"
+                        className={showGanttForecast ? "active" : ""}
+                        onClick={() =>
+                          setShowGanttForecast((current) => !current)
+                        }
+                      >
+                        Forecast
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setCollapsedWbsIds(new Set())}
                       >
                         Раскрыть все
@@ -3751,6 +3761,11 @@ function App() {
                     <div>
                       <span>Dependencies</span>
                       <strong>{project.wbsDependencies.length}</strong>
+                    </div>
+                    <div>
+                      <span>Forecast variance</span>
+                      <strong>{wbsSummary.scheduleVarianceDays} дн.</strong>
+                      <small>{wbsSummary.slipped} slipped WBS</small>
                     </div>
                     <div>
                       <span>Visible</span>
@@ -3934,6 +3949,9 @@ function App() {
                                 milestone,
                                 critical,
                                 summary,
+                                baselineRange,
+                                forecastRange,
+                                scheduleVarianceDays,
                                 toneClass,
                               }) => (
                                 <div
@@ -3941,6 +3959,26 @@ function App() {
                                   key={item.id}
                                   style={{ height: `${GANTT_ROW_HEIGHT}px` }}
                                 >
+                                  {showGanttBaseline && baselineRange && (
+                                    <i
+                                      className="gantt-overlay baseline"
+                                      style={{
+                                        left: `${baselineRange.offset}%`,
+                                        width: `${baselineRange.width}%`,
+                                      }}
+                                      title={`${item.code} baseline: ${date(item.baselineStartDate)} - ${date(item.baselineDueDate)}`}
+                                    />
+                                  )}
+                                  {showGanttForecast && forecastRange && (
+                                    <i
+                                      className={`gantt-overlay forecast ${scheduleVarianceDays > 0 ? "slipped" : ""}`}
+                                      style={{
+                                        left: `${forecastRange.offset}%`,
+                                        width: `${forecastRange.width}%`,
+                                      }}
+                                      title={`${item.code} forecast: ${date(item.forecastStartDate)} - ${date(item.forecastDueDate)}`}
+                                    />
+                                  )}
                                   <i
                                     className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${summary ? "summary" : ""} ${critical ? "critical" : ""}`}
                                     style={{
@@ -3963,672 +4001,366 @@ function App() {
                       )}
                     </div>
                   </div>
-                  <div className="wbs-layout">
-                    <div className="wbs-list">
-                      <div className="wbs-head">
+                  <div className="wbs-table-shell">
+                    <div className="wbs-excel-table">
+                      <div className="wbs-table-head">
                         <span>WBS / Work</span>
-                        <span>Due</span>
+                        <span>Parent</span>
+                        <span>Sort</span>
+                        <span>Type</span>
+                        <span>Status</span>
                         <span>Owner</span>
+                        <span>Start</span>
+                        <span>Due</span>
+                        <span>Baseline start</span>
+                        <span>Baseline due</span>
+                        <span>Forecast start</span>
+                        <span>Forecast due</span>
+                        <span>Variance</span>
+                        <span>Plan cost</span>
+                        <span>Forecast cost</span>
+                        <span>%</span>
+                        <span>Pred 1</span>
+                        <span>Pred 2</span>
+                        <span>Pred 3</span>
+                        <span>Jira</span>
+                        <span>Description</span>
                         <span />
                       </div>
-                      {visibleWbsTree.map((item) => (
-                        <div
-                          className={`wbs-item ${item.type === "MILESTONE" ? "milestone" : ""}`}
-                          key={item.id}
-                        >
+                      {visibleWbsTree.map((item) => {
+                        const draft = wbsDrafts[item.id];
+                        if (!draft) return null;
+                        const predecessorDrafts =
+                          wbsPredecessorDrafts[item.id] ??
+                          Array.from(
+                            { length: WBS_PREDECESSOR_SLOT_COUNT },
+                            () => ({ ...emptyWbsPredecessorDraft }),
+                          );
+                        const varianceDays =
+                          draft.baselineDueDate && draft.forecastDueDate
+                            ? daysBetween(
+                                new Date(draft.baselineDueDate),
+                                new Date(draft.forecastDueDate),
+                              )
+                            : null;
+
+                        return (
                           <div
-                            className="wbs-row"
-                            aria-expanded={expandedWbsId === item.id}
-                            aria-controls={`wbs-details-${item.id}`}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => toggleWbsDetails(item.id)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                toggleWbsDetails(item.id);
-                              }
-                            }}
+                            className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
+                            key={item.id}
                           >
-                            <span
-                              className="wbs-title"
-                              style={{ paddingLeft: `${item.level * 18}px` }}
+                            <div
+                              className="wbs-work-cell"
+                              style={{ paddingLeft: `${item.level * 18 + 8}px` }}
                             >
-                              {item.children.length > 0 && (
+                              {item.children.length > 0 ? (
                                 <button
                                   type="button"
                                   className="tree-toggle"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    toggleWbsCollapse(item.id);
-                                  }}
+                                  onClick={() => toggleWbsCollapse(item.id)}
+                                  aria-label={
+                                    collapsedWbsIds.has(item.id)
+                                      ? "Раскрыть WBS элемент"
+                                      : "Схлопнуть WBS элемент"
+                                  }
                                 >
                                   {collapsedWbsIds.has(item.id) ? "+" : "-"}
                                 </button>
-                              )}
-                              {item.children.length === 0 && (
+                              ) : (
                                 <span className="tree-spacer" />
                               )}
-                              <b className={wbsToneClass(item)}>{item.code}</b>
-                              {item.type === "MILESTONE" && (
-                                <span
-                                  className={`milestone-dot ${wbsToneClass(item)}`}
-                                />
-                              )}
-                              {item.title}
-                            </span>
-                            <span>{date(item.dueDate)}</span>
-                            <span>{item.owner}</span>
-                            <span className="issue-chevron" aria-hidden="true">
-                              {expandedWbsId === item.id ? "-" : "+"}
-                            </span>
-                          </div>
-                          {expandedWbsId === item.id && (
-                            <div
-                              className="wbs-details"
-                              id={`wbs-details-${item.id}`}
-                            >
-                              <div className="wbs-detail-summary">
-                                <span>{wbsTypeLabel(item.type)}</span>
-                                {item.type === "MILESTONE" && (
-                                  <span className="milestone-chip">
-                                    Веха проекта
-                                  </span>
-                                )}
-                                <span
-                                  className={`wbs-status ${item.status.toLowerCase().replaceAll("_", "-")}`}
-                                >
-                                  {wbsStatusLabel(item.status)}
-                                </span>
-                                <span>Progress: {item.progress}%</span>
-                                <span>Start: {date(item.startDate)}</span>
-                                <span>
-                                  Planned: {currency(item.plannedCost)}
-                                </span>
-                                <span>
-                                  Forecast: {currency(item.forecastCost)}
-                                </span>
-                                {item.jiraTicketUrl ? (
-                                  <a
-                                    href={item.jiraTicketUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    {item.jiraTicketKey || "Jira"}
-                                  </a>
-                                ) : (
-                                  <span>No Jira link</span>
-                                )}
-                              </div>
-                              {item.description && (
-                                <p className="wbs-description">
-                                  {item.description}
-                                </p>
-                              )}
-                              {wbsDrafts[item.id] && (
-                                <div className="wbs-edit-grid">
-                                  <label>
-                                    Parent
-                                    <select
-                                      value={wbsDrafts[item.id].parentId}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          parentId: event.target.value,
-                                        })
-                                      }
-                                    >
-                                      <option value="">Root</option>
-                                      {project.wbsItems
-                                        .filter(
-                                          (candidate) =>
-                                            candidate.id !== item.id,
-                                        )
-                                        .map((candidate) => (
-                                          <option
-                                            key={candidate.id}
-                                            value={candidate.id}
-                                          >
-                                            {candidate.code} - {candidate.title}
-                                          </option>
-                                        ))}
-                                    </select>
-                                  </label>
-                                  <label>
-                                    Code
-                                    <input
-                                      value={wbsDrafts[item.id].code}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          code: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Title
-                                    <input
-                                      value={wbsDrafts[item.id].title}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          title: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Type
-                                    <select
-                                      value={wbsDrafts[item.id].type}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          type: event.target
-                                            .value as WbsItemType,
-                                        })
-                                      }
-                                    >
-                                      <option value="PHASE">Phase</option>
-                                      <option value="WORK_PACKAGE">
-                                        Work package
-                                      </option>
-                                      <option value="DELIVERABLE">
-                                        Deliverable
-                                      </option>
-                                      <option value="MILESTONE">
-                                        Milestone
-                                      </option>
-                                      <option value="TASK">Task</option>
-                                    </select>
-                                  </label>
-                                  <label>
-                                    Status
-                                    <select
-                                      value={wbsDrafts[item.id].status}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          status: event.target
-                                            .value as WbsItemStatus,
-                                        })
-                                      }
-                                    >
-                                      <option value="NOT_STARTED">
-                                        Not started
-                                      </option>
-                                      <option value="IN_PROGRESS">
-                                        In progress
-                                      </option>
-                                      <option value="AT_RISK">At risk</option>
-                                      <option value="BLOCKED">Blocked</option>
-                                      <option value="DONE">Done</option>
-                                      <option value="CANCELLED">
-                                        Cancelled
-                                      </option>
-                                    </select>
-                                  </label>
-                                  <label>
-                                    Owner
-                                    <input
-                                      value={wbsDrafts[item.id].owner}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          owner: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Start
-                                    <input
-                                      type="date"
-                                      value={wbsDrafts[item.id].startDate}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          startDate: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Due
-                                    <input
-                                      type="date"
-                                      value={wbsDrafts[item.id].dueDate}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          dueDate: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Planned cost
-                                    <input
-                                      type="number"
-                                      value={wbsDrafts[item.id].plannedCost}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          plannedCost: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Forecast cost
-                                    <input
-                                      type="number"
-                                      value={wbsDrafts[item.id].forecastCost}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          forecastCost: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Progress
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      value={wbsDrafts[item.id].progress}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          progress: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Sort
-                                    <input
-                                      type="number"
-                                      value={wbsDrafts[item.id].sortOrder}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          sortOrder: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Jira key
-                                    <input
-                                      value={wbsDrafts[item.id].jiraTicketKey}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          jiraTicketKey: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label>
-                                    Jira URL
-                                    <input
-                                      value={wbsDrafts[item.id].jiraTicketUrl}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          jiraTicketUrl: event.target.value,
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                  <label className="span-2">
-                                    Description
-                                    <textarea
-                                      value={wbsDrafts[item.id].description}
-                                      onChange={(event) =>
-                                        updateWbsDraft(item.id, {
-                                          description: event.target.value,
-                                        })
-                                      }
-                                      rows={2}
-                                    />
-                                  </label>
-                                  <div className="wbs-predecessors span-2">
-                                    <div className="wbs-predecessors-title">
-                                      Предшественники
-                                      <span>До трех связей, как в базовом плане</span>
-                                    </div>
-                                    {(
-                                      wbsPredecessorDrafts[item.id] ??
-                                      Array.from(
-                                        { length: WBS_PREDECESSOR_SLOT_COUNT },
-                                        () => ({ ...emptyWbsPredecessorDraft }),
-                                      )
-                                    ).map((dependencyDraft, slotIndex) => (
-                                      <div
-                                        className="wbs-predecessor-row"
-                                        key={`${item.id}-predecessor-${slotIndex}`}
-                                      >
-                                        <span>{slotIndex + 1}</span>
-                                        <select
-                                          value={dependencyDraft.predecessorId}
-                                          onChange={(event) =>
-                                            updateWbsPredecessorDraft(
-                                              item.id,
-                                              slotIndex,
-                                              {
-                                                predecessorId:
-                                                  event.target.value,
-                                              },
-                                            )
-                                          }
-                                        >
-                                          <option value="">Predecessor</option>
-                                          {project.wbsItems
-                                            .filter(
-                                              (candidate) =>
-                                                candidate.id !== item.id,
-                                            )
-                                            .map((candidate) => (
-                                              <option
-                                                key={candidate.id}
-                                                value={candidate.id}
-                                              >
-                                                {candidate.code} -{" "}
-                                                {candidate.title}
-                                              </option>
-                                            ))}
-                                        </select>
-                                        <select
-                                          value={dependencyDraft.type}
-                                          onChange={(event) =>
-                                            updateWbsPredecessorDraft(
-                                              item.id,
-                                              slotIndex,
-                                              {
-                                                type: event.target
-                                                  .value as WbsDependencyType,
-                                              },
-                                            )
-                                          }
-                                        >
-                                          <option value="FS">FS</option>
-                                          <option value="SS">SS</option>
-                                          <option value="FF">FF</option>
-                                          <option value="SF">SF</option>
-                                        </select>
-                                        <input
-                                          type="number"
-                                          value={dependencyDraft.lagDays}
-                                          onChange={(event) =>
-                                            updateWbsPredecessorDraft(
-                                              item.id,
-                                              slotIndex,
-                                              {
-                                                lagDays: event.target.value,
-                                              },
-                                            )
-                                          }
-                                          placeholder="Lag"
-                                        />
-                                        {dependencyDraft.predecessorId && (
-                                          <span className="dependency-chip">
-                                            {dependencyDraft.type}
-                                            {Number(dependencyDraft.lagDays) !==
-                                            0
-                                              ? ` ${Number(dependencyDraft.lagDays) > 0 ? "+" : ""}${dependencyDraft.lagDays}d`
-                                              : ""}
-                                          </span>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="wbs-actions span-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => saveWbsItem(item.id)}
-                                    >
-                                      Save WBS item
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="danger-button"
-                                      onClick={() => deleteWbsItem(item.id)}
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
+                              <span
+                                className={`wbs-color-dot ${item.type === "MILESTONE" ? "tone-o" : wbsToneClass(item)}`}
+                              />
+                              <input
+                                className="wbs-code-input"
+                                value={draft.code}
+                                onChange={(event) =>
+                                  updateWbsDraft(item.id, {
+                                    code: event.target.value,
+                                  })
+                                }
+                              />
+                              <input
+                                className="wbs-title-input"
+                                value={draft.title}
+                                onChange={(event) =>
+                                  updateWbsDraft(item.id, {
+                                    title: event.target.value,
+                                  })
+                                }
+                              />
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            <select
+                              value={draft.parentId}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  parentId: event.target.value,
+                                })
+                              }
+                            >
+                              <option value="">Root</option>
+                              {project.wbsItems
+                                .filter((candidate) => candidate.id !== item.id)
+                                .map((candidate) => (
+                                  <option key={candidate.id} value={candidate.id}>
+                                    {candidate.code} - {candidate.title}
+                                  </option>
+                                ))}
+                            </select>
+                            <input
+                              type="number"
+                              value={draft.sortOrder}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  sortOrder: event.target.value,
+                                })
+                              }
+                            />
+                            <select
+                              value={draft.type}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  type: event.target.value as WbsItemType,
+                                })
+                              }
+                            >
+                              <option value="PHASE">Phase</option>
+                              <option value="WORK_PACKAGE">Work package</option>
+                              <option value="DELIVERABLE">Deliverable</option>
+                              <option value="MILESTONE">Milestone</option>
+                              <option value="TASK">Task</option>
+                            </select>
+                            <select
+                              value={draft.status}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  status: event.target.value as WbsItemStatus,
+                                })
+                              }
+                            >
+                              <option value="NOT_STARTED">Not started</option>
+                              <option value="IN_PROGRESS">In progress</option>
+                              <option value="AT_RISK">At risk</option>
+                              <option value="BLOCKED">Blocked</option>
+                              <option value="DONE">Done</option>
+                              <option value="CANCELLED">Cancelled</option>
+                            </select>
+                            <input
+                              value={draft.owner}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  owner: event.target.value,
+                                })
+                              }
+                            />
+                            <input
+                              type="date"
+                              value={draft.startDate}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  startDate: event.target.value,
+                                })
+                              }
+                            />
+                            <input
+                              type="date"
+                              value={draft.dueDate}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  dueDate: event.target.value,
+                                })
+                              }
+                            />
+                            <input
+                              type="date"
+                              value={draft.baselineStartDate}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  baselineStartDate: event.target.value,
+                                })
+                              }
+                            />
+                            <input
+                              type="date"
+                              value={draft.baselineDueDate}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  baselineDueDate: event.target.value,
+                                })
+                              }
+                            />
+                            <input
+                              type="date"
+                              value={draft.forecastStartDate}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  forecastStartDate: event.target.value,
+                                })
+                              }
+                            />
+                            <input
+                              type="date"
+                              value={draft.forecastDueDate}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  forecastDueDate: event.target.value,
+                                })
+                              }
+                            />
+                            <span
+                              className={`wbs-variance ${varianceDays && varianceDays > 0 ? "slipped" : ""}`}
+                            >
+                              {varianceDays === null
+                                ? "-"
+                                : `${varianceDays > 0 ? "+" : ""}${varianceDays}`}
+                            </span>
+                            <input
+                              type="number"
+                              value={draft.plannedCost}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  plannedCost: event.target.value,
+                                })
+                              }
+                            />
+                            <input
+                              type="number"
+                              value={draft.forecastCost}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  forecastCost: event.target.value,
+                                })
+                              }
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={draft.progress}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  progress: event.target.value,
+                                })
+                              }
+                            />
+                            {predecessorDrafts.map(
+                              (dependencyDraft, slotIndex) => (
+                                <div
+                                  className="wbs-predecessor-inline"
+                                  key={`${item.id}-inline-predecessor-${slotIndex}`}
+                                >
+                                  <select
+                                    value={dependencyDraft.predecessorId}
+                                    onChange={(event) =>
+                                      updateWbsPredecessorDraft(
+                                        item.id,
+                                        slotIndex,
+                                        {
+                                          predecessorId: event.target.value,
+                                        },
+                                      )
+                                    }
+                                  >
+                                    <option value="">-</option>
+                                    {project.wbsItems
+                                      .filter(
+                                        (candidate) => candidate.id !== item.id,
+                                      )
+                                      .map((candidate) => (
+                                        <option
+                                          key={candidate.id}
+                                          value={candidate.id}
+                                        >
+                                          {candidate.code} - {candidate.title}
+                                        </option>
+                                      ))}
+                                  </select>
+                                  <select
+                                    value={dependencyDraft.type}
+                                    onChange={(event) =>
+                                      updateWbsPredecessorDraft(
+                                        item.id,
+                                        slotIndex,
+                                        {
+                                          type: event.target
+                                            .value as WbsDependencyType,
+                                        },
+                                      )
+                                    }
+                                  >
+                                    <option value="FS">FS</option>
+                                    <option value="SS">SS</option>
+                                    <option value="FF">FF</option>
+                                    <option value="SF">SF</option>
+                                  </select>
+                                  <input
+                                    type="number"
+                                    value={dependencyDraft.lagDays}
+                                    onChange={(event) =>
+                                      updateWbsPredecessorDraft(
+                                        item.id,
+                                        slotIndex,
+                                        {
+                                          lagDays: event.target.value,
+                                        },
+                                      )
+                                    }
+                                  />
+                                </div>
+                              ),
+                            )}
+                            <div className="wbs-jira-cell">
+                              <input
+                                value={draft.jiraTicketKey}
+                                onChange={(event) =>
+                                  updateWbsDraft(item.id, {
+                                    jiraTicketKey: event.target.value,
+                                  })
+                                }
+                                placeholder="Key"
+                              />
+                              <input
+                                value={draft.jiraTicketUrl}
+                                onChange={(event) =>
+                                  updateWbsDraft(item.id, {
+                                    jiraTicketUrl: event.target.value,
+                                  })
+                                }
+                                placeholder="URL"
+                              />
+                            </div>
+                            <input
+                              value={draft.description}
+                              onChange={(event) =>
+                                updateWbsDraft(item.id, {
+                                  description: event.target.value,
+                                })
+                              }
+                              placeholder="Description"
+                            />
+                            <div className="wbs-row-actions">
+                              <button
+                                type="button"
+                                onClick={() => saveWbsItem(item.id)}
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                className="danger-button"
+                                onClick={() => deleteWbsItem(item.id)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                       {project.wbsItems.length === 0 && (
                         <div className="empty-state">WBS еще не создан.</div>
                       )}
                     </div>
-                    <form
-                      className="stack-form compact-form wbs-form"
-                      onSubmit={createWbsItem}
-                    >
-                      <label>
-                        Parent
-                        <select
-                          value={wbsForm.parentId}
-                          onChange={(event) =>
-                            setWbsForm({
-                              ...wbsForm,
-                              parentId: event.target.value,
-                            })
-                          }
-                        >
-                          <option value="">Root</option>
-                          {wbsTree.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {"- ".repeat(item.level)}
-                              {item.code} - {item.title}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="two-col">
-                        <label>
-                          Code
-                          <input
-                            value={wbsForm.code}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                code: event.target.value,
-                              })
-                            }
-                            placeholder="2.1"
-                          />
-                        </label>
-                        <label>
-                          Sort
-                          <input
-                            type="number"
-                            value={wbsForm.sortOrder}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                sortOrder: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      </div>
-                      <label>
-                        Title
-                        <input
-                          value={wbsForm.title}
-                          onChange={(event) =>
-                            setWbsForm({
-                              ...wbsForm,
-                              title: event.target.value,
-                            })
-                          }
-                          placeholder="Integration package"
-                        />
-                      </label>
-                      <div className="two-col">
-                        <label>
-                          Type
-                          <select
-                            value={wbsForm.type}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                type: event.target.value as WbsItemType,
-                              })
-                            }
-                          >
-                            <option value="PHASE">Phase</option>
-                            <option value="WORK_PACKAGE">Work package</option>
-                            <option value="DELIVERABLE">Deliverable</option>
-                            <option value="MILESTONE">Milestone</option>
-                            <option value="TASK">Task</option>
-                          </select>
-                        </label>
-                        <label>
-                          Status
-                          <select
-                            value={wbsForm.status}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                status: event.target.value as WbsItemStatus,
-                              })
-                            }
-                          >
-                            <option value="NOT_STARTED">Not started</option>
-                            <option value="IN_PROGRESS">In progress</option>
-                            <option value="AT_RISK">At risk</option>
-                            <option value="BLOCKED">Blocked</option>
-                            <option value="DONE">Done</option>
-                            <option value="CANCELLED">Cancelled</option>
-                          </select>
-                        </label>
-                      </div>
-                      <label>
-                        Owner
-                        <input
-                          value={wbsForm.owner}
-                          onChange={(event) =>
-                            setWbsForm({
-                              ...wbsForm,
-                              owner: event.target.value,
-                            })
-                          }
-                          placeholder="Delivery Lead"
-                        />
-                      </label>
-                      <div className="two-col">
-                        <label>
-                          Start
-                          <input
-                            type="date"
-                            value={wbsForm.startDate}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                startDate: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          Due
-                          <input
-                            type="date"
-                            value={wbsForm.dueDate}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                dueDate: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      </div>
-                      <div className="two-col">
-                        <label>
-                          Planned cost
-                          <input
-                            type="number"
-                            value={wbsForm.plannedCost}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                plannedCost: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          Forecast cost
-                          <input
-                            type="number"
-                            value={wbsForm.forecastCost}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                forecastCost: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                      </div>
-                      <label>
-                        Progress
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={wbsForm.progress}
-                          onChange={(event) =>
-                            setWbsForm({
-                              ...wbsForm,
-                              progress: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <div className="two-col">
-                        <label>
-                          Jira key
-                          <input
-                            value={wbsForm.jiraTicketKey}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                jiraTicketKey: event.target.value,
-                              })
-                            }
-                            placeholder="ERP-1842"
-                          />
-                        </label>
-                        <label>
-                          Jira URL
-                          <input
-                            value={wbsForm.jiraTicketUrl}
-                            onChange={(event) =>
-                              setWbsForm({
-                                ...wbsForm,
-                                jiraTicketUrl: event.target.value,
-                              })
-                            }
-                            placeholder="https://company.atlassian.net/browse/ERP-1842"
-                          />
-                        </label>
-                      </div>
-                      <label>
-                        Description
-                        <textarea
-                          value={wbsForm.description}
-                          onChange={(event) =>
-                            setWbsForm({
-                              ...wbsForm,
-                              description: event.target.value,
-                            })
-                          }
-                          rows={3}
-                        />
-                      </label>
-                      <button type="submit">Добавить WBS элемент</button>
-                    </form>
                   </div>
                 </article>
               )}
