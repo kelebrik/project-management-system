@@ -2859,6 +2859,7 @@ function App() {
       : "";
     const lastSegment = Number(previousCode.split(".").at(-1) ?? "0");
     const nextCode = `${parentCode ? `${parentCode}.` : ""}${lastSegment + 1}`;
+    const temporaryCode = `__new_${Date.now()}_${afterIndex}`;
     const previousSortOrder = previousItem.sortOrder;
     const nextSortOrder =
       nextItem?.sortOrder ?? previousSortOrder + 10;
@@ -2884,7 +2885,7 @@ function App() {
         body: JSON.stringify({
           ...form,
           parentId,
-          code: nextCode,
+          code: temporaryCode,
           wbsLevel: previousLevel,
           leadLagDays: 0,
           plannedCost: 0,

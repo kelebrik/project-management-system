@@ -1424,7 +1424,7 @@ code {
 
 .wbs-insert-slot {
   height: 14px;
-  left: 8px;
+  left: 0;
   margin: -5px 0;
   position: absolute;
   right: 0;
