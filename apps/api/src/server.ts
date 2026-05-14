@@ -672,6 +672,10 @@ const wbsInsertAfterSchema = z.object({
   beforeItemId: z.string().trim().optional().nullable(),
 });
 
+const wbsReorderSchema = z.object({
+  orderedIds: z.array(z.string().trim().min(1)).min(1),
+});
+
 async function validateWbsProjectAndParent(
   projectId: string,
   parentId: string | null | undefined,
@@ -811,6 +815,24 @@ async function renumberProjectWbs(projectId: string) {
   return normalizedRows.length;
 }
 
+async function getProjectWbsSnapshot(projectId: string) {
+  const [wbsItems, wbsDependencies] = await Promise.all([
+    prisma.wbsItem.findMany({
+      where: { projectId },
+      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+    }),
+    prisma.wbsDependency.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        predecessor: { select: { id: true, code: true, title: true } },
+        successor: { select: { id: true, code: true, title: true } },
+      },
+    }),
+  ]);
+  return { wbsItems, wbsDependencies };
+}
+
 app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => {
   const parsed = wbsInsertAfterSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -886,8 +908,10 @@ app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => 
     });
 
     await renumberProjectWbs(project.id);
-    const item = await prisma.wbsItem.findUnique({ where: { id: created.id } });
-    res.status(201).json(item);
+    res.status(201).json({
+      insertedItemId: created.id,
+      ...(await getProjectWbsSnapshot(project.id)),
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -1101,7 +1125,53 @@ app.post('/api/projects/:projectId/wbs-items/renumber', async (req, res) => {
   }
 
   const updatedCount = await renumberProjectWbs(project.id);
-  res.json({ updatedCount });
+  res.json({
+    updatedCount,
+    ...(await getProjectWbsSnapshot(project.id)),
+  });
+});
+
+app.post('/api/projects/:projectId/wbs-items/reorder', async (req, res) => {
+  const parsed = wbsReorderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const items = await prisma.wbsItem.findMany({
+    where: { projectId: project.id },
+    select: { id: true },
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+  });
+  const existingIds = new Set(items.map((item) => item.id));
+  const orderedIds = parsed.data.orderedIds.filter((id, index, ids) => existingIds.has(id) && ids.indexOf(id) === index);
+  const submittedIds = new Set(orderedIds);
+  const missingIds = items.map((item) => item.id).filter((id) => !submittedIds.has(id));
+  const nextIds = [...orderedIds, ...missingIds];
+
+  await prisma.$transaction(
+    nextIds.map((id, index) =>
+      prisma.wbsItem.update({
+        where: { id },
+        data: { sortOrder: (index + 1) * 10 },
+      }),
+    ),
+  );
+
+  await renumberProjectWbs(project.id);
+
+  res.json({
+    ...(await getProjectWbsSnapshot(project.id)),
+  });
 });
 
 app.delete('/api/wbs-items/:itemId', async (req, res) => {

@@ -594,7 +594,6 @@ const WBS_TABLE_COLUMNS = [
   { key: "predecessor2", label: "Predecessor 2", width: 148 },
   { key: "predecessor3", label: "Predecessor 3", width: 148 },
   { key: "leadLag", label: "Lead / Lag", width: 92 },
-  { key: "actions", label: "", width: 132 },
 ] as const;
 
 type WbsTableColumnKey = (typeof WBS_TABLE_COLUMNS)[number]["key"];
@@ -1120,6 +1119,8 @@ function App() {
   );
   const [draggedWbsColumn, setDraggedWbsColumn] =
     useState<WbsTableColumnKey | null>(null);
+  const [draggedWbsItemId, setDraggedWbsItemId] = useState<string | null>(null);
+  const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
     {},
   );
@@ -1793,6 +1794,23 @@ function App() {
       nextProject.changeRequests.some((item) => item.id === currentRequestId)
         ? currentRequestId
         : null,
+    );
+  }
+
+  function applyWbsItems(nextItems: WbsItem[]) {
+    setProject((current) =>
+      current ? { ...current, wbsItems: nextItems } : current,
+    );
+    setWbsDrafts(
+      Object.fromEntries(nextItems.map((item) => [item.id, wbsToForm(item)])),
+    );
+    setCollapsedWbsIds(
+      (currentIds) =>
+        new Set(
+          [...currentIds].filter((itemId) =>
+            nextItems.some((item) => item.id === itemId),
+          ),
+        ),
     );
   }
 
@@ -2479,9 +2497,7 @@ function App() {
     if (
       sourceKey === targetKey ||
       sourceKey === "structure" ||
-      sourceKey === "actions" ||
-      targetKey === "structure" ||
-      targetKey === "actions"
+      targetKey === "structure"
     ) {
       return;
     }
@@ -2504,7 +2520,7 @@ function App() {
     columnKey: WbsTableColumnKey,
     event: ReactDragEvent<HTMLSpanElement>,
   ) {
-    if (columnKey === "structure" || columnKey === "actions") {
+    if (columnKey === "structure") {
       event.preventDefault();
       return;
     }
@@ -2569,6 +2585,7 @@ function App() {
               onChange={(event) =>
                 updateWbsDraft(item.id, { title: event.target.value })
               }
+              onBlur={() => void saveWbsItem(item.id, { silent: true })}
             />
           </div>
         );
@@ -2581,6 +2598,7 @@ function App() {
               onChange={(event) =>
                 updateWbsDraft(item.id, { wbsLevel: event.target.value })
               }
+              onBlur={() => void saveWbsItem(item.id, { silent: true })}
             />
           </div>
         );
@@ -2588,11 +2606,12 @@ function App() {
         return (
           <select
             value={draft.type}
-            onChange={(event) =>
+            onChange={(event) => {
               updateWbsDraft(item.id, {
                 type: event.target.value as WbsItemType,
-              })
-            }
+              });
+            }}
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           >
             <option value="PHASE">Phase</option>
             <option value="WORK_PACKAGE">Work package</option>
@@ -2605,11 +2624,12 @@ function App() {
         return (
           <select
             value={draft.status}
-            onChange={(event) =>
+            onChange={(event) => {
               updateWbsDraft(item.id, {
                 status: event.target.value as WbsItemStatus,
-              })
-            }
+              });
+            }}
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           >
             <option value="NOT_STARTED">Not started</option>
             <option value="IN_PROGRESS">In progress</option>
@@ -2626,6 +2646,7 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { owner: event.target.value })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
       case "start":
@@ -2639,6 +2660,7 @@ function App() {
                 excelStartDate: event.target.value,
               })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
       case "due":
@@ -2652,6 +2674,7 @@ function App() {
                 excelEndDate: event.target.value,
               })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
       case "workDays":
@@ -2662,6 +2685,7 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { workDays: event.target.value })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
       case "calendarDays":
@@ -2672,6 +2696,7 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { calendarDays: event.target.value })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
       case "progress":
@@ -2684,6 +2709,7 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { progress: event.target.value })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
       case "predecessor1":
@@ -2698,6 +2724,7 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { predecessor1: event.target.value })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
             placeholder="WBS code"
           />
         );
@@ -2713,6 +2740,7 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { predecessor2: event.target.value })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
             placeholder="WBS code"
           />
         );
@@ -2728,6 +2756,7 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { predecessor3: event.target.value })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
             placeholder="WBS code"
           />
         );
@@ -2739,34 +2768,28 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { leadLagDays: event.target.value })
             }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
-        );
-      case "actions":
-        return (
-          <div className="wbs-row-actions">
-            <button type="button" onClick={() => saveWbsItem(item.id)}>
-              Save
-            </button>
-            <button
-              type="button"
-              className="danger-button"
-              onClick={() => deleteWbsItem(item.id)}
-            >
-              Delete
-            </button>
-          </div>
         );
       default:
         return null;
     }
   }
 
-  async function saveWbsItem(itemId: string) {
+  async function saveWbsItem(itemId: string, options: { silent?: boolean } = {}) {
     if (!project) return;
     const draft = wbsDrafts[itemId];
     if (!draft) return;
+    const currentItem = project.wbsItems.find((item) => item.id === itemId);
+    if (
+      currentItem &&
+      JSON.stringify(wbsPayload(itemId, draft)) ===
+        JSON.stringify(wbsPayload(itemId, wbsToForm(currentItem)))
+    ) {
+      return;
+    }
     setError(null);
-    setNotice(null);
+    if (!options.silent) setNotice(null);
     try {
       const response = await fetch(`${apiBase}/api/wbs-items/${itemId}`, {
         method: "PATCH",
@@ -2792,8 +2815,20 @@ function App() {
           renumberResult.error ?? "Не удалось перенумеровать WBS",
         );
       }
-      await refreshProject();
-      setNotice("WBS элемент обновлен");
+      const renumberResult = await renumberResponse.json();
+      if (renumberResult.wbsItems) {
+        applyWbsItems(renumberResult.wbsItems);
+      } else {
+        await refreshProject();
+      }
+      if (renumberResult.wbsDependencies) {
+        setProject((current) =>
+          current
+            ? { ...current, wbsDependencies: renumberResult.wbsDependencies }
+            : current,
+        );
+      }
+      if (!options.silent) setNotice("WBS элемент обновлен");
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -2831,14 +2866,103 @@ function App() {
             "Не удалось вставить WBS строку",
         );
       }
-      await refreshProject(project.id);
-      setNotice("WBS строка добавлена");
+      if (result?.wbsItems) {
+        applyWbsItems(result.wbsItems);
+        if (result.wbsDependencies) {
+          setProject((current) =>
+            current
+              ? { ...current, wbsDependencies: result.wbsDependencies }
+              : current,
+          );
+        }
+      } else {
+        await refreshProject(project.id);
+      }
     } catch (insertError) {
       setError(
         insertError instanceof Error
           ? insertError.message
           : "Не удалось вставить WBS строку",
       );
+    }
+  }
+
+  async function reorderWbsRows(sourceId: string, targetId: string) {
+    if (!project || sourceId === targetId) return;
+    const sourceIndex = wbsTree.findIndex((item) => item.id === sourceId);
+    const targetIndex = wbsTree.findIndex((item) => item.id === targetId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const sourceLevel = wbsTree[sourceIndex].level;
+    let sourceEndIndex = sourceIndex + 1;
+    while (
+      sourceEndIndex < wbsTree.length &&
+      wbsTree[sourceEndIndex].level > sourceLevel
+    ) {
+      sourceEndIndex += 1;
+    }
+    if (targetIndex > sourceIndex && targetIndex < sourceEndIndex) {
+      return;
+    }
+
+    const movedBlock = wbsTree.slice(sourceIndex, sourceEndIndex);
+    const remainingItems = [
+      ...wbsTree.slice(0, sourceIndex),
+      ...wbsTree.slice(sourceEndIndex),
+    ];
+    const nextTargetIndex = remainingItems.findIndex(
+      (item) => item.id === targetId,
+    );
+    if (nextTargetIndex === -1) return;
+
+    const nextItems = [...remainingItems];
+    nextItems.splice(nextTargetIndex, 0, ...movedBlock);
+
+    const normalizedItems = nextItems.map((item, index) => ({
+      ...item,
+      sortOrder: (index + 1) * 10,
+    }));
+    applyWbsItems(normalizedItems);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/wbs-items/reorder`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderedIds: normalizedItems.map((item) => item.id),
+          }),
+        },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          result?.error?.formErrors?.join(", ") ||
+            result?.error ||
+            "Не удалось переместить WBS строку",
+        );
+      }
+      if (result?.wbsItems) {
+        applyWbsItems(result.wbsItems);
+      }
+      if (result?.wbsDependencies) {
+        setProject((current) =>
+          current ? { ...current, wbsDependencies: result.wbsDependencies } : current,
+        );
+      }
+    } catch (reorderError) {
+      await refreshProject(project.id);
+      setError(
+        reorderError instanceof Error
+          ? reorderError.message
+          : "Не удалось переместить WBS строку",
+      );
+    } finally {
+      setDraggedWbsItemId(null);
+      setWbsDropTargetId(null);
     }
   }
 
@@ -4410,10 +4534,7 @@ function App() {
                           {orderedWbsColumns.map((column) => (
                             <span
                               key={column.key}
-                              draggable={
-                                column.key !== "structure" &&
-                                column.key !== "actions"
-                              }
+                              draggable={column.key !== "structure"}
                             className={
                               draggedWbsColumn === column.key
                                 ? `wbs-column-header ${column.key === "level" ? "level-column" : ""} ${column.key === "structure" ? "structure-column" : ""} dragging`
@@ -4425,8 +4546,7 @@ function App() {
                               onDragOver={(event) => {
                                 if (
                                   draggedWbsColumn &&
-                                  column.key !== "structure" &&
-                                  column.key !== "actions"
+                                  column.key !== "structure"
                                 ) {
                                   event.preventDefault();
                                 }
@@ -4435,16 +4555,14 @@ function App() {
                               onDragEnd={() => setDraggedWbsColumn(null)}
                             >
                               <span className="wbs-column-title">{column.label}</span>
-                              {column.key !== "actions" && (
-                                <button
-                                  type="button"
-                                  className="wbs-column-resizer"
-                                  onPointerDown={(event) =>
-                                    startWbsColumnResize(column.key, event)
-                                  }
-                                  aria-label={`Изменить ширину колонки ${column.label}`}
-                                />
-                              )}
+                              <button
+                                type="button"
+                                className="wbs-column-resizer"
+                                onPointerDown={(event) =>
+                                  startWbsColumnResize(column.key, event)
+                                }
+                                aria-label={`Изменить ширину колонки ${column.label}`}
+                              />
                             </span>
                           ))}
                         </div>
@@ -4452,7 +4570,34 @@ function App() {
                           const draft = wbsDrafts[item.id];
                           if (!draft) return null;
                           return (
-                            <div key={item.id} className="wbs-row-stack">
+                            <div
+                              key={item.id}
+                              className={`wbs-row-stack ${draggedWbsItemId === item.id ? "dragging" : ""} ${wbsDropTargetId === item.id ? "drop-target" : ""}`}
+                              onDragOver={(event) => {
+                                if (
+                                  !draggedWbsItemId ||
+                                  draggedWbsItemId === item.id
+                                ) {
+                                  return;
+                                }
+                                event.preventDefault();
+                                setWbsDropTargetId(item.id);
+                              }}
+                              onDrop={(event) => {
+                                event.preventDefault();
+                                const sourceId =
+                                  event.dataTransfer.getData("application/x-wbs-item") ||
+                                  draggedWbsItemId;
+                                if (sourceId) {
+                                  void reorderWbsRows(sourceId, item.id);
+                                }
+                              }}
+                              onDragLeave={() =>
+                                setWbsDropTargetId((current) =>
+                                  current === item.id ? null : current,
+                                )
+                              }
+                            >
                               <button
                                 type="button"
                                 className="wbs-inline-insert-button"
@@ -4460,6 +4605,34 @@ function App() {
                                 aria-label="Добавить WBS строку ниже"
                               >
                                 +
+                              </button>
+                              <button
+                                type="button"
+                                className="wbs-row-drag-handle"
+                                draggable
+                                onDragStart={(event) => {
+                                  setDraggedWbsItemId(item.id);
+                                  event.dataTransfer.effectAllowed = "move";
+                                  event.dataTransfer.setData(
+                                    "application/x-wbs-item",
+                                    item.id,
+                                  );
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedWbsItemId(null);
+                                  setWbsDropTargetId(null);
+                                }}
+                                aria-label="Перетащить WBS строку"
+                              >
+                                ::
+                              </button>
+                              <button
+                                type="button"
+                                className="wbs-row-delete-button"
+                                onClick={() => deleteWbsItem(item.id)}
+                                aria-label="Удалить WBS строку"
+                              >
+                                x
                               </button>
                               <div
                                 className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
@@ -4472,9 +4645,7 @@ function App() {
                                         ? "wbs-cell-level"
                                         : column.key === "structure"
                                         ? "wbs-cell-structure"
-                                        : column.key === "actions"
-                                          ? "wbs-cell-actions"
-                                          : "wbs-cell"
+                                        : "wbs-cell"
                                     }
                                   >
                                     {renderWbsCell(column.key, item, draft)}
