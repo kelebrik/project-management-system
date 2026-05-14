@@ -580,7 +580,7 @@ const emptyChangeRequestForm: ChangeRequestFormState = {
 };
 
 const WBS_TABLE_COLUMNS = [
-  { key: "level", label: "Level", width: 76 },
+  { key: "level", label: "Level", width: 84 },
   { key: "structure", label: "Структура", width: 420 },
   { key: "type", label: "Type", width: 132 },
   { key: "status", label: "Status", width: 136 },
@@ -590,9 +590,9 @@ const WBS_TABLE_COLUMNS = [
   { key: "workDays", label: "Work days", width: 96 },
   { key: "calendarDays", label: "Cal. days", width: 96 },
   { key: "progress", label: "%", width: 72 },
-  { key: "predecessor1", label: "Predecessor 1", width: 132 },
-  { key: "predecessor2", label: "Predecessor 2", width: 132 },
-  { key: "predecessor3", label: "Predecessor 3", width: 132 },
+  { key: "predecessor1", label: "Predecessor 1", width: 148 },
+  { key: "predecessor2", label: "Predecessor 2", width: 148 },
+  { key: "predecessor3", label: "Predecessor 3", width: 148 },
   { key: "leadLag", label: "Lead / Lag", width: 92 },
   { key: "actions", label: "", width: 132 },
 ] as const;
@@ -4476,11 +4476,11 @@ function App() {
                                 column.key !== "structure" &&
                                 column.key !== "actions"
                               }
-                              className={
-                                draggedWbsColumn === column.key
-                                  ? "wbs-column-header dragging"
-                                  : "wbs-column-header"
-                              }
+                            className={
+                              draggedWbsColumn === column.key
+                                ? `wbs-column-header ${column.key === "level" ? "level-column" : ""} dragging`
+                                : `wbs-column-header ${column.key === "level" ? "level-column" : ""}`
+                            }
                               onDragStart={(event) =>
                                 startWbsColumnDrag(column.key, event)
                               }
@@ -4541,7 +4541,9 @@ function App() {
                                   <div
                                     key={`${item.id}-${column.key}`}
                                     className={
-                                      column.key === "structure"
+                                      column.key === "level"
+                                        ? "wbs-cell-level"
+                                        : column.key === "structure"
                                         ? "wbs-cell-structure"
                                         : column.key === "actions"
                                           ? "wbs-cell-actions"

@@ -1376,6 +1376,19 @@ code {
   position: relative;
 }
 
+.wbs-column-header.level-column,
+.wbs-cell-level {
+  background: #eef2f7;
+  left: 0;
+  position: sticky;
+  z-index: 9;
+}
+
+.wbs-cell-level {
+  background: inherit;
+  z-index: 4;
+}
+
 .wbs-column-title {
   display: block;
   line-height: 1.2;
@@ -1467,10 +1480,9 @@ code {
   z-index: 3;
 }
 
-.wbs-column-header:first-child,
 .wbs-cell-structure {
   background: #eef2f7;
-  left: 0;
+  left: 84px;
   position: sticky;
   z-index: 8;
 }
@@ -1487,6 +1499,10 @@ code {
 
 .wbs-cell {
   overflow: hidden;
+}
+
+.wbs-cell-structure .wbs-code-input {
+  min-width: 72px;
 }
 
 .wbs-column-resizer {
