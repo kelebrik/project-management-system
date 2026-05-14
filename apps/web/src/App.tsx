@@ -949,21 +949,19 @@ function buildRenumberedWbsCodes(
 ) {
   const counters: number[] = [];
   const codes = new Map<string, string>();
-  let previousLevel = 0;
 
   for (const item of items) {
     const draft = drafts[item.id];
     const requestedLevel = draft?.wbsLevel
       ? Number(draft.wbsLevel)
       : item.wbsLevel ?? item.level + 1;
-    const level = Math.max(
-      1,
-      Math.min(requestedLevel, previousLevel === 0 ? 1 : previousLevel + 1),
-    );
+    const level = Math.max(1, requestedLevel);
+    while (counters.length < level - 1) {
+      counters.push(1);
+    }
     counters[level - 1] = (counters[level - 1] ?? 0) + 1;
     counters.length = level;
     codes.set(item.id, counters.join("."));
-    previousLevel = level;
   }
 
   return codes;

@@ -722,14 +722,13 @@ async function renumberProjectWbs(projectId: string) {
     parentId: string | null;
     code: string;
   }> = [];
-  let previousLevel = 0;
 
   for (const item of items) {
     const requestedLevel = item.wbsLevel ?? levelFromWbsCode(item.code);
-    const level = Math.max(
-      1,
-      Math.min(requestedLevel, previousLevel === 0 ? 1 : previousLevel + 1),
-    );
+    const level = Math.max(1, requestedLevel);
+    while (counters.length < level - 1) {
+      counters.push(1);
+    }
     counters[level - 1] = (counters[level - 1] ?? 0) + 1;
     counters.length = level;
 
@@ -750,7 +749,6 @@ async function renumberProjectWbs(projectId: string) {
     const code = counters.join('.');
     codeById.set(item.id, code);
     normalizedRows.push({ id: item.id, level, parentId, code });
-    previousLevel = level;
   }
 
   const predecessorsBySuccessor = new Map<string, string[]>();
