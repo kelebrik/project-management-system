@@ -1548,11 +1548,15 @@ code {
 }
 
 .wbs-row-stack:hover .wbs-inline-insert-button,
-.wbs-row-stack:focus-within .wbs-inline-insert-button,
 .wbs-row-stack:hover .wbs-row-drag-handle,
-.wbs-row-stack:hover .wbs-row-delete-button,
-.wbs-row-stack:focus-within .wbs-row-drag-handle,
-.wbs-row-stack:focus-within .wbs-row-delete-button {
+.wbs-row-stack:hover .wbs-row-delete-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wbs-inline-insert-button:focus-visible,
+.wbs-row-drag-handle:focus-visible,
+.wbs-row-delete-button:focus-visible {
   opacity: 1;
   pointer-events: auto;
 }
