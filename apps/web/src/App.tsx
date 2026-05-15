@@ -2011,10 +2011,18 @@ function App() {
 
   useEffect(() => {
     if (!selectedProjectId) return;
+    let cancelled = false;
     fetch(`${apiBase}/api/projects/${selectedProjectId}/overview`)
       .then((response) => response.json())
-      .then((data: ProjectDetails) => applyProject(data))
+      .then((data: ProjectDetails) => {
+        if (!cancelled) {
+          applyProject(data);
+        }
+      })
       .catch(() => setError("Не удалось загрузить проект"));
+    return () => {
+      cancelled = true;
+    };
   }, [applyProject, selectedProjectId]);
 
   function applyWbsSnapshotResult(
@@ -2341,9 +2349,15 @@ function App() {
             "Не удалось создать проект",
         );
       }
+      if (!result.id) {
+        throw new Error("API не вернул идентификатор созданного проекта");
+      }
       setNewProjectForm(newProjectFormDefaults());
-      await reloadProjects(result.id);
       setActiveView("project-structure");
+      setSelectedProjectId(result.id);
+      setProject(null);
+      await reloadProjects(result.id);
+      await refreshProject(result.id);
       setNotice(`Проект ${result.code} создан`);
     } catch (createError) {
       setError(
