@@ -179,6 +179,16 @@ type WbsDependency = {
   successor: Pick<WbsItem, "id" | "code" | "title">;
 };
 
+type WbsDependencySnapshot = Pick<
+  WbsDependency,
+  "predecessorId" | "successorId" | "type" | "lagDays"
+>;
+
+type WbsSnapshot = {
+  wbsItems: WbsItem[];
+  wbsDependencies: WbsDependencySnapshot[];
+};
+
 type WbsFormState = {
   parentId: string;
   code: string;
@@ -1042,6 +1052,10 @@ function resolveDraftPredecessorCode(
   return normalizedCode;
 }
 
+function wbsSnapshotsEqual(left: WbsSnapshot, right: WbsSnapshot) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function parentIdFromWbsLevel(
   itemId: string,
   nextLevel: number | null,
@@ -1160,6 +1174,9 @@ function App() {
     useState<WbsTableColumnKey | null>(null);
   const [draggedWbsItemId, setDraggedWbsItemId] = useState<string | null>(null);
   const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
+  const [wbsUndoStack, setWbsUndoStack] = useState<WbsSnapshot[]>([]);
+  const [wbsRedoStack, setWbsRedoStack] = useState<WbsSnapshot[]>([]);
+  const [restoringWbsSnapshot, setRestoringWbsSnapshot] = useState(false);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
     {},
   );
@@ -1742,6 +1759,8 @@ function App() {
 
   function applyProject(nextProject: ProjectDetails) {
     setProject(nextProject);
+    setWbsUndoStack([]);
+    setWbsRedoStack([]);
     setSidebarCollapsed(nextProject.uiState?.sidebarCollapsed ?? false);
     setWbsColumnOrder(
       normalizeWbsColumnOrder(nextProject.uiState?.wbsColumnOrder),
@@ -1852,6 +1871,102 @@ function App() {
           ),
         ),
     );
+  }
+
+  function getCurrentWbsSnapshot(): WbsSnapshot | null {
+    if (!project) return null;
+    return {
+      wbsItems: project.wbsItems.map((item) => ({ ...item })),
+      wbsDependencies: project.wbsDependencies.map((dependency) => ({
+        predecessorId: dependency.predecessorId,
+        successorId: dependency.successorId,
+        type: dependency.type,
+        lagDays: dependency.lagDays,
+      })),
+    };
+  }
+
+  function rememberWbsSnapshot() {
+    const snapshot = getCurrentWbsSnapshot();
+    if (!snapshot) return null;
+    setWbsUndoStack((current) => {
+      const previous = current.at(-1);
+      if (previous && wbsSnapshotsEqual(previous, snapshot)) {
+        return current;
+      }
+      return [...current, snapshot].slice(-10);
+    });
+    setWbsRedoStack([]);
+    return snapshot;
+  }
+
+  async function restoreWbsSnapshot(
+    snapshot: WbsSnapshot,
+    direction: "undo" | "redo",
+  ) {
+    if (!project || restoringWbsSnapshot) return;
+    const currentSnapshot = getCurrentWbsSnapshot();
+    if (!currentSnapshot) return;
+    setRestoringWbsSnapshot(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/wbs-snapshot/restore`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(snapshot),
+        },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось восстановить WBS");
+      }
+      if (result?.wbsItems) {
+        applyWbsItems(result.wbsItems);
+        setProject((current) =>
+          current
+            ? {
+                ...current,
+                wbsDependencies:
+                  result.wbsDependencies ?? current.wbsDependencies,
+              }
+            : current,
+        );
+      } else {
+        await refreshProject(project.id);
+      }
+      if (direction === "undo") {
+        setWbsRedoStack((current) => [...current, currentSnapshot].slice(-10));
+        setWbsUndoStack((current) => current.slice(0, -1));
+        setNotice("WBS откат выполнен");
+      } else {
+        setWbsUndoStack((current) => [...current, currentSnapshot].slice(-10));
+        setWbsRedoStack((current) => current.slice(0, -1));
+        setNotice("WBS изменение восстановлено");
+      }
+    } catch (restoreError) {
+      setError(
+        restoreError instanceof Error
+          ? restoreError.message
+          : "Не удалось восстановить WBS",
+      );
+    } finally {
+      setRestoringWbsSnapshot(false);
+    }
+  }
+
+  async function undoWbsChange() {
+    const snapshot = wbsUndoStack.at(-1);
+    if (!snapshot) return;
+    await restoreWbsSnapshot(snapshot, "undo");
+  }
+
+  async function redoWbsChange() {
+    const snapshot = wbsRedoStack.at(-1);
+    if (!snapshot) return;
+    await restoreWbsSnapshot(snapshot, "redo");
   }
 
   async function refreshProject(projectId = project?.id) {
@@ -2922,20 +3037,33 @@ function App() {
     const draft = options.draftOverride ?? wbsDrafts[itemId];
     if (!draft) return;
     const currentItem = project.wbsItems.find((item) => item.id === itemId);
+    const nextPayload = wbsPayload(itemId, draft);
+    const currentPayload = currentItem
+      ? wbsPayload(itemId, wbsToForm(currentItem))
+      : null;
+    const rowChanged =
+      currentPayload !== null &&
+      JSON.stringify(nextPayload) !== JSON.stringify(currentPayload);
+    const predecessorsChanged =
+      currentItem !== undefined &&
+      (nextPayload.predecessor1 !== currentItem.predecessor1 ||
+        nextPayload.predecessor2 !== currentItem.predecessor2 ||
+        nextPayload.predecessor3 !== currentItem.predecessor3 ||
+        nextPayload.leadLagDays !== currentItem.leadLagDays);
     if (
       currentItem &&
-      JSON.stringify(wbsPayload(itemId, draft)) ===
-        JSON.stringify(wbsPayload(itemId, wbsToForm(currentItem)))
+      !rowChanged
     ) {
       return;
     }
+    if (rowChanged) rememberWbsSnapshot();
     setError(null);
     if (!options.silent) setNotice(null);
     try {
       const response = await fetch(`${apiBase}/api/wbs-items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(wbsPayload(itemId, draft)),
+        body: JSON.stringify(nextPayload),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -2945,7 +3073,7 @@ function App() {
             "Не удалось сохранить WBS элемент",
         );
       }
-      await saveWbsPredecessors(itemId);
+      await saveWbsPredecessors(itemId, { remember: !predecessorsChanged });
       const renumberResponse = await fetch(
         `${apiBase}/api/projects/${project.id}/wbs-items/renumber`,
         { method: "POST" },
@@ -2987,6 +3115,7 @@ function App() {
     if (!previousItem) return;
     const nextItem = visibleWbsTree[afterIndex + 1] ?? null;
 
+    rememberWbsSnapshot();
     try {
       const response = await fetch(
         `${apiBase}/api/projects/${project.id}/wbs-items/insert-after`,
@@ -3063,6 +3192,7 @@ function App() {
       ...item,
       sortOrder: (index + 1) * 10,
     }));
+    const previousSnapshot = rememberWbsSnapshot();
     applyWbsItems(normalizedItems);
     setError(null);
     setNotice(null);
@@ -3095,6 +3225,9 @@ function App() {
         );
       }
     } catch (reorderError) {
+      setWbsUndoStack((current) =>
+        previousSnapshot ? current.slice(0, -1) : current,
+      );
       await refreshProject(project.id);
       setError(
         reorderError instanceof Error
@@ -3107,7 +3240,10 @@ function App() {
     }
   }
 
-  async function saveWbsPredecessors(itemId: string) {
+  async function saveWbsPredecessors(
+    itemId: string,
+    options: { remember?: boolean } = {},
+  ) {
     if (!project) return;
     const draft = wbsDrafts[itemId];
     if (!draft) return;
@@ -3165,6 +3301,20 @@ function App() {
     const existingDependencies = project.wbsDependencies.filter(
       (dependency) => dependency.successorId === itemId,
     );
+    const dependenciesChanged =
+      existingDependencies.length !== desiredPredecessors.length ||
+      existingDependencies.some(
+        (dependency) =>
+          !desiredPredecessors.some(
+            (draft) =>
+              draft.predecessorId === dependency.predecessorId &&
+              draft.type === dependency.type &&
+              draft.lagDays === dependency.lagDays,
+          ),
+      );
+    if (dependenciesChanged && options.remember !== false) {
+      rememberWbsSnapshot();
+    }
     for (const dependency of existingDependencies) {
       const shouldKeep = desiredPredecessors.some(
         (draft) =>
@@ -3212,6 +3362,7 @@ function App() {
     if (!window.confirm("Удалить только выбранную WBS строку?")) return;
     setError(null);
     setNotice(null);
+    rememberWbsSnapshot();
     try {
       const response = await fetch(`${apiBase}/api/wbs-items/${itemId}`, {
         method: "DELETE",
@@ -4677,6 +4828,30 @@ function App() {
                     </div>
                   </div>
                   <div className="wbs-gantt-layout">
+                    <div className="wbs-history-toolbar" aria-label="WBS history">
+                      <button
+                        type="button"
+                        onClick={() => void undoWbsChange()}
+                        disabled={
+                          restoringWbsSnapshot || wbsUndoStack.length === 0
+                        }
+                        aria-label="Откатить последнее изменение WBS"
+                        title="Назад"
+                      >
+                        ← Назад
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void redoWbsChange()}
+                        disabled={
+                          restoringWbsSnapshot || wbsRedoStack.length === 0
+                        }
+                        aria-label="Вернуть отмененное изменение WBS"
+                        title="Вперед"
+                      >
+                        Вперед →
+                      </button>
+                    </div>
                     <div className="wbs-table-shell">
                       <div
                         className="wbs-excel-table"

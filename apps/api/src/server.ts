@@ -11,7 +11,7 @@ const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 app.use(
   cors({
     origin: webOrigin === '*' ? true : webOrigin.split(',').map((origin) => origin.trim()),
@@ -676,6 +676,22 @@ const wbsReorderSchema = z.object({
   orderedIds: z.array(z.string().trim().min(1)).min(1),
 });
 
+const wbsDependencySnapshotSchema = z.object({
+  predecessorId: z.string().trim().min(1),
+  successorId: z.string().trim().min(1),
+  type: z.enum(['FS', 'SS', 'FF', 'SF']).default('FS'),
+  lagDays: z.coerce.number().int().default(0),
+});
+
+const wbsSnapshotSchema = z.object({
+  wbsItems: z.array(
+    wbsItemSchema.extend({
+      id: z.string().trim().min(1),
+    }),
+  ),
+  wbsDependencies: z.array(wbsDependencySnapshotSchema).default([]),
+});
+
 async function validateWbsProjectAndParent(
   projectId: string,
   parentId: string | null | undefined,
@@ -833,6 +849,45 @@ async function getProjectWbsSnapshot(projectId: string) {
   return { wbsItems, wbsDependencies };
 }
 
+function wbsItemSnapshotData(projectId: string, item: z.infer<typeof wbsSnapshotSchema>['wbsItems'][number]) {
+  return {
+    id: item.id,
+    projectId,
+    parentId: item.parentId || null,
+    code: item.code,
+    title: item.title,
+    type: item.type,
+    status: item.status,
+    owner: item.owner,
+    startDate: item.startDate ? new Date(item.startDate) : null,
+    dueDate: item.dueDate ? new Date(item.dueDate) : null,
+    baselineStartDate: item.baselineStartDate ? new Date(item.baselineStartDate) : null,
+    baselineDueDate: item.baselineDueDate ? new Date(item.baselineDueDate) : null,
+    forecastStartDate: item.forecastStartDate ? new Date(item.forecastStartDate) : null,
+    forecastDueDate: item.forecastDueDate ? new Date(item.forecastDueDate) : null,
+    wbsLevel: item.wbsLevel ?? null,
+    predecessor1: item.predecessor1 || null,
+    predecessor2: item.predecessor2 || null,
+    predecessor3: item.predecessor3 || null,
+    leadLagDays: item.leadLagDays,
+    workDays: item.workDays ?? null,
+    calendarDays: item.calendarDays ?? null,
+    excelStartDate: item.excelStartDate ? new Date(item.excelStartDate) : null,
+    excelEndDate: item.excelEndDate ? new Date(item.excelEndDate) : null,
+    planWorkDays: item.planWorkDays ?? null,
+    planCalendarDays: item.planCalendarDays ?? null,
+    templateColor: item.templateColor || null,
+    priority: item.priority || null,
+    plannedCost: item.plannedCost,
+    forecastCost: item.forecastCost,
+    progress: item.progress,
+    jiraTicketKey: item.jiraTicketKey || null,
+    jiraTicketUrl: item.jiraTicketUrl || null,
+    description: item.description || null,
+    sortOrder: item.sortOrder,
+  };
+}
+
 app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => {
   const parsed = wbsInsertAfterSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -921,6 +976,88 @@ app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => 
       error: error instanceof Error ? error.message : 'Failed to insert WBS item',
     });
   }
+});
+
+app.post('/api/projects/:projectId/wbs-snapshot/restore', async (req, res) => {
+  const parsed = wbsSnapshotSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const snapshotItemIds = new Set(parsed.data.wbsItems.map((item) => item.id));
+  if (snapshotItemIds.size !== parsed.data.wbsItems.length) {
+    res.status(400).json({ error: 'WBS snapshot contains duplicate item ids' });
+    return;
+  }
+
+  for (const item of parsed.data.wbsItems) {
+    if (item.parentId && !snapshotItemIds.has(item.parentId)) {
+      res.status(400).json({ error: `Parent WBS item ${item.parentId} is missing from snapshot` });
+      return;
+    }
+  }
+
+  for (const dependency of parsed.data.wbsDependencies) {
+    if (!snapshotItemIds.has(dependency.predecessorId) || !snapshotItemIds.has(dependency.successorId)) {
+      res.status(400).json({ error: 'WBS snapshot dependency references a missing WBS item' });
+      return;
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.wbsDependency.deleteMany({ where: { projectId: project.id } });
+    await tx.wbsItem.updateMany({
+      where: { projectId: project.id },
+      data: { parentId: null },
+    });
+    await tx.wbsItem.deleteMany({
+      where: { projectId: project.id, id: { notIn: [...snapshotItemIds] } },
+    });
+
+    for (const item of parsed.data.wbsItems) {
+      const data = wbsItemSnapshotData(project.id, item);
+      await tx.wbsItem.upsert({
+        where: { id: item.id },
+        update: data,
+        create: data,
+      });
+    }
+
+    for (const item of parsed.data.wbsItems) {
+      await tx.wbsItem.update({
+        where: { id: item.id },
+        data: { parentId: item.parentId || null },
+      });
+    }
+
+    for (const dependency of parsed.data.wbsDependencies) {
+      await tx.wbsDependency.create({
+        data: {
+          projectId: project.id,
+          predecessorId: dependency.predecessorId,
+          successorId: dependency.successorId,
+          type: dependency.type,
+          lagDays: dependency.lagDays,
+        },
+      });
+    }
+  });
+
+  await renumberProjectWbs(project.id);
+
+  res.json({
+    ...(await getProjectWbsSnapshot(project.id)),
+  });
 });
 
 app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
