@@ -2567,7 +2567,7 @@ function App() {
           <div
             className="wbs-work-cell"
             style={{
-              paddingLeft: `${wbsDraftDisplayLevel(item, draft) * 18 + 8}px`,
+              paddingLeft: `${wbsDraftDisplayLevel(item, draft) * 18 + 48}px`,
             }}
           >
             {item.children.length > 0 ? (
