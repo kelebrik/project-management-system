@@ -489,6 +489,11 @@ type GanttCssProperties = CSSProperties & {
   "--gantt-timeline-width": string;
 };
 
+type WbsTableCssProperties = CSSProperties & {
+  "--wbs-table-template": string;
+  "--wbs-level-width": string;
+};
+
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -580,7 +585,7 @@ const emptyChangeRequestForm: ChangeRequestFormState = {
 };
 
 const WBS_TABLE_COLUMNS = [
-  { key: "level", label: "Level", width: 84 },
+  { key: "level", label: "Level", width: 116 },
   { key: "structure", label: "Структура", width: 420 },
   { key: "type", label: "Type", width: 132 },
   { key: "status", label: "Status", width: 136 },
@@ -598,6 +603,39 @@ const WBS_TABLE_COLUMNS = [
 
 type WbsTableColumnKey = (typeof WBS_TABLE_COLUMNS)[number]["key"];
 type WbsTableColumn = (typeof WBS_TABLE_COLUMNS)[number];
+
+function normalizeWbsColumnOrder(order?: WbsTableColumnKey[]) {
+  const knownKeys = new Set(WBS_TABLE_COLUMNS.map((column) => column.key));
+  const orderedKeys = order?.length
+    ? order.filter((key) => knownKeys.has(key))
+    : WBS_TABLE_COLUMNS.map((column) => column.key);
+  const fixedKeys: WbsTableColumnKey[] = ["level", "structure"];
+  const movableKeys = orderedKeys.filter(
+    (key) => key !== "level" && key !== "structure",
+  );
+  const missingKeys = WBS_TABLE_COLUMNS.map((column) => column.key).filter(
+    (key) =>
+      key !== "level" &&
+      key !== "structure" &&
+      !movableKeys.includes(key),
+  );
+
+  return [...fixedKeys, ...movableKeys, ...missingKeys];
+}
+
+function normalizeWbsColumnWidths(
+  widths?: Partial<Record<WbsTableColumnKey, number>>,
+) {
+  const defaultWidths = Object.fromEntries(
+    WBS_TABLE_COLUMNS.map((column) => [column.key, column.width]),
+  ) as Record<WbsTableColumnKey, number>;
+
+  return {
+    ...defaultWidths,
+    ...widths,
+    level: Math.max(116, widths?.level ?? defaultWidths.level),
+  };
+}
 
 const GANTT_ROW_HEIGHT = 36;
 
@@ -1109,13 +1147,9 @@ function App() {
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
   const [wbsColumnWidths, setWbsColumnWidths] = useState<
     Record<WbsTableColumnKey, number>
-  >(() =>
-    Object.fromEntries(
-      WBS_TABLE_COLUMNS.map((column) => [column.key, column.width]),
-    ) as Record<WbsTableColumnKey, number>,
-  );
+  >(() => normalizeWbsColumnWidths());
   const [wbsColumnOrder, setWbsColumnOrder] = useState<WbsTableColumnKey[]>(
-    () => WBS_TABLE_COLUMNS.map((column) => column.key),
+    () => normalizeWbsColumnOrder(),
   );
   const [draggedWbsColumn, setDraggedWbsColumn] =
     useState<WbsTableColumnKey | null>(null);
@@ -1590,6 +1624,7 @@ function App() {
         .join(" "),
     [orderedWbsColumns, wbsColumnWidths],
   );
+  const wbsLevelWidth = wbsColumnWidths.level;
   const projectArtifacts = useMemo(() => {
     if (!project) return [];
     const systemArtifacts = [
@@ -1704,14 +1739,14 @@ function App() {
     setProject(nextProject);
     setSidebarCollapsed(nextProject.uiState?.sidebarCollapsed ?? false);
     setWbsColumnOrder(
-      nextProject.uiState?.wbsColumnOrder?.length
-        ? nextProject.uiState.wbsColumnOrder
-        : WBS_TABLE_COLUMNS.map((column) => column.key),
+      normalizeWbsColumnOrder(nextProject.uiState?.wbsColumnOrder),
     );
-    setWbsColumnWidths((current) => ({
-      ...current,
-      ...(nextProject.uiState?.wbsColumnWidths ?? {}),
-    }));
+    setWbsColumnWidths((current) =>
+      normalizeWbsColumnWidths({
+        ...current,
+        ...(nextProject.uiState?.wbsColumnWidths ?? {}),
+      }),
+    );
     setProjectForm(projectToForm(nextProject));
     setJiraForm({
       baseUrl: nextProject.jiraIntegration?.baseUrl ?? "",
@@ -2511,6 +2546,8 @@ function App() {
   ) {
     if (
       sourceKey === targetKey ||
+      sourceKey === "level" ||
+      targetKey === "level" ||
       sourceKey === "structure" ||
       targetKey === "structure"
     ) {
@@ -2520,14 +2557,15 @@ function App() {
       const sourceIndex = current.indexOf(sourceKey);
       const targetIndex = current.indexOf(targetKey);
       if (sourceIndex === -1 || targetIndex === -1) return current;
-      const next = [...current];
+      const next = normalizeWbsColumnOrder(current);
       const [moved] = next.splice(sourceIndex, 1);
       next.splice(targetIndex, 0, moved);
+      const normalizedNext = normalizeWbsColumnOrder(next);
       void saveProjectUiState(
-        { wbsColumnOrder: next },
-        { wbsColumnOrder: next },
+        { wbsColumnOrder: normalizedNext },
+        { wbsColumnOrder: normalizedNext },
       );
-      return next;
+      return normalizedNext;
     });
   }
 
@@ -2535,7 +2573,7 @@ function App() {
     columnKey: WbsTableColumnKey,
     event: ReactDragEvent<HTMLSpanElement>,
   ) {
-    if (columnKey === "structure") {
+    if (columnKey === "level" || columnKey === "structure") {
       event.preventDefault();
       return;
     }
@@ -2567,7 +2605,7 @@ function App() {
           <div
             className="wbs-work-cell"
             style={{
-              paddingLeft: `${wbsDraftDisplayLevel(item, draft) * 18 + 48}px`,
+              paddingLeft: `${wbsDraftDisplayLevel(item, draft) * 18 + 8}px`,
             }}
           >
             {item.children.length > 0 ? (
@@ -2607,6 +2645,46 @@ function App() {
       case "level":
         return (
           <div className="wbs-level-cell">
+            <div className="wbs-row-controls">
+              <button
+                type="button"
+                className="wbs-row-drag-handle"
+                draggable
+                onDragStart={(event) => {
+                  setDraggedWbsItemId(item.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("application/x-wbs-item", item.id);
+                }}
+                onDragEnd={() => {
+                  setDraggedWbsItemId(null);
+                  setWbsDropTargetId(null);
+                }}
+                aria-label="Перетащить WBS строку"
+              >
+                ::
+              </button>
+              <button
+                type="button"
+                className="wbs-row-delete-button"
+                onClick={() => deleteWbsItem(item.id)}
+                aria-label="Удалить WBS строку"
+              >
+                x
+              </button>
+            </div>
+            <button
+              type="button"
+              className="wbs-inline-insert-button"
+              onClick={() => {
+                const afterIndex = visibleWbsTree.findIndex(
+                  (visibleItem) => visibleItem.id === item.id,
+                );
+                if (afterIndex >= 0) void insertWbsRow(afterIndex);
+              }}
+              aria-label="Добавить WBS строку ниже"
+            >
+              +
+            </button>
             <div
               className="wbs-level-stepper"
               aria-label="Изменить уровень вложения"
@@ -4586,13 +4664,21 @@ function App() {
                     <div className="wbs-table-shell">
                       <div
                         className="wbs-excel-table"
-                        style={{ "--wbs-table-template": wbsTableTemplate } as CSSProperties}
+                        style={
+                          {
+                            "--wbs-table-template": wbsTableTemplate,
+                            "--wbs-level-width": `${wbsLevelWidth}px`,
+                          } as WbsTableCssProperties
+                        }
                       >
                         <div className="wbs-table-head">
                           {orderedWbsColumns.map((column) => (
                             <span
                               key={column.key}
-                              draggable={column.key !== "structure"}
+                              draggable={
+                                column.key !== "level" &&
+                                column.key !== "structure"
+                              }
                             className={
                               draggedWbsColumn === column.key
                                 ? `wbs-column-header ${column.key === "level" ? "level-column" : ""} ${column.key === "structure" ? "structure-column" : ""} dragging`
@@ -4604,6 +4690,7 @@ function App() {
                               onDragOver={(event) => {
                                 if (
                                   draggedWbsColumn &&
+                                  column.key !== "level" &&
                                   column.key !== "structure"
                                 ) {
                                   event.preventDefault();
@@ -4624,7 +4711,7 @@ function App() {
                             </span>
                           ))}
                         </div>
-                        {visibleWbsTree.map((item, index) => {
+                        {visibleWbsTree.map((item) => {
                           const draft = wbsDrafts[item.id];
                           if (!draft) return null;
                           return (
@@ -4670,49 +4757,6 @@ function App() {
                                         : "wbs-cell"
                                     }
                                   >
-                                    {column.key === "structure" && (
-                                      <div className="wbs-row-controls">
-                                        <button
-                                          type="button"
-                                          className="wbs-row-drag-handle"
-                                          draggable
-                                          onDragStart={(event) => {
-                                            setDraggedWbsItemId(item.id);
-                                            event.dataTransfer.effectAllowed =
-                                              "move";
-                                            event.dataTransfer.setData(
-                                              "application/x-wbs-item",
-                                              item.id,
-                                            );
-                                          }}
-                                          onDragEnd={() => {
-                                            setDraggedWbsItemId(null);
-                                            setWbsDropTargetId(null);
-                                          }}
-                                          aria-label="Перетащить WBS строку"
-                                        >
-                                          ::
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="wbs-row-delete-button"
-                                          onClick={() => deleteWbsItem(item.id)}
-                                          aria-label="Удалить WBS строку"
-                                        >
-                                          x
-                                        </button>
-                                      </div>
-                                    )}
-                                    {column.key === "structure" && (
-                                      <button
-                                        type="button"
-                                        className="wbs-inline-insert-button"
-                                        onClick={() => void insertWbsRow(index)}
-                                        aria-label="Добавить WBS строку ниже"
-                                      >
-                                        +
-                                      </button>
-                                    )}
                                     {renderWbsCell(column.key, item, draft)}
                                   </div>
                                 ))}
