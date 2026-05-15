@@ -30,9 +30,11 @@ type AppView =
   | "project-create"
   | "project-overview"
   | "project-passport"
-  | "project-wbs"
+  | "project-structure"
+  | "project-gantt"
   | "project-issues"
   | "project-raid"
+  | "project-calendars"
   | "project-artifacts"
   | "admin";
 
@@ -86,6 +88,7 @@ type ProjectDetails = ProjectListItem & {
   milestones: Milestone[];
   wbsItems: WbsItem[];
   wbsDependencies: WbsDependency[];
+  calendarOverrides: ProjectCalendarOverride[];
   artifacts: ProjectArtifact[];
   raidItems: RaidItem[];
   changeRequests: ChangeRequest[];
@@ -153,6 +156,7 @@ type WbsItem = {
   excelEndDate: string | null;
   planWorkDays: number | null;
   planCalendarDays: number | null;
+  calendarCode: ProjectCalendarCode;
   templateColor: string | null;
   priority: string | null;
   plannedCost: string;
@@ -170,6 +174,7 @@ type WbsTreeItem = WbsItem & {
 };
 
 type WbsDependencyType = "FS" | "SS" | "FF" | "SF";
+type ProjectCalendarCode = "RU" | "CN";
 
 type WbsDependency = {
   id: string;
@@ -189,6 +194,15 @@ type WbsDependencySnapshot = Pick<
 type WbsSnapshot = {
   wbsItems: WbsItem[];
   wbsDependencies: WbsDependencySnapshot[];
+};
+
+type ProjectCalendarOverride = {
+  id: string;
+  projectId: string;
+  calendarCode: ProjectCalendarCode;
+  date: string;
+  isWorkingDay: boolean;
+  description: string | null;
 };
 
 type WbsFormState = {
@@ -211,6 +225,7 @@ type WbsFormState = {
   leadLagDays: string;
   workDays: string;
   calendarDays: string;
+  calendarCode: ProjectCalendarCode;
   excelStartDate: string;
   excelEndDate: string;
   planWorkDays: string;
@@ -539,6 +554,25 @@ const emptyProjectForm: ProjectFormState = {
   sortOrder: "0",
 };
 
+function newProjectFormDefaults(): ProjectFormState {
+  const startDate = new Date();
+  const targetDate = addMonths(startDate, 1);
+  const suffix = String(Date.now()).slice(-5);
+  return {
+    ...emptyProjectForm,
+    code: `PRJ-${suffix}`,
+    name: "Новый проект",
+    portfolio: "Портфель проектов",
+    sponsor: "Sponsor",
+    projectManager: "Project manager",
+    startDate: isoDate(startDate),
+    targetDate: isoDate(targetDate),
+    budgetPlanned: "0",
+    budgetForecast: "0",
+    summary: "Новый проект",
+  };
+}
+
 const emptyMilestoneForm: MilestoneFormState = {
   title: "",
   dueDate: "",
@@ -608,12 +642,34 @@ const WBS_TABLE_COLUMNS = [
   { key: "due", label: "Due", width: 138 },
   { key: "workDays", label: "Work days", width: 96 },
   { key: "calendarDays", label: "Cal. days", width: 96 },
+  { key: "calendar", label: "Календарь", width: 110 },
   { key: "progress", label: "%", width: 72 },
   { key: "predecessor1", label: "Predecessor 1", width: 148 },
   { key: "predecessor2", label: "Predecessor 2", width: 148 },
   { key: "predecessor3", label: "Predecessor 3", width: 148 },
   { key: "leadLag", label: "Lead / Lag", width: 92 },
 ] as const;
+
+const PROJECT_CALENDAR_LABELS: Record<ProjectCalendarCode, string> = {
+  RU: "RU календарь",
+  CN: "CN календарь",
+};
+
+const WEEKDAY_LABELS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
+const MONTH_LABELS = [
+  "Январь",
+  "Февраль",
+  "Март",
+  "Апрель",
+  "Май",
+  "Июнь",
+  "Июль",
+  "Август",
+  "Сентябрь",
+  "Октябрь",
+  "Ноябрь",
+  "Декабрь",
+];
 
 type WbsTableColumnKey = (typeof WBS_TABLE_COLUMNS)[number]["key"];
 type WbsTableColumn = (typeof WBS_TABLE_COLUMNS)[number];
@@ -760,6 +816,7 @@ function wbsToForm(item: WbsItem): WbsFormState {
       item.planWorkDays === null ? "" : String(item.planWorkDays),
     planCalendarDays:
       item.planCalendarDays === null ? "" : String(item.planCalendarDays),
+    calendarCode: item.calendarCode ?? "RU",
     templateColor: item.templateColor ?? "",
     priority: item.priority ?? "",
     plannedCost: String(item.plannedCost),
@@ -841,15 +898,17 @@ function flattenWbsDescendants(item: WbsTreeItem): WbsTreeItem[] {
 }
 
 function wbsToneClass(
-  item: Pick<WbsItem, "templateColor" | "status" | "type">,
+  item: Pick<WbsItem, "dueDate" | "status" | "type">,
 ) {
   if (item.type === "MILESTONE") return "tone-o";
-  const templateColor = item.templateColor?.toLowerCase();
-  if (templateColor && ["b", "g", "r", "o", "x"].includes(templateColor)) {
-    return `tone-${templateColor}`;
-  }
   if (item.status === "DONE") return "tone-g";
   if (item.status === "AT_RISK" || item.status === "BLOCKED") return "tone-r";
+  if (
+    item.dueDate &&
+    new Date(item.dueDate) < startOfDay(new Date())
+  ) {
+    return "tone-p";
+  }
   if (item.status === "IN_PROGRESS") return "tone-b";
   return "tone-x";
 }
@@ -885,6 +944,10 @@ function startOfMonth(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), 1);
 }
 
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
 function addMonths(value: Date, months: number) {
   return new Date(value.getFullYear(), value.getMonth() + months, 1);
 }
@@ -894,6 +957,35 @@ function monthLabel(value: Date) {
     month: "short",
     year: "numeric",
   }).format(value);
+}
+
+function isoDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function calendarMonthDays(year: number, monthIndex: number) {
+  const firstDay = new Date(year, monthIndex, 1);
+  const leadingEmpty = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const cells: Array<Date | null> = Array.from(
+    { length: leadingEmpty },
+    () => null,
+  );
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push(new Date(year, monthIndex, day));
+  }
+  while (cells.length % 7 !== 0) {
+    cells.push(null);
+  }
+  return cells;
+}
+
+function isDefaultWorkingDay(dateValue: Date) {
+  const day = dateValue.getDay();
+  return day !== 0 && day !== 6;
 }
 
 function raidTypeLabel(type: RaidItemType) {
@@ -1121,6 +1213,9 @@ function App() {
   const [creatingIssue, setCreatingIssue] = useState(false);
   const [generatingOverview, setGeneratingOverview] = useState(false);
   const [publishingOverview, setPublishingOverview] = useState(false);
+  const [savingProjectTitle, setSavingProjectTitle] = useState(false);
+  const [savingBaseline, setSavingBaseline] = useState(false);
+  const [savingCalendar, setSavingCalendar] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [jiraForm, setJiraForm] = useState<JiraFormState>({
@@ -1134,7 +1229,7 @@ function App() {
   const [projectForm, setProjectForm] =
     useState<ProjectFormState>(emptyProjectForm);
   const [newProjectForm, setNewProjectForm] =
-    useState<ProjectFormState>(emptyProjectForm);
+    useState<ProjectFormState>(() => newProjectFormDefaults());
   const [milestoneForm, setMilestoneForm] =
     useState<MilestoneFormState>(emptyMilestoneForm);
   const [artifactForm, setArtifactForm] =
@@ -1653,6 +1748,20 @@ function App() {
     [orderedWbsColumns, wbsColumnWidths],
   );
   const wbsLevelWidth = wbsColumnWidths.level;
+  const calendarYear = useMemo(() => {
+    const sourceDate = project?.startDate ? new Date(project.startDate) : new Date();
+    return sourceDate.getFullYear();
+  }, [project]);
+  const calendarOverridesByKey = useMemo(() => {
+    const map = new Map<string, ProjectCalendarOverride>();
+    for (const override of project?.calendarOverrides ?? []) {
+      map.set(
+        `${override.calendarCode}:${isoDate(new Date(override.date))}`,
+        override,
+      );
+    }
+    return map;
+  }, [project?.calendarOverrides]);
   const projectArtifacts = useMemo(() => {
     if (!project) return [];
     const systemArtifacts = [
@@ -1667,12 +1776,12 @@ function App() {
       },
       {
         id: "system-wbs",
-        title: "WBS baseline",
+        title: "Базовый план Структуры",
         type: "Planning baseline",
         owner: "PMO",
         status: project.wbsItems.length > 0 ? "Ready" : "Draft",
-        source: `${project.wbsItems.length} WBS items`,
-        action: "project-wbs" as AppView,
+        source: `${project.wbsItems.length} элементов Структуры`,
+        action: "project-structure" as AppView,
       },
       {
         id: "system-issues",
@@ -1948,7 +2057,7 @@ function App() {
       );
       const result = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(result?.error ?? "Не удалось восстановить WBS");
+        throw new Error(result?.error ?? "Не удалось восстановить Структуру");
       }
       if (result?.wbsItems) {
         applyWbsSnapshotResult(result.wbsItems, result.wbsDependencies);
@@ -1958,17 +2067,17 @@ function App() {
       if (direction === "undo") {
         setWbsRedoHistory([...wbsRedoStackRef.current, currentSnapshot].slice(-10));
         setWbsUndoHistory(wbsUndoStackRef.current.slice(0, -1));
-        setNotice("WBS откат выполнен");
+        setNotice("Откат Структуры выполнен");
       } else {
         setWbsUndoHistory([...wbsUndoStackRef.current, currentSnapshot].slice(-10));
         setWbsRedoHistory(wbsRedoStackRef.current.slice(0, -1));
-        setNotice("WBS изменение восстановлено");
+        setNotice("Изменение Структуры восстановлено");
       }
     } catch (restoreError) {
       setError(
         restoreError instanceof Error
           ? restoreError.message
-          : "Не удалось восстановить WBS",
+          : "Не удалось восстановить Структуру",
       );
     } finally {
       setRestoringWbsSnapshot(false);
@@ -1985,6 +2094,102 @@ function App() {
     const snapshot = wbsRedoStackRef.current.at(-1);
     if (!snapshot) return;
     await restoreWbsSnapshot(snapshot, "redo");
+  }
+
+  async function saveWbsBaseline() {
+    if (!project) return;
+    if (
+      !window.confirm(
+        "Зафиксировать текущую Структуру как базовый план? Текущие даты станут baseline.",
+      )
+    ) {
+      return;
+    }
+    setSavingBaseline(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/wbs-baseline`,
+        { method: "POST" },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось сохранить baseline");
+      }
+      if (result?.wbsItems) {
+        applyWbsSnapshotResult(result.wbsItems, result.wbsDependencies);
+      } else {
+        await refreshProject(project.id);
+      }
+      setNotice("Базовый план Структуры сохранен");
+    } catch (baselineError) {
+      setError(
+        baselineError instanceof Error
+          ? baselineError.message
+          : "Не удалось сохранить baseline",
+      );
+    } finally {
+      setSavingBaseline(false);
+    }
+  }
+
+  async function toggleCalendarDay(
+    calendarCode: ProjectCalendarCode,
+    dateValue: Date,
+  ) {
+    if (!project) return;
+    const dateKey = isoDate(dateValue);
+    const overrideKey = `${calendarCode}:${dateKey}`;
+    const currentOverride = calendarOverridesByKey.get(overrideKey);
+    const currentWorkingDay =
+      currentOverride?.isWorkingDay ?? isDefaultWorkingDay(dateValue);
+    setSavingCalendar(overrideKey);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/calendar-overrides`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            calendarCode,
+            date: dateKey,
+            isWorkingDay: !currentWorkingDay,
+            description: !currentWorkingDay
+              ? "Рабочий день"
+              : "Выходной / праздничный день",
+          }),
+        },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось сохранить календарь");
+      }
+      setProject((current) => {
+        if (!current) return current;
+        const withoutCurrent = current.calendarOverrides.filter(
+          (override) =>
+            !(
+              override.calendarCode === calendarCode &&
+              isoDate(new Date(override.date)) === dateKey
+            ),
+        );
+        return {
+          ...current,
+          calendarOverrides: [...withoutCurrent, result],
+        };
+      });
+    } catch (calendarError) {
+      setError(
+        calendarError instanceof Error
+          ? calendarError.message
+          : "Не удалось сохранить календарь",
+      );
+    } finally {
+      setSavingCalendar(null);
+    }
   }
 
   async function refreshProject(projectId = project?.id) {
@@ -2100,8 +2305,9 @@ function App() {
             "Не удалось создать проект",
         );
       }
-      setNewProjectForm(emptyProjectForm);
+      setNewProjectForm(newProjectFormDefaults());
       await reloadProjects(result.id);
+      setActiveView("project-structure");
       setNotice(`Проект ${result.code} создан`);
     } catch (createError) {
       setError(
@@ -2109,6 +2315,43 @@ function App() {
           ? createError.message
           : "Не удалось создать проект",
       );
+    }
+  }
+
+  async function saveProjectTitle() {
+    if (!project) return;
+    const nextName = projectForm.name.trim();
+    if (!nextName || nextName === project.name) return;
+    setSavingProjectTitle(true);
+    setError(null);
+    try {
+      const response = await fetch(`${apiBase}/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nextName }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось сохранить название проекта");
+      }
+      setProject((current) =>
+        current ? { ...current, name: result.name ?? nextName } : current,
+      );
+      setProjectForm((current) => ({ ...current, name: result.name ?? nextName }));
+      setProjects((current) =>
+        current.map((item) =>
+          item.id === project.id ? { ...item, name: result.name ?? nextName } : item,
+        ),
+      );
+      setNotice("Название проекта обновлено");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить название проекта",
+      );
+    } finally {
+      setSavingProjectTitle(false);
     }
   }
 
@@ -2578,6 +2821,7 @@ function App() {
       planCalendarDays: form.planCalendarDays
         ? Number(form.planCalendarDays)
         : null,
+      calendarCode: form.calendarCode,
       templateColor: form.templateColor || null,
       priority: form.priority || null,
       plannedCost: Number(form.plannedCost),
@@ -2753,8 +2997,8 @@ function App() {
                 onClick={() => toggleWbsCollapse(item.id)}
                 aria-label={
                   collapsedWbsIds.has(item.id)
-                    ? "Раскрыть WBS элемент"
-                    : "Схлопнуть WBS элемент"
+                    ? "Раскрыть элемент Структуры"
+                    : "Схлопнуть элемент Структуры"
                 }
               >
                 {collapsedWbsIds.has(item.id) ? "+" : "-"}
@@ -2845,7 +3089,7 @@ function App() {
                   setDraggedWbsItemId(null);
                   setWbsDropTargetId(null);
                 }}
-                aria-label="Перетащить WBS строку"
+                aria-label="Перетащить строку Структуры"
               >
                 ::
               </button>
@@ -2853,7 +3097,7 @@ function App() {
                 type="button"
                 className="wbs-row-delete-button"
                 onClick={() => deleteWbsItem(item.id)}
-                aria-label="Удалить WBS строку"
+                aria-label="Удалить строку Структуры"
               >
                 x
               </button>
@@ -2867,7 +3111,7 @@ function App() {
                 );
                 if (afterIndex >= 0) void insertWbsRow(afterIndex);
               }}
-              aria-label="Добавить WBS строку ниже"
+              aria-label="Добавить строку Структуры ниже"
             >
               +
             </button>
@@ -2970,6 +3214,21 @@ function App() {
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
+      case "calendar":
+        return (
+          <select
+            value={draft.calendarCode}
+            onChange={(event) => {
+              updateWbsDraft(item.id, {
+                calendarCode: event.target.value as ProjectCalendarCode,
+              });
+            }}
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+          >
+            <option value="RU">RU</option>
+            <option value="CN">CN</option>
+          </select>
+        );
       case "progress":
         return (
           <input
@@ -2996,7 +3255,7 @@ function App() {
               updateWbsDraft(item.id, { predecessor1: event.target.value })
             }
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
-            placeholder="WBS code"
+            placeholder="Код"
           />
         );
       case "predecessor2":
@@ -3012,7 +3271,7 @@ function App() {
               updateWbsDraft(item.id, { predecessor2: event.target.value })
             }
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
-            placeholder="WBS code"
+            placeholder="Код"
           />
         );
       case "predecessor3":
@@ -3028,7 +3287,7 @@ function App() {
               updateWbsDraft(item.id, { predecessor3: event.target.value })
             }
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
-            placeholder="WBS code"
+            placeholder="Код"
           />
         );
       case "leadLag":
@@ -3088,7 +3347,7 @@ function App() {
         throw new Error(
           result.error?.formErrors?.join(", ") ||
             result.error ||
-            "Не удалось сохранить WBS элемент",
+            "Не удалось сохранить элемент Структуры",
         );
       }
       await saveWbsPredecessors(itemId, { remember: !predecessorsChanged });
@@ -3099,7 +3358,7 @@ function App() {
       if (!renumberResponse.ok) {
         const renumberResult = await renumberResponse.json();
         throw new Error(
-          renumberResult.error ?? "Не удалось перенумеровать WBS",
+          renumberResult.error ?? "Не удалось перенумеровать Структуру",
         );
       }
       const renumberResult = await renumberResponse.json();
@@ -3115,12 +3374,12 @@ function App() {
             : current,
         );
       }
-      if (!options.silent) setNotice("WBS элемент обновлен");
+      if (!options.silent) setNotice("Элемент Структуры обновлен");
     } catch (saveError) {
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Не удалось сохранить WBS элемент",
+          : "Не удалось сохранить элемент Структуры",
       );
     }
   }
@@ -3151,7 +3410,7 @@ function App() {
         throw new Error(
           result?.error?.formErrors?.join(", ") ||
             result?.error ||
-            "Не удалось вставить WBS строку",
+            "Не удалось вставить строку Структуры",
         );
       }
       if (result?.wbsItems) {
@@ -3170,7 +3429,7 @@ function App() {
       setError(
         insertError instanceof Error
           ? insertError.message
-          : "Не удалось вставить WBS строку",
+          : "Не удалось вставить строку Структуры",
       );
     }
   }
@@ -3231,7 +3490,7 @@ function App() {
         throw new Error(
           result?.error?.formErrors?.join(", ") ||
             result?.error ||
-            "Не удалось переместить WBS строку",
+            "Не удалось переместить строку Структуры",
         );
       }
       if (result?.wbsItems) {
@@ -3250,7 +3509,7 @@ function App() {
       setError(
         reorderError instanceof Error
           ? reorderError.message
-          : "Не удалось переместить WBS строку",
+          : "Не удалось переместить строку Структуры",
       );
     } finally {
       setDraggedWbsItemId(null);
@@ -3298,7 +3557,7 @@ function App() {
       .map((code) => {
         const predecessor = wbsByCode.get(code);
         if (!predecessor) {
-          throw new Error(`Predecessor ${code} не найден в WBS`);
+          throw new Error(`Predecessor ${code} не найден в Структуре`);
         }
         return {
           predecessorId: predecessor.id,
@@ -3313,7 +3572,7 @@ function App() {
       throw new Error("Один predecessor нельзя указывать дважды");
     }
     if (uniquePredecessors.has(itemId)) {
-      throw new Error("WBS элемент не может быть своим predecessor");
+      throw new Error("Элемент Структуры не может быть своим predecessor");
     }
 
     const existingDependencies = project.wbsDependencies.filter(
@@ -3346,7 +3605,7 @@ function App() {
         );
         if (!response.ok) {
           const result = await response.json();
-          throw new Error(result.error ?? "Не удалось удалить связь WBS");
+          throw new Error(result.error ?? "Не удалось удалить связь Структуры");
         }
       }
     }
@@ -3370,14 +3629,14 @@ function App() {
         throw new Error(
           result.error?.formErrors?.join(", ") ||
             result.error ||
-            "Не удалось сохранить связь WBS",
+            "Не удалось сохранить связь Структуры",
         );
       }
     }
   }
 
   async function deleteWbsItem(itemId: string) {
-    if (!window.confirm("Удалить только выбранную WBS строку?")) return;
+    if (!window.confirm("Удалить только выбранную строку Структуры?")) return;
     setError(null);
     setNotice(null);
     rememberWbsSnapshot();
@@ -3387,7 +3646,7 @@ function App() {
       });
       const result = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(result?.error ?? "Не удалось удалить WBS элемент");
+        throw new Error(result?.error ?? "Не удалось удалить элемент Структуры");
       }
       if (result?.wbsItems) {
         applyWbsItems(result.wbsItems);
@@ -3401,12 +3660,12 @@ function App() {
       } else {
         await refreshProject();
       }
-      setNotice("WBS элемент удален");
+      setNotice("Элемент Структуры удален");
     } catch (deleteError) {
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Не удалось удалить WBS элемент",
+          : "Не удалось удалить элемент Структуры",
       );
     }
   }
@@ -3765,30 +4024,29 @@ function App() {
     "project-passport": project
       ? `${project.code} - Паспорт проекта`
       : "Паспорт проекта",
-    "project-wbs": project ? `${project.code} - WBS и Гантт` : "WBS и Гантт",
+    "project-structure": project ? `${project.code} - Структура` : "Структура",
+    "project-gantt": project ? `${project.code} - Гантт` : "Гантт",
     "project-issues": project ? `${project.code} - Open Issues` : "Open Issues",
     "project-raid": project
       ? `${project.code} - RAID и изменения`
       : "RAID и изменения",
+    "project-calendars": project
+      ? `${project.code} - Календари`
+      : "Календари",
     "project-artifacts": project
       ? `${project.code} - Артефакты проекта`
       : "Артефакты проекта",
     admin: "Admin Back",
   };
-
-  const viewEyebrow =
-    activeView === "admin"
-      ? "Web UI Back для администратора системы"
-      : activeView === "portfolio"
-        ? "Web UI Front / портфель"
-        : "Web UI Front / проект";
   const projectViews: AppView[] = [
     "project-create",
     "project-overview",
     "project-passport",
-    "project-wbs",
+    "project-structure",
+    "project-gantt",
     "project-issues",
     "project-raid",
+    "project-calendars",
     "project-artifacts",
   ];
   const isProjectView = projectViews.includes(activeView);
@@ -3920,14 +4178,26 @@ function App() {
                 <button
                   type="button"
                   className={
-                    activeView === "project-wbs"
+                    activeView === "project-structure"
                       ? "active nested child"
                       : "nested child"
                   }
-                  onClick={() => setActiveView("project-wbs")}
-                  aria-label="WBS и Гантт"
+                  onClick={() => setActiveView("project-structure")}
+                  aria-label="Структура"
                 >
-                  {navLabel("WB", "WBS и Гантт")}
+                  {navLabel("ST", "Структура")}
+                </button>
+                <button
+                  type="button"
+                  className={
+                    activeView === "project-gantt"
+                      ? "active nested child"
+                      : "nested child"
+                  }
+                  onClick={() => setActiveView("project-gantt")}
+                  aria-label="Гантт"
+                >
+                  {navLabel("GA", "Гантт")}
                 </button>
                 <button
                   type="button"
@@ -3952,6 +4222,18 @@ function App() {
                   aria-label="RAID и изменения"
                 >
                   {navLabel("RI", "RAID и изменения")}
+                </button>
+                <button
+                  type="button"
+                  className={
+                    activeView === "project-calendars"
+                      ? "active nested child"
+                      : "nested child"
+                  }
+                  onClick={() => setActiveView("project-calendars")}
+                  aria-label="Календари"
+                >
+                  {navLabel("CL", "Календари")}
                 </button>
                 <button
                   type="button"
@@ -3982,8 +4264,27 @@ function App() {
       <main className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">{viewEyebrow}</p>
-            <h1>{viewTitle[activeView]}</h1>
+            {project && isProjectView && activeView !== "project-create" ? (
+              <div className="project-title-edit">
+                <span>{project.code}</span>
+                <input
+                  value={projectForm.name}
+                  onChange={(event) =>
+                    setProjectForm({ ...projectForm, name: event.target.value })
+                  }
+                  onBlur={() => void saveProjectTitle()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                  disabled={savingProjectTitle}
+                  aria-label="Название проекта"
+                />
+              </div>
+            ) : (
+              <h1>{viewTitle[activeView]}</h1>
+            )}
           </div>
           {project && activeView !== "portfolio" && (
             <div className="topbar-project">
@@ -4753,17 +5054,25 @@ function App() {
                 </article>
               )}
 
-              {project && activeView === "project-wbs" && (
+              {project &&
+                (activeView === "project-structure" ||
+                  activeView === "project-gantt") && (
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>WBS и Гантт</h2>
+                      <h2>
+                        {activeView === "project-structure"
+                          ? "Структура"
+                          : "Гантт"}
+                      </h2>
                       <p>
-                        Иерархия работ проекта: фазы, work packages,
-                        deliverables и задачи со связью на Jira
+                        {activeView === "project-structure"
+                          ? "Иерархия работ проекта, сроки, ответственные, календарь и predecessor-связи"
+                          : "Временная шкала проекта, связи, baseline и forecast"}
                       </p>
                     </div>
-                    <div className="wbs-toolbar" aria-label="WBS actions">
+                    {activeView === "project-gantt" && (
+                    <div className="wbs-toolbar" aria-label="Gantt actions">
                       <button
                         type="button"
                         className={showGanttDependencies ? "active" : ""}
@@ -4812,6 +5121,7 @@ function App() {
                         Схлопнуть фазы
                       </button>
                     </div>
+                    )}
                   </div>
                   <div className="wbs-kpis">
                     <div>
@@ -4837,7 +5147,7 @@ function App() {
                     <div>
                       <span>Forecast variance</span>
                       <strong>{wbsSummary.scheduleVarianceDays} дн.</strong>
-                      <small>{wbsSummary.slipped} slipped WBS</small>
+                      <small>{wbsSummary.slipped} slipped</small>
                     </div>
                     <div>
                       <span>Visible</span>
@@ -4846,7 +5156,9 @@ function App() {
                     </div>
                   </div>
                   <div className="wbs-gantt-layout">
-                    <div className="wbs-history-toolbar" aria-label="WBS history">
+                    {activeView === "project-structure" && (
+                      <>
+                    <div className="wbs-history-toolbar" aria-label="История Структуры">
                       <button
                         type="button"
                         onClick={() => void undoWbsChange()}
@@ -4854,7 +5166,7 @@ function App() {
                         disabled={
                           restoringWbsSnapshot || wbsUndoStack.length === 0
                         }
-                        aria-label="Откатить последнее изменение WBS"
+                        aria-label="Откатить последнее изменение Структуры"
                         title="Назад"
                       >
                         ← Назад
@@ -4866,10 +5178,17 @@ function App() {
                         disabled={
                           restoringWbsSnapshot || wbsRedoStack.length === 0
                         }
-                        aria-label="Вернуть отмененное изменение WBS"
+                        aria-label="Вернуть отмененное изменение Структуры"
                         title="Вперед"
                       >
                         Вперед →
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void saveWbsBaseline()}
+                        disabled={savingBaseline || project.wbsItems.length === 0}
+                      >
+                        Зафиксировать baseline
                       </button>
                     </div>
                     <div className="wbs-table-shell">
@@ -4976,10 +5295,13 @@ function App() {
                           );
                         })}
                         {project.wbsItems.length === 0 && (
-                          <div className="empty-state">WBS еще не создан.</div>
+                          <div className="empty-state">Структура еще не создана.</div>
                         )}
                       </div>
                     </div>
+                      </>
+                    )}
+                    {activeView === "project-gantt" && (
                     <div
                       className="gantt-panel"
                       style={
@@ -4993,12 +5315,12 @@ function App() {
                       }
                     >
                     <div className="gantt-head">
-                      <span>Структура</span>
+                          <span>Структура</span>
                       <button
                         type="button"
                         className="gantt-resizer"
                         onPointerDown={startGanttResize}
-                        aria-label="Изменить ширину WBS колонки"
+                        aria-label="Изменить ширину колонки Структуры"
                       />
                       <div className="gantt-scale">
                         {wbsGantt.months.length > 0 ? (
@@ -5021,7 +5343,7 @@ function App() {
                     <div className="gantt-body">
                       {wbsGantt.items.length === 0 && (
                         <div className="empty-state">
-                          Для Гантта нужны start и due даты WBS элементов.
+                          Для Гантта нужны start и due даты элементов Структуры.
                         </div>
                       )}
                       {wbsGantt.items.length > 0 && (
@@ -5043,8 +5365,8 @@ function App() {
                                       onClick={() => toggleWbsCollapse(item.id)}
                                       aria-label={
                                         collapsedWbsIds.has(item.id)
-                                          ? "Раскрыть WBS элемент"
-                                          : "Схлопнуть WBS элемент"
+                                          ? "Раскрыть элемент Структуры"
+                                          : "Схлопнуть элемент Структуры"
                                       }
                                     >
                                       {collapsedWbsIds.has(item.id) ? "+" : "-"}
@@ -5065,7 +5387,7 @@ function App() {
                             type="button"
                             className="gantt-resizer body"
                             onPointerDown={startGanttResize}
-                            aria-label="Изменить ширину WBS колонки"
+                            aria-label="Изменить ширину колонки Структуры"
                           />
                           <div
                             className="gantt-timeline"
@@ -5208,6 +5530,90 @@ function App() {
                       )}
                     </div>
                     </div>
+                    )}
+                  </div>
+                </article>
+              )}
+
+              {project && activeView === "project-calendars" && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Календари</h2>
+                      <p>
+                        RU и CN календари проекта: клик по дню меняет рабочий
+                        день на выходной или праздник и наоборот
+                      </p>
+                    </div>
+                  </div>
+                  <div className="calendar-page">
+                    {(["RU", "CN"] as ProjectCalendarCode[]).map(
+                      (calendarCode) => (
+                        <section className="calendar-board" key={calendarCode}>
+                          <div className="calendar-board-title">
+                            <h3>{PROJECT_CALENDAR_LABELS[calendarCode]}</h3>
+                            <span>{calendarYear}</span>
+                          </div>
+                          <div className="calendar-months">
+                            {Array.from({ length: 12 }, (_, monthIndex) => (
+                              <div className="calendar-month" key={monthIndex}>
+                                <strong>{MONTH_LABELS[monthIndex]}</strong>
+                                <div className="calendar-weekdays">
+                                  {WEEKDAY_LABELS.map((label) => (
+                                    <span key={label}>{label}</span>
+                                  ))}
+                                </div>
+                                <div className="calendar-days">
+                                  {calendarMonthDays(
+                                    calendarYear,
+                                    monthIndex,
+                                  ).map((dayValue, index) => {
+                                    if (!dayValue) {
+                                      return (
+                                        <span
+                                          className="calendar-day empty"
+                                          key={`empty-${index}`}
+                                        />
+                                      );
+                                    }
+                                    const dateKey = isoDate(dayValue);
+                                    const overrideKey = `${calendarCode}:${dateKey}`;
+                                    const override =
+                                      calendarOverridesByKey.get(overrideKey);
+                                    const isWorkingDay =
+                                      override?.isWorkingDay ??
+                                      isDefaultWorkingDay(dayValue);
+                                    return (
+                                      <button
+                                        type="button"
+                                        className={`calendar-day ${isWorkingDay ? "working" : "holiday"} ${override ? "custom" : ""}`}
+                                        key={dateKey}
+                                        onClick={() =>
+                                          void toggleCalendarDay(
+                                            calendarCode,
+                                            dayValue,
+                                          )
+                                        }
+                                        disabled={
+                                          savingCalendar === overrideKey
+                                        }
+                                        title={
+                                          isWorkingDay
+                                            ? "Рабочий день"
+                                            : "Выходной / праздник"
+                                        }
+                                      >
+                                        {dayValue.getDate()}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      ),
+                    )}
                   </div>
                 </article>
               )}

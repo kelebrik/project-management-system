@@ -34,16 +34,119 @@ app.get('/api/health', async (_req, res) => {
 app.get('/api/projects', async (_req, res) => {
   const projects = await prisma.project.findMany({
     orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
-    include: {
-      jiraIntegration: true,
-      _count: {
-        select: { tasks: true, issues: true, jiraSnapshots: true },
-      },
-    },
+    include: projectInclude,
   });
 
   res.json(projects);
 });
+
+const projectInclude = {
+  jiraIntegration: true,
+  _count: {
+    select: { tasks: true, issues: true, jiraSnapshots: true },
+  },
+} satisfies Prisma.ProjectInclude;
+
+const projectDetailsInclude = {
+  jiraIntegration: true,
+  tasks: { orderBy: { updatedAt: 'desc' } },
+  issues: {
+    where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },
+    orderBy: [{ severity: 'desc' }, { updatedAt: 'desc' }],
+    include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
+  },
+  jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
+  overviews: { orderBy: { version: 'desc' }, take: 8 },
+  milestones: { orderBy: { dueDate: 'asc' } },
+  wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
+  wbsDependencies: {
+    orderBy: { createdAt: 'asc' },
+    include: {
+      predecessor: { select: { id: true, code: true, title: true } },
+      successor: { select: { id: true, code: true, title: true } },
+    },
+  },
+  calendarOverrides: { orderBy: [{ calendarCode: 'asc' }, { date: 'asc' }] },
+  artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
+  raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
+  changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
+} satisfies Prisma.ProjectInclude;
+
+const defaultProjectWbsItems = [
+  { code: '1', title: 'Инициация проекта', type: 'PHASE', status: 'IN_PROGRESS', owner: 'PM', startOffset: 0, duration: 14, level: 1 },
+  { code: '1.1', title: 'Паспорт проекта', type: 'TASK', status: 'DONE', owner: 'PM', startOffset: 0, duration: 4, level: 2 },
+  { code: '1.2', title: 'Команда и роли', type: 'TASK', status: 'DONE', owner: 'PMO', startOffset: 4, duration: 3, level: 2 },
+  { code: '1.3', title: 'Kick-off', type: 'MILESTONE', status: 'DONE', owner: 'Sponsor', startOffset: 7, duration: 0, level: 2 },
+  { code: '2', title: 'Планирование', type: 'PHASE', status: 'IN_PROGRESS', owner: 'PM', startOffset: 8, duration: 22, level: 1 },
+  { code: '2.1', title: 'Декомпозиция структуры', type: 'TASK', status: 'IN_PROGRESS', owner: 'PM', startOffset: 8, duration: 6, level: 2 },
+  { code: '2.1.1', title: 'Уточнение зависимостей', type: 'TASK', status: 'NOT_STARTED', owner: 'Tech Lead', startOffset: 14, duration: 5, level: 3 },
+  { code: '2.2', title: 'Базовый план согласован', type: 'MILESTONE', status: 'NOT_STARTED', owner: 'Sponsor', startOffset: 21, duration: 0, level: 2 },
+  { code: '3', title: 'Исполнение', type: 'PHASE', status: 'NOT_STARTED', owner: 'Delivery Lead', startOffset: 22, duration: 30, level: 1 },
+  { code: '3.1', title: 'Первый пакет работ', type: 'TASK', status: 'NOT_STARTED', owner: 'Team Lead', startOffset: 22, duration: 10, level: 2 },
+] as const;
+
+function addDays(value: Date, days: number) {
+  const result = new Date(value);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+async function createDefaultProjectStructure(projectId: string, projectStartDate: Date) {
+  const createdByCode = new Map<string, { id: string }>();
+  for (const [index, item] of defaultProjectWbsItems.entries()) {
+    const parentCode = item.code.split('.').slice(0, -1).join('.');
+    const startDate = addDays(projectStartDate, item.startOffset);
+    const dueDate = addDays(startDate, item.duration);
+    const created = await prisma.wbsItem.create({
+      data: {
+        projectId,
+        parentId: createdByCode.get(parentCode)?.id ?? null,
+        code: item.code,
+        title: item.title,
+        type: item.type,
+        status: item.status,
+        owner: item.owner,
+        startDate,
+        dueDate,
+        forecastStartDate: startDate,
+        forecastDueDate: dueDate,
+        wbsLevel: item.level,
+        workDays: item.duration === 0 ? 0 : item.duration + 1,
+        calendarDays: item.duration === 0 ? 0 : item.duration + 1,
+        calendarCode: index % 3 === 0 ? 'CN' : 'RU',
+        progress: item.status === 'DONE' ? 100 : item.status === 'IN_PROGRESS' ? 35 : 0,
+        sortOrder: (index + 1) * 10,
+      },
+      select: { id: true },
+    });
+    createdByCode.set(item.code, created);
+  }
+
+  const dependencies = [
+    ['1.1', '1.2'],
+    ['1.2', '1.3'],
+    ['1.3', '2.1'],
+    ['2.1', '2.1.1'],
+    ['2.1.1', '2.2'],
+    ['2.2', '3.1'],
+  ];
+  for (const [predecessorCode, successorCode] of dependencies) {
+    const predecessor = createdByCode.get(predecessorCode);
+    const successor = createdByCode.get(successorCode);
+    if (!predecessor || !successor) continue;
+    await prisma.wbsDependency.create({
+      data: {
+        projectId,
+        predecessorId: predecessor.id,
+        successorId: successor.id,
+        type: 'FS',
+        lagDays: 0,
+      },
+    });
+  }
+
+  await renumberProjectWbs(projectId);
+}
 
 const projectSchema = z.object({
   parentId: z.string().trim().optional().nullable(),
@@ -104,25 +207,33 @@ app.post('/api/projects', async (req, res) => {
     }
   }
 
-  const project = await prisma.project.create({
-    data: {
-      ...parsed.data,
-      parentId: parsed.data.parentId || null,
-      startDate: new Date(parsed.data.startDate),
-      targetDate: new Date(parsed.data.targetDate),
-      budgetPlanned: parsed.data.budgetPlanned,
-      budgetForecast: parsed.data.budgetForecast,
-      uiState: sanitizeProjectUiState(parsed.data.uiState),
-    },
-    include: {
-      jiraIntegration: true,
-      _count: {
-        select: { tasks: true, issues: true, jiraSnapshots: true },
+  try {
+    const project = await prisma.project.create({
+      data: {
+        ...parsed.data,
+        parentId: parsed.data.parentId || null,
+        startDate: new Date(parsed.data.startDate),
+        targetDate: new Date(parsed.data.targetDate),
+        budgetPlanned: parsed.data.budgetPlanned,
+        budgetForecast: parsed.data.budgetForecast,
+        uiState: sanitizeProjectUiState(parsed.data.uiState),
       },
-    },
-  });
+      include: projectInclude,
+    });
 
-  res.status(201).json(project);
+    await createDefaultProjectStructure(project.id, project.startDate);
+
+    res.status(201).json(project);
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      res.status(409).json({ error: 'Project code already exists' });
+      return;
+    }
+    throw error;
+  }
 });
 
 app.patch('/api/projects/:projectId', async (req, res) => {
@@ -184,29 +295,7 @@ app.patch('/api/projects/:projectId', async (req, res) => {
 app.get('/api/projects/:projectId/overview', async (req, res) => {
   const project = await prisma.project.findUnique({
     where: { id: req.params.projectId },
-    include: {
-      jiraIntegration: true,
-      tasks: { orderBy: { updatedAt: 'desc' } },
-      issues: {
-        where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },
-        orderBy: [{ severity: 'desc' }, { updatedAt: 'desc' }],
-        include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
-      },
-      jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
-      overviews: { orderBy: { version: 'desc' }, take: 8 },
-      milestones: { orderBy: { dueDate: 'asc' } },
-      wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
-      wbsDependencies: {
-        orderBy: { createdAt: 'asc' },
-        include: {
-          predecessor: { select: { id: true, code: true, title: true } },
-          successor: { select: { id: true, code: true, title: true } },
-        },
-      },
-      artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
-      raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
-      changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
-    },
+    include: projectDetailsInclude,
   });
 
   if (!project) {
@@ -215,6 +304,81 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
   }
 
   res.json(project);
+});
+
+const calendarOverrideSchema = z.object({
+  calendarCode: z.enum(['RU', 'CN']),
+  date: z.string().trim().min(1),
+  isWorkingDay: z.boolean(),
+  description: z.string().trim().optional().nullable(),
+});
+
+app.put('/api/projects/:projectId/calendar-overrides', async (req, res) => {
+  const parsed = calendarOverrideSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const date = new Date(parsed.data.date);
+  date.setUTCHours(0, 0, 0, 0);
+
+  const override = await prisma.projectCalendarOverride.upsert({
+    where: {
+      projectId_calendarCode_date: {
+        projectId: project.id,
+        calendarCode: parsed.data.calendarCode,
+        date,
+      },
+    },
+    create: {
+      projectId: project.id,
+      calendarCode: parsed.data.calendarCode,
+      date,
+      isWorkingDay: parsed.data.isWorkingDay,
+      description: parsed.data.description || null,
+    },
+    update: {
+      isWorkingDay: parsed.data.isWorkingDay,
+      description: parsed.data.description || null,
+    },
+  });
+
+  res.json(override);
+});
+
+app.delete('/api/projects/:projectId/calendar-overrides', async (req, res) => {
+  const parsed = z
+    .object({
+      calendarCode: z.enum(['RU', 'CN']),
+      date: z.string().trim().min(1),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const date = new Date(parsed.data.date);
+  date.setUTCHours(0, 0, 0, 0);
+  await prisma.projectCalendarOverride.deleteMany({
+    where: {
+      projectId: req.params.projectId,
+      calendarCode: parsed.data.calendarCode,
+      date,
+    },
+  });
+
+  res.status(204).send();
 });
 
 const artifactSchema = z.object({
@@ -656,6 +820,7 @@ const wbsItemSchema = z.object({
   excelEndDate: z.string().trim().optional().nullable(),
   planWorkDays: z.coerce.number().int().optional().nullable(),
   planCalendarDays: z.coerce.number().int().optional().nullable(),
+  calendarCode: z.enum(['RU', 'CN']).default('RU'),
   templateColor: z.string().trim().optional().nullable(),
   priority: z.string().trim().optional().nullable(),
   plannedCost: z.coerce.number().nonnegative().default(0),
@@ -876,6 +1041,7 @@ function wbsItemSnapshotData(projectId: string, item: z.infer<typeof wbsSnapshot
     excelEndDate: item.excelEndDate ? new Date(item.excelEndDate) : null,
     planWorkDays: item.planWorkDays ?? null,
     planCalendarDays: item.planCalendarDays ?? null,
+    calendarCode: item.calendarCode,
     templateColor: item.templateColor || null,
     priority: item.priority || null,
     plannedCost: item.plannedCost,
@@ -1139,6 +1305,7 @@ app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
           : null,
       planWorkDays: parsed.data.planWorkDays ?? null,
       planCalendarDays: parsed.data.planCalendarDays ?? null,
+      calendarCode: parsed.data.calendarCode,
       templateColor: parsed.data.templateColor || null,
       priority: parsed.data.priority || null,
       plannedCost: parsed.data.plannedCost,
@@ -1251,6 +1418,7 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
       planWorkDays: parsed.data.planWorkDays === undefined ? undefined : parsed.data.planWorkDays ?? null,
       planCalendarDays:
         parsed.data.planCalendarDays === undefined ? undefined : parsed.data.planCalendarDays ?? null,
+      calendarCode: parsed.data.calendarCode,
       templateColor: parsed.data.templateColor === undefined ? undefined : parsed.data.templateColor || null,
       priority: parsed.data.priority === undefined ? undefined : parsed.data.priority || null,
       plannedCost: parsed.data.plannedCost,
@@ -1279,6 +1447,31 @@ app.post('/api/projects/:projectId/wbs-items/renumber', async (req, res) => {
   const updatedCount = await renumberProjectWbs(project.id);
   res.json({
     updatedCount,
+    ...(await getProjectWbsSnapshot(project.id)),
+  });
+});
+
+app.post('/api/projects/:projectId/wbs-baseline', async (req, res) => {
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  await prisma.$executeRaw`
+    UPDATE "WbsItem"
+    SET
+      "baselineStartDate" = "startDate",
+      "baselineDueDate" = "dueDate",
+      "forecastStartDate" = COALESCE("forecastStartDate", "startDate"),
+      "forecastDueDate" = COALESCE("forecastDueDate", "dueDate")
+    WHERE "projectId" = ${project.id}
+  `;
+
+  res.json({
     ...(await getProjectWbsSnapshot(project.id)),
   });
 });
@@ -1439,7 +1632,7 @@ app.post('/api/projects/:projectId/wbs-dependencies', async (req, res) => {
     },
   });
   if (items.length !== 2) {
-    res.status(400).json({ error: 'Both WBS items must belong to the project' });
+    res.status(400).json({ error: 'Both элементы Структуры must belong to the project' });
     return;
   }
 
@@ -1892,9 +2085,9 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     {
       label: 'Progress',
       value: `${project.progress}%`,
-      secondary: `${completedWbs}/${project.wbsItems.length || 0} WBS done`,
+      secondary: `${completedWbs}/${project.wbsItems.length || 0} Структура done`,
       tone: overviewTone(project.progress >= 80 ? 'green' : project.progress >= 45 ? 'amber' : 'neutral'),
-      source: 'WBS baseline',
+      source: 'Базовый план Структуры',
     },
     {
       label: 'Schedule',
@@ -1942,15 +2135,15 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       status: project.wbsItems.length === 0 || missingWbsDates > 0 ? 'WARN' : 'OK',
       detail:
         missingWbsDates > 0
-          ? `${missingWbsDates} WBS item(s) do not have both start and due dates`
-          : `${project.wbsItems.length} WBS item(s) have schedule data`,
-      source: 'WBS',
+          ? `${missingWbsDates} элемент(ов) Структуры do not have both start and due dates`
+          : `${project.wbsItems.length} элемент(ов) Структуры have schedule data`,
+      source: 'Структура',
     },
     {
       name: 'Blockers control',
       status: criticalIssues.length > 0 || blockedWbs > 0 ? 'BLOCKED' : decisionIssues.length > 0 || atRiskWbs > 0 ? 'WARN' : 'OK',
-      detail: `${criticalIssues.length} critical issue(s), ${blockedWbs} blocked WBS item(s), ${decisionIssues.length} decision(s) required`,
-      source: 'Open Issues + WBS',
+      detail: `${criticalIssues.length} critical issue(s), ${blockedWbs} blocked элемент(ов) Структуры, ${decisionIssues.length} decision(s) required`,
+      source: 'Open Issues + Структура',
     },
     {
       name: 'Management evidence',
@@ -1998,9 +2191,9 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
         title: `${item.code} ${item.title}`,
         severity: item.status === 'BLOCKED' ? 'HIGH' : 'MEDIUM',
         owner: item.owner,
-        impact: item.description ?? 'WBS item requires management attention',
+        impact: item.description ?? 'Элемент Структуры требует внимания руководства',
         dueDate: isoDate(item.dueDate),
-        source: 'WBS',
+        source: 'Структура',
       })),
   ];
 
@@ -2068,7 +2261,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       source: `Finance forecast / ${money(project.budgetForecast)}`,
     },
     {
-      metric: 'WBS',
+      metric: 'Структура',
       source: `${project.wbsItems.length} items / ${project.wbsItems.filter((item) => item.status === 'DONE').length} done`,
     },
     {

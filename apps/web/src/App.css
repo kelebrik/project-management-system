@@ -106,6 +106,11 @@
   grid-template-columns: 28px minmax(0, 1fr);
 }
 
+.sidebar-group > .project-picker {
+  margin-left: 10px;
+  width: calc(100% - 10px);
+}
+
 .sidebar button {
   cursor: pointer;
 }
@@ -225,12 +230,13 @@
 }
 
 .project-picker select {
-  background: #fff;
+  background-color: #fff;
   border-color: #cbd5e1;
   color: #1f2937;
   font-size: 12px;
   height: 36px;
   padding: 8px 10px;
+  padding-right: 34px;
 }
 
 .project-menu {
@@ -362,6 +368,35 @@ h1 {
   line-height: 1.15;
 }
 
+.project-title-edit {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(280px, 680px);
+}
+
+.project-title-edit span {
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.project-title-edit input {
+  border-color: transparent;
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.15;
+  padding: 4px 6px;
+}
+
+.project-title-edit input:hover,
+.project-title-edit input:focus {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
 h2 {
   font-size: 17px;
   line-height: 1.25;
@@ -384,6 +419,29 @@ button,
   font: inherit;
   padding: 9px 12px;
   text-decoration: none;
+}
+
+select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #475569 50%),
+    linear-gradient(135deg, #475569 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 12px) 50%;
+  background-repeat: no-repeat;
+  background-size:
+    6px 6px,
+    6px 6px;
+  padding-right: 34px;
+}
+
+select:focus,
+input:focus,
+textarea:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.35);
+  outline: none;
 }
 
 input,
@@ -994,6 +1052,7 @@ code {
   background: #fff;
   border: 1px solid #d8e0eb;
   border-radius: 6px;
+  margin-top: 8px;
   margin-bottom: 18px;
   max-height: 456px;
   overflow: auto;
@@ -1159,6 +1218,10 @@ code {
 .gantt-bar.blocked,
 .gantt-bar.tone-r {
   background: #ef5350;
+}
+
+.gantt-bar.tone-p {
+  background: #f472b6;
 }
 
 .gantt-bar.tone-o {
@@ -1331,7 +1394,7 @@ code {
 
 .wbs-gantt-layout {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .wbs-history-toolbar {
@@ -1361,6 +1424,109 @@ code {
   border-radius: 6px;
   max-height: 760px;
   overflow: auto;
+}
+
+.calendar-page {
+  display: grid;
+  gap: 18px;
+}
+
+.calendar-board {
+  border: 1px solid #d8e0eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.calendar-board-title {
+  align-items: center;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.calendar-board-title span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.calendar-months {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  padding: 16px;
+}
+
+.calendar-month {
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.calendar-month > strong {
+  background: #d1d5db;
+  color: #1f2937;
+  display: block;
+  font-size: 15px;
+  padding: 9px;
+  text-align: center;
+}
+
+.calendar-weekdays,
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendar-weekdays span {
+  background: #eef2f7;
+  border-bottom: 1px solid #d1d5db;
+  border-right: 1px solid #d1d5db;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 7px 2px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.calendar-weekdays span:nth-child(6),
+.calendar-weekdays span:nth-child(7) {
+  color: #ef4444;
+}
+
+.calendar-day {
+  align-items: center;
+  border: 0;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+}
+
+.calendar-day.working {
+  background: #fff;
+  color: #111827;
+}
+
+.calendar-day.holiday {
+  background: #fff7f7;
+  color: #ef4444;
+}
+
+.calendar-day.custom {
+  box-shadow: inset 0 0 0 2px #93c5fd;
+}
+
+.calendar-day.empty {
+  background: #f8fafc;
 }
 
 .wbs-excel-table {
@@ -1762,6 +1928,11 @@ code {
 .wbs-color-dot.tone-r,
 .milestone-dot.tone-r {
   background: #dc2626;
+}
+
+.wbs-color-dot.tone-p,
+.milestone-dot.tone-p {
+  background: #f472b6;
 }
 
 .wbs-color-dot.tone-o,
