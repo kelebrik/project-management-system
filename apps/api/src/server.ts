@@ -273,23 +273,34 @@ app.patch('/api/projects/:projectId', async (req, res) => {
     return;
   }
 
-  const updated = await prisma.project.update({
-    where: { id: project.id },
-    data: {
-      ...parsed.data,
-      parentId: parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
-      startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : undefined,
-      targetDate: parsed.data.targetDate ? new Date(parsed.data.targetDate) : undefined,
-      budgetPlanned: parsed.data.budgetPlanned,
-      budgetForecast: parsed.data.budgetForecast,
-      uiState:
-        parsed.data.uiState === undefined
-          ? undefined
-          : sanitizeProjectUiState(parsed.data.uiState),
-    },
-  });
+  try {
+    const updated = await prisma.project.update({
+      where: { id: project.id },
+      data: {
+        ...parsed.data,
+        parentId: parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
+        startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : undefined,
+        targetDate: parsed.data.targetDate ? new Date(parsed.data.targetDate) : undefined,
+        budgetPlanned: parsed.data.budgetPlanned,
+        budgetForecast: parsed.data.budgetForecast,
+        uiState:
+          parsed.data.uiState === undefined
+            ? undefined
+            : sanitizeProjectUiState(parsed.data.uiState),
+      },
+    });
 
-  res.json(updated);
+    res.json(updated);
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      res.status(409).json({ error: 'Project code already exists' });
+      return;
+    }
+    throw error;
+  }
 });
 
 app.get('/api/projects/:projectId/overview', async (req, res) => {

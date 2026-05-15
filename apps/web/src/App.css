@@ -756,6 +756,94 @@ code {
   justify-content: flex-end;
 }
 
+.project-admin-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.project-admin-head,
+.project-admin-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns:
+    132px minmax(260px, 1.35fr) minmax(220px, 0.9fr) 160px 132px 108px
+    104px 190px;
+  min-width: 1320px;
+}
+
+.project-admin-head {
+  background: #eaf0f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  min-height: 42px;
+  text-transform: uppercase;
+}
+
+.project-admin-head span,
+.project-admin-row label,
+.project-admin-actions {
+  min-width: 0;
+  padding: 10px;
+}
+
+.project-admin-row {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+}
+
+.project-admin-row label {
+  border-right: 1px solid #e5edf6;
+  display: grid;
+  gap: 4px;
+}
+
+.project-admin-row label > span {
+  color: #64748b;
+  display: none;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.project-admin-row input,
+.project-admin-row select {
+  font-size: 13px;
+  min-height: 38px;
+  padding-bottom: 7px;
+  padding-top: 7px;
+}
+
+.project-admin-name {
+  position: relative;
+}
+
+.project-admin-name::before {
+  background: #cbd5e1;
+  content: "";
+  display: block;
+  height: 1px;
+  left: 10px;
+  position: absolute;
+  top: 50%;
+  width: 12px;
+}
+
+.project-admin-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.project-admin-actions button {
+  min-height: 38px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
 .two-col {
   display: grid;
   gap: 12px;
@@ -2581,6 +2669,8 @@ code {
   .artifact-edit-grid,
   .project-tree-head,
   .project-tree-row,
+  .project-admin-head,
+  .project-admin-row,
   .artifact-head,
   .artifact-row,
   .raid-row,
@@ -2632,10 +2722,35 @@ code {
   }
 
   .project-tree-head,
+  .project-admin-head,
   .artifact-head,
   .raid-head,
   .cr-head {
     display: none;
+  }
+
+  .project-admin-table {
+    overflow-x: visible;
+  }
+
+  .project-admin-row {
+    border: 1px solid #dbe4ef;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    min-width: 0;
+  }
+
+  .project-admin-row label {
+    border-right: 0;
+    padding: 8px 10px;
+  }
+
+  .project-admin-row label > span {
+    display: block;
+  }
+
+  .project-admin-actions {
+    justify-content: flex-end;
   }
 
   .project-tree-row > span:not(.project-tree-title),

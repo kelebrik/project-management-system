@@ -119,6 +119,16 @@ type ProjectFormState = {
   sortOrder: string;
 };
 
+type ProjectRegistryDraft = {
+  parentId: string;
+  code: string;
+  name: string;
+  projectManager: string;
+  status: ProjectListItem["status"];
+  rag: RagStatus;
+  sortOrder: string;
+};
+
 type Task = {
   id: string;
   title: string;
@@ -854,6 +864,24 @@ function projectToForm(
   };
 }
 
+function projectToRegistryDraft(project: ProjectListItem): ProjectRegistryDraft {
+  return {
+    parentId: project.parentId ?? "",
+    code: project.code,
+    name: project.name,
+    projectManager: project.projectManager,
+    status: project.status,
+    rag: project.rag,
+    sortOrder: String(project.sortOrder),
+  };
+}
+
+function projectsToRegistryDrafts(projects: ProjectListItem[]) {
+  return Object.fromEntries(
+    projects.map((project) => [project.id, projectToRegistryDraft(project)]),
+  );
+}
+
 function currency(value: string) {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -1216,6 +1244,9 @@ function App() {
   const [savingProjectTitle, setSavingProjectTitle] = useState(false);
   const [savingBaseline, setSavingBaseline] = useState(false);
   const [savingCalendar, setSavingCalendar] = useState<string | null>(null);
+  const [savingProjectRegistryId, setSavingProjectRegistryId] = useState<
+    string | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [jiraForm, setJiraForm] = useState<JiraFormState>({
@@ -1230,6 +1261,9 @@ function App() {
     useState<ProjectFormState>(emptyProjectForm);
   const [newProjectForm, setNewProjectForm] =
     useState<ProjectFormState>(() => newProjectFormDefaults());
+  const [projectRegistryDrafts, setProjectRegistryDrafts] = useState<
+    Record<string, ProjectRegistryDraft>
+  >({});
   const [milestoneForm, setMilestoneForm] =
     useState<MilestoneFormState>(emptyMilestoneForm);
   const [artifactForm, setArtifactForm] =
@@ -1294,6 +1328,7 @@ function App() {
       .then((data: ProjectListItem[]) => {
         const firstProject = data[0];
         setProjects(data);
+        setProjectRegistryDrafts(projectsToRegistryDrafts(data));
         setSelectedProjectId(firstProject?.id ?? null);
       })
       .catch(() => setError("Не удалось загрузить список проектов"))
@@ -2240,6 +2275,7 @@ function App() {
     const response = await fetch(`${apiBase}/api/projects`);
     const data: ProjectListItem[] = await response.json();
     setProjects(data);
+    setProjectRegistryDrafts(projectsToRegistryDrafts(data));
     if (selectedId) {
       setSelectedProjectId(selectedId);
     }
@@ -2352,6 +2388,76 @@ function App() {
       );
     } finally {
       setSavingProjectTitle(false);
+    }
+  }
+
+  function updateProjectRegistryDraft(
+    projectId: string,
+    patch: Partial<ProjectRegistryDraft>,
+  ) {
+    setProjectRegistryDrafts((current) => {
+      const sourceProject = projects.find((item) => item.id === projectId);
+      const currentDraft =
+        current[projectId] ??
+        (sourceProject ? projectToRegistryDraft(sourceProject) : null);
+      if (!currentDraft) return current;
+      return {
+        ...current,
+        [projectId]: {
+          ...currentDraft,
+          ...patch,
+        },
+      };
+    });
+  }
+
+  async function saveProjectRegistryItem(projectId: string) {
+    const draft = projectRegistryDrafts[projectId];
+    if (!draft) return;
+    const code = draft.code.trim();
+    const name = draft.name.trim();
+    if (!code || !name) {
+      setError("Код и наименование проекта обязательны");
+      return;
+    }
+    setSavingProjectRegistryId(projectId);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          name,
+          parentId: draft.parentId || null,
+          projectManager: draft.projectManager.trim() || "Project manager",
+          status: draft.status,
+          rag: draft.rag,
+          sortOrder: Number(draft.sortOrder) || 0,
+        }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          result?.error?.formErrors?.join(", ") ||
+            result?.error ||
+            "Не удалось сохранить проект",
+        );
+      }
+      await reloadProjects(selectedProjectId ?? projectId);
+      if (project?.id === projectId) {
+        await refreshProject(projectId);
+      }
+      setNotice(`Проект ${code} обновлен`);
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить проект",
+      );
+    } finally {
+      setSavingProjectRegistryId(null);
     }
   }
 
@@ -4301,7 +4407,8 @@ function App() {
 
         {(project ||
           activeView === "portfolio" ||
-          activeView === "project-create") && (
+          activeView === "project-create" ||
+          activeView === "admin") && (
           <>
             {activeView === "portfolio" && (
               <section className="summary-grid">
@@ -4647,6 +4754,173 @@ function App() {
                       <button type="submit">Создать проект</button>
                     </div>
                   </form>
+                </article>
+              )}
+
+              {activeView === "admin" && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Admin Back: реестр проектов</h2>
+                      <p>
+                        Управление кодами, наименованиями и иерархией проектов
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView("project-create")}
+                    >
+                      Создать проект
+                    </button>
+                  </div>
+                  <div className="project-admin-table">
+                    <div className="project-admin-head">
+                      <span>Код</span>
+                      <span>Наименование</span>
+                      <span>Родитель</span>
+                      <span>PM</span>
+                      <span>Статус</span>
+                      <span>RAG</span>
+                      <span>Порядок</span>
+                      <span />
+                    </div>
+                    {projectTree.map((item) => {
+                      const draft =
+                        projectRegistryDrafts[item.id] ??
+                        projectToRegistryDraft(item);
+                      return (
+                        <div className="project-admin-row" key={item.id}>
+                          <label>
+                            <span>Код</span>
+                            <input
+                              value={draft.code}
+                              onChange={(event) =>
+                                updateProjectRegistryDraft(item.id, {
+                                  code: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label
+                            className="project-admin-name"
+                            style={{
+                              paddingLeft: `${Math.min(item.level * 18, 72)}px`,
+                            }}
+                          >
+                            <span>Наименование</span>
+                            <input
+                              value={draft.name}
+                              onChange={(event) =>
+                                updateProjectRegistryDraft(item.id, {
+                                  name: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>Родитель</span>
+                            <select
+                              value={draft.parentId}
+                              onChange={(event) =>
+                                updateProjectRegistryDraft(item.id, {
+                                  parentId: event.target.value,
+                                })
+                              }
+                            >
+                              <option value="">Root</option>
+                              {projectTree
+                                .filter((option) => option.id !== item.id)
+                                .map((option) => (
+                                  <option key={option.id} value={option.id}>
+                                    {"- ".repeat(option.level)}
+                                    {projectOptionLabel(option)}
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                          <label>
+                            <span>PM</span>
+                            <input
+                              value={draft.projectManager}
+                              onChange={(event) =>
+                                updateProjectRegistryDraft(item.id, {
+                                  projectManager: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>Статус</span>
+                            <select
+                              value={draft.status}
+                              onChange={(event) =>
+                                updateProjectRegistryDraft(item.id, {
+                                  status: event.target
+                                    .value as ProjectRegistryDraft["status"],
+                                })
+                              }
+                            >
+                              <option value="DRAFT">Draft</option>
+                              <option value="ACTIVE">Active</option>
+                              <option value="ON_HOLD">On hold</option>
+                              <option value="CLOSED">Closed</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>RAG</span>
+                            <select
+                              value={draft.rag}
+                              onChange={(event) =>
+                                updateProjectRegistryDraft(item.id, {
+                                  rag: event.target.value as RagStatus,
+                                })
+                              }
+                            >
+                              <option value="GREEN">Green</option>
+                              <option value="AMBER">Amber</option>
+                              <option value="RED">Red</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>Порядок</span>
+                            <input
+                              type="number"
+                              value={draft.sortOrder}
+                              onChange={(event) =>
+                                updateProjectRegistryDraft(item.id, {
+                                  sortOrder: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <div className="project-admin-actions">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                selectProject(item.id, "project-overview")
+                              }
+                            >
+                              Открыть
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void saveProjectRegistryItem(item.id)
+                              }
+                              disabled={savingProjectRegistryId === item.id}
+                            >
+                              {savingProjectRegistryId === item.id
+                                ? "Сохраняю..."
+                                : "Сохранить"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {projects.length === 0 && (
+                      <div className="empty-state">Проекты еще не созданы.</div>
+                    )}
+                  </div>
                 </article>
               )}
 
