@@ -873,13 +873,16 @@ app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => 
     }
 
     const afterItem = items[afterIndex];
-    const insertedLevel = levelFromWbsItem(afterItem);
-    let parentId: string | null = null;
-    for (let index = insertIndex - 1; index >= 0; index -= 1) {
-      const candidate = items[index];
-      if (levelFromWbsItem(candidate) < insertedLevel) {
-        parentId = candidate.id;
-        break;
+    const beforeItem = items[insertIndex] ?? null;
+    const insertedLevel = beforeItem ? levelFromWbsItem(beforeItem) : levelFromWbsItem(afterItem);
+    let parentId: string | null = beforeItem?.parentId ?? null;
+    if (!beforeItem) {
+      for (let index = insertIndex - 1; index >= 0; index -= 1) {
+        const candidate = items[index];
+        if (levelFromWbsItem(candidate) < insertedLevel) {
+          parentId = candidate.id;
+          break;
+        }
       }
     }
 
