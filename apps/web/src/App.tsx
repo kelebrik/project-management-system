@@ -3,8 +3,10 @@ import {
   type DragEvent as ReactDragEvent,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import "./App.css";
@@ -1177,6 +1179,8 @@ function App() {
   const [wbsUndoStack, setWbsUndoStack] = useState<WbsSnapshot[]>([]);
   const [wbsRedoStack, setWbsRedoStack] = useState<WbsSnapshot[]>([]);
   const [restoringWbsSnapshot, setRestoringWbsSnapshot] = useState(false);
+  const wbsUndoStackRef = useRef<WbsSnapshot[]>([]);
+  const wbsRedoStackRef = useRef<WbsSnapshot[]>([]);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
     {},
   );
@@ -1201,13 +1205,15 @@ function App() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (!selectedProjectId) return;
-    fetch(`${apiBase}/api/projects/${selectedProjectId}/overview`)
-      .then((response) => response.json())
-      .then((data: ProjectDetails) => applyProject(data))
-      .catch(() => setError("Не удалось загрузить проект"));
-  }, [selectedProjectId]);
+  const setWbsUndoHistory = useCallback((nextStack: WbsSnapshot[]) => {
+    wbsUndoStackRef.current = nextStack;
+    setWbsUndoStack(nextStack);
+  }, []);
+
+  const setWbsRedoHistory = useCallback((nextStack: WbsSnapshot[]) => {
+    wbsRedoStackRef.current = nextStack;
+    setWbsRedoStack(nextStack);
+  }, []);
 
   const latestOverview = project?.overviews[0];
   const projectTree = useMemo(() => buildProjectTree(projects), [projects]);
@@ -1757,104 +1763,115 @@ function App() {
     }
   }
 
-  function applyProject(nextProject: ProjectDetails) {
-    setProject(nextProject);
-    setWbsUndoStack([]);
-    setWbsRedoStack([]);
-    setSidebarCollapsed(nextProject.uiState?.sidebarCollapsed ?? false);
-    setWbsColumnOrder(
-      normalizeWbsColumnOrder(nextProject.uiState?.wbsColumnOrder),
-    );
-    setWbsColumnWidths((current) =>
-      normalizeWbsColumnWidths({
-        ...current,
-        ...(nextProject.uiState?.wbsColumnWidths ?? {}),
-      }),
-    );
-    setProjectForm(projectToForm(nextProject));
-    setJiraForm({
-      baseUrl: nextProject.jiraIntegration?.baseUrl ?? "",
-      boardUrl: nextProject.jiraIntegration?.boardUrl ?? "",
-      projectKey: nextProject.jiraIntegration?.projectKey ?? "",
-      issuesJql: nextProject.jiraIntegration?.issuesJql ?? "",
-      openIssuesJql: nextProject.jiraIntegration?.openIssuesJql ?? "",
-    });
-    setTaskDrafts(
-      Object.fromEntries(
-        nextProject.tasks.map((task) => [
-          task.id,
-          {
-            jiraTicketKey: task.jiraTicketKey ?? "",
-            jiraTicketUrl: task.jiraTicketUrl ?? "",
-          },
-        ]),
-      ),
-    );
-    setIssueLinkDrafts(
-      Object.fromEntries(
-        nextProject.issues.map((issue) => [
-          issue.id,
-          { jiraKey: "", jiraUrl: "" },
-        ]),
-      ),
-    );
-    setIssueEditDrafts(
-      Object.fromEntries(
-        nextProject.issues.map((issue) => [issue.id, issueToDraft(issue)]),
-      ),
-    );
-    setExpandedIssueId((currentIssueId) =>
-      nextProject.issues.some((issue) => issue.id === currentIssueId)
-        ? currentIssueId
-        : null,
-    );
-    setWbsDrafts(
-      Object.fromEntries(
-        nextProject.wbsItems.map((item) => [item.id, wbsToForm(item)]),
-      ),
-    );
-    setCollapsedWbsIds(
-      (currentIds) =>
-        new Set(
-          [...currentIds].filter((itemId) =>
-            nextProject.wbsItems.some((item) => item.id === itemId),
-          ),
+  const applyProject = useCallback(
+    (nextProject: ProjectDetails) => {
+      setProject(nextProject);
+      setWbsUndoHistory([]);
+      setWbsRedoHistory([]);
+      setSidebarCollapsed(nextProject.uiState?.sidebarCollapsed ?? false);
+      setWbsColumnOrder(
+        normalizeWbsColumnOrder(nextProject.uiState?.wbsColumnOrder),
+      );
+      setWbsColumnWidths((current) =>
+        normalizeWbsColumnWidths({
+          ...current,
+          ...(nextProject.uiState?.wbsColumnWidths ?? {}),
+        }),
+      );
+      setProjectForm(projectToForm(nextProject));
+      setJiraForm({
+        baseUrl: nextProject.jiraIntegration?.baseUrl ?? "",
+        boardUrl: nextProject.jiraIntegration?.boardUrl ?? "",
+        projectKey: nextProject.jiraIntegration?.projectKey ?? "",
+        issuesJql: nextProject.jiraIntegration?.issuesJql ?? "",
+        openIssuesJql: nextProject.jiraIntegration?.openIssuesJql ?? "",
+      });
+      setTaskDrafts(
+        Object.fromEntries(
+          nextProject.tasks.map((task) => [
+            task.id,
+            {
+              jiraTicketKey: task.jiraTicketKey ?? "",
+              jiraTicketUrl: task.jiraTicketUrl ?? "",
+            },
+          ]),
         ),
-    );
-    setArtifactDrafts(
-      Object.fromEntries(
-        nextProject.artifacts.map((item) => [item.id, artifactToForm(item)]),
-      ),
-    );
-    setExpandedArtifactId((currentArtifactId) =>
-      nextProject.artifacts.some((item) => item.id === currentArtifactId)
-        ? currentArtifactId
-        : null,
-    );
-    setRaidDrafts(
-      Object.fromEntries(
-        nextProject.raidItems.map((item) => [item.id, raidToForm(item)]),
-      ),
-    );
-    setExpandedRaidId((currentRaidId) =>
-      nextProject.raidItems.some((item) => item.id === currentRaidId)
-        ? currentRaidId
-        : null,
-    );
-    setChangeRequestDrafts(
-      Object.fromEntries(
-        nextProject.changeRequests.map((item) => [
-          item.id,
-          changeRequestToForm(item),
-        ]),
-      ),
-    );
-    setExpandedChangeRequestId((currentRequestId) =>
-      nextProject.changeRequests.some((item) => item.id === currentRequestId)
-        ? currentRequestId
-        : null,
-    );
-  }
+      );
+      setIssueLinkDrafts(
+        Object.fromEntries(
+          nextProject.issues.map((issue) => [
+            issue.id,
+            { jiraKey: "", jiraUrl: "" },
+          ]),
+        ),
+      );
+      setIssueEditDrafts(
+        Object.fromEntries(
+          nextProject.issues.map((issue) => [issue.id, issueToDraft(issue)]),
+        ),
+      );
+      setExpandedIssueId((currentIssueId) =>
+        nextProject.issues.some((issue) => issue.id === currentIssueId)
+          ? currentIssueId
+          : null,
+      );
+      setWbsDrafts(
+        Object.fromEntries(
+          nextProject.wbsItems.map((item) => [item.id, wbsToForm(item)]),
+        ),
+      );
+      setCollapsedWbsIds(
+        (currentIds) =>
+          new Set(
+            [...currentIds].filter((itemId) =>
+              nextProject.wbsItems.some((item) => item.id === itemId),
+            ),
+          ),
+      );
+      setArtifactDrafts(
+        Object.fromEntries(
+          nextProject.artifacts.map((item) => [item.id, artifactToForm(item)]),
+        ),
+      );
+      setExpandedArtifactId((currentArtifactId) =>
+        nextProject.artifacts.some((item) => item.id === currentArtifactId)
+          ? currentArtifactId
+          : null,
+      );
+      setRaidDrafts(
+        Object.fromEntries(
+          nextProject.raidItems.map((item) => [item.id, raidToForm(item)]),
+        ),
+      );
+      setExpandedRaidId((currentRaidId) =>
+        nextProject.raidItems.some((item) => item.id === currentRaidId)
+          ? currentRaidId
+          : null,
+      );
+      setChangeRequestDrafts(
+        Object.fromEntries(
+          nextProject.changeRequests.map((item) => [
+            item.id,
+            changeRequestToForm(item),
+          ]),
+        ),
+      );
+      setExpandedChangeRequestId((currentRequestId) =>
+        nextProject.changeRequests.some((item) => item.id === currentRequestId)
+          ? currentRequestId
+          : null,
+      );
+    },
+    [setWbsRedoHistory, setWbsUndoHistory],
+  );
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    fetch(`${apiBase}/api/projects/${selectedProjectId}/overview`)
+      .then((response) => response.json())
+      .then((data: ProjectDetails) => applyProject(data))
+      .catch(() => setError("Не удалось загрузить проект"));
+  }, [applyProject, selectedProjectId]);
 
   function applyWbsItems(nextItems: WbsItem[]) {
     setProject((current) =>
@@ -1889,14 +1906,11 @@ function App() {
   function rememberWbsSnapshot() {
     const snapshot = getCurrentWbsSnapshot();
     if (!snapshot) return null;
-    setWbsUndoStack((current) => {
-      const previous = current.at(-1);
-      if (previous && wbsSnapshotsEqual(previous, snapshot)) {
-        return current;
-      }
-      return [...current, snapshot].slice(-10);
-    });
-    setWbsRedoStack([]);
+    const previous = wbsUndoStackRef.current.at(-1);
+    if (!previous || !wbsSnapshotsEqual(previous, snapshot)) {
+      setWbsUndoHistory([...wbsUndoStackRef.current, snapshot].slice(-10));
+    }
+    setWbsRedoHistory([]);
     return snapshot;
   }
 
@@ -1938,12 +1952,12 @@ function App() {
         await refreshProject(project.id);
       }
       if (direction === "undo") {
-        setWbsRedoStack((current) => [...current, currentSnapshot].slice(-10));
-        setWbsUndoStack((current) => current.slice(0, -1));
+        setWbsRedoHistory([...wbsRedoStackRef.current, currentSnapshot].slice(-10));
+        setWbsUndoHistory(wbsUndoStackRef.current.slice(0, -1));
         setNotice("WBS откат выполнен");
       } else {
-        setWbsUndoStack((current) => [...current, currentSnapshot].slice(-10));
-        setWbsRedoStack((current) => current.slice(0, -1));
+        setWbsUndoHistory([...wbsUndoStackRef.current, currentSnapshot].slice(-10));
+        setWbsRedoHistory(wbsRedoStackRef.current.slice(0, -1));
         setNotice("WBS изменение восстановлено");
       }
     } catch (restoreError) {
@@ -1958,13 +1972,13 @@ function App() {
   }
 
   async function undoWbsChange() {
-    const snapshot = wbsUndoStack.at(-1);
+    const snapshot = wbsUndoStackRef.current.at(-1);
     if (!snapshot) return;
     await restoreWbsSnapshot(snapshot, "undo");
   }
 
   async function redoWbsChange() {
-    const snapshot = wbsRedoStack.at(-1);
+    const snapshot = wbsRedoStackRef.current.at(-1);
     if (!snapshot) return;
     await restoreWbsSnapshot(snapshot, "redo");
   }
@@ -3225,9 +3239,9 @@ function App() {
         );
       }
     } catch (reorderError) {
-      setWbsUndoStack((current) =>
-        previousSnapshot ? current.slice(0, -1) : current,
-      );
+      if (previousSnapshot) {
+        setWbsUndoHistory(wbsUndoStackRef.current.slice(0, -1));
+      }
       await refreshProject(project.id);
       setError(
         reorderError instanceof Error
@@ -4832,6 +4846,7 @@ function App() {
                       <button
                         type="button"
                         onClick={() => void undoWbsChange()}
+                        onMouseDown={(event) => event.preventDefault()}
                         disabled={
                           restoringWbsSnapshot || wbsUndoStack.length === 0
                         }
@@ -4843,6 +4858,7 @@ function App() {
                       <button
                         type="button"
                         onClick={() => void redoWbsChange()}
+                        onMouseDown={(event) => event.preventDefault()}
                         disabled={
                           restoringWbsSnapshot || wbsRedoStack.length === 0
                         }
