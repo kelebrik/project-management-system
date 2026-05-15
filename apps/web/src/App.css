@@ -1387,7 +1387,7 @@ code {
 .wbs-column-header.structure-column,
 .wbs-cell-structure {
   background: #eef2f7;
-  left: var(--wbs-level-width, 116px);
+  left: var(--wbs-level-width, 128px);
   position: sticky;
   z-index: 8;
 }
@@ -1420,6 +1420,10 @@ code {
 
 .wbs-row-stack {
   position: relative;
+}
+
+.wbs-row-stack:hover {
+  z-index: 14;
 }
 
 .wbs-row-stack.dragging {
@@ -1486,10 +1490,10 @@ code {
 .wbs-level-cell {
   align-items: center;
   box-sizing: border-box;
-  column-gap: 4px;
+  column-gap: 6px;
   display: grid;
-  grid-template-columns: 48px 24px minmax(28px, 1fr);
-  padding: 0 4px;
+  grid-template-columns: 24px minmax(24px, 1fr) 48px;
+  padding: 0 6px;
   position: relative;
 }
 
@@ -1524,7 +1528,9 @@ code {
 }
 
 .wbs-level-input {
-  padding-left: 4px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  text-align: center;
 }
 
 .wbs-level-input::-webkit-inner-spin-button,
@@ -1548,15 +1554,15 @@ code {
   font-weight: 900;
   height: 22px;
   justify-content: center;
-  left: 15px;
+  right: 19px;
   opacity: 0;
   padding: 0;
   pointer-events: none;
   position: absolute;
-  top: calc(100% - 11px);
+  top: calc(100% - 6px);
   transition: opacity 120ms ease;
   width: 22px;
-  z-index: 12;
+  z-index: 16;
 }
 
 .wbs-row-drag-handle,

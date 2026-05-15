@@ -494,6 +494,8 @@ type WbsTableCssProperties = CSSProperties & {
   "--wbs-level-width": string;
 };
 
+const WBS_LEVEL_MIN_WIDTH = 128;
+
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -585,7 +587,7 @@ const emptyChangeRequestForm: ChangeRequestFormState = {
 };
 
 const WBS_TABLE_COLUMNS = [
-  { key: "level", label: "Level", width: 116 },
+  { key: "level", label: "Level", width: WBS_LEVEL_MIN_WIDTH },
   { key: "structure", label: "Структура", width: 420 },
   { key: "type", label: "Type", width: 132 },
   { key: "status", label: "Status", width: 136 },
@@ -633,7 +635,10 @@ function normalizeWbsColumnWidths(
   return {
     ...defaultWidths,
     ...widths,
-    level: Math.max(116, widths?.level ?? defaultWidths.level),
+    level: Math.max(
+      WBS_LEVEL_MIN_WIDTH,
+      widths?.level ?? defaultWidths.level,
+    ),
   };
 }
 
@@ -2645,46 +2650,6 @@ function App() {
       case "level":
         return (
           <div className="wbs-level-cell">
-            <div className="wbs-row-controls">
-              <button
-                type="button"
-                className="wbs-row-drag-handle"
-                draggable
-                onDragStart={(event) => {
-                  setDraggedWbsItemId(item.id);
-                  event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("application/x-wbs-item", item.id);
-                }}
-                onDragEnd={() => {
-                  setDraggedWbsItemId(null);
-                  setWbsDropTargetId(null);
-                }}
-                aria-label="Перетащить WBS строку"
-              >
-                ::
-              </button>
-              <button
-                type="button"
-                className="wbs-row-delete-button"
-                onClick={() => deleteWbsItem(item.id)}
-                aria-label="Удалить WBS строку"
-              >
-                x
-              </button>
-            </div>
-            <button
-              type="button"
-              className="wbs-inline-insert-button"
-              onClick={() => {
-                const afterIndex = visibleWbsTree.findIndex(
-                  (visibleItem) => visibleItem.id === item.id,
-                );
-                if (afterIndex >= 0) void insertWbsRow(afterIndex);
-              }}
-              aria-label="Добавить WBS строку ниже"
-            >
-              +
-            </button>
             <div
               className="wbs-level-stepper"
               aria-label="Изменить уровень вложения"
@@ -2733,6 +2698,46 @@ function App() {
               }
               onBlur={() => void saveWbsItem(item.id, { silent: true })}
             />
+            <div className="wbs-row-controls">
+              <button
+                type="button"
+                className="wbs-row-drag-handle"
+                draggable
+                onDragStart={(event) => {
+                  setDraggedWbsItemId(item.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("application/x-wbs-item", item.id);
+                }}
+                onDragEnd={() => {
+                  setDraggedWbsItemId(null);
+                  setWbsDropTargetId(null);
+                }}
+                aria-label="Перетащить WBS строку"
+              >
+                ::
+              </button>
+              <button
+                type="button"
+                className="wbs-row-delete-button"
+                onClick={() => deleteWbsItem(item.id)}
+                aria-label="Удалить WBS строку"
+              >
+                x
+              </button>
+            </div>
+            <button
+              type="button"
+              className="wbs-inline-insert-button"
+              onClick={() => {
+                const afterIndex = visibleWbsTree.findIndex(
+                  (visibleItem) => visibleItem.id === item.id,
+                );
+                if (afterIndex >= 0) void insertWbsRow(afterIndex);
+              }}
+              aria-label="Добавить WBS строку ниже"
+            >
+              +
+            </button>
           </div>
         );
       case "type":
