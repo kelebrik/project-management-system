@@ -1873,9 +1873,18 @@ function App() {
       .catch(() => setError("Не удалось загрузить проект"));
   }, [applyProject, selectedProjectId]);
 
-  function applyWbsItems(nextItems: WbsItem[]) {
+  function applyWbsSnapshotResult(
+    nextItems: WbsItem[],
+    nextDependencies?: WbsDependency[],
+  ) {
     setProject((current) =>
-      current ? { ...current, wbsItems: nextItems } : current,
+      current
+        ? {
+            ...current,
+            wbsItems: nextItems,
+            wbsDependencies: nextDependencies ?? current.wbsDependencies,
+          }
+        : current,
     );
     setWbsDrafts(
       Object.fromEntries(nextItems.map((item) => [item.id, wbsToForm(item)])),
@@ -1888,6 +1897,10 @@ function App() {
           ),
         ),
     );
+  }
+
+  function applyWbsItems(nextItems: WbsItem[]) {
+    applyWbsSnapshotResult(nextItems);
   }
 
   function getCurrentWbsSnapshot(): WbsSnapshot | null {
@@ -1938,16 +1951,7 @@ function App() {
         throw new Error(result?.error ?? "Не удалось восстановить WBS");
       }
       if (result?.wbsItems) {
-        applyWbsItems(result.wbsItems);
-        setProject((current) =>
-          current
-            ? {
-                ...current,
-                wbsDependencies:
-                  result.wbsDependencies ?? current.wbsDependencies,
-              }
-            : current,
-        );
+        applyWbsSnapshotResult(result.wbsItems, result.wbsDependencies);
       } else {
         await refreshProject(project.id);
       }

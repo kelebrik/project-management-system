@@ -1016,10 +1016,22 @@ app.post('/api/projects/:projectId/wbs-snapshot/restore', async (req, res) => {
 
   await prisma.$transaction(async (tx) => {
     await tx.wbsDependency.deleteMany({ where: { projectId: project.id } });
-    await tx.wbsItem.updateMany({
+
+    const existingItems = await tx.wbsItem.findMany({
       where: { projectId: project.id },
-      data: { parentId: null },
+      select: { id: true },
     });
+
+    for (const item of existingItems) {
+      await tx.wbsItem.update({
+        where: { id: item.id },
+        data: {
+          parentId: null,
+          code: `__restore_${item.id}`,
+        },
+      });
+    }
+
     await tx.wbsItem.deleteMany({
       where: { projectId: project.id, id: { notIn: [...snapshotItemIds] } },
     });
