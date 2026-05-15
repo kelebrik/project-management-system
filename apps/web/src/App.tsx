@@ -1241,7 +1241,6 @@ function App() {
   const [creatingIssue, setCreatingIssue] = useState(false);
   const [generatingOverview, setGeneratingOverview] = useState(false);
   const [publishingOverview, setPublishingOverview] = useState(false);
-  const [savingProjectTitle, setSavingProjectTitle] = useState(false);
   const [savingBaseline, setSavingBaseline] = useState(false);
   const [savingCalendar, setSavingCalendar] = useState<string | null>(null);
   const [savingProjectRegistryId, setSavingProjectRegistryId] = useState<
@@ -2368,43 +2367,6 @@ function App() {
     }
   }
 
-  async function saveProjectTitle() {
-    if (!project) return;
-    const nextName = projectForm.name.trim();
-    if (!nextName || nextName === project.name) return;
-    setSavingProjectTitle(true);
-    setError(null);
-    try {
-      const response = await fetch(`${apiBase}/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nextName }),
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(result?.error ?? "Не удалось сохранить название проекта");
-      }
-      setProject((current) =>
-        current ? { ...current, name: result.name ?? nextName } : current,
-      );
-      setProjectForm((current) => ({ ...current, name: result.name ?? nextName }));
-      setProjects((current) =>
-        current.map((item) =>
-          item.id === project.id ? { ...item, name: result.name ?? nextName } : item,
-        ),
-      );
-      setNotice("Название проекта обновлено");
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Не удалось сохранить название проекта",
-      );
-    } finally {
-      setSavingProjectTitle(false);
-    }
-  }
-
   function updateProjectRegistryDraft(
     projectId: string,
     patch: Partial<ProjectRegistryDraft>,
@@ -2425,13 +2387,21 @@ function App() {
     });
   }
 
-  async function saveProjectRegistryItem(projectId: string) {
+  async function savePortfolioProjectIdentity(projectId: string) {
     const draft = projectRegistryDrafts[projectId];
     if (!draft) return;
+    const sourceProject = projects.find((item) => item.id === projectId);
     const code = draft.code.trim();
     const name = draft.name.trim();
     if (!code || !name) {
       setError("Код и наименование проекта обязательны");
+      return;
+    }
+    if (
+      sourceProject &&
+      sourceProject.code === code &&
+      sourceProject.name === name
+    ) {
       return;
     }
     setSavingProjectRegistryId(projectId);
@@ -2444,6 +2414,43 @@ function App() {
         body: JSON.stringify({
           code,
           name,
+        }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          result?.error?.formErrors?.join(", ") ||
+          result?.error ||
+            "Не удалось сохранить проект",
+        );
+      }
+      await reloadProjects();
+      if (project?.id === projectId) {
+        await refreshProject(projectId);
+      }
+      setNotice(`Проект ${code} обновлен`);
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить проект",
+      );
+    } finally {
+      setSavingProjectRegistryId(null);
+    }
+  }
+
+  async function saveProjectRegistryItem(projectId: string) {
+    const draft = projectRegistryDrafts[projectId];
+    if (!draft) return;
+    setSavingProjectRegistryId(projectId);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${apiBase}/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           parentId: draft.parentId || null,
           projectManager: draft.projectManager.trim() || "Project manager",
           status: draft.status,
@@ -2463,7 +2470,7 @@ function App() {
       if (project?.id === projectId) {
         await refreshProject(projectId);
       }
-      setNotice(`Проект ${code} обновлен`);
+      setNotice("Параметры проекта обновлены");
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -2481,10 +2488,27 @@ function App() {
     setError(null);
     setNotice(null);
     try {
+      const formPayload = projectPayload(projectForm);
+      const payload = {
+        parentId: formPayload.parentId,
+        portfolio: formPayload.portfolio,
+        sponsor: formPayload.sponsor,
+        projectManager: formPayload.projectManager,
+        status: formPayload.status,
+        rag: formPayload.rag,
+        startDate: formPayload.startDate,
+        targetDate: formPayload.targetDate,
+        budgetPlanned: formPayload.budgetPlanned,
+        budgetForecast: formPayload.budgetForecast,
+        scheduleVariance: formPayload.scheduleVariance,
+        progress: formPayload.progress,
+        summary: formPayload.summary,
+        sortOrder: formPayload.sortOrder,
+      };
       const response = await fetch(`${apiBase}/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(projectPayload(projectForm)),
+        body: JSON.stringify(payload),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -4385,23 +4409,9 @@ function App() {
         <header className="topbar">
           <div>
             {project && isProjectView && activeView !== "project-create" ? (
-              <div className="project-title-edit">
-                <span>{project.code}</span>
-                <input
-                  value={projectForm.name}
-                  onChange={(event) =>
-                    setProjectForm({ ...projectForm, name: event.target.value })
-                  }
-                  onBlur={() => void saveProjectTitle()}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.currentTarget.blur();
-                    }
-                  }}
-                  disabled={savingProjectTitle}
-                  aria-label="Название проекта"
-                />
-              </div>
+              <h1>
+                {project.code} - {project.name}
+              </h1>
             ) : (
               <h1>{viewTitle[activeView]}</h1>
             )}
@@ -4510,32 +4520,81 @@ function App() {
                   </div>
                   <div className="project-tree-list">
                     <div className="project-tree-head">
-                      <span>Проект</span>
+                      <span>Код проекта</span>
+                      <span>Имя проекта</span>
+                      <span />
                       <span>PM</span>
                       <span>Прогресс</span>
                       <span>RAG</span>
                     </div>
-                    {projectTree.map((item) => (
-                      <button
-                        type="button"
-                        className={`project-tree-row ${item.id === selectedProjectId ? "active" : ""}`}
-                        key={item.id}
-                        onClick={() =>
-                          selectProject(item.id, "project-overview")
-                        }
-                      >
-                        <span
-                          className="project-tree-title"
-                          style={{ paddingLeft: `${item.level * 18}px` }}
+                    {projectTree.map((item) => {
+                      const draft =
+                        projectRegistryDrafts[item.id] ??
+                        projectToRegistryDraft(item);
+                      return (
+                        <div
+                          className={`project-tree-row ${item.id === selectedProjectId ? "active" : ""}`}
+                          key={item.id}
                         >
-                          <b>{item.code}</b>
-                          {item.name}
-                        </span>
-                        <span>{item.projectManager}</span>
-                        <span>{item.progress}%</span>
-                        <span className={`rag-dot ${item.rag.toLowerCase()}`} />
-                      </button>
-                    ))}
+                          <input
+                            className="project-tree-code-input"
+                            value={draft.code}
+                            onChange={(event) =>
+                              updateProjectRegistryDraft(item.id, {
+                                code: event.target.value,
+                              })
+                            }
+                            onBlur={() =>
+                              void savePortfolioProjectIdentity(item.id)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.currentTarget.blur();
+                              }
+                            }}
+                            style={
+                              {
+                                marginLeft: `${item.level * 18}px`,
+                                "--project-indent": `${item.level * 18}px`,
+                              } as CSSProperties
+                            }
+                            aria-label={`Код проекта ${item.name}`}
+                            disabled={savingProjectRegistryId === item.id}
+                          />
+                          <input
+                            className="project-tree-name-input"
+                            value={draft.name}
+                            onChange={(event) =>
+                              updateProjectRegistryDraft(item.id, {
+                                name: event.target.value,
+                              })
+                            }
+                            onBlur={() =>
+                              void savePortfolioProjectIdentity(item.id)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.currentTarget.blur();
+                              }
+                            }}
+                            aria-label={`Имя проекта ${item.code}`}
+                            disabled={savingProjectRegistryId === item.id}
+                          />
+                          <button
+                            type="button"
+                            className="project-tree-open"
+                            onClick={() =>
+                              selectProject(item.id, "project-overview")
+                            }
+                          >
+                            Открыть
+                          </button>
+                          <span>{item.projectManager}</span>
+                          <span>{item.progress}%</span>
+                          <span className={`rag-dot ${item.rag.toLowerCase()}`} />
+                        </div>
+                      );
+                    })}
                     {projects.length === 0 && (
                       <div className="empty-state">Проекты еще не созданы.</div>
                     )}
@@ -4804,33 +4863,19 @@ function App() {
                         projectToRegistryDraft(item);
                       return (
                         <div className="project-admin-row" key={item.id}>
-                          <label>
+                          <div className="project-admin-readonly">
                             <span>Код</span>
-                            <input
-                              value={draft.code}
-                              onChange={(event) =>
-                                updateProjectRegistryDraft(item.id, {
-                                  code: event.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                          <label
-                            className="project-admin-name"
+                            <b>{item.code}</b>
+                          </div>
+                          <div
+                            className="project-admin-readonly project-admin-name"
                             style={{
-                              paddingLeft: `${Math.min(item.level * 18, 72)}px`,
+                              paddingLeft: `${Math.min(item.level * 18, 72) + 10}px`,
                             }}
                           >
                             <span>Наименование</span>
-                            <input
-                              value={draft.name}
-                              onChange={(event) =>
-                                updateProjectRegistryDraft(item.id, {
-                                  name: event.target.value,
-                                })
-                              }
-                            />
-                          </label>
+                            <b>{item.name}</b>
+                          </div>
                           <label>
                             <span>Родитель</span>
                             <select
@@ -4998,18 +5043,14 @@ function App() {
                     className="form-grid compact-form"
                     onSubmit={saveProjectProfile}
                   >
-                    <label>
-                      Name
-                      <input
-                        value={projectForm.name}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            name: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
+                    <div className="readonly-field">
+                      <span>Код проекта</span>
+                      <b>{project.code}</b>
+                    </div>
+                    <div className="readonly-field">
+                      <span>Имя проекта</span>
+                      <b>{project.name}</b>
+                    </div>
                     <label>
                       Portfolio
                       <input

@@ -368,35 +368,6 @@ h1 {
   line-height: 1.15;
 }
 
-.project-title-edit {
-  align-items: center;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: auto minmax(280px, 680px);
-}
-
-.project-title-edit span {
-  color: #0f172a;
-  font-size: 28px;
-  font-weight: 900;
-  line-height: 1.15;
-}
-
-.project-title-edit input {
-  border-color: transparent;
-  color: #0f172a;
-  font-size: 28px;
-  font-weight: 900;
-  line-height: 1.15;
-  padding: 4px 6px;
-}
-
-.project-title-edit input:hover,
-.project-title-edit input:focus {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
 h2 {
   font-size: 17px;
   line-height: 1.25;
@@ -570,7 +541,7 @@ button:disabled {
   align-items: center;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) 180px 92px 18px;
+  grid-template-columns: 170px minmax(260px, 1fr) 92px 180px 92px 18px;
 }
 
 .project-tree-head {
@@ -601,26 +572,40 @@ button:disabled {
   background: #f8fafc;
 }
 
-.project-tree-title {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.project-tree-code-input,
+.project-tree-name-input {
+  border-color: transparent;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 34px;
+  padding: 6px 8px;
 }
 
-.project-tree-title b {
+.project-tree-code-input {
   background: #e0f2fe;
-  border-radius: 4px;
   color: #075985;
-  flex: 0 0 auto;
-  font-size: 11px;
-  padding: 3px 5px;
+  width: calc(100% - var(--project-indent, 0px));
 }
 
-.project-tree-row > span:not(.project-tree-title) {
+.project-tree-name-input {
+  background: transparent;
+  color: #1f2937;
+}
+
+.project-tree-code-input:hover,
+.project-tree-code-input:focus,
+.project-tree-name-input:hover,
+.project-tree-name-input:focus {
+  background: #fff;
+  border-color: #93c5fd;
+}
+
+.project-tree-open {
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.project-tree-row > span {
   color: #64748b;
   font-size: 12px;
   font-weight: 700;
@@ -785,6 +770,7 @@ code {
 
 .project-admin-head span,
 .project-admin-row label,
+.project-admin-readonly,
 .project-admin-actions {
   min-width: 0;
   padding: 10px;
@@ -795,19 +781,31 @@ code {
   border-top: 1px solid #dbe4ef;
 }
 
-.project-admin-row label {
+.project-admin-row label,
+.project-admin-readonly {
   border-right: 1px solid #e5edf6;
   display: grid;
   gap: 4px;
 }
 
-.project-admin-row label > span {
+.project-admin-row label > span,
+.project-admin-readonly > span {
   color: #64748b;
   display: none;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+}
+
+.project-admin-readonly b {
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 38px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .project-admin-row input,
@@ -842,6 +840,26 @@ code {
   min-height: 38px;
   padding-left: 10px;
   padding-right: 10px;
+}
+
+.readonly-field {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #64748b;
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.readonly-field b {
+  color: #1f2937;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .two-col {
@@ -2740,12 +2758,14 @@ code {
     min-width: 0;
   }
 
-  .project-admin-row label {
+  .project-admin-row label,
+  .project-admin-readonly {
     border-right: 0;
     padding: 8px 10px;
   }
 
-  .project-admin-row label > span {
+  .project-admin-row label > span,
+  .project-admin-readonly > span {
     display: block;
   }
 
@@ -2753,7 +2773,7 @@ code {
     justify-content: flex-end;
   }
 
-  .project-tree-row > span:not(.project-tree-title),
+  .project-tree-row > span,
   .artifact-row span,
   .raid-row span,
   .cr-row span,
