@@ -4656,42 +4656,6 @@ function App() {
                                 )
                               }
                             >
-                              <button
-                                type="button"
-                                className="wbs-inline-insert-button"
-                                onClick={() => void insertWbsRow(index)}
-                                aria-label="Добавить WBS строку ниже"
-                              >
-                                +
-                              </button>
-                              <button
-                                type="button"
-                                className="wbs-row-drag-handle"
-                                draggable
-                                onDragStart={(event) => {
-                                  setDraggedWbsItemId(item.id);
-                                  event.dataTransfer.effectAllowed = "move";
-                                  event.dataTransfer.setData(
-                                    "application/x-wbs-item",
-                                    item.id,
-                                  );
-                                }}
-                                onDragEnd={() => {
-                                  setDraggedWbsItemId(null);
-                                  setWbsDropTargetId(null);
-                                }}
-                                aria-label="Перетащить WBS строку"
-                              >
-                                ::
-                              </button>
-                              <button
-                                type="button"
-                                className="wbs-row-delete-button"
-                                onClick={() => deleteWbsItem(item.id)}
-                                aria-label="Удалить WBS строку"
-                              >
-                                x
-                              </button>
                               <div
                                 className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
                               >
@@ -4706,6 +4670,49 @@ function App() {
                                         : "wbs-cell"
                                     }
                                   >
+                                    {column.key === "structure" && (
+                                      <div className="wbs-row-controls">
+                                        <button
+                                          type="button"
+                                          className="wbs-row-drag-handle"
+                                          draggable
+                                          onDragStart={(event) => {
+                                            setDraggedWbsItemId(item.id);
+                                            event.dataTransfer.effectAllowed =
+                                              "move";
+                                            event.dataTransfer.setData(
+                                              "application/x-wbs-item",
+                                              item.id,
+                                            );
+                                          }}
+                                          onDragEnd={() => {
+                                            setDraggedWbsItemId(null);
+                                            setWbsDropTargetId(null);
+                                          }}
+                                          aria-label="Перетащить WBS строку"
+                                        >
+                                          ::
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="wbs-row-delete-button"
+                                          onClick={() => deleteWbsItem(item.id)}
+                                          aria-label="Удалить WBS строку"
+                                        >
+                                          x
+                                        </button>
+                                      </div>
+                                    )}
+                                    {column.key === "structure" && (
+                                      <button
+                                        type="button"
+                                        className="wbs-inline-insert-button"
+                                        onClick={() => void insertWbsRow(index)}
+                                        aria-label="Добавить WBS строку ниже"
+                                      >
+                                        +
+                                      </button>
+                                    )}
                                     {renderWbsCell(column.key, item, draft)}
                                   </div>
                                 ))}

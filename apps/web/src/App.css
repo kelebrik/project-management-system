@@ -1477,6 +1477,7 @@ code {
   display: grid;
   gap: 7px;
   grid-template-columns: auto auto 72px minmax(0, 1fr);
+  padding-right: 8px;
   position: sticky;
   left: 0;
   z-index: 3;
@@ -1545,7 +1546,7 @@ code {
   font-weight: 900;
   height: 22px;
   justify-content: center;
-  left: 150px;
+  left: 52px;
   opacity: 0;
   padding: 0;
   pointer-events: none;
@@ -1568,11 +1569,7 @@ code {
   font-weight: 900;
   height: 20px;
   justify-content: center;
-  opacity: 0;
   padding: 0;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
   transition:
     background 120ms ease,
     border-color 120ms ease,
@@ -1584,29 +1581,10 @@ code {
 
 .wbs-row-drag-handle {
   cursor: grab;
-  left: 92px;
 }
 
 .wbs-row-drag-handle:active {
   cursor: grabbing;
-}
-
-.wbs-row-delete-button {
-  left: 116px;
-}
-
-.wbs-row-stack:hover .wbs-inline-insert-button,
-.wbs-row-stack:hover .wbs-row-drag-handle,
-.wbs-row-stack:hover .wbs-row-delete-button {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.wbs-inline-insert-button:focus-visible,
-.wbs-row-drag-handle:focus-visible,
-.wbs-row-delete-button:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .wbs-row-drag-handle:hover,
@@ -1620,7 +1598,33 @@ code {
 
 .wbs-cell-structure {
   background: inherit;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
   z-index: 3;
+}
+
+.wbs-row-controls {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  position: sticky;
+  left: 84px;
+  z-index: 5;
+}
+
+.wbs-row-stack:hover .wbs-row-controls,
+.wbs-row-stack:has(.wbs-row-controls :focus-visible) .wbs-row-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wbs-row-stack:hover .wbs-inline-insert-button,
+.wbs-inline-insert-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .wbs-cell {
