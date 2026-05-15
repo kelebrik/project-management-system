@@ -1485,8 +1485,11 @@ code {
 
 .wbs-level-cell {
   align-items: center;
+  box-sizing: border-box;
+  column-gap: 4px;
   display: grid;
-  grid-template-columns: 28px 32px minmax(0, 1fr);
+  grid-template-columns: 48px 24px minmax(28px, 1fr);
+  padding: 0 4px;
   position: relative;
 }
 
@@ -1494,7 +1497,6 @@ code {
   display: grid;
   gap: 1px;
   justify-items: center;
-  padding-left: 2px;
 }
 
 .wbs-level-stepper button {
@@ -1546,7 +1548,7 @@ code {
   font-weight: 900;
   height: 22px;
   justify-content: center;
-  left: 5px;
+  left: 15px;
   opacity: 0;
   padding: 0;
   pointer-events: none;
@@ -1610,6 +1612,7 @@ code {
   justify-content: center;
   opacity: 0;
   pointer-events: none;
+  width: 44px;
   z-index: 5;
 }
 
