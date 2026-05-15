@@ -3209,18 +3209,29 @@ function App() {
   }
 
   async function deleteWbsItem(itemId: string) {
-    if (!window.confirm("Удалить WBS элемент и все дочерние элементы?")) return;
+    if (!window.confirm("Удалить только выбранную WBS строку?")) return;
     setError(null);
     setNotice(null);
     try {
       const response = await fetch(`${apiBase}/api/wbs-items/${itemId}`, {
         method: "DELETE",
       });
+      const result = await response.json().catch(() => null);
       if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error ?? "Не удалось удалить WBS элемент");
+        throw new Error(result?.error ?? "Не удалось удалить WBS элемент");
       }
-      await refreshProject();
+      if (result?.wbsItems) {
+        applyWbsItems(result.wbsItems);
+        if (result.wbsDependencies) {
+          setProject((current) =>
+            current
+              ? { ...current, wbsDependencies: result.wbsDependencies }
+              : current,
+          );
+        }
+      } else {
+        await refreshProject();
+      }
       setNotice("WBS элемент удален");
     } catch (deleteError) {
       setError(

@@ -1184,11 +1184,56 @@ app.delete('/api/wbs-items/:itemId', async (req, res) => {
     return;
   }
 
-  await prisma.wbsItem.delete({
-    where: { id: existing.id },
+  const projectItems = await prisma.wbsItem.findMany({
+    where: { projectId: existing.projectId },
+    select: { id: true, parentId: true, code: true, wbsLevel: true },
+  });
+  const childrenByParent = new Map<string, typeof projectItems>();
+  for (const item of projectItems) {
+    if (!item.parentId) continue;
+    childrenByParent.set(item.parentId, [...(childrenByParent.get(item.parentId) ?? []), item]);
+  }
+  const descendantUpdates: Array<{ id: string; wbsLevel: number }> = [];
+  const collectDescendants = (parentId: string) => {
+    for (const child of childrenByParent.get(parentId) ?? []) {
+      const currentLevel = child.wbsLevel ?? levelFromWbsCode(child.code);
+      descendantUpdates.push({ id: child.id, wbsLevel: Math.max(1, currentLevel - 1) });
+      collectDescendants(child.id);
+    }
+  };
+  collectDescendants(existing.id);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.wbsItem.updateMany({
+      where: { parentId: existing.id },
+      data: {
+        parentId: existing.parentId,
+      },
+    });
+
+    for (const descendant of descendantUpdates) {
+      await tx.wbsItem.update({
+        where: { id: descendant.id },
+        data: { wbsLevel: descendant.wbsLevel },
+      });
+    }
+
+    await tx.wbsDependency.deleteMany({
+      where: {
+        OR: [{ predecessorId: existing.id }, { successorId: existing.id }],
+      },
+    });
+
+    await tx.wbsItem.delete({
+      where: { id: existing.id },
+    });
   });
 
-  res.status(204).send();
+  await renumberProjectWbs(existing.projectId);
+
+  res.json({
+    ...(await getProjectWbsSnapshot(existing.projectId)),
+  });
 });
 
 const wbsDependencySchema = z.object({

@@ -1,0 +1,8 @@
+ALTER TABLE "WbsItem" DROP CONSTRAINT IF EXISTS "WbsItem_parentId_fkey";
+
+ALTER TABLE "WbsItem"
+  ADD CONSTRAINT "WbsItem_parentId_fkey"
+  FOREIGN KEY ("parentId")
+  REFERENCES "WbsItem"("id")
+  ON DELETE SET NULL
+  ON UPDATE CASCADE;

@@ -223,7 +223,7 @@ model WbsItem {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parent        WbsItem?      @relation("WbsHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  parent        WbsItem?      @relation("WbsHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children      WbsItem[]     @relation("WbsHierarchy")
   predecessors  WbsDependency[] @relation("WbsDependencySuccessor")
   successors    WbsDependency[] @relation("WbsDependencyPredecessor")
