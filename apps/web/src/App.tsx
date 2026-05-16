@@ -4428,6 +4428,7 @@ function App() {
     "project-artifacts",
   ];
   const isProjectView = projectViews.includes(activeView);
+  const isProjectSectionView = isProjectView && activeView !== "project-create";
   const navLabel = (icon: ReactNode, label: string) => (
     <>
       <span className="nav-icon" aria-hidden="true">
@@ -4489,7 +4490,74 @@ function App() {
           </button>
           <button
             type="button"
-            className={isProjectView ? "active" : ""}
+            className={activeView === "project-create" ? "active" : ""}
+            onClick={() => setActiveView("project-create")}
+            aria-label="Создать новый проект"
+          >
+            {navLabel(<Plus size={17} />, "Создать новый проект")}
+          </button>
+          <div className="project-picker">
+            <button
+              type="button"
+              className="project-picker-trigger"
+              onClick={() => setShowProjectPicker((current) => !current)}
+              aria-expanded={showProjectPicker}
+            >
+              <span>
+                {selectedProjectListItem
+                  ? projectOptionLabel(selectedProjectListItem)
+                  : "Выбрать проект"}
+              </span>
+              <ChevronDown size={15} />
+            </button>
+            {showProjectPicker && (
+              <div className="project-picker-popover">
+                <label className="project-search">
+                  <Search size={15} />
+                  <input
+                    value={projectSearch}
+                    onChange={(event) => setProjectSearch(event.target.value)}
+                    placeholder="Поиск по коду, имени, РП"
+                  />
+                </label>
+                {recentProjects.length > 0 && !projectSearch.trim() && (
+                  <div className="project-picker-section">
+                    <span>Недавние</span>
+                    {recentProjects.map((item) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        onClick={() => selectProject(item.id, "project-overview")}
+                      >
+                        <b>{item.code}</b>
+                        <small>{item.name}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="project-picker-section">
+                  <span>Все проекты</span>
+                  {filteredProjectOptions.map((item) => (
+                    <button
+                      type="button"
+                      className={item.id === selectedProjectId ? "selected" : ""}
+                      key={item.id}
+                      onClick={() => selectProject(item.id, "project-overview")}
+                    >
+                      <b>{item.code}</b>
+                      <small>{item.name}</small>
+                    </button>
+                  ))}
+                  {filteredProjectOptions.length === 0 && (
+                    <em>Проекты не найдены</em>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            className={isProjectSectionView ? "active" : ""}
             onClick={() =>
               setActiveView(
                 selectedProjectId ? "project-overview" : "project-create",
@@ -4500,75 +4568,6 @@ function App() {
             {navLabel(<FolderTree size={17} />, "Проекты")}
           </button>
           <div className="sidebar-group">
-            <button
-              type="button"
-              className={
-                activeView === "project-create" ? "active nested" : "nested"
-              }
-              onClick={() => setActiveView("project-create")}
-              aria-label="Создать новый проект"
-            >
-              {navLabel(<Plus size={17} />, "Создать новый проект")}
-            </button>
-            <div className="project-picker">
-              <button
-                type="button"
-                className="project-picker-trigger"
-                onClick={() => setShowProjectPicker((current) => !current)}
-                aria-expanded={showProjectPicker}
-              >
-                <span>
-                  {selectedProjectListItem
-                    ? projectOptionLabel(selectedProjectListItem)
-                    : "Выбрать проект"}
-                </span>
-                <ChevronDown size={15} />
-              </button>
-              {showProjectPicker && (
-                <div className="project-picker-popover">
-                  <label className="project-search">
-                    <Search size={15} />
-                    <input
-                      value={projectSearch}
-                      onChange={(event) => setProjectSearch(event.target.value)}
-                      placeholder="Поиск по коду, имени, РП"
-                    />
-                  </label>
-                  {recentProjects.length > 0 && !projectSearch.trim() && (
-                    <div className="project-picker-section">
-                      <span>Недавние</span>
-                      {recentProjects.map((item) => (
-                        <button
-                          type="button"
-                          key={item.id}
-                          onClick={() => selectProject(item.id, "project-overview")}
-                        >
-                          <b>{item.code}</b>
-                          <small>{item.name}</small>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="project-picker-section">
-                    <span>Все проекты</span>
-                    {filteredProjectOptions.map((item) => (
-                      <button
-                        type="button"
-                        className={item.id === selectedProjectId ? "selected" : ""}
-                        key={item.id}
-                        onClick={() => selectProject(item.id, "project-overview")}
-                      >
-                        <b>{item.code}</b>
-                        <small>{item.name}</small>
-                      </button>
-                    ))}
-                    {filteredProjectOptions.length === 0 && (
-                      <em>Проекты не найдены</em>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
             {selectedProjectListItem && (
               <div className="project-menu">
                 <button
@@ -4581,7 +4580,7 @@ function App() {
                   onClick={() => setActiveView("project-overview")}
                   aria-label="Обзор и вехи"
                 >
-	                  {navLabel(<LayoutDashboard size={17} />, "Обзор и вехи")}
+                  {navLabel(<LayoutDashboard size={17} />, "Обзор и вехи")}
                 </button>
                 <button
                   type="button"
@@ -4593,7 +4592,7 @@ function App() {
                   onClick={() => setActiveView("project-passport")}
                   aria-label="Паспорт проекта"
                 >
-	                  {navLabel(<FileText size={17} />, "Паспорт проекта")}
+                  {navLabel(<FileText size={17} />, "Паспорт проекта")}
                 </button>
                 <button
                   type="button"
@@ -4605,7 +4604,7 @@ function App() {
                   onClick={() => setActiveView("project-structure")}
                   aria-label="Структура"
                 >
-	                  {navLabel(<ListChecks size={17} />, "Структура")}
+                  {navLabel(<ListChecks size={17} />, "Структура")}
                 </button>
                 <button
                   type="button"
@@ -4617,7 +4616,7 @@ function App() {
                   onClick={() => setActiveView("project-gantt")}
                   aria-label="Гантт"
                 >
-	                  {navLabel(<GanttChartSquare size={17} />, "Гантт")}
+                  {navLabel(<GanttChartSquare size={17} />, "Гантт")}
                 </button>
                 <button
                   type="button"
@@ -4629,7 +4628,7 @@ function App() {
                   onClick={() => setActiveView("project-issues")}
                   aria-label="Открытые вопросы"
                 >
-	                  {navLabel(<ShieldAlert size={17} />, "Открытые вопросы")}
+                  {navLabel(<ShieldAlert size={17} />, "Открытые вопросы")}
                 </button>
                 <button
                   type="button"
@@ -4653,7 +4652,7 @@ function App() {
                   onClick={() => setActiveView("project-calendars")}
                   aria-label="Календари"
                 >
-	                  {navLabel(<CalendarDays size={17} />, "Календари")}
+                  {navLabel(<CalendarDays size={17} />, "Календари")}
                 </button>
                 <button
                   type="button"
@@ -4665,7 +4664,7 @@ function App() {
                   onClick={() => setActiveView("project-artifacts")}
                   aria-label="Артефакты проекта"
                 >
-	                  {navLabel(<FileArchive size={17} />, "Артефакты проекта")}
+                  {navLabel(<FileArchive size={17} />, "Артефакты проекта")}
                 </button>
               </div>
             )}
@@ -4676,59 +4675,59 @@ function App() {
             onClick={() => setActiveView("admin")}
             aria-label="Администрирование"
           >
-	            {navLabel(<Settings size={17} />, "Администрирование")}
+            {navLabel(<Settings size={17} />, "Администрирование")}
           </button>
         </nav>
       </aside>
 
-	      <main
-	        className={`workspace ${executivePresentationMode ? "presentation-mode" : ""}`}
-	      >
-	        <header className="topbar">
-	          <div>
-	            {project && isProjectView && activeView !== "project-create" ? (
-	              <>
-	                <p className="topbar-section">{viewTitle[activeView]}</p>
-	                <h1>{project.name}</h1>
-	              </>
-	            ) : (
-	              <h1>{viewTitle[activeView]}</h1>
-	            )}
-	          </div>
-	          {project && activeView !== "portfolio" && (
-	            <div className="topbar-project">
-	              <span>{project.code}</span>
-	              <span>{projectStatusLabel(project.status)}</span>
-	              <b className={`rag ${project.rag.toLowerCase()}`}>
-		                {projectHealthLabel(project.rag)}
-	              </b>
-	            </div>
-	          )}
-	        </header>
-	        {project && isProjectView && activeView !== "project-create" && (
-	          <section className="project-context-bar">
-	            <div>
-	              <span>РП</span>
-	              <b>{project.projectManager}</b>
-	            </div>
-	            <div>
-	              <span>Срок</span>
-	              <b>{date(project.targetDate)}</b>
-	            </div>
-	            <div>
-	              <span>Прогресс</span>
-	              <b>{project.progress}%</b>
-	            </div>
-	            <div>
-	              <span>Открытые вопросы</span>
-	              <b>{project.issues.length}</b>
-	            </div>
-	            <div>
-	              <span>Вехи</span>
-	              <b>{project.milestones.length}</b>
-	            </div>
-	          </section>
-	        )}
+      <main
+        className={`workspace ${executivePresentationMode ? "presentation-mode" : ""}`}
+      >
+        <header className="topbar">
+          <div>
+            {project && isProjectView && activeView !== "project-create" ? (
+              <>
+                <p className="topbar-section">{viewTitle[activeView]}</p>
+                <h1>{project.name}</h1>
+              </>
+            ) : (
+              <h1>{viewTitle[activeView]}</h1>
+            )}
+          </div>
+          {project && activeView !== "portfolio" && (
+            <div className="topbar-project">
+              <span>{project.code}</span>
+              <span>{projectStatusLabel(project.status)}</span>
+              <b className={`rag ${project.rag.toLowerCase()}`}>
+                {projectHealthLabel(project.rag)}
+              </b>
+            </div>
+          )}
+        </header>
+        {project && isProjectSectionView && (
+          <section className="project-context-bar">
+            <div>
+              <span>РП</span>
+              <b>{project.projectManager}</b>
+            </div>
+            <div>
+              <span>Срок</span>
+              <b>{date(project.targetDate)}</b>
+            </div>
+            <div>
+              <span>Прогресс</span>
+              <b>{project.progress}%</b>
+            </div>
+            <div>
+              <span>Открытые вопросы</span>
+              <b>{project.issues.length}</b>
+            </div>
+            <div>
+              <span>Вехи</span>
+              <b>{project.milestones.length}</b>
+            </div>
+          </section>
+        )}
 
         {error && <div className="alert">{error}</div>}
         {notice && <div className="notice">{notice}</div>}

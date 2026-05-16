@@ -106,11 +106,6 @@
   grid-template-columns: 28px minmax(0, 1fr);
 }
 
-.sidebar-group > .project-picker {
-  margin-left: 10px;
-  width: calc(100% - 10px);
-}
-
 .sidebar button {
   cursor: pointer;
 }
