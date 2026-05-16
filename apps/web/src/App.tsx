@@ -5941,107 +5941,108 @@ function App() {
                       </>
 	                    )}
 	                    {activeView === "project-gantt" && (
-	                    <div
-	                      className="gantt-panel"
-                      style={
-                        {
-                          "--gantt-wbs-width": `${ganttWbsWidth}px`,
-	                          "--gantt-timeline-width": `${Math.max(
-	                            520,
-	                            wbsGantt.months.length * GANTT_SCALE_WIDTH[ganttScale],
-	                          )}px`,
-	                        } as GanttCssProperties
-	                      }
-	                    >
-	                      <div className="gantt-controls">
-	                        <div className="gantt-controls-row">
-	                          <div className="segmented-control" aria-label="Масштаб Гантта">
-	                            <button
-	                              type="button"
-	                              className={ganttScale === "month" ? "active" : ""}
-	                              onClick={() => setGanttScale("month")}
-	                            >
-	                              Месяцы
-	                            </button>
-	                            <button
-	                              type="button"
-	                              className={ganttScale === "quarter" ? "active" : ""}
-	                              onClick={() => setGanttScale("quarter")}
-	                            >
-	                              Кварталы
-	                            </button>
-	                          </div>
-	                          <button
-	                            type="button"
-	                            onClick={() =>
-	                              document
-	                                .querySelector(".gantt-today")
-	                                ?.scrollIntoView({
-	                                  inline: "center",
-	                                  block: "nearest",
-	                                  behavior: "smooth",
-	                                })
-	                            }
-	                          >
-	                            Сегодня
-	                          </button>
-	                          <button
-	                            type="button"
-	                            className={showGanttDependencies ? "active" : ""}
-	                            onClick={() =>
-	                              setShowGanttDependencies((current) => !current)
-	                            }
-	                          >
-	                            Связи
-	                          </button>
-	                          <button
-	                            type="button"
-	                            className={showGanttBaseline ? "active" : ""}
-	                            onClick={() =>
-	                              setShowGanttBaseline((current) => !current)
-	                            }
-	                          >
-	                            Базовый план
-	                          </button>
-	                          <button
-	                            type="button"
-	                            className={showGanttForecast ? "active" : ""}
-	                            onClick={() =>
-	                              setShowGanttForecast((current) => !current)
-	                            }
-	                          >
-	                            Прогноз
-	                          </button>
-	                          <button
-	                            type="button"
-	                            className={collapsedWbsIds.size === 0 ? "active" : ""}
-	                            onClick={() => setCollapsedWbsIds(new Set())}
-	                          >
-	                            Все
-	                          </button>
-	                          <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Гантта">
-	                            {GANTT_HIERARCHY_LEVELS.map((level) => (
+	                      <>
+	                        <div className="gantt-controls">
+	                          <div className="gantt-controls-row">
+	                            <div className="segmented-control" aria-label="Масштаб Гантта">
 	                              <button
 	                                type="button"
-	                                key={level}
-	                                className={activeGanttHierarchyLevel === level ? "active" : ""}
-	                                onClick={() => setGanttHierarchyLevel(level)}
-	                                title={`Показать иерархию до ${level} уровня`}
+	                                className={ganttScale === "month" ? "active" : ""}
+	                                onClick={() => setGanttScale("month")}
 	                              >
-	                                {level}
+	                                Месяцы
 	                              </button>
-	                            ))}
+	                              <button
+	                                type="button"
+	                                className={ganttScale === "quarter" ? "active" : ""}
+	                                onClick={() => setGanttScale("quarter")}
+	                              >
+	                                Кварталы
+	                              </button>
+	                            </div>
+	                            <button
+	                              type="button"
+	                              onClick={() =>
+	                                document
+	                                  .querySelector(".gantt-today")
+	                                  ?.scrollIntoView({
+	                                    inline: "center",
+	                                    block: "nearest",
+	                                    behavior: "smooth",
+	                                  })
+	                              }
+	                            >
+	                              Сегодня
+	                            </button>
+	                            <button
+	                              type="button"
+	                              className={showGanttDependencies ? "active" : ""}
+	                              onClick={() =>
+	                                setShowGanttDependencies((current) => !current)
+	                              }
+	                            >
+	                              Связи
+	                            </button>
+	                            <button
+	                              type="button"
+	                              className={showGanttBaseline ? "active" : ""}
+	                              onClick={() =>
+	                                setShowGanttBaseline((current) => !current)
+	                              }
+	                            >
+	                              Базовый план
+	                            </button>
+	                            <button
+	                              type="button"
+	                              className={showGanttForecast ? "active" : ""}
+	                              onClick={() =>
+	                                setShowGanttForecast((current) => !current)
+	                              }
+	                            >
+	                              Прогноз
+	                            </button>
+	                            <button
+	                              type="button"
+	                              className={collapsedWbsIds.size === 0 ? "active" : ""}
+	                              onClick={() => setCollapsedWbsIds(new Set())}
+	                            >
+	                              Все
+	                            </button>
+	                            <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Гантта">
+	                              {GANTT_HIERARCHY_LEVELS.map((level) => (
+	                                <button
+	                                  type="button"
+	                                  key={level}
+	                                  className={activeGanttHierarchyLevel === level ? "active" : ""}
+	                                  onClick={() => setGanttHierarchyLevel(level)}
+	                                  title={`Показать иерархию до ${level} уровня`}
+	                                >
+	                                  {level}
+	                                </button>
+	                              ))}
+	                            </div>
+	                          </div>
+	                          <div className="status-legend gantt-status-legend" aria-label="Легенда статусов">
+	                            <span><i className="tone-b" />В работе</span>
+	                            <span><i className="tone-g" />Сделано</span>
+	                            <span><i className="tone-r" />Провалено</span>
+	                            <span><i className="tone-p" />Просрочено</span>
+	                            <span><i className="tone-x" />Не начато</span>
+	                            <span><i className="tone-o" />Веха</span>
 	                          </div>
 	                        </div>
-	                        <div className="status-legend gantt-status-legend" aria-label="Легенда статусов">
-	                          <span><i className="tone-b" />В работе</span>
-	                          <span><i className="tone-g" />Сделано</span>
-	                          <span><i className="tone-r" />Провалено</span>
-	                          <span><i className="tone-p" />Просрочено</span>
-	                          <span><i className="tone-x" />Не начато</span>
-	                          <span><i className="tone-o" />Веха</span>
-	                        </div>
-	                      </div>
+	                        <div
+	                          className="gantt-panel"
+	                          style={
+	                            {
+	                              "--gantt-wbs-width": `${ganttWbsWidth}px`,
+	                              "--gantt-timeline-width": `${Math.max(
+	                                520,
+	                                wbsGantt.months.length * GANTT_SCALE_WIDTH[ganttScale],
+	                              )}px`,
+	                            } as GanttCssProperties
+	                          }
+	                        >
 	                    <div className="gantt-head">
                           <span>Структура</span>
                       <button
@@ -6256,9 +6257,10 @@ function App() {
                           чтобы увидеть дочерние задачи и связи.
                         </div>
                       )}
-                    </div>
-                    </div>
-                    )}
+	                        </div>
+	                        </div>
+	                      </>
+	                    )}
                   </div>
                 </article>
               )}

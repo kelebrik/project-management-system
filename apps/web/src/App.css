@@ -1318,7 +1318,6 @@ code {
   background: #fff;
   border: 1px solid #d8e0eb;
   border-radius: 6px;
-  margin-top: 8px;
   margin-bottom: 18px;
   max-height: 456px;
   overflow: auto;
@@ -1327,15 +1326,12 @@ code {
 
 .gantt-controls {
   background: #fff;
-  border-bottom: 1px solid #d8e0eb;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
   display: grid;
   gap: 10px;
-  left: 0;
-  min-width: calc(var(--gantt-wbs-width, 360px) + 8px + var(--gantt-timeline-width, 520px));
+  margin-top: 8px;
   padding: 10px 12px;
-  position: sticky;
-  top: 0;
-  z-index: 18;
 }
 
 .gantt-controls-row {
@@ -1469,7 +1465,7 @@ code {
   grid-template-columns: var(--gantt-wbs-width, 360px) 8px var(--gantt-timeline-width, 520px);
   min-width: calc(var(--gantt-wbs-width, 360px) + 8px + var(--gantt-timeline-width, 520px));
   position: sticky;
-  top: 91px;
+  top: 0;
   z-index: 8;
 }
 
