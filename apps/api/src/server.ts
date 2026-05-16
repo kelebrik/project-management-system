@@ -1991,14 +1991,6 @@ app.patch('/api/tasks/:taskId/jira-link', async (req, res) => {
   res.json(updated);
 });
 
-function money(value: unknown) {
-  return new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency: 'RUB',
-    maximumFractionDigits: 0,
-  }).format(Number(value));
-}
-
 function isoDate(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 10) : null;
 }
@@ -2036,25 +2028,25 @@ function severityLabel(severity: string) {
   );
 }
 
-function milestoneStatusLabel(status: string) {
+function wbsStatusLabel(status: string) {
   return (
     {
-      Planned: 'Запланирована',
-      'In Progress': 'В работе',
-      'At Risk': 'Под риском',
-      Done: 'Сделана',
-      Cancelled: 'Отменена',
+      NOT_STARTED: 'Не начата',
+      IN_PROGRESS: 'В работе',
+      AT_RISK: 'Под риском',
+      BLOCKED: 'Провалена',
+      DONE: 'Сделана',
+      CANCELLED: 'Отменена',
     }[status] ?? status
   );
 }
 
-function changeRequestTypeLabel(type: string) {
+function raidTypeLabel(type: string) {
   return (
     {
-      SCOPE: 'содержание',
-      BUDGET: 'бюджет',
-      SCHEDULE: 'сроки',
-      RESOURCE: 'ресурсы',
+      RISK: 'Риск',
+      ASSUMPTION: 'Допущение',
+      DEPENDENCY: 'Проблема',
     }[type] ?? type
   );
 }
@@ -2068,27 +2060,33 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     throw new Error('Проект не найден');
   }
 
-  const budgetPlanned = Number(project.budgetPlanned);
-  const budgetForecast = Number(project.budgetForecast);
-  const budgetVariance = budgetPlanned === 0 ? 0 : (budgetForecast / budgetPlanned - 1) * 100;
   const criticalIssues = project.issues.filter((issue) => issue.severity === 'CRITICAL');
   const decisionIssues = project.issues.filter((issue) => issue.decisionRequired);
   const activeRaidItems = project.raidItems.filter((item) => !['CLOSED', 'VALIDATED'].includes(item.status));
   const highRaidItems = activeRaidItems.filter((item) => item.type === 'RISK' && item.riskScore >= 15);
-  const decisionChangeRequests = project.changeRequests.filter((request) => request.decisionRequired);
-  const pendingChangeRequests = project.changeRequests.filter((request) =>
-    ['SUBMITTED', 'IN_REVIEW'].includes(request.status),
-  );
+  const activeProblems = activeRaidItems.filter((item) => item.type === 'DEPENDENCY');
+  const activeAssumptions = activeRaidItems.filter((item) => item.type === 'ASSUMPTION');
+  const decisionRaidItems = activeRaidItems.filter((item) => item.decisionRequired);
   const topIssue = [...project.issues].sort(
     (left, right) => severityRank(right.severity) - severityRank(left.severity),
   )[0];
-  const nextMilestone = project.milestones.find((milestone) => milestone.status !== 'Done');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const wbsMilestones = project.wbsItems
+    .filter((item) => item.type === 'MILESTONE')
+    .sort(
+      (left, right) =>
+        (left.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+          (right.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER) ||
+        left.sortOrder - right.sortOrder,
+    );
+  const nextMilestone = wbsMilestones.find((milestone) => milestone.status !== 'DONE');
   const completedWbs = project.wbsItems.filter((item) => item.status === 'DONE').length;
   const blockedWbs = project.wbsItems.filter((item) => item.status === 'BLOCKED').length;
   const atRiskWbs = project.wbsItems.filter((item) => item.status === 'AT_RISK').length;
   const missingWbsDates = project.wbsItems.filter((item) => !item.startDate || !item.dueDate).length;
-  const overdueMilestones = project.milestones.filter(
-    (milestone) => milestone.status !== 'Done' && milestone.dueDate.getTime() < Date.now(),
+  const overdueMilestones = wbsMilestones.filter(
+    (milestone) => milestone.status !== 'DONE' && milestone.dueDate && milestone.dueDate.getTime() < today.getTime(),
   ).length;
   const jiraSyncAge = daysSince(project.jiraIntegration?.lastSyncedAt);
   const staleJiraIssues = project.jiraSnapshots.filter((issue) => daysSince(issue.updatedAt) !== null && Number(daysSince(issue.updatedAt)) > 7);
@@ -2105,23 +2103,19 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
   const executiveSummary = [
     `${project.name} находится в статусе ${ragLabel(project.rag)}.`,
     `Готовность составляет ${project.progress}%, ${scheduleText}.`,
-    `Прогноз бюджета: ${money(project.budgetForecast)} (${budgetVariance >= 0 ? '+' : ''}${budgetVariance.toFixed(1)}% к плану).`,
     criticalIssues.length > 0
       ? `Критических открытых проблем: ${criticalIssues.length}; ключевая проблема: ${topIssue?.title}.`
       : topIssue
         ? `Ключевая открытая проблема: ${topIssue.title}.`
         : 'Критических открытых проблем не зафиксировано.',
     nextMilestone
-      ? `Ближайшая веха: ${nextMilestone.title}, срок ${nextMilestone.dueDate.toISOString().slice(0, 10)}, статус ${milestoneStatusLabel(nextMilestone.status)}.`
+      ? `Ближайшая веха: ${nextMilestone.title}, срок ${isoDate(nextMilestone.dueDate) ?? 'не задан'}, статус ${wbsStatusLabel(nextMilestone.status)}.`
       : 'Ближайшие вехи не заданы.',
     activeRaidItems.length > 0
-      ? `В реестре рисков активно ${activeRaidItems.length} записей, высоких рисков: ${highRaidItems.length}.`
-      : 'Активных записей о рисках нет.',
-    pendingChangeRequests.length > 0
-      ? `На согласовании ${pendingChangeRequests.length} запрос(ов) на изменение.`
-      : 'Запросов на изменения на согласовании нет.',
-    decisionIssues.length + decisionChangeRequests.length > 0
-      ? `Для руководства требуется ${decisionIssues.length + decisionChangeRequests.length} решение(й).`
+      ? `В реестре рисков и проблем активно ${activeRaidItems.length} записей, высоких рисков: ${highRaidItems.length}, проблем: ${activeProblems.length}.`
+      : 'Активных записей о рисках и проблемах нет.',
+    decisionIssues.length + decisionRaidItems.length > 0
+      ? `Для руководства требуется ${decisionIssues.length + decisionRaidItems.length} решение(й).`
       : 'Новых решений от руководства сейчас не требуется.',
   ].join(' ');
 
@@ -2148,13 +2142,6 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       source: 'План-график проекта',
     },
     {
-      label: 'Бюджет',
-      value: `${budgetVariance >= 0 ? '+' : ''}${budgetVariance.toFixed(1)}%`,
-      secondary: money(project.budgetForecast),
-      tone: overviewTone(budgetVariance > 10 ? 'red' : budgetVariance > 0 ? 'amber' : 'green'),
-      source: 'Финансовый прогноз',
-    },
-    {
       label: 'Открытые вопросы',
       value: String(project.issues.length),
       secondary: `${criticalIssues.length} критичных / ${decisionIssues.length} решений`,
@@ -2162,11 +2149,18 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       source: 'Реестр открытых вопросов',
     },
     {
-      label: 'Риски / изменения',
-      value: `${activeRaidItems.length}/${pendingChangeRequests.length}`,
-      secondary: `${highRaidItems.length} высоких рисков / ${decisionChangeRequests.length} решений по изменениям`,
-      tone: overviewTone(highRaidItems.length > 0 ? 'red' : pendingChangeRequests.length > 0 ? 'amber' : 'green'),
-      source: 'Риски и управление изменениями',
+      label: 'Риски и проблемы',
+      value: `${activeRaidItems.length}`,
+      secondary: `${highRaidItems.length} высоких рисков / ${activeProblems.length} проблем / ${activeAssumptions.length} допущений`,
+      tone: overviewTone(highRaidItems.length > 0 || activeProblems.length > 0 ? 'red' : activeAssumptions.length > 0 ? 'amber' : 'green'),
+      source: 'Риски и проблемы',
+    },
+    {
+      label: 'Вехи',
+      value: String(wbsMilestones.length),
+      secondary: overdueMilestones > 0 ? `${overdueMilestones} просрочено` : 'по данным Структуры',
+      tone: overviewTone(overdueMilestones > 0 ? 'red' : wbsMilestones.length > 0 ? 'green' : 'neutral'),
+      source: 'Структура',
     },
   ];
 
@@ -2205,8 +2199,8 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     {
       name: 'Дисциплина управления рисками',
       status: highRaidItems.some((item) => !item.mitigationPlan) ? 'BLOCKED' : highRaidItems.length > 0 ? 'WARN' : 'OK',
-      detail: `${highRaidItems.length} высоких рисков, ${pendingChangeRequests.length} изменений на согласовании`,
-      source: 'Риски и управление изменениями',
+      detail: `${highRaidItems.length} высоких рисков, ${activeProblems.length} активных проблем, ${activeAssumptions.length} допущений`,
+      source: 'Риски и проблемы',
     },
   ];
 
@@ -2229,7 +2223,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
         title: item.title,
         severity: severityLabel(raidSeverity(item.riskScore)),
         owner: item.owner,
-        impact: `${item.description} Сроки: ${item.scheduleImpactDays} дн., бюджет: ${money(item.budgetImpact)}. План снижения риска: ${
+        impact: `${item.description} Сроки: ${item.scheduleImpactDays} дн. План действий: ${
           item.mitigationPlan ?? 'не задан'
         }`,
         dueDate: isoDate(item.dueDate),
@@ -2255,14 +2249,14 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       dueDate: isoDate(issue.dueDate),
       source: 'Реестр открытых вопросов',
     })),
-    ...decisionChangeRequests.slice(0, 3).map((request) => ({
-      title: `Одобрить запрос на изменение: ${request.title}`,
-      owner: request.owner,
-      dueDate: isoDate(request.dueDate),
-      source: `Изменение: ${changeRequestTypeLabel(request.type)}`,
+    ...decisionRaidItems.slice(0, 3).map((item) => ({
+      title: `Принять решение: ${item.title}`,
+      owner: item.owner,
+      dueDate: isoDate(item.dueDate),
+      source: `Риски и проблемы / ${raidTypeLabel(item.type)}`,
     })),
-    ...project.milestones
-      .filter((milestone) => milestone.status !== 'Done')
+    ...wbsMilestones
+      .filter((milestone) => milestone.status !== 'DONE')
       .slice(0, 3)
       .map((milestone) => ({
         title: `Подготовить веху: ${milestone.title}`,
@@ -2289,12 +2283,12 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
   }));
 
   decisions.push(
-    ...decisionChangeRequests.slice(0, 5 - decisions.length).map((request) => ({
-      title: request.title,
-      impactIfApproved: `${request.impactAnalysis}. Влияние на прогноз: ${money(request.budgetImpact)}, сроки ${request.scheduleImpactDays} дн.`,
-      impactIfDelayed: `Базовый план «${request.affectedBaseline}» остается заблокированным; владелец ${request.owner}.`,
-      deadline: isoDate(request.dueDate),
-      source: `Запрос на изменение / ${changeRequestTypeLabel(request.type)}`,
+    ...decisionRaidItems.slice(0, 5 - decisions.length).map((item) => ({
+      title: item.title,
+      impactIfApproved: item.mitigationPlan ?? item.description,
+      impactIfDelayed: `Сохраняется влияние на сроки ${item.scheduleImpactDays} дн.; владелец ${item.owner}.`,
+      deadline: isoDate(item.dueDate),
+      source: `Риски и проблемы / ${raidTypeLabel(item.type)}`,
     })),
   );
 
@@ -2306,10 +2300,6 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     {
       metric: 'Отклонение сроков',
       source: `Снимок плана проекта / ${project.scheduleVariance} дн.`,
-    },
-    {
-      metric: 'Прогноз бюджета',
-      source: `Финансовый прогноз / ${money(project.budgetForecast)}`,
     },
     {
       metric: 'Структура',
@@ -2325,7 +2315,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     },
     {
       metric: 'Вехи',
-      source: `${project.milestones.length} вех проекта`,
+      source: `${wbsMilestones.length} вех проекта из Структуры`,
     },
     {
       metric: 'Артефакты',
@@ -2336,8 +2326,8 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       source: `${activeRaidItems.length} активных записей о рисках / ${highRaidItems.length} высоких рисков`,
     },
     {
-      metric: 'Запросы на изменения',
-      source: `${project.changeRequests.length} изменений / ${pendingChangeRequests.length} на согласовании`,
+      metric: 'Риски и проблемы',
+      source: `${activeRaidItems.length} активных записей / ${highRaidItems.length} высоких рисков / ${activeProblems.length} проблем`,
     },
     ...project.issues.slice(0, 3).map((issue) => ({
       metric: issue.title,

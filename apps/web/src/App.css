@@ -1248,37 +1248,83 @@ code {
   font-weight: 800;
 }
 
-.milestone-grid {
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+.milestone-table {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
-.milestone-list {
+.milestone-head,
+.milestone-row {
+  align-items: center;
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  grid-template-columns: minmax(280px, 1.5fr) 132px 112px 112px minmax(220px, 1fr);
+}
+
+.milestone-head {
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 10px 12px;
+  text-transform: uppercase;
 }
 
 .milestone-row {
-  align-items: start;
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 13px;
+  min-height: 48px;
+  padding: 10px 12px;
+}
+
+.milestone-row:nth-child(odd) {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(0, 1fr) 170px;
-  padding: 12px;
 }
 
-.milestone-row p {
-  margin-top: 4px;
+.milestone-row b {
+  color: #075985;
+  margin-right: 8px;
 }
 
-.milestone-row span {
-  color: #64748b;
-  display: block;
-  font-size: 12px;
-  margin-top: 6px;
+.milestone-control {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.milestone-control i {
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 9px;
+  width: 9px;
+}
+
+.milestone-control .tone-b {
+  background: #2563eb;
+}
+
+.milestone-control .tone-g {
+  background: #16a34a;
+}
+
+.milestone-control .tone-r {
+  background: #dc2626;
+}
+
+.milestone-control .tone-p {
+  background: #ec4899;
+}
+
+.milestone-control .tone-o {
+  background: #f59e0b;
+}
+
+.milestone-control .tone-x {
+  background: #94a3b8;
 }
 
 .wbs-kpis {
@@ -1286,6 +1332,10 @@ code {
   gap: 10px;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   margin-bottom: 18px;
+}
+
+.overview-wbs-kpis {
+  margin-top: -8px;
 }
 
 .wbs-kpis div {
@@ -3048,7 +3098,7 @@ code {
   .form-grid,
   .two-col,
   .issue-link-edit,
-  .milestone-grid,
+  .milestone-head,
   .milestone-row,
   .wbs-kpis,
   .raid-layout,

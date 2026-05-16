@@ -110,7 +110,7 @@ type ProjectDetails = ProjectListItem & {
   calendarOverrides: ProjectCalendarOverride[];
   artifacts: ProjectArtifact[];
   raidItems: RaidItem[];
-  changeRequests: ChangeRequest[];
+  changeRequests: unknown[];
 };
 
 type ProjectUiState = {
@@ -299,14 +299,6 @@ type Milestone = {
   description: string | null;
 };
 
-type MilestoneFormState = {
-  title: string;
-  dueDate: string;
-  status: string;
-  owner: string;
-  description: string;
-};
-
 type ProjectArtifact = {
   id: string;
   title: string;
@@ -326,14 +318,6 @@ type RaidItemStatus =
   | "VALIDATED"
   | "BREACHED"
   | "CLOSED";
-type ChangeRequestType = "SCOPE" | "BUDGET" | "SCHEDULE" | "RESOURCE";
-type ChangeRequestStatus =
-  | "DRAFT"
-  | "SUBMITTED"
-  | "IN_REVIEW"
-  | "APPROVED"
-  | "REJECTED"
-  | "IMPLEMENTED";
 
 type RaidItem = {
   id: string;
@@ -383,42 +367,6 @@ type RaidFormState = {
   escalationLevel: string;
   scheduleImpactDays: string;
   budgetImpact: string;
-};
-
-type ChangeRequest = {
-  id: string;
-  type: ChangeRequestType;
-  title: string;
-  description: string;
-  owner: string;
-  status: ChangeRequestStatus;
-  impactAnalysis: string;
-  affectedBaseline: string;
-  implementationPlan: string | null;
-  scheduleImpactDays: number;
-  budgetImpact: string;
-  scopeImpact: string | null;
-  approvalRoute: string;
-  decisionRequired: boolean;
-  dueDate: string | null;
-  approvedAt: string | null;
-};
-
-type ChangeRequestFormState = {
-  type: ChangeRequestType;
-  title: string;
-  description: string;
-  owner: string;
-  status: ChangeRequestStatus;
-  impactAnalysis: string;
-  affectedBaseline: string;
-  implementationPlan: string;
-  scheduleImpactDays: string;
-  budgetImpact: string;
-  scopeImpact: string;
-  approvalRoute: string;
-  decisionRequired: boolean;
-  dueDate: string;
 };
 
 type ArtifactStatus =
@@ -610,14 +558,6 @@ function newProjectFormDefaults(): ProjectFormState {
   };
 }
 
-const emptyMilestoneForm: MilestoneFormState = {
-  title: "",
-  dueDate: "",
-  status: "Planned",
-  owner: "",
-  description: "",
-};
-
 const emptyArtifactForm: ArtifactFormState = {
   title: "",
   type: "Документ",
@@ -650,23 +590,6 @@ const emptyRaidForm: RaidFormState = {
   escalationLevel: "Проект",
   scheduleImpactDays: "0",
   budgetImpact: "0",
-};
-
-const emptyChangeRequestForm: ChangeRequestFormState = {
-  type: "SCHEDULE",
-  title: "",
-  description: "",
-  owner: "",
-  status: "DRAFT",
-  impactAnalysis: "",
-  affectedBaseline: "Базовый план сроков",
-  implementationPlan: "",
-  scheduleImpactDays: "0",
-  budgetImpact: "0",
-  scopeImpact: "",
-  approvalRoute: "Проектный офис -> Спонсор",
-  decisionRequired: false,
-  dueDate: "",
 };
 
 const WBS_TABLE_COLUMNS = [
@@ -799,25 +722,6 @@ function raidToForm(item: RaidItem): RaidFormState {
   };
 }
 
-function changeRequestToForm(item: ChangeRequest): ChangeRequestFormState {
-  return {
-    type: item.type,
-    title: item.title,
-    description: item.description,
-    owner: item.owner,
-    status: item.status,
-    impactAnalysis: item.impactAnalysis,
-    affectedBaseline: item.affectedBaseline,
-    implementationPlan: item.implementationPlan ?? "",
-    scheduleImpactDays: String(item.scheduleImpactDays),
-    budgetImpact: String(item.budgetImpact),
-    scopeImpact: item.scopeImpact ?? "",
-    approvalRoute: item.approvalRoute,
-    decisionRequired: item.decisionRequired,
-    dueDate: item.dueDate ? item.dueDate.slice(0, 10) : "",
-  };
-}
-
 function issueToDraft(issue: Issue): IssueEditDraft {
   return {
     title: issue.title,
@@ -921,14 +825,6 @@ function projectsToRegistryDrafts(projects: ProjectListItem[]) {
   );
 }
 
-function currency(value: string) {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    maximumFractionDigits: 0,
-  }).format(Number(value));
-}
-
 function date(value: string | null) {
   if (!value) return "не задано";
   return new Intl.DateTimeFormat("ru-RU", {
@@ -943,6 +839,59 @@ function daysBetween(start: Date, end: Date) {
     0,
     Math.round((end.getTime() - start.getTime()) / 86_400_000),
   );
+}
+
+function signedDaysUntil(value: string | null) {
+  if (!value) return null;
+  const target = startOfDay(new Date(value));
+  const today = startOfDay(new Date());
+  if (Number.isNaN(target.getTime())) return null;
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+function formatDaysLeft(days: number | null) {
+  if (days === null) return "не задано";
+  if (days === 0) return "сегодня";
+  return `${days > 0 ? days : Math.abs(days)} дн.${days < 0 ? " проср." : ""}`;
+}
+
+function signedWorkingDaysUntil(value: string | null) {
+  if (!value) return null;
+  const target = startOfDay(new Date(value));
+  const today = startOfDay(new Date());
+  if (Number.isNaN(target.getTime())) return null;
+  const direction = target.getTime() >= today.getTime() ? 1 : -1;
+  const cursor = new Date(today);
+  let days = 0;
+  while (cursor.getTime() !== target.getTime()) {
+    cursor.setDate(cursor.getDate() + direction);
+    if (isDefaultWorkingDay(cursor)) {
+      days += direction;
+    }
+  }
+  return days;
+}
+
+function responseErrorMessage(result: unknown, fallback: string) {
+  if (!result || typeof result !== "object") return fallback;
+  const error = "error" in result ? result.error : result;
+  if (typeof error === "string") return error;
+  if (!error || typeof error !== "object") return fallback;
+  if ("formErrors" in error && Array.isArray(error.formErrors)) {
+    const formErrors = error.formErrors.filter(
+      (item): item is string => typeof item === "string",
+    );
+    if (formErrors.length > 0) return formErrors.join(", ");
+  }
+  if ("fieldErrors" in error && error.fieldErrors && typeof error.fieldErrors === "object") {
+    const fieldErrors = Object.entries(error.fieldErrors).flatMap(([, value]) =>
+      Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === "string")
+        : [],
+    );
+    if (fieldErrors.length > 0) return fieldErrors.join(", ");
+  }
+  return fallback;
 }
 
 function projectOptionLabel(project: ProjectListItem) {
@@ -1020,17 +969,6 @@ function issueStatusLabel(status: string) {
   return labels[status] ?? status;
 }
 
-function milestoneStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    Planned: "Запланирована",
-    "In Progress": "В работе",
-    "At Risk": "Под риском",
-    Done: "Сделана",
-    Cancelled: "Отменена",
-  };
-  return labels[status] ?? status;
-}
-
 function artifactStatusLabel(status: string) {
   const labels: Record<string, string> = {
     Draft: "Черновик",
@@ -1040,16 +978,6 @@ function artifactStatusLabel(status: string) {
     Archived: "Архив",
   };
   return labels[status] ?? status;
-}
-
-function changeRequestTypeLabel(type: ChangeRequestType) {
-  const labels: Record<ChangeRequestType, string> = {
-    SCOPE: "Содержание",
-    BUDGET: "Бюджет",
-    SCHEDULE: "Сроки",
-    RESOURCE: "Ресурсы",
-  };
-  return labels[type];
 }
 
 function flattenWbsDescendants(item: WbsTreeItem): WbsTreeItem[] {
@@ -1154,7 +1082,7 @@ function raidTypeLabel(type: RaidItemType) {
   const labels: Record<RaidItemType, string> = {
     RISK: "Риск",
     ASSUMPTION: "Допущение",
-    DEPENDENCY: "Зависимость",
+    DEPENDENCY: "Проблема",
   };
   return labels[type];
 }
@@ -1167,18 +1095,6 @@ function raidStatusLabel(status: RaidItemStatus) {
     VALIDATED: "Подтверждено",
     BREACHED: "Нарушено",
     CLOSED: "Закрыто",
-  };
-  return labels[status];
-}
-
-function changeRequestStatusLabel(status: ChangeRequestStatus) {
-  const labels: Record<ChangeRequestStatus, string> = {
-    DRAFT: "Черновик",
-    SUBMITTED: "Отправлено",
-    IN_REVIEW: "На рассмотрении",
-    APPROVED: "Одобрено",
-    REJECTED: "Отклонено",
-    IMPLEMENTED: "Внедрено",
   };
   return labels[status];
 }
@@ -1418,8 +1334,6 @@ function App() {
   const [projectRegistryDrafts, setProjectRegistryDrafts] = useState<
     Record<string, ProjectRegistryDraft>
   >({});
-  const [milestoneForm, setMilestoneForm] =
-    useState<MilestoneFormState>(emptyMilestoneForm);
   const [artifactForm, setArtifactForm] =
     useState<ArtifactFormState>(emptyArtifactForm);
   const [artifactDrafts, setArtifactDrafts] = useState<
@@ -1433,14 +1347,6 @@ function App() {
     {},
   );
   const [expandedRaidId, setExpandedRaidId] = useState<string | null>(null);
-  const [changeRequestForm, setChangeRequestForm] =
-    useState<ChangeRequestFormState>(emptyChangeRequestForm);
-  const [changeRequestDrafts, setChangeRequestDrafts] = useState<
-    Record<string, ChangeRequestFormState>
-  >({});
-  const [expandedChangeRequestId, setExpandedChangeRequestId] = useState<
-    string | null
-  >(null);
   const [wbsDrafts, setWbsDrafts] = useState<Record<string, WbsFormState>>({});
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(
     () => new Set(),
@@ -1560,12 +1466,6 @@ function App() {
       averageProgress,
     };
   }, [projects]);
-  const budgetVariance = useMemo(() => {
-    if (!project) return 0;
-    return (
-      (Number(project.budgetForecast) / Number(project.budgetPlanned) - 1) * 100
-    );
-  }, [project]);
   const wbsTree = useMemo(
     () => buildWbsTree(project?.wbsItems ?? []),
     [project?.wbsItems],
@@ -1599,15 +1499,6 @@ function App() {
     () => buildRenumberedWbsCodes(wbsTree, wbsDrafts),
     [wbsDrafts, wbsTree],
   );
-  const wbsMilestoneCodes = useMemo(
-    () =>
-      new Set(
-        (project?.milestones ?? [])
-          .map((item) => item.code)
-          .filter((code): code is string => Boolean(code)),
-      ),
-    [project?.milestones],
-  );
   const wbsSummary = useMemo(() => {
     const items = project?.wbsItems ?? [];
     const completed = items.filter((item) => item.status === "DONE").length;
@@ -1638,40 +1529,85 @@ function App() {
     ).length;
     return { completed, atRisk, scheduleVarianceDays, slipped };
   }, [project?.wbsItems]);
+  const structureMilestones = useMemo(() => {
+    const items = project?.wbsItems ?? [];
+    const itemIndex = new Map(items.map((item, index) => [item.id, index]));
+    const milestoneBlocker = (item: WbsItem) => {
+      if (item.status === "BLOCKED") {
+        return { item, label: "Провалено", rank: 5, toneClass: "tone-r" };
+      }
+      if (
+        item.status !== "DONE" &&
+        item.dueDate !== null &&
+        new Date(item.dueDate) < startOfDay(new Date())
+      ) {
+        return { item, label: "Просрочено", rank: 4, toneClass: "tone-p" };
+      }
+      if (item.status === "AT_RISK") {
+        return { item, label: "Под риском", rank: 3, toneClass: "tone-r" };
+      }
+      return null;
+    };
+    return items
+      .filter((item) => item.type === "MILESTONE")
+      .map((milestone) => {
+        const milestoneIndex = itemIndex.get(milestone.id) ?? items.length;
+        const previousItems = items.slice(0, milestoneIndex);
+        const blockingItems = previousItems
+          .map(milestoneBlocker)
+          .filter((item): item is NonNullable<typeof item> => item !== null);
+        const worstItem = blockingItems.sort(
+          (left, right) =>
+            right.rank - left.rank ||
+            String(left.item.dueDate ?? "").localeCompare(
+              String(right.item.dueDate ?? ""),
+            ),
+        )[0];
+        const calendarDaysLeft = signedDaysUntil(milestone.dueDate);
+        const workDaysLeft = signedWorkingDaysUntil(milestone.dueDate);
+
+        return {
+          milestone,
+          calendarDaysLeft,
+          workDaysLeft,
+          control:
+            blockingItems.length === 0
+              ? "В графике"
+              : `${worstItem.label}: ${worstItem.item.code}`,
+          toneClass: blockingItems.length === 0 ? "tone-g" : worstItem.toneClass,
+        };
+      })
+      .sort((left, right) =>
+        String(left.milestone.dueDate ?? "").localeCompare(
+          String(right.milestone.dueDate ?? ""),
+        ),
+      );
+  }, [project?.wbsItems]);
   const raidSummary = useMemo(() => {
     const raidItems = project?.raidItems ?? [];
-    const changeRequests = project?.changeRequests ?? [];
     const activeRaid = raidItems.filter(
       (item) => item.status !== "CLOSED" && item.status !== "VALIDATED",
     );
     const highRisks = activeRaid.filter(
       (item) => item.type === "RISK" && item.riskScore >= 15,
     );
-    const decisions = [
-      ...raidItems.filter((item) => item.decisionRequired),
-      ...changeRequests.filter((item) => item.decisionRequired),
-    ].length;
-    const pendingCr = changeRequests.filter((item) =>
-      ["SUBMITTED", "IN_REVIEW"].includes(item.status),
-    ).length;
-    const approvedImpact = changeRequests
-      .filter((item) => item.status === "APPROVED")
-      .reduce(
-        (sum, item) => ({
-          days: sum.days + item.scheduleImpactDays,
-          budget: sum.budget + Number(item.budgetImpact),
-        }),
-        { days: 0, budget: 0 },
-      );
+    const problems = activeRaid.filter((item) => item.type === "DEPENDENCY");
+    const assumptions = activeRaid.filter((item) => item.type === "ASSUMPTION");
+    const decisions = raidItems.filter((item) => item.decisionRequired).length;
+    const scheduleImpactDays = activeRaid.reduce(
+      (sum, item) => sum + item.scheduleImpactDays,
+      0,
+    );
 
     return {
       activeRaid: activeRaid.length,
       highRisks: highRisks.length,
+      problems: problems.length,
+      assumptions: assumptions.length,
       decisions,
-      pendingCr,
-      approvedImpact,
+      scheduleImpactDays,
     };
-  }, [project?.changeRequests, project?.raidItems]);
+  }, [project?.raidItems]);
   const wbsGantt = useMemo(() => {
     const validDate = (value: string | null) => {
       const parsed = value ? new Date(value) : null;
@@ -1839,8 +1775,7 @@ function App() {
         item.children.length > 0 ||
         item.type === "PHASE" ||
         item.type === "WORK_PACKAGE";
-      const milestone =
-        item.type === "MILESTONE" || wbsMilestoneCodes.has(item.code);
+      const milestone = item.type === "MILESTONE";
       return {
         item,
         start: itemStart,
@@ -1950,7 +1885,7 @@ function App() {
       criticalIds,
       items,
     };
-  }, [project?.wbsDependencies, visibleWbsTree, wbsMilestoneCodes]);
+  }, [project?.wbsDependencies, visibleWbsTree]);
   const wbsColumnsByKey = useMemo(
     () =>
       new Map<WbsTableColumnKey, WbsTableColumn>(
@@ -2022,14 +1957,14 @@ function App() {
       },
       {
         id: "system-raid",
-        title: "Риски и управление изменениями",
+        title: "Риски и проблемы",
         type: "Управленческий контроль",
         owner: project.projectManager,
         status:
-          project.raidItems.length + project.changeRequests.length > 0
+          project.raidItems.length > 0
             ? "Активно"
             : "Пусто",
-        source: `${project.raidItems.length} рисков / ${project.changeRequests.length} изменений`,
+        source: `${project.raidItems.length} записей`,
         action: "project-raid" as AppView,
       },
       {
@@ -2190,19 +2125,6 @@ function App() {
       setExpandedRaidId((currentRaidId) =>
         nextProject.raidItems.some((item) => item.id === currentRaidId)
           ? currentRaidId
-          : null,
-      );
-      setChangeRequestDrafts(
-        Object.fromEntries(
-          nextProject.changeRequests.map((item) => [
-            item.id,
-            changeRequestToForm(item),
-          ]),
-        ),
-      );
-      setExpandedChangeRequestId((currentRequestId) =>
-        nextProject.changeRequests.some((item) => item.id === currentRequestId)
-          ? currentRequestId
           : null,
       );
     },
@@ -2733,68 +2655,6 @@ function App() {
     }
   }
 
-  async function createMilestone(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!project) return;
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/projects/${project.id}/milestones`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(milestoneForm),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось создать веху",
-        );
-      }
-      setMilestoneForm(emptyMilestoneForm);
-      await refreshProject(project.id);
-      setNotice("Веха создана");
-    } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : "Не удалось создать веху",
-      );
-    }
-  }
-
-  async function updateMilestoneStatus(milestoneId: string, status: string) {
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(`${apiBase}/api/milestones/${milestoneId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось обновить веху",
-        );
-      }
-      await refreshProject();
-      setNotice("Статус вехи обновлен");
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Не удалось обновить веху",
-      );
-    }
-  }
-
   function artifactPayload(form: ArtifactFormState) {
     return {
       ...form,
@@ -3024,121 +2884,6 @@ function App() {
         deleteError instanceof Error
           ? deleteError.message
           : "Не удалось удалить запись о риске",
-      );
-    }
-  }
-
-  function changeRequestPayload(form: ChangeRequestFormState) {
-    return {
-      ...form,
-      implementationPlan: form.implementationPlan || null,
-      scopeImpact: form.scopeImpact || null,
-      dueDate: form.dueDate || null,
-      scheduleImpactDays: Number(form.scheduleImpactDays),
-      budgetImpact: Number(form.budgetImpact),
-    };
-  }
-
-  function updateChangeRequestDraft(
-    requestId: string,
-    patch: Partial<ChangeRequestFormState>,
-  ) {
-    const current = changeRequestDrafts[requestId];
-    if (!current) return;
-    setChangeRequestDrafts({
-      ...changeRequestDrafts,
-      [requestId]: { ...current, ...patch },
-    });
-  }
-
-  async function createChangeRequest(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!project) return;
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/projects/${project.id}/change-requests`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(changeRequestPayload(changeRequestForm)),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось создать запрос на изменение",
-        );
-      }
-      setChangeRequestForm(emptyChangeRequestForm);
-      await refreshProject(project.id);
-      setExpandedChangeRequestId(result.id);
-      setNotice("Запрос на изменение создан");
-    } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : "Не удалось создать запрос на изменение",
-      );
-    }
-  }
-
-  async function saveChangeRequest(requestId: string) {
-    const draft = changeRequestDrafts[requestId];
-    if (!draft) return;
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/change-requests/${requestId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(changeRequestPayload(draft)),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось сохранить запрос на изменение",
-        );
-      }
-      await refreshProject();
-      setNotice("Запрос на изменение обновлен");
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Не удалось сохранить запрос на изменение",
-      );
-    }
-  }
-
-  async function deleteChangeRequest(requestId: string) {
-    if (!window.confirm("Удалить запрос на изменение?")) return;
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/change-requests/${requestId}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error ?? "Не удалось удалить запрос на изменение");
-      }
-      await refreshProject();
-      setNotice("Запрос на изменение удален");
-    } catch (deleteError) {
-      setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Не удалось удалить запрос на изменение",
       );
     }
   }
@@ -4065,9 +3810,7 @@ function App() {
       const result = await response.json();
       if (!response.ok) {
         throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось создать открытый вопрос",
+          responseErrorMessage(result, "Не удалось создать открытый вопрос"),
         );
       }
       setIssueForm(emptyIssueForm);
@@ -4406,8 +4149,8 @@ function App() {
       ? `${project.code} - Открытые вопросы`
       : "Открытые вопросы",
     "project-raid": project
-      ? `${project.code} - Риски и изменения`
-      : "Риски и изменения",
+      ? `${project.code} - Риски и проблемы`
+      : "Риски и проблемы",
     "project-calendars": project
       ? `${project.code} - Календари`
       : "Календари",
@@ -4638,9 +4381,9 @@ function App() {
                       : "nested child"
                   }
                   onClick={() => setActiveView("project-raid")}
-                  aria-label="Риски и изменения"
+                  aria-label="Риски и проблемы"
                 >
-                  {navLabel(<BarChart3 size={17} />, "Риски и изменения")}
+                  {navLabel(<BarChart3 size={17} />, "Риски и проблемы")}
                 </button>
                 <button
                   type="button"
@@ -4686,10 +4429,9 @@ function App() {
         <header className="topbar">
           <div>
             {project && isProjectView && activeView !== "project-create" ? (
-              <>
-                <p className="topbar-section">{viewTitle[activeView]}</p>
-                <h1>{project.name}</h1>
-              </>
+              <h1>
+                {project.code} - {project.name}
+              </h1>
             ) : (
               <h1>{viewTitle[activeView]}</h1>
             )}
@@ -4704,7 +4446,7 @@ function App() {
             </div>
           )}
         </header>
-        {project && isProjectSectionView && (
+        {project && activeView === "project-overview" && (
           <section className="project-context-bar">
             <div>
               <span>РП</span>
@@ -4724,7 +4466,7 @@ function App() {
             </div>
             <div>
               <span>Вехи</span>
-              <b>{project.milestones.length}</b>
+              <b>{structureMilestones.length}</b>
             </div>
           </section>
         )}
@@ -4770,39 +4512,71 @@ function App() {
             )}
 
             {project && activeView === "project-overview" && (
-                <section className="summary-grid">
-                  <div className="metric">
-                    <span>Статус проекта</span>
-                    <strong className={`rag ${project.rag.toLowerCase()}`}>
-	                      {projectHealthLabel(project.rag)}
-                    </strong>
-                    <small>{project.summary}</small>
+              <section className="summary-grid">
+                <div className="metric">
+                  <span>Статус проекта</span>
+                  <strong className={`rag ${project.rag.toLowerCase()}`}>
+                    {projectHealthLabel(project.rag)}
+                  </strong>
+                  <small>{project.summary}</small>
+                </div>
+                <div className="metric">
+                  <span>Прогресс</span>
+                  <strong>{project.progress}%</strong>
+                  <div className="progress">
+                    <i style={{ width: `${project.progress}%` }} />
                   </div>
-                  <div className="metric">
-                    <span>Прогресс</span>
-                    <strong>{project.progress}%</strong>
-                    <div className="progress">
-                      <i style={{ width: `${project.progress}%` }} />
-                    </div>
-                  </div>
-                  <div className="metric">
-                    <span>Отклонение сроков</span>
-                    <strong>
-                      {project.scheduleVariance > 0 ? "+" : ""}
-                      {project.scheduleVariance} дней
-                    </strong>
-                    <small>Относительно базового плана</small>
-                  </div>
-                  <div className="metric">
-                    <span>Прогноз бюджета</span>
-                    <strong>
-                      {budgetVariance > 0 ? "+" : ""}
-                      {budgetVariance.toFixed(1)}%
-                    </strong>
-                    <small>{currency(project.budgetForecast)}</small>
-                  </div>
-                </section>
-              )}
+                </div>
+                <div className="metric">
+                  <span>Отклонение сроков</span>
+                  <strong>
+                    {project.scheduleVariance > 0 ? "+" : ""}
+                    {project.scheduleVariance} дней
+                  </strong>
+                  <small>Относительно базового плана</small>
+                </div>
+                <div className="metric">
+                  <span>Открытые вопросы</span>
+                  <strong>{project.issues.length}</strong>
+                  <small>Требуют контроля РП</small>
+                </div>
+              </section>
+            )}
+
+            {project && activeView === "project-overview" && (
+              <section className="wbs-kpis overview-wbs-kpis">
+                <div>
+                  <span>Элементы</span>
+                  <strong>{project.wbsItems.length}</strong>
+                </div>
+                <div>
+                  <span>Сделано</span>
+                  <strong>{wbsSummary.completed}</strong>
+                </div>
+                <div>
+                  <span>Под риском / провалено</span>
+                  <strong>{wbsSummary.atRisk}</strong>
+                </div>
+                <div>
+                  <span>Вехи</span>
+                  <strong>{structureMilestones.length}</strong>
+                </div>
+                <div>
+                  <span>Связи</span>
+                  <strong>{project.wbsDependencies.length}</strong>
+                </div>
+                <div>
+                  <span>Отклонение прогноза</span>
+                  <strong>{wbsSummary.scheduleVarianceDays} дн.</strong>
+                  <small>{wbsSummary.slipped} сдвинуто</small>
+                </div>
+                <div>
+                  <span>Видимые</span>
+                  <strong>{visibleWbsTree.length}</strong>
+                  <small>С учетом схлопывания</small>
+                </div>
+              </section>
+            )}
 
             {activeView === "portfolio" && (
               <section className="projects-tree-section">
@@ -5035,7 +4809,7 @@ function App() {
 	                        <option value="RED">{ragOptionLabel("RED")}</option>
 	                      </select>
 	                    </label>
-	                    <div className="form-section-title span-2">Сроки и экономика</div>
+	                    <div className="form-section-title span-2">Сроки</div>
 	                    <label>
 	                      Старт
                       <input
@@ -5058,32 +4832,6 @@ function App() {
                           setNewProjectForm({
                             ...newProjectForm,
                             targetDate: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Плановый бюджет
-                      <input
-                        type="number"
-                        value={newProjectForm.budgetPlanned}
-                        onChange={(event) =>
-                          setNewProjectForm({
-                            ...newProjectForm,
-                            budgetPlanned: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Прогноз бюджета
-                      <input
-                        type="number"
-                        value={newProjectForm.budgetForecast}
-                        onChange={(event) =>
-                          setNewProjectForm({
-                            ...newProjectForm,
-                            budgetForecast: event.target.value,
                           })
                         }
                       />
@@ -5294,10 +5042,7 @@ function App() {
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>{project.name}</h2>
-                      <p>
-                        {project.portfolio} / Спонсор: {project.sponsor}
-                      </p>
+                      <h2>Вехи</h2>
                     </div>
                     {project.jiraIntegration && (
                       <a
@@ -5310,27 +5055,42 @@ function App() {
                       </a>
                     )}
                   </div>
-                  <dl className="details">
-                    <div>
-                      <dt>РП</dt>
-                      <dd>{project.projectManager}</dd>
+                  <div className="milestone-table">
+                    <div className="milestone-head">
+                      <span>Веха</span>
+                      <span>Срок</span>
+                      <span>Раб. дней</span>
+                      <span>Кал. дней</span>
+                      <span>Контроль</span>
                     </div>
-                    <div>
-                      <dt>Бюджет</dt>
-                      <dd>{currency(project.budgetPlanned)}</dd>
-                    </div>
-                    <div>
-                      <dt>Старт</dt>
-                      <dd>{date(project.startDate)}</dd>
-                    </div>
-                    <div>
-                      <dt>Цель</dt>
-                      <dd>{date(project.targetDate)}</dd>
-                    </div>
-                  </dl>
-                  <div className="jql">
-                    <span>Источник управленческой сводки</span>
-                    <code>{project.summary}</code>
+                    {structureMilestones.map(
+                      ({
+                        milestone,
+                        workDaysLeft,
+                        calendarDaysLeft,
+                        control,
+                        toneClass,
+                      }) => (
+                        <div className="milestone-row" key={milestone.id}>
+                          <span>
+                            <b>{milestone.code}</b>
+                            {milestone.title}
+                          </span>
+                          <span>{date(milestone.dueDate)}</span>
+                          <span>{formatDaysLeft(workDaysLeft)}</span>
+                          <span>{formatDaysLeft(calendarDaysLeft)}</span>
+                          <span className="milestone-control">
+                            <i className={toneClass} />
+                            {control}
+                          </span>
+                        </div>
+                      ),
+                    )}
+                    {structureMilestones.length === 0 && (
+                      <div className="empty-state">
+                        В Структуре пока нет элементов типа «Веха».
+                      </div>
+                    )}
                   </div>
                 </article>
               )}
@@ -5340,10 +5100,7 @@ function App() {
                   <div className="panel-title">
                     <div>
                       <h2>Паспорт проекта</h2>
-                      <p>
-                        Управление статусом, сроками, бюджетом и базовой сводкой
-                        проекта
-                      </p>
+                      <p>Управление статусом, сроками и ответственными проекта</p>
                     </div>
                   </div>
 	                  <form
@@ -5371,7 +5128,7 @@ function App() {
                         }
 	                        />
 	                      </label>
-	                    <div className="form-section-title span-2">Команда и иерархия</div>
+	                    <div className="form-section-title span-2">Команда</div>
 	                    <label>
 	                      Спонсор
                       <input
@@ -5396,42 +5153,7 @@ function App() {
                         }
                       />
                     </label>
-                    <label>
-                      Родительский проект
-                      <select
-                        value={projectForm.parentId}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            parentId: event.target.value,
-                          })
-                        }
-                      >
-                        <option value="">Корень</option>
-                        {projectTree
-                          .filter((item) => item.id !== project.id)
-                          .map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {"- ".repeat(item.level)}
-                              {item.code} - {item.name}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label>
-                      Порядок
-                      <input
-                        type="number"
-                        value={projectForm.sortOrder}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            sortOrder: event.target.value,
-                          })
-                        }
-	                        />
-	                      </label>
-	                    <div className="form-section-title span-2">Статус и контроль</div>
+		                    <div className="form-section-title span-2">Статус и контроль</div>
 	                    <label>
 	                      Статус
                       <select
@@ -5466,7 +5188,7 @@ function App() {
 	                        <option value="RED">{ragOptionLabel("RED")}</option>
 	                      </select>
 	                    </label>
-	                    <div className="form-section-title span-2">Сроки и экономика</div>
+	                    <div className="form-section-title span-2">Сроки</div>
 	                    <label>
 	                      Старт
                       <input
@@ -5489,32 +5211,6 @@ function App() {
                           setProjectForm({
                             ...projectForm,
                             targetDate: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Плановый бюджет
-                      <input
-                        type="number"
-                        value={projectForm.budgetPlanned}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            budgetPlanned: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Прогноз бюджета
-                      <input
-                        type="number"
-                        value={projectForm.budgetForecast}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            budgetForecast: event.target.value,
                           })
                         }
                       />
@@ -5547,171 +5243,10 @@ function App() {
                         }
 	                        />
 	                      </label>
-	                    <div className="form-section-title span-2">Управленческая сводка</div>
-	                    <label className="span-2">
-	                      Сводка
-                      <textarea
-                        value={projectForm.summary}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            summary: event.target.value,
-                          })
-                        }
-                        rows={3}
-                      />
-                    </label>
                     <div className="form-actions span-2">
                       <button type="submit">Сохранить паспорт</button>
                     </div>
                   </form>
-                </article>
-              )}
-
-              {project && activeView === "project-overview" && (
-                <article className="panel project-card">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Вехи</h2>
-                      <p>
-                        Контроль ближайших вех проекта и их статусов для
-                        обзора для руководства
-                      </p>
-                    </div>
-                  </div>
-                  <div className="milestone-grid">
-                    <div className="milestone-list">
-                      {project.milestones.map((milestone) => (
-                        <div className="milestone-row" key={milestone.id}>
-                          <div>
-                            <strong>{milestone.title}</strong>
-                            <p>
-                              {date(milestone.dueDate)} / {milestone.owner}
-                            </p>
-                            {milestone.description && (
-                              <span>{milestone.description}</span>
-                            )}
-                          </div>
-                          <select
-                            value={milestone.status}
-                            onChange={(event) =>
-                              updateMilestoneStatus(
-                                milestone.id,
-                                event.target.value,
-                              )
-                            }
-                          >
-                            <option value="Planned">
-                              {milestoneStatusLabel("Planned")}
-                            </option>
-                            <option value="In Progress">
-                              {milestoneStatusLabel("In Progress")}
-                            </option>
-                            <option value="At Risk">
-                              {milestoneStatusLabel("At Risk")}
-                            </option>
-                            <option value="Done">
-                              {milestoneStatusLabel("Done")}
-                            </option>
-                            <option value="Cancelled">
-                              {milestoneStatusLabel("Cancelled")}
-                            </option>
-                          </select>
-                        </div>
-                      ))}
-                      {project.milestones.length === 0 && (
-                        <div className="empty-state">Вехи еще не заданы.</div>
-                      )}
-                    </div>
-                    <form
-                      className="stack-form compact-form"
-                      onSubmit={createMilestone}
-                    >
-                      <label>
-                        Наименование
-                        <input
-                          value={milestoneForm.title}
-                          onChange={(event) =>
-                            setMilestoneForm({
-                              ...milestoneForm,
-                              title: event.target.value,
-                            })
-                          }
-                          placeholder="UAT старт"
-                        />
-                      </label>
-                      <div className="two-col">
-                        <label>
-                          Срок
-                          <input
-                            type="date"
-                            value={milestoneForm.dueDate}
-                            onChange={(event) =>
-                              setMilestoneForm({
-                                ...milestoneForm,
-                                dueDate: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          Статус
-                          <select
-                            value={milestoneForm.status}
-                            onChange={(event) =>
-                              setMilestoneForm({
-                                ...milestoneForm,
-                                status: event.target.value,
-                              })
-                            }
-                          >
-                            <option value="Planned">
-                              {milestoneStatusLabel("Planned")}
-                            </option>
-                            <option value="In Progress">
-                              {milestoneStatusLabel("In Progress")}
-                            </option>
-                            <option value="At Risk">
-                              {milestoneStatusLabel("At Risk")}
-                            </option>
-                            <option value="Done">
-                              {milestoneStatusLabel("Done")}
-                            </option>
-                            <option value="Cancelled">
-                              {milestoneStatusLabel("Cancelled")}
-                            </option>
-                          </select>
-                        </label>
-                      </div>
-                      <label>
-                        Ответственный
-                        <input
-                          value={milestoneForm.owner}
-                          onChange={(event) =>
-                            setMilestoneForm({
-                              ...milestoneForm,
-                              owner: event.target.value,
-                            })
-                          }
-                          placeholder="Проектный офис / Лидер качества / Спонсор"
-                        />
-                      </label>
-                      <label>
-                        Описание
-                        <textarea
-                          value={milestoneForm.description}
-                          onChange={(event) =>
-                            setMilestoneForm({
-                              ...milestoneForm,
-                              description: event.target.value,
-                            })
-                          }
-                          rows={3}
-                        />
-                      </label>
-                      <button type="submit">Добавить веху</button>
-                    </form>
-                  </div>
                 </article>
               )}
 
@@ -5729,46 +5264,14 @@ function App() {
                       <p>
                         {activeView === "project-structure"
                           ? "Иерархия работ проекта, сроки, ответственные, календарь и связи с предшественниками"
-                          : "Временная шкала проекта, связи, базовый план и прогноз"}
+                          : "Временная шкала проекта, связи и базовый план"}
                       </p>
                     </div>
-		                  </div>
-	                  <div className="wbs-kpis">
-                    <div>
-                      <span>Элементы</span>
-                      <strong>{project.wbsItems.length}</strong>
-                    </div>
-                    <div>
-                      <span>Сделано</span>
-                      <strong>{wbsSummary.completed}</strong>
-                    </div>
-                    <div>
-                      <span>Под риском / провалено</span>
-                      <strong>{wbsSummary.atRisk}</strong>
-                    </div>
-                    <div>
-                      <span>Вехи</span>
-                      <strong>{project.milestones.length}</strong>
-                    </div>
-                    <div>
-                      <span>Связи</span>
-                      <strong>{project.wbsDependencies.length}</strong>
-                    </div>
-                    <div>
-                      <span>Отклонение прогноза</span>
-                      <strong>{wbsSummary.scheduleVarianceDays} дн.</strong>
-                      <small>{wbsSummary.slipped} сдвинуто</small>
-                    </div>
-                    <div>
-                      <span>Видимые</span>
-                      <strong>{visibleWbsTree.length}</strong>
-                      <small>С учетом схлопывания</small>
-                    </div>
-                  </div>
-                  <div className="wbs-gantt-layout">
-                    {activeView === "project-structure" && (
-                      <>
-	                    <div className="wbs-history-toolbar" aria-label="История Структуры">
+			                  </div>
+		                  <div className="wbs-gantt-layout">
+	                    {activeView === "project-structure" && (
+	                      <>
+		                    <div className="wbs-history-toolbar" aria-label="История Структуры">
                       <button
                         type="button"
                         onClick={() => void undoWbsChange()}
@@ -6779,7 +6282,7 @@ function App() {
                           })
                         }
                         rows={3}
-                        placeholder="Влияние на сроки, бюджет, содержание или решение руководства"
+                        placeholder="Влияние на сроки, содержание или решение руководства"
                       />
                     </label>
                     <div className="two-col">
@@ -6973,10 +6476,10 @@ function App() {
                 <article className="panel overview-panel">
                   <div className="panel-title">
                     <div>
-                      <h2>Риски и изменения</h2>
+                      <h2>Риски и проблемы</h2>
                       <p>
-                        Риски, допущения, зависимости и запросы на изменения с
-                        влиянием на сроки, бюджет и обзор для руководства
+                        Риски, проблемы и допущения с влиянием на сроки и обзор
+                        для руководства
                       </p>
                     </div>
                   </div>
@@ -6992,19 +6495,19 @@ function App() {
                       <small>оценка 15+</small>
                     </div>
                     <div>
-                      <span>Изменения на согласовании</span>
-                      <strong>{raidSummary.pendingCr}</strong>
-                      <small>отправлено / на рассмотрении</small>
+                      <span>Проблемы</span>
+                      <strong>{raidSummary.problems}</strong>
+                      <small>активные записи</small>
                     </div>
                     <div>
-                      <span>Одобренное влияние</span>
-                      <strong>{raidSummary.approvedImpact.days} дн.</strong>
-                      <small>{currency(String(raidSummary.approvedImpact.budget))}</small>
+                      <span>Допущения</span>
+                      <strong>{raidSummary.assumptions}</strong>
+                      <small>активные записи</small>
                     </div>
                   </div>
                   <div className="raid-layout">
                     <section>
-                      <div className="subhead">Реестр рисков</div>
+                      <div className="subhead">Реестр рисков и проблем</div>
                       <div className="raid-list">
                         <div className="raid-head">
                           <span>Запись</span>
@@ -7044,10 +6547,7 @@ function App() {
                                   <span>
                                     Сроки: {item.scheduleImpactDays} дн.
                                   </span>
-                                  <span>
-                                    Бюджет: {currency(item.budgetImpact)}
-                                  </span>
-                                  {item.decisionRequired && (
+	                                  {item.decisionRequired && (
                                     <b>Требует решения</b>
                                   )}
                                 </div>
@@ -7191,17 +6691,7 @@ function App() {
                                     }
                                     placeholder="Дни по срокам"
                                   />
-                                  <input
-                                    type="number"
-                                    value={raidDrafts[item.id].budgetImpact}
-                                    onChange={(event) =>
-                                      updateRaidDraft(item.id, {
-                                        budgetImpact: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Влияние на бюджет"
-                                  />
-                                  <label className="checkbox-line compact-checkbox">
+	                                  <label className="checkbox-line compact-checkbox">
                                     <input
                                       type="checkbox"
                                       checked={raidDrafts[item.id].decisionRequired}
@@ -7231,7 +6721,7 @@ function App() {
                                       })
                                     }
                                     rows={2}
-                                    placeholder="План снижения риска"
+                                    placeholder="План действий"
                                   />
                                   <textarea
                                     value={raidDrafts[item.id].contingencyPlan}
@@ -7248,7 +6738,7 @@ function App() {
                                       type="button"
                                       onClick={() => saveRaidItem(item.id)}
                                     >
-                                      Сохранить риск
+                                      Сохранить запись
                                     </button>
                                     <button
                                       type="button"
@@ -7264,12 +6754,12 @@ function App() {
                           </div>
                         ))}
                         {project.raidItems.length === 0 && (
-                          <div className="empty-state">Записей о рисках пока нет.</div>
+                          <div className="empty-state">Записей пока нет.</div>
                         )}
                       </div>
                     </section>
-	                    <form className="raid-form stack-form" onSubmit={createRaidItem}>
-	                      <h3>Новая запись о риске</h3>
+		                    <form className="raid-form stack-form" onSubmit={createRaidItem}>
+		                      <h3>Новая запись</h3>
 	                      <div className="form-section-title">Основное</div>
 	                      <div className="two-col">
                         <label>
@@ -7302,7 +6792,7 @@ function App() {
                                 owner: event.target.value,
                               })
                             }
-                            placeholder="Владелец риска"
+                            placeholder="Владелец"
                           />
                         </label>
                       </div>
@@ -7379,23 +6869,10 @@ function App() {
                             }
                           />
                         </label>
-                        <label>
-                          Влияние на бюджет
-                          <input
-                            type="number"
-                            value={raidForm.budgetImpact}
-                            onChange={(event) =>
-                              setRaidForm({
-                                ...raidForm,
-                                budgetImpact: event.target.value,
-                              })
-                            }
-	                          />
-	                        </label>
-	                      </div>
+		                      </div>
 	                      <div className="form-section-title">План действий</div>
 	                      <label>
-	                        План снижения риска
+	                        План действий
                         <textarea
                           value={raidForm.mitigationPlan}
                           onChange={(event) =>
@@ -7420,419 +6897,7 @@ function App() {
                         />
                         Требует решения
                       </label>
-                      <button type="submit">Создать запись о риске</button>
-                    </form>
-                  </div>
-                </article>
-              )}
-
-              {project && activeView === "project-raid" && (
-                <article className="panel overview-panel">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Запросы на изменения</h2>
-                      <p>
-                        Изменения содержания, бюджета, сроков и ресурсов с
-                        маршрутом согласования
-                      </p>
-                    </div>
-                  </div>
-                  <div className="raid-layout">
-                    <section>
-                      <div className="raid-list">
-                        <div className="cr-head">
-                          <span>Запрос на изменение</span>
-                          <span>Тип</span>
-                          <span>Статус</span>
-                          <span>Влияние</span>
-                          <span>Владелец</span>
-                          <span />
-                        </div>
-                        {project.changeRequests.map((request) => (
-                          <div className="raid-item" key={request.id}>
-                            <button
-                              type="button"
-                              className="cr-row"
-                              onClick={() =>
-                                setExpandedChangeRequestId(
-                                  expandedChangeRequestId === request.id
-                                    ? null
-                                    : request.id,
-                                )
-                              }
-                            >
-                              <span className="raid-title">
-                                {request.title}
-                              </span>
-                              <span>{changeRequestTypeLabel(request.type)}</span>
-                              <span>{changeRequestStatusLabel(request.status)}</span>
-                              <span>
-                                {request.scheduleImpactDays} дн. /{" "}
-                                {currency(request.budgetImpact)}
-                              </span>
-                              <span>{request.owner}</span>
-                              <span className="issue-chevron">
-                                {expandedChangeRequestId === request.id
-                                  ? "-"
-                                  : "+"}
-                              </span>
-                            </button>
-                            {expandedChangeRequestId === request.id &&
-                              changeRequestDrafts[request.id] && (
-                                <div className="raid-details">
-                                  <div className="raid-detail-meta">
-                                    <span>{request.affectedBaseline}</span>
-                                    <span>{request.approvalRoute}</span>
-                                    {request.approvedAt && (
-                                      <span>
-                                        Одобрено: {date(request.approvedAt)}
-                                      </span>
-                                    )}
-                                    {request.decisionRequired && (
-                                      <b>Требует решения</b>
-                                    )}
-                                  </div>
-                                  <p>{request.description}</p>
-                                  <div className="raid-edit-grid">
-                                    <select
-                                      value={changeRequestDrafts[request.id].type}
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          type: event.target.value as ChangeRequestType,
-                                        })
-                                      }
-                                    >
-                                      <option value="SCOPE">
-                                        {changeRequestTypeLabel("SCOPE")}
-                                      </option>
-                                      <option value="BUDGET">
-                                        {changeRequestTypeLabel("BUDGET")}
-                                      </option>
-                                      <option value="SCHEDULE">
-                                        {changeRequestTypeLabel("SCHEDULE")}
-                                      </option>
-                                      <option value="RESOURCE">
-                                        {changeRequestTypeLabel("RESOURCE")}
-                                      </option>
-                                    </select>
-                                    <select
-                                      value={changeRequestDrafts[request.id].status}
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          status: event.target.value as ChangeRequestStatus,
-                                        })
-                                      }
-                                    >
-                                      <option value="DRAFT">
-                                        {changeRequestStatusLabel("DRAFT")}
-                                      </option>
-                                      <option value="SUBMITTED">
-                                        {changeRequestStatusLabel("SUBMITTED")}
-                                      </option>
-                                      <option value="IN_REVIEW">
-                                        {changeRequestStatusLabel("IN_REVIEW")}
-                                      </option>
-                                      <option value="APPROVED">
-                                        {changeRequestStatusLabel("APPROVED")}
-                                      </option>
-                                      <option value="REJECTED">
-                                        {changeRequestStatusLabel("REJECTED")}
-                                      </option>
-                                      <option value="IMPLEMENTED">
-                                        {changeRequestStatusLabel("IMPLEMENTED")}
-                                      </option>
-                                    </select>
-                                    <input
-                                      value={changeRequestDrafts[request.id].title}
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          title: event.target.value,
-                                        })
-                                      }
-                                      placeholder="Наименование"
-                                    />
-                                    <input
-                                      value={changeRequestDrafts[request.id].owner}
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          owner: event.target.value,
-                                        })
-                                      }
-                                      placeholder="Владелец"
-                                    />
-                                    <input
-                                      type="number"
-                                      value={
-                                        changeRequestDrafts[request.id]
-                                          .scheduleImpactDays
-                                      }
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          scheduleImpactDays: event.target.value,
-                                        })
-                                      }
-                                      placeholder="Дни по срокам"
-                                    />
-                                    <input
-                                      type="number"
-                                      value={
-                                        changeRequestDrafts[request.id]
-                                          .budgetImpact
-                                      }
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          budgetImpact: event.target.value,
-                                        })
-                                      }
-                                      placeholder="Влияние на бюджет"
-                                    />
-                                    <input
-                                      value={
-                                        changeRequestDrafts[request.id]
-                                          .affectedBaseline
-                                      }
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          affectedBaseline: event.target.value,
-                                        })
-                                      }
-                                      placeholder="Затронутый базовый план"
-                                    />
-                                    <input
-                                      type="date"
-                                      value={changeRequestDrafts[request.id].dueDate}
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          dueDate: event.target.value,
-                                        })
-                                      }
-                                    />
-                                    <textarea
-                                      className="span-2"
-                                      value={
-                                        changeRequestDrafts[request.id]
-                                          .impactAnalysis
-                                      }
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          impactAnalysis: event.target.value,
-                                        })
-                                      }
-                                      rows={2}
-                                    />
-                                    <textarea
-                                      value={
-                                        changeRequestDrafts[request.id]
-                                          .implementationPlan
-                                      }
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          implementationPlan: event.target.value,
-                                        })
-                                      }
-                                      rows={2}
-                                      placeholder="План внедрения"
-                                    />
-                                    <textarea
-                                      value={
-                                        changeRequestDrafts[request.id].scopeImpact
-                                      }
-                                      onChange={(event) =>
-                                        updateChangeRequestDraft(request.id, {
-                                          scopeImpact: event.target.value,
-                                        })
-                                      }
-                                      rows={2}
-                                      placeholder="Влияние на содержание"
-                                    />
-                                    <label className="checkbox-line compact-checkbox">
-                                      <input
-                                        type="checkbox"
-                                        checked={
-                                          changeRequestDrafts[request.id]
-                                            .decisionRequired
-                                        }
-                                        onChange={(event) =>
-                                          updateChangeRequestDraft(request.id, {
-                                            decisionRequired:
-                                              event.target.checked,
-                                          })
-                                        }
-                                      />
-                                      Требует решения
-                                    </label>
-                                    <div className="issue-actions">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          saveChangeRequest(request.id)
-                                        }
-                                      >
-                                        Сохранить изменение
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="danger-button"
-                                        onClick={() =>
-                                          deleteChangeRequest(request.id)
-                                        }
-                                      >
-                                        Удалить
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                          </div>
-                        ))}
-                        {project.changeRequests.length === 0 && (
-                          <div className="empty-state">
-                            Запросов на изменения пока нет.
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                    <form
-                      className="raid-form stack-form"
-                      onSubmit={createChangeRequest}
-	                    >
-	                      <h3>Новый запрос на изменение</h3>
-	                      <div className="form-section-title">Основное</div>
-	                      <div className="two-col">
-                        <label>
-                          Тип
-                          <select
-                            value={changeRequestForm.type}
-                            onChange={(event) =>
-                              setChangeRequestForm({
-                                ...changeRequestForm,
-                                type: event.target.value as ChangeRequestType,
-                              })
-                            }
-                          >
-                            <option value="SCOPE">
-                              {changeRequestTypeLabel("SCOPE")}
-                            </option>
-                            <option value="BUDGET">
-                              {changeRequestTypeLabel("BUDGET")}
-                            </option>
-                            <option value="SCHEDULE">
-                              {changeRequestTypeLabel("SCHEDULE")}
-                            </option>
-                            <option value="RESOURCE">
-                              {changeRequestTypeLabel("RESOURCE")}
-                            </option>
-                          </select>
-                        </label>
-                        <label>
-                          Владелец
-                          <input
-                            value={changeRequestForm.owner}
-                            onChange={(event) =>
-                              setChangeRequestForm({
-                                ...changeRequestForm,
-                                owner: event.target.value,
-                              })
-                            }
-                            placeholder="Спонсор / проектный офис"
-                          />
-                        </label>
-                      </div>
-                      <label>
-                        Наименование
-                        <input
-                          value={changeRequestForm.title}
-                          onChange={(event) =>
-                            setChangeRequestForm({
-                              ...changeRequestForm,
-                              title: event.target.value,
-                            })
-                          }
-                          placeholder="Утвердить перенос UAT"
-                        />
-                      </label>
-                      <label>
-                        Описание
-                        <textarea
-                          value={changeRequestForm.description}
-                          onChange={(event) =>
-                            setChangeRequestForm({
-                              ...changeRequestForm,
-                              description: event.target.value,
-                            })
-                          }
-	                          rows={2}
-	                        />
-	                      </label>
-	                      <div className="form-section-title">Влияние</div>
-	                      <label>
-	                        Анализ влияния
-                        <textarea
-                          value={changeRequestForm.impactAnalysis}
-                          onChange={(event) =>
-                            setChangeRequestForm({
-                              ...changeRequestForm,
-                              impactAnalysis: event.target.value,
-                            })
-                          }
-                          rows={3}
-                        />
-                      </label>
-                      <div className="two-col">
-                        <label>
-                          Дни по срокам
-                          <input
-                            type="number"
-                            value={changeRequestForm.scheduleImpactDays}
-                            onChange={(event) =>
-                              setChangeRequestForm({
-                                ...changeRequestForm,
-                                scheduleImpactDays: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          Влияние на бюджет
-                          <input
-                            type="number"
-                            value={changeRequestForm.budgetImpact}
-                            onChange={(event) =>
-                              setChangeRequestForm({
-                                ...changeRequestForm,
-                                budgetImpact: event.target.value,
-                              })
-                            }
-	                          />
-	                        </label>
-	                      </div>
-	                      <div className="form-section-title">Контроль</div>
-	                      <label>
-	                        Затронутый базовый план
-                        <input
-                          value={changeRequestForm.affectedBaseline}
-                          onChange={(event) =>
-                            setChangeRequestForm({
-                              ...changeRequestForm,
-                              affectedBaseline: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="checkbox-line">
-                        <input
-                          type="checkbox"
-                          checked={changeRequestForm.decisionRequired}
-                          onChange={(event) =>
-                            setChangeRequestForm({
-                              ...changeRequestForm,
-                              decisionRequired: event.target.checked,
-                            })
-                          }
-                        />
-                        Требует решения
-                      </label>
-                      <button type="submit">Создать изменение</button>
+                      <button type="submit">Создать запись</button>
                     </form>
                   </div>
                 </article>
@@ -8396,7 +7461,7 @@ function App() {
                   {!latestOverview && (
                     <div className="empty-state">
                       Нажмите «Сгенерировать новую версию», чтобы собрать первый
-                      обзор из статуса, бюджета, снимка Jira и реестра открытых
+                      обзор из статуса, сроков, снимка Jira и реестра открытых
                       вопросов.
                     </div>
                   )}
