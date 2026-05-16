@@ -73,16 +73,16 @@ const projectDetailsInclude = {
 } satisfies Prisma.ProjectInclude;
 
 const defaultProjectWbsItems = [
-  { code: '1', title: 'Инициация проекта', type: 'PHASE', status: 'IN_PROGRESS', owner: 'PM', startOffset: 0, duration: 14, level: 1 },
-  { code: '1.1', title: 'Паспорт проекта', type: 'TASK', status: 'DONE', owner: 'PM', startOffset: 0, duration: 4, level: 2 },
-  { code: '1.2', title: 'Команда и роли', type: 'TASK', status: 'DONE', owner: 'PMO', startOffset: 4, duration: 3, level: 2 },
-  { code: '1.3', title: 'Kick-off', type: 'MILESTONE', status: 'DONE', owner: 'Sponsor', startOffset: 7, duration: 0, level: 2 },
-  { code: '2', title: 'Планирование', type: 'PHASE', status: 'IN_PROGRESS', owner: 'PM', startOffset: 8, duration: 22, level: 1 },
-  { code: '2.1', title: 'Декомпозиция структуры', type: 'TASK', status: 'IN_PROGRESS', owner: 'PM', startOffset: 8, duration: 6, level: 2 },
-  { code: '2.1.1', title: 'Уточнение зависимостей', type: 'TASK', status: 'NOT_STARTED', owner: 'Tech Lead', startOffset: 14, duration: 5, level: 3 },
-  { code: '2.2', title: 'Базовый план согласован', type: 'MILESTONE', status: 'NOT_STARTED', owner: 'Sponsor', startOffset: 21, duration: 0, level: 2 },
-  { code: '3', title: 'Исполнение', type: 'PHASE', status: 'NOT_STARTED', owner: 'Delivery Lead', startOffset: 22, duration: 30, level: 1 },
-  { code: '3.1', title: 'Первый пакет работ', type: 'TASK', status: 'NOT_STARTED', owner: 'Team Lead', startOffset: 22, duration: 10, level: 2 },
+  { code: '1', title: 'Инициация проекта', type: 'PHASE', status: 'IN_PROGRESS', owner: 'РП', startOffset: 0, duration: 14, level: 1 },
+  { code: '1.1', title: 'Паспорт проекта', type: 'TASK', status: 'DONE', owner: 'РП', startOffset: 0, duration: 4, level: 2 },
+  { code: '1.2', title: 'Команда и роли', type: 'TASK', status: 'DONE', owner: 'Проектный офис', startOffset: 4, duration: 3, level: 2 },
+  { code: '1.3', title: 'Старт проекта', type: 'MILESTONE', status: 'DONE', owner: 'Спонсор', startOffset: 7, duration: 0, level: 2 },
+  { code: '2', title: 'Планирование', type: 'PHASE', status: 'IN_PROGRESS', owner: 'РП', startOffset: 8, duration: 22, level: 1 },
+  { code: '2.1', title: 'Декомпозиция структуры', type: 'TASK', status: 'IN_PROGRESS', owner: 'РП', startOffset: 8, duration: 6, level: 2 },
+  { code: '2.1.1', title: 'Уточнение зависимостей', type: 'TASK', status: 'NOT_STARTED', owner: 'Технический лидер', startOffset: 14, duration: 5, level: 3 },
+  { code: '2.2', title: 'Базовый план согласован', type: 'MILESTONE', status: 'NOT_STARTED', owner: 'Спонсор', startOffset: 21, duration: 0, level: 2 },
+  { code: '3', title: 'Исполнение', type: 'PHASE', status: 'NOT_STARTED', owner: 'Лидер поставки', startOffset: 22, duration: 30, level: 1 },
+  { code: '3.1', title: 'Первый пакет работ', type: 'TASK', status: 'NOT_STARTED', owner: 'Лидер команды', startOffset: 22, duration: 10, level: 2 },
 ] as const;
 
 function addDays(value: Date, days: number) {
@@ -202,7 +202,7 @@ app.post('/api/projects', async (req, res) => {
       where: { id: parsed.data.parentId },
     });
     if (!parent) {
-      res.status(400).json({ error: 'Parent project not found' });
+      res.status(400).json({ error: 'Родительский проект не найден' });
       return;
     }
   }
@@ -229,7 +229,7 @@ app.post('/api/projects', async (req, res) => {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      res.status(409).json({ error: 'Project code already exists' });
+      res.status(409).json({ error: 'Код проекта уже существует' });
       return;
     }
     throw error;
@@ -248,12 +248,12 @@ app.patch('/api/projects/:projectId', async (req, res) => {
   });
 
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
   if (parsed.data.parentId === project.id) {
-    res.status(400).json({ error: 'Project cannot be its own parent' });
+    res.status(400).json({ error: 'Проект не может быть своим родителем' });
     return;
   }
 
@@ -262,14 +262,14 @@ app.patch('/api/projects/:projectId', async (req, res) => {
       where: { id: parsed.data.parentId },
     });
     if (!parent) {
-      res.status(400).json({ error: 'Parent project not found' });
+      res.status(400).json({ error: 'Родительский проект не найден' });
       return;
     }
   }
 
   const nextParentId = parsed.data.parentId === undefined ? project.parentId : parsed.data.parentId;
   if (await wouldCreateProjectCycle(project.id, nextParentId)) {
-    res.status(400).json({ error: 'Project cannot be moved under its own child' });
+    res.status(400).json({ error: 'Проект нельзя перенести под свой дочерний проект' });
     return;
   }
 
@@ -296,7 +296,7 @@ app.patch('/api/projects/:projectId', async (req, res) => {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      res.status(409).json({ error: 'Project code already exists' });
+      res.status(409).json({ error: 'Код проекта уже существует' });
       return;
     }
     throw error;
@@ -310,7 +310,7 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
   });
 
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -336,7 +336,7 @@ app.put('/api/projects/:projectId/calendar-overrides', async (req, res) => {
     select: { id: true },
   });
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -414,7 +414,7 @@ app.post('/api/projects/:projectId/artifacts', async (req, res) => {
   });
 
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -524,15 +524,15 @@ function raidPayload(data: z.infer<typeof raidItemSchema>) {
 async function validateRaidItem(projectId: string, data: z.infer<typeof raidItemSchema>, itemId?: string) {
   const score = calculatedRiskScore(data.probability, data.impact);
   if (data.type === 'RISK' && score >= 15 && !data.owner.trim()) {
-    return 'High risk must have an owner';
+    return 'У высокого риска должен быть владелец';
   }
   if (data.type === 'RISK' && score >= 15 && !data.mitigationPlan?.trim()) {
-    return 'High risk must have a mitigation plan';
+    return 'У высокого риска должен быть план снижения';
   }
   if (data.linkedRiskId) {
     const linked = await prisma.raidItem.findUnique({ where: { id: data.linkedRiskId } });
     if (!linked || linked.projectId !== projectId || linked.type !== 'RISK' || linked.id === itemId) {
-      return 'Linked risk must be a risk from the same project';
+      return 'Связанный риск должен быть риском из того же проекта';
     }
   }
   return null;
@@ -547,7 +547,7 @@ app.post('/api/projects/:projectId/raid-items', async (req, res) => {
 
   const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -576,7 +576,7 @@ app.patch('/api/raid-items/:itemId', async (req, res) => {
 
   const existing = await prisma.raidItem.findUnique({ where: { id: req.params.itemId } });
   if (!existing) {
-    res.status(404).json({ error: 'RAID item not found' });
+    res.status(404).json({ error: 'RAID-запись не найдена' });
     return;
   }
 
@@ -625,7 +625,7 @@ app.patch('/api/raid-items/:itemId', async (req, res) => {
 app.delete('/api/raid-items/:itemId', async (req, res) => {
   const existing = await prisma.raidItem.findUnique({ where: { id: req.params.itemId } });
   if (!existing) {
-    res.status(404).json({ error: 'RAID item not found' });
+    res.status(404).json({ error: 'RAID-запись не найдена' });
     return;
   }
 
@@ -645,7 +645,7 @@ const changeRequestSchema = z.object({
   scheduleImpactDays: z.coerce.number().int().default(0),
   budgetImpact: z.coerce.number().default(0),
   scopeImpact: z.string().trim().optional().nullable(),
-  approvalRoute: z.string().trim().min(1).default('PMO -> Sponsor'),
+  approvalRoute: z.string().trim().min(1).default('Проектный офис -> Спонсор'),
   decisionRequired: z.boolean().default(false),
   dueDate: z.string().trim().optional().nullable(),
 });
@@ -670,7 +670,7 @@ app.post('/api/projects/:projectId/change-requests', async (req, res) => {
 
   const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -693,7 +693,7 @@ app.patch('/api/change-requests/:requestId', async (req, res) => {
 
   const existing = await prisma.changeRequest.findUnique({ where: { id: req.params.requestId } });
   if (!existing) {
-    res.status(404).json({ error: 'Change request not found' });
+    res.status(404).json({ error: 'Запрос на изменение не найден' });
     return;
   }
 
@@ -732,7 +732,7 @@ app.patch('/api/change-requests/:requestId', async (req, res) => {
 app.delete('/api/change-requests/:requestId', async (req, res) => {
   const existing = await prisma.changeRequest.findUnique({ where: { id: req.params.requestId } });
   if (!existing) {
-    res.status(404).json({ error: 'Change request not found' });
+    res.status(404).json({ error: 'Запрос на изменение не найден' });
     return;
   }
 
@@ -761,7 +761,7 @@ app.post('/api/projects/:projectId/milestones', async (req, res) => {
   });
 
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -879,7 +879,7 @@ async function validateWbsProjectAndParent(
   });
 
   if (!project) {
-    return { error: 'Project not found' as const };
+    return { error: 'Проект не найден' as const };
   }
 
   if (parentId) {
@@ -887,13 +887,13 @@ async function validateWbsProjectAndParent(
       where: { id: parentId },
     });
     if (!parent || parent.projectId !== project.id) {
-      return { error: 'Parent WBS item not found in this project' as const };
+      return { error: 'Родительский элемент Структуры не найден в этом проекте' as const };
     }
   }
 
   const jiraBaseUrl = project.jiraIntegration?.baseUrl;
   if (jiraBaseUrl && jiraTicketUrl && !jiraTicketUrl.startsWith(jiraBaseUrl)) {
-    return { error: `Jira URL must start with ${jiraBaseUrl}` as const };
+    return { error: `URL Jira должен начинаться с ${jiraBaseUrl}` as const };
   }
 
   return { project };
@@ -1078,7 +1078,7 @@ app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => 
       select: { id: true },
     });
     if (!project) {
-      res.status(404).json({ error: 'Project not found' });
+      res.status(404).json({ error: 'Проект не найден' });
       return;
     }
 
@@ -1088,7 +1088,7 @@ app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => 
     });
     const afterIndex = items.findIndex((item) => item.id === parsed.data.afterItemId);
     if (afterIndex === -1) {
-      res.status(404).json({ error: 'WBS item not found in this project' });
+      res.status(404).json({ error: 'Элемент Структуры не найден в этом проекте' });
       return;
     }
 
@@ -1096,7 +1096,7 @@ app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => 
     if (parsed.data.beforeItemId) {
       const beforeIndex = items.findIndex((item) => item.id === parsed.data.beforeItemId);
       if (beforeIndex === -1) {
-        res.status(404).json({ error: 'Next WBS item not found in this project' });
+        res.status(404).json({ error: 'Следующий элемент Структуры не найден в этом проекте' });
         return;
       }
       if (beforeIndex > afterIndex) {
@@ -1150,7 +1150,7 @@ app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => 
   } catch (error) {
     console.error(error);
     res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to insert WBS item',
+      error: error instanceof Error ? error.message : 'Не удалось вставить элемент Структуры',
     });
   }
 });
@@ -1167,26 +1167,26 @@ app.post('/api/projects/:projectId/wbs-snapshot/restore', async (req, res) => {
     select: { id: true },
   });
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
   const snapshotItemIds = new Set(parsed.data.wbsItems.map((item) => item.id));
   if (snapshotItemIds.size !== parsed.data.wbsItems.length) {
-    res.status(400).json({ error: 'WBS snapshot contains duplicate item ids' });
+    res.status(400).json({ error: 'Снимок Структуры содержит повторяющиеся идентификаторы элементов' });
     return;
   }
 
   for (const item of parsed.data.wbsItems) {
     if (item.parentId && !snapshotItemIds.has(item.parentId)) {
-      res.status(400).json({ error: `Parent WBS item ${item.parentId} is missing from snapshot` });
+      res.status(400).json({ error: `Родительский элемент Структуры ${item.parentId} отсутствует в снимке` });
       return;
     }
   }
 
   for (const dependency of parsed.data.wbsDependencies) {
     if (!snapshotItemIds.has(dependency.predecessorId) || !snapshotItemIds.has(dependency.successorId)) {
-      res.status(400).json({ error: 'WBS snapshot dependency references a missing WBS item' });
+      res.status(400).json({ error: 'Связь в снимке Структуры ссылается на отсутствующий элемент' });
       return;
     }
   }
@@ -1262,7 +1262,7 @@ app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
     parsed.data.jiraTicketUrl,
   );
   if ('error' in validation) {
-    res.status(validation.error === 'Project not found' ? 404 : 400).json({ error: validation.error });
+    res.status(validation.error === 'Проект не найден' ? 404 : 400).json({ error: validation.error });
     return;
   }
 
@@ -1344,12 +1344,12 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
   });
 
   if (!existing) {
-    res.status(404).json({ error: 'WBS item not found' });
+    res.status(404).json({ error: 'Элемент Структуры не найден' });
     return;
   }
 
   if (parsed.data.parentId === existing.id) {
-    res.status(400).json({ error: 'WBS item cannot be its own parent' });
+    res.status(400).json({ error: 'Элемент Структуры не может быть своим родителем' });
     return;
   }
 
@@ -1357,12 +1357,12 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
   const nextJiraUrl = parsed.data.jiraTicketUrl === undefined ? existing.jiraTicketUrl : parsed.data.jiraTicketUrl;
   const validation = await validateWbsProjectAndParent(existing.projectId, nextParentId, nextJiraUrl);
   if ('error' in validation) {
-    res.status(validation.error === 'Project not found' ? 404 : 400).json({ error: validation.error });
+    res.status(validation.error === 'Проект не найден' ? 404 : 400).json({ error: validation.error });
     return;
   }
 
   if (await wouldCreateWbsCycle(existing.id, nextParentId)) {
-    res.status(400).json({ error: 'WBS item cannot be moved under its own child' });
+    res.status(400).json({ error: 'Элемент Структуры нельзя перенести под свой дочерний элемент' });
     return;
   }
 
@@ -1451,7 +1451,7 @@ app.post('/api/projects/:projectId/wbs-items/renumber', async (req, res) => {
     select: { id: true },
   });
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -1468,7 +1468,7 @@ app.post('/api/projects/:projectId/wbs-baseline', async (req, res) => {
     select: { id: true },
   });
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -1499,7 +1499,7 @@ app.post('/api/projects/:projectId/wbs-items/reorder', async (req, res) => {
     select: { id: true },
   });
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -1536,7 +1536,7 @@ app.delete('/api/wbs-items/:itemId', async (req, res) => {
   });
 
   if (!existing) {
-    res.status(404).json({ error: 'WBS item not found' });
+    res.status(404).json({ error: 'Элемент Структуры не найден' });
     return;
   }
 
@@ -1632,7 +1632,7 @@ app.post('/api/projects/:projectId/wbs-dependencies', async (req, res) => {
   }
 
   if (parsed.data.predecessorId === parsed.data.successorId) {
-    res.status(400).json({ error: 'Dependency cannot link item to itself' });
+    res.status(400).json({ error: 'Связь не может ссылаться на тот же элемент' });
     return;
   }
 
@@ -1643,12 +1643,12 @@ app.post('/api/projects/:projectId/wbs-dependencies', async (req, res) => {
     },
   });
   if (items.length !== 2) {
-    res.status(400).json({ error: 'Both элементы Структуры must belong to the project' });
+    res.status(400).json({ error: 'Оба элемента Структуры должны относиться к проекту' });
     return;
   }
 
   if (await wouldCreateDependencyCycle(req.params.projectId, parsed.data.predecessorId, parsed.data.successorId)) {
-    res.status(400).json({ error: 'Dependency would create a cycle' });
+    res.status(400).json({ error: 'Связь создаст цикл' });
     return;
   }
 
@@ -1683,7 +1683,7 @@ app.delete('/api/wbs-dependencies/:dependencyId', async (req, res) => {
   });
 
   if (!dependency) {
-    res.status(404).json({ error: 'WBS dependency not found' });
+    res.status(404).json({ error: 'Связь Структуры не найдена' });
     return;
   }
 
@@ -1724,7 +1724,7 @@ app.put('/api/projects/:projectId/jira-integration', async (req, res) => {
   });
 
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -1777,7 +1777,7 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
   });
 
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -1796,7 +1796,7 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
   const jiraBaseUrl = project.jiraIntegration?.baseUrl;
   const invalidLink = jiraLinks.find((link) => jiraBaseUrl && !link.jiraUrl.startsWith(jiraBaseUrl));
   if (jiraBaseUrl && invalidLink) {
-    res.status(400).json({ error: `Jira URL must start with ${jiraBaseUrl}` });
+    res.status(400).json({ error: `URL Jira должен начинаться с ${jiraBaseUrl}` });
     return;
   }
 
@@ -1848,7 +1848,7 @@ app.patch('/api/open-issues/:issueId', async (req, res) => {
   });
 
   if (!issue) {
-    res.status(404).json({ error: 'Issue not found' });
+    res.status(404).json({ error: 'Открытый вопрос не найден' });
     return;
   }
 
@@ -1883,13 +1883,13 @@ app.post('/api/open-issues/:issueId/jira-links', async (req, res) => {
   });
 
   if (!issue) {
-    res.status(404).json({ error: 'Issue not found' });
+    res.status(404).json({ error: 'Открытый вопрос не найден' });
     return;
   }
 
   const jiraBaseUrl = issue.project.jiraIntegration?.baseUrl;
   if (jiraBaseUrl && !parsed.data.jiraUrl.startsWith(jiraBaseUrl)) {
-    res.status(400).json({ error: `Jira URL must start with ${jiraBaseUrl}` });
+    res.status(400).json({ error: `URL Jira должен начинаться с ${jiraBaseUrl}` });
     return;
   }
 
@@ -1930,7 +1930,7 @@ app.delete('/api/open-issues/:issueId/jira-links/:linkId', async (req, res) => {
   });
 
   if (!link || link.issueId !== req.params.issueId) {
-    res.status(404).json({ error: 'Jira link not found' });
+    res.status(404).json({ error: 'Связь Jira не найдена' });
     return;
   }
 
@@ -1973,13 +1973,13 @@ app.patch('/api/tasks/:taskId/jira-link', async (req, res) => {
   });
 
   if (!task) {
-    res.status(404).json({ error: 'Task not found' });
+    res.status(404).json({ error: 'Задача не найдена' });
     return;
   }
 
   const jiraBaseUrl = task.project.jiraIntegration?.baseUrl;
   if (jiraBaseUrl && parsed.data.jiraTicketUrl && !parsed.data.jiraTicketUrl.startsWith(jiraBaseUrl)) {
-    res.status(400).json({ error: `Jira URL must start with ${jiraBaseUrl}` });
+    res.status(400).json({ error: `URL Jira должен начинаться с ${jiraBaseUrl}` });
     return;
   }
 
@@ -2019,13 +2019,53 @@ function raidSeverity(score: number) {
   return 'LOW';
 }
 
+function ragLabel(rag: string) {
+  if (rag === 'RED') return 'Критично';
+  if (rag === 'AMBER') return 'Под риском';
+  return 'В норме';
+}
+
+function severityLabel(severity: string) {
+  return (
+    {
+      CRITICAL: 'Критичная',
+      HIGH: 'Высокая',
+      MEDIUM: 'Средняя',
+      LOW: 'Низкая',
+    }[severity] ?? severity
+  );
+}
+
+function milestoneStatusLabel(status: string) {
+  return (
+    {
+      Planned: 'Запланирована',
+      'In Progress': 'В работе',
+      'At Risk': 'Под риском',
+      Done: 'Сделана',
+      Cancelled: 'Отменена',
+    }[status] ?? status
+  );
+}
+
+function changeRequestTypeLabel(type: string) {
+  return (
+    {
+      SCOPE: 'содержание',
+      BUDGET: 'бюджет',
+      SCHEDULE: 'сроки',
+      RESOURCE: 'ресурсы',
+    }[type] ?? type
+  );
+}
+
 function overviewTone(value: 'green' | 'amber' | 'red' | 'neutral') {
   return value;
 }
 
 function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectForOverviewGeneration>>) {
   if (!project) {
-    throw new Error('Project not found');
+    throw new Error('Проект не найден');
   }
 
   const budgetPlanned = Number(project.budgetPlanned);
@@ -2063,23 +2103,23 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
         : 'отклонений по срокам нет';
 
   const executiveSummary = [
-    `${project.name} находится в статусе ${project.rag}.`,
+    `${project.name} находится в статусе ${ragLabel(project.rag)}.`,
     `Готовность составляет ${project.progress}%, ${scheduleText}.`,
-    `Бюджетный forecast: ${money(project.budgetForecast)} (${budgetVariance >= 0 ? '+' : ''}${budgetVariance.toFixed(1)}% к плану).`,
+    `Прогноз бюджета: ${money(project.budgetForecast)} (${budgetVariance >= 0 ? '+' : ''}${budgetVariance.toFixed(1)}% к плану).`,
     criticalIssues.length > 0
       ? `Критических открытых проблем: ${criticalIssues.length}; ключевая проблема: ${topIssue?.title}.`
       : topIssue
         ? `Ключевая открытая проблема: ${topIssue.title}.`
         : 'Критических открытых проблем не зафиксировано.',
     nextMilestone
-      ? `Ближайшая веха: ${nextMilestone.title}, срок ${nextMilestone.dueDate.toISOString().slice(0, 10)}, статус ${nextMilestone.status}.`
+      ? `Ближайшая веха: ${nextMilestone.title}, срок ${nextMilestone.dueDate.toISOString().slice(0, 10)}, статус ${milestoneStatusLabel(nextMilestone.status)}.`
       : 'Ближайшие вехи не заданы.',
     activeRaidItems.length > 0
-      ? `В RAID активно ${activeRaidItems.length} записей, high risks: ${highRaidItems.length}.`
-      : 'Активных RAID записей нет.',
+      ? `В RAID активно ${activeRaidItems.length} записей, высоких рисков: ${highRaidItems.length}.`
+      : 'Активных RAID-записей нет.',
     pendingChangeRequests.length > 0
-      ? `На согласовании ${pendingChangeRequests.length} change request(s).`
-      : 'Change requests на согласовании отсутствуют.',
+      ? `На согласовании ${pendingChangeRequests.length} запрос(ов) на изменение.`
+      : 'Запросов на изменения на согласовании нет.',
     decisionIssues.length + decisionChangeRequests.length > 0
       ? `Для руководства требуется ${decisionIssues.length + decisionChangeRequests.length} решение(й).`
       : 'Новых решений от руководства сейчас не требуется.',
@@ -2087,120 +2127,120 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
 
   const kpis = [
     {
-      label: 'Health',
-      value: project.rag,
-      secondary: project.rag === 'RED' ? 'Critical' : project.rag === 'AMBER' ? 'At risk' : 'On track',
+      label: 'Статус',
+      value: ragLabel(project.rag),
+      secondary: project.rag === 'RED' ? 'Критично' : project.rag === 'AMBER' ? 'Под риском' : 'В норме',
       tone: overviewTone(project.rag === 'RED' ? 'red' : project.rag === 'AMBER' ? 'amber' : 'green'),
-      source: `Project ${project.code} passport`,
+      source: `Паспорт проекта ${project.code}`,
     },
     {
-      label: 'Progress',
+      label: 'Прогресс',
       value: `${project.progress}%`,
-      secondary: `${completedWbs}/${project.wbsItems.length || 0} Структура done`,
+      secondary: `${completedWbs}/${project.wbsItems.length || 0} элементов Структуры сделано`,
       tone: overviewTone(project.progress >= 80 ? 'green' : project.progress >= 45 ? 'amber' : 'neutral'),
       source: 'Базовый план Структуры',
     },
     {
-      label: 'Schedule',
+      label: 'Сроки',
       value: `${project.scheduleVariance > 0 ? '+' : ''}${project.scheduleVariance} дней`,
-      secondary: overdueMilestones > 0 ? `${overdueMilestones} overdue milestones` : 'baseline variance',
+      secondary: overdueMilestones > 0 ? `${overdueMilestones} просроченных вех` : 'отклонение от базового плана',
       tone: overviewTone(project.scheduleVariance > 10 || overdueMilestones > 0 ? 'red' : project.scheduleVariance > 0 ? 'amber' : 'green'),
-      source: 'Project schedule',
+      source: 'План-график проекта',
     },
     {
-      label: 'Budget',
+      label: 'Бюджет',
       value: `${budgetVariance >= 0 ? '+' : ''}${budgetVariance.toFixed(1)}%`,
       secondary: money(project.budgetForecast),
       tone: overviewTone(budgetVariance > 10 ? 'red' : budgetVariance > 0 ? 'amber' : 'green'),
-      source: 'Finance forecast',
+      source: 'Финансовый прогноз',
     },
     {
-      label: 'Open Issues',
+      label: 'Открытые вопросы',
       value: String(project.issues.length),
-      secondary: `${criticalIssues.length} critical / ${decisionIssues.length} decisions`,
+      secondary: `${criticalIssues.length} критичных / ${decisionIssues.length} решений`,
       tone: overviewTone(criticalIssues.length > 0 ? 'red' : decisionIssues.length > 0 ? 'amber' : 'green'),
-      source: 'Open Issues List',
+      source: 'Реестр открытых вопросов',
     },
     {
-      label: 'RAID / CR',
+      label: 'Риски / изменения',
       value: `${activeRaidItems.length}/${pendingChangeRequests.length}`,
-      secondary: `${highRaidItems.length} high risks / ${decisionChangeRequests.length} CR decisions`,
+      secondary: `${highRaidItems.length} высоких рисков / ${decisionChangeRequests.length} решений по изменениям`,
       tone: overviewTone(highRaidItems.length > 0 ? 'red' : pendingChangeRequests.length > 0 ? 'amber' : 'green'),
-      source: 'RAID + Change Control',
+      source: 'Риски и управление изменениями',
     },
   ];
 
   const qualityGates = [
     {
-      name: 'Project data freshness',
+      name: 'Актуальность данных проекта',
       status: !project.jiraIntegration ? 'WARN' : jiraSyncAge === null || jiraSyncAge > 3 ? 'WARN' : 'OK',
       detail: !project.jiraIntegration
-        ? 'Jira integration is not configured'
+        ? 'Интеграция Jira не настроена'
         : jiraSyncAge === null
-          ? 'Jira has not been synchronized yet'
-          : `Jira sync age: ${jiraSyncAge} day(s)`,
-      source: 'Jira integration',
+          ? 'Jira еще не синхронизировалась'
+          : `Давность синхронизации Jira: ${jiraSyncAge} дн.`,
+      source: 'Интеграция Jira',
     },
     {
-      name: 'Plan completeness',
+      name: 'Полнота плана',
       status: project.wbsItems.length === 0 || missingWbsDates > 0 ? 'WARN' : 'OK',
       detail:
         missingWbsDates > 0
-          ? `${missingWbsDates} элемент(ов) Структуры do not have both start and due dates`
-          : `${project.wbsItems.length} элемент(ов) Структуры have schedule data`,
+          ? `${missingWbsDates} элемент(ов) Структуры без дат старта и срока`
+          : `${project.wbsItems.length} элемент(ов) Структуры с календарными данными`,
       source: 'Структура',
     },
     {
-      name: 'Blockers control',
+      name: 'Контроль блокеров',
       status: criticalIssues.length > 0 || blockedWbs > 0 ? 'BLOCKED' : decisionIssues.length > 0 || atRiskWbs > 0 ? 'WARN' : 'OK',
-      detail: `${criticalIssues.length} critical issue(s), ${blockedWbs} blocked элемент(ов) Структуры, ${decisionIssues.length} decision(s) required`,
-      source: 'Open Issues + Структура',
+      detail: `${criticalIssues.length} критичных вопросов, ${blockedWbs} проваленных элементов Структуры, ${decisionIssues.length} решений требуется`,
+      source: 'Открытые вопросы + Структура',
     },
     {
-      name: 'Management evidence',
+      name: 'Управленческие подтверждения',
       status: artifactBaselineCount > 0 ? 'OK' : 'WARN',
-      detail: `${artifactBaselineCount} approved/baseline artifact(s) in project registry`,
-      source: 'Artifacts registry',
+      detail: `${artifactBaselineCount} одобренных артефактов или базовых планов в реестре проекта`,
+      source: 'Реестр артефактов',
     },
     {
-      name: 'RAID discipline',
+      name: 'Дисциплина RAID',
       status: highRaidItems.some((item) => !item.mitigationPlan) ? 'BLOCKED' : highRaidItems.length > 0 ? 'WARN' : 'OK',
-      detail: `${highRaidItems.length} high risk(s), ${pendingChangeRequests.length} pending CR(s)`,
-      source: 'RAID + Change Control',
+      detail: `${highRaidItems.length} высоких рисков, ${pendingChangeRequests.length} изменений на согласовании`,
+      source: 'Риски и управление изменениями',
     },
   ];
 
   const risks = [
     ...project.issues.slice(0, 5).map((issue) => ({
       title: issue.title,
-      severity: issue.severity,
+      severity: severityLabel(issue.severity),
       owner: issue.owner,
       impact: issue.impact,
       dueDate: isoDate(issue.dueDate),
       source:
         issue.jiraLinks.length > 0
           ? issue.jiraLinks.map((link) => link.jiraKey).join(', ')
-          : 'Internal RAID',
+          : 'Внутренний RAID',
     })),
     ...activeRaidItems
       .filter((item) => item.type === 'RISK')
       .slice(0, Math.max(0, 5 - Math.min(project.issues.length, 5)))
       .map((item) => ({
         title: item.title,
-        severity: raidSeverity(item.riskScore),
+        severity: severityLabel(raidSeverity(item.riskScore)),
         owner: item.owner,
-        impact: `${item.description} Schedule: ${item.scheduleImpactDays} days, budget: ${money(item.budgetImpact)}. Mitigation: ${
-          item.mitigationPlan ?? 'not defined'
+        impact: `${item.description} Сроки: ${item.scheduleImpactDays} дн., бюджет: ${money(item.budgetImpact)}. План снижения риска: ${
+          item.mitigationPlan ?? 'не задан'
         }`,
         dueDate: isoDate(item.dueDate),
-        source: `RAID score ${item.riskScore}`,
+        source: `Оценка RAID ${item.riskScore}`,
       })),
     ...project.wbsItems
       .filter((item) => item.status === 'BLOCKED' || item.status === 'AT_RISK')
       .slice(0, Math.max(0, 5 - Math.min(project.issues.length + highRaidItems.length, 5)))
       .map((item) => ({
         title: `${item.code} ${item.title}`,
-        severity: item.status === 'BLOCKED' ? 'HIGH' : 'MEDIUM',
+        severity: severityLabel(item.status === 'BLOCKED' ? 'HIGH' : 'MEDIUM'),
         owner: item.owner,
         impact: item.description ?? 'Элемент Структуры требует внимания руководства',
         dueDate: isoDate(item.dueDate),
@@ -2210,31 +2250,31 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
 
   const nextSteps = [
     ...decisionIssues.slice(0, 3).map((issue) => ({
-      title: `Resolve management decision: ${issue.title}`,
+      title: `Принять управленческое решение: ${issue.title}`,
       owner: issue.owner,
       dueDate: isoDate(issue.dueDate),
-      source: 'Open Issues List',
+      source: 'Реестр открытых вопросов',
     })),
     ...decisionChangeRequests.slice(0, 3).map((request) => ({
-      title: `Approve change request: ${request.title}`,
+      title: `Одобрить запрос на изменение: ${request.title}`,
       owner: request.owner,
       dueDate: isoDate(request.dueDate),
-      source: `CR ${request.type}`,
+      source: `Изменение: ${changeRequestTypeLabel(request.type)}`,
     })),
     ...project.milestones
       .filter((milestone) => milestone.status !== 'Done')
       .slice(0, 3)
       .map((milestone) => ({
-        title: `Prepare milestone: ${milestone.title}`,
+        title: `Подготовить веху: ${milestone.title}`,
         owner: milestone.owner,
         dueDate: isoDate(milestone.dueDate),
-        source: 'Milestones',
+        source: 'Вехи',
       })),
     ...staleJiraIssues.slice(0, 2).map((issue) => ({
-      title: `Refresh Jira status: ${issue.issueKey}`,
-      owner: issue.assignee ?? 'Project team',
+      title: `Обновить статус Jira: ${issue.issueKey}`,
+      owner: issue.assignee ?? 'Проектная команда',
       dueDate: isoDate(issue.updatedAt),
-      source: 'Jira snapshot',
+      source: 'Снимок Jira',
     })),
   ].slice(0, 6);
 
@@ -2245,66 +2285,66 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       isoDate(issue.dueDate) ?? 'не задан'
     }`,
     deadline: isoDate(issue.dueDate),
-    source: issue.jiraLinks.length > 0 ? issue.jiraLinks.map((link) => link.jiraKey).join(', ') : 'Internal RAID',
+    source: issue.jiraLinks.length > 0 ? issue.jiraLinks.map((link) => link.jiraKey).join(', ') : 'Внутренний RAID',
   }));
 
   decisions.push(
     ...decisionChangeRequests.slice(0, 5 - decisions.length).map((request) => ({
       title: request.title,
-      impactIfApproved: `${request.impactAnalysis}. Forecast impact: ${money(request.budgetImpact)}, schedule ${request.scheduleImpactDays} days.`,
-      impactIfDelayed: `Baseline ${request.affectedBaseline} remains blocked; owner ${request.owner}.`,
+      impactIfApproved: `${request.impactAnalysis}. Влияние на прогноз: ${money(request.budgetImpact)}, сроки ${request.scheduleImpactDays} дн.`,
+      impactIfDelayed: `Базовый план «${request.affectedBaseline}» остается заблокированным; владелец ${request.owner}.`,
       deadline: isoDate(request.dueDate),
-      source: `Change Request / ${request.type}`,
+      source: `Запрос на изменение / ${changeRequestTypeLabel(request.type)}`,
     })),
   );
 
   const evidence = [
     {
-      metric: 'Project health',
-      source: `Project ${project.code} / RAG ${project.rag}`,
+      metric: 'Статус проекта',
+      source: `Проект ${project.code} / индикатор ${ragLabel(project.rag)}`,
     },
     {
-      metric: 'Schedule variance',
-      source: `Project plan snapshot / ${project.scheduleVariance} days`,
+      metric: 'Отклонение сроков',
+      source: `Снимок плана проекта / ${project.scheduleVariance} дн.`,
     },
     {
-      metric: 'Budget forecast',
-      source: `Finance forecast / ${money(project.budgetForecast)}`,
+      metric: 'Прогноз бюджета',
+      source: `Финансовый прогноз / ${money(project.budgetForecast)}`,
     },
     {
       metric: 'Структура',
-      source: `${project.wbsItems.length} items / ${project.wbsItems.filter((item) => item.status === 'DONE').length} done`,
+      source: `${project.wbsItems.length} элементов / ${project.wbsItems.filter((item) => item.status === 'DONE').length} сделано`,
     },
     {
-      metric: 'Open issues',
-      source: `${project.issues.length} open issues in unified list`,
+      metric: 'Открытые вопросы',
+      source: `${project.issues.length} открытых вопросов в едином реестре`,
     },
     {
-      metric: 'Jira snapshot',
-      source: `${project.jiraSnapshots.length} synchronized Jira issues`,
+      metric: 'Снимок Jira',
+      source: `${project.jiraSnapshots.length} синхронизированных задач Jira`,
     },
     {
-      metric: 'Milestones',
-      source: `${project.milestones.length} project milestones`,
+      metric: 'Вехи',
+      source: `${project.milestones.length} вех проекта`,
     },
     {
-      metric: 'Artifacts',
-      source: `${project.artifacts.length} project artifacts / ${artifactBaselineCount} approved or baseline`,
+      metric: 'Артефакты',
+      source: `${project.artifacts.length} артефактов проекта / ${artifactBaselineCount} одобрено или зафиксировано как базовый план`,
     },
     {
       metric: 'RAID',
-      source: `${activeRaidItems.length} active RAID items / ${highRaidItems.length} high risks`,
+      source: `${activeRaidItems.length} активных RAID-записей / ${highRaidItems.length} высоких рисков`,
     },
     {
-      metric: 'Change requests',
-      source: `${project.changeRequests.length} CRs / ${pendingChangeRequests.length} pending approval`,
+      metric: 'Запросы на изменения',
+      source: `${project.changeRequests.length} изменений / ${pendingChangeRequests.length} на согласовании`,
     },
     ...project.issues.slice(0, 3).map((issue) => ({
       metric: issue.title,
       source:
         issue.jiraLinks.length > 0
           ? issue.jiraLinks.map((link) => `${link.jiraKey}: ${link.jiraUrl}`).join('; ')
-          : `${issue.source} issue owned by ${issue.owner}`,
+          : `${issue.source === 'JIRA' ? 'Jira' : 'Внутренний'} вопрос, владелец ${issue.owner}`,
     })),
   ];
 
@@ -2343,7 +2383,7 @@ app.post('/api/projects/:projectId/executive-overviews/generate', async (req, re
   const project = await getProjectForOverviewGeneration(req.params.projectId);
 
   if (!project) {
-    res.status(404).json({ error: 'Project not found' });
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -2405,7 +2445,7 @@ app.post('/api/executive-overviews/:overviewId/status', async (req, res) => {
         : {
             status: 'APPROVED',
             approvedAt: new Date(),
-            approvedBy: parsed.data.approvedBy || 'PMO',
+            approvedBy: parsed.data.approvedBy || 'Проектный офис',
           },
   });
 
@@ -2445,13 +2485,13 @@ app.post('/api/projects/:projectId/jira/sync', async (req, res) => {
   });
 
   if (!project?.jiraIntegration) {
-    res.status(404).json({ error: 'Jira integration is not configured for this project' });
+    res.status(404).json({ error: 'Интеграция Jira не настроена для этого проекта' });
     return;
   }
 
   if (!isJiraConfigured()) {
     res.status(400).json({
-      error: 'Jira environment variables are not configured',
+      error: 'Переменные окружения Jira не настроены',
       required: ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN'],
     });
     return;
@@ -2506,7 +2546,7 @@ app.post('/api/projects/:projectId/jira/sync', async (req, res) => {
       data: { syncStatus: 'ERROR' },
     });
     res.status(502).json({
-      error: error instanceof Error ? error.message : 'Jira sync failed',
+      error: error instanceof Error ? error.message : 'Не удалось синхронизировать Jira',
     });
   }
 });
