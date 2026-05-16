@@ -1586,7 +1586,7 @@ function App() {
       return true;
     });
   }, [collapsedWbsIds, wbsTree]);
-  const activeGanttHierarchyLevel = useMemo(() => {
+  const activeWbsHierarchyLevel = useMemo(() => {
     if (collapsedWbsIds.size === 0) return null;
     for (const level of GANTT_HIERARCHY_LEVELS) {
       if (setsAreEqual(collapsedWbsIds, collapsedWbsIdsForLevel(wbsTree, level))) {
@@ -3217,7 +3217,7 @@ function App() {
     });
   }
 
-  function setGanttHierarchyLevel(level: number) {
+  function setWbsHierarchyLevel(level: number) {
     setCollapsedWbsIds((current) => {
       const next = collapsedWbsIdsForLevel(wbsTree, level);
       return setsAreEqual(current, next) ? new Set() : next;
@@ -5794,16 +5794,36 @@ function App() {
                       >
                         Вперед →
                       </button>
-	                      <button
-	                        type="button"
-	                        onClick={() => void saveWbsBaseline()}
-	                        disabled={savingBaseline || project.wbsItems.length === 0}
-	                      >
-	                        Зафиксировать базовый план
-	                      </button>
-	                      <div className="column-menu">
-	                        <button
-	                          type="button"
+		                      <button
+		                        type="button"
+		                        onClick={() => void saveWbsBaseline()}
+		                        disabled={savingBaseline || project.wbsItems.length === 0}
+		                      >
+		                        Зафиксировать базовый план
+		                      </button>
+		                      <button
+		                        type="button"
+		                        className={collapsedWbsIds.size === 0 ? "active" : ""}
+		                        onClick={() => setCollapsedWbsIds(new Set())}
+		                      >
+		                        Все
+		                      </button>
+		                      <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Структуры">
+		                        {GANTT_HIERARCHY_LEVELS.map((level) => (
+		                          <button
+		                            type="button"
+		                            key={level}
+		                            className={activeWbsHierarchyLevel === level ? "active" : ""}
+		                            onClick={() => setWbsHierarchyLevel(level)}
+		                            title={`Показать структуру до ${level} уровня`}
+		                          >
+		                            {level}
+		                          </button>
+		                        ))}
+		                      </div>
+		                      <div className="column-menu">
+		                        <button
+		                          type="button"
 	                          onClick={() =>
 	                            setShowWbsColumnMenu((current) => !current)
 	                          }
@@ -6013,8 +6033,8 @@ function App() {
 	                                <button
 	                                  type="button"
 	                                  key={level}
-	                                  className={activeGanttHierarchyLevel === level ? "active" : ""}
-	                                  onClick={() => setGanttHierarchyLevel(level)}
+	                                  className={activeWbsHierarchyLevel === level ? "active" : ""}
+	                                  onClick={() => setWbsHierarchyLevel(level)}
 	                                  title={`Показать иерархию до ${level} уровня`}
 	                                >
 	                                  {level}
