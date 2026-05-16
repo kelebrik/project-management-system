@@ -229,21 +229,24 @@
   position: relative;
 }
 
-.project-picker-trigger {
+.sidebar .project-picker-trigger {
   align-items: center;
   background-color: #fff;
-  border-color: #cbd5e1;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   color: #1f2937;
   display: grid;
   font-size: 12px;
   gap: 8px;
   grid-template-columns: minmax(0, 1fr) auto;
   height: 36px;
+  justify-content: stretch;
   padding: 8px 10px;
+  text-align: left;
   width: 100%;
 }
 
-.project-picker-trigger span {
+.sidebar .project-picker-trigger span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
