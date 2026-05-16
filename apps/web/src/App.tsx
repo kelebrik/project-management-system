@@ -558,6 +558,7 @@ const GANTT_SCALE_WIDTH: Record<GanttScale, number> = {
   month: 120,
   quarter: 72,
 };
+const GANTT_HIERARCHY_LEVELS = [1, 2, 3, 4, 5] as const;
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -1259,6 +1260,27 @@ function wbsDraftDisplayLevel(
   return Math.max(0, (draftLevel ?? item.wbsLevel ?? item.level + 1) - 1);
 }
 
+function collapsedWbsIdsForLevel(items: WbsTreeItem[], level: number) {
+  const deepestVisibleLevel = Math.max(1, level);
+  return new Set(
+    items
+      .filter(
+        (item) =>
+          item.children.length > 0 &&
+          wbsDisplayLevel(item) >= deepestVisibleLevel - 1,
+      )
+      .map((item) => item.id),
+  );
+}
+
+function setsAreEqual(left: Set<string>, right: Set<string>) {
+  if (left.size !== right.size) return false;
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+  return true;
+}
+
 function buildRenumberedWbsCodes(
   items: WbsTreeItem[],
   drafts: Record<string, WbsFormState>,
@@ -1563,6 +1585,15 @@ function App() {
       }
       return true;
     });
+  }, [collapsedWbsIds, wbsTree]);
+  const activeGanttHierarchyLevel = useMemo(() => {
+    if (collapsedWbsIds.size === 0) return null;
+    for (const level of GANTT_HIERARCHY_LEVELS) {
+      if (setsAreEqual(collapsedWbsIds, collapsedWbsIdsForLevel(wbsTree, level))) {
+        return level;
+      }
+    }
+    return null;
   }, [collapsedWbsIds, wbsTree]);
   const draftWbsCodes = useMemo(
     () => buildRenumberedWbsCodes(wbsTree, wbsDrafts),
@@ -3183,6 +3214,13 @@ function App() {
         next.add(itemId);
       }
       return next;
+    });
+  }
+
+  function setGanttHierarchyLevel(level: number) {
+    setCollapsedWbsIds((current) => {
+      const next = collapsedWbsIdsForLevel(wbsTree, level);
+      return setsAreEqual(current, next) ? new Set() : next;
     });
   }
 
@@ -5695,96 +5733,7 @@ function App() {
                           : "Временная шкала проекта, связи, базовый план и прогноз"}
                       </p>
                     </div>
-	                    {activeView === "project-gantt" && (
-	                    <div className="wbs-toolbar" aria-label="Действия Гантта">
-	                      <div className="segmented-control" aria-label="Масштаб Гантта">
-	                        <button
-	                          type="button"
-	                          className={ganttScale === "month" ? "active" : ""}
-	                          onClick={() => setGanttScale("month")}
-	                        >
-	                          Месяцы
-	                        </button>
-	                        <button
-	                          type="button"
-	                          className={ganttScale === "quarter" ? "active" : ""}
-	                          onClick={() => setGanttScale("quarter")}
-	                        >
-	                          Кварталы
-	                        </button>
-	                      </div>
-	                      <button
-	                        type="button"
-	                        onClick={() =>
-	                          document
-	                            .querySelector(".gantt-today")
-	                            ?.scrollIntoView({
-	                              inline: "center",
-	                              block: "nearest",
-	                              behavior: "smooth",
-	                            })
-	                        }
-	                      >
-	                        Сегодня
-	                      </button>
-	                      <button
-	                        type="button"
-	                        className={showGanttDependencies ? "active" : ""}
-                        onClick={() =>
-                          setShowGanttDependencies((current) => !current)
-                        }
-                      >
-                        Связи
-                      </button>
-                      <button
-                        type="button"
-                        className={showGanttBaseline ? "active" : ""}
-                        onClick={() =>
-                          setShowGanttBaseline((current) => !current)
-                        }
-                      >
-                        Базовый план
-                      </button>
-                      <button
-                        type="button"
-                        className={showGanttForecast ? "active" : ""}
-                        onClick={() =>
-                          setShowGanttForecast((current) => !current)
-                        }
-                      >
-                        Прогноз
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCollapsedWbsIds(new Set())}
-                      >
-                        Раскрыть все
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCollapsedWbsIds(
-                            new Set(
-                              wbsTree
-                                .filter((item) => item.children.length > 0)
-                                .map((item) => item.id),
-                            ),
-                          )
-                        }
-                      >
-                        Схлопнуть фазы
-                      </button>
-	                    </div>
-	                    )}
-	                  </div>
-	                  <div className="status-legend" aria-label="Легенда статусов">
-	                    <span><i className="tone-b" />В работе</span>
-	                    <span><i className="tone-g" />Сделано</span>
-	                    <span><i className="tone-r" />Провалено</span>
-	                    <span><i className="tone-p" />Просрочено</span>
-	                    <span><i className="tone-x" />Не начато</span>
-	                    <span><i className="tone-o" />Веха</span>
-	                  </div>
+		                  </div>
 	                  <div className="wbs-kpis">
                     <div>
                       <span>Элементы</span>
@@ -5990,10 +5939,10 @@ function App() {
                       </div>
                     </div>
                       </>
-                    )}
-                    {activeView === "project-gantt" && (
-                    <div
-                      className="gantt-panel"
+	                    )}
+	                    {activeView === "project-gantt" && (
+	                    <div
+	                      className="gantt-panel"
                       style={
                         {
                           "--gantt-wbs-width": `${ganttWbsWidth}px`,
@@ -6001,10 +5950,99 @@ function App() {
 	                            520,
 	                            wbsGantt.months.length * GANTT_SCALE_WIDTH[ganttScale],
 	                          )}px`,
-                        } as GanttCssProperties
-                      }
-                    >
-                    <div className="gantt-head">
+	                        } as GanttCssProperties
+	                      }
+	                    >
+	                      <div className="gantt-controls">
+	                        <div className="gantt-controls-row">
+	                          <div className="segmented-control" aria-label="Масштаб Гантта">
+	                            <button
+	                              type="button"
+	                              className={ganttScale === "month" ? "active" : ""}
+	                              onClick={() => setGanttScale("month")}
+	                            >
+	                              Месяцы
+	                            </button>
+	                            <button
+	                              type="button"
+	                              className={ganttScale === "quarter" ? "active" : ""}
+	                              onClick={() => setGanttScale("quarter")}
+	                            >
+	                              Кварталы
+	                            </button>
+	                          </div>
+	                          <button
+	                            type="button"
+	                            onClick={() =>
+	                              document
+	                                .querySelector(".gantt-today")
+	                                ?.scrollIntoView({
+	                                  inline: "center",
+	                                  block: "nearest",
+	                                  behavior: "smooth",
+	                                })
+	                            }
+	                          >
+	                            Сегодня
+	                          </button>
+	                          <button
+	                            type="button"
+	                            className={showGanttDependencies ? "active" : ""}
+	                            onClick={() =>
+	                              setShowGanttDependencies((current) => !current)
+	                            }
+	                          >
+	                            Связи
+	                          </button>
+	                          <button
+	                            type="button"
+	                            className={showGanttBaseline ? "active" : ""}
+	                            onClick={() =>
+	                              setShowGanttBaseline((current) => !current)
+	                            }
+	                          >
+	                            Базовый план
+	                          </button>
+	                          <button
+	                            type="button"
+	                            className={showGanttForecast ? "active" : ""}
+	                            onClick={() =>
+	                              setShowGanttForecast((current) => !current)
+	                            }
+	                          >
+	                            Прогноз
+	                          </button>
+	                          <button
+	                            type="button"
+	                            className={collapsedWbsIds.size === 0 ? "active" : ""}
+	                            onClick={() => setCollapsedWbsIds(new Set())}
+	                          >
+	                            Все
+	                          </button>
+	                          <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Гантта">
+	                            {GANTT_HIERARCHY_LEVELS.map((level) => (
+	                              <button
+	                                type="button"
+	                                key={level}
+	                                className={activeGanttHierarchyLevel === level ? "active" : ""}
+	                                onClick={() => setGanttHierarchyLevel(level)}
+	                                title={`Показать иерархию до ${level} уровня`}
+	                              >
+	                                {level}
+	                              </button>
+	                            ))}
+	                          </div>
+	                        </div>
+	                        <div className="status-legend gantt-status-legend" aria-label="Легенда статусов">
+	                          <span><i className="tone-b" />В работе</span>
+	                          <span><i className="tone-g" />Сделано</span>
+	                          <span><i className="tone-r" />Провалено</span>
+	                          <span><i className="tone-p" />Просрочено</span>
+	                          <span><i className="tone-x" />Не начато</span>
+	                          <span><i className="tone-o" />Веха</span>
+	                        </div>
+	                      </div>
+	                    <div className="gantt-head">
                           <span>Структура</span>
                       <button
                         type="button"
