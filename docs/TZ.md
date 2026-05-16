@@ -186,7 +186,7 @@
 5. **Метрики здоровья проекта:** RAG, schedule variance, budget variance, scope stability, resource risk, risk exposure, decision latency.
 6. **Baseline и forecast:** план должен сравниваться не только с фактом, но и с прогнозом.
 7. **Ресурсное планирование как отдельный модуль:** capacity, demand, allocation, overload, skills, calendars, rates.
-8. **RAID + Change Control:** риски, допущения, проблемы, зависимости и изменения должны иметь влияние на сроки, бюджет, scope и executive overview.
+8. **Риски и управление изменениями:** риски, допущения, проблемы, зависимости и изменения должны иметь влияние на сроки, бюджет, scope и executive overview.
 9. **Governed reporting:** отчетность должна быть управляемой: формулы, шаблоны, права, версии, аудит.
 10. **Executive overview как продуктовый модуль:** не dashboard и не PDF-экспорт, а полный процесс подготовки управленческого материала.
 
@@ -219,7 +219,7 @@ flowchart LR
   Core --> Tasks[Tasks & Collaboration]
   Core --> Resources[Resources & Workload]
   Core --> Finance[Budget & Costs]
-  Core --> RAID[RAID & Change Control]
+  Core --> риски[Риски и управление изменениями]
   Core --> Reports[Dashboards & Reports]
   Core --> Exec[Executive Overview]
   Core --> Integrations[Integrations]
@@ -354,7 +354,7 @@ flowchart LR
   - ожидаемый эффект;
   - CAPEX/OPEX оценка;
   - срок;
-  - риски;
+  - реестр рисков;
   - dependency;
   - compliance/регуляторная обязательность.
 - Scoring model:
@@ -586,7 +586,7 @@ flowchart LR
   - blocked/blocker flags;
   - source URL.
 - Open Issues List:
-  - все открытые проблемы проекта из Jira и внутреннего RAID;
+  - все открытые проблемы проекта из Jira и внутреннего реестра рисков;
   - severity/priority;
   - owner;
   - age;
@@ -610,7 +610,7 @@ flowchart LR
 - Просроченная задача влияет на project health по настроенной формуле.
 - У каждой задачи можно заполнить `jiraTicketUrl`; система валидирует URL по настроенному Jira base URL проекта.
 - Jira issue snapshot обновляется по расписанию и вручную кнопкой “Sync now”.
-- Open Issues List показывает открытые blocker/high priority issues из Jira и внутренние issues из RAID в одном списке.
+- Open Issues List показывает открытые blocker/high priority issues из Jira и внутренние issues из реестра рисков в одном списке.
 - Один Open Issue может быть связан с несколькими Jira tickets; связи хранятся отдельным списком и используются в Executive Overview evidence.
 - Open Issue должен поддерживать жизненный цикл: Open, In Progress, Blocked, Resolved, Closed; закрытые проблемы исключаются из активного Open Issues List, но остаются в истории проекта.
 - Executive overview использует Open Issues List как источник блока “Key blockers / decisions required”.
@@ -729,7 +729,7 @@ flowchart LR
 
 ---
 
-## 6.10 Модуль RAID и управления изменениями
+## 6.10 Модуль реестра рисков и управления изменениями
 
 ### Назначение
 
@@ -783,7 +783,7 @@ flowchart LR
 
 ### Эскиз
 
-![RAID Change Log](wireframes/07-raid-change-log.svg)
+![Риски и изменения](wireframes/07-raid-change-log.svg)
 
 ---
 
@@ -864,7 +864,7 @@ Dashboards отвечают на вопрос “что происходит с�
   - project health;
   - Gantt/baseline/forecast;
   - budget/actual/forecast;
-  - RAID;
+  - реестр рисков;
   - resource conflicts;
   - milestones;
   - change requests;
@@ -1458,7 +1458,7 @@ flowchart TB
 4. [Task Board / List](wireframes/04-task-board-list.svg)
 5. [Resources / Workload](wireframes/05-resources-workload.svg)
 6. [Finance / Costs](wireframes/06-finance-costs.svg)
-7. [RAID / Change Log](wireframes/07-raid-change-log.svg)
+7. [Риски и изменения](wireframes/07-raid-change-log.svg)
 8. [Executive Overview Builder](wireframes/08-executive-overview-builder.svg)
 9. [Executive Presentation](wireframes/09-executive-presentation.svg)
 10. [Admin Console](wireframes/10-admin-console.svg)
@@ -1482,7 +1482,7 @@ flowchart TB
 - `/api/resources`
 - `/api/timesheets`
 - `/api/finance`
-- `/api/raid`
+- `/api/risk-register`
 - `/api/change-requests`
 - `/api/dashboards`
 - `/api/overviews`
@@ -1525,7 +1525,7 @@ flowchart TB
 
 - Project creation from initiative.
 - Jira project configuration and issue snapshot sync.
-- Open Issues List aggregation from Jira snapshots and internal RAID issues.
+- Open Issues List aggregation from Jira snapshots and internal risk-register issues.
 - Baseline creation and approval.
 - CR impact on schedule/budget.
 - Resource allocation conflict.
@@ -1597,7 +1597,7 @@ flowchart TB
 - baseline;
 - import/export.
 
-## 15.4 Этап 3. Resources / Finance / RAID
+## 15.4 Этап 3. Resources / Finance / реестр рисков
 
 Срок: 12-16 недель.
 
@@ -1607,7 +1607,7 @@ flowchart TB
 - allocation heatmap;
 - timesheets;
 - budget/actual/forecast;
-- RAID;
+- реестр рисков;
 - change requests;
 - approval workflows.
 

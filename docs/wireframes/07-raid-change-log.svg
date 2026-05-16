@@ -2,14 +2,14 @@
   <defs><style>.bg{fill:#f6f7f9}.panel{fill:#fff;stroke:#d9dee7;stroke-width:1.5}.soft{fill:#eef2f7}.text{font-family:Arial,Helvetica,sans-serif;fill:#1f2937}.muted{fill:#64748b}.title{font-size:24px;font-weight:700}.h{font-size:16px;font-weight:700}.s{font-size:13px}.xs{font-size:11px}.line{stroke:#d9dee7;stroke-width:1}.green{fill:#16a34a}.amber{fill:#f59e0b}.red{fill:#dc2626}.blue{fill:#2563eb}</style></defs>
   <rect class="bg" width="1280" height="840"/>
   <rect class="panel" x="24" y="24" width="1232" height="70" rx="8"/>
-  <text class="text title" x="48" y="58">RAID и управление изменениями</text>
+  <text class="text title" x="48" y="58">Риски и управление изменениями</text>
   <text class="text muted s" x="48" y="80">Risks, Assumptions, Issues, Dependencies, Change Requests с влиянием на сроки/бюджет/scope</text>
   <rect class="panel" x="24" y="118" width="286" height="150" rx="8"/><text class="text h" x="48" y="150">Risks</text><text class="text" x="48" y="214" font-size="36" font-weight="700">18</text><circle class="red" cx="252" cy="200" r="12"/>
   <rect class="panel" x="334" y="118" width="286" height="150" rx="8"/><text class="text h" x="358" y="150">Issues</text><text class="text" x="358" y="214" font-size="36" font-weight="700">5</text><circle class="amber" cx="562" cy="200" r="12"/>
   <rect class="panel" x="644" y="118" width="286" height="150" rx="8"/><text class="text h" x="668" y="150">Dependencies</text><text class="text" x="668" y="214" font-size="36" font-weight="700">27</text><circle class="blue" cx="872" cy="200" r="12"/>
   <rect class="panel" x="954" y="118" width="302" height="150" rx="8"/><text class="text h" x="978" y="150">Change Requests</text><text class="text" x="978" y="214" font-size="36" font-weight="700">9</text><circle class="green" cx="1198" cy="200" r="12"/>
   <rect class="panel" x="24" y="292" width="708" height="500" rx="8"/>
-  <text class="text h" x="48" y="324">Реестр RAID</text>
+  <text class="text h" x="48" y="324">Реестр рисков</text>
   <line class="line" x1="48" y1="352" x2="708" y2="352"/>
   <text class="text muted xs" x="50" y="378">ID</text><text class="text muted xs" x="104" y="378">Тип</text><text class="text muted xs" x="188" y="378">Описание</text><text class="text muted xs" x="528" y="378">RAG</text><text class="text muted xs" x="590" y="378">Owner</text>
   <g class="text s">

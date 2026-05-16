@@ -576,7 +576,7 @@ app.patch('/api/raid-items/:itemId', async (req, res) => {
 
   const existing = await prisma.raidItem.findUnique({ where: { id: req.params.itemId } });
   if (!existing) {
-    res.status(404).json({ error: 'RAID-запись не найдена' });
+    res.status(404).json({ error: 'Запись о риске не найдена' });
     return;
   }
 
@@ -625,7 +625,7 @@ app.patch('/api/raid-items/:itemId', async (req, res) => {
 app.delete('/api/raid-items/:itemId', async (req, res) => {
   const existing = await prisma.raidItem.findUnique({ where: { id: req.params.itemId } });
   if (!existing) {
-    res.status(404).json({ error: 'RAID-запись не найдена' });
+    res.status(404).json({ error: 'Запись о риске не найдена' });
     return;
   }
 
@@ -2115,8 +2115,8 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       ? `Ближайшая веха: ${nextMilestone.title}, срок ${nextMilestone.dueDate.toISOString().slice(0, 10)}, статус ${milestoneStatusLabel(nextMilestone.status)}.`
       : 'Ближайшие вехи не заданы.',
     activeRaidItems.length > 0
-      ? `В RAID активно ${activeRaidItems.length} записей, высоких рисков: ${highRaidItems.length}.`
-      : 'Активных RAID-записей нет.',
+      ? `В реестре рисков активно ${activeRaidItems.length} записей, высоких рисков: ${highRaidItems.length}.`
+      : 'Активных записей о рисках нет.',
     pendingChangeRequests.length > 0
       ? `На согласовании ${pendingChangeRequests.length} запрос(ов) на изменение.`
       : 'Запросов на изменения на согласовании нет.',
@@ -2203,7 +2203,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       source: 'Реестр артефактов',
     },
     {
-      name: 'Дисциплина RAID',
+      name: 'Дисциплина управления рисками',
       status: highRaidItems.some((item) => !item.mitigationPlan) ? 'BLOCKED' : highRaidItems.length > 0 ? 'WARN' : 'OK',
       detail: `${highRaidItems.length} высоких рисков, ${pendingChangeRequests.length} изменений на согласовании`,
       source: 'Риски и управление изменениями',
@@ -2220,7 +2220,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       source:
         issue.jiraLinks.length > 0
           ? issue.jiraLinks.map((link) => link.jiraKey).join(', ')
-          : 'Внутренний RAID',
+          : 'Внутренний реестр рисков',
     })),
     ...activeRaidItems
       .filter((item) => item.type === 'RISK')
@@ -2233,7 +2233,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
           item.mitigationPlan ?? 'не задан'
         }`,
         dueDate: isoDate(item.dueDate),
-        source: `Оценка RAID ${item.riskScore}`,
+        source: `Оценка риска ${item.riskScore}`,
       })),
     ...project.wbsItems
       .filter((item) => item.status === 'BLOCKED' || item.status === 'AT_RISK')
@@ -2285,7 +2285,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       isoDate(issue.dueDate) ?? 'не задан'
     }`,
     deadline: isoDate(issue.dueDate),
-    source: issue.jiraLinks.length > 0 ? issue.jiraLinks.map((link) => link.jiraKey).join(', ') : 'Внутренний RAID',
+    source: issue.jiraLinks.length > 0 ? issue.jiraLinks.map((link) => link.jiraKey).join(', ') : 'Внутренний реестр рисков',
   }));
 
   decisions.push(
@@ -2332,8 +2332,8 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       source: `${project.artifacts.length} артефактов проекта / ${artifactBaselineCount} одобрено или зафиксировано как базовый план`,
     },
     {
-      metric: 'RAID',
-      source: `${activeRaidItems.length} активных RAID-записей / ${highRaidItems.length} высоких рисков`,
+      metric: 'Риски',
+      source: `${activeRaidItems.length} активных записей о рисках / ${highRaidItems.length} высоких рисков`,
     },
     {
       metric: 'Запросы на изменения',

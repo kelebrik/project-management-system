@@ -37,7 +37,7 @@
   <text class="text h" x="956" y="150">Контроль источников</text>
   <rect class="soft" x="956" y="184" width="260" height="60" rx="6"/><text class="text s" x="972" y="214">Срок: Gantt snapshot #223</text><text class="text muted xs" x="972" y="234">updated 13.05 10:32</text>
   <rect class="soft" x="956" y="260" width="260" height="60" rx="6"/><text class="text s" x="972" y="290">Бюджет: Finance actuals</text><text class="text muted xs" x="972" y="310">updated 12.05 22:00</text>
-  <rect class="soft" x="956" y="336" width="260" height="60" rx="6"/><text class="text s" x="972" y="366">Риски: RAID R-31/I-12</text><text class="text muted xs" x="972" y="386">owner PM</text>
+  <rect class="soft" x="956" y="336" width="260" height="60" rx="6"/><text class="text s" x="972" y="366">Риски: реестр R-31/I-12</text><text class="text muted xs" x="972" y="386">owner PM</text>
   <line class="line" x1="956" y1="432" x2="1216" y2="432"/>
   <text class="text h" x="956" y="468">Проверки перед публикацией</text>
   <text class="text s" x="956" y="508">✓ все метрики имеют источник</text>

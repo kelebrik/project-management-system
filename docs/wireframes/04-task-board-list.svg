@@ -13,7 +13,7 @@
   <g>
     <rect class="panel" x="48" y="210" width="370" height="536" rx="8"/><text class="text h" x="72" y="242">Open Issues List</text>
     <rect class="risk" x="72" y="270" width="316" height="92" rx="6"/><text class="text s" x="88" y="300">ERP-1842: API SLA не подтвержден</text><text class="text muted xs" x="88" y="326">Source: Jira | Owner: Vendor | Impact: +12d</text>
-    <rect class="soft" x="72" y="378" width="316" height="92" rx="6"/><text class="text s" x="88" y="408">I-12: нет доступа к тестовому контуру</text><text class="text muted xs" x="88" y="434">Source: Internal RAID | Owner: IT Ops</text>
+    <rect class="soft" x="72" y="378" width="316" height="92" rx="6"/><text class="text s" x="88" y="408">I-12: нет доступа к тестовому контуру</text><text class="text muted xs" x="88" y="434">Source: Внутренний реестр рисков | Owner: IT Ops</text>
     <rect class="soft" x="72" y="486" width="316" height="92" rx="6"/><text class="text s" x="88" y="516">ERP-1901: миграция справочников blocked</text><text class="text muted xs" x="88" y="542">Source: Jira | Decision required</text>
     <rect class="panel" x="442" y="210" width="370" height="536" rx="8"/><text class="text h" x="466" y="242">Jira Issues Snapshot</text>
     <text class="text muted xs" x="466" y="278">Key</text><text class="text muted xs" x="548" y="278">Status</text><text class="text muted xs" x="646" y="278">Priority</text><text class="text muted xs" x="724" y="278">Assignee</text>
@@ -25,5 +25,5 @@
     <rect class="soft" x="860" y="270" width="340" height="96" rx="6"/><text class="text s" x="876" y="300">Согласовать workaround API</text><text class="text muted xs" x="876" y="326">Jira: ERP-1842 | Due: 17.05 | Sponsor</text>
     <rect class="soft" x="860" y="382" width="340" height="96" rx="6"/><text class="text s" x="876" y="412">Подготовить решение для комитета</text><text class="text muted xs" x="876" y="438">Linked: R-31, CR-18, Overview v18</text>
   </g>
-  <text class="text muted s" x="48" y="774">Карточка открывается боковой панелью: Jira URL, источник, impact, связи с WBS/RAID/overview, журнал изменений.</text>
+  <text class="text muted s" x="48" y="774">Карточка открывается боковой панелью: Jira URL, источник, impact, связи со структурой, рисками и обзором, журнал изменений.</text>
 </svg>

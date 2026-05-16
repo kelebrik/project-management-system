@@ -32,7 +32,7 @@
   <circle class="red" cx="1012" cy="450" r="10"/><text class="text xs" x="984" y="488">30.05</text>
   <text class="text s" x="684" y="536">Клик по вехе открывает детали, но основной экран остается one-page.</text>
   <rect class="soft" x="128" y="612" width="1024" height="82" rx="8"/>
-  <text class="text s" x="152" y="646">Источник данных: Gantt snapshot #223, RAID #R-31/I-12, Finance actuals 12.05.2026.</text>
+  <text class="text s" x="152" y="646">Источник данных: Gantt snapshot #223, реестр рисков #R-31/I-12, Finance actuals 12.05.2026.</text>
   <text class="text muted xs" x="152" y="674">Доступ: только Steering Committee. Все просмотры логируются. Экспорт: PDF/PPTX.</text>
   <text class="light" x="84" y="806" font-size="13">Навигация: ← → страницы, F полноэкранный режим, E evidence panel, D decision register</text>
 </svg>

@@ -3,12 +3,31 @@ import {
   type DragEvent as ReactDragEvent,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import {
+  BarChart3,
+  BriefcaseBusiness,
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FileArchive,
+  FileText,
+  FolderTree,
+  GanttChartSquare,
+  LayoutDashboard,
+  ListChecks,
+  Plus,
+  Search,
+  Settings,
+  ShieldAlert,
+} from "lucide-react";
 import "./App.css";
 
 type RagStatus = "GREEN" | "AMBER" | "RED";
@@ -97,6 +116,7 @@ type ProjectDetails = ProjectListItem & {
 type ProjectUiState = {
   sidebarCollapsed?: boolean;
   wbsColumnOrder?: WbsTableColumnKey[];
+  wbsHiddenColumns?: WbsTableColumnKey[];
   wbsColumnWidths?: Partial<Record<WbsTableColumnKey, number>>;
 };
 
@@ -526,12 +546,18 @@ type GanttCssProperties = CSSProperties & {
   "--gantt-timeline-width": string;
 };
 
+type GanttScale = "month" | "quarter";
+
 type WbsTableCssProperties = CSSProperties & {
   "--wbs-table-template": string;
   "--wbs-level-width": string;
 };
 
 const WBS_LEVEL_MIN_WIDTH = 128;
+const GANTT_SCALE_WIDTH: Record<GanttScale, number> = {
+  month: 120,
+  quarter: 72,
+};
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -701,6 +727,18 @@ function normalizeWbsColumnOrder(order?: WbsTableColumnKey[]) {
   );
 
   return [...fixedKeys, ...movableKeys, ...missingKeys];
+}
+
+function normalizeWbsHiddenColumns(hidden?: WbsTableColumnKey[]) {
+  const knownKeys = new Set(WBS_TABLE_COLUMNS.map((column) => column.key));
+  return [
+    ...new Set(
+      (hidden ?? []).filter(
+        (key) =>
+          knownKeys.has(key) && key !== "level" && key !== "structure",
+      ),
+    ),
+  ];
 }
 
 function normalizeWbsColumnWidths(
@@ -1388,12 +1426,17 @@ function App() {
   const [showGanttDependencies, setShowGanttDependencies] = useState(true);
   const [showGanttBaseline, setShowGanttBaseline] = useState(true);
   const [showGanttForecast, setShowGanttForecast] = useState(true);
+  const [ganttScale, setGanttScale] = useState<GanttScale>("month");
+  const [showWbsColumnMenu, setShowWbsColumnMenu] = useState(false);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
   const [wbsColumnWidths, setWbsColumnWidths] = useState<
     Record<WbsTableColumnKey, number>
   >(() => normalizeWbsColumnWidths());
   const [wbsColumnOrder, setWbsColumnOrder] = useState<WbsTableColumnKey[]>(
     () => normalizeWbsColumnOrder(),
+  );
+  const [wbsHiddenColumns, setWbsHiddenColumns] = useState<WbsTableColumnKey[]>(
+    () => normalizeWbsHiddenColumns(),
   );
   const [draggedWbsColumn, setDraggedWbsColumn] =
     useState<WbsTableColumnKey | null>(null);
@@ -1415,6 +1458,11 @@ function App() {
   >({});
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [projectSearch, setProjectSearch] = useState("");
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [recentProjectIds, setRecentProjectIds] = useState<string[]>([]);
+  const [executivePresentationMode, setExecutivePresentationMode] =
+    useState(false);
 
   useEffect(() => {
     fetch(`${apiBase}/api/projects`)
@@ -1445,6 +1493,23 @@ function App() {
     () => projects.find((item) => item.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   );
+  const recentProjects = useMemo(
+    () =>
+      recentProjectIds
+        .map((projectId) => projects.find((item) => item.id === projectId))
+        .filter((item): item is ProjectListItem => Boolean(item))
+        .slice(0, 4),
+    [projects, recentProjectIds],
+  );
+  const filteredProjectOptions = useMemo(() => {
+    const query = projectSearch.trim().toLowerCase();
+    if (!query) return projects;
+    return projects.filter((item) =>
+      [item.code, item.name, item.projectManager, item.portfolio, item.summary]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  }, [projectSearch, projects]);
   const portfolioStats = useMemo(() => {
     const activeProjects = projects.filter(
       (item) => item.status === "ACTIVE",
@@ -1866,8 +1931,11 @@ function App() {
     () =>
       wbsColumnOrder
         .map((key) => wbsColumnsByKey.get(key))
-        .filter((column): column is WbsTableColumn => Boolean(column)),
-    [wbsColumnOrder, wbsColumnsByKey],
+        .filter(
+          (column): column is WbsTableColumn =>
+            Boolean(column) && !wbsHiddenColumns.includes(column.key),
+        ),
+    [wbsColumnOrder, wbsColumnsByKey, wbsHiddenColumns],
   );
   const wbsTableTemplate = useMemo(
     () =>
@@ -1915,7 +1983,7 @@ function App() {
       {
         id: "system-issues",
         title: "Реестр открытых вопросов",
-        type: "RAID-журнал",
+        type: "Журнал рисков",
         owner: project.projectManager,
         status: project.issues.length > 0 ? "Активно" : "Пусто",
         source: `${project.issues.length} открытых вопросов`,
@@ -1930,7 +1998,7 @@ function App() {
           project.raidItems.length + project.changeRequests.length > 0
             ? "Активно"
             : "Пусто",
-        source: `${project.raidItems.length} RAID / ${project.changeRequests.length} изменений`,
+        source: `${project.raidItems.length} рисков / ${project.changeRequests.length} изменений`,
         action: "project-raid" as AppView,
       },
       {
@@ -2013,6 +2081,9 @@ function App() {
       setSidebarCollapsed(nextProject.uiState?.sidebarCollapsed ?? false);
       setWbsColumnOrder(
         normalizeWbsColumnOrder(nextProject.uiState?.wbsColumnOrder),
+      );
+      setWbsHiddenColumns(
+        normalizeWbsHiddenColumns(nextProject.uiState?.wbsHiddenColumns),
       );
       setWbsColumnWidths((current) =>
         normalizeWbsColumnWidths({
@@ -2392,6 +2463,7 @@ function App() {
     options?: {
       sidebarCollapsed?: boolean;
       wbsColumnOrder?: WbsTableColumnKey[];
+      wbsHiddenColumns?: WbsTableColumnKey[];
       wbsColumnWidths?: Record<WbsTableColumnKey, number>;
     },
   ) {
@@ -2400,6 +2472,7 @@ function App() {
       ...(project.uiState ?? {}),
       sidebarCollapsed: options?.sidebarCollapsed ?? sidebarCollapsed,
       wbsColumnOrder: options?.wbsColumnOrder ?? wbsColumnOrder,
+      wbsHiddenColumns: options?.wbsHiddenColumns ?? wbsHiddenColumns,
       wbsColumnWidths: options?.wbsColumnWidths ?? wbsColumnWidths,
       ...patch,
     };
@@ -2855,18 +2928,18 @@ function App() {
         throw new Error(
           result.error?.formErrors?.join(", ") ||
             result.error ||
-            "Не удалось создать RAID запись",
+            "Не удалось создать запись о риске",
         );
       }
       setRaidForm({ ...emptyRaidForm, type: raidForm.type });
       await refreshProject(project.id);
       setExpandedRaidId(result.id);
-      setNotice("RAID запись создана");
+      setNotice("Запись о риске создана");
     } catch (createError) {
       setError(
         createError instanceof Error
           ? createError.message
-          : "Не удалось создать RAID запись",
+          : "Не удалось создать запись о риске",
       );
     }
   }
@@ -2887,22 +2960,22 @@ function App() {
         throw new Error(
           result.error?.formErrors?.join(", ") ||
             result.error ||
-            "Не удалось сохранить RAID запись",
+            "Не удалось сохранить запись о риске",
         );
       }
       await refreshProject();
-      setNotice("RAID запись обновлена");
+      setNotice("Запись о риске обновлена");
     } catch (saveError) {
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Не удалось сохранить RAID запись",
+          : "Не удалось сохранить запись о риске",
       );
     }
   }
 
   async function deleteRaidItem(itemId: string) {
-    if (!window.confirm("Удалить RAID запись?")) return;
+    if (!window.confirm("Удалить запись о риске?")) return;
     setError(null);
     setNotice(null);
     try {
@@ -2911,15 +2984,15 @@ function App() {
       });
       if (!response.ok) {
         const result = await response.json();
-        throw new Error(result.error ?? "Не удалось удалить RAID запись");
+        throw new Error(result.error ?? "Не удалось удалить запись о риске");
       }
       await refreshProject();
-      setNotice("RAID запись удалена");
+      setNotice("Запись о риске удалена");
     } catch (deleteError) {
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Не удалось удалить RAID запись",
+          : "Не удалось удалить запись о риске",
       );
     }
   }
@@ -3191,6 +3264,22 @@ function App() {
         { wbsColumnOrder: normalizedNext },
       );
       return normalizedNext;
+    });
+  }
+
+  function toggleWbsColumn(columnKey: WbsTableColumnKey) {
+    if (columnKey === "level" || columnKey === "structure") return;
+    setWbsHiddenColumns((current) => {
+      const currentNormalized = normalizeWbsHiddenColumns(current);
+      const isHidden = currentNormalized.includes(columnKey);
+      const next = isHidden
+        ? currentNormalized.filter((key) => key !== columnKey)
+        : normalizeWbsHiddenColumns([...currentNormalized, columnKey]);
+      void saveProjectUiState(
+        { wbsHiddenColumns: next },
+        { wbsHiddenColumns: next },
+      );
+      return next;
     });
   }
 
@@ -4251,6 +4340,12 @@ function App() {
 
   function selectProject(projectId: string, nextView: AppView = activeView) {
     setSelectedProjectId(projectId);
+    setProjectSearch("");
+    setShowProjectPicker(false);
+    setRecentProjectIds((current) => [
+      projectId,
+      ...current.filter((item) => item !== projectId),
+    ].slice(0, 6));
     setActiveView(
       nextView === "portfolio" || nextView === "project-create"
         ? "project-overview"
@@ -4273,8 +4368,8 @@ function App() {
       ? `${project.code} - Открытые вопросы`
       : "Открытые вопросы",
     "project-raid": project
-      ? `${project.code} - RAID и изменения`
-      : "RAID и изменения",
+      ? `${project.code} - Риски и изменения`
+      : "Риски и изменения",
     "project-calendars": project
       ? `${project.code} - Календари`
       : "Календари",
@@ -4295,7 +4390,7 @@ function App() {
     "project-artifacts",
   ];
   const isProjectView = projectViews.includes(activeView);
-  const navLabel = (icon: string, label: string) => (
+  const navLabel = (icon: ReactNode, label: string) => (
     <>
       <span className="nav-icon" aria-hidden="true">
         {icon}
@@ -4342,7 +4437,7 @@ function App() {
                 : "Свернуть боковую панель"
             }
           >
-            {sidebarCollapsed ? ">" : "<"}
+            {sidebarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
           </button>
         </div>
         <nav>
@@ -4352,7 +4447,7 @@ function App() {
             onClick={() => setActiveView("portfolio")}
             aria-label="Портфель проектов"
           >
-            {navLabel("ПФ", "Портфель проектов")}
+            {navLabel(<BriefcaseBusiness size={17} />, "Портфель проектов")}
           </button>
           <button
             type="button"
@@ -4364,7 +4459,7 @@ function App() {
             }
             aria-label="Проекты"
           >
-            {navLabel("ПР", "Проекты")}
+            {navLabel(<FolderTree size={17} />, "Проекты")}
           </button>
           <div className="sidebar-group">
             <button
@@ -4375,25 +4470,67 @@ function App() {
               onClick={() => setActiveView("project-create")}
               aria-label="Создать новый проект"
             >
-              {navLabel("+", "Создать новый проект")}
+              {navLabel(<Plus size={17} />, "Создать новый проект")}
             </button>
-            <label className="project-picker">
-              <select
-                value={selectedProjectId ?? ""}
-                onChange={(event) => {
-                  if (event.target.value) {
-                    selectProject(event.target.value, "project-overview");
-                  }
-                }}
+            <div className="project-picker">
+              <button
+                type="button"
+                className="project-picker-trigger"
+                onClick={() => setShowProjectPicker((current) => !current)}
+                aria-expanded={showProjectPicker}
               >
-                <option value="">Выбрать проект</option>
-                {projects.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {projectOptionLabel(item)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <span>
+                  {selectedProjectListItem
+                    ? projectOptionLabel(selectedProjectListItem)
+                    : "Выбрать проект"}
+                </span>
+                <ChevronDown size={15} />
+              </button>
+              {showProjectPicker && (
+                <div className="project-picker-popover">
+                  <label className="project-search">
+                    <Search size={15} />
+                    <input
+                      value={projectSearch}
+                      onChange={(event) => setProjectSearch(event.target.value)}
+                      placeholder="Поиск по коду, имени, РП"
+                    />
+                  </label>
+                  {recentProjects.length > 0 && !projectSearch.trim() && (
+                    <div className="project-picker-section">
+                      <span>Недавние</span>
+                      {recentProjects.map((item) => (
+                        <button
+                          type="button"
+                          key={item.id}
+                          onClick={() => selectProject(item.id, "project-overview")}
+                        >
+                          <b>{item.code}</b>
+                          <small>{item.name}</small>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="project-picker-section">
+                    <span>Все проекты</span>
+                    {filteredProjectOptions.map((item) => (
+                      <button
+                        type="button"
+                        className={item.id === selectedProjectId ? "selected" : ""}
+                        key={item.id}
+                        onClick={() => selectProject(item.id, "project-overview")}
+                      >
+                        <b>{item.code}</b>
+                        <small>{item.name}</small>
+                      </button>
+                    ))}
+                    {filteredProjectOptions.length === 0 && (
+                      <em>Проекты не найдены</em>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             {selectedProjectListItem && (
               <div className="project-menu">
                 <button
@@ -4406,7 +4543,7 @@ function App() {
                   onClick={() => setActiveView("project-overview")}
                   aria-label="Обзор и вехи"
                 >
-                  {navLabel("ОБ", "Обзор и вехи")}
+	                  {navLabel(<LayoutDashboard size={17} />, "Обзор и вехи")}
                 </button>
                 <button
                   type="button"
@@ -4418,7 +4555,7 @@ function App() {
                   onClick={() => setActiveView("project-passport")}
                   aria-label="Паспорт проекта"
                 >
-                  {navLabel("ПП", "Паспорт проекта")}
+	                  {navLabel(<FileText size={17} />, "Паспорт проекта")}
                 </button>
                 <button
                   type="button"
@@ -4430,7 +4567,7 @@ function App() {
                   onClick={() => setActiveView("project-structure")}
                   aria-label="Структура"
                 >
-                  {navLabel("СТ", "Структура")}
+	                  {navLabel(<ListChecks size={17} />, "Структура")}
                 </button>
                 <button
                   type="button"
@@ -4442,7 +4579,7 @@ function App() {
                   onClick={() => setActiveView("project-gantt")}
                   aria-label="Гантт"
                 >
-                  {navLabel("ГТ", "Гантт")}
+	                  {navLabel(<GanttChartSquare size={17} />, "Гантт")}
                 </button>
                 <button
                   type="button"
@@ -4454,7 +4591,7 @@ function App() {
                   onClick={() => setActiveView("project-issues")}
                   aria-label="Открытые вопросы"
                 >
-                  {navLabel("ОВ", "Открытые вопросы")}
+	                  {navLabel(<ShieldAlert size={17} />, "Открытые вопросы")}
                 </button>
                 <button
                   type="button"
@@ -4464,9 +4601,9 @@ function App() {
                       : "nested child"
                   }
                   onClick={() => setActiveView("project-raid")}
-                  aria-label="RAID и изменения"
+                  aria-label="Риски и изменения"
                 >
-                  {navLabel("РИ", "Риски и изменения")}
+                  {navLabel(<BarChart3 size={17} />, "Риски и изменения")}
                 </button>
                 <button
                   type="button"
@@ -4478,7 +4615,7 @@ function App() {
                   onClick={() => setActiveView("project-calendars")}
                   aria-label="Календари"
                 >
-                  {navLabel("КЛ", "Календари")}
+	                  {navLabel(<CalendarDays size={17} />, "Календари")}
                 </button>
                 <button
                   type="button"
@@ -4490,7 +4627,7 @@ function App() {
                   onClick={() => setActiveView("project-artifacts")}
                   aria-label="Артефакты проекта"
                 >
-                  {navLabel("АР", "Артефакты проекта")}
+	                  {navLabel(<FileArchive size={17} />, "Артефакты проекта")}
                 </button>
               </div>
             )}
@@ -4501,31 +4638,59 @@ function App() {
             onClick={() => setActiveView("admin")}
             aria-label="Администрирование"
           >
-            {navLabel("АД", "Администрирование")}
+	            {navLabel(<Settings size={17} />, "Администрирование")}
           </button>
         </nav>
       </aside>
 
-      <main className="workspace">
-        <header className="topbar">
-          <div>
-            {project && isProjectView && activeView !== "project-create" ? (
-              <h1>
-                {project.code} - {project.name}
-              </h1>
-            ) : (
-              <h1>{viewTitle[activeView]}</h1>
-            )}
-          </div>
-          {project && activeView !== "portfolio" && (
-            <div className="topbar-project">
-              <span>{projectStatusLabel(project.status)}</span>
-              <b className={`rag ${project.rag.toLowerCase()}`}>
-	                {projectHealthLabel(project.rag)}
-              </b>
-            </div>
-          )}
-        </header>
+	      <main
+	        className={`workspace ${executivePresentationMode ? "presentation-mode" : ""}`}
+	      >
+	        <header className="topbar">
+	          <div>
+	            {project && isProjectView && activeView !== "project-create" ? (
+	              <>
+	                <p className="topbar-section">{viewTitle[activeView]}</p>
+	                <h1>{project.name}</h1>
+	              </>
+	            ) : (
+	              <h1>{viewTitle[activeView]}</h1>
+	            )}
+	          </div>
+	          {project && activeView !== "portfolio" && (
+	            <div className="topbar-project">
+	              <span>{project.code}</span>
+	              <span>{projectStatusLabel(project.status)}</span>
+	              <b className={`rag ${project.rag.toLowerCase()}`}>
+		                {projectHealthLabel(project.rag)}
+	              </b>
+	            </div>
+	          )}
+	        </header>
+	        {project && isProjectView && activeView !== "project-create" && (
+	          <section className="project-context-bar">
+	            <div>
+	              <span>РП</span>
+	              <b>{project.projectManager}</b>
+	            </div>
+	            <div>
+	              <span>Срок</span>
+	              <b>{date(project.targetDate)}</b>
+	            </div>
+	            <div>
+	              <span>Прогресс</span>
+	              <b>{project.progress}%</b>
+	            </div>
+	            <div>
+	              <span>Открытые вопросы</span>
+	              <b>{project.issues.length}</b>
+	            </div>
+	            <div>
+	              <span>Вехи</span>
+	              <b>{project.milestones.length}</b>
+	            </div>
+	          </section>
+	        )}
 
         {error && <div className="alert">{error}</div>}
         {notice && <div className="notice">{notice}</div>}
@@ -4713,12 +4878,13 @@ function App() {
                       <p>Быстрый ввод нового проекта с базовыми полями проектного офиса</p>
                     </div>
                   </div>
-                  <form
-                    className="form-grid compact-form"
-                    onSubmit={createProject}
-                  >
-                    <label>
-                      Код
+	                  <form
+	                    className="form-grid compact-form"
+	                    onSubmit={createProject}
+	                  >
+	                    <div className="form-section-title span-2">Основное</div>
+	                    <label>
+	                      Код
                       <input
                         value={newProjectForm.code}
                         onChange={(event) =>
@@ -4774,10 +4940,11 @@ function App() {
                             sortOrder: event.target.value,
                           })
                         }
-                      />
-                    </label>
-                    <label>
-                      Портфель
+	                        />
+	                      </label>
+	                    <div className="form-section-title span-2">Команда и статус</div>
+	                    <label>
+	                      Портфель
                       <input
                         value={newProjectForm.portfolio}
                         onChange={(event) =>
@@ -4828,11 +4995,12 @@ function App() {
                       >
                         <option value="GREEN">{ragOptionLabel("GREEN")}</option>
                         <option value="AMBER">{ragOptionLabel("AMBER")}</option>
-                        <option value="RED">{ragOptionLabel("RED")}</option>
-                      </select>
-                    </label>
-                    <label>
-                      Старт
+	                        <option value="RED">{ragOptionLabel("RED")}</option>
+	                      </select>
+	                    </label>
+	                    <div className="form-section-title span-2">Сроки и экономика</div>
+	                    <label>
+	                      Старт
                       <input
                         type="date"
                         value={newProjectForm.startDate}
@@ -4909,10 +5077,11 @@ function App() {
                             scheduleVariance: event.target.value,
                           })
                         }
-                      />
-                    </label>
-                    <label className="span-2">
-                      Сводка
+	                        />
+	                      </label>
+	                    <div className="form-section-title span-2">Управленческая сводка</div>
+	                    <label className="span-2">
+	                      Сводка
                       <textarea
                         value={newProjectForm.summary}
                         onChange={(event) =>
@@ -5140,12 +5309,13 @@ function App() {
                       </p>
                     </div>
                   </div>
-                  <form
-                    className="form-grid compact-form"
-                    onSubmit={saveProjectProfile}
-                  >
-                    <div className="readonly-field">
-                      <span>Код проекта</span>
+	                  <form
+	                    className="form-grid compact-form"
+	                    onSubmit={saveProjectProfile}
+	                  >
+	                    <div className="form-section-title span-2">Основное</div>
+	                    <div className="readonly-field">
+	                      <span>Код проекта</span>
                       <b>{project.code}</b>
                     </div>
                     <div className="readonly-field">
@@ -5162,10 +5332,11 @@ function App() {
                             portfolio: event.target.value,
                           })
                         }
-                      />
-                    </label>
-                    <label>
-                      Спонсор
+	                        />
+	                      </label>
+	                    <div className="form-section-title span-2">Команда и иерархия</div>
+	                    <label>
+	                      Спонсор
                       <input
                         value={projectForm.sponsor}
                         onChange={(event) =>
@@ -5221,10 +5392,11 @@ function App() {
                             sortOrder: event.target.value,
                           })
                         }
-                      />
-                    </label>
-                    <label>
-                      Статус
+	                        />
+	                      </label>
+	                    <div className="form-section-title span-2">Статус и контроль</div>
+	                    <label>
+	                      Статус
                       <select
                         value={projectForm.status}
                         onChange={(event) =>
@@ -5254,11 +5426,12 @@ function App() {
                       >
                         <option value="GREEN">{ragOptionLabel("GREEN")}</option>
                         <option value="AMBER">{ragOptionLabel("AMBER")}</option>
-                        <option value="RED">{ragOptionLabel("RED")}</option>
-                      </select>
-                    </label>
-                    <label>
-                      Старт
+	                        <option value="RED">{ragOptionLabel("RED")}</option>
+	                      </select>
+	                    </label>
+	                    <div className="form-section-title span-2">Сроки и экономика</div>
+	                    <label>
+	                      Старт
                       <input
                         type="date"
                         value={projectForm.startDate}
@@ -5335,10 +5508,11 @@ function App() {
                             scheduleVariance: event.target.value,
                           })
                         }
-                      />
-                    </label>
-                    <label className="span-2">
-                      Сводка
+	                        />
+	                      </label>
+	                    <div className="form-section-title span-2">Управленческая сводка</div>
+	                    <label className="span-2">
+	                      Сводка
                       <textarea
                         value={projectForm.summary}
                         onChange={(event) =>
@@ -5521,11 +5695,41 @@ function App() {
                           : "Временная шкала проекта, связи, базовый план и прогноз"}
                       </p>
                     </div>
-                    {activeView === "project-gantt" && (
-                    <div className="wbs-toolbar" aria-label="Действия Гантта">
-                      <button
-                        type="button"
-                        className={showGanttDependencies ? "active" : ""}
+	                    {activeView === "project-gantt" && (
+	                    <div className="wbs-toolbar" aria-label="Действия Гантта">
+	                      <div className="segmented-control" aria-label="Масштаб Гантта">
+	                        <button
+	                          type="button"
+	                          className={ganttScale === "month" ? "active" : ""}
+	                          onClick={() => setGanttScale("month")}
+	                        >
+	                          Месяцы
+	                        </button>
+	                        <button
+	                          type="button"
+	                          className={ganttScale === "quarter" ? "active" : ""}
+	                          onClick={() => setGanttScale("quarter")}
+	                        >
+	                          Кварталы
+	                        </button>
+	                      </div>
+	                      <button
+	                        type="button"
+	                        onClick={() =>
+	                          document
+	                            .querySelector(".gantt-today")
+	                            ?.scrollIntoView({
+	                              inline: "center",
+	                              block: "nearest",
+	                              behavior: "smooth",
+	                            })
+	                        }
+	                      >
+	                        Сегодня
+	                      </button>
+	                      <button
+	                        type="button"
+	                        className={showGanttDependencies ? "active" : ""}
                         onClick={() =>
                           setShowGanttDependencies((current) => !current)
                         }
@@ -5570,10 +5774,18 @@ function App() {
                       >
                         Схлопнуть фазы
                       </button>
-                    </div>
-                    )}
-                  </div>
-                  <div className="wbs-kpis">
+	                    </div>
+	                    )}
+	                  </div>
+	                  <div className="status-legend" aria-label="Легенда статусов">
+	                    <span><i className="tone-b" />В работе</span>
+	                    <span><i className="tone-g" />Сделано</span>
+	                    <span><i className="tone-r" />Провалено</span>
+	                    <span><i className="tone-p" />Просрочено</span>
+	                    <span><i className="tone-x" />Не начато</span>
+	                    <span><i className="tone-o" />Веха</span>
+	                  </div>
+	                  <div className="wbs-kpis">
                     <div>
                       <span>Элементы</span>
                       <strong>{project.wbsItems.length}</strong>
@@ -5608,7 +5820,7 @@ function App() {
                   <div className="wbs-gantt-layout">
                     {activeView === "project-structure" && (
                       <>
-                    <div className="wbs-history-toolbar" aria-label="История Структуры">
+	                    <div className="wbs-history-toolbar" aria-label="История Структуры">
                       <button
                         type="button"
                         onClick={() => void undoWbsChange()}
@@ -5633,14 +5845,42 @@ function App() {
                       >
                         Вперед →
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => void saveWbsBaseline()}
-                        disabled={savingBaseline || project.wbsItems.length === 0}
-                      >
-                        Зафиксировать базовый план
-                      </button>
-                    </div>
+	                      <button
+	                        type="button"
+	                        onClick={() => void saveWbsBaseline()}
+	                        disabled={savingBaseline || project.wbsItems.length === 0}
+	                      >
+	                        Зафиксировать базовый план
+	                      </button>
+	                      <div className="column-menu">
+	                        <button
+	                          type="button"
+	                          onClick={() =>
+	                            setShowWbsColumnMenu((current) => !current)
+	                          }
+	                        >
+	                          Колонки
+	                        </button>
+	                        {showWbsColumnMenu && (
+	                          <div className="column-menu-popover">
+	                            {WBS_TABLE_COLUMNS.filter(
+	                              (column) =>
+	                                column.key !== "level" &&
+	                                column.key !== "structure",
+	                            ).map((column) => (
+	                              <label key={column.key}>
+		                                <input
+		                                  type="checkbox"
+		                                  checked={!wbsHiddenColumns.includes(column.key)}
+		                                  onChange={() => toggleWbsColumn(column.key)}
+		                                />
+	                                {column.label}
+	                              </label>
+	                            ))}
+	                          </div>
+	                        )}
+	                      </div>
+	                    </div>
                     <div className="wbs-table-shell">
                       <div
                         className="wbs-excel-table"
@@ -5757,10 +5997,10 @@ function App() {
                       style={
                         {
                           "--gantt-wbs-width": `${ganttWbsWidth}px`,
-                          "--gantt-timeline-width": `${Math.max(
-                            520,
-                            wbsGantt.months.length * 120,
-                          )}px`,
+	                          "--gantt-timeline-width": `${Math.max(
+	                            520,
+	                            wbsGantt.months.length * GANTT_SCALE_WIDTH[ganttScale],
+	                          )}px`,
                         } as GanttCssProperties
                       }
                     >
@@ -6163,7 +6403,7 @@ function App() {
                       <h2>Реестр открытых вопросов</h2>
                       <p>
                         Единый список открытых проблем из Jira и внутреннего
-                        RAID
+                        реестра рисков
                       </p>
                     </div>
                   </div>
@@ -6414,7 +6654,7 @@ function App() {
                     <div>
                       <h2>Создать открытый вопрос</h2>
                       <p>
-                        Внутренняя RAID-запись или управленческая проблема со
+                        Внутренняя запись о риске или управленческая проблема со
                         ссылкой на Jira
                       </p>
                     </div>
@@ -6683,7 +6923,7 @@ function App() {
                   </div>
                   <div className="wbs-kpis">
                     <div>
-                      <span>Активные RAID</span>
+                      <span>Активные риски</span>
                       <strong>{raidSummary.activeRaid}</strong>
                       <small>открыто / в работе / нарушено</small>
                     </div>
@@ -6705,7 +6945,7 @@ function App() {
                   </div>
                   <div className="raid-layout">
                     <section>
-                      <div className="subhead">RAID-реестр</div>
+                      <div className="subhead">Реестр рисков</div>
                       <div className="raid-list">
                         <div className="raid-head">
                           <span>Запись</span>
@@ -6949,7 +7189,7 @@ function App() {
                                       type="button"
                                       onClick={() => saveRaidItem(item.id)}
                                     >
-                                      Сохранить RAID
+                                      Сохранить риск
                                     </button>
                                     <button
                                       type="button"
@@ -6965,13 +7205,14 @@ function App() {
                           </div>
                         ))}
                         {project.raidItems.length === 0 && (
-                          <div className="empty-state">RAID записей пока нет.</div>
+                          <div className="empty-state">Записей о рисках пока нет.</div>
                         )}
                       </div>
                     </section>
-                    <form className="raid-form stack-form" onSubmit={createRaidItem}>
-                      <h3>Новая RAID запись</h3>
-                      <div className="two-col">
+	                    <form className="raid-form stack-form" onSubmit={createRaidItem}>
+	                      <h3>Новая запись о риске</h3>
+	                      <div className="form-section-title">Основное</div>
+	                      <div className="two-col">
                         <label>
                           Тип
                           <select
@@ -7029,10 +7270,11 @@ function App() {
                               description: event.target.value,
                             })
                           }
-                          rows={3}
-                        />
-                      </label>
-                      <div className="two-col">
+	                          rows={3}
+	                        />
+	                      </label>
+	                      <div className="form-section-title">Оценка и влияние</div>
+	                      <div className="two-col">
                         <label>
                           Вероятность
                           <input
@@ -7089,11 +7331,12 @@ function App() {
                                 budgetImpact: event.target.value,
                               })
                             }
-                          />
-                        </label>
-                      </div>
-                      <label>
-                        План снижения риска
+	                          />
+	                        </label>
+	                      </div>
+	                      <div className="form-section-title">План действий</div>
+	                      <label>
+	                        План снижения риска
                         <textarea
                           value={raidForm.mitigationPlan}
                           onChange={(event) =>
@@ -7118,7 +7361,7 @@ function App() {
                         />
                         Требует решения
                       </label>
-                      <button type="submit">Создать RAID запись</button>
+                      <button type="submit">Создать запись о риске</button>
                     </form>
                   </div>
                 </article>
@@ -7393,9 +7636,10 @@ function App() {
                     <form
                       className="raid-form stack-form"
                       onSubmit={createChangeRequest}
-                    >
-                      <h3>Новый запрос на изменение</h3>
-                      <div className="two-col">
+	                    >
+	                      <h3>Новый запрос на изменение</h3>
+	                      <div className="form-section-title">Основное</div>
+	                      <div className="two-col">
                         <label>
                           Тип
                           <select
@@ -7458,11 +7702,12 @@ function App() {
                               description: event.target.value,
                             })
                           }
-                          rows={2}
-                        />
-                      </label>
-                      <label>
-                        Анализ влияния
+	                          rows={2}
+	                        />
+	                      </label>
+	                      <div className="form-section-title">Влияние</div>
+	                      <label>
+	                        Анализ влияния
                         <textarea
                           value={changeRequestForm.impactAnalysis}
                           onChange={(event) =>
@@ -7499,11 +7744,12 @@ function App() {
                                 budgetImpact: event.target.value,
                               })
                             }
-                          />
-                        </label>
-                      </div>
-                      <label>
-                        Затронутый базовый план
+	                          />
+	                        </label>
+	                      </div>
+	                      <div className="form-section-title">Контроль</div>
+	                      <label>
+	                        Затронутый базовый план
                         <input
                           value={changeRequestForm.affectedBaseline}
                           onChange={(event) =>
@@ -7872,20 +8118,37 @@ function App() {
                           ? "Генерирую..."
                           : "Сгенерировать новую версию"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={publishOverview}
+	                      <button
+	                        type="button"
+	                        onClick={publishOverview}
                         disabled={
                           !latestOverview ||
                           latestOverview.status !== "APPROVED" ||
                           publishingOverview
                         }
                       >
-                        {publishingOverview ? "Публикую..." : "Опубликовать"}
-                      </button>
-                      <span className="version">
-                        v{latestOverview?.version ?? 0}
-                      </span>
+	                        {publishingOverview ? "Публикую..." : "Опубликовать"}
+	                      </button>
+	                      <button
+	                        type="button"
+	                        className={executivePresentationMode ? "active" : ""}
+	                        onClick={() =>
+	                          setExecutivePresentationMode((current) => !current)
+	                        }
+	                      >
+	                        {executivePresentationMode
+	                          ? "Выйти из презентации"
+	                          : "Режим презентации"}
+	                      </button>
+	                      <button type="button" disabled={!latestOverview}>
+	                        Экспорт PDF
+	                      </button>
+	                      <button type="button" disabled={!latestOverview}>
+	                        Экспорт PPTX
+	                      </button>
+	                      <span className="version">
+	                        v{latestOverview?.version ?? 0}
+	                      </span>
                     </div>
                   </div>
                   {latestOverview && (
@@ -7943,8 +8206,18 @@ function App() {
                       <p className="overview-summary">
                         {latestOverview.executiveSummary}
                       </p>
-                      <section className="overview-pack">
-                        <h3>KPI для руководства</h3>
+	                      <section className="overview-pack executive-hero">
+	                        <div>
+	                          <span>Управленческий обзор</span>
+	                          <h2>{project.code} - {project.name}</h2>
+	                          <p>{latestOverview.executiveSummary}</p>
+	                        </div>
+	                        <strong className={`rag ${project.rag.toLowerCase()}`}>
+	                          {projectHealthLabel(project.rag)}
+	                        </strong>
+	                      </section>
+	                      <section className="overview-pack">
+	                        <h3>KPI для руководства</h3>
                         <div className="overview-kpis">
                           {(latestOverview.kpis ?? []).map((item) => (
                             <div
