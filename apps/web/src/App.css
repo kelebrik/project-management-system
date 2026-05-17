@@ -2955,14 +2955,6 @@ code {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 0.34fr);
 }
 
-.raid-control-grid {
-  align-items: start;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  margin-bottom: 14px;
-}
-
 .raid-filter-card,
 .risk-matrix-card {
   background: #f8fafc;
@@ -2973,12 +2965,18 @@ code {
   padding: 10px 12px;
 }
 
+.raid-side-column {
+  display: grid;
+  gap: 12px;
+}
+
 .raid-filter-card {
   align-items: center;
   align-self: start;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 12px;
   padding: 9px;
 }
 
