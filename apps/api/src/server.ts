@@ -28,6 +28,15 @@ const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 
+function isValidUrl(value: string) {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 app.use(express.json({ limit: '5mb' }));
 app.use(
   cors({
@@ -84,7 +93,7 @@ const projectDetailsInclude = {
     },
   },
   calendarOverrides: { orderBy: [{ calendarCode: 'asc' }, { date: 'asc' }] },
-  artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
+  artifacts: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
   raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
   changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
 } satisfies Prisma.ProjectInclude;
@@ -167,7 +176,7 @@ async function createDefaultProjectStructure(projectId: string, projectStartDate
 
 function sanitizeProjectUiState(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return Prisma.JsonNull;
+    return {};
   }
   return value;
 }
@@ -392,7 +401,7 @@ app.delete('/api/projects/:projectId/calendar-overrides', async (req, res) => {
 const artifactSchema = z.object({
   title: z.string().trim().min(3),
   type: z.string().trim().min(1),
-  owner: z.string().trim().min(1),
+  owner: z.string().trim().optional().default(''),
   status: z.enum(['Draft', 'In Review', 'Approved', 'Baseline', 'Archived']).default('Draft'),
   url: z.string().trim().url().optional().nullable(),
   description: z.string().trim().optional().nullable(),
@@ -421,6 +430,7 @@ app.post('/api/projects/:projectId/artifacts', async (req, res) => {
       ...parsed.data,
       url: parsed.data.url || null,
       description: parsed.data.description || null,
+      owner: parsed.data.owner || 'Не назначен',
     },
   });
 
@@ -449,6 +459,7 @@ app.patch('/api/project-artifacts/:artifactId', async (req, res) => {
       ...parsed.data,
       url: parsed.data.url === undefined ? undefined : parsed.data.url || null,
       description: parsed.data.description === undefined ? undefined : parsed.data.description || null,
+      owner: parsed.data.owner === undefined ? undefined : parsed.data.owner || 'Не назначен',
     },
   });
 
@@ -472,6 +483,36 @@ app.delete('/api/project-artifacts/:artifactId', async (req, res) => {
   res.status(204).send();
 });
 
+app.post('/api/projects/:projectId/artifacts/reorder', async (req, res) => {
+  const parsed = z
+    .object({
+      orderedIds: z.array(z.string().trim().min(1)).min(1),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const artifacts = await prisma.projectArtifact.findMany({
+    where: { projectId: req.params.projectId },
+    select: { id: true },
+  });
+  const artifactIds = new Set(artifacts.map((artifact) => artifact.id));
+  const orderedIds = parsed.data.orderedIds.filter((id) => artifactIds.has(id));
+
+  await prisma.$transaction(
+    orderedIds.map((id, index) =>
+      prisma.projectArtifact.update({
+        where: { id },
+        data: { sortOrder: index + 1 },
+      }),
+    ),
+  );
+
+  res.json({ ok: true });
+});
+
 function calculatedRiskScore(probability: number, impact: number) {
   return probability * impact;
 }
@@ -479,7 +520,7 @@ function calculatedRiskScore(probability: number, impact: number) {
 function raidPayload(data: z.infer<typeof raidItemSchema>) {
   return {
     ...data,
-    owner: data.owner || 'Unassigned',
+    owner: data.owner || 'Не назначен',
     riskScore: calculatedRiskScore(data.probability, data.impact),
     mitigationPlan: data.mitigationPlan || null,
     contingencyPlan: data.contingencyPlan || null,
@@ -490,6 +531,8 @@ function raidPayload(data: z.infer<typeof raidItemSchema>) {
     predecessor: data.predecessor || null,
     successor: data.successor || null,
     supplier: data.supplier || null,
+    jiraTicketKey: data.jiraTicketKey || null,
+    jiraTicketUrl: data.jiraTicketUrl || null,
     budgetImpact: data.budgetImpact,
   };
 }
@@ -497,7 +540,7 @@ function raidPayload(data: z.infer<typeof raidItemSchema>) {
 async function validateRaidItem(projectId: string, data: z.infer<typeof raidItemSchema>, itemId?: string) {
   const score = calculatedRiskScore(data.probability, data.impact);
   if (data.type === 'RISK' && score >= 15 && !data.owner.trim()) {
-    return 'У высокого риска должен быть владелец';
+    return 'У высокого риска должен быть ответственный';
   }
   if (data.type === 'RISK' && score >= 15 && !data.mitigationPlan?.trim()) {
     return 'У высокого риска должен быть план снижения';
@@ -575,6 +618,8 @@ app.patch('/api/raid-items/:itemId', async (req, res) => {
     predecessor: parsed.data.predecessor === undefined ? existing.predecessor : parsed.data.predecessor,
     successor: parsed.data.successor === undefined ? existing.successor : parsed.data.successor,
     supplier: parsed.data.supplier === undefined ? existing.supplier : parsed.data.supplier,
+    jiraTicketKey: parsed.data.jiraTicketKey === undefined ? existing.jiraTicketKey : parsed.data.jiraTicketKey,
+    jiraTicketUrl: parsed.data.jiraTicketUrl === undefined ? existing.jiraTicketUrl : parsed.data.jiraTicketUrl,
     decisionRequired: parsed.data.decisionRequired ?? existing.decisionRequired,
     escalationLevel: parsed.data.escalationLevel ?? existing.escalationLevel,
     scheduleImpactDays: parsed.data.scheduleImpactDays ?? existing.scheduleImpactDays,
@@ -1609,17 +1654,31 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
     return;
   }
 
+  const primaryJiraKey = parsed.data.jiraTicketKey?.trim() || null;
+  const primaryJiraUrl = parsed.data.jiraTicketUrl?.trim() || null;
   const jiraLinks = [
     ...parsed.data.jiraLinks,
-    ...(parsed.data.jiraTicketKey && parsed.data.jiraTicketUrl
-      ? [
-          {
-            jiraKey: parsed.data.jiraTicketKey,
-            jiraUrl: parsed.data.jiraTicketUrl,
-          },
-        ]
+    ...(primaryJiraKey && primaryJiraUrl
+      ? [{ jiraKey: primaryJiraKey, jiraUrl: primaryJiraUrl }]
       : []),
-  ].filter((link, index, allLinks) => allLinks.findIndex((candidate) => candidate.jiraKey === link.jiraKey) === index);
+  ]
+    .map((link) => ({
+      jiraKey: link.jiraKey?.trim() ?? '',
+      jiraUrl: link.jiraUrl?.trim() ?? '',
+    }))
+    .filter((link) => link.jiraKey && link.jiraUrl)
+    .filter(
+      (link, index, allLinks) =>
+        allLinks.findIndex((candidate) => candidate.jiraKey === link.jiraKey) === index,
+    );
+
+  const invalidUrl = [primaryJiraUrl, ...jiraLinks.map((link) => link.jiraUrl)].find(
+    (url) => url && !isValidUrl(url),
+  );
+  if (invalidUrl) {
+    res.status(400).json({ error: `Некорректный Jira URL: ${invalidUrl}` });
+    return;
+  }
 
   const jiraBaseUrl = project.jiraIntegration?.baseUrl;
   const invalidLink = jiraLinks.find((link) => jiraBaseUrl && !link.jiraUrl.startsWith(jiraBaseUrl));
@@ -1639,8 +1698,9 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
       impact: parsed.data.impact,
       decisionRequired: parsed.data.decisionRequired,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-      jiraTicketKey: jiraLinks[0]?.jiraKey,
-      jiraTicketUrl: jiraLinks[0]?.jiraUrl,
+      initialDueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+      jiraTicketKey: primaryJiraKey ?? jiraLinks[0]?.jiraKey ?? null,
+      jiraTicketUrl: primaryJiraUrl ?? jiraLinks[0]?.jiraUrl ?? null,
       jiraLinks: {
         create: jiraLinks.map((link) => ({
           jiraKey: link.jiraKey,
@@ -1670,12 +1730,36 @@ app.patch('/api/open-issues/:issueId', async (req, res) => {
     return;
   }
 
+  const nextDueDate =
+    parsed.data.dueDate === undefined
+      ? undefined
+      : parsed.data.dueDate
+        ? new Date(parsed.data.dueDate)
+        : null;
+  const nextInitialDueDate =
+    parsed.data.dueDate === undefined || issue.initialDueDate
+      ? undefined
+      : issue.dueDate ?? nextDueDate;
+  const nextJiraUrl =
+    parsed.data.jiraTicketUrl === undefined
+      ? undefined
+      : parsed.data.jiraTicketUrl?.trim() || null;
+  if (nextJiraUrl && !isValidUrl(nextJiraUrl)) {
+    res.status(400).json({ error: `Некорректный Jira URL: ${nextJiraUrl}` });
+    return;
+  }
+
   const updated = await prisma.issue.update({
     where: { id: issue.id },
     data: {
       ...parsed.data,
-      dueDate:
-        parsed.data.dueDate === undefined ? undefined : parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+      dueDate: nextDueDate,
+      initialDueDate: nextInitialDueDate,
+      jiraTicketKey:
+        parsed.data.jiraTicketKey === undefined
+          ? undefined
+          : parsed.data.jiraTicketKey?.trim() || null,
+      jiraTicketUrl: nextJiraUrl,
     },
     include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
   });
@@ -1869,7 +1953,6 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
   const highRaidItems = activeRaidItems.filter((item) => item.type === 'RISK' && item.riskScore >= 15);
   const activeProblems = activeRaidItems.filter((item) => item.type === 'DEPENDENCY');
   const activeAssumptions = activeRaidItems.filter((item) => item.type === 'ASSUMPTION');
-  const decisionRaidItems = activeRaidItems.filter((item) => item.decisionRequired);
   const topIssue = [...project.issues].sort(
     (left, right) => severityRank(right.severity) - severityRank(left.severity),
   )[0];
@@ -1917,8 +2000,8 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
     activeRaidItems.length > 0
       ? `В реестре рисков и проблем активно ${activeRaidItems.length} записей, высоких рисков: ${highRaidItems.length}, проблем: ${activeProblems.length}.`
       : 'Активных записей о рисках и проблемах нет.',
-    decisionIssues.length + decisionRaidItems.length > 0
-      ? `Для руководства требуется ${decisionIssues.length + decisionRaidItems.length} решение(й).`
+    decisionIssues.length > 0
+      ? `Для руководства требуется ${decisionIssues.length} решение(й) по открытым вопросам.`
       : 'Новых решений от руководства сейчас не требуется.',
   ].join(' ');
 
@@ -2017,7 +2100,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       source:
         issue.jiraLinks.length > 0
           ? issue.jiraLinks.map((link) => link.jiraKey).join(', ')
-          : 'Внутренний реестр рисков',
+          : 'Реестр открытых вопросов',
     })),
     ...activeRaidItems
       .filter((item) => item.type === 'RISK')
@@ -2052,12 +2135,6 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       dueDate: isoDate(issue.dueDate),
       source: 'Реестр открытых вопросов',
     })),
-    ...decisionRaidItems.slice(0, 3).map((item) => ({
-      title: `Принять решение: ${item.title}`,
-      owner: item.owner,
-      dueDate: isoDate(item.dueDate),
-      source: `Риски и проблемы / ${raidTypeLabel(item.type)}`,
-    })),
     ...wbsMilestones
       .filter((milestone) => milestone.status !== 'DONE')
       .slice(0, 3)
@@ -2078,22 +2155,12 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
   const decisions = decisionIssues.slice(0, 5).map((issue) => ({
     title: issue.title,
     impactIfApproved: issue.impact,
-    impactIfDelayed: `Сохраняется риск по владельцу ${issue.owner}; срок решения: ${
+    impactIfDelayed: `Сохраняется риск по ответственному ${issue.owner}; срок решения: ${
       isoDate(issue.dueDate) ?? 'не задан'
     }`,
     deadline: isoDate(issue.dueDate),
-    source: issue.jiraLinks.length > 0 ? issue.jiraLinks.map((link) => link.jiraKey).join(', ') : 'Внутренний реестр рисков',
+    source: issue.jiraLinks.length > 0 ? issue.jiraLinks.map((link) => link.jiraKey).join(', ') : 'Реестр открытых вопросов',
   }));
-
-  decisions.push(
-    ...decisionRaidItems.slice(0, 5 - decisions.length).map((item) => ({
-      title: item.title,
-      impactIfApproved: item.mitigationPlan ?? item.description,
-      impactIfDelayed: `Сохраняется влияние на сроки ${item.scheduleImpactDays} дн.; владелец ${item.owner}.`,
-      deadline: isoDate(item.dueDate),
-      source: `Риски и проблемы / ${raidTypeLabel(item.type)}`,
-    })),
-  );
 
   const evidence = [
     {
@@ -2137,7 +2204,7 @@ function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectF
       source:
         issue.jiraLinks.length > 0
           ? issue.jiraLinks.map((link) => `${link.jiraKey}: ${link.jiraUrl}`).join('; ')
-          : `${issue.source === 'JIRA' ? 'Jira' : 'Внутренний'} вопрос, владелец ${issue.owner}`,
+          : `${issue.source === 'JIRA' ? 'Jira' : 'Внутренний'} вопрос, ответственный ${issue.owner}`,
     })),
   ];
 
@@ -2164,7 +2231,7 @@ async function getProjectForOverviewGeneration(projectId: string) {
           successor: { select: { id: true, code: true, title: true } },
         },
       },
-      artifacts: { orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }] },
+      artifacts: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
       raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
       changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
       overviews: { orderBy: { version: 'desc' }, take: 1 },

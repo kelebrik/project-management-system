@@ -116,11 +116,18 @@ type ProjectDetails = ProjectListItem & {
   changeRequests: unknown[];
 };
 
+type PassportRow = {
+  id: string;
+  field: string;
+  description: string;
+};
+
 type ProjectUiState = {
   sidebarCollapsed?: boolean;
   wbsColumnOrder?: WbsTableColumnKey[];
   wbsHiddenColumns?: WbsTableColumnKey[];
   wbsColumnWidths?: Partial<Record<WbsTableColumnKey, number>>;
+  passportRows?: PassportRow[];
 };
 
 type ProjectFormState = {
@@ -289,6 +296,8 @@ type IssueFormState = {
   impact: string;
   decisionRequired: boolean;
   dueDate: string;
+  jiraTicketKey: string;
+  jiraTicketUrl: string;
   jiraLinks: JiraLinkDraft[];
 };
 
@@ -342,6 +351,8 @@ type RaidItem = {
   predecessor: string | null;
   successor: string | null;
   supplier: string | null;
+  jiraTicketKey: string | null;
+  jiraTicketUrl: string | null;
   decisionRequired: boolean;
   escalationLevel: string;
   scheduleImpactDays: number;
@@ -366,6 +377,8 @@ type RaidFormState = {
   predecessor: string;
   successor: string;
   supplier: string;
+  jiraTicketKey: string;
+  jiraTicketUrl: string;
   decisionRequired: boolean;
   escalationLevel: string;
   scheduleImpactDays: string;
@@ -397,6 +410,8 @@ type IssueEditDraft = {
   impact: string;
   decisionRequired: boolean;
   dueDate: string;
+  jiraTicketKey: string;
+  jiraTicketUrl: string;
 };
 
 type TaskJiraDraft = {
@@ -425,6 +440,8 @@ type Issue = {
   impact: string;
   decisionRequired: boolean;
   dueDate: string | null;
+  initialDueDate: string | null;
+  jiraTicketKey: string | null;
   jiraTicketUrl: string | null;
   jiraLinks: IssueJiraLink[];
 };
@@ -520,6 +537,8 @@ const emptyIssueForm: IssueFormState = {
   impact: "",
   decisionRequired: false,
   dueDate: "",
+  jiraTicketKey: "",
+  jiraTicketUrl: "",
   jiraLinks: [{ jiraKey: "", jiraUrl: "" }],
 };
 
@@ -589,6 +608,8 @@ const emptyRaidForm: RaidFormState = {
   predecessor: "",
   successor: "",
   supplier: "",
+  jiraTicketKey: "",
+  jiraTicketUrl: "",
   decisionRequired: false,
   escalationLevel: "Проект",
   scheduleImpactDays: "0",
@@ -735,6 +756,31 @@ function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
   };
 }
 
+function defaultPassportRows(project: ProjectDetails): PassportRow[] {
+  return [
+    { id: "portfolio", field: "Портфель", description: project.portfolio },
+    { id: "sponsor", field: "Спонсор", description: project.sponsor },
+    { id: "projectManager", field: "РП", description: project.projectManager },
+    { id: "status", field: "Статус", description: projectStatusLabel(project.status) },
+    { id: "rag", field: "Индикатор", description: projectHealthLabel(project.rag) },
+    { id: "startDate", field: "Старт", description: date(project.startDate) },
+    { id: "targetDate", field: "Целевая дата", description: date(project.targetDate) },
+  ];
+}
+
+function normalizePassportRows(project: ProjectDetails | null): PassportRow[] {
+  if (!project) return [];
+  const rows = project.uiState?.passportRows;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return defaultPassportRows(project);
+  }
+  return rows.map((row, index) => ({
+    id: row.id || `passport-row-${index + 1}`,
+    field: row.field ?? "",
+    description: row.description ?? "",
+  }));
+}
+
 function raidToForm(item: RaidItem): RaidFormState {
   return {
     type: item.type,
@@ -754,6 +800,8 @@ function raidToForm(item: RaidItem): RaidFormState {
     predecessor: item.predecessor ?? "",
     successor: item.successor ?? "",
     supplier: item.supplier ?? "",
+    jiraTicketKey: item.jiraTicketKey ?? "",
+    jiraTicketUrl: item.jiraTicketUrl ?? "",
     decisionRequired: item.decisionRequired,
     escalationLevel: item.escalationLevel,
     scheduleImpactDays: String(item.scheduleImpactDays),
@@ -770,6 +818,8 @@ function issueToDraft(issue: Issue): IssueEditDraft {
     impact: issue.impact,
     decisionRequired: issue.decisionRequired,
     dueDate: issue.dueDate ? issue.dueDate.slice(0, 10) : "",
+    jiraTicketKey: issue.jiraTicketKey ?? "",
+    jiraTicketUrl: issue.jiraTicketUrl ?? "",
   };
 }
 
@@ -821,31 +871,6 @@ function wbsToForm(item: WbsItem): WbsFormState {
   };
 }
 
-function projectToForm(
-  project: ProjectDetails | ProjectListItem,
-): ProjectFormState {
-  return {
-    parentId: project.parentId ?? "",
-    code: project.code,
-    name: project.name,
-    portfolio: project.portfolio,
-    sponsor: project.sponsor,
-    projectManager: project.projectManager,
-    status: project.status,
-    rag: project.rag,
-    startDate:
-      "startDate" in project ? String(project.startDate).slice(0, 10) : "",
-    targetDate:
-      "targetDate" in project ? String(project.targetDate).slice(0, 10) : "",
-    budgetPlanned: String(project.budgetPlanned),
-    budgetForecast: String(project.budgetForecast),
-    scheduleVariance: String(project.scheduleVariance),
-    progress: String(project.progress),
-    summary: project.summary,
-    sortOrder: String(project.sortOrder),
-  };
-}
-
 function projectToRegistryDraft(project: ProjectListItem): ProjectRegistryDraft {
   return {
     parentId: project.parentId ?? "",
@@ -892,6 +917,23 @@ function formatDaysLeft(days: number | null) {
   if (days === null) return "не задано";
   if (days === 0) return "сегодня";
   return `${days > 0 ? days : Math.abs(days)} дн.${days < 0 ? " проср." : ""}`;
+}
+
+function calendarDelayDays(initialValue: string | null, currentValue: string | null) {
+  if (!initialValue || !currentValue) return 0;
+  const initialDate = startOfDay(new Date(initialValue));
+  const currentDate = startOfDay(new Date(currentValue));
+  if (Number.isNaN(initialDate.getTime()) || Number.isNaN(currentDate.getTime())) {
+    return 0;
+  }
+  return Math.max(
+    0,
+    Math.round((currentDate.getTime() - initialDate.getTime()) / 86_400_000),
+  );
+}
+
+function isImportedSummary(value: string | null | undefined) {
+  return Boolean(value?.trim().toLowerCase().startsWith("imported from "));
 }
 
 function signedWorkingDaysUntil(value: string | null) {
@@ -1002,6 +1044,27 @@ function wbsToneClass(
   }
   if (item.status === "IN_PROGRESS") return "tone-b";
   return "tone-x";
+}
+
+function milestoneStateLabel(items: WbsItem[]) {
+  if (items.some((item) => item.status === "BLOCKED")) {
+    return { label: "Есть провал", tone: "red" };
+  }
+  if (
+    items.some(
+      (item) =>
+        item.status !== "DONE" &&
+        item.status !== "CANCELLED" &&
+        item.dueDate &&
+        new Date(item.dueDate) < startOfDay(new Date()),
+    )
+  ) {
+    return { label: "Есть просрочка", tone: "pink" };
+  }
+  if (items.some((item) => item.status === "AT_RISK")) {
+    return { label: "Есть риск", tone: "amber" };
+  }
+  return { label: "В графике", tone: "green" };
 }
 
 function summaryToneClass(item: WbsTreeItem) {
@@ -1315,18 +1378,16 @@ function App() {
     openIssuesJql: "",
   });
   const [issueForm, setIssueForm] = useState<IssueFormState>(emptyIssueForm);
-  const [projectForm, setProjectForm] =
-    useState<ProjectFormState>(emptyProjectForm);
   const [newProjectForm, setNewProjectForm] =
     useState<ProjectFormState>(() => newProjectFormDefaults());
   const [projectRegistryDrafts, setProjectRegistryDrafts] = useState<
     Record<string, ProjectRegistryDraft>
   >({});
-  const [artifactForm, setArtifactForm] =
-    useState<ArtifactFormState>(emptyArtifactForm);
   const [artifactDrafts, setArtifactDrafts] = useState<
     Record<string, ArtifactFormState>
   >({});
+  const [passportRows, setPassportRows] = useState<PassportRow[]>([]);
+  const [savingPassportRows, setSavingPassportRows] = useState(false);
   const [expandedArtifactId, setExpandedArtifactId] = useState<string | null>(
     null,
   );
@@ -1379,6 +1440,9 @@ function App() {
   >({});
   const [issueEditDrafts, setIssueEditDrafts] = useState<
     Record<string, IssueEditDraft>
+  >({});
+  const [issueFormErrors, setIssueFormErrors] = useState<
+    Partial<Record<"title" | "jiraTicketUrl", string>>
   >({});
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [issueDrawerMode, setIssueDrawerMode] = useState<
@@ -1520,50 +1584,29 @@ function App() {
   );
   const structureMilestones = useMemo(() => {
     const items = project?.wbsItems ?? [];
-    const itemIndex = new Map(items.map((item, index) => [item.id, index]));
-    const milestoneBlocker = (item: WbsItem) => {
-      if (item.status === "BLOCKED") {
-        return { item, label: "Провалено", rank: 5, toneClass: "tone-r" };
-      }
-      if (
-        item.status !== "DONE" &&
-        item.dueDate !== null &&
-        new Date(item.dueDate) < startOfDay(new Date())
-      ) {
-        return { item, label: "Просрочено", rank: 4, toneClass: "tone-p" };
-      }
-      if (item.status === "AT_RISK") {
-        return { item, label: "Под риском", rank: 3, toneClass: "tone-r" };
-      }
-      return null;
-    };
     return items
       .filter((item) => item.type === "MILESTONE")
       .map((milestone) => {
-        const milestoneIndex = itemIndex.get(milestone.id) ?? items.length;
-        const previousItems = items.slice(0, milestoneIndex);
-        const blockingItems = previousItems
-          .map(milestoneBlocker)
-          .filter((item): item is NonNullable<typeof item> => item !== null);
-        const worstItem = blockingItems.sort(
-          (left, right) =>
-            right.rank - left.rank ||
-            String(left.item.dueDate ?? "").localeCompare(
-              String(right.item.dueDate ?? ""),
-            ),
-        )[0];
         const calendarDaysLeft = signedDaysUntil(milestone.dueDate);
         const workDaysLeft = signedWorkingDaysUntil(milestone.dueDate);
+        const milestoneDue = milestone.dueDate
+          ? startOfDay(new Date(milestone.dueDate))
+          : null;
+        const itemsBeforeMilestone = milestoneDue
+          ? items.filter(
+              (item) =>
+                item.type !== "MILESTONE" &&
+                item.dueDate &&
+                startOfDay(new Date(item.dueDate)) <= milestoneDue,
+            )
+          : [];
+        const state = milestoneStateLabel(itemsBeforeMilestone);
 
         return {
           milestone,
           calendarDaysLeft,
           workDaysLeft,
-          control:
-            blockingItems.length === 0
-              ? "В графике"
-              : `${worstItem.label}: ${worstItem.item.code}`,
-          toneClass: blockingItems.length === 0 ? "tone-g" : worstItem.toneClass,
+          state,
         };
       })
       .sort((left, right) =>
@@ -1591,14 +1634,9 @@ function App() {
         item.status !== "VALIDATED" &&
         (item.type === "RISK" || item.type === "DEPENDENCY"),
     ) ?? [];
-    const decisionItems =
-      openIssues.filter((issue) => issue.decisionRequired).length +
-      (project?.raidItems.filter(
-        (item) =>
-          item.decisionRequired &&
-          item.status !== "CLOSED" &&
-          item.status !== "VALIDATED",
-      ).length ?? 0);
+    const decisionItems = openIssues.filter(
+      (issue) => issue.decisionRequired,
+    ).length;
     const nextMilestone = structureMilestones.find(
       (entry) =>
         entry.milestone.dueDate &&
@@ -1673,6 +1711,34 @@ function App() {
     }
     return cells;
   }, [project?.raidItems]);
+  const groupedRaidItems = useMemo(
+    () => ({
+      risks: filteredRaidItems.filter((item) => item.type === "RISK"),
+      problems: filteredRaidItems.filter((item) => item.type === "DEPENDENCY"),
+      assumptions: filteredRaidItems.filter((item) => item.type === "ASSUMPTION"),
+    }),
+    [filteredRaidItems],
+  );
+  const topOverdueItems = useMemo(
+    () =>
+      overviewDashboard.overdueItems
+        .map((item) => {
+          const overdueDays = signedDaysUntil(item.dueDate);
+          return {
+            item,
+            days: overdueDays === null ? 0 : Math.abs(overdueDays),
+            impact:
+              item.type === "MILESTONE"
+                ? "Сдвигает контрольную веху"
+                : item.status === "BLOCKED"
+                  ? "Блокирует последующие работы"
+                  : "Требует перепланирования срока",
+          };
+        })
+        .sort((left, right) => right.days - left.days)
+        .slice(0, 3),
+    [overviewDashboard.overdueItems],
+  );
   const wbsGantt = useMemo(() => {
     const validDate = (value: string | null) => {
       const parsed = value ? new Date(value) : null;
@@ -2001,12 +2067,12 @@ function App() {
     const sourceId = hoveredGanttItemId ?? activeWbsItemId;
     const predecessors = new Set<string>();
     const successors = new Set<string>();
-    if (!sourceId) return { sourceId, predecessors, successors };
+    if (!hoveredGanttItemId) return { sourceId, predecessors, successors };
     for (const dependency of project?.wbsDependencies ?? []) {
-      if (dependency.successorId === sourceId) {
+      if (dependency.successorId === hoveredGanttItemId) {
         predecessors.add(dependency.predecessorId);
       }
-      if (dependency.predecessorId === sourceId) {
+      if (dependency.predecessorId === hoveredGanttItemId) {
         successors.add(dependency.successorId);
       }
     }
@@ -2026,90 +2092,6 @@ function App() {
     }
     return map;
   }, [project?.calendarOverrides]);
-  const projectArtifacts = useMemo(() => {
-    if (!project) return [];
-    const systemArtifacts = [
-      {
-        id: "system-passport",
-        title: "Паспорт проекта",
-        type: "Паспорт проекта",
-        owner: project.projectManager,
-        status: project.summary ? "Готово" : "Черновик",
-        source: project.code,
-        action: "project-passport" as AppView,
-      },
-      {
-        id: "system-wbs",
-        title: "Базовый план Структуры",
-        type: "Базовый план",
-        owner: "Проектный офис",
-        status: project.wbsItems.length > 0 ? "Готово" : "Черновик",
-        source: `${project.wbsItems.length} элементов Структуры`,
-        action: "project-structure" as AppView,
-      },
-      {
-        id: "system-issues",
-        title: "Реестр открытых вопросов",
-        type: "Журнал рисков",
-        owner: project.projectManager,
-        status: project.issues.length > 0 ? "Активно" : "Пусто",
-        source: `${project.issues.length} открытых вопросов`,
-        action: "project-issues" as AppView,
-      },
-      {
-        id: "system-raid",
-        title: "Риски и проблемы",
-        type: "Управленческий контроль",
-        owner: project.projectManager,
-        status:
-          project.raidItems.length > 0
-            ? "Активно"
-            : "Пусто",
-        source: `${project.raidItems.length} записей`,
-        action: "project-raid" as AppView,
-      },
-      {
-        id: "system-overview",
-        title: "Обзор для руководства",
-        type: "Управленческий пакет",
-        owner: "Проектный офис",
-        status: latestOverview
-          ? overviewStatusLabel(latestOverview.status)
-          : "Не сформировано",
-        source: latestOverview ? `v${latestOverview.version}` : "нет версии",
-        action: "project-overview" as AppView,
-      },
-      {
-        id: "system-jira",
-        title: "Снимок доски Jira",
-        type: "Подтверждение интеграции",
-        owner: "Администрирование",
-        status: project.jiraIntegration?.syncStatus ?? "Не настроено",
-        source: `${project.jiraSnapshots.length} задач Jira`,
-        action: "admin" as AppView,
-      },
-    ];
-
-    return [
-      ...systemArtifacts.map((item) => ({
-        ...item,
-        kind: "system" as const,
-      })),
-      ...project.artifacts.map((item) => ({
-        id: item.id,
-        title: item.title,
-        type: item.type,
-        owner: item.owner,
-        status: item.status,
-        source: item.url ? "Ссылка" : "Реестр",
-        action: null,
-        url: item.url,
-        description: item.description,
-        kind: "project" as const,
-      })),
-    ];
-  }, [latestOverview, project]);
-
   async function syncJira() {
     if (!project) return;
     setSyncing(true);
@@ -2158,7 +2140,7 @@ function App() {
           ...(nextProject.uiState?.wbsColumnWidths ?? {}),
         }),
       );
-      setProjectForm(projectToForm(nextProject));
+      setPassportRows(normalizePassportRows(nextProject));
       setJiraForm({
         baseUrl: nextProject.jiraIntegration?.baseUrl ?? "",
         boardUrl: nextProject.jiraIntegration?.boardUrl ?? "",
@@ -2729,51 +2711,58 @@ function App() {
     }
   }
 
-  async function saveProjectProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function updatePassportRow(rowId: string, patch: Partial<PassportRow>) {
+    setPassportRows((currentRows) =>
+      currentRows.map((row) =>
+        row.id === rowId ? { ...row, ...patch } : row,
+      ),
+    );
+  }
+
+  function addPassportRow(afterIndex: number) {
+    const nextRow: PassportRow = {
+      id: `passport-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      field: "Новое поле",
+      description: "",
+    };
+    setPassportRows((currentRows) => [
+      ...currentRows.slice(0, afterIndex + 1),
+      nextRow,
+      ...currentRows.slice(afterIndex + 1),
+    ]);
+  }
+
+  function deletePassportRow(rowId: string) {
+    setPassportRows((currentRows) =>
+      currentRows.length <= 1
+        ? currentRows
+        : currentRows.filter((row) => row.id !== rowId),
+    );
+  }
+
+  async function savePassportRows() {
     if (!project) return;
+    setSavingPassportRows(true);
     setError(null);
     setNotice(null);
     try {
-      const formPayload = projectPayload(projectForm);
-      const payload = {
-        parentId: formPayload.parentId,
-        portfolio: formPayload.portfolio,
-        sponsor: formPayload.sponsor,
-        projectManager: formPayload.projectManager,
-        status: formPayload.status,
-        rag: formPayload.rag,
-        startDate: formPayload.startDate,
-        targetDate: formPayload.targetDate,
-        budgetPlanned: formPayload.budgetPlanned,
-        budgetForecast: formPayload.budgetForecast,
-        scheduleVariance: formPayload.scheduleVariance,
-        progress: formPayload.progress,
-        summary: formPayload.summary,
-        sortOrder: formPayload.sortOrder,
-      };
-      const response = await fetch(`${apiBase}/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось сохранить проект",
-        );
-      }
-      await reloadProjects(project.id);
+      const rows = passportRows.map((row) => ({
+        ...row,
+        field: row.field.trim() || "Поле",
+        description: row.description.trim(),
+      }));
+      await saveProjectUiState({ passportRows: rows });
+      setPassportRows(rows);
       await refreshProject(project.id);
-      setNotice("Паспорт проекта обновлен");
+      setNotice("Паспорт проекта сохранен");
     } catch (saveError) {
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Не удалось сохранить проект",
+          : "Не удалось сохранить паспорт проекта",
       );
+    } finally {
+      setSavingPassportRows(false);
     }
   }
 
@@ -2796,41 +2785,6 @@ function App() {
       ...artifactDrafts,
       [artifactId]: { ...current, ...patch },
     });
-  }
-
-  async function createArtifact(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!project) return;
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/projects/${project.id}/artifacts`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(artifactPayload(artifactForm)),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось создать артефакт",
-        );
-      }
-      setArtifactForm(emptyArtifactForm);
-      await refreshProject(project.id);
-      setExpandedArtifactId(result.id);
-      setNotice("Артефакт создан");
-    } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : "Не удалось создать артефакт",
-      );
-    }
   }
 
   async function saveArtifact(artifactId: string) {
@@ -2892,6 +2846,108 @@ function App() {
     }
   }
 
+  async function createArtifactRow(afterArtifactId?: string) {
+    if (!project) return;
+    const currentArtifacts = [...project.artifacts].sort(
+      (left, right) => left.sortOrder - right.sortOrder,
+    );
+    const afterIndex = afterArtifactId
+      ? currentArtifacts.findIndex((artifact) => artifact.id === afterArtifactId)
+      : currentArtifacts.length - 1;
+    const sortOrder =
+      afterIndex >= 0
+        ? currentArtifacts[afterIndex].sortOrder + 1
+        : currentArtifacts.length + 1;
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/artifacts`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            artifactPayload({
+              ...emptyArtifactForm,
+              title: "Новый артефакт",
+              owner: project.projectManager,
+              sortOrder: String(sortOrder),
+            }),
+          ),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось создать артефакт",
+        );
+      }
+      const orderedIds = currentArtifacts.map((artifact) => artifact.id);
+      const insertIndex = afterIndex >= 0 ? afterIndex + 1 : orderedIds.length;
+      orderedIds.splice(insertIndex, 0, result.id);
+      await fetch(`${apiBase}/api/projects/${project.id}/artifacts/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds }),
+      });
+      await refreshProject(project.id);
+      setExpandedArtifactId(result.id);
+      setNotice("Артефакт добавлен");
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Не удалось создать артефакт",
+      );
+    }
+  }
+
+  async function moveArtifact(artifactId: string, direction: -1 | 1) {
+    if (!project) return;
+    const sortedArtifacts = [...project.artifacts].sort(
+      (left, right) => left.sortOrder - right.sortOrder,
+    );
+    const currentIndex = sortedArtifacts.findIndex(
+      (artifact) => artifact.id === artifactId,
+    );
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= sortedArtifacts.length) {
+      return;
+    }
+    const nextArtifacts = [...sortedArtifacts];
+    [nextArtifacts[currentIndex], nextArtifacts[nextIndex]] = [
+      nextArtifacts[nextIndex],
+      nextArtifacts[currentIndex],
+    ];
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/projects/${project.id}/artifacts/reorder`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderedIds: nextArtifacts.map((artifact) => artifact.id),
+          }),
+        },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось переместить артефакт");
+      }
+      await refreshProject(project.id);
+    } catch (moveError) {
+      setError(
+        moveError instanceof Error
+          ? moveError.message
+          : "Не удалось переместить артефакт",
+      );
+    }
+  }
+
   function raidPayload(form: RaidFormState) {
     return {
       ...form,
@@ -2908,6 +2964,8 @@ function App() {
       predecessor: form.predecessor || null,
       successor: form.successor || null,
       supplier: form.supplier || null,
+      jiraTicketKey: form.jiraTicketKey || null,
+      jiraTicketUrl: form.jiraTicketUrl || null,
       scheduleImpactDays: Number(form.scheduleImpactDays),
       budgetImpact: Number(form.budgetImpact),
     };
@@ -4052,13 +4110,30 @@ function App() {
   async function createOpenIssue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!project) return;
+    const nextErrors: Partial<Record<"title" | "jiraTicketUrl", string>> = {};
+    if (!issueForm.title.trim()) {
+      nextErrors.title = "Заполните заголовок";
+    }
+    if (issueForm.jiraTicketUrl.trim()) {
+      try {
+        new URL(issueForm.jiraTicketUrl.trim());
+      } catch {
+        nextErrors.jiraTicketUrl = "Некорректный Jira URL";
+      }
+    }
+    setIssueFormErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
     setCreatingIssue(true);
     setError(null);
     setNotice(null);
     try {
       const payload = {
         ...issueForm,
+        owner: issueForm.owner.trim(),
+        impact: issueForm.impact.trim(),
         dueDate: issueForm.dueDate || null,
+        jiraTicketKey: issueForm.jiraTicketKey.trim() || null,
+        jiraTicketUrl: issueForm.jiraTicketUrl.trim() || null,
         jiraLinks: issueForm.jiraLinks.filter(
           (link) => link.jiraKey.trim() && link.jiraUrl.trim(),
         ),
@@ -4078,6 +4153,7 @@ function App() {
         );
       }
       setIssueForm(emptyIssueForm);
+      setIssueFormErrors({});
       await refreshProject(project.id);
       setIssueDrawerMode(null);
       setIssueDrawerIssueId(null);
@@ -4231,6 +4307,8 @@ function App() {
         body: JSON.stringify({
           ...draft,
           dueDate: draft.dueDate || null,
+          jiraTicketKey: draft.jiraTicketKey || null,
+          jiraTicketUrl: draft.jiraTicketUrl || null,
         }),
       });
       const result = await response.json();
@@ -4822,7 +4900,11 @@ function App() {
                   <strong className={`rag ${project.rag.toLowerCase()}`}>
                     {projectHealthLabel(project.rag)}
                   </strong>
-                  <small>{project.summary}</small>
+                  <small>
+                    {isImportedSummary(project.summary)
+                      ? "Сводка проекта требует заполнения"
+                      : project.summary}
+                  </small>
                 </button>
                 <button
                   type="button"
@@ -4877,7 +4959,11 @@ function App() {
                 <button type="button" onClick={() => openView("project-structure")}>
                   <span>Просроченные элементы</span>
                   <strong>{overviewDashboard.overdueItems.length}</strong>
-                  <small>Не сделаны и срок уже прошел</small>
+                  <small>
+                    {topOverdueItems[0]
+                      ? `${topOverdueItems[0].item.code}: ${topOverdueItems[0].days} дн.`
+                      : "Просрочки по Структуре нет"}
+                  </small>
                 </button>
                 <button type="button" onClick={() => openView("project-raid")}>
                   <span>Риски и проблемы</span>
@@ -4887,10 +4973,35 @@ function App() {
                 <button type="button" onClick={() => openView("project-issues")}>
                   <span>Нужны решения</span>
                   <strong>{overviewDashboard.decisionItems}</strong>
-                  <small>Открытые вопросы и риски</small>
+                  <small>Только открытые вопросы</small>
                 </button>
               </section>
             )}
+
+            {project &&
+              activeView === "project-overview" &&
+              topOverdueItems.length > 0 && (
+                <section className="overview-overdue-panel">
+                  <div>
+                    <h3>Просроченные элементы</h3>
+                    <p>Что просрочено, на сколько дней и какой управленческий эффект.</p>
+                  </div>
+                  <div className="overview-overdue-list">
+                    {topOverdueItems.map(({ item, days, impact }) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        onClick={() => openView("project-structure")}
+                      >
+                        <b>{item.code}</b>
+                        <span>{item.title}</span>
+                        <strong>{days} кал. дн.</strong>
+                        <small>{impact}</small>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
 
             {activeView === "portfolio" && (
               <section className="projects-tree-section">
@@ -5375,15 +5486,14 @@ function App() {
                       <span>Срок</span>
                       <span>Раб. дней</span>
                       <span>Кал. дней</span>
-                      <span>Контроль</span>
+                      <span>Состояние</span>
                     </div>
                     {structureMilestones.map(
                       ({
                         milestone,
                         workDaysLeft,
                         calendarDaysLeft,
-                        control,
-                        toneClass,
+                        state,
                       }) => (
                         <div className="milestone-row" key={milestone.id}>
                           <span>
@@ -5393,9 +5503,8 @@ function App() {
                           <span>{date(milestone.dueDate)}</span>
                           <span>{formatDaysLeft(workDaysLeft)}</span>
                           <span>{formatDaysLeft(calendarDaysLeft)}</span>
-                          <span className="milestone-control">
-                            <i className={toneClass} />
-                            {control}
+                          <span className={`milestone-state ${state.tone}`}>
+                            {state.label}
                           </span>
                         </div>
                       ),
@@ -5414,153 +5523,74 @@ function App() {
                   <div className="panel-title">
                     <div>
                       <h2>Паспорт проекта</h2>
-                      <p>Управление статусом, сроками и ответственными проекта</p>
+                      <p>Редактируемый набор полей паспорта проекта</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => addPassportRow(passportRows.length - 1)}
+                    >
+                      + Добавить поле
+                    </button>
                   </div>
-	                  <form
-	                    className="form-grid compact-form"
-	                    onSubmit={saveProjectProfile}
-	                  >
-	                    <div className="form-section-title span-2">Основное</div>
-	                    <div className="readonly-field">
-	                      <span>Код проекта</span>
-                      <b>{project.code}</b>
+                  <div className="passport-table">
+                    <div className="passport-head">
+                      <span>Поле</span>
+                      <span>Описание</span>
+                      <span />
                     </div>
-                    <div className="readonly-field">
-                      <span>Имя проекта</span>
-                      <b>{project.name}</b>
-                    </div>
-                    <label>
-                      Портфель
-                      <input
-                        value={projectForm.portfolio}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            portfolio: event.target.value,
-                          })
-                        }
-	                        />
-	                      </label>
-	                    <div className="form-section-title span-2">Команда</div>
-	                    <label>
-	                      Спонсор
-                      <input
-                        value={projectForm.sponsor}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            sponsor: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      РП
-                      <input
-                        value={projectForm.projectManager}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            projectManager: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-		                    <div className="form-section-title span-2">Статус и контроль</div>
-	                    <label>
-	                      Статус
-                      <select
-                        value={projectForm.status}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            status: event.target
-                              .value as ProjectFormState["status"],
-                          })
-                        }
-                      >
-                        <option value="DRAFT">{projectStatusLabel("DRAFT")}</option>
-                        <option value="ACTIVE">{projectStatusLabel("ACTIVE")}</option>
-                        <option value="ON_HOLD">{projectStatusLabel("ON_HOLD")}</option>
-                        <option value="CLOSED">{projectStatusLabel("CLOSED")}</option>
-                      </select>
-                    </label>
-                    <label>
-                      Индикатор
-                      <select
-                        value={projectForm.rag}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            rag: event.target.value as RagStatus,
-                          })
-                        }
-                      >
-                        <option value="GREEN">{ragOptionLabel("GREEN")}</option>
-                        <option value="AMBER">{ragOptionLabel("AMBER")}</option>
-	                        <option value="RED">{ragOptionLabel("RED")}</option>
-	                      </select>
-	                    </label>
-	                    <div className="form-section-title span-2">Сроки</div>
-	                    <label>
-	                      Старт
-                      <input
-                        type="date"
-                        value={projectForm.startDate}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            startDate: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Целевая дата
-                      <input
-                        type="date"
-                        value={projectForm.targetDate}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            targetDate: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Прогресс
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={projectForm.progress}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            progress: event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Отклонение сроков
-                      <input
-                        type="number"
-                        value={projectForm.scheduleVariance}
-                        onChange={(event) =>
-                          setProjectForm({
-                            ...projectForm,
-                            scheduleVariance: event.target.value,
-                          })
-                        }
-	                        />
-	                      </label>
-                    <div className="form-actions span-2">
-                      <button type="submit">Сохранить паспорт</button>
-                    </div>
-                  </form>
+                    {passportRows.map((row, index) => (
+                      <div className="passport-row" key={row.id}>
+                        <input
+                          value={row.field}
+                          onChange={(event) =>
+                            updatePassportRow(row.id, {
+                              field: event.target.value,
+                            })
+                          }
+                          placeholder="Наименование поля"
+                        />
+                        <textarea
+                          value={row.description}
+                          onChange={(event) =>
+                            updatePassportRow(row.id, {
+                              description: event.target.value,
+                            })
+                          }
+                          rows={2}
+                          placeholder="Описание или значение"
+                        />
+                        <div className="passport-row-controls">
+                          <button
+                            type="button"
+                            className="wbs-inline-insert-button"
+                            onClick={() => addPassportRow(index)}
+                            aria-label="Добавить поле ниже"
+                            title="Добавить поле ниже"
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="wbs-row-delete-button"
+                            onClick={() => deletePassportRow(row.id)}
+                            aria-label="Удалить поле"
+                            title="Удалить поле"
+                          >
+                            x
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="form-actions passport-actions">
+                    <button
+                      type="button"
+                      onClick={() => void savePassportRows()}
+                      disabled={savingPassportRows}
+                    >
+                      {savingPassportRows ? "Сохраняю..." : "Сохранить паспорт"}
+                    </button>
+                  </div>
                 </article>
               )}
 
@@ -6402,8 +6432,8 @@ function App() {
                     <div>
                       <h2>Реестр открытых вопросов</h2>
                       <p>
-                        Единый список открытых проблем из Jira и внутреннего
-                        реестра рисков
+                        Единый список открытых проблем из Jira и внутренних
+                        управленческих вопросов
                       </p>
                     </div>
                     <button
@@ -6420,36 +6450,53 @@ function App() {
                   <div className="issue-list">
                     <div className="issue-list-head" aria-hidden="true">
                       <span>Наименование</span>
+                      <span>Ключ Jira</span>
                       <span>Срок</span>
+                      <span>Отставание</span>
                       <span>Ответственный</span>
                       <span />
                     </div>
-                    {project.issues.map((issue) => (
+                    {project.issues.map((issue) => {
+                      const delayDays = calendarDelayDays(
+                        issue.initialDueDate,
+                        issue.dueDate,
+                      );
+                      return (
                       <div className="issue-row" key={issue.id}>
-                        <button
-                          type="button"
-                          className="issue-summary-row"
-                          aria-expanded={expandedIssueId === issue.id}
-                          aria-controls={`issue-details-${issue.id}`}
-                          onClick={() =>
-                            setExpandedIssueId(
-                              expandedIssueId === issue.id ? null : issue.id,
-                            )
-                          }
-                        >
-                          <span className="issue-summary-title">
-                            {issue.title}
-                          </span>
-                          <span className="issue-summary-cell">
-                            {date(issue.dueDate)}
-                          </span>
-                          <span className="issue-summary-cell">
-                            {issue.owner || "не назначен"}
-                          </span>
-                          <span className="issue-chevron" aria-hidden="true">
-                            {expandedIssueId === issue.id ? "-" : "+"}
-                          </span>
-                        </button>
+                          <button
+                            type="button"
+                            className="issue-summary-row"
+                            aria-expanded={expandedIssueId === issue.id}
+                            aria-controls={`issue-details-${issue.id}`}
+                            onClick={() =>
+                              setExpandedIssueId(
+                                expandedIssueId === issue.id ? null : issue.id,
+                              )
+                            }
+                          >
+                            <span className="issue-summary-title">
+                              {issue.title}
+                            </span>
+                            <span className="issue-summary-cell">
+                              {issue.jiraTicketKey ||
+                                issue.jiraLinks[0]?.jiraKey ||
+                                "не задан"}
+                            </span>
+                            <span className="issue-summary-cell">
+                              {date(issue.dueDate)}
+                            </span>
+                            <span
+                              className={`issue-summary-cell ${delayDays > 0 ? "issue-delay" : ""}`}
+                            >
+                              {delayDays > 0 ? `+${delayDays} дн.` : "нет"}
+                            </span>
+                            <span className="issue-summary-cell">
+                              {issue.owner || "не назначен"}
+                            </span>
+                            <span className="issue-chevron" aria-hidden="true">
+                              {expandedIssueId === issue.id ? "-" : "+"}
+                            </span>
+                          </button>
                         {expandedIssueId === issue.id && (
                           <div
                             className="issue-details-panel"
@@ -6465,6 +6512,14 @@ function App() {
                               <span>
                                 Источник: {issue.source === "JIRA" ? "Jira" : "Внутренний"}
                               </span>
+                              {issue.initialDueDate && (
+                                <span>
+                                  Первичный срок: {date(issue.initialDueDate)}
+                                </span>
+                              )}
+                              {delayDays > 0 && (
+                                <b>Сдвиг срока: +{delayDays} кал. дн.</b>
+                              )}
                               {issue.decisionRequired && <b>Требует решения</b>}
                             </div>
                             <div className="issue-impact">
@@ -6555,7 +6610,8 @@ function App() {
                           </div>
                         )}
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </article>
               )}
@@ -6691,7 +6747,7 @@ function App() {
                   </div>
                   <div className="wbs-kpis">
                     <div>
-                      <span>Активные риски</span>
+                      <span>Активные записи</span>
                       <strong>{raidSummary.activeRaid}</strong>
                       <small>открыто / в работе / нарушено</small>
                     </div>
@@ -6787,18 +6843,33 @@ function App() {
                     </section>
                   </div>
                   <div className="raid-layout">
-                    <section>
+                    <section className="raid-register">
                       <div className="subhead">Реестр рисков и проблем</div>
+                      {([
+                        { key: "risks", title: "Риски", items: groupedRaidItems.risks },
+                        {
+                          key: "problems",
+                          title: "Проблемы",
+                          items: groupedRaidItems.problems,
+                        },
+                        {
+                          key: "assumptions",
+                          title: "Допущения",
+                          items: groupedRaidItems.assumptions,
+                        },
+                      ] as const).map(({ key, title, items }) => (
+                        <section className="raid-section" key={key}>
+                          <h3>{title}</h3>
                       <div className="raid-list">
                         <div className="raid-head">
                           <span>Запись</span>
-                          <span>Тип</span>
+                          <span>Ключ Jira</span>
                           <span>Оценка</span>
                           <span>Срок</span>
-                          <span>Владелец</span>
+                          <span>Ответственный</span>
                           <span />
                         </div>
-                        {filteredRaidItems.map((item) => (
+                        {items.map((item) => (
                           <div className="raid-item" key={item.id}>
                             <button
                               type="button"
@@ -6810,7 +6881,7 @@ function App() {
                               }
                             >
                               <span className="raid-title">{item.title}</span>
-                              <span>{raidTypeLabel(item.type)}</span>
+                              <span>{item.jiraTicketKey || "не задан"}</span>
                               <span className={`risk-score ${riskTone(item.riskScore)}`}>
                                 {item.riskScore}
                               </span>
@@ -6824,15 +6895,29 @@ function App() {
                               <div className="raid-details">
                                 <div className="raid-detail-meta">
                                   <span>{raidStatusLabel(item.status)}</span>
+                                  <span>{raidTypeLabel(item.type)}</span>
                                   <span>Остаточный риск: {item.residualRisk}</span>
                                   <span>
                                     Сроки: {item.scheduleImpactDays} дн.
                                   </span>
+                                  {item.jiraTicketKey && (
+                                    <span>Jira: {item.jiraTicketKey}</span>
+                                  )}
 	                                  {item.decisionRequired && (
                                     <b>Требует решения</b>
                                   )}
                                 </div>
                                 <p>{item.description}</p>
+                                {item.jiraTicketUrl && (
+                                  <a
+                                    className="jira-detail-link"
+                                    href={item.jiraTicketUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {item.jiraTicketKey || item.jiraTicketUrl}
+                                  </a>
+                                )}
                                 <div className="raid-edit-grid">
                                   <select
                                     value={raidDrafts[item.id].type}
@@ -6891,7 +6976,25 @@ function App() {
                                         owner: event.target.value,
                                       })
                                     }
-                                    placeholder="Владелец"
+                                    placeholder="Ответственный"
+                                  />
+                                  <input
+                                    value={raidDrafts[item.id].jiraTicketKey}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        jiraTicketKey: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Ключ Jira"
+                                  />
+                                  <input
+                                    value={raidDrafts[item.id].jiraTicketUrl}
+                                    onChange={(event) =>
+                                      updateRaidDraft(item.id, {
+                                        jiraTicketUrl: event.target.value,
+                                      })
+                                    }
+                                    placeholder="Jira URL"
                                   />
                                   <input
                                     type="number"
@@ -7034,10 +7137,12 @@ function App() {
                             )}
                           </div>
                         ))}
-                        {filteredRaidItems.length === 0 && (
+                        {items.length === 0 && (
                           <div className="empty-state">Записей пока нет.</div>
                         )}
                       </div>
+                        </section>
+                      ))}
                     </section>
 		                    <form className="raid-form stack-form" onSubmit={createRaidItem}>
 		                      <h3>Новая запись</h3>
@@ -7064,7 +7169,7 @@ function App() {
                           </select>
                         </label>
                         <label>
-                          Владелец
+                          Ответственный
                           <input
                             value={raidForm.owner}
                             onChange={(event) =>
@@ -7073,7 +7178,35 @@ function App() {
                                 owner: event.target.value,
                               })
                             }
-                            placeholder="Владелец"
+                            placeholder="Ответственный"
+                          />
+                        </label>
+                      </div>
+                      <div className="two-col">
+                        <label>
+                          Ключ Jira
+                          <input
+                            value={raidForm.jiraTicketKey}
+                            onChange={(event) =>
+                              setRaidForm({
+                                ...raidForm,
+                                jiraTicketKey: event.target.value,
+                              })
+                            }
+                            placeholder="ERP-1842"
+                          />
+                        </label>
+                        <label>
+                          Jira URL
+                          <input
+                            value={raidForm.jiraTicketUrl}
+                            onChange={(event) =>
+                              setRaidForm({
+                                ...raidForm,
+                                jiraTicketUrl: event.target.value,
+                              })
+                            }
+                            placeholder="https://company.atlassian.net/browse/ERP-1842"
                           />
                         </label>
                       </div>
@@ -7194,58 +7327,118 @@ function App() {
                         проекта
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void createArtifactRow()}
+                    >
+                      + Добавить строку
+                    </button>
                   </div>
-                  <div className="artifact-layout">
-                    <div className="artifact-list">
-                      <div className="artifact-head">
-                        <span>Артефакт</span>
-                        <span>Тип</span>
-                        <span>Владелец</span>
-                        <span>Статус</span>
-                        <span>Источник</span>
-                      </div>
-                      {projectArtifacts.map((artifact) => (
-                        <div className="artifact-item" key={artifact.id}>
-                          <button
-                            type="button"
-                            className="artifact-row"
-                            onClick={() => {
-                              if (
-                                artifact.kind === "system" &&
-                                artifact.action
-                              ) {
-                                openView(artifact.action);
-                                return;
-                              }
-                              setExpandedArtifactId(
-                                expandedArtifactId === artifact.id
-                                  ? null
-                                  : artifact.id,
-                              );
-                            }}
-                          >
-                            <span>{artifact.title}</span>
-                            <span>{artifact.type}</span>
-                            <span>{artifact.owner}</span>
-                            <span>{artifact.status}</span>
-                            <span>{artifact.source}</span>
-                          </button>
-                          {artifact.kind === "project" &&
-                            expandedArtifactId === artifact.id && (
-                              <div className="artifact-details">
-                                {artifact.url && (
-                                  <a
-                                    href={artifact.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    Открыть ссылку
-                                  </a>
-                                )}
-                                {artifact.description && (
-                                  <p>{artifact.description}</p>
-                                )}
-                                <div className="artifact-edit-grid">
+                  <div className="artifact-list">
+                    <div className="artifact-head">
+                      <span />
+                      <span>Артефакт</span>
+                      <span>Тип</span>
+                      <span>Ответственный</span>
+                      <span>Статус</span>
+                      <span>URL</span>
+                      <span />
+                    </div>
+                    {project.artifacts.map((artifact, index) => (
+                      <div className="artifact-item" key={artifact.id}>
+                        <div
+                          className="artifact-row"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() =>
+                            setExpandedArtifactId(
+                              expandedArtifactId === artifact.id
+                                ? null
+                                : artifact.id,
+                            )
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.preventDefault();
+                            setExpandedArtifactId(
+                              expandedArtifactId === artifact.id
+                                ? null
+                                : artifact.id,
+                            );
+                          }}
+                        >
+                          <span className="artifact-row-controls">
+                            <button
+                              type="button"
+                              className="wbs-inline-insert-button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void createArtifactRow(artifact.id);
+                              }}
+                              title="Добавить строку ниже"
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              className="wbs-row-drag-handle"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void moveArtifact(artifact.id, -1);
+                              }}
+                              disabled={index === 0}
+                              title="Переместить выше"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              className="wbs-row-drag-handle"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void moveArtifact(artifact.id, 1);
+                              }}
+                              disabled={index === project.artifacts.length - 1}
+                              title="Переместить ниже"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              className="wbs-row-delete-button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void deleteArtifact(artifact.id);
+                              }}
+                              title="Удалить"
+                            >
+                              x
+                            </button>
+                          </span>
+                          <span>{artifact.title}</span>
+                          <span>{artifact.type}</span>
+                          <span>{artifact.owner}</span>
+                          <span>{artifactStatusLabel(artifact.status)}</span>
+                          <span>{artifact.url ? "Ссылка" : "не задан"}</span>
+                          <span className="issue-chevron">
+                            {expandedArtifactId === artifact.id ? "-" : "+"}
+                          </span>
+                        </div>
+                        {expandedArtifactId === artifact.id && (
+                          <div className="artifact-details">
+                            {artifact.url && (
+                              <a
+                                href={artifact.url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Открыть ссылку
+                              </a>
+                            )}
+                            {artifact.description && (
+                              <p>{artifact.description}</p>
+                            )}
+                            <div className="artifact-edit-grid">
                                   <label>
                                     Название
                                     <input
@@ -7273,7 +7466,7 @@ function App() {
                                     />
                                   </label>
                                   <label>
-                                    Владелец
+                                    Ответственный
                                     <input
                                       value={
                                         artifactDrafts[artifact.id]?.owner ?? ""
@@ -7377,128 +7570,16 @@ function App() {
                                       Удалить
                                     </button>
                                   </div>
-                                </div>
-                              </div>
-                            )}
-                        </div>
-                      ))}
-                    </div>
-                    <form
-                      className="stack-form compact-form artifact-form"
-                      onSubmit={createArtifact}
-                    >
-                      <label>
-                        Название
-                        <input
-                          value={artifactForm.title}
-                          onChange={(event) =>
-                            setArtifactForm({
-                              ...artifactForm,
-                              title: event.target.value,
-                            })
-                          }
-                          placeholder="Дизайн решения"
-                        />
-                      </label>
-                      <div className="two-col">
-                        <label>
-                          Тип
-                          <input
-                            value={artifactForm.type}
-                            onChange={(event) =>
-                              setArtifactForm({
-                                ...artifactForm,
-                                type: event.target.value,
-                              })
-                            }
-                            placeholder="Документ / ссылка / базовый план"
-                          />
-                        </label>
-                        <label>
-                          Статус
-                          <select
-                            value={artifactForm.status}
-                            onChange={(event) =>
-                              setArtifactForm({
-                                ...artifactForm,
-                                status: event.target.value as ArtifactStatus,
-                              })
-                            }
-                          >
-                            <option value="Draft">
-                              {artifactStatusLabel("Draft")}
-                            </option>
-                            <option value="In Review">
-                              {artifactStatusLabel("In Review")}
-                            </option>
-                            <option value="Approved">
-                              {artifactStatusLabel("Approved")}
-                            </option>
-                            <option value="Baseline">
-                              {artifactStatusLabel("Baseline")}
-                            </option>
-                            <option value="Archived">
-                              {artifactStatusLabel("Archived")}
-                            </option>
-                          </select>
-                        </label>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="two-col">
-                        <label>
-                          Владелец
-                          <input
-                            value={artifactForm.owner}
-                            onChange={(event) =>
-                              setArtifactForm({
-                                ...artifactForm,
-                                owner: event.target.value,
-                              })
-                            }
-                            placeholder="Проектный офис / архитектор"
-                          />
-                        </label>
-                        <label>
-                          Порядок
-                          <input
-                            type="number"
-                            value={artifactForm.sortOrder}
-                            onChange={(event) =>
-                              setArtifactForm({
-                                ...artifactForm,
-                                sortOrder: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
+                    ))}
+                    {project.artifacts.length === 0 && (
+                      <div className="empty-state">
+                        Артефакты пока не заведены. Добавьте первую строку.
                       </div>
-                      <label>
-                        URL
-                        <input
-                          value={artifactForm.url}
-                          onChange={(event) =>
-                            setArtifactForm({
-                              ...artifactForm,
-                              url: event.target.value,
-                            })
-                          }
-                          placeholder="https://..."
-                        />
-                      </label>
-                      <label>
-                        Описание
-                        <textarea
-                          value={artifactForm.description}
-                          onChange={(event) =>
-                            setArtifactForm({
-                              ...artifactForm,
-                              description: event.target.value,
-                            })
-                          }
-                          rows={3}
-                        />
-                      </label>
-                      <button type="submit">Добавить артефакт</button>
-                    </form>
+                    )}
                   </div>
                 </article>
               )}
@@ -7608,14 +7689,48 @@ function App() {
                           <span>Одобрил: {latestOverview.approvedBy}</span>
                         )}
                       </div>
-                      <p className="overview-summary">
-                        {latestOverview.executiveSummary}
-                      </p>
 	                      <section className="overview-pack executive-hero">
 	                        <div>
 	                          <span>Управленческий обзор</span>
 	                          <h2>{project.code} - {project.name}</h2>
-	                          <p>{latestOverview.executiveSummary}</p>
+                            <div className="executive-brief-grid">
+                              <div>
+                                <small>Статус</small>
+                                <strong>{projectHealthLabel(project.rag)}</strong>
+                              </div>
+                              <div>
+                                <small>Готовность</small>
+                                <strong>{project.progress}%</strong>
+                              </div>
+                              <div>
+                                <small>Ближайшая веха</small>
+                                <strong>
+                                  {overviewDashboard.nextMilestone
+                                    ? overviewDashboard.nextMilestone.milestone.title
+                                    : "не задана"}
+                                </strong>
+                              </div>
+                              <div>
+                                <small>Решения</small>
+                                <strong>{overviewDashboard.decisionItems}</strong>
+                              </div>
+                            </div>
+                            <ul className="executive-brief-list">
+                              <li>
+                                Срок: {date(project.targetDate)}, отклонение{" "}
+                                {project.scheduleVariance > 0 ? "+" : ""}
+                                {project.scheduleVariance} дней.
+                              </li>
+                              <li>
+                                Открытые вопросы: {overviewDashboard.openIssues.length},
+                                просроченные элементы Структуры:{" "}
+                                {overviewDashboard.overdueItems.length}.
+                              </li>
+                              <li>
+                                Риски и проблемы: {overviewDashboard.riskItems.length}
+                                {" "}активных записей.
+                              </li>
+                            </ul>
 	                        </div>
 	                        <strong className={`rag ${project.rag.toLowerCase()}`}>
 	                          {projectHealthLabel(project.rag)}
@@ -7790,18 +7905,25 @@ function App() {
               </div>
               {issueDrawerMode === "create" && (
                 <form className="stack-form" onSubmit={createOpenIssue}>
-                  <label>
+                  <label className={issueFormErrors.title ? "field-error" : ""}>
                     Заголовок
                     <input
                       value={issueForm.title}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        setIssueFormErrors((current) => ({
+                          ...current,
+                          title: undefined,
+                        }));
                         setIssueForm({
                           ...issueForm,
                           title: event.target.value,
-                        })
-                      }
+                        });
+                      }}
                       placeholder="Например: поставщик не подтвердил SLA"
                     />
+                    {issueFormErrors.title && (
+                      <small>{issueFormErrors.title}</small>
+                    )}
                   </label>
                   <div className="two-col">
                     <label>
@@ -7882,7 +8004,40 @@ function App() {
                     </label>
                   </div>
                   <div className="jira-links-editor">
-                    <div className="subhead">Связанные задачи Jira</div>
+                    <div className="subhead">Ключ Jira</div>
+                    <div className="issue-link-edit">
+                      <input
+                        value={issueForm.jiraTicketKey}
+                        onChange={(event) =>
+                          setIssueForm({
+                            ...issueForm,
+                            jiraTicketKey: event.target.value,
+                          })
+                        }
+                        placeholder="ERP-1842"
+                      />
+                      <input
+                        className={issueFormErrors.jiraTicketUrl ? "input-error" : ""}
+                        value={issueForm.jiraTicketUrl}
+                        onChange={(event) => {
+                          setIssueFormErrors((current) => ({
+                            ...current,
+                            jiraTicketUrl: undefined,
+                          }));
+                          setIssueForm({
+                            ...issueForm,
+                            jiraTicketUrl: event.target.value,
+                          });
+                        }}
+                        placeholder="https://company.atlassian.net/browse/ERP-1842"
+                      />
+                    </div>
+                    {issueFormErrors.jiraTicketUrl && (
+                      <small className="field-error-text">
+                        {issueFormErrors.jiraTicketUrl}
+                      </small>
+                    )}
+                    <div className="subhead">Дополнительные задачи Jira</div>
                     {issueForm.jiraLinks.map((link, index) => (
                       <div className="issue-link-edit" key={index}>
                         <input
@@ -8010,6 +8165,32 @@ function App() {
                               dueDate: event.target.value,
                             })
                           }
+                        />
+                      </label>
+                    </div>
+                    <div className="two-col">
+                      <label>
+                        Ключ Jira
+                        <input
+                          value={issueEditDrafts[issueDrawerIssueId].jiraTicketKey}
+                          onChange={(event) =>
+                            updateIssueDraft(issueDrawerIssueId, {
+                              jiraTicketKey: event.target.value,
+                            })
+                          }
+                          placeholder="ERP-1842"
+                        />
+                      </label>
+                      <label>
+                        Jira URL
+                        <input
+                          value={issueEditDrafts[issueDrawerIssueId].jiraTicketUrl}
+                          onChange={(event) =>
+                            updateIssueDraft(issueDrawerIssueId, {
+                              jiraTicketUrl: event.target.value,
+                            })
+                          }
+                          placeholder="https://company.atlassian.net/browse/ERP-1842"
                         />
                       </label>
                     </div>

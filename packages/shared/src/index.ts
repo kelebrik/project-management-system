@@ -178,6 +178,8 @@ export const raidItemSchema = z.object({
   predecessor: z.string().trim().optional().nullable(),
   successor: z.string().trim().optional().nullable(),
   supplier: z.string().trim().optional().nullable(),
+  jiraTicketKey: z.string().trim().optional().nullable(),
+  jiraTicketUrl: z.string().trim().optional().nullable(),
   decisionRequired: z.boolean().default(false),
   escalationLevel: z.string().trim().min(1).default("Project"),
   scheduleImpactDays: z.coerce.number().int().default(0),
@@ -185,19 +187,19 @@ export const raidItemSchema = z.object({
 });
 
 export const createIssueSchema = z.object({
-  title: z.string().trim().min(3),
-  severity: z.enum(issueSeverities),
-  owner: z.string().trim().min(1),
-  impact: z.string().trim().min(3),
+  title: z.string().trim().min(1),
+  severity: z.enum(issueSeverities).default("HIGH"),
+  owner: z.string().trim().optional().default(""),
+  impact: z.string().trim().optional().default(""),
   decisionRequired: z.boolean().default(false),
   dueDate: z.string().trim().optional().nullable(),
   jiraTicketKey: z.string().trim().optional().nullable(),
-  jiraTicketUrl: z.string().trim().url().optional().nullable(),
+  jiraTicketUrl: z.string().trim().optional().nullable(),
   jiraLinks: z
     .array(
       z.object({
-        jiraKey: z.string().trim().min(1),
-        jiraUrl: z.string().trim().url(),
+        jiraKey: z.string().trim().optional().default(""),
+        jiraUrl: z.string().trim().optional().default(""),
       }),
     )
     .optional()
@@ -205,11 +207,13 @@ export const createIssueSchema = z.object({
 });
 
 export const updateIssueSchema = z.object({
-  title: z.string().trim().min(3).optional(),
+  title: z.string().trim().min(1).optional(),
   severity: z.enum(issueSeverities).optional(),
   status: z.enum(openIssueStatuses).optional(),
-  owner: z.string().trim().min(1).optional(),
-  impact: z.string().trim().min(3).optional(),
+  owner: z.string().trim().optional(),
+  impact: z.string().trim().optional(),
   decisionRequired: z.boolean().optional(),
   dueDate: z.string().trim().optional().nullable(),
+  jiraTicketKey: z.string().trim().optional().nullable(),
+  jiraTicketUrl: z.string().trim().optional().nullable(),
 });

@@ -388,6 +388,7 @@ model Issue {
   impact           String
   decisionRequired Boolean         @default(false)
   dueDate          DateTime?
+  initialDueDate   DateTime?
   jiraTicketKey    String?
   jiraTicketUrl    String?
   createdAt        DateTime        @default(now())
@@ -488,6 +489,8 @@ model RaidItem {
   predecessor        String?
   successor          String?
   supplier           String?
+  jiraTicketKey      String?
+  jiraTicketUrl      String?
   decisionRequired   Boolean        @default(false)
   escalationLevel    String         @default("Project")
   scheduleImpactDays Int            @default(0)

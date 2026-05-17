@@ -791,6 +791,56 @@ button:disabled {
   font-weight: 700;
 }
 
+.overview-overdue-panel {
+  background: #fff;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+}
+
+.overview-overdue-panel h3,
+.overview-overdue-panel p {
+  margin: 0;
+}
+
+.overview-overdue-panel p {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.overview-overdue-list {
+  display: grid;
+  gap: 8px;
+}
+
+.overview-overdue-list button {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 88px minmax(0, 1fr) 110px minmax(180px, 0.7fr);
+  min-width: 0;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.overview-overdue-list b {
+  color: #075985;
+}
+
+.overview-overdue-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-overdue-list strong {
+  color: #b91c1c;
+}
+
 .rag.green {
   color: #15803d;
 }
@@ -999,7 +1049,7 @@ code {
   font-size: 11px;
   font-weight: 800;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) 132px 172px 28px;
+  grid-template-columns: minmax(0, 1fr) 112px 118px 96px 152px 28px;
   padding: 0 14px;
   text-transform: uppercase;
 }
@@ -1056,6 +1106,67 @@ code {
 .form-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.passport-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.passport-head,
+.passport-row {
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(220px, 0.38fr) minmax(0, 1fr) 100px;
+}
+
+.passport-head {
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  min-height: 42px;
+  text-transform: uppercase;
+}
+
+.passport-head span,
+.passport-row input,
+.passport-row textarea,
+.passport-row-controls {
+  border-right: 1px solid #e2e8f0;
+  min-width: 0;
+  padding: 10px;
+}
+
+.passport-row {
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+}
+
+.passport-row input,
+.passport-row textarea {
+  border: 0;
+  border-radius: 0;
+  min-height: 44px;
+}
+
+.passport-row-controls {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.passport-row-controls .wbs-inline-insert-button,
+.passport-row-controls .wbs-row-delete-button {
+  opacity: 1;
+  pointer-events: auto;
+  position: static;
+}
+
+.passport-actions {
+  margin-top: 12px;
 }
 
 .project-admin-table {
@@ -1232,7 +1343,7 @@ code {
   border-radius: 0;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) 132px 172px 28px;
+  grid-template-columns: minmax(0, 1fr) 112px 118px 96px 152px 28px;
   min-width: 0;
   padding: 12px 14px;
   text-align: left;
@@ -1261,6 +1372,11 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.issue-delay {
+  color: #b91c1c;
+  font-weight: 900;
 }
 
 .issue-chevron {
@@ -1298,6 +1414,19 @@ code {
 .issue-detail-meta b {
   background: #fef3c7;
   color: #92400e;
+}
+
+.field-error input,
+.input-error {
+  border-color: #fca5a5;
+  box-shadow: 0 0 0 3px rgba(252, 165, 165, 0.28);
+}
+
+.field-error small,
+.field-error-text {
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .issue-impact {
@@ -1465,7 +1594,7 @@ code {
   align-items: center;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(280px, 1.5fr) 132px 112px 112px minmax(220px, 1fr);
+  grid-template-columns: minmax(280px, 1.5fr) 132px 112px 112px 150px;
 }
 
 .milestone-head {
@@ -1495,42 +1624,33 @@ code {
   margin-right: 8px;
 }
 
-.milestone-control {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-}
-
-.milestone-control i {
+.milestone-state {
   border-radius: 999px;
-  display: inline-block;
-  flex: 0 0 auto;
-  height: 9px;
-  width: 9px;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  justify-content: center;
+  padding: 5px 9px;
 }
 
-.milestone-control .tone-b {
-  background: #2563eb;
+.milestone-state.green {
+  background: #dcfce7;
+  color: #166534;
 }
 
-.milestone-control .tone-g {
-  background: #16a34a;
+.milestone-state.amber {
+  background: #fef3c7;
+  color: #92400e;
 }
 
-.milestone-control .tone-r {
-  background: #dc2626;
+.milestone-state.red {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
-.milestone-control .tone-p {
-  background: #ec4899;
-}
-
-.milestone-control .tone-o {
-  background: #f59e0b;
-}
-
-.milestone-control .tone-x {
-  background: #94a3b8;
+.milestone-state.pink {
+  background: #fce7f3;
+  color: #be185d;
 }
 
 .wbs-kpis {
@@ -2716,13 +2836,6 @@ code {
   color: #991b1b;
 }
 
-.artifact-layout {
-  align-items: start;
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
-}
-
 .artifact-list {
   border: 1px solid #e2e8f0;
   border-radius: 6px;
@@ -2733,8 +2846,8 @@ code {
 .artifact-row {
   align-items: center;
   display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(180px, 1fr) 160px 160px 130px 160px;
+  gap: 10px;
+  grid-template-columns: 150px minmax(220px, 1fr) 150px 160px 130px 140px 28px;
 }
 
 .artifact-head {
@@ -2775,8 +2888,27 @@ code {
 }
 
 .artifact-row span:first-child {
+  color: #475569;
+  font-weight: 700;
+}
+
+.artifact-row span:nth-child(2) {
   color: #1f2937;
   font-weight: 800;
+}
+
+.artifact-row-controls {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.artifact-row-controls .wbs-inline-insert-button,
+.artifact-row-controls .wbs-row-drag-handle,
+.artifact-row-controls .wbs-row-delete-button {
+  opacity: 1;
+  pointer-events: auto;
+  position: static;
 }
 
 .artifact-item + .artifact-item {
@@ -2816,14 +2948,6 @@ code {
   gap: 8px;
 }
 
-.artifact-form {
-  align-self: start;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 12px;
-}
-
 .raid-layout {
   align-items: start;
   display: grid;
@@ -2844,8 +2968,8 @@ code {
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  gap: 8px;
+  padding: 10px 12px;
 }
 
 .raid-filter-bar,
@@ -2862,7 +2986,7 @@ code {
   color: #334155;
   font-size: 12px;
   font-weight: 800;
-  padding: 7px 10px;
+  padding: 6px 10px;
 }
 
 .raid-filter-bar button.active {
@@ -2919,6 +3043,20 @@ code {
   overflow: hidden;
 }
 
+.raid-register {
+  display: grid;
+  gap: 12px;
+}
+
+.raid-section {
+  display: grid;
+  gap: 8px;
+}
+
+.raid-section h3 {
+  margin: 0;
+}
+
 .raid-head,
 .raid-row,
 .cr-head,
@@ -2930,7 +3068,7 @@ code {
 
 .raid-head,
 .raid-row {
-  grid-template-columns: minmax(220px, 1fr) 110px 70px 118px 150px 24px;
+  grid-template-columns: minmax(220px, 1fr) 112px 70px 118px 150px 24px;
 }
 
 .cr-head,
@@ -3040,6 +3178,13 @@ code {
 .raid-details p {
   color: #334155;
   font-size: 12px;
+}
+
+.jira-detail-link {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .raid-edit-grid {
@@ -3253,6 +3398,47 @@ code {
   padding: 8px 12px;
 }
 
+.executive-brief-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 14px 0;
+}
+
+.executive-brief-grid div {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(191, 219, 254, 0.22);
+  border-radius: 6px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.executive-brief-grid small {
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.executive-brief-grid strong {
+  color: #fff;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.executive-brief-list {
+  color: #dbeafe;
+  display: grid;
+  gap: 7px;
+  line-height: 1.45;
+  margin: 0;
+  padding-left: 18px;
+}
+
 .overview-status-line {
   background: #f8fafc;
   border-radius: 6px;
@@ -3284,13 +3470,6 @@ code {
   color: #64748b;
   font-size: 12px;
   font-weight: 800;
-}
-
-.overview-summary {
-  color: #1f2937;
-  font-size: 16px;
-  line-height: 1.55;
-  margin-bottom: 18px;
 }
 
 .overview-pack {
@@ -3378,7 +3557,8 @@ code {
 }
 
 .gate-row {
-  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  grid-template-columns: 150px minmax(0, 1fr);
 }
 
 .gate-row + .gate-row,
@@ -3394,7 +3574,8 @@ code {
   font-size: 10px;
   font-weight: 900;
   justify-content: center;
-  padding: 4px 7px;
+  min-width: 118px;
+  padding: 5px 9px;
   text-transform: uppercase;
 }
 
@@ -3495,7 +3676,6 @@ code {
   .wbs-kpis,
   .raid-layout,
   .raid-edit-grid,
-  .artifact-layout,
   .artifact-edit-grid,
   .project-tree-head,
   .project-tree-row,
