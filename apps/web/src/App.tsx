@@ -4195,6 +4195,14 @@ function App() {
       {sidebarCollapsed && <span className="nav-tooltip">{label}</span>}
     </>
   );
+  const toggleSidebar = () => {
+    const nextCollapsed = !sidebarCollapsed;
+    setSidebarCollapsed(nextCollapsed);
+    void saveProjectUiState(
+      { sidebarCollapsed: nextCollapsed },
+      { sidebarCollapsed: nextCollapsed },
+    );
+  };
 
   if (loading) {
     return (
@@ -4204,6 +4212,23 @@ function App() {
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <button
+        type="button"
+        className="sidebar-toggle"
+        onClick={toggleSidebar}
+        aria-label={
+          sidebarCollapsed
+            ? "Развернуть боковую панель"
+            : "Свернуть боковую панель"
+        }
+        title={
+          sidebarCollapsed
+            ? "Развернуть боковую панель"
+            : "Свернуть боковую панель"
+        }
+      >
+        {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">УП</span>
@@ -4211,30 +4236,6 @@ function App() {
             <b>Система УП</b>
             <small>Контур управления</small>
           </span>
-          <button
-            type="button"
-            className="sidebar-toggle"
-            onClick={() => {
-              const nextCollapsed = !sidebarCollapsed;
-              setSidebarCollapsed(nextCollapsed);
-              void saveProjectUiState(
-                { sidebarCollapsed: nextCollapsed },
-                { sidebarCollapsed: nextCollapsed },
-              );
-            }}
-            aria-label={
-              sidebarCollapsed
-                ? "Развернуть боковую панель"
-                : "Свернуть боковую панель"
-            }
-            title={
-              sidebarCollapsed
-                ? "Развернуть боковую панель"
-                : "Свернуть боковую панель"
-            }
-          >
-            {sidebarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-          </button>
         </div>
         <nav>
           <button

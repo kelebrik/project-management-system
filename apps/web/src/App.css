@@ -1,13 +1,15 @@
 .app-shell {
+  --sidebar-width: 280px;
   display: grid;
   min-height: 100vh;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr;
   background: #f3f6fa;
   color: #1f2937;
+  position: relative;
 }
 
 .app-shell.sidebar-collapsed {
-  grid-template-columns: 76px 1fr;
+  --sidebar-width: 76px;
 }
 
 .sidebar {
@@ -22,7 +24,7 @@
   align-items: center;
   display: grid;
   gap: 10px;
-  grid-template-columns: 36px minmax(0, 1fr) 28px;
+  grid-template-columns: 36px minmax(0, 1fr);
   margin-bottom: 18px;
   padding: 0 6px 14px;
   position: relative;
@@ -65,17 +67,42 @@
 
 .sidebar-toggle {
   align-items: center;
-  background: #f8fafc;
-  border: 1px solid #d8e0eb;
-  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
   color: #475569;
   display: inline-flex;
   font-size: 13px;
   font-weight: 900;
-  height: 28px;
+  height: 36px;
   justify-content: center;
+  left: var(--sidebar-width);
   padding: 0;
-  width: 28px;
+  position: fixed;
+  top: 50vh;
+  transform: translate(-50%, -50%);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease,
+    left 0.18s ease;
+  width: 36px;
+  z-index: 40;
+}
+
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
+  color: #1d4ed8;
+}
+
+.sidebar-toggle:focus-visible {
+  outline: 3px solid rgba(147, 197, 253, 0.45);
+  outline-offset: 2px;
 }
 
 .sidebar nav {
@@ -353,12 +380,6 @@
 
 .sidebar-collapsed .brand-text {
   display: none;
-}
-
-.sidebar-collapsed .sidebar-toggle {
-  bottom: -16px;
-  position: absolute;
-  right: 4px;
 }
 
 .sidebar-collapsed .sidebar nav {
@@ -3089,6 +3110,10 @@ code {
   }
 
   .sidebar {
+    display: none;
+  }
+
+  .sidebar-toggle {
     display: none;
   }
 
