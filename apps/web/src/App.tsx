@@ -1405,6 +1405,12 @@ function App() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!notice) return;
+    const timeoutId = window.setTimeout(() => setNotice(null), 4500);
+    return () => window.clearTimeout(timeoutId);
+  }, [notice]);
+
   const setWbsUndoHistory = useCallback((nextStack: WbsSnapshot[]) => {
     wbsUndoStackRef.current = nextStack;
     setWbsUndoStack(nextStack);
@@ -4119,7 +4125,15 @@ function App() {
     }
   }
 
+  function openView(nextView: AppView) {
+    setError(null);
+    setNotice(null);
+    setActiveView(nextView);
+  }
+
   function selectProject(projectId: string, nextView: AppView = activeView) {
+    setError(null);
+    setNotice(null);
     setSelectedProjectId(projectId);
     setProjectSearch("");
     setShowProjectPicker(false);
@@ -4127,7 +4141,7 @@ function App() {
       projectId,
       ...current.filter((item) => item !== projectId),
     ].slice(0, 6));
-    setActiveView(
+    openView(
       nextView === "portfolio" || nextView === "project-create"
         ? "project-overview"
         : nextView,
@@ -4226,7 +4240,7 @@ function App() {
           <button
             type="button"
             className={activeView === "portfolio" ? "active" : ""}
-            onClick={() => setActiveView("portfolio")}
+            onClick={() => openView("portfolio")}
             aria-label="Портфель проектов"
           >
             {navLabel(<BriefcaseBusiness size={17} />, "Портфель проектов")}
@@ -4234,7 +4248,7 @@ function App() {
           <button
             type="button"
             className={activeView === "project-create" ? "active" : ""}
-            onClick={() => setActiveView("project-create")}
+            onClick={() => openView("project-create")}
             aria-label="Создать новый проект"
           >
             {navLabel(<Plus size={17} />, "Создать новый проект")}
@@ -4302,7 +4316,7 @@ function App() {
             type="button"
             className={isProjectSectionView ? "active" : ""}
             onClick={() =>
-              setActiveView(
+              openView(
                 selectedProjectId ? "project-overview" : "project-create",
               )
             }
@@ -4320,7 +4334,7 @@ function App() {
                       ? "active nested child"
                       : "nested child"
                   }
-                  onClick={() => setActiveView("project-overview")}
+                  onClick={() => openView("project-overview")}
                   aria-label="Обзор и вехи"
                 >
                   {navLabel(<LayoutDashboard size={17} />, "Обзор и вехи")}
@@ -4332,7 +4346,7 @@ function App() {
                       ? "active nested child"
                       : "nested child"
                   }
-                  onClick={() => setActiveView("project-passport")}
+                  onClick={() => openView("project-passport")}
                   aria-label="Паспорт проекта"
                 >
                   {navLabel(<FileText size={17} />, "Паспорт проекта")}
@@ -4344,7 +4358,7 @@ function App() {
                       ? "active nested child"
                       : "nested child"
                   }
-                  onClick={() => setActiveView("project-structure")}
+                  onClick={() => openView("project-structure")}
                   aria-label="Структура"
                 >
                   {navLabel(<ListChecks size={17} />, "Структура")}
@@ -4356,7 +4370,7 @@ function App() {
                       ? "active nested child"
                       : "nested child"
                   }
-                  onClick={() => setActiveView("project-gantt")}
+                  onClick={() => openView("project-gantt")}
                   aria-label="Гантт"
                 >
                   {navLabel(<GanttChartSquare size={17} />, "Гантт")}
@@ -4368,7 +4382,7 @@ function App() {
                       ? "active nested child"
                       : "nested child"
                   }
-                  onClick={() => setActiveView("project-issues")}
+                  onClick={() => openView("project-issues")}
                   aria-label="Открытые вопросы"
                 >
                   {navLabel(<ShieldAlert size={17} />, "Открытые вопросы")}
@@ -4380,7 +4394,7 @@ function App() {
                       ? "active nested child"
                       : "nested child"
                   }
-                  onClick={() => setActiveView("project-raid")}
+                  onClick={() => openView("project-raid")}
                   aria-label="Риски и проблемы"
                 >
                   {navLabel(<BarChart3 size={17} />, "Риски и проблемы")}
@@ -4392,7 +4406,7 @@ function App() {
                       ? "active nested child"
                       : "nested child"
                   }
-                  onClick={() => setActiveView("project-calendars")}
+                  onClick={() => openView("project-calendars")}
                   aria-label="Календари"
                 >
                   {navLabel(<CalendarDays size={17} />, "Календари")}
@@ -4404,7 +4418,7 @@ function App() {
                       ? "active nested child"
                       : "nested child"
                   }
-                  onClick={() => setActiveView("project-artifacts")}
+                  onClick={() => openView("project-artifacts")}
                   aria-label="Артефакты проекта"
                 >
                   {navLabel(<FileArchive size={17} />, "Артефакты проекта")}
@@ -4415,7 +4429,7 @@ function App() {
           <button
             type="button"
             className={activeView === "admin" ? "active" : ""}
-            onClick={() => setActiveView("admin")}
+            onClick={() => openView("admin")}
             aria-label="Администрирование"
           >
             {navLabel(<Settings size={17} />, "Администрирование")}
@@ -4590,7 +4604,7 @@ function App() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setActiveView("project-create")}
+                      onClick={() => openView("project-create")}
                     >
                       Создать проект
                     </button>
@@ -4896,7 +4910,7 @@ function App() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setActiveView("project-create")}
+                      onClick={() => openView("project-create")}
                     >
                       Создать проект
                     </button>
@@ -6933,7 +6947,7 @@ function App() {
                                 artifact.kind === "system" &&
                                 artifact.action
                               ) {
-                                setActiveView(artifact.action);
+                                openView(artifact.action);
                                 return;
                               }
                               setExpandedArtifactId(
