@@ -1743,6 +1743,22 @@ code {
   transform-origin: top center;
 }
 
+.milestone-point.green::before {
+  background: #16a34a;
+}
+
+.milestone-point.blue::before {
+  background: #2563eb;
+}
+
+.milestone-point.red::before {
+  background: #dc2626;
+}
+
+.milestone-point.gray::before {
+  background: #94a3b8;
+}
+
 .milestone-marker {
   border-radius: 999px;
   box-shadow: 0 0 0 3px #fff;
