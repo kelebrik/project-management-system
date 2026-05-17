@@ -2956,6 +2956,7 @@ code {
 }
 
 .raid-control-grid {
+  align-items: start;
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(0, 1fr) 260px;
@@ -2972,6 +2973,22 @@ code {
   padding: 10px 12px;
 }
 
+.raid-filter-card {
+  align-items: center;
+  align-self: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 9px;
+}
+
+.raid-filter-card .subhead {
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1;
+  margin-right: 2px;
+}
+
 .raid-filter-bar,
 .raid-check-filters {
   align-items: center;
@@ -2980,13 +2997,33 @@ code {
   gap: 8px;
 }
 
+.raid-filter-bar {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 0;
+}
+
 .raid-filter-bar button {
   background: #fff;
   border: 1px solid #cbd5e1;
+  border-radius: 0;
   color: #334155;
   font-size: 12px;
   font-weight: 800;
-  padding: 6px 10px;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.raid-filter-bar button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.raid-filter-bar button:not(:first-child) {
+  margin-left: -1px;
+}
+
+.raid-filter-bar button:last-child {
+  border-radius: 0 6px 6px 0;
 }
 
 .raid-filter-bar button.active {
@@ -2997,14 +3034,20 @@ code {
 
 .raid-check-filters label {
   align-items: center;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
   color: #475569;
   display: inline-flex;
   font-size: 12px;
   font-weight: 800;
   gap: 6px;
+  min-height: 34px;
+  padding: 6px 9px;
 }
 
 .raid-check-filters input {
+  height: 14px;
   width: auto;
 }
 
