@@ -1643,18 +1643,12 @@ function App() {
     );
     const minTime = Math.min(...dates.map((item) => item.getTime()));
     const maxTime = Math.max(...dates.map((item) => item.getTime()));
-    const span = Math.max(1, maxTime - minTime);
+    const step =
+      datedMilestones.length > 1 ? 88 / (datedMilestones.length - 1) : 0;
 
     return {
       items: datedMilestones.map((entry, index) => {
-        const dueTime = startOfDay(
-          new Date(entry.milestone.dueDate as string),
-        ).getTime();
-        const rawOffset = ((dueTime - minTime) / span) * 100;
-        const offset =
-          datedMilestones.length === 1
-            ? 50
-            : Math.min(96, Math.max(4, rawOffset));
+        const offset = datedMilestones.length === 1 ? 50 : 6 + step * index;
 
         return {
           ...entry,
@@ -5533,15 +5527,7 @@ function App() {
                   </div>
                   <div className="milestone-timeline">
                     {milestoneTimeline.items.length > 0 ? (
-                      <div
-                        className="milestone-timeline-canvas"
-                        style={{
-                          minWidth: `${Math.max(
-                            860,
-                            milestoneTimeline.items.length * 150,
-                          )}px`,
-                        }}
-                      >
+                      <div className="milestone-timeline-canvas">
                         <div className="milestone-axis" aria-hidden="true" />
                         <div className="milestone-axis-arrow" aria-hidden="true" />
                         {milestoneTimeline.items.map(

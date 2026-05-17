@@ -1656,14 +1656,13 @@ code {
 .milestone-timeline {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
   padding: 0;
 }
 
 .milestone-timeline-canvas {
-  min-height: 340px;
-  padding: 24px 24px 18px;
+  min-height: 370px;
+  padding: 22px 16px 18px;
   position: relative;
 }
 
@@ -1671,21 +1670,21 @@ code {
   background: #3f73c8;
   border: 1px solid #24539b;
   box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.18);
-  height: 24px;
+  height: 20px;
   left: 28px;
   position: absolute;
   right: 46px;
-  top: 160px;
+  top: 172px;
 }
 
 .milestone-axis-arrow {
-  border-bottom: 24px solid transparent;
-  border-left: 30px solid #3f73c8;
-  border-top: 24px solid transparent;
+  border-bottom: 21px solid transparent;
+  border-left: 28px solid #3f73c8;
+  border-top: 21px solid transparent;
   height: 0;
   position: absolute;
   right: 18px;
-  top: 148px;
+  top: 161px;
   width: 0;
 }
 
@@ -1699,7 +1698,7 @@ code {
   padding: 0;
   position: absolute;
   text-align: left;
-  width: 180px;
+  width: clamp(92px, 10.8vw, 142px);
 }
 
 .milestone-point:hover .milestone-label,
@@ -1713,33 +1712,33 @@ code {
 }
 
 .milestone-point.top {
-  bottom: calc(100% - 160px);
-  transform: translateX(-42px);
+  top: 46px;
+  transform: translateX(-50%);
 }
 
 .milestone-point.bottom {
-  top: 184px;
-  transform: translateX(-72px);
+  top: 218px;
+  transform: translateX(-50%);
 }
 
 .milestone-point::before {
   background: #3f73c8;
   content: "";
-  height: 92px;
-  left: 58px;
+  height: 78px;
+  left: 50%;
   position: absolute;
   width: 4px;
 }
 
 .milestone-point.top::before {
-  bottom: -96px;
-  transform: rotate(-18deg);
+  bottom: -76px;
+  transform: rotate(-15deg);
   transform-origin: bottom center;
 }
 
 .milestone-point.bottom::before {
-  top: -88px;
-  transform: rotate(-18deg);
+  top: -72px;
+  transform: rotate(-15deg);
   transform-origin: top center;
 }
 
@@ -1747,18 +1746,18 @@ code {
   border-radius: 999px;
   box-shadow: 0 0 0 3px #fff;
   height: 12px;
-  left: 55px;
+  left: calc(50% - 4px);
   position: absolute;
   width: 12px;
   z-index: 2;
 }
 
 .milestone-point.top .milestone-marker {
-  bottom: -101px;
+  bottom: -82px;
 }
 
 .milestone-point.bottom .milestone-marker {
-  top: -94px;
+  top: -78px;
 }
 
 .milestone-point.green .milestone-marker {
@@ -1778,16 +1777,17 @@ code {
 }
 
 .milestone-label {
-  font-size: 17px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.22;
-  max-width: 180px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .milestone-date {
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 800;
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .milestone-point.top .milestone-date {
@@ -1796,7 +1796,7 @@ code {
 
 .milestone-point.bottom .milestone-date {
   order: -1;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   margin-top: 0;
 }
 
