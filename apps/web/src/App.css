@@ -3141,6 +3141,19 @@ code {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 0.34fr);
 }
 
+.raid-topline {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.34fr);
+  margin-bottom: 18px;
+}
+
+.raid-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
 .raid-filter-card,
 .risk-matrix-card {
   background: #f8fafc;

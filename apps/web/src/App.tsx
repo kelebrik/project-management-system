@@ -6804,27 +6804,50 @@ function App() {
                       </p>
                     </div>
                   </div>
-                  <div className="wbs-kpis">
-                    <div>
-                      <span>Активные записи</span>
-                      <strong>{raidSummary.activeRaid}</strong>
-                      <small>открыто / в работе / нарушено</small>
+                  <div className="raid-topline">
+                    <div className="wbs-kpis raid-kpis">
+                      <div>
+                        <span>Активные записи</span>
+                        <strong>{raidSummary.activeRaid}</strong>
+                        <small>открыто / в работе / нарушено</small>
+                      </div>
+                      <div>
+                        <span>Высокие риски</span>
+                        <strong>{raidSummary.highRisks}</strong>
+                        <small>оценка 15+</small>
+                      </div>
+                      <div>
+                        <span>Проблемы</span>
+                        <strong>{raidSummary.problems}</strong>
+                        <small>активные записи</small>
+                      </div>
+                      <div>
+                        <span>Допущения</span>
+                        <strong>{raidSummary.assumptions}</strong>
+                        <small>активные записи</small>
+                      </div>
                     </div>
-                    <div>
-                      <span>Высокие риски</span>
-                      <strong>{raidSummary.highRisks}</strong>
-                      <small>оценка 15+</small>
-                    </div>
-                    <div>
-                      <span>Проблемы</span>
-                      <strong>{raidSummary.problems}</strong>
-                      <small>активные записи</small>
-                    </div>
-                    <div>
-                      <span>Допущения</span>
-                      <strong>{raidSummary.assumptions}</strong>
-                      <small>активные записи</small>
-                    </div>
+                    <section className="risk-matrix-card">
+                      <div className="subhead">Матрица рисков</div>
+                      <div className="risk-matrix" aria-label="Матрица рисков">
+                        {[5, 4, 3, 2, 1].map((impact) =>
+                          [1, 2, 3, 4, 5].map((probability) => {
+                            const count =
+                              riskMatrix.get(`${probability}:${impact}`) ?? 0;
+                            const score = probability * impact;
+                            return (
+                              <span
+                                className={`risk-matrix-cell ${riskTone(score)}`}
+                                key={`${probability}-${impact}`}
+                                title={`Вероятность ${probability}, влияние ${impact}`}
+                              >
+                                {count > 0 ? count : ""}
+                              </span>
+                            );
+                          }),
+                        )}
+                      </div>
+                    </section>
                   </div>
                   <div className="raid-layout">
                     <section className="raid-register">
@@ -7181,27 +7204,6 @@ function App() {
                       ))}
                     </section>
                     <div className="raid-side-column">
-                      <section className="risk-matrix-card">
-                        <div className="subhead">Матрица рисков</div>
-                        <div className="risk-matrix" aria-label="Матрица рисков">
-                          {[5, 4, 3, 2, 1].map((impact) =>
-                            [1, 2, 3, 4, 5].map((probability) => {
-                              const count =
-                                riskMatrix.get(`${probability}:${impact}`) ?? 0;
-                              const score = probability * impact;
-                              return (
-                                <span
-                                  className={`risk-matrix-cell ${riskTone(score)}`}
-                                  key={`${probability}-${impact}`}
-                                  title={`Вероятность ${probability}, влияние ${impact}`}
-                                >
-                                  {count > 0 ? count : ""}
-                                </span>
-                              );
-                            }),
-                          )}
-                        </div>
-                      </section>
 		                    <form className="raid-form stack-form" onSubmit={createRaidItem}>
 		                      <h3>Новая запись</h3>
 	                      <div className="form-section-title">Основное</div>
