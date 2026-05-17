@@ -1,11 +1,28 @@
 import cors from 'cors';
 import express from 'express';
 import { Prisma } from '@prisma/client';
+import {
+  createIssueSchema,
+  labels,
+  projectSchema,
+  raidItemSchema,
+  updateIssueSchema,
+  wbsItemSchema,
+} from '@pms/shared';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { fetchJiraIssues, isJiraConfigured } from './jira.js';
+import {
+  getProjectWbsSnapshot,
+  levelFromWbsCode,
+  levelFromWbsItem,
+  renumberProjectWbs,
+  wbsItemSnapshotData,
+} from './services/wbs.js';
+import { recordWbsCommand } from './services/wbs-audit.js';
+import { createWbsBaselineFromCurrentPlan } from './services/wbs-baseline.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -147,26 +164,6 @@ async function createDefaultProjectStructure(projectId: string, projectStartDate
 
   await renumberProjectWbs(projectId);
 }
-
-const projectSchema = z.object({
-  parentId: z.string().trim().optional().nullable(),
-  code: z.string().trim().min(2),
-  name: z.string().trim().min(3),
-  portfolio: z.string().trim().min(1),
-  sponsor: z.string().trim().min(1),
-  projectManager: z.string().trim().min(1),
-  status: z.enum(['DRAFT', 'ACTIVE', 'ON_HOLD', 'CLOSED']).default('ACTIVE'),
-  rag: z.enum(['GREEN', 'AMBER', 'RED']).default('GREEN'),
-  startDate: z.string().trim().min(1),
-  targetDate: z.string().trim().min(1),
-  budgetPlanned: z.coerce.number().nonnegative(),
-  budgetForecast: z.coerce.number().nonnegative(),
-  scheduleVariance: z.coerce.number().int().default(0),
-  progress: z.coerce.number().int().min(0).max(100).default(0),
-  summary: z.string().trim().min(3),
-  sortOrder: z.coerce.number().int().default(0),
-  uiState: z.record(z.string(), z.unknown()).optional().nullable(),
-});
 
 function sanitizeProjectUiState(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -473,30 +470,6 @@ app.delete('/api/project-artifacts/:artifactId', async (req, res) => {
   });
 
   res.status(204).send();
-});
-
-const raidItemSchema = z.object({
-  type: z.enum(['RISK', 'ASSUMPTION', 'DEPENDENCY']),
-  title: z.string().trim().min(3),
-  description: z.string().trim().min(3),
-  owner: z.string().trim().optional().default(''),
-  status: z.enum(['OPEN', 'IN_PROGRESS', 'MITIGATED', 'VALIDATED', 'BREACHED', 'CLOSED']).default('OPEN'),
-  probability: z.coerce.number().int().min(0).max(5).default(0),
-  impact: z.coerce.number().int().min(0).max(5).default(0),
-  mitigationPlan: z.string().trim().optional().nullable(),
-  contingencyPlan: z.string().trim().optional().nullable(),
-  dueDate: z.string().trim().optional().nullable(),
-  residualRisk: z.coerce.number().int().min(0).max(25).default(0),
-  validationDate: z.string().trim().optional().nullable(),
-  linkedRiskId: z.string().trim().optional().nullable(),
-  dependencyType: z.string().trim().optional().nullable(),
-  predecessor: z.string().trim().optional().nullable(),
-  successor: z.string().trim().optional().nullable(),
-  supplier: z.string().trim().optional().nullable(),
-  decisionRequired: z.boolean().default(false),
-  escalationLevel: z.string().trim().min(1).default('Project'),
-  scheduleImpactDays: z.coerce.number().int().default(0),
-  budgetImpact: z.coerce.number().default(0),
 });
 
 function calculatedRiskScore(probability: number, impact: number) {
@@ -807,42 +780,6 @@ app.patch('/api/milestones/:milestoneId', async (req, res) => {
   res.json(updated);
 });
 
-const wbsItemSchema = z.object({
-  parentId: z.string().trim().optional().nullable(),
-  code: z.string().trim().min(1),
-  title: z.string().trim(),
-  type: z.enum(['PHASE', 'WORK_PACKAGE', 'DELIVERABLE', 'MILESTONE', 'TASK']).default('TASK'),
-  status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'AT_RISK', 'BLOCKED', 'DONE', 'CANCELLED']).default('NOT_STARTED'),
-  owner: z.string().trim(),
-  startDate: z.string().trim().optional().nullable(),
-  dueDate: z.string().trim().optional().nullable(),
-  baselineStartDate: z.string().trim().optional().nullable(),
-  baselineDueDate: z.string().trim().optional().nullable(),
-  forecastStartDate: z.string().trim().optional().nullable(),
-  forecastDueDate: z.string().trim().optional().nullable(),
-  wbsLevel: z.coerce.number().int().optional().nullable(),
-  predecessor1: z.string().trim().optional().nullable(),
-  predecessor2: z.string().trim().optional().nullable(),
-  predecessor3: z.string().trim().optional().nullable(),
-  leadLagDays: z.coerce.number().int().default(0),
-  workDays: z.coerce.number().int().optional().nullable(),
-  calendarDays: z.coerce.number().int().optional().nullable(),
-  excelStartDate: z.string().trim().optional().nullable(),
-  excelEndDate: z.string().trim().optional().nullable(),
-  planWorkDays: z.coerce.number().int().optional().nullable(),
-  planCalendarDays: z.coerce.number().int().optional().nullable(),
-  calendarCode: z.enum(['RU', 'CN']).default('RU'),
-  templateColor: z.string().trim().optional().nullable(),
-  priority: z.string().trim().optional().nullable(),
-  plannedCost: z.coerce.number().nonnegative().default(0),
-  forecastCost: z.coerce.number().nonnegative().default(0),
-  progress: z.coerce.number().int().min(0).max(100).default(0),
-  jiraTicketKey: z.string().trim().optional().nullable(),
-  jiraTicketUrl: z.string().trim().url().optional().nullable(),
-  description: z.string().trim().optional().nullable(),
-  sortOrder: z.coerce.number().int().default(0),
-});
-
 const wbsInsertAfterSchema = z.object({
   afterItemId: z.string().trim().min(1),
   beforeItemId: z.string().trim().optional().nullable(),
@@ -912,157 +849,6 @@ async function wouldCreateWbsCycle(itemId: string, nextParentId: string | null |
     cursor = parent?.parentId ?? null;
   }
   return false;
-}
-
-function levelFromWbsCode(code: string) {
-  return Math.max(1, code.split('.').filter(Boolean).length);
-}
-
-function levelFromWbsItem(item: { code: string; wbsLevel: number | null }) {
-  return Math.max(1, item.wbsLevel ?? levelFromWbsCode(item.code));
-}
-
-async function renumberProjectWbs(projectId: string) {
-  const items = await prisma.wbsItem.findMany({
-    where: { projectId },
-    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-  });
-  const dependencies = await prisma.wbsDependency.findMany({
-    where: { projectId },
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-  });
-
-  const counters: number[] = [];
-  const parentByLevel = new Map<number, string>();
-  const codeById = new Map<string, string>();
-  const normalizedRows: Array<{
-    id: string;
-    level: number;
-    parentId: string | null;
-    code: string;
-  }> = [];
-
-  for (const item of items) {
-    const requestedLevel = item.wbsLevel ?? levelFromWbsCode(item.code);
-    const level = Math.max(1, requestedLevel);
-    while (counters.length < level - 1) {
-      counters.push(1);
-    }
-    counters[level - 1] = (counters[level - 1] ?? 0) + 1;
-    counters.length = level;
-
-    let parentId: string | null = null;
-    for (let parentLevel = level - 1; parentLevel >= 1; parentLevel -= 1) {
-      const candidateParentId = parentByLevel.get(parentLevel);
-      if (candidateParentId) {
-        parentId = candidateParentId;
-        break;
-      }
-    }
-
-    for (const existingLevel of [...parentByLevel.keys()]) {
-      if (existingLevel >= level) parentByLevel.delete(existingLevel);
-    }
-    parentByLevel.set(level, item.id);
-
-    const code = counters.join('.');
-    codeById.set(item.id, code);
-    normalizedRows.push({ id: item.id, level, parentId, code });
-  }
-
-  const predecessorsBySuccessor = new Map<string, string[]>();
-  for (const dependency of dependencies) {
-    const predecessorCode = codeById.get(dependency.predecessorId);
-    if (!predecessorCode) continue;
-    predecessorsBySuccessor.set(dependency.successorId, [
-      ...(predecessorsBySuccessor.get(dependency.successorId) ?? []),
-      predecessorCode,
-    ]);
-  }
-
-  await prisma.$transaction(async (tx) => {
-    for (const row of normalizedRows) {
-      await tx.wbsItem.update({
-        where: { id: row.id },
-        data: { code: `__renumber_${row.id}` },
-      });
-    }
-
-    for (const row of normalizedRows) {
-      const predecessors = predecessorsBySuccessor.get(row.id) ?? [];
-      await tx.wbsItem.update({
-        where: { id: row.id },
-        data: {
-          code: row.code,
-          parentId: row.parentId,
-          wbsLevel: row.level,
-          predecessor1: predecessors[0] ?? null,
-          predecessor2: predecessors[1] ?? null,
-          predecessor3: predecessors[2] ?? null,
-        },
-      });
-    }
-  });
-
-  return normalizedRows.length;
-}
-
-async function getProjectWbsSnapshot(projectId: string) {
-  const [wbsItems, wbsDependencies] = await Promise.all([
-    prisma.wbsItem.findMany({
-      where: { projectId },
-      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
-    }),
-    prisma.wbsDependency.findMany({
-      where: { projectId },
-      orderBy: { createdAt: 'asc' },
-      include: {
-        predecessor: { select: { id: true, code: true, title: true } },
-        successor: { select: { id: true, code: true, title: true } },
-      },
-    }),
-  ]);
-  return { wbsItems, wbsDependencies };
-}
-
-function wbsItemSnapshotData(projectId: string, item: z.infer<typeof wbsSnapshotSchema>['wbsItems'][number]) {
-  return {
-    id: item.id,
-    projectId,
-    parentId: item.parentId || null,
-    code: item.code,
-    title: item.title,
-    type: item.type,
-    status: item.status,
-    owner: item.owner,
-    startDate: item.startDate ? new Date(item.startDate) : null,
-    dueDate: item.dueDate ? new Date(item.dueDate) : null,
-    baselineStartDate: item.baselineStartDate ? new Date(item.baselineStartDate) : null,
-    baselineDueDate: item.baselineDueDate ? new Date(item.baselineDueDate) : null,
-    forecastStartDate: item.forecastStartDate ? new Date(item.forecastStartDate) : null,
-    forecastDueDate: item.forecastDueDate ? new Date(item.forecastDueDate) : null,
-    wbsLevel: item.wbsLevel ?? null,
-    predecessor1: item.predecessor1 || null,
-    predecessor2: item.predecessor2 || null,
-    predecessor3: item.predecessor3 || null,
-    leadLagDays: item.leadLagDays,
-    workDays: item.workDays ?? null,
-    calendarDays: item.calendarDays ?? null,
-    excelStartDate: item.excelStartDate ? new Date(item.excelStartDate) : null,
-    excelEndDate: item.excelEndDate ? new Date(item.excelEndDate) : null,
-    planWorkDays: item.planWorkDays ?? null,
-    planCalendarDays: item.planCalendarDays ?? null,
-    calendarCode: item.calendarCode,
-    templateColor: item.templateColor || null,
-    priority: item.priority || null,
-    plannedCost: item.plannedCost,
-    forecastCost: item.forecastCost,
-    progress: item.progress,
-    jiraTicketKey: item.jiraTicketKey || null,
-    jiraTicketUrl: item.jiraTicketUrl || null,
-    description: item.description || null,
-    sortOrder: item.sortOrder,
-  };
 }
 
 app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => {
@@ -1143,9 +929,21 @@ app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => 
     });
 
     await renumberProjectWbs(project.id);
+    const snapshot = await getProjectWbsSnapshot(project.id);
+    await recordWbsCommand({
+      projectId: project.id,
+      type: 'CREATE',
+      payload: {
+        action: 'insert-after',
+        insertedItemId: created.id,
+        afterItemId: parsed.data.afterItemId,
+        beforeItemId: parsed.data.beforeItemId,
+      },
+      afterSnapshot: snapshot,
+    });
     res.status(201).json({
       insertedItemId: created.id,
-      ...(await getProjectWbsSnapshot(project.id)),
+      ...snapshot,
     });
   } catch (error) {
     console.error(error);
@@ -1243,10 +1041,18 @@ app.post('/api/projects/:projectId/wbs-snapshot/restore', async (req, res) => {
   });
 
   await renumberProjectWbs(project.id);
-
-  res.json({
-    ...(await getProjectWbsSnapshot(project.id)),
+  const snapshot = await getProjectWbsSnapshot(project.id);
+  await recordWbsCommand({
+    projectId: project.id,
+    type: 'RESTORE',
+    payload: {
+      itemCount: parsed.data.wbsItems.length,
+      dependencyCount: parsed.data.wbsDependencies.length,
+    },
+    afterSnapshot: snapshot,
   });
+
+  res.json(snapshot);
 });
 
 app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
@@ -1327,6 +1133,11 @@ app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
       description: parsed.data.description || null,
       sortOrder: parsed.data.sortOrder,
     },
+  });
+  await recordWbsCommand({
+    projectId: validation.project.id,
+    type: 'CREATE',
+    payload: { itemId: item.id, item },
   });
 
   res.status(201).json(item);
@@ -1441,6 +1252,13 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
       sortOrder: parsed.data.sortOrder,
     },
   });
+  await recordWbsCommand({
+    projectId: existing.projectId,
+    type: 'UPDATE',
+    payload: { itemId: existing.id, patch: parsed.data },
+    beforeSnapshot: existing,
+    afterSnapshot: updated,
+  });
 
   res.json(updated);
 });
@@ -1456,9 +1274,16 @@ app.post('/api/projects/:projectId/wbs-items/renumber', async (req, res) => {
   }
 
   const updatedCount = await renumberProjectWbs(project.id);
+  const snapshot = await getProjectWbsSnapshot(project.id);
+  await recordWbsCommand({
+    projectId: project.id,
+    type: 'BULK_UPDATE',
+    payload: { action: 'renumber', updatedCount },
+    afterSnapshot: snapshot,
+  });
   res.json({
     updatedCount,
-    ...(await getProjectWbsSnapshot(project.id)),
+    ...snapshot,
   });
 });
 
@@ -1472,19 +1297,20 @@ app.post('/api/projects/:projectId/wbs-baseline', async (req, res) => {
     return;
   }
 
-  await prisma.$executeRaw`
-    UPDATE "WbsItem"
-    SET
-      "baselineStartDate" = "startDate",
-      "baselineDueDate" = "dueDate",
-      "forecastStartDate" = COALESCE("forecastStartDate", "startDate"),
-      "forecastDueDate" = COALESCE("forecastDueDate", "dueDate")
-    WHERE "projectId" = ${project.id}
-  `;
+  const baseline = await createWbsBaselineFromCurrentPlan(project.id);
 
-  res.json({
-    ...(await getProjectWbsSnapshot(project.id)),
+  const snapshot = await getProjectWbsSnapshot(project.id);
+  await recordWbsCommand({
+    projectId: project.id,
+    type: 'BASELINE',
+    payload: {
+      action: 'set-baseline-from-current-structure',
+      baselineId: baseline.id,
+      version: baseline.version,
+    },
+    afterSnapshot: snapshot,
   });
+  res.json(snapshot);
 });
 
 app.post('/api/projects/:projectId/wbs-items/reorder', async (req, res) => {
@@ -1524,10 +1350,15 @@ app.post('/api/projects/:projectId/wbs-items/reorder', async (req, res) => {
   );
 
   await renumberProjectWbs(project.id);
-
-  res.json({
-    ...(await getProjectWbsSnapshot(project.id)),
+  const snapshot = await getProjectWbsSnapshot(project.id);
+  await recordWbsCommand({
+    projectId: project.id,
+    type: 'MOVE',
+    payload: { orderedIds: parsed.data.orderedIds },
+    afterSnapshot: snapshot,
   });
+
+  res.json(snapshot);
 });
 
 app.delete('/api/wbs-items/:itemId', async (req, res) => {
@@ -1586,10 +1417,16 @@ app.delete('/api/wbs-items/:itemId', async (req, res) => {
   });
 
   await renumberProjectWbs(existing.projectId);
-
-  res.json({
-    ...(await getProjectWbsSnapshot(existing.projectId)),
+  const snapshot = await getProjectWbsSnapshot(existing.projectId);
+  await recordWbsCommand({
+    projectId: existing.projectId,
+    type: 'DELETE',
+    payload: { itemId: existing.id, code: existing.code, title: existing.title },
+    beforeSnapshot: existing,
+    afterSnapshot: snapshot,
   });
+
+  res.json(snapshot);
 });
 
 const wbsDependencySchema = z.object({
@@ -1673,6 +1510,11 @@ app.post('/api/projects/:projectId/wbs-dependencies', async (req, res) => {
       successor: { select: { id: true, code: true, title: true } },
     },
   });
+  await recordWbsCommand({
+    projectId: req.params.projectId,
+    type: 'UPDATE',
+    payload: { action: 'upsert-dependency', dependency },
+  });
 
   res.status(201).json(dependency);
 });
@@ -1688,6 +1530,12 @@ app.delete('/api/wbs-dependencies/:dependencyId', async (req, res) => {
   }
 
   await prisma.wbsDependency.delete({ where: { id: dependency.id } });
+  await recordWbsCommand({
+    projectId: dependency.projectId,
+    type: 'UPDATE',
+    payload: { action: 'delete-dependency', dependencyId: dependency.id },
+    beforeSnapshot: dependency,
+  });
   res.status(204).send();
 });
 
@@ -1742,26 +1590,6 @@ app.put('/api/projects/:projectId/jira-integration', async (req, res) => {
   });
 
   res.json(integration);
-});
-
-const createIssueSchema = z.object({
-  title: z.string().trim().min(3),
-  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
-  owner: z.string().trim().min(1),
-  impact: z.string().trim().min(3),
-  decisionRequired: z.boolean().default(false),
-  dueDate: z.string().trim().optional().nullable(),
-  jiraTicketKey: z.string().trim().optional().nullable(),
-  jiraTicketUrl: z.string().trim().url().optional().nullable(),
-  jiraLinks: z
-    .array(
-      z.object({
-        jiraKey: z.string().trim().min(1),
-        jiraUrl: z.string().trim().url(),
-      }),
-    )
-    .optional()
-    .default([]),
 });
 
 app.post('/api/projects/:projectId/open-issues', async (req, res) => {
@@ -1824,16 +1652,6 @@ app.post('/api/projects/:projectId/open-issues', async (req, res) => {
   });
 
   res.status(201).json(issue);
-});
-
-const updateIssueSchema = z.object({
-  title: z.string().trim().min(3).optional(),
-  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
-  status: z.enum(['Open', 'In Progress', 'Blocked', 'Resolved', 'Closed']).optional(),
-  owner: z.string().trim().min(1).optional(),
-  impact: z.string().trim().min(3).optional(),
-  decisionRequired: z.boolean().optional(),
-  dueDate: z.string().trim().optional().nullable(),
 });
 
 app.patch('/api/open-issues/:issueId', async (req, res) => {
@@ -2029,26 +1847,11 @@ function severityLabel(severity: string) {
 }
 
 function wbsStatusLabel(status: string) {
-  return (
-    {
-      NOT_STARTED: 'Не начата',
-      IN_PROGRESS: 'В работе',
-      AT_RISK: 'Под риском',
-      BLOCKED: 'Провалена',
-      DONE: 'Сделана',
-      CANCELLED: 'Отменена',
-    }[status] ?? status
-  );
+  return labels.wbsStatus[status as keyof typeof labels.wbsStatus] ?? status;
 }
 
 function raidTypeLabel(type: string) {
-  return (
-    {
-      RISK: 'Риск',
-      ASSUMPTION: 'Допущение',
-      DEPENDENCY: 'Проблема',
-    }[type] ?? type
-  );
+  return labels.raidType[type as keyof typeof labels.raidType] ?? type;
 }
 
 function overviewTone(value: 'green' | 'amber' | 'red' | 'neutral') {

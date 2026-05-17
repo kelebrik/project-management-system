@@ -100,6 +100,31 @@ enum ProjectCalendarCode {
   CN
 }
 
+enum UserRole {
+  ADMIN
+  PROJECT_MANAGER
+  TEAM_MEMBER
+  EXECUTIVE_VIEWER
+}
+
+enum WbsCommandType {
+  CREATE
+  UPDATE
+  DELETE
+  MOVE
+  INDENT
+  OUTDENT
+  BULK_UPDATE
+  RESTORE
+  BASELINE
+}
+
+enum WbsBaselineStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
 model Project {
   id               String              @id @default(cuid())
   parentId         String?
@@ -135,9 +160,25 @@ model Project {
   artifacts        ProjectArtifact[]
   raidItems        RaidItem[]
   changeRequests   ChangeRequest[]
+  wbsCommands      WbsCommand[]
+  wbsBaselines     WbsBaseline[]
 
   @@index([parentId])
   @@index([sortOrder])
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  role         UserRole      @default(PROJECT_MANAGER)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  wbsCommands  WbsCommand[]
+  wbsBaselines WbsBaseline[]
+
+  @@index([role, isActive])
 }
 
 model Milestone {
@@ -238,6 +279,69 @@ model WbsItem {
   @@unique([projectId, code])
   @@index([projectId, parentId])
   @@index([projectId, sortOrder])
+}
+
+model WbsCommand {
+  id             String         @id @default(cuid())
+  projectId      String
+  userId         String?
+  type           WbsCommandType
+  payload        Json
+  beforeSnapshot Json?
+  afterSnapshot  Json?
+  createdAt      DateTime       @default(now())
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+}
+
+model WbsBaseline {
+  id          String            @id @default(cuid())
+  projectId   String
+  version     Int
+  title       String
+  status      WbsBaselineStatus @default(ACTIVE)
+  createdById String?
+  createdAt   DateTime          @default(now())
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items       WbsBaselineItem[]
+
+  @@unique([projectId, version])
+  @@index([projectId, status])
+  @@index([createdById])
+}
+
+model WbsBaselineItem {
+  id              String              @id @default(cuid())
+  baselineId      String
+  sourceWbsItemId String?
+  parentCode      String?
+  code            String
+  title           String
+  type            WbsItemType         @default(TASK)
+  status          WbsItemStatus       @default(NOT_STARTED)
+  owner           String
+  startDate       DateTime?
+  dueDate         DateTime?
+  wbsLevel        Int?
+  predecessor1    String?
+  predecessor2    String?
+  predecessor3    String?
+  leadLagDays     Int                 @default(0)
+  workDays        Int?
+  calendarDays    Int?
+  calendarCode    ProjectCalendarCode @default(RU)
+  progress        Int                 @default(0)
+  sortOrder       Int                 @default(0)
+  baseline        WbsBaseline         @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+
+  @@unique([baselineId, code])
+  @@index([baselineId, sortOrder])
+  @@index([sourceWbsItemId])
 }
 
 model ProjectCalendarOverride {

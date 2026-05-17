@@ -29,6 +29,8 @@ import {
   Settings,
   ShieldAlert,
 } from "lucide-react";
+import { labels } from "@pms/shared";
+import { apiClient } from "./api/client";
 import "./App.css";
 
 type RagStatus = "GREEN" | "AMBER" | "RED";
@@ -509,7 +511,6 @@ const GANTT_SCALE_WIDTH: Record<GanttScale, number> = {
   quarter: 72,
 };
 const GANTT_HIERARCHY_LEVELS = [1, 2, 3, 4, 5] as const;
-
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -937,21 +938,11 @@ function projectOptionLabel(project: ProjectListItem) {
 }
 
 function projectStatusLabel(status: ProjectListItem["status"]) {
-  const labels: Record<ProjectListItem["status"], string> = {
-    DRAFT: "Черновик",
-    ACTIVE: "Активен",
-    ON_HOLD: "На паузе",
-    CLOSED: "Закрыт",
-  };
-  return labels[status];
+  return labels.projectStatus[status];
 }
 
 function projectHealthLabel(rag: RagStatus) {
-  return rag === "GREEN"
-    ? "В графике"
-    : rag === "AMBER"
-      ? "Под риском"
-      : "Критично";
+  return labels.rag[rag];
 }
 
 function ragOptionLabel(rag: RagStatus) {
@@ -964,47 +955,19 @@ function ragOptionLabel(rag: RagStatus) {
 }
 
 function wbsTypeLabel(type: WbsItemType) {
-  const labels: Record<WbsItemType, string> = {
-    PHASE: "Фаза",
-    WORK_PACKAGE: "Пакет работ",
-    DELIVERABLE: "Результат",
-    MILESTONE: "Веха",
-    TASK: "Задача",
-  };
-  return labels[type];
+  return labels.wbsType[type];
 }
 
 function wbsStatusLabel(status: WbsItemStatus) {
-  const labels: Record<WbsItemStatus, string> = {
-    NOT_STARTED: "Не начата",
-    IN_PROGRESS: "В работе",
-    AT_RISK: "Под риском",
-    BLOCKED: "Провалено",
-    DONE: "Сделано",
-    CANCELLED: "Отменено",
-  };
-  return labels[status];
+  return labels.wbsStatus[status];
 }
 
 function issueSeverityLabel(severity: Issue["severity"]) {
-  const labels: Record<Issue["severity"], string> = {
-    LOW: "Низкая",
-    MEDIUM: "Средняя",
-    HIGH: "Высокая",
-    CRITICAL: "Критичная",
-  };
-  return labels[severity];
+  return labels.issueSeverity[severity];
 }
 
 function issueStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    Open: "Открыто",
-    "In Progress": "В работе",
-    Blocked: "Заблокировано",
-    Resolved: "Решено",
-    Closed: "Закрыто",
-  };
-  return labels[status] ?? status;
+  return labels.openIssueStatus[status as keyof typeof labels.openIssueStatus] ?? status;
 }
 
 function artifactStatusLabel(status: string) {
@@ -1117,24 +1080,11 @@ function isDefaultWorkingDay(dateValue: Date) {
 }
 
 function raidTypeLabel(type: RaidItemType) {
-  const labels: Record<RaidItemType, string> = {
-    RISK: "Риск",
-    ASSUMPTION: "Допущение",
-    DEPENDENCY: "Проблема",
-  };
-  return labels[type];
+  return labels.raidType[type];
 }
 
 function raidStatusLabel(status: RaidItemStatus) {
-  const labels: Record<RaidItemStatus, string> = {
-    OPEN: "Открыто",
-    IN_PROGRESS: "В работе",
-    MITIGATED: "Смягчено",
-    VALIDATED: "Подтверждено",
-    BREACHED: "Нарушено",
-    CLOSED: "Закрыто",
-  };
-  return labels[status];
+  return labels.raidStatus[status];
 }
 
 function riskTone(score: number) {
@@ -1450,15 +1400,21 @@ function App() {
     useState(false);
 
   useEffect(() => {
-    fetch(`${apiBase}/api/projects`)
-      .then((response) => response.json())
+    apiClient
+      .get<ProjectListItem[]>("/api/projects", "Не удалось загрузить список проектов")
       .then((data: ProjectListItem[]) => {
         const firstProject = data[0];
         setProjects(data);
         setProjectRegistryDrafts(projectsToRegistryDrafts(data));
         setSelectedProjectId(firstProject?.id ?? null);
       })
-      .catch(() => setError("Не удалось загрузить список проектов"))
+      .catch((loadError) =>
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Не удалось загрузить список проектов",
+        ),
+      )
       .finally(() => setLoading(false));
   }, []);
 
@@ -2522,10 +2478,11 @@ function App() {
 
   async function refreshProject(projectId = project?.id) {
     if (!projectId) return;
-    const refreshed = await fetch(
-      `${apiBase}/api/projects/${projectId}/overview`,
+    const refreshed = await apiClient.get<ProjectDetails>(
+      `/api/projects/${projectId}/overview`,
+      "Не удалось загрузить проект",
     );
-    applyProject(await refreshed.json());
+    applyProject(refreshed);
   }
 
   async function saveJiraIntegration(event: FormEvent<HTMLFormElement>) {
@@ -2565,8 +2522,10 @@ function App() {
   }
 
   async function reloadProjects(selectedId?: string) {
-    const response = await fetch(`${apiBase}/api/projects`);
-    const data: ProjectListItem[] = await response.json();
+    const data = await apiClient.get<ProjectListItem[]>(
+      "/api/projects",
+      "Не удалось загрузить список проектов",
+    );
     setProjects(data);
     setProjectRegistryDrafts(projectsToRegistryDrafts(data));
     if (selectedId) {
