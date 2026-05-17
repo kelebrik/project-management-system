@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  type ClipboardEvent as ReactClipboardEvent,
   type DragEvent as ReactDragEvent,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
@@ -495,6 +496,7 @@ type GanttCssProperties = CSSProperties & {
 };
 
 type GanttScale = "month" | "quarter";
+type RaidTypeFilter = "ALL" | RaidItemType;
 
 type WbsTableCssProperties = CSSProperties & {
   "--wbs-table-template": string;
@@ -609,6 +611,42 @@ const WBS_TABLE_COLUMNS = [
   { key: "predecessor3", label: "Предшественник 3", width: 148 },
   { key: "leadLag", label: "Сдвиг", width: 92 },
 ] as const;
+
+const WBS_DIRTY_FIELDS: Array<keyof WbsFormState> = [
+  "title",
+  "type",
+  "status",
+  "owner",
+  "startDate",
+  "dueDate",
+  "workDays",
+  "calendarDays",
+  "calendarCode",
+  "progress",
+  "predecessor1",
+  "predecessor2",
+  "predecessor3",
+  "leadLagDays",
+  "wbsLevel",
+];
+
+const WBS_COLUMN_FIELDS: Record<WbsTableColumnKey, Array<keyof WbsFormState>> = {
+  level: ["wbsLevel"],
+  structure: ["title"],
+  type: ["type"],
+  status: ["status"],
+  owner: ["owner"],
+  start: ["startDate"],
+  due: ["dueDate"],
+  workDays: ["workDays"],
+  calendarDays: ["calendarDays"],
+  calendar: ["calendarCode"],
+  progress: ["progress"],
+  predecessor1: ["predecessor1"],
+  predecessor2: ["predecessor2"],
+  predecessor3: ["predecessor3"],
+  leadLag: ["leadLagDays"],
+};
 
 const PROJECT_CALENDAR_LABELS: Record<ProjectCalendarCode, string> = {
   RU: "RU календарь",
@@ -1373,6 +1411,14 @@ function App() {
   const [wbsUndoStack, setWbsUndoStack] = useState<WbsSnapshot[]>([]);
   const [wbsRedoStack, setWbsRedoStack] = useState<WbsSnapshot[]>([]);
   const [restoringWbsSnapshot, setRestoringWbsSnapshot] = useState(false);
+  const [activeWbsItemId, setActiveWbsItemId] = useState<string | null>(null);
+  const [hoveredGanttItemId, setHoveredGanttItemId] = useState<string | null>(
+    null,
+  );
+  const [selectedWbsIds, setSelectedWbsIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [savingWbsBulk, setSavingWbsBulk] = useState(false);
   const wbsUndoStackRef = useRef<WbsSnapshot[]>([]);
   const wbsRedoStackRef = useRef<WbsSnapshot[]>([]);
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskJiraDraft>>(
@@ -1385,6 +1431,17 @@ function App() {
     Record<string, IssueEditDraft>
   >({});
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
+  const [issueDrawerMode, setIssueDrawerMode] = useState<
+    "create" | "edit" | null
+  >(null);
+  const [issueDrawerIssueId, setIssueDrawerIssueId] = useState<string | null>(
+    null,
+  );
+  const [raidTypeFilter, setRaidTypeFilter] =
+    useState<RaidTypeFilter>("ALL");
+  const [raidDecisionOnly, setRaidDecisionOnly] = useState(false);
+  const [raidOverdueOnly, setRaidOverdueOnly] = useState(false);
+  const [raidHighOnly, setRaidHighOnly] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [showProjectPicker, setShowProjectPicker] = useState(false);
@@ -1505,36 +1562,6 @@ function App() {
     () => buildRenumberedWbsCodes(wbsTree, wbsDrafts),
     [wbsDrafts, wbsTree],
   );
-  const wbsSummary = useMemo(() => {
-    const items = project?.wbsItems ?? [];
-    const completed = items.filter((item) => item.status === "DONE").length;
-    const atRisk = items.filter(
-      (item) => item.status === "AT_RISK" || item.status === "BLOCKED",
-    ).length;
-    const scheduleVarianceDays = items
-      .filter((item) => item.baselineDueDate && item.forecastDueDate)
-      .reduce(
-        (maxVariance, item) =>
-          Math.max(
-            maxVariance,
-            daysBetween(
-              new Date(item.baselineDueDate as string),
-              new Date(item.forecastDueDate as string),
-            ),
-          ),
-        0,
-      );
-    const slipped = items.filter(
-      (item) =>
-        item.baselineDueDate &&
-        item.forecastDueDate &&
-        daysBetween(
-          new Date(item.baselineDueDate),
-          new Date(item.forecastDueDate),
-        ) > 0,
-    ).length;
-    return { completed, atRisk, scheduleVarianceDays, slipped };
-  }, [project?.wbsItems]);
   const structureMilestones = useMemo(() => {
     const items = project?.wbsItems ?? [];
     const itemIndex = new Map(items.map((item, index) => [item.id, index]));
@@ -1589,6 +1616,47 @@ function App() {
         ),
       );
   }, [project?.wbsItems]);
+  const overviewDashboard = useMemo(() => {
+    const today = startOfDay(new Date());
+    const wbsItems = project?.wbsItems ?? [];
+    const openIssues = project?.issues.filter(
+      (issue) => issue.status !== "Closed" && issue.status !== "Resolved",
+    ) ?? [];
+    const overdueItems = wbsItems.filter(
+      (item) =>
+        item.status !== "DONE" &&
+        item.status !== "CANCELLED" &&
+        item.dueDate !== null &&
+        startOfDay(new Date(item.dueDate)) < today,
+    );
+    const riskItems = project?.raidItems.filter(
+      (item) =>
+        item.status !== "CLOSED" &&
+        item.status !== "VALIDATED" &&
+        (item.type === "RISK" || item.type === "DEPENDENCY"),
+    ) ?? [];
+    const decisionItems =
+      openIssues.filter((issue) => issue.decisionRequired).length +
+      (project?.raidItems.filter(
+        (item) =>
+          item.decisionRequired &&
+          item.status !== "CLOSED" &&
+          item.status !== "VALIDATED",
+      ).length ?? 0);
+    const nextMilestone = structureMilestones.find(
+      (entry) =>
+        entry.milestone.dueDate &&
+        startOfDay(new Date(entry.milestone.dueDate)) >= today,
+    );
+
+    return {
+      openIssues,
+      overdueItems,
+      riskItems,
+      decisionItems,
+      nextMilestone,
+    };
+  }, [project?.issues, project?.raidItems, project?.wbsItems, structureMilestones]);
   const raidSummary = useMemo(() => {
     const raidItems = project?.raidItems ?? [];
     const activeRaid = raidItems.filter(
@@ -1613,6 +1681,41 @@ function App() {
       decisions,
       scheduleImpactDays,
     };
+  }, [project?.raidItems]);
+  const filteredRaidItems = useMemo(() => {
+    const today = startOfDay(new Date());
+    return (project?.raidItems ?? []).filter((item) => {
+      if (raidTypeFilter !== "ALL" && item.type !== raidTypeFilter) return false;
+      if (raidDecisionOnly && !item.decisionRequired) return false;
+      if (
+        raidOverdueOnly &&
+        (!item.dueDate ||
+          item.status === "CLOSED" ||
+          item.status === "VALIDATED" ||
+          startOfDay(new Date(item.dueDate)) >= today)
+      ) {
+        return false;
+      }
+      if (raidHighOnly && item.riskScore < 15) return false;
+      return true;
+    });
+  }, [
+    project?.raidItems,
+    raidDecisionOnly,
+    raidHighOnly,
+    raidOverdueOnly,
+    raidTypeFilter,
+  ]);
+  const riskMatrix = useMemo(() => {
+    const cells = new Map<string, number>();
+    for (const item of project?.raidItems ?? []) {
+      if (item.type !== "RISK" || item.status === "CLOSED") continue;
+      const probability = Math.max(1, Math.min(5, item.probability));
+      const impact = Math.max(1, Math.min(5, item.impact));
+      const key = `${probability}:${impact}`;
+      cells.set(key, (cells.get(key) ?? 0) + 1);
+    }
+    return cells;
   }, [project?.raidItems]);
   const wbsGantt = useMemo(() => {
     const validDate = (value: string | null) => {
@@ -1658,6 +1761,8 @@ function App() {
         todayOffset: null as number | null,
         dependencyLines: [] as Array<{
           id: string;
+          predecessorId: string;
+          successorId: string;
           fromSide: "start" | "end";
           fromMilestone: boolean;
           fromX: number;
@@ -1847,6 +1952,8 @@ function App() {
         const direction = to >= from ? ("forward" as const) : ("backward" as const);
         return {
           id: dependency.id,
+          predecessorId: dependency.predecessorId,
+          successorId: dependency.successorId,
           fromSide,
           fromMilestone: predecessor.milestone,
           fromX: Math.max(0, Math.min(100, from)),
@@ -1863,6 +1970,8 @@ function App() {
           item,
         ): item is {
           id: string;
+          predecessorId: string;
+          successorId: string;
           fromSide: "start" | "end";
           fromMilestone: boolean;
           fromX: number;
@@ -1917,6 +2026,36 @@ function App() {
     [orderedWbsColumns, wbsColumnWidths],
   );
   const wbsLevelWidth = wbsColumnWidths.level;
+  const dirtyWbsItemIds = useMemo(() => {
+    const dirtyIds = new Set<string>();
+    for (const item of project?.wbsItems ?? []) {
+      const draft = wbsDrafts[item.id];
+      if (!draft) continue;
+      const source = wbsToForm(item);
+      const hasDirtyField = WBS_DIRTY_FIELDS.some(
+        (field) => draft[field] !== source[field],
+      );
+      if (hasDirtyField || draftWbsCodes.get(item.id) !== item.code) {
+        dirtyIds.add(item.id);
+      }
+    }
+    return dirtyIds;
+  }, [draftWbsCodes, project?.wbsItems, wbsDrafts]);
+  const activeGanttLinkIds = useMemo(() => {
+    const sourceId = hoveredGanttItemId ?? activeWbsItemId;
+    const predecessors = new Set<string>();
+    const successors = new Set<string>();
+    if (!sourceId) return { sourceId, predecessors, successors };
+    for (const dependency of project?.wbsDependencies ?? []) {
+      if (dependency.successorId === sourceId) {
+        predecessors.add(dependency.predecessorId);
+      }
+      if (dependency.predecessorId === sourceId) {
+        successors.add(dependency.successorId);
+      }
+    }
+    return { sourceId, predecessors, successors };
+  }, [activeWbsItemId, hoveredGanttItemId, project?.wbsDependencies]);
   const calendarYear = useMemo(() => {
     const sourceDate = project?.startDate ? new Date(project.startDate) : new Date();
     return sourceDate.getFullYear();
@@ -2100,10 +2239,28 @@ function App() {
           ? currentIssueId
           : null,
       );
+      setIssueDrawerIssueId((currentIssueId) =>
+        nextProject.issues.some((issue) => issue.id === currentIssueId)
+          ? currentIssueId
+          : null,
+      );
       setWbsDrafts(
         Object.fromEntries(
           nextProject.wbsItems.map((item) => [item.id, wbsToForm(item)]),
         ),
+      );
+      setActiveWbsItemId((currentItemId) =>
+        nextProject.wbsItems.some((item) => item.id === currentItemId)
+          ? currentItemId
+          : null,
+      );
+      setSelectedWbsIds(
+        (currentIds) =>
+          new Set(
+            [...currentIds].filter((itemId) =>
+              nextProject.wbsItems.some((item) => item.id === itemId),
+            ),
+          ),
       );
       setCollapsedWbsIds(
         (currentIds) =>
@@ -2941,6 +3098,138 @@ function App() {
     });
   }
 
+  function isWbsCellDirty(
+    columnKey: WbsTableColumnKey,
+    item: WbsTreeItem,
+    draft: WbsFormState,
+  ) {
+    const source = wbsToForm(item);
+    if (columnKey === "structure") {
+      return draft.title !== source.title || draftWbsCodes.get(item.id) !== item.code;
+    }
+    return WBS_COLUMN_FIELDS[columnKey].some(
+      (field) => draft[field] !== source[field],
+    );
+  }
+
+  function toggleWbsSelection(itemId: string, checked: boolean) {
+    setSelectedWbsIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(itemId);
+      } else {
+        next.delete(itemId);
+      }
+      return next;
+    });
+  }
+
+  function updateSelectedWbsDrafts(patch: Partial<WbsFormState>) {
+    if (selectedWbsIds.size === 0) return;
+    setWbsDrafts((current) => {
+      const next = { ...current };
+      for (const itemId of selectedWbsIds) {
+        if (!next[itemId]) continue;
+        next[itemId] = { ...next[itemId], ...patch };
+      }
+      return next;
+    });
+  }
+
+  async function saveDirtyWbsItems() {
+    if (dirtyWbsItemIds.size === 0) return;
+    setSavingWbsBulk(true);
+    try {
+      for (const itemId of dirtyWbsItemIds) {
+        await saveWbsItem(itemId, { silent: true });
+      }
+      setNotice("Изменения Структуры сохранены");
+    } finally {
+      setSavingWbsBulk(false);
+    }
+  }
+
+  function normalizeWbsPasteValue(
+    field: keyof WbsFormState,
+    value: string,
+  ): string | ProjectCalendarCode | WbsItemType | WbsItemStatus {
+    const trimmedValue = value.trim();
+    if (field === "type") {
+      const matchedType = ([
+        "PHASE",
+        "WORK_PACKAGE",
+        "DELIVERABLE",
+        "MILESTONE",
+        "TASK",
+      ] as WbsItemType[]).find(
+        (type) =>
+          type.toLowerCase() === trimmedValue.toLowerCase() ||
+          wbsTypeLabel(type).toLowerCase() === trimmedValue.toLowerCase(),
+      );
+      return matchedType ?? "TASK";
+    }
+    if (field === "status") {
+      const matchedStatus = ([
+        "NOT_STARTED",
+        "IN_PROGRESS",
+        "AT_RISK",
+        "BLOCKED",
+        "DONE",
+        "CANCELLED",
+      ] as WbsItemStatus[]).find(
+        (status) =>
+          status.toLowerCase() === trimmedValue.toLowerCase() ||
+          wbsStatusLabel(status).toLowerCase() === trimmedValue.toLowerCase(),
+      );
+      return matchedStatus ?? "NOT_STARTED";
+    }
+    if (field === "calendarCode") {
+      return trimmedValue.toUpperCase() === "CN" ? "CN" : "RU";
+    }
+    return trimmedValue;
+  }
+
+  function handleWbsPaste(event: ReactClipboardEvent<HTMLDivElement>) {
+    const clipboardText = event.clipboardData.getData("text/plain");
+    if (!activeWbsItemId || !clipboardText || !/[\t\n\r]/.test(clipboardText)) {
+      return;
+    }
+    const startIndex = visibleWbsTree.findIndex(
+      (item) => item.id === activeWbsItemId,
+    );
+    if (startIndex === -1) return;
+    const pastedRows = clipboardText
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .filter((row) => row.length > 0)
+      .map((row) => row.split("\t"));
+    if (pastedRows.length === 0) return;
+    event.preventDefault();
+    setWbsDrafts((current) => {
+      const next = { ...current };
+      pastedRows.forEach((row, rowIndex) => {
+        const item = visibleWbsTree[startIndex + rowIndex];
+        if (!item || !next[item.id]) return;
+        let draft = { ...next[item.id] };
+        row.forEach((cellValue, columnIndex) => {
+          const column = orderedWbsColumns[columnIndex];
+          if (!column) return;
+          const fields = WBS_COLUMN_FIELDS[column.key];
+          const field = fields[0];
+          if (!field || field === "code" || field === "parentId") return;
+          draft = {
+            ...draft,
+            [field]: normalizeWbsPasteValue(field, cellValue),
+          };
+        });
+        next[item.id] = draft;
+      });
+      return next;
+    });
+    setNotice(`Вставлено строк из Excel: ${pastedRows.length}`);
+  }
+
   function saveWbsDraftPatch(
     itemId: string,
     patch: Partial<WbsFormState>,
@@ -3127,6 +3416,16 @@ function App() {
             ) : (
               <span className="tree-spacer" />
             )}
+            <input
+              type="checkbox"
+              className="wbs-row-select"
+              checked={selectedWbsIds.has(item.id)}
+              onChange={(event) =>
+                toggleWbsSelection(item.id, event.target.checked)
+              }
+              onClick={(event) => event.stopPropagation()}
+              aria-label={`Выбрать строку ${draft.code}`}
+            />
             <span
               className={`wbs-color-dot ${item.type === "MILESTONE" ? "tone-o" : wbsToneClass(item)}`}
             />
@@ -3821,6 +4120,8 @@ function App() {
       }
       setIssueForm(emptyIssueForm);
       await refreshProject(project.id);
+      setIssueDrawerMode(null);
+      setIssueDrawerIssueId(null);
       setNotice("Открытый вопрос создан");
     } catch (createError) {
       setError(
@@ -3982,6 +4283,8 @@ function App() {
         );
       }
       await refreshProject();
+      setIssueDrawerMode(null);
+      setIssueDrawerIssueId(null);
       setNotice("Открытый вопрос обновлен");
     } catch (saveError) {
       setError(
@@ -4171,6 +4474,19 @@ function App() {
     "project-artifacts": project
       ? `${project.code} - Артефакты проекта`
       : "Артефакты проекта",
+    admin: "Администрирование",
+  };
+  const projectViewTitle: Record<AppView, string> = {
+    portfolio: "Портфель проектов",
+    "project-create": "Создать новый проект",
+    "project-overview": "Обзор и вехи",
+    "project-passport": "Паспорт проекта",
+    "project-structure": "Структура",
+    "project-gantt": "Гантт",
+    "project-issues": "Открытые вопросы",
+    "project-raid": "Риски и проблемы",
+    "project-calendars": "Календари",
+    "project-artifacts": "Артефакты проекта",
     admin: "Администрирование",
   };
   const projectViews: AppView[] = [
@@ -4441,53 +4757,63 @@ function App() {
       <main
         className={`workspace ${executivePresentationMode ? "presentation-mode" : ""}`}
       >
-        <header className="topbar">
-          <div>
+        <header
+          className={`topbar ${project && isProjectView && activeView !== "project-create" ? "project-topbar" : ""}`}
+        >
+          <div className="topbar-main">
             {project && isProjectView && activeView !== "project-create" ? (
-              <h1>
-                {project.code} - {project.name}
-              </h1>
+              <>
+                <span className="topbar-section">
+                  {projectViewTitle[activeView]}
+                </span>
+                <h1>
+                  <span>{project.code}</span>
+                  {project.name}
+                </h1>
+              </>
             ) : (
               <h1>{viewTitle[activeView]}</h1>
             )}
           </div>
           {project && activeView !== "portfolio" && (
             <div className="topbar-project">
-              <span>{project.code}</span>
-              <span>{projectStatusLabel(project.status)}</span>
+              <span>Статус: {projectStatusLabel(project.status)}</span>
+              <span>РП: {project.projectManager}</span>
+              <span>Срок: {date(project.targetDate)}</span>
               <b className={`rag ${project.rag.toLowerCase()}`}>
                 {projectHealthLabel(project.rag)}
               </b>
             </div>
           )}
         </header>
-        {project && activeView === "project-overview" && (
-          <section className="project-context-bar">
-            <div>
-              <span>РП</span>
-              <b>{project.projectManager}</b>
+        <div className="toast-stack" aria-live="polite">
+          {error && (
+            <div className="toast error">
+              <button
+                type="button"
+                aria-label="Закрыть уведомление об ошибке"
+                onClick={() => setError(null)}
+              >
+                x
+              </button>
+              <strong>Ошибка</strong>
+              <p>{error}</p>
             </div>
-            <div>
-              <span>Срок</span>
-              <b>{date(project.targetDate)}</b>
+          )}
+          {notice && (
+            <div className="toast success">
+              <button
+                type="button"
+                aria-label="Закрыть уведомление"
+                onClick={() => setNotice(null)}
+              >
+                x
+              </button>
+              <strong>Готово</strong>
+              <p>{notice}</p>
             </div>
-            <div>
-              <span>Прогресс</span>
-              <b>{project.progress}%</b>
-            </div>
-            <div>
-              <span>Открытые вопросы</span>
-              <b>{project.issues.length}</b>
-            </div>
-            <div>
-              <span>Вехи</span>
-              <b>{structureMilestones.length}</b>
-            </div>
-          </section>
-        )}
-
-        {error && <div className="alert">{error}</div>}
-        {notice && <div className="notice">{notice}</div>}
+          )}
+        </div>
 
         {(project ||
           activeView === "portfolio" ||
@@ -4528,68 +4854,82 @@ function App() {
 
             {project && activeView === "project-overview" && (
               <section className="summary-grid">
-                <div className="metric">
+                <button
+                  type="button"
+                  className="metric metric-button"
+                  onClick={() => openView("project-passport")}
+                >
                   <span>Статус проекта</span>
                   <strong className={`rag ${project.rag.toLowerCase()}`}>
                     {projectHealthLabel(project.rag)}
                   </strong>
                   <small>{project.summary}</small>
-                </div>
-                <div className="metric">
+                </button>
+                <button
+                  type="button"
+                  className="metric metric-button"
+                  onClick={() => openView("project-structure")}
+                >
                   <span>Прогресс</span>
                   <strong>{project.progress}%</strong>
                   <div className="progress">
                     <i style={{ width: `${project.progress}%` }} />
                   </div>
-                </div>
-                <div className="metric">
+                </button>
+                <button
+                  type="button"
+                  className="metric metric-button"
+                  onClick={() => openView("project-gantt")}
+                >
                   <span>Отклонение сроков</span>
                   <strong>
                     {project.scheduleVariance > 0 ? "+" : ""}
                     {project.scheduleVariance} дней
                   </strong>
                   <small>Относительно базового плана</small>
-                </div>
-                <div className="metric">
+                </button>
+                <button
+                  type="button"
+                  className="metric metric-button"
+                  onClick={() => openView("project-issues")}
+                >
                   <span>Открытые вопросы</span>
                   <strong>{project.issues.length}</strong>
                   <small>Требуют контроля РП</small>
-                </div>
+                </button>
               </section>
             )}
 
             {project && activeView === "project-overview" && (
-              <section className="wbs-kpis overview-wbs-kpis">
-                <div>
-                  <span>Элементы</span>
-                  <strong>{project.wbsItems.length}</strong>
-                </div>
-                <div>
-                  <span>Сделано</span>
-                  <strong>{wbsSummary.completed}</strong>
-                </div>
-                <div>
-                  <span>Под риском / провалено</span>
-                  <strong>{wbsSummary.atRisk}</strong>
-                </div>
-                <div>
-                  <span>Вехи</span>
-                  <strong>{structureMilestones.length}</strong>
-                </div>
-                <div>
-                  <span>Связи</span>
-                  <strong>{project.wbsDependencies.length}</strong>
-                </div>
-                <div>
-                  <span>Отклонение прогноза</span>
-                  <strong>{wbsSummary.scheduleVarianceDays} дн.</strong>
-                  <small>{wbsSummary.slipped} сдвинуто</small>
-                </div>
-                <div>
-                  <span>Видимые</span>
-                  <strong>{visibleWbsTree.length}</strong>
-                  <small>С учетом схлопывания</small>
-                </div>
+              <section className="overview-action-grid">
+                <button type="button" onClick={() => openView("project-overview")}>
+                  <span>Ближайшая веха</span>
+                  <strong>
+                    {overviewDashboard.nextMilestone
+                      ? overviewDashboard.nextMilestone.milestone.title
+                      : "Нет будущих вех"}
+                  </strong>
+                  <small>
+                    {overviewDashboard.nextMilestone
+                      ? `${formatDaysLeft(overviewDashboard.nextMilestone.workDaysLeft)} раб. / ${formatDaysLeft(overviewDashboard.nextMilestone.calendarDaysLeft)} кал.`
+                      : "Проверьте Структуру проекта"}
+                  </small>
+                </button>
+                <button type="button" onClick={() => openView("project-structure")}>
+                  <span>Просроченные элементы</span>
+                  <strong>{overviewDashboard.overdueItems.length}</strong>
+                  <small>Не сделаны и срок уже прошел</small>
+                </button>
+                <button type="button" onClick={() => openView("project-raid")}>
+                  <span>Риски и проблемы</span>
+                  <strong>{overviewDashboard.riskItems.length}</strong>
+                  <small>Активные записи под контролем</small>
+                </button>
+                <button type="button" onClick={() => openView("project-issues")}>
+                  <span>Нужны решения</span>
+                  <strong>{overviewDashboard.decisionItems}</strong>
+                  <small>Открытые вопросы и риски</small>
+                </button>
               </section>
             )}
 
@@ -5311,6 +5651,13 @@ function App() {
                       >
                         Вперед →
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => void saveDirtyWbsItems()}
+                        disabled={savingWbsBulk || dirtyWbsItemIds.size === 0}
+                      >
+                        {savingWbsBulk ? "Сохраняю..." : "Сохранить изменения"}
+                      </button>
 		                      <button
 		                        type="button"
 		                        onClick={() => void saveWbsBaseline()}
@@ -5366,10 +5713,91 @@ function App() {
 	                          </div>
 	                        )}
 	                      </div>
+                      <span
+                        className={`wbs-save-state ${dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
+                      >
+                        {dirtyWbsItemIds.size > 0
+                          ? `Не сохранено: ${dirtyWbsItemIds.size}`
+                          : "Сохранено"}
+                      </span>
 	                    </div>
+                      {selectedWbsIds.size > 0 && (
+                        <div className="wbs-bulk-toolbar">
+                          <span>Выбрано: {selectedWbsIds.size}</span>
+                          <select
+                            defaultValue=""
+                            onChange={(event) => {
+                              if (!event.target.value) return;
+                              updateSelectedWbsDrafts({
+                                status: event.target.value as WbsItemStatus,
+                              });
+                              event.currentTarget.value = "";
+                            }}
+                            aria-label="Массово изменить статус"
+                          >
+                            <option value="">Статус</option>
+                            <option value="NOT_STARTED">
+                              {wbsStatusLabel("NOT_STARTED")}
+                            </option>
+                            <option value="IN_PROGRESS">
+                              {wbsStatusLabel("IN_PROGRESS")}
+                            </option>
+                            <option value="AT_RISK">
+                              {wbsStatusLabel("AT_RISK")}
+                            </option>
+                            <option value="BLOCKED">
+                              {wbsStatusLabel("BLOCKED")}
+                            </option>
+                            <option value="DONE">{wbsStatusLabel("DONE")}</option>
+                            <option value="CANCELLED">
+                              {wbsStatusLabel("CANCELLED")}
+                            </option>
+                          </select>
+                          <input
+                            placeholder="Исполнитель"
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") return;
+                              updateSelectedWbsDrafts({
+                                owner: event.currentTarget.value,
+                              });
+                              event.currentTarget.value = "";
+                            }}
+                            onBlur={(event) => {
+                              if (!event.currentTarget.value.trim()) return;
+                              updateSelectedWbsDrafts({
+                                owner: event.currentTarget.value,
+                              });
+                              event.currentTarget.value = "";
+                            }}
+                          />
+                          <select
+                            defaultValue=""
+                            onChange={(event) => {
+                              if (!event.target.value) return;
+                              updateSelectedWbsDrafts({
+                                calendarCode:
+                                  event.target.value as ProjectCalendarCode,
+                              });
+                              event.currentTarget.value = "";
+                            }}
+                            aria-label="Массово изменить календарь"
+                          >
+                            <option value="">Календарь</option>
+                            <option value="RU">RU</option>
+                            <option value="CN">CN</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedWbsIds(new Set())}
+                          >
+                            Снять выбор
+                          </button>
+                        </div>
+                      )}
                     <div className="wbs-table-shell">
                       <div
                         className="wbs-excel-table"
+                        onPaste={handleWbsPaste}
                         style={
                           {
                             "--wbs-table-template": wbsTableTemplate,
@@ -5450,18 +5878,19 @@ function App() {
                               }
                             >
                               <div
-                                className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""}`}
+                                className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""} ${activeWbsItemId === item.id ? "active" : ""}`}
+                                onClick={() => setActiveWbsItemId(item.id)}
                               >
                                 {orderedWbsColumns.map((column) => (
                                   <div
                                     key={`${item.id}-${column.key}`}
-                                    className={
+                                    className={`${isWbsCellDirty(column.key, item, draft) ? "dirty" : ""} ${
                                       column.key === "level"
                                         ? "wbs-cell-level"
                                         : column.key === "structure"
                                         ? "wbs-cell-structure"
                                         : "wbs-cell"
-                                    }
+                                    }`}
                                   >
                                     {renderWbsCell(column.key, item, draft)}
                                   </div>
@@ -5618,11 +6047,24 @@ function App() {
                             {wbsGantt.items.map(
                               ({ item, critical, milestone, toneClass }) => (
                                 <div
-                                  className={`gantt-label ${critical ? "critical" : ""}`}
+                                  className={`gantt-label ${critical ? "critical" : ""} ${
+                                    activeWbsItemId === item.id ? "active" : ""
+                                  } ${
+                                    activeGanttLinkIds.predecessors.has(item.id)
+                                      ? "predecessor"
+                                      : ""
+                                  } ${
+                                    activeGanttLinkIds.successors.has(item.id)
+                                      ? "successor"
+                                      : ""
+                                  }`}
                                   key={item.id}
                                   style={{
                                     paddingLeft: `${wbsDisplayLevel(item) * 14 + 10}px`,
                                   }}
+                                  onClick={() => setActiveWbsItemId(item.id)}
+                                  onMouseEnter={() => setHoveredGanttItemId(item.id)}
+                                  onMouseLeave={() => setHoveredGanttItemId(null)}
                                 >
                                   {item.children.length > 0 ? (
                                     <button
@@ -5729,6 +6171,15 @@ function App() {
                                         );
                                   return (
                                     <path
+                                      className={
+                                        activeGanttLinkIds.sourceId &&
+                                        (line.predecessorId ===
+                                          activeGanttLinkIds.sourceId ||
+                                          line.successorId ===
+                                            activeGanttLinkIds.sourceId)
+                                          ? "active"
+                                          : ""
+                                      }
                                       d={`M ${startX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${endX} ${line.toY}`}
                                       key={line.id}
                                     />
@@ -5750,9 +6201,22 @@ function App() {
                                 toneClass,
                               }) => (
                                 <div
-                                  className="gantt-track-row"
+                                  className={`gantt-track-row ${
+                                    activeWbsItemId === item.id ? "active" : ""
+                                  } ${
+                                    activeGanttLinkIds.predecessors.has(item.id)
+                                      ? "predecessor"
+                                      : ""
+                                  } ${
+                                    activeGanttLinkIds.successors.has(item.id)
+                                      ? "successor"
+                                      : ""
+                                  }`}
                                   key={item.id}
                                   style={{ height: `${GANTT_ROW_HEIGHT}px` }}
+                                  onClick={() => setActiveWbsItemId(item.id)}
+                                  onMouseEnter={() => setHoveredGanttItemId(item.id)}
+                                  onMouseLeave={() => setHoveredGanttItemId(null)}
                                 >
                                   {showGanttBaseline && baselineRange && (
                                     <i
@@ -5983,6 +6447,16 @@ function App() {
                         реестра рисков
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIssueForm(emptyIssueForm);
+                        setIssueDrawerIssueId(null);
+                        setIssueDrawerMode("create");
+                      }}
+                    >
+                      Создать вопрос
+                    </button>
                   </div>
                   <div className="issue-list">
                     <div className="issue-list-head" aria-hidden="true">
@@ -6038,121 +6512,23 @@ function App() {
                               <span>Влияние</span>
                               <p>{issue.impact}</p>
                             </div>
-                            {issueEditDrafts[issue.id] && (
-                              <div className="issue-edit-grid">
-                                <input
-                                  value={issueEditDrafts[issue.id].title}
-                                  onChange={(event) =>
-                                    updateIssueDraft(issue.id, {
-                                      title: event.target.value,
-                                    })
-                                  }
-                                  placeholder="Наименование"
-                                />
-                                <select
-                                  value={issueEditDrafts[issue.id].severity}
-                                  onChange={(event) =>
-                                    updateIssueDraft(issue.id, {
-                                      severity: event.target
-                                        .value as Issue["severity"],
-                                    })
-                                  }
-                                >
-                                  <option value="CRITICAL">
-                                    {issueSeverityLabel("CRITICAL")}
-                                  </option>
-                                  <option value="HIGH">
-                                    {issueSeverityLabel("HIGH")}
-                                  </option>
-                                  <option value="MEDIUM">
-                                    {issueSeverityLabel("MEDIUM")}
-                                  </option>
-                                  <option value="LOW">
-                                    {issueSeverityLabel("LOW")}
-                                  </option>
-                                </select>
-                                <select
-                                  value={issueEditDrafts[issue.id].status}
-                                  onChange={(event) =>
-                                    updateIssueDraft(issue.id, {
-                                      status: event.target.value,
-                                    })
-                                  }
-                                >
-                                  <option value="Open">
-                                    {issueStatusLabel("Open")}
-                                  </option>
-                                  <option value="In Progress">
-                                    {issueStatusLabel("In Progress")}
-                                  </option>
-                                  <option value="Blocked">
-                                    {issueStatusLabel("Blocked")}
-                                  </option>
-                                  <option value="Resolved">
-                                    {issueStatusLabel("Resolved")}
-                                  </option>
-                                  <option value="Closed">
-                                    {issueStatusLabel("Closed")}
-                                  </option>
-                                </select>
-                                <input
-                                  value={issueEditDrafts[issue.id].owner}
-                                  onChange={(event) =>
-                                    updateIssueDraft(issue.id, {
-                                      owner: event.target.value,
-                                    })
-                                  }
-                                  placeholder="Ответственный"
-                                />
-                                <input
-                                  type="date"
-                                  value={issueEditDrafts[issue.id].dueDate}
-                                  onChange={(event) =>
-                                    updateIssueDraft(issue.id, {
-                                      dueDate: event.target.value,
-                                    })
-                                  }
-                                />
-                                <label className="checkbox-line compact-checkbox">
-                                  <input
-                                    type="checkbox"
-                                    checked={
-                                      issueEditDrafts[issue.id].decisionRequired
-                                    }
-                                    onChange={(event) =>
-                                      updateIssueDraft(issue.id, {
-                                        decisionRequired: event.target.checked,
-                                      })
-                                    }
-                                  />
-                                  Требует решения
-                                </label>
-                                <textarea
-                                  className="span-2"
-                                  value={issueEditDrafts[issue.id].impact}
-                                  onChange={(event) =>
-                                    updateIssueDraft(issue.id, {
-                                      impact: event.target.value,
-                                    })
-                                  }
-                                  rows={2}
-                                />
-                                <div className="issue-actions">
-                                  <button
-                                    type="button"
-                                    onClick={() => saveOpenIssue(issue.id)}
-                                  >
-                                    Сохранить вопрос
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => closeOpenIssue(issue.id)}
-                                  >
-                                    Решено
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                            <div className="issue-actions issue-details-actions">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIssueDrawerIssueId(issue.id);
+                                  setIssueDrawerMode("edit");
+                                }}
+                              >
+                                Редактировать
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => closeOpenIssue(issue.id)}
+                              >
+                                Решено
+                              </button>
+                            </div>
                             <div className="jira-link-list">
                               {issue.jiraLinks.map((link) => (
                                 <span className="jira-chip" key={link.id}>
@@ -6222,150 +6598,6 @@ function App() {
                       </div>
                     ))}
                   </div>
-                </article>
-              )}
-
-              {project && activeView === "project-issues" && (
-                <article className="panel overview-panel">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Создать открытый вопрос</h2>
-                      <p>
-                        Внутренняя запись о риске или управленческая проблема со
-                        ссылкой на Jira
-                      </p>
-                    </div>
-                  </div>
-                  <form className="stack-form" onSubmit={createOpenIssue}>
-                    <label>
-                      Заголовок
-                      <input
-                        value={issueForm.title}
-                        onChange={(event) =>
-                          setIssueForm({
-                            ...issueForm,
-                            title: event.target.value,
-                          })
-                        }
-                        placeholder="Например: поставщик не подтвердил SLA"
-                      />
-                    </label>
-                    <div className="two-col">
-                      <label>
-                        Критичность
-                        <select
-                          value={issueForm.severity}
-                          onChange={(event) =>
-                            setIssueForm({
-                              ...issueForm,
-                              severity: event.target.value as Issue["severity"],
-                            })
-                          }
-                        >
-                          <option value="CRITICAL">
-                            {issueSeverityLabel("CRITICAL")}
-                          </option>
-                          <option value="HIGH">{issueSeverityLabel("HIGH")}</option>
-                          <option value="MEDIUM">
-                            {issueSeverityLabel("MEDIUM")}
-                          </option>
-                          <option value="LOW">{issueSeverityLabel("LOW")}</option>
-                        </select>
-                      </label>
-                      <label>
-                        Ответственный
-                        <input
-                          value={issueForm.owner}
-                          onChange={(event) =>
-                            setIssueForm({
-                              ...issueForm,
-                              owner: event.target.value,
-                            })
-                          }
-                          placeholder="РП / поставщик / ИТ-эксплуатация"
-                        />
-                      </label>
-                    </div>
-                    <label>
-                        Влияние
-                      <textarea
-                        value={issueForm.impact}
-                        onChange={(event) =>
-                          setIssueForm({
-                            ...issueForm,
-                            impact: event.target.value,
-                          })
-                        }
-                        rows={3}
-                        placeholder="Влияние на сроки, содержание или решение руководства"
-                      />
-                    </label>
-                    <div className="two-col">
-                      <label>
-                        Срок
-                        <input
-                          type="date"
-                          value={issueForm.dueDate}
-                          onChange={(event) =>
-                            setIssueForm({
-                              ...issueForm,
-                              dueDate: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="checkbox-line">
-                        <input
-                          type="checkbox"
-                          checked={issueForm.decisionRequired}
-                          onChange={(event) =>
-                            setIssueForm({
-                              ...issueForm,
-                              decisionRequired: event.target.checked,
-                            })
-                          }
-                        />
-                        Требует решения
-                      </label>
-                    </div>
-                    <div className="jira-links-editor">
-                      <div className="subhead">Связанные задачи Jira</div>
-                      {issueForm.jiraLinks.map((link, index) => (
-                        <div className="issue-link-edit" key={index}>
-                          <input
-                            value={link.jiraKey}
-                            onChange={(event) =>
-                              updateIssueFormLink(index, {
-                                jiraKey: event.target.value,
-                              })
-                            }
-                            placeholder="ERP-1842"
-                          />
-                          <input
-                            value={link.jiraUrl}
-                            onChange={(event) =>
-                              updateIssueFormLink(index, {
-                                jiraUrl: event.target.value,
-                              })
-                            }
-                            placeholder="https://company.atlassian.net/browse/ERP-1842"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeIssueFormLink(index)}
-                          >
-                            Удалить
-                          </button>
-                        </div>
-                      ))}
-                      <button type="button" onClick={addIssueFormLink}>
-                        + Добавить задачу Jira
-                      </button>
-                    </div>
-                    <button type="submit" disabled={creatingIssue}>
-                      {creatingIssue ? "Создаю..." : "Создать вопрос"}
-                    </button>
-                  </form>
                 </article>
               )}
 
@@ -6520,6 +6752,81 @@ function App() {
                       <small>активные записи</small>
                     </div>
                   </div>
+                  <div className="raid-control-grid">
+                    <section className="raid-filter-card">
+                      <div className="subhead">Фильтры</div>
+                      <div className="raid-filter-bar">
+                        {[
+                          ["ALL", "Все"],
+                          ["RISK", raidTypeLabel("RISK")],
+                          ["DEPENDENCY", raidTypeLabel("DEPENDENCY")],
+                          ["ASSUMPTION", raidTypeLabel("ASSUMPTION")],
+                        ].map(([value, label]) => (
+                          <button
+                            type="button"
+                            key={value}
+                            className={raidTypeFilter === value ? "active" : ""}
+                            onClick={() => setRaidTypeFilter(value as RaidTypeFilter)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="raid-check-filters">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={raidDecisionOnly}
+                            onChange={(event) =>
+                              setRaidDecisionOnly(event.target.checked)
+                            }
+                          />
+                          Требуют решения
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={raidOverdueOnly}
+                            onChange={(event) =>
+                              setRaidOverdueOnly(event.target.checked)
+                            }
+                          />
+                          Просрочены
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={raidHighOnly}
+                            onChange={(event) =>
+                              setRaidHighOnly(event.target.checked)
+                            }
+                          />
+                          Высокий риск
+                        </label>
+                      </div>
+                    </section>
+                    <section className="risk-matrix-card">
+                      <div className="subhead">Матрица рисков</div>
+                      <div className="risk-matrix" aria-label="Матрица рисков">
+                        {[5, 4, 3, 2, 1].map((impact) =>
+                          [1, 2, 3, 4, 5].map((probability) => {
+                            const count =
+                              riskMatrix.get(`${probability}:${impact}`) ?? 0;
+                            const score = probability * impact;
+                            return (
+                              <span
+                                className={`risk-matrix-cell ${riskTone(score)}`}
+                                key={`${probability}-${impact}`}
+                                title={`Вероятность ${probability}, влияние ${impact}`}
+                              >
+                                {count > 0 ? count : ""}
+                              </span>
+                            );
+                          }),
+                        )}
+                      </div>
+                    </section>
+                  </div>
                   <div className="raid-layout">
                     <section>
                       <div className="subhead">Реестр рисков и проблем</div>
@@ -6532,7 +6839,7 @@ function App() {
                           <span>Владелец</span>
                           <span />
                         </div>
-                        {project.raidItems.map((item) => (
+                        {filteredRaidItems.map((item) => (
                           <div className="raid-item" key={item.id}>
                             <button
                               type="button"
@@ -6768,7 +7075,7 @@ function App() {
                             )}
                           </div>
                         ))}
-                        {project.raidItems.length === 0 && (
+                        {filteredRaidItems.length === 0 && (
                           <div className="empty-state">Записей пока нет.</div>
                         )}
                       </div>
@@ -7484,6 +7791,308 @@ function App() {
               )}
             </section>
           </>
+        )}
+        {project && activeView === "project-issues" && issueDrawerMode && (
+          <div
+            className="drawer-backdrop"
+            onClick={() => {
+              setIssueDrawerMode(null);
+              setIssueDrawerIssueId(null);
+            }}
+          >
+            <aside
+              className="side-drawer"
+              aria-label={
+                issueDrawerMode === "create"
+                  ? "Создать открытый вопрос"
+                  : "Редактировать открытый вопрос"
+              }
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="drawer-title">
+                <div>
+                  <h2>
+                    {issueDrawerMode === "create"
+                      ? "Создать открытый вопрос"
+                      : "Редактировать вопрос"}
+                  </h2>
+                  <p>Срок, ответственный, влияние и связь с Jira</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIssueDrawerMode(null);
+                    setIssueDrawerIssueId(null);
+                  }}
+                  aria-label="Закрыть панель"
+                >
+                  x
+                </button>
+              </div>
+              {issueDrawerMode === "create" && (
+                <form className="stack-form" onSubmit={createOpenIssue}>
+                  <label>
+                    Заголовок
+                    <input
+                      value={issueForm.title}
+                      onChange={(event) =>
+                        setIssueForm({
+                          ...issueForm,
+                          title: event.target.value,
+                        })
+                      }
+                      placeholder="Например: поставщик не подтвердил SLA"
+                    />
+                  </label>
+                  <div className="two-col">
+                    <label>
+                      Критичность
+                      <select
+                        value={issueForm.severity}
+                        onChange={(event) =>
+                          setIssueForm({
+                            ...issueForm,
+                            severity: event.target.value as Issue["severity"],
+                          })
+                        }
+                      >
+                        <option value="CRITICAL">
+                          {issueSeverityLabel("CRITICAL")}
+                        </option>
+                        <option value="HIGH">{issueSeverityLabel("HIGH")}</option>
+                        <option value="MEDIUM">
+                          {issueSeverityLabel("MEDIUM")}
+                        </option>
+                        <option value="LOW">{issueSeverityLabel("LOW")}</option>
+                      </select>
+                    </label>
+                    <label>
+                      Ответственный
+                      <input
+                        value={issueForm.owner}
+                        onChange={(event) =>
+                          setIssueForm({
+                            ...issueForm,
+                            owner: event.target.value,
+                          })
+                        }
+                        placeholder="РП / поставщик / ИТ-эксплуатация"
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Влияние
+                    <textarea
+                      value={issueForm.impact}
+                      onChange={(event) =>
+                        setIssueForm({
+                          ...issueForm,
+                          impact: event.target.value,
+                        })
+                      }
+                      rows={3}
+                      placeholder="Влияние на сроки, содержание или решение руководства"
+                    />
+                  </label>
+                  <div className="two-col">
+                    <label>
+                      Срок
+                      <input
+                        type="date"
+                        value={issueForm.dueDate}
+                        onChange={(event) =>
+                          setIssueForm({
+                            ...issueForm,
+                            dueDate: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="checkbox-line">
+                      <input
+                        type="checkbox"
+                        checked={issueForm.decisionRequired}
+                        onChange={(event) =>
+                          setIssueForm({
+                            ...issueForm,
+                            decisionRequired: event.target.checked,
+                          })
+                        }
+                      />
+                      Требует решения
+                    </label>
+                  </div>
+                  <div className="jira-links-editor">
+                    <div className="subhead">Связанные задачи Jira</div>
+                    {issueForm.jiraLinks.map((link, index) => (
+                      <div className="issue-link-edit" key={index}>
+                        <input
+                          value={link.jiraKey}
+                          onChange={(event) =>
+                            updateIssueFormLink(index, {
+                              jiraKey: event.target.value,
+                            })
+                          }
+                          placeholder="ERP-1842"
+                        />
+                        <input
+                          value={link.jiraUrl}
+                          onChange={(event) =>
+                            updateIssueFormLink(index, {
+                              jiraUrl: event.target.value,
+                            })
+                          }
+                          placeholder="https://company.atlassian.net/browse/ERP-1842"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeIssueFormLink(index)}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={addIssueFormLink}>
+                      + Добавить задачу Jira
+                    </button>
+                  </div>
+                  <button type="submit" disabled={creatingIssue}>
+                    {creatingIssue ? "Создаю..." : "Создать вопрос"}
+                  </button>
+                </form>
+              )}
+              {issueDrawerMode === "edit" &&
+                issueDrawerIssueId &&
+                issueEditDrafts[issueDrawerIssueId] && (
+                  <form
+                    className="stack-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void saveOpenIssue(issueDrawerIssueId);
+                    }}
+                  >
+                    <label>
+                      Заголовок
+                      <input
+                        value={issueEditDrafts[issueDrawerIssueId].title}
+                        onChange={(event) =>
+                          updateIssueDraft(issueDrawerIssueId, {
+                            title: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <div className="two-col">
+                      <label>
+                        Критичность
+                        <select
+                          value={issueEditDrafts[issueDrawerIssueId].severity}
+                          onChange={(event) =>
+                            updateIssueDraft(issueDrawerIssueId, {
+                              severity: event.target.value as Issue["severity"],
+                            })
+                          }
+                        >
+                          <option value="CRITICAL">
+                            {issueSeverityLabel("CRITICAL")}
+                          </option>
+                          <option value="HIGH">{issueSeverityLabel("HIGH")}</option>
+                          <option value="MEDIUM">
+                            {issueSeverityLabel("MEDIUM")}
+                          </option>
+                          <option value="LOW">{issueSeverityLabel("LOW")}</option>
+                        </select>
+                      </label>
+                      <label>
+                        Статус
+                        <select
+                          value={issueEditDrafts[issueDrawerIssueId].status}
+                          onChange={(event) =>
+                            updateIssueDraft(issueDrawerIssueId, {
+                              status: event.target.value,
+                            })
+                          }
+                        >
+                          <option value="Open">{issueStatusLabel("Open")}</option>
+                          <option value="In Progress">
+                            {issueStatusLabel("In Progress")}
+                          </option>
+                          <option value="Blocked">
+                            {issueStatusLabel("Blocked")}
+                          </option>
+                          <option value="Resolved">
+                            {issueStatusLabel("Resolved")}
+                          </option>
+                          <option value="Closed">
+                            {issueStatusLabel("Closed")}
+                          </option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="two-col">
+                      <label>
+                        Ответственный
+                        <input
+                          value={issueEditDrafts[issueDrawerIssueId].owner}
+                          onChange={(event) =>
+                            updateIssueDraft(issueDrawerIssueId, {
+                              owner: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Срок
+                        <input
+                          type="date"
+                          value={issueEditDrafts[issueDrawerIssueId].dueDate}
+                          onChange={(event) =>
+                            updateIssueDraft(issueDrawerIssueId, {
+                              dueDate: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <label className="checkbox-line">
+                      <input
+                        type="checkbox"
+                        checked={
+                          issueEditDrafts[issueDrawerIssueId].decisionRequired
+                        }
+                        onChange={(event) =>
+                          updateIssueDraft(issueDrawerIssueId, {
+                            decisionRequired: event.target.checked,
+                          })
+                        }
+                      />
+                      Требует решения
+                    </label>
+                    <label>
+                      Влияние
+                      <textarea
+                        value={issueEditDrafts[issueDrawerIssueId].impact}
+                        onChange={(event) =>
+                          updateIssueDraft(issueDrawerIssueId, {
+                            impact: event.target.value,
+                          })
+                        }
+                        rows={4}
+                      />
+                    </label>
+                    <div className="issue-actions">
+                      <button type="submit">Сохранить вопрос</button>
+                      <button
+                        type="button"
+                        onClick={() => closeOpenIssue(issueDrawerIssueId)}
+                      >
+                        Решено
+                      </button>
+                    </div>
+                  </form>
+                )}
+            </aside>
+          </div>
         )}
       </main>
     </div>
