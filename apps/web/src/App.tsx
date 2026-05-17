@@ -1055,25 +1055,31 @@ function wbsToneClass(
   return "tone-x";
 }
 
-function milestoneStateLabel(items: WbsItem[]) {
-  if (items.some((item) => item.status === "BLOCKED")) {
-    return { label: "Есть провал", tone: "red" };
+function milestoneStateLabel(milestone: WbsItem, precedingTasks: WbsItem[]) {
+  const today = startOfDay(new Date());
+  if (milestone.status === "DONE") {
+    return { label: "Веха пройдена", tone: "green" };
   }
   if (
-    items.some(
-      (item) =>
-        item.status !== "DONE" &&
-        item.status !== "CANCELLED" &&
-        item.dueDate &&
-        new Date(item.dueDate) < startOfDay(new Date()),
-    )
+    milestone.dueDate &&
+    startOfDay(new Date(milestone.dueDate)) < today
   ) {
-    return { label: "Есть просрочка", tone: "pink" };
+    return { label: "Веха просрочена", tone: "red" };
   }
-  if (items.some((item) => item.status === "AT_RISK")) {
-    return { label: "Есть риск", tone: "amber" };
+
+  const lastTasks = precedingTasks
+    .filter((item) => item.status !== "CANCELLED")
+    .slice(-5);
+  if (
+    lastTasks.length > 0 &&
+    lastTasks.every((item) => item.status === "NOT_STARTED")
+  ) {
+    return { label: "Последние задачи не начаты", tone: "gray" };
   }
-  return { label: "В графике", tone: "green" };
+  if (lastTasks.some((item) => item.status === "IN_PROGRESS")) {
+    return { label: "Последние задачи в работе", tone: "blue" };
+  }
+  return { label: "Веха запланирована", tone: "gray" };
 }
 
 function summaryToneClass(item: WbsTreeItem) {
@@ -1609,7 +1615,7 @@ function App() {
                 startOfDay(new Date(item.dueDate)) <= milestoneDue,
             )
           : [];
-        const state = milestoneStateLabel(itemsBeforeMilestone);
+        const state = milestoneStateLabel(milestone, itemsBeforeMilestone);
 
         return {
           milestone,

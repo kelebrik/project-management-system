@@ -1668,8 +1668,8 @@ code {
 }
 
 .milestone-axis {
-  background: #3f73c8;
-  border: 1px solid #24539b;
+  background: #64748b;
+  border: 1px solid #475569;
   box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.18);
   height: 20px;
   left: 28px;
@@ -1680,7 +1680,7 @@ code {
 
 .milestone-axis-arrow {
   border-bottom: 21px solid transparent;
-  border-left: 28px solid #3f73c8;
+  border-left: 28px solid #64748b;
   border-top: 21px solid transparent;
   height: 0;
   position: absolute;
@@ -1723,7 +1723,7 @@ code {
 }
 
 .milestone-point::before {
-  background: #3f73c8;
+  background: #94a3b8;
   content: "";
   height: 86px;
   left: 50%;
@@ -1766,16 +1766,16 @@ code {
   background: #16a34a;
 }
 
-.milestone-point.amber .milestone-marker {
-  background: #f59e0b;
+.milestone-point.blue .milestone-marker {
+  background: #2563eb;
 }
 
 .milestone-point.red .milestone-marker {
   background: #dc2626;
 }
 
-.milestone-point.pink .milestone-marker {
-  background: #ec4899;
+.milestone-point.gray .milestone-marker {
+  background: #94a3b8;
 }
 
 .milestone-label {
