@@ -1653,6 +1653,165 @@ code {
   color: #be185d;
 }
 
+.milestone-timeline {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0;
+}
+
+.milestone-timeline-canvas {
+  min-height: 340px;
+  padding: 24px 24px 18px;
+  position: relative;
+}
+
+.milestone-axis {
+  background: #3f73c8;
+  border: 1px solid #24539b;
+  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.18);
+  height: 24px;
+  left: 28px;
+  position: absolute;
+  right: 46px;
+  top: 160px;
+}
+
+.milestone-axis-arrow {
+  border-bottom: 24px solid transparent;
+  border-left: 30px solid #3f73c8;
+  border-top: 24px solid transparent;
+  height: 0;
+  position: absolute;
+  right: 18px;
+  top: 148px;
+  width: 0;
+}
+
+.milestone-point {
+  background: transparent;
+  border: 0;
+  color: #111827;
+  cursor: pointer;
+  display: grid;
+  justify-items: start;
+  padding: 0;
+  position: absolute;
+  text-align: left;
+  width: 180px;
+}
+
+.milestone-point:hover .milestone-label,
+.milestone-point:focus-visible .milestone-label {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.milestone-point:focus-visible {
+  outline: none;
+}
+
+.milestone-point.top {
+  bottom: calc(100% - 160px);
+  transform: translateX(-42px);
+}
+
+.milestone-point.bottom {
+  top: 184px;
+  transform: translateX(-72px);
+}
+
+.milestone-point::before {
+  background: #3f73c8;
+  content: "";
+  height: 92px;
+  left: 58px;
+  position: absolute;
+  width: 4px;
+}
+
+.milestone-point.top::before {
+  bottom: -96px;
+  transform: rotate(-18deg);
+  transform-origin: bottom center;
+}
+
+.milestone-point.bottom::before {
+  top: -88px;
+  transform: rotate(-18deg);
+  transform-origin: top center;
+}
+
+.milestone-marker {
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px #fff;
+  height: 12px;
+  left: 55px;
+  position: absolute;
+  width: 12px;
+  z-index: 2;
+}
+
+.milestone-point.top .milestone-marker {
+  bottom: -101px;
+}
+
+.milestone-point.bottom .milestone-marker {
+  top: -94px;
+}
+
+.milestone-point.green .milestone-marker {
+  background: #16a34a;
+}
+
+.milestone-point.amber .milestone-marker {
+  background: #f59e0b;
+}
+
+.milestone-point.red .milestone-marker {
+  background: #dc2626;
+}
+
+.milestone-point.pink .milestone-marker {
+  background: #ec4899;
+}
+
+.milestone-label {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.22;
+  max-width: 180px;
+}
+
+.milestone-date {
+  font-size: 15px;
+  font-weight: 800;
+  margin-top: 10px;
+}
+
+.milestone-point.top .milestone-date {
+  order: 2;
+}
+
+.milestone-point.bottom .milestone-date {
+  order: -1;
+  margin-bottom: 10px;
+  margin-top: 0;
+}
+
+.milestone-range {
+  bottom: 12px;
+  color: #64748b;
+  display: flex;
+  font-size: 12px;
+  font-weight: 800;
+  justify-content: space-between;
+  left: 24px;
+  position: absolute;
+  right: 24px;
+}
+
 .wbs-kpis {
   display: grid;
   gap: 10px;

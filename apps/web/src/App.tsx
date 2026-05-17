@@ -898,6 +898,15 @@ function date(value: string | null) {
   }).format(new Date(value));
 }
 
+function shortDate(value: string | null) {
+  if (!value) return "не задано";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(new Date(value));
+}
+
 function daysBetween(start: Date, end: Date) {
   return Math.max(
     0,
@@ -1615,6 +1624,48 @@ function App() {
         ),
       );
   }, [project?.wbsItems]);
+  const milestoneTimeline = useMemo(() => {
+    const datedMilestones = structureMilestones.filter(
+      (entry) =>
+        entry.milestone.dueDate &&
+        !Number.isNaN(new Date(entry.milestone.dueDate).getTime()),
+    );
+    if (datedMilestones.length === 0) {
+      return {
+        items: [],
+        startDate: null,
+        endDate: null,
+      };
+    }
+
+    const dates = datedMilestones.map((entry) =>
+      startOfDay(new Date(entry.milestone.dueDate as string)),
+    );
+    const minTime = Math.min(...dates.map((item) => item.getTime()));
+    const maxTime = Math.max(...dates.map((item) => item.getTime()));
+    const span = Math.max(1, maxTime - minTime);
+
+    return {
+      items: datedMilestones.map((entry, index) => {
+        const dueTime = startOfDay(
+          new Date(entry.milestone.dueDate as string),
+        ).getTime();
+        const rawOffset = ((dueTime - minTime) / span) * 100;
+        const offset =
+          datedMilestones.length === 1
+            ? 50
+            : Math.min(96, Math.max(4, rawOffset));
+
+        return {
+          ...entry,
+          offset,
+          side: index % 2 === 0 ? "top" : "bottom",
+        };
+      }),
+      startDate: new Date(minTime).toISOString(),
+      endDate: new Date(maxTime).toISOString(),
+    };
+  }, [structureMilestones]);
   const overviewDashboard = useMemo(() => {
     const today = startOfDay(new Date());
     const wbsItems = project?.wbsItems ?? [];
@@ -5480,36 +5531,52 @@ function App() {
                       </a>
                     )}
                   </div>
-                  <div className="milestone-table">
-                    <div className="milestone-head">
-                      <span>Веха</span>
-                      <span>Срок</span>
-                      <span>Раб. дней</span>
-                      <span>Кал. дней</span>
-                      <span>Состояние</span>
-                    </div>
-                    {structureMilestones.map(
-                      ({
-                        milestone,
-                        workDaysLeft,
-                        calendarDaysLeft,
-                        state,
-                      }) => (
-                        <div className="milestone-row" key={milestone.id}>
-                          <span>
-                            <b>{milestone.code}</b>
-                            {milestone.title}
-                          </span>
-                          <span>{date(milestone.dueDate)}</span>
-                          <span>{formatDaysLeft(workDaysLeft)}</span>
-                          <span>{formatDaysLeft(calendarDaysLeft)}</span>
-                          <span className={`milestone-state ${state.tone}`}>
-                            {state.label}
-                          </span>
+                  <div className="milestone-timeline">
+                    {milestoneTimeline.items.length > 0 ? (
+                      <div
+                        className="milestone-timeline-canvas"
+                        style={{
+                          minWidth: `${Math.max(
+                            860,
+                            milestoneTimeline.items.length * 150,
+                          )}px`,
+                        }}
+                      >
+                        <div className="milestone-axis" aria-hidden="true" />
+                        <div className="milestone-axis-arrow" aria-hidden="true" />
+                        {milestoneTimeline.items.map(
+                          ({
+                            milestone,
+                            workDaysLeft,
+                            calendarDaysLeft,
+                            state,
+                            offset,
+                            side,
+                          }) => (
+                            <button
+                              type="button"
+                              className={`milestone-point ${side} ${state.tone}`}
+                              key={milestone.id}
+                              onClick={() => openView("project-structure")}
+                              style={{ left: `${offset}%` }}
+                              title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}. ${formatDaysLeft(workDaysLeft)} раб., ${formatDaysLeft(calendarDaysLeft)} кал.`}
+                            >
+                              <span className="milestone-marker" />
+                              <span className="milestone-label">
+                                {milestone.title}
+                              </span>
+                              <span className="milestone-date">
+                                {shortDate(milestone.dueDate)}
+                              </span>
+                            </button>
+                          ),
+                        )}
+                        <div className="milestone-range">
+                          <span>{shortDate(milestoneTimeline.startDate)}</span>
+                          <span>{shortDate(milestoneTimeline.endDate)}</span>
                         </div>
-                      ),
-                    )}
-                    {structureMilestones.length === 0 && (
+                      </div>
+                    ) : (
                       <div className="empty-state">
                         В Структуре пока нет элементов типа «Веха».
                       </div>
