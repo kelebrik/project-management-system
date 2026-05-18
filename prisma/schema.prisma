@@ -251,6 +251,9 @@ model WbsItem {
   predecessor1  String?
   predecessor2  String?
   predecessor3  String?
+  predecessor4  String?
+  predecessor5  String?
+  predecessor6  String?
   leadLagDays   Int           @default(0)
   workDays      Int?
   calendarDays  Int?
@@ -331,6 +334,9 @@ model WbsBaselineItem {
   predecessor1    String?
   predecessor2    String?
   predecessor3    String?
+  predecessor4    String?
+  predecessor5    String?
+  predecessor6    String?
   leadLagDays     Int                 @default(0)
   workDays        Int?
   calendarDays    Int?

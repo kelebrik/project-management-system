@@ -2167,6 +2167,42 @@ code {
   z-index: 3;
 }
 
+.gantt-link-handle {
+  background: #fff;
+  border: 2px solid #2563eb;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.2);
+  cursor: crosshair;
+  display: block;
+  height: 13px;
+  opacity: 0;
+  padding: 0;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  width: 13px;
+  z-index: 8;
+}
+
+.gantt-link-handle.start {
+  left: -7px;
+}
+
+.gantt-link-handle.end {
+  right: -7px;
+}
+
+.gantt-track-row:hover .gantt-link-handle,
+.gantt-track-row.active .gantt-link-handle,
+.gantt-track-row.linking .gantt-link-handle {
+  opacity: 1;
+}
+
+.gantt-link-handle:hover {
+  transform: translateY(-50%) scale(1.12);
+}
+
 .gantt-bar.done,
 .gantt-bar.tone-g {
   background: #35b86f;
@@ -2203,6 +2239,10 @@ code {
   min-width: 12px;
   transform: translate(-50%, -50%) rotate(45deg);
   width: 12px;
+}
+
+.gantt-bar.milestone .gantt-link-handle {
+  transform: translateY(-50%) rotate(-45deg);
 }
 
 .gantt-bar.summary {
@@ -2296,6 +2336,7 @@ code {
 .gantt-links {
   height: 100%;
   overflow: visible;
+  pointer-events: auto;
   width: 100%;
   z-index: 2;
 }
@@ -2303,6 +2344,7 @@ code {
 .gantt-links path {
   fill: none;
   opacity: 0.9;
+  pointer-events: stroke;
   stroke: #f5a623;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -2310,10 +2352,29 @@ code {
   vector-effect: non-scaling-stroke;
 }
 
+.gantt-links path:hover {
+  cursor: grab;
+  opacity: 1;
+  stroke: #d97706;
+  stroke-width: 2;
+}
+
+.gantt-links.drawing path:not(.draft) {
+  pointer-events: none;
+}
+
 .gantt-links path.active {
   opacity: 1;
   stroke: #d97706;
   stroke-width: 2;
+}
+
+.gantt-links path.draft {
+  pointer-events: none;
+  opacity: 0.9;
+  stroke: #2563eb;
+  stroke-dasharray: 2 2;
+  stroke-width: 1.8;
 }
 
 .gantt-links marker path {
@@ -2478,6 +2539,40 @@ code {
 .calendar-page {
   display: grid;
   gap: 18px;
+}
+
+.calendar-controls {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+  padding: 9px;
+}
+
+.calendar-controls > span {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 7px 4px 7px 0;
+}
+
+.calendar-controls button {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 10px;
+}
+
+.calendar-controls button.active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 
 .calendar-board {

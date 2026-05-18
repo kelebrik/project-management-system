@@ -20,6 +20,15 @@ export type WbsRenumberRow = {
   code: string;
 };
 
+const WBS_PREDECESSOR_FIELDS = [
+  "predecessor1",
+  "predecessor2",
+  "predecessor3",
+  "predecessor4",
+  "predecessor5",
+  "predecessor6",
+] as const;
+
 export const wbsDependencySnapshotSchemaShape = {
   predecessorId: "",
   successorId: "",
@@ -83,6 +92,15 @@ export function buildWbsRenumberPlan(
   return { normalizedRows, predecessorsBySuccessor, codeById };
 }
 
+function predecessorFieldPatch(predecessors: string[]) {
+  return Object.fromEntries(
+    WBS_PREDECESSOR_FIELDS.map((field, index) => [
+      field,
+      predecessors[index] ?? null,
+    ]),
+  );
+}
+
 export async function renumberProjectWbs(projectId: string) {
   const items = await prisma.wbsItem.findMany({
     where: { projectId },
@@ -114,15 +132,45 @@ export async function renumberProjectWbs(projectId: string) {
           code: row.code,
           parentId: row.parentId,
           wbsLevel: row.level,
-          predecessor1: predecessors[0] ?? null,
-          predecessor2: predecessors[1] ?? null,
-          predecessor3: predecessors[2] ?? null,
+          ...predecessorFieldPatch(predecessors),
         },
       });
     }
   });
 
   return normalizedRows.length;
+}
+
+export async function syncWbsPredecessorFields(projectId: string) {
+  const dependencies = await prisma.wbsDependency.findMany({
+    where: { projectId },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    include: {
+      predecessor: { select: { code: true } },
+    },
+  });
+  const predecessorsBySuccessor = new Map<string, string[]>();
+  for (const dependency of dependencies) {
+    const current = predecessorsBySuccessor.get(dependency.successorId) ?? [];
+    if (!current.includes(dependency.predecessor.code)) {
+      current.push(dependency.predecessor.code);
+    }
+    predecessorsBySuccessor.set(dependency.successorId, current.slice(0, 6));
+  }
+
+  const items = await prisma.wbsItem.findMany({
+    where: { projectId },
+    select: { id: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    for (const item of items) {
+      await tx.wbsItem.update({
+        where: { id: item.id },
+        data: predecessorFieldPatch(predecessorsBySuccessor.get(item.id) ?? []),
+      });
+    }
+  });
 }
 
 export async function getProjectWbsSnapshot(projectId: string) {
@@ -166,6 +214,9 @@ export function wbsItemSnapshotData(
     predecessor1: item.predecessor1 || null,
     predecessor2: item.predecessor2 || null,
     predecessor3: item.predecessor3 || null,
+    predecessor4: item.predecessor4 || null,
+    predecessor5: item.predecessor5 || null,
+    predecessor6: item.predecessor6 || null,
     leadLagDays: item.leadLagDays,
     workDays: item.workDays ?? null,
     calendarDays: item.calendarDays ?? null,

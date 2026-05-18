@@ -189,6 +189,9 @@ type WbsItem = {
   predecessor1: string | null;
   predecessor2: string | null;
   predecessor3: string | null;
+  predecessor4: string | null;
+  predecessor5: string | null;
+  predecessor6: string | null;
   leadLagDays: number;
   workDays: number | null;
   calendarDays: number | null;
@@ -231,6 +234,17 @@ type WbsDependencySnapshot = Pick<
   "predecessorId" | "successorId" | "type" | "lagDays"
 >;
 
+type GanttLinkEndpoint = {
+  itemId: string;
+  side: "start" | "end";
+};
+
+type GanttLinkDraft = GanttLinkEndpoint & {
+  pointerX: number;
+  pointerY: number;
+  replaceDependencyId?: string;
+};
+
 type WbsSnapshot = {
   wbsItems: WbsItem[];
   wbsDependencies: WbsDependencySnapshot[];
@@ -262,6 +276,9 @@ type WbsFormState = {
   predecessor1: string;
   predecessor2: string;
   predecessor3: string;
+  predecessor4: string;
+  predecessor5: string;
+  predecessor6: string;
   leadLagDays: string;
   workDays: string;
   calendarDays: string;
@@ -631,7 +648,19 @@ const WBS_TABLE_COLUMNS = [
   { key: "predecessor1", label: "Предшественник 1", width: 148 },
   { key: "predecessor2", label: "Предшественник 2", width: 148 },
   { key: "predecessor3", label: "Предшественник 3", width: 148 },
+  { key: "predecessor4", label: "Предшественник 4", width: 148 },
+  { key: "predecessor5", label: "Предшественник 5", width: 148 },
+  { key: "predecessor6", label: "Предшественник 6", width: 148 },
   { key: "leadLag", label: "Сдвиг", width: 92 },
+] as const;
+
+const WBS_PREDECESSOR_KEYS = [
+  "predecessor1",
+  "predecessor2",
+  "predecessor3",
+  "predecessor4",
+  "predecessor5",
+  "predecessor6",
 ] as const;
 
 const WBS_DIRTY_FIELDS: Array<keyof WbsFormState> = [
@@ -648,6 +677,9 @@ const WBS_DIRTY_FIELDS: Array<keyof WbsFormState> = [
   "predecessor1",
   "predecessor2",
   "predecessor3",
+  "predecessor4",
+  "predecessor5",
+  "predecessor6",
   "leadLagDays",
   "wbsLevel",
 ];
@@ -667,6 +699,9 @@ const WBS_COLUMN_FIELDS: Record<WbsTableColumnKey, Array<keyof WbsFormState>> = 
   predecessor1: ["predecessor1"],
   predecessor2: ["predecessor2"],
   predecessor3: ["predecessor3"],
+  predecessor4: ["predecessor4"],
+  predecessor5: ["predecessor5"],
+  predecessor6: ["predecessor6"],
   leadLag: ["leadLagDays"],
 };
 
@@ -849,6 +884,9 @@ function wbsToForm(item: WbsItem): WbsFormState {
     predecessor1: item.predecessor1 ?? "",
     predecessor2: item.predecessor2 ?? "",
     predecessor3: item.predecessor3 ?? "",
+    predecessor4: item.predecessor4 ?? "",
+    predecessor5: item.predecessor5 ?? "",
+    predecessor6: item.predecessor6 ?? "",
     leadLagDays: String(item.leadLagDays),
     workDays: item.workDays === null ? "" : String(item.workDays),
     calendarDays: item.calendarDays === null ? "" : String(item.calendarDays),
@@ -1380,6 +1418,9 @@ function App() {
   const [publishingOverview, setPublishingOverview] = useState(false);
   const [savingBaseline, setSavingBaseline] = useState(false);
   const [savingCalendar, setSavingCalendar] = useState<string | null>(null);
+  const [selectedCalendarYear, setSelectedCalendarYear] = useState<number | null>(
+    null,
+  );
   const [savingProjectRegistryId, setSavingProjectRegistryId] = useState<
     string | null
   >(null);
@@ -1441,6 +1482,10 @@ function App() {
   const [hoveredGanttItemId, setHoveredGanttItemId] = useState<string | null>(
     null,
   );
+  const [ganttLinkDraft, setGanttLinkDraft] = useState<GanttLinkDraft | null>(
+    null,
+  );
+  const ganttTimelineRef = useRef<HTMLDivElement | null>(null);
   const [selectedWbsIds, setSelectedWbsIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -1836,6 +1881,7 @@ function App() {
           id: string;
           predecessorId: string;
           successorId: string;
+          type: WbsDependencyType;
           fromSide: "start" | "end";
           fromMilestone: boolean;
           fromX: number;
@@ -2027,6 +2073,7 @@ function App() {
           id: dependency.id,
           predecessorId: dependency.predecessorId,
           successorId: dependency.successorId,
+          type: dependency.type,
           fromSide,
           fromMilestone: predecessor.milestone,
           fromX: Math.max(0, Math.min(100, from)),
@@ -2045,6 +2092,7 @@ function App() {
           id: string;
           predecessorId: string;
           successorId: string;
+          type: WbsDependencyType;
           fromSide: "start" | "end";
           fromMilestone: boolean;
           fromX: number;
@@ -2129,10 +2177,28 @@ function App() {
     }
     return { sourceId, predecessors, successors };
   }, [activeWbsItemId, hoveredGanttItemId, project?.wbsDependencies]);
-  const calendarYear = useMemo(() => {
-    const sourceDate = project?.startDate ? new Date(project.startDate) : new Date();
-    return sourceDate.getFullYear();
-  }, [project]);
+  const projectCalendarYears = useMemo(() => {
+    const years: number[] = [];
+    const collectYear = (value: string | null | undefined) => {
+      if (!value) return;
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        years.push(parsed.getFullYear());
+      }
+    };
+    collectYear(project?.startDate);
+    for (const item of project?.wbsItems ?? []) {
+      collectYear(item.startDate);
+      collectYear(item.dueDate);
+      collectYear(item.baselineStartDate);
+      collectYear(item.baselineDueDate);
+      collectYear(item.forecastStartDate);
+      collectYear(item.forecastDueDate);
+    }
+    const startYear = years.length > 0 ? Math.min(...years) : new Date().getFullYear();
+    return [startYear, startYear + 1, startYear + 2];
+  }, [project?.startDate, project?.wbsItems]);
+  const calendarYear = selectedCalendarYear ?? projectCalendarYears[1] ?? new Date().getFullYear();
   const calendarOverridesByKey = useMemo(() => {
     const map = new Map<string, ProjectCalendarOverride>();
     for (const override of project?.calendarOverrides ?? []) {
@@ -2192,6 +2258,16 @@ function App() {
         }),
       );
       setPassportRows(normalizePassportRows(nextProject));
+      setSelectedCalendarYear((currentYear) => {
+        const startDate = nextProject.startDate
+          ? new Date(nextProject.startDate)
+          : new Date();
+        const startYear = startDate.getFullYear();
+        const allowedYears = [startYear, startYear + 1, startYear + 2];
+        return currentYear && allowedYears.includes(currentYear)
+          ? currentYear
+          : startYear + 1;
+      });
       setJiraForm({
         baseUrl: nextProject.jiraIntegration?.baseUrl ?? "",
         boardUrl: nextProject.jiraIntegration?.boardUrl ?? "",
@@ -2498,6 +2574,7 @@ function App() {
           calendarOverrides: [...withoutCurrent, result],
         };
       });
+      await refreshProject(project.id);
     } catch (calendarError) {
       setError(
         calendarError instanceof Error
@@ -3132,9 +3209,9 @@ function App() {
       forecastDueDate: form.forecastDueDate || null,
       code: draftWbsCodes.get(itemId) ?? form.code,
       wbsLevel: nextLevel,
-      predecessor1: form.predecessor1 || null,
-      predecessor2: form.predecessor2 || null,
-      predecessor3: form.predecessor3 || null,
+      ...Object.fromEntries(
+        WBS_PREDECESSOR_KEYS.map((key) => [key, form[key] || null]),
+      ),
       leadLagDays: Number(form.leadLagDays),
       workDays: form.workDays ? Number(form.workDays) : null,
       calendarDays: form.calendarDays ? Number(form.calendarDays) : null,
@@ -3731,48 +3808,21 @@ function App() {
           />
         );
       case "predecessor1":
-        return (
-          <input
-            value={resolveDraftPredecessorCode(
-              draft.predecessor1,
-              wbsTree,
-              wbsDrafts,
-              draftWbsCodes,
-            )}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { predecessor1: event.target.value })
-            }
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
-            placeholder="Код"
-          />
-        );
       case "predecessor2":
-        return (
-          <input
-            value={resolveDraftPredecessorCode(
-              draft.predecessor2,
-              wbsTree,
-              wbsDrafts,
-              draftWbsCodes,
-            )}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { predecessor2: event.target.value })
-            }
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
-            placeholder="Код"
-          />
-        );
       case "predecessor3":
+      case "predecessor4":
+      case "predecessor5":
+      case "predecessor6":
         return (
           <input
             value={resolveDraftPredecessorCode(
-              draft.predecessor3,
+              draft[columnKey],
               wbsTree,
               wbsDrafts,
               draftWbsCodes,
             )}
             onChange={(event) =>
-              updateWbsDraft(item.id, { predecessor3: event.target.value })
+              updateWbsDraft(item.id, { [columnKey]: event.target.value })
             }
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
             placeholder="Код"
@@ -3811,9 +3861,9 @@ function App() {
       JSON.stringify(nextPayload) !== JSON.stringify(currentPayload);
     const predecessorsChanged =
       currentItem !== undefined &&
-      (nextPayload.predecessor1 !== currentItem.predecessor1 ||
-        nextPayload.predecessor2 !== currentItem.predecessor2 ||
-        nextPayload.predecessor3 !== currentItem.predecessor3 ||
+      (WBS_PREDECESSOR_KEYS.some(
+        (key) => nextPayload[key] !== currentItem[key],
+      ) ||
         nextPayload.leadLagDays !== currentItem.leadLagDays);
     if (
       currentItem &&
@@ -3838,7 +3888,17 @@ function App() {
             "Не удалось сохранить элемент Структуры",
         );
       }
-      await saveWbsPredecessors(itemId, { remember: !predecessorsChanged });
+      const predecessorResult = await saveWbsPredecessors(itemId, {
+        remember: !predecessorsChanged,
+      });
+      if (predecessorResult?.wbsItems) {
+        applyWbsSnapshotResult(
+          predecessorResult.wbsItems,
+          predecessorResult.wbsDependencies,
+        );
+        if (!options.silent) setNotice("Элемент Структуры обновлен");
+        return;
+      }
       const renumberResponse = await fetch(
         `${apiBase}/api/projects/${project.id}/wbs-items/renumber`,
         { method: "POST" },
@@ -4009,9 +4069,9 @@ function App() {
     itemId: string,
     options: { remember?: boolean } = {},
   ) {
-    if (!project) return;
+    if (!project) return null;
     const draft = wbsDrafts[itemId];
-    if (!draft) return;
+    if (!draft) return null;
     const wbsByCode = new Map<string, WbsItem>();
     for (const item of project.wbsItems) {
       wbsByCode.set(item.code, item);
@@ -4020,26 +4080,14 @@ function App() {
         wbsByCode.set(draftCode, item);
       }
     }
-    const desiredPredecessors = [
+    const desiredPredecessors = WBS_PREDECESSOR_KEYS.map((key) =>
       resolveDraftPredecessorCode(
-        draft.predecessor1,
+        draft[key],
         wbsTree,
         wbsDrafts,
         draftWbsCodes,
       ),
-      resolveDraftPredecessorCode(
-        draft.predecessor2,
-        wbsTree,
-        wbsDrafts,
-        draftWbsCodes,
-      ),
-      resolveDraftPredecessorCode(
-        draft.predecessor3,
-        wbsTree,
-        wbsDrafts,
-        draftWbsCodes,
-      ),
-    ]
+    )
       .map((code) => code.trim())
       .filter(Boolean)
       .map((code) => {
@@ -4080,6 +4128,8 @@ function App() {
     if (dependenciesChanged && options.remember !== false) {
       rememberWbsSnapshot();
     }
+    let latestSnapshot: { wbsItems?: WbsItem[]; wbsDependencies?: WbsDependency[] } | null =
+      null;
     for (const dependency of existingDependencies) {
       const shouldKeep = desiredPredecessors.some(
         (draft) =>
@@ -4091,10 +4141,11 @@ function App() {
           `${apiBase}/api/wbs-dependencies/${dependency.id}`,
           { method: "DELETE" },
         );
+        const result = await response.json().catch(() => null);
         if (!response.ok) {
-          const result = await response.json();
           throw new Error(result.error ?? "Не удалось удалить связь Структуры");
         }
+        latestSnapshot = result;
       }
     }
 
@@ -4120,6 +4171,128 @@ function App() {
             "Не удалось сохранить связь Структуры",
         );
       }
+      latestSnapshot = result;
+    }
+    return latestSnapshot;
+  }
+
+  function ganttEndpointToDependencyType(
+    fromSide: GanttLinkEndpoint["side"],
+    toSide: GanttLinkEndpoint["side"],
+  ): WbsDependencyType {
+    if (fromSide === "start" && toSide === "start") return "SS";
+    if (fromSide === "start" && toSide === "end") return "SF";
+    if (fromSide === "end" && toSide === "end") return "FF";
+    return "FS";
+  }
+
+  function pointerToGanttPosition(event: PointerEvent | ReactPointerEvent) {
+    const timeline = ganttTimelineRef.current;
+    if (!timeline) return null;
+    const rect = timeline.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / Math.max(1, rect.width)) * 100,
+      y: event.clientY - rect.top,
+    };
+  }
+
+  function startGanttLinkDrag(
+    endpoint: GanttLinkEndpoint,
+    event: ReactPointerEvent<Element>,
+    replaceDependencyId?: string,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    const position = pointerToGanttPosition(event);
+    if (!position) return;
+    setActiveWbsItemId(endpoint.itemId);
+    setGanttLinkDraft({
+      ...endpoint,
+      pointerX: Math.max(0, Math.min(100, position.x)),
+      pointerY: position.y,
+      replaceDependencyId,
+    });
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const nextPosition = pointerToGanttPosition(moveEvent);
+      if (!nextPosition) return;
+      setGanttLinkDraft((current) =>
+        current
+          ? {
+              ...current,
+              pointerX: Math.max(0, Math.min(100, nextPosition.x)),
+              pointerY: nextPosition.y,
+            }
+          : current,
+      );
+    };
+    const onPointerUp = () => {
+      setGanttLinkDraft(null);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+
+  async function completeGanttLinkDrag(
+    endpoint: GanttLinkEndpoint,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!project || !ganttLinkDraft || ganttLinkDraft.itemId === endpoint.itemId) {
+      setGanttLinkDraft(null);
+      return;
+    }
+    const predecessorId = ganttLinkDraft.itemId;
+    const successorId = endpoint.itemId;
+    const type = ganttEndpointToDependencyType(ganttLinkDraft.side, endpoint.side);
+    rememberWbsSnapshot();
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        ganttLinkDraft.replaceDependencyId
+          ? `${apiBase}/api/wbs-dependencies/${ganttLinkDraft.replaceDependencyId}`
+          : `${apiBase}/api/projects/${project.id}/wbs-dependencies`,
+        {
+          method: ganttLinkDraft.replaceDependencyId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            predecessorId,
+            successorId,
+            type,
+            lagDays: 0,
+          }),
+        },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          result?.error?.formErrors?.join(", ") ||
+            result?.error ||
+            "Не удалось создать связь на Гантте",
+        );
+      }
+      if (result?.wbsItems) {
+        applyWbsSnapshotResult(result.wbsItems, result.wbsDependencies);
+      } else {
+        await refreshProject(project.id);
+      }
+      setNotice(
+        ganttLinkDraft.replaceDependencyId
+          ? "Связь на Гантте изменена"
+          : "Связь на Гантте создана",
+      );
+    } catch (linkError) {
+      setError(
+        linkError instanceof Error
+          ? linkError.message
+          : "Не удалось создать связь на Гантте",
+      );
+    } finally {
+      setGanttLinkDraft(null);
     }
   }
 
@@ -6147,6 +6320,7 @@ function App() {
                           />
                           <div
                             className="gantt-timeline"
+                            ref={ganttTimelineRef}
                             style={{ minHeight: `${wbsGantt.height}px` }}
                           >
                             <div className="gantt-month-grid" aria-hidden="true">
@@ -6169,7 +6343,7 @@ function App() {
                             )}
                             {showGanttDependencies && (
                               <svg
-                                className="gantt-links"
+                                className={`gantt-links ${ganttLinkDraft ? "drawing" : ""}`}
                                 viewBox={`0 0 100 ${wbsGantt.height}`}
                                 preserveAspectRatio="none"
                                 aria-hidden="true"
@@ -6228,11 +6402,45 @@ function App() {
                                           ? "active"
                                           : ""
                                       }
+                                      onPointerDown={(event) =>
+                                        startGanttLinkDrag(
+                                          {
+                                            itemId: line.predecessorId,
+                                            side: line.fromSide,
+                                          },
+                                          event,
+                                          line.id,
+                                        )
+                                      }
                                       d={`M ${startX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${endX} ${line.toY}`}
                                       key={line.id}
+                                      data-dependency-type={line.type}
                                     />
                                   );
                                 })}
+                                {ganttLinkDraft &&
+                                  (() => {
+                                    const source = wbsGantt.items.find(
+                                      (entry) => entry.item.id === ganttLinkDraft.itemId,
+                                    );
+                                    if (!source) return null;
+                                    const sourceX =
+                                      ganttLinkDraft.side === "start"
+                                        ? source.offset
+                                        : source.offset + (source.milestone ? 0 : source.width);
+                                    const sourceY =
+                                      wbsGantt.items.findIndex(
+                                        (entry) => entry.item.id === source.item.id,
+                                      ) *
+                                        GANTT_ROW_HEIGHT +
+                                      GANTT_ROW_HEIGHT / 2;
+                                    return (
+                                      <path
+                                        className="draft"
+                                        d={`M ${sourceX} ${sourceY} L ${ganttLinkDraft.pointerX} ${ganttLinkDraft.pointerY}`}
+                                      />
+                                    );
+                                  })()}
                               </svg>
                             )}
                             {wbsGantt.items.map(
@@ -6259,6 +6467,8 @@ function App() {
                                     activeGanttLinkIds.successors.has(item.id)
                                       ? "successor"
                                       : ""
+                                  } ${
+                                    ganttLinkDraft ? "linking" : ""
                                   }`}
                                   key={item.id}
                                   style={{ height: `${GANTT_ROW_HEIGHT}px` }}
@@ -6293,7 +6503,44 @@ function App() {
                                       width: milestone ? undefined : `${width}%`,
                                     }}
                                     title={`${item.code} ${item.title}: ${date(item.startDate)} - ${date(item.dueDate)}`}
-                                  />
+                                  >
+                                    <button
+                                      type="button"
+                                      className="gantt-link-handle start"
+                                      onPointerDown={(event) =>
+                                        startGanttLinkDrag(
+                                          { itemId: item.id, side: "start" },
+                                          event,
+                                        )
+                                      }
+                                      onPointerUp={(event) =>
+                                        void completeGanttLinkDrag(
+                                          { itemId: item.id, side: "start" },
+                                          event,
+                                        )
+                                      }
+                                      aria-label={`Начало связи ${item.code}`}
+                                      title="Начало связи"
+                                    />
+                                    <button
+                                      type="button"
+                                      className="gantt-link-handle end"
+                                      onPointerDown={(event) =>
+                                        startGanttLinkDrag(
+                                          { itemId: item.id, side: "end" },
+                                          event,
+                                        )
+                                      }
+                                      onPointerUp={(event) =>
+                                        void completeGanttLinkDrag(
+                                          { itemId: item.id, side: "end" },
+                                          event,
+                                        )
+                                      }
+                                      aria-label={`Конец связи ${item.code}`}
+                                      title="Конец связи"
+                                    />
+                                  </i>
                                 </div>
                               ),
                             )}
@@ -6326,6 +6573,21 @@ function App() {
                     </div>
                   </div>
                   <div className="calendar-page">
+                    <div className="calendar-controls">
+                      <span>Год</span>
+                      <div className="segmented-control" aria-label="Год календарей">
+                        {projectCalendarYears.map((year) => (
+                          <button
+                            type="button"
+                            key={year}
+                            className={calendarYear === year ? "active" : ""}
+                            onClick={() => setSelectedCalendarYear(year)}
+                          >
+                            {year}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     {(["RU", "CN"] as ProjectCalendarCode[]).map(
                       (calendarCode) => (
                         <section className="calendar-board" key={calendarCode}>

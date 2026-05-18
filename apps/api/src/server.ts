@@ -19,10 +19,12 @@ import {
   levelFromWbsCode,
   levelFromWbsItem,
   renumberProjectWbs,
+  syncWbsPredecessorFields,
   wbsItemSnapshotData,
 } from './services/wbs.js';
 import { recordWbsCommand } from './services/wbs-audit.js';
 import { createWbsBaselineFromCurrentPlan } from './services/wbs-baseline.js';
+import { recalculateProjectWbsSchedule } from './services/wbs-schedule.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -172,6 +174,7 @@ async function createDefaultProjectStructure(projectId: string, projectStartDate
   }
 
   await renumberProjectWbs(projectId);
+  await recalculateProjectWbsSchedule(projectId);
 }
 
 function sanitizeProjectUiState(value: unknown) {
@@ -370,6 +373,8 @@ app.put('/api/projects/:projectId/calendar-overrides', async (req, res) => {
     },
   });
 
+  await recalculateProjectWbsSchedule(project.id);
+
   res.json(override);
 });
 
@@ -394,6 +399,8 @@ app.delete('/api/projects/:projectId/calendar-overrides', async (req, res) => {
       date,
     },
   });
+
+  await recalculateProjectWbsSchedule(req.params.projectId);
 
   res.status(204).send();
 });
@@ -974,6 +981,7 @@ app.post('/api/projects/:projectId/wbs-items/insert-after', async (req, res) => 
     });
 
     await renumberProjectWbs(project.id);
+    await recalculateProjectWbsSchedule(project.id);
     const snapshot = await getProjectWbsSnapshot(project.id);
     await recordWbsCommand({
       projectId: project.id,
@@ -1086,6 +1094,7 @@ app.post('/api/projects/:projectId/wbs-snapshot/restore', async (req, res) => {
   });
 
   await renumberProjectWbs(project.id);
+  await recalculateProjectWbsSchedule(project.id);
   const snapshot = await getProjectWbsSnapshot(project.id);
   await recordWbsCommand({
     projectId: project.id,
@@ -1152,6 +1161,9 @@ app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
       predecessor1: parsed.data.predecessor1 || null,
       predecessor2: parsed.data.predecessor2 || null,
       predecessor3: parsed.data.predecessor3 || null,
+      predecessor4: parsed.data.predecessor4 || null,
+      predecessor5: parsed.data.predecessor5 || null,
+      predecessor6: parsed.data.predecessor6 || null,
       leadLagDays: parsed.data.leadLagDays,
       workDays: parsed.data.workDays ?? null,
       calendarDays: parsed.data.calendarDays ?? null,
@@ -1185,7 +1197,9 @@ app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
     payload: { itemId: item.id, item },
   });
 
-  res.status(201).json(item);
+  await recalculateProjectWbsSchedule(validation.project.id);
+  const snapshot = await getProjectWbsSnapshot(validation.project.id);
+  res.status(201).json({ item, ...snapshot });
 });
 
 app.patch('/api/wbs-items/:itemId', async (req, res) => {
@@ -1267,6 +1281,9 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
       predecessor1: parsed.data.predecessor1 === undefined ? undefined : parsed.data.predecessor1 || null,
       predecessor2: parsed.data.predecessor2 === undefined ? undefined : parsed.data.predecessor2 || null,
       predecessor3: parsed.data.predecessor3 === undefined ? undefined : parsed.data.predecessor3 || null,
+      predecessor4: parsed.data.predecessor4 === undefined ? undefined : parsed.data.predecessor4 || null,
+      predecessor5: parsed.data.predecessor5 === undefined ? undefined : parsed.data.predecessor5 || null,
+      predecessor6: parsed.data.predecessor6 === undefined ? undefined : parsed.data.predecessor6 || null,
       leadLagDays: parsed.data.leadLagDays,
       workDays: parsed.data.workDays === undefined ? undefined : parsed.data.workDays ?? null,
       calendarDays: parsed.data.calendarDays === undefined ? undefined : parsed.data.calendarDays ?? null,
@@ -1305,7 +1322,9 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
     afterSnapshot: updated,
   });
 
-  res.json(updated);
+  await recalculateProjectWbsSchedule(existing.projectId);
+  const snapshot = await getProjectWbsSnapshot(existing.projectId);
+  res.json({ item: updated, ...snapshot });
 });
 
 app.post('/api/projects/:projectId/wbs-items/renumber', async (req, res) => {
@@ -1319,6 +1338,7 @@ app.post('/api/projects/:projectId/wbs-items/renumber', async (req, res) => {
   }
 
   const updatedCount = await renumberProjectWbs(project.id);
+  await recalculateProjectWbsSchedule(project.id);
   const snapshot = await getProjectWbsSnapshot(project.id);
   await recordWbsCommand({
     projectId: project.id,
@@ -1395,6 +1415,7 @@ app.post('/api/projects/:projectId/wbs-items/reorder', async (req, res) => {
   );
 
   await renumberProjectWbs(project.id);
+  await recalculateProjectWbsSchedule(project.id);
   const snapshot = await getProjectWbsSnapshot(project.id);
   await recordWbsCommand({
     projectId: project.id,
@@ -1462,6 +1483,7 @@ app.delete('/api/wbs-items/:itemId', async (req, res) => {
   });
 
   await renumberProjectWbs(existing.projectId);
+  await recalculateProjectWbsSchedule(existing.projectId);
   const snapshot = await getProjectWbsSnapshot(existing.projectId);
   await recordWbsCommand({
     projectId: existing.projectId,
@@ -1481,9 +1503,17 @@ const wbsDependencySchema = z.object({
   lagDays: z.coerce.number().int().default(0),
 });
 
-async function wouldCreateDependencyCycle(projectId: string, predecessorId: string, successorId: string) {
+async function wouldCreateDependencyCycle(
+  projectId: string,
+  predecessorId: string,
+  successorId: string,
+  ignoredDependencyId?: string,
+) {
   const dependencies = await prisma.wbsDependency.findMany({
-    where: { projectId },
+    where: {
+      projectId,
+      ...(ignoredDependencyId ? { id: { not: ignoredDependencyId } } : {}),
+    },
     select: { predecessorId: true, successorId: true },
   });
   const graph = new Map<string, string[]>();
@@ -1504,6 +1534,25 @@ async function wouldCreateDependencyCycle(projectId: string, predecessorId: stri
     stack.push(...(graph.get(current) ?? []));
   }
   return false;
+}
+
+async function dependencyLimitExceeded(
+  projectId: string,
+  successorId: string,
+  predecessorId: string,
+  ignoredDependencyId?: string,
+) {
+  const dependencies = await prisma.wbsDependency.findMany({
+    where: {
+      projectId,
+      successorId,
+      ...(ignoredDependencyId ? { id: { not: ignoredDependencyId } } : {}),
+    },
+    select: { predecessorId: true },
+  });
+  const uniquePredecessors = new Set(dependencies.map((dependency) => dependency.predecessorId));
+  uniquePredecessors.add(predecessorId);
+  return uniquePredecessors.size > 6;
 }
 
 app.post('/api/projects/:projectId/wbs-dependencies', async (req, res) => {
@@ -1529,39 +1578,151 @@ app.post('/api/projects/:projectId/wbs-dependencies', async (req, res) => {
     return;
   }
 
+  if (await dependencyLimitExceeded(req.params.projectId, parsed.data.successorId, parsed.data.predecessorId)) {
+    res.status(400).json({ error: 'У элемента Структуры может быть не больше шести предшественников' });
+    return;
+  }
+
   if (await wouldCreateDependencyCycle(req.params.projectId, parsed.data.predecessorId, parsed.data.successorId)) {
     res.status(400).json({ error: 'Связь создаст цикл' });
     return;
   }
 
-  const dependency = await prisma.wbsDependency.upsert({
-    where: {
-      projectId_predecessorId_successorId_type: {
+  await prisma.$transaction(async (tx) => {
+    await tx.wbsDependency.deleteMany({
+      where: {
         projectId: req.params.projectId,
         predecessorId: parsed.data.predecessorId,
         successorId: parsed.data.successorId,
-        type: parsed.data.type,
+        type: { not: parsed.data.type },
       },
-    },
-    create: {
-      projectId: req.params.projectId,
-      ...parsed.data,
-    },
-    update: {
-      lagDays: parsed.data.lagDays,
-    },
-    include: {
-      predecessor: { select: { id: true, code: true, title: true } },
-      successor: { select: { id: true, code: true, title: true } },
-    },
+    });
+    await tx.wbsDependency.upsert({
+      where: {
+        projectId_predecessorId_successorId_type: {
+          projectId: req.params.projectId,
+          predecessorId: parsed.data.predecessorId,
+          successorId: parsed.data.successorId,
+          type: parsed.data.type,
+        },
+      },
+      create: {
+        projectId: req.params.projectId,
+        ...parsed.data,
+      },
+      update: {
+        lagDays: parsed.data.lagDays,
+      },
+    });
   });
+  await syncWbsPredecessorFields(req.params.projectId);
+  await recalculateProjectWbsSchedule(req.params.projectId);
+  const snapshot = await getProjectWbsSnapshot(req.params.projectId);
   await recordWbsCommand({
     projectId: req.params.projectId,
     type: 'UPDATE',
-    payload: { action: 'upsert-dependency', dependency },
+    payload: { action: 'upsert-dependency', dependency: parsed.data },
+    afterSnapshot: snapshot,
   });
 
-  res.status(201).json(dependency);
+  res.status(201).json(snapshot);
+});
+
+app.patch('/api/wbs-dependencies/:dependencyId', async (req, res) => {
+  const parsed = wbsDependencySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const dependency = await prisma.wbsDependency.findUnique({
+    where: { id: req.params.dependencyId },
+  });
+  if (!dependency) {
+    res.status(404).json({ error: 'Связь Структуры не найдена' });
+    return;
+  }
+  if (parsed.data.predecessorId === parsed.data.successorId) {
+    res.status(400).json({ error: 'Связь не может ссылаться на тот же элемент' });
+    return;
+  }
+
+  const items = await prisma.wbsItem.findMany({
+    where: {
+      projectId: dependency.projectId,
+      id: { in: [parsed.data.predecessorId, parsed.data.successorId] },
+    },
+  });
+  if (items.length !== 2) {
+    res.status(400).json({ error: 'Оба элемента Структуры должны относиться к проекту' });
+    return;
+  }
+  if (
+    await dependencyLimitExceeded(
+      dependency.projectId,
+      parsed.data.successorId,
+      parsed.data.predecessorId,
+      dependency.id,
+    )
+  ) {
+    res.status(400).json({ error: 'У элемента Структуры может быть не больше шести предшественников' });
+    return;
+  }
+  if (
+    await wouldCreateDependencyCycle(
+      dependency.projectId,
+      parsed.data.predecessorId,
+      parsed.data.successorId,
+      dependency.id,
+    )
+  ) {
+    res.status(400).json({ error: 'Связь создаст цикл' });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.wbsDependency.delete({ where: { id: dependency.id } });
+    await tx.wbsDependency.deleteMany({
+      where: {
+        projectId: dependency.projectId,
+        predecessorId: parsed.data.predecessorId,
+        successorId: parsed.data.successorId,
+        type: { not: parsed.data.type },
+      },
+    });
+    await tx.wbsDependency.upsert({
+      where: {
+        projectId_predecessorId_successorId_type: {
+          projectId: dependency.projectId,
+          predecessorId: parsed.data.predecessorId,
+          successorId: parsed.data.successorId,
+          type: parsed.data.type,
+        },
+      },
+      create: {
+        projectId: dependency.projectId,
+        predecessorId: parsed.data.predecessorId,
+        successorId: parsed.data.successorId,
+        type: parsed.data.type,
+        lagDays: parsed.data.lagDays,
+      },
+      update: {
+        lagDays: parsed.data.lagDays,
+      },
+    });
+  });
+  await syncWbsPredecessorFields(dependency.projectId);
+  await recalculateProjectWbsSchedule(dependency.projectId);
+  const snapshot = await getProjectWbsSnapshot(dependency.projectId);
+  await recordWbsCommand({
+    projectId: dependency.projectId,
+    type: 'UPDATE',
+    payload: { action: 'move-dependency', dependencyId: dependency.id, dependency: parsed.data },
+    beforeSnapshot: dependency,
+    afterSnapshot: snapshot,
+  });
+
+  res.json(snapshot);
 });
 
 app.delete('/api/wbs-dependencies/:dependencyId', async (req, res) => {
@@ -1575,13 +1736,17 @@ app.delete('/api/wbs-dependencies/:dependencyId', async (req, res) => {
   }
 
   await prisma.wbsDependency.delete({ where: { id: dependency.id } });
+  await syncWbsPredecessorFields(dependency.projectId);
+  await recalculateProjectWbsSchedule(dependency.projectId);
+  const snapshot = await getProjectWbsSnapshot(dependency.projectId);
   await recordWbsCommand({
     projectId: dependency.projectId,
     type: 'UPDATE',
     payload: { action: 'delete-dependency', dependencyId: dependency.id },
     beforeSnapshot: dependency,
+    afterSnapshot: snapshot,
   });
-  res.status(204).send();
+  res.json(snapshot);
 });
 
 app.get('/api/projects/:projectId/open-issues', async (req, res) => {
