@@ -963,6 +963,10 @@ function daysBetween(start: Date, end: Date) {
   );
 }
 
+function signedDaysBetween(start: Date, end: Date) {
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
+}
+
 function signedDaysUntil(value: string | null) {
   if (!value) return null;
   const target = startOfDay(new Date(value));
@@ -1940,6 +1944,23 @@ function App() {
     const start = startOfMonth(rawStart);
     const end = addMonths(startOfMonth(rawEnd), 1);
     const totalDays = Math.max(1, daysBetween(start, end));
+    const periodPosition = (periodStart: Date, periodEnd: Date) => {
+      const clippedStart = periodStart < start ? start : periodStart;
+      const clippedEnd = periodEnd > end ? end : periodEnd;
+      return {
+        offset: Math.max(
+          0,
+          Math.min(100, (signedDaysBetween(start, clippedStart) / totalDays) * 100),
+        ),
+        width: Math.max(
+          0,
+          Math.min(
+            100,
+            (signedDaysBetween(clippedStart, clippedEnd) / totalDays) * 100,
+          ),
+        ),
+      };
+    };
     const months = [];
     for (
       let cursor = startOfMonth(start);
@@ -1947,10 +1968,11 @@ function App() {
       cursor = addMonths(cursor, 1)
     ) {
       const monthEnd = addMonths(cursor, 1);
+      const position = periodPosition(cursor, monthEnd);
       months.push({
         label: monthLabel(cursor),
-        offset: (daysBetween(start, cursor) / totalDays) * 100,
-        width: (daysBetween(cursor, monthEnd) / totalDays) * 100,
+        offset: position.offset,
+        width: position.width,
       });
     }
     const quarters = [];
@@ -1964,10 +1986,11 @@ function App() {
       cursor = addMonths(cursor, 3)
     ) {
       const quarterEnd = addMonths(cursor, 3);
+      const position = periodPosition(cursor, quarterEnd);
       quarters.push({
         label: `${Math.floor(cursor.getMonth() / 3) + 1} кв. ${cursor.getFullYear()}`,
-        offset: (daysBetween(start, cursor) / totalDays) * 100,
-        width: (daysBetween(cursor, quarterEnd) / totalDays) * 100,
+        offset: position.offset,
+        width: position.width,
       });
     }
     const weeks = [];
