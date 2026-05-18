@@ -1882,6 +1882,7 @@ code {
   height: var(--gantt-panel-height, 456px);
   margin-bottom: 18px;
   max-width: 100%;
+  min-width: 0;
   overflow: auto;
   position: relative;
   width: var(--gantt-panel-width, 100%);

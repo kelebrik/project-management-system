@@ -552,6 +552,7 @@ const GANTT_SCALE_WIDTH: Record<GanttScale, number> = {
   quarter: 72,
 };
 const GANTT_HIERARCHY_LEVELS = [1, 2, 3, 4, 5] as const;
+const GANTT_PANEL_WIDTH_MIN = 760;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -788,6 +789,21 @@ const GANTT_ROW_HEIGHT = 36;
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function ganttPanelWidthBounds(panel: Element | null) {
+  const parentWidth = panel?.parentElement?.getBoundingClientRect().width;
+  const viewportWidth =
+    typeof window === "undefined" ? undefined : window.innerWidth - 36;
+  const availableWidth = Math.max(
+    320,
+    Math.floor(parentWidth ?? viewportWidth ?? 1200),
+  );
+
+  return {
+    max: availableWidth,
+    min: Math.min(GANTT_PANEL_WIDTH_MIN, availableWidth),
+  };
 }
 
 function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
@@ -2398,11 +2414,7 @@ function App() {
         ),
       );
       setGanttPanelWidth(
-        clampNumber(
-          nextProject.uiState?.ganttPanelWidth ?? GANTT_PANEL_WIDTH_DEFAULT,
-          0,
-          2400,
-        ),
+        nextProject.uiState?.ganttPanelWidth ?? GANTT_PANEL_WIDTH_DEFAULT,
       );
       setPassportRows(normalizePassportRows(nextProject));
       setSelectedCalendarYear((currentYear) => {
@@ -3595,19 +3607,25 @@ function App() {
     event.stopPropagation();
     const startX = event.clientX;
     const startY = event.clientY;
+    const panel = event.currentTarget.closest(".gantt-panel");
+    const bounds = ganttPanelWidthBounds(panel);
     const currentPanelWidth =
-      event.currentTarget.closest(".gantt-panel")?.getBoundingClientRect()
-        .width ?? ganttPanelWidth;
-    const startWidth = ganttPanelWidth > 0 ? ganttPanelWidth : currentPanelWidth;
+      panel?.getBoundingClientRect().width ?? ganttPanelWidth;
+    const startWidth = clampNumber(
+      currentPanelWidth,
+      bounds.min,
+      bounds.max,
+    );
     const startHeight = ganttPanelHeight;
-    let latestWidth = startWidth;
+    let latestWidth =
+      axis === "height" ? ganttPanelWidth : startWidth;
     let latestHeight = startHeight;
     const onPointerMove = (moveEvent: PointerEvent) => {
       if (axis === "width" || axis === "both") {
         latestWidth = clampNumber(
           startWidth + moveEvent.clientX - startX,
-          760,
-          2400,
+          bounds.min,
+          bounds.max,
         );
         setGanttPanelWidth(latestWidth);
       }
@@ -3623,19 +3641,41 @@ function App() {
     const onPointerUp = async () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      const patch: ProjectUiState = {
+        ganttPanelHeight: latestHeight,
+      };
+      const options: {
+        ganttPanelHeight?: number;
+        ganttPanelWidth?: number;
+      } = {
+        ganttPanelHeight: latestHeight,
+      };
+      if (axis === "width" || axis === "both") {
+        patch.ganttPanelWidth = latestWidth;
+        options.ganttPanelWidth = latestWidth;
+      }
       await saveProjectUiState(
-        {
-          ganttPanelHeight: latestHeight,
-          ganttPanelWidth: latestWidth,
-        },
-        {
-          ganttPanelHeight: latestHeight,
-          ganttPanelWidth: latestWidth,
-        },
+        patch,
+        options,
       );
     };
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
+  }
+
+  async function resetGanttPanelSize() {
+    setGanttPanelHeight(GANTT_PANEL_HEIGHT_DEFAULT);
+    setGanttPanelWidth(GANTT_PANEL_WIDTH_DEFAULT);
+    await saveProjectUiState(
+      {
+        ganttPanelHeight: GANTT_PANEL_HEIGHT_DEFAULT,
+        ganttPanelWidth: GANTT_PANEL_WIDTH_DEFAULT,
+      },
+      {
+        ganttPanelHeight: GANTT_PANEL_HEIGHT_DEFAULT,
+        ganttPanelWidth: GANTT_PANEL_WIDTH_DEFAULT,
+      },
+    );
   }
 
   function startWbsColumnResize(
@@ -6472,8 +6512,14 @@ function App() {
 	                                setShowGanttForecast((current) => !current)
 	                              }
 	                            >
-	                                Прогноз
-	                              </button>
+	                              Прогноз
+	                            </button>
+	                            <button
+	                              type="button"
+	                              onClick={() => void resetGanttPanelSize()}
+	                            >
+	                              Сбросить размер
+	                            </button>
 	                            <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Гантта">
 	                              {GANTT_HIERARCHY_LEVELS.map((level) => (
 	                                <button
@@ -6504,7 +6550,7 @@ function App() {
 	                              "--gantt-panel-height": `${ganttPanelHeight}px`,
 	                              "--gantt-panel-width":
 	                                ganttPanelWidth > 0
-	                                  ? `${ganttPanelWidth}px`
+	                                  ? `min(${ganttPanelWidth}px, 100%)`
 	                                  : "100%",
 	                              "--gantt-wbs-width": `${ganttWbsWidth}px`,
 	                              "--gantt-timeline-width": `${Math.max(
