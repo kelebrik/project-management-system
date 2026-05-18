@@ -4577,9 +4577,7 @@ function App() {
       const result = await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(
-          result?.error?.formErrors?.join(", ") ||
-            result?.error ||
-            "Не удалось создать связь на Гантте",
+          responseErrorMessage(result, "Не удалось создать связь на Гантте"),
         );
       }
       if (result?.wbsItems) {

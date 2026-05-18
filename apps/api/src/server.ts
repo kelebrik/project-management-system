@@ -30,6 +30,13 @@ const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 
+function serverErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return `${fallback}: ${error.code}`;
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 function isValidUrl(value: string) {
   try {
     new URL(value);
@@ -1562,70 +1569,77 @@ app.post('/api/projects/:projectId/wbs-dependencies', async (req, res) => {
     return;
   }
 
-  if (parsed.data.predecessorId === parsed.data.successorId) {
-    res.status(400).json({ error: 'Связь не может ссылаться на тот же элемент' });
-    return;
-  }
+  try {
+    if (parsed.data.predecessorId === parsed.data.successorId) {
+      res.status(400).json({ error: 'Связь не может ссылаться на тот же элемент' });
+      return;
+    }
 
-  const items = await prisma.wbsItem.findMany({
-    where: {
-      projectId: req.params.projectId,
-      id: { in: [parsed.data.predecessorId, parsed.data.successorId] },
-    },
-  });
-  if (items.length !== 2) {
-    res.status(400).json({ error: 'Оба элемента Структуры должны относиться к проекту' });
-    return;
-  }
-
-  if (await dependencyLimitExceeded(req.params.projectId, parsed.data.successorId, parsed.data.predecessorId)) {
-    res.status(400).json({ error: 'У элемента Структуры может быть не больше шести предшественников' });
-    return;
-  }
-
-  if (await wouldCreateDependencyCycle(req.params.projectId, parsed.data.predecessorId, parsed.data.successorId)) {
-    res.status(400).json({ error: 'Связь создаст цикл' });
-    return;
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.wbsDependency.deleteMany({
+    const items = await prisma.wbsItem.findMany({
       where: {
         projectId: req.params.projectId,
-        predecessorId: parsed.data.predecessorId,
-        successorId: parsed.data.successorId,
-        type: { not: parsed.data.type },
+        id: { in: [parsed.data.predecessorId, parsed.data.successorId] },
       },
     });
-    await tx.wbsDependency.upsert({
-      where: {
-        projectId_predecessorId_successorId_type: {
+    if (items.length !== 2) {
+      res.status(400).json({ error: 'Оба элемента Структуры должны относиться к проекту' });
+      return;
+    }
+
+    if (await dependencyLimitExceeded(req.params.projectId, parsed.data.successorId, parsed.data.predecessorId)) {
+      res.status(400).json({ error: 'У элемента Структуры может быть не больше шести предшественников' });
+      return;
+    }
+
+    if (await wouldCreateDependencyCycle(req.params.projectId, parsed.data.predecessorId, parsed.data.successorId)) {
+      res.status(400).json({ error: 'Связь создаст цикл' });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.wbsDependency.deleteMany({
+        where: {
           projectId: req.params.projectId,
           predecessorId: parsed.data.predecessorId,
           successorId: parsed.data.successorId,
-          type: parsed.data.type,
+          type: { not: parsed.data.type },
         },
-      },
-      create: {
-        projectId: req.params.projectId,
-        ...parsed.data,
-      },
-      update: {
-        lagDays: parsed.data.lagDays,
-      },
+      });
+      await tx.wbsDependency.upsert({
+        where: {
+          projectId_predecessorId_successorId_type: {
+            projectId: req.params.projectId,
+            predecessorId: parsed.data.predecessorId,
+            successorId: parsed.data.successorId,
+            type: parsed.data.type,
+          },
+        },
+        create: {
+          projectId: req.params.projectId,
+          ...parsed.data,
+        },
+        update: {
+          lagDays: parsed.data.lagDays,
+        },
+      });
     });
-  });
-  await syncWbsPredecessorFields(req.params.projectId);
-  await recalculateProjectWbsSchedule(req.params.projectId);
-  const snapshot = await getProjectWbsSnapshot(req.params.projectId);
-  await recordWbsCommand({
-    projectId: req.params.projectId,
-    type: 'UPDATE',
-    payload: { action: 'upsert-dependency', dependency: parsed.data },
-    afterSnapshot: snapshot,
-  });
+    await syncWbsPredecessorFields(req.params.projectId);
+    await recalculateProjectWbsSchedule(req.params.projectId);
+    const snapshot = await getProjectWbsSnapshot(req.params.projectId);
+    await recordWbsCommand({
+      projectId: req.params.projectId,
+      type: 'UPDATE',
+      payload: { action: 'upsert-dependency', dependency: parsed.data },
+      afterSnapshot: snapshot,
+    });
 
-  res.status(201).json(snapshot);
+    res.status(201).json(snapshot);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: serverErrorMessage(error, 'Не удалось создать связь Структуры'),
+    });
+  }
 });
 
 app.patch('/api/wbs-dependencies/:dependencyId', async (req, res) => {
@@ -1635,94 +1649,101 @@ app.patch('/api/wbs-dependencies/:dependencyId', async (req, res) => {
     return;
   }
 
-  const dependency = await prisma.wbsDependency.findUnique({
-    where: { id: req.params.dependencyId },
-  });
-  if (!dependency) {
-    res.status(404).json({ error: 'Связь Структуры не найдена' });
-    return;
-  }
-  if (parsed.data.predecessorId === parsed.data.successorId) {
-    res.status(400).json({ error: 'Связь не может ссылаться на тот же элемент' });
-    return;
-  }
+  try {
+    const dependency = await prisma.wbsDependency.findUnique({
+      where: { id: req.params.dependencyId },
+    });
+    if (!dependency) {
+      res.status(404).json({ error: 'Связь Структуры не найдена' });
+      return;
+    }
+    if (parsed.data.predecessorId === parsed.data.successorId) {
+      res.status(400).json({ error: 'Связь не может ссылаться на тот же элемент' });
+      return;
+    }
 
-  const items = await prisma.wbsItem.findMany({
-    where: {
-      projectId: dependency.projectId,
-      id: { in: [parsed.data.predecessorId, parsed.data.successorId] },
-    },
-  });
-  if (items.length !== 2) {
-    res.status(400).json({ error: 'Оба элемента Структуры должны относиться к проекту' });
-    return;
-  }
-  if (
-    await dependencyLimitExceeded(
-      dependency.projectId,
-      parsed.data.successorId,
-      parsed.data.predecessorId,
-      dependency.id,
-    )
-  ) {
-    res.status(400).json({ error: 'У элемента Структуры может быть не больше шести предшественников' });
-    return;
-  }
-  if (
-    await wouldCreateDependencyCycle(
-      dependency.projectId,
-      parsed.data.predecessorId,
-      parsed.data.successorId,
-      dependency.id,
-    )
-  ) {
-    res.status(400).json({ error: 'Связь создаст цикл' });
-    return;
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.wbsDependency.delete({ where: { id: dependency.id } });
-    await tx.wbsDependency.deleteMany({
+    const items = await prisma.wbsItem.findMany({
       where: {
         projectId: dependency.projectId,
-        predecessorId: parsed.data.predecessorId,
-        successorId: parsed.data.successorId,
-        type: { not: parsed.data.type },
+        id: { in: [parsed.data.predecessorId, parsed.data.successorId] },
       },
     });
-    await tx.wbsDependency.upsert({
-      where: {
-        projectId_predecessorId_successorId_type: {
+    if (items.length !== 2) {
+      res.status(400).json({ error: 'Оба элемента Структуры должны относиться к проекту' });
+      return;
+    }
+    if (
+      await dependencyLimitExceeded(
+        dependency.projectId,
+        parsed.data.successorId,
+        parsed.data.predecessorId,
+        dependency.id,
+      )
+    ) {
+      res.status(400).json({ error: 'У элемента Структуры может быть не больше шести предшественников' });
+      return;
+    }
+    if (
+      await wouldCreateDependencyCycle(
+        dependency.projectId,
+        parsed.data.predecessorId,
+        parsed.data.successorId,
+        dependency.id,
+      )
+    ) {
+      res.status(400).json({ error: 'Связь создаст цикл' });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.wbsDependency.delete({ where: { id: dependency.id } });
+      await tx.wbsDependency.deleteMany({
+        where: {
+          projectId: dependency.projectId,
+          predecessorId: parsed.data.predecessorId,
+          successorId: parsed.data.successorId,
+          type: { not: parsed.data.type },
+        },
+      });
+      await tx.wbsDependency.upsert({
+        where: {
+          projectId_predecessorId_successorId_type: {
+            projectId: dependency.projectId,
+            predecessorId: parsed.data.predecessorId,
+            successorId: parsed.data.successorId,
+            type: parsed.data.type,
+          },
+        },
+        create: {
           projectId: dependency.projectId,
           predecessorId: parsed.data.predecessorId,
           successorId: parsed.data.successorId,
           type: parsed.data.type,
+          lagDays: parsed.data.lagDays,
         },
-      },
-      create: {
-        projectId: dependency.projectId,
-        predecessorId: parsed.data.predecessorId,
-        successorId: parsed.data.successorId,
-        type: parsed.data.type,
-        lagDays: parsed.data.lagDays,
-      },
-      update: {
-        lagDays: parsed.data.lagDays,
-      },
+        update: {
+          lagDays: parsed.data.lagDays,
+        },
+      });
     });
-  });
-  await syncWbsPredecessorFields(dependency.projectId);
-  await recalculateProjectWbsSchedule(dependency.projectId);
-  const snapshot = await getProjectWbsSnapshot(dependency.projectId);
-  await recordWbsCommand({
-    projectId: dependency.projectId,
-    type: 'UPDATE',
-    payload: { action: 'move-dependency', dependencyId: dependency.id, dependency: parsed.data },
-    beforeSnapshot: dependency,
-    afterSnapshot: snapshot,
-  });
+    await syncWbsPredecessorFields(dependency.projectId);
+    await recalculateProjectWbsSchedule(dependency.projectId);
+    const snapshot = await getProjectWbsSnapshot(dependency.projectId);
+    await recordWbsCommand({
+      projectId: dependency.projectId,
+      type: 'UPDATE',
+      payload: { action: 'move-dependency', dependencyId: dependency.id, dependency: parsed.data },
+      beforeSnapshot: dependency,
+      afterSnapshot: snapshot,
+    });
 
-  res.json(snapshot);
+    res.json(snapshot);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: serverErrorMessage(error, 'Не удалось изменить связь Структуры'),
+    });
+  }
 });
 
 app.delete('/api/wbs-dependencies/:dependencyId', async (req, res) => {
