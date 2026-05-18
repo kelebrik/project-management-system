@@ -6059,13 +6059,12 @@ function App() {
               )}
 
               {project && activeView === "project-passport" && (
-                <article className="panel project-card">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Паспорт проекта</h2>
-                      <p>Редактируемый набор полей паспорта проекта</p>
-                    </div>
-                    <button
+	                <article className="panel project-card">
+	                  <div className="panel-title">
+	                    <div>
+	                      <p>Редактируемый набор полей паспорта проекта</p>
+	                    </div>
+	                    <button
                       type="button"
                       onClick={() => addPassportRow(passportRows.length - 1)}
                     >
@@ -6137,17 +6136,12 @@ function App() {
               {project &&
                 (activeView === "project-structure" ||
                   activeView === "project-gantt") && (
-                <article className="panel project-card">
-                  <div className="panel-title">
-                    <div>
-                      <h2>
-                        {activeView === "project-structure"
-                          ? "Структура"
-                          : "Гантт"}
-                      </h2>
-                      <p>
-                        {activeView === "project-structure"
-                          ? "Иерархия работ проекта, сроки, ответственные, календарь и связи с предшественниками"
+	                <article className="panel project-card">
+	                  <div className="panel-title">
+	                    <div>
+	                      <p>
+	                        {activeView === "project-structure"
+	                          ? "Иерархия работ проекта, сроки, ответственные, календарь и связи с предшественниками"
                           : "Временная шкала проекта, связи и базовый план"}
                       </p>
                     </div>
@@ -6980,13 +6974,12 @@ function App() {
               )}
 
               {project && activeView === "project-calendars" && (
-                <article className="panel project-card">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Календари</h2>
-                      <p>
-                        RU и CN календари проекта: клик по дню меняет рабочий
-                        день на выходной или праздник и наоборот
+	                <article className="panel project-card">
+	                  <div className="panel-title">
+	                    <div>
+	                      <p>
+	                        RU и CN календари проекта: клик по дню меняет рабочий
+	                        день на выходной или праздник и наоборот
                       </p>
                     </div>
                   </div>
@@ -7166,13 +7159,12 @@ function App() {
               )}
 
               {project && activeView === "project-issues" && (
-                <article className="panel overview-panel">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Реестр открытых вопросов</h2>
-                      <p>
-                        Единый список открытых проблем из Jira и внутренних
-                        управленческих вопросов
+	                <article className="panel overview-panel">
+	                  <div className="panel-title">
+	                    <div>
+	                      <p>
+	                        Единый список открытых проблем из Jira и внутренних
+	                        управленческих вопросов
                       </p>
                     </div>
                     <button
@@ -7474,13 +7466,12 @@ function App() {
               )}
 
               {project && activeView === "project-raid" && (
-                <article className="panel overview-panel">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Риски и проблемы</h2>
-                      <p>
-                        Риски, проблемы и допущения с влиянием на сроки и обзор
-                        для руководства
+	                <article className="panel overview-panel">
+	                  <div className="panel-title">
+	                    <div>
+	                      <p>
+	                        Риски, проблемы и допущения с влиянием на сроки и обзор
+	                        для руководства
                       </p>
                     </div>
                   </div>
@@ -8059,13 +8050,12 @@ function App() {
               )}
 
               {project && activeView === "project-artifacts" && (
-                <article className="panel project-card">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Артефакты проекта</h2>
-                      <p>
-                        Рабочие управленческие артефакты, собранные из данных
-                        проекта
+	                <article className="panel project-card">
+	                  <div className="panel-title">
+	                    <div>
+	                      <p>
+	                        Рабочие управленческие артефакты, собранные из данных
+	                        проекта
                       </p>
                     </div>
                     <button
