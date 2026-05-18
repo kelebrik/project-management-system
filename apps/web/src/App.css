@@ -2035,6 +2035,23 @@ code {
   width: 9px;
 }
 
+.status-legend .tone-critical {
+  background: #111827;
+  box-shadow: inset 0 0 0 2px #dc2626;
+}
+
+.status-legend .tone-near-critical {
+  background: #fff7ed;
+  box-shadow: inset 0 0 0 2px #fb923c;
+}
+
+.gantt-warning {
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 8px 0 0;
+}
+
 .gantt-head {
   background: #f7f9fc;
   display: grid;
@@ -2134,7 +2151,7 @@ code {
 }
 
 .gantt-label.critical {
-  color: #2f3b4d;
+  color: #0f172a;
 }
 
 .gantt-label.active,
@@ -2266,12 +2283,17 @@ code {
   min-width: 16px;
 }
 
-.gantt-bar.critical {
-  box-shadow: 0 0 0 1px rgba(239, 83, 80, 0.26), 0 1px 2px rgba(32, 52, 89, 0.16);
+.gantt-bar.critical-path {
+  box-shadow:
+    0 0 0 2px rgba(220, 38, 38, 0.9),
+    0 0 0 5px rgba(220, 38, 38, 0.12),
+    0 1px 2px rgba(32, 52, 89, 0.16);
 }
 
-.gantt-bar.summary.critical {
-  box-shadow: 0 0 0 1px rgba(239, 83, 80, 0.22), 0 1px 2px rgba(32, 52, 89, 0.16);
+.gantt-bar.near-critical-path {
+  box-shadow:
+    0 0 0 2px rgba(251, 146, 60, 0.85),
+    0 1px 2px rgba(32, 52, 89, 0.16);
 }
 
 .gantt-overlay {
@@ -2408,6 +2430,17 @@ code {
 
 .gantt-links path.slot-5 {
   stroke: #ea580c;
+}
+
+.gantt-links path.critical-path {
+  opacity: 1;
+  stroke: #dc2626;
+  stroke-dasharray: none;
+  stroke-width: 2.35;
+}
+
+.gantt-links path.non-critical-path {
+  opacity: 0.28;
 }
 
 .gantt-links.drawing path:not(.draft) {

@@ -24,6 +24,7 @@ import {
 } from './services/wbs.js';
 import { recordWbsCommand } from './services/wbs-audit.js';
 import { createWbsBaselineFromCurrentPlan } from './services/wbs-baseline.js';
+import { calculateProjectCriticalPath } from './services/wbs-critical-path.js';
 import { recalculateProjectWbsSchedule } from './services/wbs-schedule.js';
 
 const app = express();
@@ -320,17 +321,20 @@ app.patch('/api/projects/:projectId', async (req, res) => {
 });
 
 app.get('/api/projects/:projectId/overview', async (req, res) => {
-  const project = await prisma.project.findUnique({
-    where: { id: req.params.projectId },
-    include: projectDetailsInclude,
-  });
+  const [project, criticalPath] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id: req.params.projectId },
+      include: projectDetailsInclude,
+    }),
+    calculateProjectCriticalPath(req.params.projectId),
+  ]);
 
   if (!project) {
     res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
-  res.json(project);
+  res.json({ ...project, criticalPath });
 });
 
 const calendarOverrideSchema = z.object({

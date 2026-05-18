@@ -110,6 +110,7 @@ type ProjectDetails = ProjectListItem & {
   milestones: Milestone[];
   wbsItems: WbsItem[];
   wbsDependencies: WbsDependency[];
+  criticalPath: WbsCriticalPath | null;
   calendarOverrides: ProjectCalendarOverride[];
   artifacts: ProjectArtifact[];
   raidItems: RaidItem[];
@@ -236,6 +237,30 @@ type WbsDependencySnapshot = Pick<
   WbsDependency,
   "predecessorId" | "successorId" | "type" | "lagDays"
 >;
+
+type WbsCriticalPathItem = {
+  itemId: string;
+  code: string;
+  title: string;
+  earlyStartDate: string;
+  earlyFinishDate: string;
+  lateStartDate: string;
+  lateFinishDate: string;
+  totalFloatWorkDays: number;
+  isCritical: boolean;
+  isNearCritical: boolean;
+};
+
+type WbsCriticalPath = {
+  projectStartDate: string | null;
+  projectFinishDate: string | null;
+  criticalItemIds: string[];
+  criticalDependencyIds: string[];
+  criticalItemCount: number;
+  nearCriticalItemCount: number;
+  warnings: string[];
+  items: WbsCriticalPathItem[];
+};
 
 type GanttLinkEndpoint = {
   itemId: string;
@@ -1490,6 +1515,7 @@ function App() {
   const [showGanttDependencies, setShowGanttDependencies] = useState(true);
   const [showGanttBaseline, setShowGanttBaseline] = useState(true);
   const [showGanttForecast, setShowGanttForecast] = useState(true);
+  const [showGanttCriticalPath, setShowGanttCriticalPath] = useState(true);
   const [ganttScale, setGanttScale] = useState<GanttScale>("month");
   const [showWbsColumnMenu, setShowWbsColumnMenu] = useState(false);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
@@ -1922,6 +1948,7 @@ function App() {
           predecessorId: string;
           successorId: string;
           type: WbsDependencyType;
+          critical: boolean;
           fromSide: "start" | "end";
           fromMilestone: boolean;
           fromX: number;
@@ -1937,6 +1964,7 @@ function App() {
         }>,
         height: 0,
         criticalIds: new Set<string>(),
+        criticalDependencyIds: new Set<string>(),
         items: [],
       };
     }
@@ -2027,55 +2055,13 @@ function App() {
         offset: (daysBetween(start, cursor) / totalDays) * 100,
       });
     }
-
-    const durationById = new Map(
-      datedItems.map(({ item, start: itemStart, end: itemEnd }) => [
-        item.id,
-        Math.max(1, daysBetween(itemStart, itemEnd) + 1),
-      ]),
+    const criticalIds = new Set(project?.criticalPath?.criticalItemIds ?? []);
+    const criticalDependencyIds = new Set(
+      project?.criticalPath?.criticalDependencyIds ?? [],
     );
-    const successorGraph = new Map<string, string[]>();
-    for (const dependency of project?.wbsDependencies ?? []) {
-      if (
-        !durationById.has(dependency.predecessorId) ||
-        !durationById.has(dependency.successorId)
-      ) {
-        continue;
-      }
-      successorGraph.set(dependency.predecessorId, [
-        ...(successorGraph.get(dependency.predecessorId) ?? []),
-        dependency.successorId,
-      ]);
-    }
-    const scoreCache = new Map<string, number>();
-    const score = (itemId: string, path = new Set<string>()): number => {
-      if (scoreCache.has(itemId)) return scoreCache.get(itemId) ?? 0;
-      if (path.has(itemId)) return 0;
-      const downstream = successorGraph.get(itemId) ?? [];
-      const value =
-        (durationById.get(itemId) ?? 1) +
-        Math.max(
-          0,
-          ...downstream.map((successorId) =>
-            score(successorId, new Set([...path, itemId])),
-          ),
-        );
-      scoreCache.set(itemId, value);
-      return value;
-    };
-    const criticalIds = new Set<string>();
-    if ((project?.wbsDependencies ?? []).length > 0) {
-      let current = datedItems
-        .map(({ item }) => item.id)
-        .sort((left, right) => score(right) - score(left))[0];
-      while (current) {
-        criticalIds.add(current);
-        const next = (successorGraph.get(current) ?? []).sort(
-          (left, right) => score(right) - score(left),
-        )[0];
-        current = next;
-      }
-    }
+    const criticalItemsById = new Map(
+      (project?.criticalPath?.items ?? []).map((item) => [item.itemId, item]),
+    );
 
     const range = (rangeStart: Date | null, rangeEnd: Date | null) => {
       if (!rangeStart || !rangeEnd) return null;
@@ -2113,11 +2099,10 @@ function App() {
           ((daysBetween(itemStart, itemEnd) + 1) / totalDays) * 100,
         ),
         milestone,
-        critical:
-          !milestone &&
-          (criticalIds.has(item.id) ||
-            item.status === "BLOCKED" ||
-            item.status === "AT_RISK"),
+        critical: criticalIds.has(item.id),
+        nearCritical: criticalItemsById.get(item.id)?.isNearCritical ?? false,
+        totalFloatWorkDays:
+          criticalItemsById.get(item.id)?.totalFloatWorkDays ?? null,
         summary,
         baselineRange: range(baselineStart, baselineEnd),
         forecastRange: range(forecastStart, forecastEnd),
@@ -2209,6 +2194,7 @@ function App() {
           predecessorId: dependency.predecessorId,
           successorId: dependency.successorId,
           type: dependency.type,
+          critical: criticalDependencyIds.has(dependency.id),
           fromSide,
           fromMilestone: predecessor.milestone,
           fromX: Math.max(0, Math.min(100, from)),
@@ -2234,6 +2220,7 @@ function App() {
           predecessorId: string;
           successorId: string;
           type: WbsDependencyType;
+          critical: boolean;
           fromSide: "start" | "end";
           fromMilestone: boolean;
           fromX: number;
@@ -2265,9 +2252,10 @@ function App() {
       dependencyLines,
       height: items.length * GANTT_ROW_HEIGHT,
       criticalIds,
+      criticalDependencyIds,
       items,
     };
-  }, [project?.wbsDependencies, visibleWbsTree]);
+  }, [project?.criticalPath, project?.wbsDependencies, visibleWbsTree]);
   const wbsColumnsByKey = useMemo(
     () =>
       new Map<WbsTableColumnKey, WbsTableColumn>(
@@ -2537,6 +2525,7 @@ function App() {
   function applyWbsSnapshotResult(
     nextItems: WbsItem[],
     nextDependencies?: WbsDependency[],
+    nextCriticalPath?: WbsCriticalPath | null,
   ) {
     setProject((current) =>
       current
@@ -2544,6 +2533,10 @@ function App() {
             ...current,
             wbsItems: nextItems,
             wbsDependencies: nextDependencies ?? current.wbsDependencies,
+            criticalPath:
+              nextCriticalPath === undefined
+                ? current.criticalPath
+                : nextCriticalPath,
           }
         : current,
     );
@@ -2612,7 +2605,11 @@ function App() {
         throw new Error(result?.error ?? "Не удалось восстановить Структуру");
       }
       if (result?.wbsItems) {
-        applyWbsSnapshotResult(result.wbsItems, result.wbsDependencies);
+        applyWbsSnapshotResult(
+          result.wbsItems,
+          result.wbsDependencies,
+          result.criticalPath,
+        );
       } else {
         await refreshProject(project.id);
       }
@@ -2670,7 +2667,11 @@ function App() {
         throw new Error(result?.error ?? "Не удалось сохранить базовый план");
       }
       if (result?.wbsItems) {
-        applyWbsSnapshotResult(result.wbsItems, result.wbsDependencies);
+        applyWbsSnapshotResult(
+          result.wbsItems,
+          result.wbsDependencies,
+          result.criticalPath,
+        );
       } else {
         await refreshProject(project.id);
       }
@@ -4145,6 +4146,7 @@ function App() {
         applyWbsSnapshotResult(
           predecessorResult.wbsItems,
           predecessorResult.wbsDependencies,
+          predecessorResult.criticalPath,
         );
         if (!options.silent) setNotice("Элемент Структуры обновлен");
         return;
@@ -4161,16 +4163,13 @@ function App() {
       }
       const renumberResult = await renumberResponse.json();
       if (renumberResult.wbsItems) {
-        applyWbsItems(renumberResult.wbsItems);
+        applyWbsSnapshotResult(
+          renumberResult.wbsItems,
+          renumberResult.wbsDependencies,
+          renumberResult.criticalPath,
+        );
       } else {
         await refreshProject();
-      }
-      if (renumberResult.wbsDependencies) {
-        setProject((current) =>
-          current
-            ? { ...current, wbsDependencies: renumberResult.wbsDependencies }
-            : current,
-        );
       }
       if (!options.silent) setNotice("Элемент Структуры обновлен");
     } catch (saveError) {
@@ -4212,14 +4211,11 @@ function App() {
         );
       }
       if (result?.wbsItems) {
-        applyWbsItems(result.wbsItems);
-        if (result.wbsDependencies) {
-          setProject((current) =>
-            current
-              ? { ...current, wbsDependencies: result.wbsDependencies }
-              : current,
-          );
-        }
+        applyWbsSnapshotResult(
+          result.wbsItems,
+          result.wbsDependencies,
+          result.criticalPath,
+        );
       } else {
         await refreshProject(project.id);
       }
@@ -4292,11 +4288,10 @@ function App() {
         );
       }
       if (result?.wbsItems) {
-        applyWbsItems(result.wbsItems);
-      }
-      if (result?.wbsDependencies) {
-        setProject((current) =>
-          current ? { ...current, wbsDependencies: result.wbsDependencies } : current,
+        applyWbsSnapshotResult(
+          result.wbsItems,
+          result.wbsDependencies,
+          result.criticalPath,
         );
       }
     } catch (reorderError) {
@@ -4378,8 +4373,11 @@ function App() {
     if (dependenciesChanged && options.remember !== false) {
       rememberWbsSnapshot();
     }
-    let latestSnapshot: { wbsItems?: WbsItem[]; wbsDependencies?: WbsDependency[] } | null =
-      null;
+    let latestSnapshot: {
+      wbsItems?: WbsItem[];
+      wbsDependencies?: WbsDependency[];
+      criticalPath?: WbsCriticalPath | null;
+    } | null = null;
     for (const dependency of existingDependencies) {
       const shouldKeep = desiredPredecessors.some(
         (draft) =>
@@ -4464,7 +4462,11 @@ function App() {
         throw new Error(result?.error ?? "Не удалось удалить связь на Гантте");
       }
       if (result?.wbsItems) {
-        applyWbsSnapshotResult(result.wbsItems, result.wbsDependencies);
+        applyWbsSnapshotResult(
+          result.wbsItems,
+          result.wbsDependencies,
+          result.criticalPath,
+        );
       } else {
         await refreshProject(project.id);
       }
@@ -4581,7 +4583,11 @@ function App() {
         );
       }
       if (result?.wbsItems) {
-        applyWbsSnapshotResult(result.wbsItems, result.wbsDependencies);
+        applyWbsSnapshotResult(
+          result.wbsItems,
+          result.wbsDependencies,
+          result.criticalPath,
+        );
       } else {
         await refreshProject(project.id);
       }
@@ -4615,14 +4621,11 @@ function App() {
         throw new Error(result?.error ?? "Не удалось удалить элемент Структуры");
       }
       if (result?.wbsItems) {
-        applyWbsItems(result.wbsItems);
-        if (result.wbsDependencies) {
-          setProject((current) =>
-            current
-              ? { ...current, wbsDependencies: result.wbsDependencies }
-              : current,
-          );
-        }
+        applyWbsSnapshotResult(
+          result.wbsItems,
+          result.wbsDependencies,
+          result.criticalPath,
+        );
       } else {
         await refreshProject();
       }
@@ -6496,6 +6499,16 @@ function App() {
 	                            </button>
 	                            <button
 	                              type="button"
+	                              className={showGanttCriticalPath ? "active" : ""}
+	                              onClick={() =>
+	                                setShowGanttCriticalPath((current) => !current)
+	                              }
+	                              title="Показать задачи и связи с нулевым резервом"
+	                            >
+	                              Критический путь
+	                            </button>
+	                            <button
+	                              type="button"
 	                              className={showGanttBaseline ? "active" : ""}
 	                              onClick={() =>
 	                                setShowGanttBaseline((current) => !current)
@@ -6539,7 +6552,12 @@ function App() {
 	                            <span><i className="tone-p" />Просрочено</span>
 	                            <span><i className="tone-x" />Не начато</span>
 	                            <span><i className="tone-o" />Веха</span>
+	                            <span><i className="tone-critical" />Критический путь</span>
+	                            <span><i className="tone-near-critical" />Резерв до 5 дн.</span>
 	                          </div>
+	                          {project.criticalPath?.warnings?.map((warning) => (
+	                            <p className="gantt-warning" key={warning}>{warning}</p>
+	                          ))}
 	                        </div>
 	                        <div
 	                          className="gantt-panel"
@@ -6743,11 +6761,19 @@ function App() {
                                         );
                                   return (
                                     <path
-                                      className={
-                                        `slot-${line.styleSlot}${
-                                          activeGanttLinkIds.sourceId &&
-                                          (line.predecessorId ===
-                                            activeGanttLinkIds.sourceId ||
+	                                      className={
+	                                        `slot-${line.styleSlot}${
+                                          showGanttCriticalPath && line.critical
+                                            ? " critical-path"
+                                            : ""
+                                        }${
+                                          showGanttCriticalPath && !line.critical
+                                            ? " non-critical-path"
+                                            : ""
+                                        }${
+	                                          activeGanttLinkIds.sourceId &&
+	                                          (line.predecessorId ===
+	                                            activeGanttLinkIds.sourceId ||
                                             line.successorId ===
                                               activeGanttLinkIds.sourceId)
                                             ? " active"
@@ -6810,11 +6836,13 @@ function App() {
                                 critical,
                                 summary,
                                 baselineRange,
-                                forecastRange,
-                                scheduleVarianceDays,
-                                toneClass,
-                              }) => (
-                                <div
+	                                forecastRange,
+	                                scheduleVarianceDays,
+	                                toneClass,
+	                                nearCritical,
+	                                totalFloatWorkDays,
+	                              }) => (
+	                                <div
                                   className={`gantt-track-row ${
                                     activeWbsItemId === item.id ? "active" : ""
                                   } ${
@@ -6854,14 +6882,18 @@ function App() {
                                       title={`${item.code} прогноз: ${date(item.forecastStartDate)} - ${date(item.forecastDueDate)}`}
                                     />
                                   )}
-                                  <i
-                                    className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${summary ? "summary" : ""} ${critical ? "critical" : ""}`}
-                                    style={{
-                                      left: `${offset}%`,
-                                      width: milestone ? undefined : `${width}%`,
-                                    }}
-                                    title={`${item.code} ${item.title}: ${date(item.startDate)} - ${date(item.dueDate)}`}
-                                  >
+	                                  <i
+	                                    className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${summary ? "summary" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
+	                                    style={{
+	                                      left: `${offset}%`,
+	                                      width: milestone ? undefined : `${width}%`,
+	                                    }}
+	                                    title={`${item.code} ${item.title}: ${date(item.startDate)} - ${date(item.dueDate)}${
+	                                      totalFloatWorkDays === null
+	                                        ? ""
+	                                        : `. Резерв: ${totalFloatWorkDays} раб. дн.`
+	                                    }`}
+	                                  >
                                     <button
                                       type="button"
                                       className="gantt-link-handle start"

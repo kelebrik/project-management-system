@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import { wbsItemSchema } from "@pms/shared";
 import { prisma } from "../db.js";
+import { calculateWbsCriticalPath } from "./wbs-critical-path.js";
 
 export type WbsOrderingItem = {
   id: string;
@@ -174,7 +175,7 @@ export async function syncWbsPredecessorFields(projectId: string) {
 }
 
 export async function getProjectWbsSnapshot(projectId: string) {
-  const [wbsItems, wbsDependencies] = await Promise.all([
+  const [wbsItems, wbsDependencies, calendarOverrides] = await Promise.all([
     prisma.wbsItem.findMany({
       where: { projectId },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
@@ -187,8 +188,40 @@ export async function getProjectWbsSnapshot(projectId: string) {
         successor: { select: { id: true, code: true, title: true } },
       },
     }),
+    prisma.projectCalendarOverride.findMany({
+      where: { projectId },
+      select: {
+        calendarCode: true,
+        date: true,
+        isWorkingDay: true,
+      },
+    }),
   ]);
-  return { wbsItems, wbsDependencies };
+  return {
+    wbsItems,
+    wbsDependencies,
+    criticalPath: calculateWbsCriticalPath(
+      wbsItems.map((item) => ({
+        id: item.id,
+        code: item.code,
+        title: item.title,
+        type: item.type,
+        startDate: item.startDate,
+        dueDate: item.dueDate,
+        workDays: item.workDays,
+        calendarCode: item.calendarCode,
+        sortOrder: item.sortOrder,
+      })),
+      wbsDependencies.map((dependency) => ({
+        id: dependency.id,
+        predecessorId: dependency.predecessorId,
+        successorId: dependency.successorId,
+        type: dependency.type,
+        lagDays: dependency.lagDays,
+      })),
+      calendarOverrides,
+    ),
+  };
 }
 
 export function wbsItemSnapshotData(
