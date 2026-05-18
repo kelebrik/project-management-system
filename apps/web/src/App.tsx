@@ -127,6 +127,9 @@ type ProjectUiState = {
   wbsColumnOrder?: WbsTableColumnKey[];
   wbsHiddenColumns?: WbsTableColumnKey[];
   wbsColumnWidths?: Partial<Record<WbsTableColumnKey, number>>;
+  ganttPanelHeight?: number;
+  ganttPanelWidth?: number;
+  ganttWbsWidth?: number;
   passportRows?: PassportRow[];
 };
 
@@ -527,6 +530,8 @@ type ExecutiveOverview = {
 };
 
 type GanttCssProperties = CSSProperties & {
+  "--gantt-panel-height": string;
+  "--gantt-panel-width": string;
   "--gantt-wbs-width": string;
   "--gantt-timeline-width": string;
 };
@@ -540,6 +545,8 @@ type WbsTableCssProperties = CSSProperties & {
 };
 
 const WBS_LEVEL_MIN_WIDTH = 128;
+const GANTT_PANEL_HEIGHT_DEFAULT = 456;
+const GANTT_PANEL_WIDTH_DEFAULT = 0;
 const GANTT_SCALE_WIDTH: Record<GanttScale, number> = {
   month: 120,
   quarter: 72,
@@ -778,6 +785,10 @@ function normalizeWbsColumnWidths(
 }
 
 const GANTT_ROW_HEIGHT = 36;
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
 
 function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
   return {
@@ -1462,6 +1473,12 @@ function App() {
   const [ganttScale, setGanttScale] = useState<GanttScale>("month");
   const [showWbsColumnMenu, setShowWbsColumnMenu] = useState(false);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
+  const [ganttPanelHeight, setGanttPanelHeight] = useState(
+    GANTT_PANEL_HEIGHT_DEFAULT,
+  );
+  const [ganttPanelWidth, setGanttPanelWidth] = useState(
+    GANTT_PANEL_WIDTH_DEFAULT,
+  );
   const [wbsColumnWidths, setWbsColumnWidths] = useState<
     Record<WbsTableColumnKey, number>
   >(() => normalizeWbsColumnWidths());
@@ -1877,6 +1894,8 @@ function App() {
         start: null as Date | null,
         end: null as Date | null,
         months: [] as Array<{ label: string; offset: number; width: number }>,
+        quarters: [] as Array<{ label: string; offset: number; width: number }>,
+        weeks: [] as Array<{ label: string; offset: number }>,
         todayOffset: null as number | null,
         dependencyLines: [] as Array<{
           id: string;
@@ -1932,6 +1951,39 @@ function App() {
         label: monthLabel(cursor),
         offset: (daysBetween(start, cursor) / totalDays) * 100,
         width: (daysBetween(cursor, monthEnd) / totalDays) * 100,
+      });
+    }
+    const quarters = [];
+    for (
+      let cursor = new Date(
+        start.getFullYear(),
+        Math.floor(start.getMonth() / 3) * 3,
+        1,
+      );
+      cursor < end;
+      cursor = addMonths(cursor, 3)
+    ) {
+      const quarterEnd = addMonths(cursor, 3);
+      quarters.push({
+        label: `${Math.floor(cursor.getMonth() / 3) + 1} кв. ${cursor.getFullYear()}`,
+        offset: (daysBetween(start, cursor) / totalDays) * 100,
+        width: (daysBetween(cursor, quarterEnd) / totalDays) * 100,
+      });
+    }
+    const weeks = [];
+    const firstWeekStart = startOfDay(start);
+    firstWeekStart.setDate(
+      firstWeekStart.getDate() - ((firstWeekStart.getDay() + 6) % 7),
+    );
+    for (
+      let cursor = firstWeekStart;
+      cursor < end;
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 7)
+    ) {
+      if (cursor <= start) continue;
+      weeks.push({
+        label: shortDate(cursor.toISOString()),
+        offset: (daysBetween(start, cursor) / totalDays) * 100,
       });
     }
 
@@ -2166,6 +2218,8 @@ function App() {
       start,
       end,
       months,
+      quarters,
+      weeks,
       todayOffset,
       dependencyLines,
       height: items.length * GANTT_ROW_HEIGHT,
@@ -2307,6 +2361,23 @@ function App() {
           ...current,
           ...(nextProject.uiState?.wbsColumnWidths ?? {}),
         }),
+      );
+      setGanttWbsWidth(
+        clampNumber(nextProject.uiState?.ganttWbsWidth ?? 360, 260, 640),
+      );
+      setGanttPanelHeight(
+        clampNumber(
+          nextProject.uiState?.ganttPanelHeight ?? GANTT_PANEL_HEIGHT_DEFAULT,
+          320,
+          900,
+        ),
+      );
+      setGanttPanelWidth(
+        clampNumber(
+          nextProject.uiState?.ganttPanelWidth ?? GANTT_PANEL_WIDTH_DEFAULT,
+          0,
+          2400,
+        ),
       );
       setPassportRows(normalizePassportRows(nextProject));
       setSelectedCalendarYear((currentYear) => {
@@ -2701,6 +2772,9 @@ function App() {
       wbsColumnOrder?: WbsTableColumnKey[];
       wbsHiddenColumns?: WbsTableColumnKey[];
       wbsColumnWidths?: Record<WbsTableColumnKey, number>;
+      ganttPanelHeight?: number;
+      ganttPanelWidth?: number;
+      ganttWbsWidth?: number;
     },
   ) {
     if (!project) return;
@@ -2710,6 +2784,9 @@ function App() {
       wbsColumnOrder: options?.wbsColumnOrder ?? wbsColumnOrder,
       wbsHiddenColumns: options?.wbsHiddenColumns ?? wbsHiddenColumns,
       wbsColumnWidths: options?.wbsColumnWidths ?? wbsColumnWidths,
+      ganttPanelHeight: options?.ganttPanelHeight ?? ganttPanelHeight,
+      ganttPanelWidth: options?.ganttPanelWidth ?? ganttPanelWidth,
+      ganttWbsWidth: options?.ganttWbsWidth ?? ganttWbsWidth,
       ...patch,
     };
     setProject((current) =>
@@ -3464,16 +3541,73 @@ function App() {
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = ganttWbsWidth;
+    let latestWidth = startWidth;
     const onPointerMove = (moveEvent: PointerEvent) => {
       const nextWidth = Math.min(
         640,
         Math.max(260, startWidth + moveEvent.clientX - startX),
       );
+      latestWidth = nextWidth;
       setGanttWbsWidth(nextWidth);
     };
-    const onPointerUp = () => {
+    const onPointerUp = async () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      await saveProjectUiState(
+        { ganttWbsWidth: latestWidth },
+        { ganttWbsWidth: latestWidth },
+      );
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+
+  function startGanttPanelResize(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    axis: "width" | "height" | "both",
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const currentPanelWidth =
+      event.currentTarget.closest(".gantt-panel")?.getBoundingClientRect()
+        .width ?? ganttPanelWidth;
+    const startWidth = ganttPanelWidth > 0 ? ganttPanelWidth : currentPanelWidth;
+    const startHeight = ganttPanelHeight;
+    let latestWidth = startWidth;
+    let latestHeight = startHeight;
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (axis === "width" || axis === "both") {
+        latestWidth = clampNumber(
+          startWidth + moveEvent.clientX - startX,
+          760,
+          2400,
+        );
+        setGanttPanelWidth(latestWidth);
+      }
+      if (axis === "height" || axis === "both") {
+        latestHeight = clampNumber(
+          startHeight + moveEvent.clientY - startY,
+          320,
+          900,
+        );
+        setGanttPanelHeight(latestHeight);
+      }
+    };
+    const onPointerUp = async () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      await saveProjectUiState(
+        {
+          ganttPanelHeight: latestHeight,
+          ganttPanelWidth: latestWidth,
+        },
+        {
+          ganttPanelHeight: latestHeight,
+          ganttPanelWidth: latestWidth,
+        },
+      );
     };
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
@@ -6342,10 +6476,18 @@ function App() {
 	                          className="gantt-panel"
 	                          style={
 	                            {
+	                              "--gantt-panel-height": `${ganttPanelHeight}px`,
+	                              "--gantt-panel-width":
+	                                ganttPanelWidth > 0
+	                                  ? `${ganttPanelWidth}px`
+	                                  : "100%",
 	                              "--gantt-wbs-width": `${ganttWbsWidth}px`,
 	                              "--gantt-timeline-width": `${Math.max(
 	                                520,
-	                                wbsGantt.months.length * GANTT_SCALE_WIDTH[ganttScale],
+	                                (ganttScale === "quarter"
+	                                  ? wbsGantt.quarters.length
+	                                  : wbsGantt.months.length) *
+	                                  GANTT_SCALE_WIDTH[ganttScale],
 	                              )}px`,
 	                            } as GanttCssProperties
 	                          }
@@ -6360,15 +6502,18 @@ function App() {
                       />
                       <div className="gantt-scale">
                         {wbsGantt.months.length > 0 ? (
-                          wbsGantt.months.map((month) => (
+                          (ganttScale === "quarter"
+                            ? wbsGantt.quarters
+                            : wbsGantt.months
+                          ).map((period) => (
                             <span
-                              key={month.label}
+                              key={period.label}
                               style={{
-                                left: `${month.offset}%`,
-                                width: `${month.width}%`,
+                                left: `${period.offset}%`,
+                                width: `${period.width}%`,
                               }}
                             >
-                              {month.label}
+                              {period.label}
                             </span>
                           ))
                         ) : (
@@ -6444,13 +6589,27 @@ function App() {
                             style={{ minHeight: `${wbsGantt.height}px` }}
                           >
                             <div className="gantt-month-grid" aria-hidden="true">
-                              {wbsGantt.months.map((month) => (
+                              {(ganttScale === "quarter"
+                                ? wbsGantt.quarters
+                                : wbsGantt.months
+                              ).map((period) => (
                                 <span
-                                  key={month.label}
+                                  key={period.label}
                                   style={{
-                                    left: `${month.offset}%`,
-                                    width: `${month.width}%`,
+                                    left: `${period.offset}%`,
+                                    width: `${period.width}%`,
                                   }}
+                                />
+                              ))}
+                            </div>
+                            <div className="gantt-sub-grid" aria-hidden="true">
+                              {(ganttScale === "quarter"
+                                ? wbsGantt.months
+                                : wbsGantt.weeks
+                              ).map((period) => (
+                                <span
+                                  key={`${ganttScale}-${period.label}`}
+                                  style={{ left: `${period.offset}%` }}
                                 />
                               ))}
                             </div>
@@ -6681,6 +6840,33 @@ function App() {
                           чтобы увидеть дочерние задачи и связи.
                         </div>
                       )}
+                      <button
+                        type="button"
+                        className="gantt-panel-resizer horizontal"
+                        onPointerDown={(event) =>
+                          startGanttPanelResize(event, "width")
+                        }
+                        aria-label="Изменить ширину поля Гантта"
+                        title="Изменить ширину поля Гантта"
+                      />
+                      <button
+                        type="button"
+                        className="gantt-panel-resizer vertical"
+                        onPointerDown={(event) =>
+                          startGanttPanelResize(event, "height")
+                        }
+                        aria-label="Изменить высоту поля Гантта"
+                        title="Изменить высоту поля Гантта"
+                      />
+                      <button
+                        type="button"
+                        className="gantt-panel-resizer corner"
+                        onPointerDown={(event) =>
+                          startGanttPanelResize(event, "both")
+                        }
+                        aria-label="Изменить размер поля Гантта"
+                        title="Изменить размер поля Гантта"
+                      />
 	                        </div>
 	                        </div>
 	                      </>
