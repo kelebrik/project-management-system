@@ -1897,8 +1897,8 @@ function App() {
       return {
         start: null as Date | null,
         end: null as Date | null,
-        months: [] as Array<{ label: string; offset: number; width: number }>,
-        quarters: [] as Array<{ label: string; offset: number; width: number }>,
+        months: [] as Array<{ label: string; offset: number; showLabel: boolean; width: number }>,
+        quarters: [] as Array<{ label: string; offset: number; showLabel: boolean; width: number }>,
         weeks: [] as Array<{ label: string; offset: number }>,
         todayOffset: null as number | null,
         dependencyLines: [] as Array<{
@@ -1972,6 +1972,7 @@ function App() {
       months.push({
         label: monthLabel(cursor),
         offset: position.offset,
+        showLabel: position.width >= 5,
         width: position.width,
       });
     }
@@ -1990,6 +1991,7 @@ function App() {
       quarters.push({
         label: `${Math.floor(cursor.getMonth() / 3) + 1} кв. ${cursor.getFullYear()}`,
         offset: position.offset,
+        showLabel: position.width >= 12,
         width: position.width,
       });
     }
@@ -6535,8 +6537,9 @@ function App() {
                                 left: `${period.offset}%`,
                                 width: `${period.width}%`,
                               }}
+                              title={period.label}
                             >
-                              {period.label}
+                              {period.showLabel ? period.label : ""}
                             </span>
                           ))
                         ) : (
