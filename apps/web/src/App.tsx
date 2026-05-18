@@ -1486,6 +1486,7 @@ function App() {
     null,
   );
   const ganttTimelineRef = useRef<HTMLDivElement | null>(null);
+  const ganttLinkCompletedRef = useRef(false);
   const [selectedWbsIds, setSelectedWbsIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -1886,11 +1887,14 @@ function App() {
           fromMilestone: boolean;
           fromX: number;
           fromY: number;
+          fromSlotOffset: number;
           toSide: "start" | "end";
           toMilestone: boolean;
           toX: number;
           toY: number;
+          toSlotOffset: number;
           direction: "forward" | "backward";
+          styleSlot: number;
         }>,
         height: 0,
         criticalIds: new Set<string>(),
@@ -2036,7 +2040,43 @@ function App() {
     );
     const rowById = new Map(items.map((entry, index) => [entry.item.id, index]));
     const barById = new Map(items.map((entry) => [entry.item.id, entry]));
-    const dependencyLines = (project?.wbsDependencies ?? [])
+    const dependencySides = (dependency: WbsDependency) => {
+      const fromSide =
+        dependency.type === "SS" || dependency.type === "SF"
+          ? ("start" as const)
+          : ("end" as const);
+      const toSide =
+        dependency.type === "FF" || dependency.type === "SF"
+          ? ("end" as const)
+          : ("start" as const);
+      return { fromSide, toSide };
+    };
+    const endpointKey = (itemId: string, side: "start" | "end") =>
+      `${itemId}:${side}`;
+    const visibleDependencies = (project?.wbsDependencies ?? []).filter(
+      (dependency) =>
+        barById.has(dependency.predecessorId) &&
+        barById.has(dependency.successorId) &&
+        rowById.has(dependency.predecessorId) &&
+        rowById.has(dependency.successorId),
+    );
+    const endpointCounts = new Map<string, number>();
+    for (const dependency of visibleDependencies) {
+      const { fromSide, toSide } = dependencySides(dependency);
+      const fromKey = endpointKey(dependency.predecessorId, fromSide);
+      const toKey = endpointKey(dependency.successorId, toSide);
+      endpointCounts.set(fromKey, (endpointCounts.get(fromKey) ?? 0) + 1);
+      endpointCounts.set(toKey, (endpointCounts.get(toKey) ?? 0) + 1);
+    }
+    const endpointIndexes = new Map<string, number>();
+    const takeEndpointSlot = (key: string) => {
+      const index = endpointIndexes.get(key) ?? 0;
+      endpointIndexes.set(key, index + 1);
+      return index;
+    };
+    const slotOffset = (index: number, total: number) =>
+      total <= 1 ? 0 : (index - (total - 1) / 2) * 5;
+    const dependencyLines = visibleDependencies
       .map((dependency) => {
         const predecessor = barById.get(dependency.predecessorId);
         const successor = barById.get(dependency.successorId);
@@ -2058,14 +2098,16 @@ function App() {
         const successorEnd = successor.milestone
           ? successor.offset
           : successor.offset + successor.width;
-        const fromSide =
-          dependency.type === "SS" || dependency.type === "SF"
-            ? ("start" as const)
-            : ("end" as const);
-        const toSide =
-          dependency.type === "FF" || dependency.type === "SF"
-            ? ("end" as const)
-            : ("start" as const);
+        const { fromSide, toSide } = dependencySides(dependency);
+        const fromKey = endpointKey(dependency.predecessorId, fromSide);
+        const toKey = endpointKey(dependency.successorId, toSide);
+        const fromSlot = takeEndpointSlot(fromKey);
+        const toSlot = takeEndpointSlot(toKey);
+        const fromSlotOffset = slotOffset(
+          fromSlot,
+          endpointCounts.get(fromKey) ?? 1,
+        );
+        const toSlotOffset = slotOffset(toSlot, endpointCounts.get(toKey) ?? 1);
         const from = fromSide === "start" ? predecessorStart : predecessorEnd;
         const to = toSide === "start" ? successorStart : successorEnd;
         const direction = to >= from ? ("forward" as const) : ("backward" as const);
@@ -2077,12 +2119,18 @@ function App() {
           fromSide,
           fromMilestone: predecessor.milestone,
           fromX: Math.max(0, Math.min(100, from)),
-          fromY: predecessorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
+          fromY:
+            predecessorRow * GANTT_ROW_HEIGHT +
+            GANTT_ROW_HEIGHT / 2 +
+            fromSlotOffset,
+          fromSlotOffset,
           toSide,
           toMilestone: successor.milestone,
           toX: Math.max(0, Math.min(100, to)),
-          toY: successorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
+          toY: successorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2 + toSlotOffset,
+          toSlotOffset,
           direction,
+          styleSlot: Math.max(fromSlot, toSlot) % 6,
         };
       })
       .filter(
@@ -2097,11 +2145,14 @@ function App() {
           fromMilestone: boolean;
           fromX: number;
           fromY: number;
+          fromSlotOffset: number;
           toSide: "start" | "end";
           toMilestone: boolean;
           toX: number;
           toY: number;
+          toSlotOffset: number;
           direction: "forward" | "backward";
+          styleSlot: number;
         } => item !== null,
       );
 
@@ -4196,6 +4247,40 @@ function App() {
     };
   }
 
+  async function deleteGanttDependency(dependencyId: string) {
+    if (!project) {
+      setGanttLinkDraft(null);
+      return;
+    }
+    rememberWbsSnapshot();
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/wbs-dependencies/${dependencyId}`,
+        { method: "DELETE" },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось удалить связь на Гантте");
+      }
+      if (result?.wbsItems) {
+        applyWbsSnapshotResult(result.wbsItems, result.wbsDependencies);
+      } else {
+        await refreshProject(project.id);
+      }
+      setNotice("Связь на Гантте удалена");
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Не удалось удалить связь на Гантте",
+      );
+    } finally {
+      setGanttLinkDraft(null);
+    }
+  }
+
   function startGanttLinkDrag(
     endpoint: GanttLinkEndpoint,
     event: ReactPointerEvent<Element>,
@@ -4205,6 +4290,7 @@ function App() {
     event.stopPropagation();
     const position = pointerToGanttPosition(event);
     if (!position) return;
+    ganttLinkCompletedRef.current = false;
     setActiveWbsItemId(endpoint.itemId);
     setGanttLinkDraft({
       ...endpoint,
@@ -4213,7 +4299,18 @@ function App() {
       replaceDependencyId,
     });
 
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    let draggedBeyondThreshold = false;
     const onPointerMove = (moveEvent: PointerEvent) => {
+      if (
+        Math.hypot(
+          moveEvent.clientX - startClientX,
+          moveEvent.clientY - startClientY,
+        ) > 4
+      ) {
+        draggedBeyondThreshold = true;
+      }
       const nextPosition = pointerToGanttPosition(moveEvent);
       if (!nextPosition) return;
       setGanttLinkDraft((current) =>
@@ -4227,7 +4324,17 @@ function App() {
       );
     };
     const onPointerUp = () => {
-      setGanttLinkDraft(null);
+      window.setTimeout(() => {
+        if (ganttLinkCompletedRef.current) {
+          ganttLinkCompletedRef.current = false;
+          return;
+        }
+        if (replaceDependencyId && draggedBeyondThreshold) {
+          void deleteGanttDependency(replaceDependencyId);
+        } else {
+          setGanttLinkDraft(null);
+        }
+      }, 0);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
@@ -4241,6 +4348,7 @@ function App() {
   ) {
     event.preventDefault();
     event.stopPropagation();
+    ganttLinkCompletedRef.current = true;
     if (!project || !ganttLinkDraft || ganttLinkDraft.itemId === endpoint.itemId) {
       setGanttLinkDraft(null);
       return;
@@ -5886,13 +5994,6 @@ function App() {
 		                      >
 		                        Зафиксировать базовый план
 		                      </button>
-		                      <button
-		                        type="button"
-		                        className={collapsedWbsIds.size === 0 ? "active" : ""}
-		                        onClick={() => setCollapsedWbsIds(new Set())}
-		                      >
-		                        Все
-		                      </button>
 		                      <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Структуры">
 		                        {GANTT_HIERARCHY_LEVELS.map((level) => (
 		                          <button
@@ -6131,6 +6232,32 @@ function App() {
 	                      <>
 	                        <div className="gantt-controls">
 	                          <div className="gantt-controls-row">
+	                            <button
+	                              type="button"
+	                              onClick={() => void undoWbsChange()}
+	                              onMouseDown={(event) => event.preventDefault()}
+	                              disabled={
+	                                restoringWbsSnapshot ||
+	                                wbsUndoStack.length === 0
+	                              }
+	                              aria-label="Откатить последнее изменение Гантта"
+	                              title="Назад"
+	                            >
+	                              ← Назад
+	                            </button>
+	                            <button
+	                              type="button"
+	                              onClick={() => void redoWbsChange()}
+	                              onMouseDown={(event) => event.preventDefault()}
+	                              disabled={
+	                                restoringWbsSnapshot ||
+	                                wbsRedoStack.length === 0
+	                              }
+	                              aria-label="Вернуть отмененное изменение Гантта"
+	                              title="Вперед"
+	                            >
+	                              Вперед →
+	                            </button>
 	                            <div className="segmented-control" aria-label="Масштаб Гантта">
 	                              <button
 	                                type="button"
@@ -6186,15 +6313,8 @@ function App() {
 	                                setShowGanttForecast((current) => !current)
 	                              }
 	                            >
-	                              Прогноз
-	                            </button>
-	                            <button
-	                              type="button"
-	                              className={collapsedWbsIds.size === 0 ? "active" : ""}
-	                              onClick={() => setCollapsedWbsIds(new Set())}
-	                            >
-	                              Все
-	                            </button>
+	                                Прогноз
+	                              </button>
 	                            <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Гантта">
 	                              {GANTT_HIERARCHY_LEVELS.map((level) => (
 	                                <button
@@ -6394,13 +6514,20 @@ function App() {
                                   return (
                                     <path
                                       className={
-                                        activeGanttLinkIds.sourceId &&
-                                        (line.predecessorId ===
-                                          activeGanttLinkIds.sourceId ||
-                                          line.successorId ===
-                                            activeGanttLinkIds.sourceId)
-                                          ? "active"
-                                          : ""
+                                        `slot-${line.styleSlot}${
+                                          activeGanttLinkIds.sourceId &&
+                                          (line.predecessorId ===
+                                            activeGanttLinkIds.sourceId ||
+                                            line.successorId ===
+                                              activeGanttLinkIds.sourceId)
+                                            ? " active"
+                                            : ""
+                                        }${
+                                          ganttLinkDraft?.replaceDependencyId ===
+                                          line.id
+                                            ? " moving"
+                                            : ""
+                                        }`
                                       }
                                       onPointerDown={(event) =>
                                         startGanttLinkDrag(
@@ -6415,6 +6542,7 @@ function App() {
                                       d={`M ${startX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${endX} ${line.toY}`}
                                       key={line.id}
                                       data-dependency-type={line.type}
+                                      aria-label="Связь Гантта"
                                     />
                                   );
                                 })}

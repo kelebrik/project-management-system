@@ -1911,6 +1911,12 @@ code {
   padding: 7px 10px;
 }
 
+.gantt-controls button:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 .gantt-controls button.active {
   background: #eff6ff;
   border-color: #93c5fd;
@@ -2359,6 +2365,30 @@ code {
   stroke-width: 2;
 }
 
+.gantt-links path.slot-1 {
+  stroke: #f59e0b;
+  stroke-dasharray: 6 2;
+}
+
+.gantt-links path.slot-2 {
+  stroke: #fb923c;
+  stroke-dasharray: 2 2;
+}
+
+.gantt-links path.slot-3 {
+  stroke: #d97706;
+  stroke-dasharray: 8 3;
+}
+
+.gantt-links path.slot-4 {
+  stroke: #f97316;
+  stroke-dasharray: 1.5 2.5;
+}
+
+.gantt-links path.slot-5 {
+  stroke: #ea580c;
+}
+
 .gantt-links.drawing path:not(.draft) {
   pointer-events: none;
 }
@@ -2367,6 +2397,10 @@ code {
   opacity: 1;
   stroke: #d97706;
   stroke-width: 2;
+}
+
+.gantt-links path.moving {
+  opacity: 0.25;
 }
 
 .gantt-links path.draft {
