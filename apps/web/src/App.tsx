@@ -5045,19 +5045,6 @@ function App() {
       : "Артефакты проекта",
     admin: "Администрирование",
   };
-  const projectViewTitle: Record<AppView, string> = {
-    portfolio: "Портфель проектов",
-    "project-create": "Создать новый проект",
-    "project-overview": "Обзор и вехи",
-    "project-passport": "Паспорт проекта",
-    "project-structure": "Структура",
-    "project-gantt": "Гантт",
-    "project-issues": "Открытые вопросы",
-    "project-raid": "Риски и проблемы",
-    "project-calendars": "Календари",
-    "project-artifacts": "Артефакты проекта",
-    admin: "Администрирование",
-  };
   const projectViews: AppView[] = [
     "project-create",
     "project-overview",
@@ -5330,14 +5317,11 @@ function App() {
           className={`topbar ${project && isProjectView && activeView !== "project-create" ? "project-topbar" : ""}`}
         >
           <div className="topbar-main">
-            {project && isProjectView && activeView !== "project-create" ? (
-              <>
-                <span className="topbar-section">
-                  {projectViewTitle[activeView]}
-                </span>
-                <h1>
-                  <span>{project.code}</span>
-                  {project.name}
+	            {project && isProjectView && activeView !== "project-create" ? (
+	              <>
+	                <h1>
+	                  <span>{project.code}</span>
+	                  {project.name}
                 </h1>
               </>
             ) : (
@@ -6062,6 +6046,7 @@ function App() {
 	                <article className="panel project-card">
 	                  <div className="panel-title">
 	                    <div>
+	                      <h2>Паспорт проекта</h2>
 	                      <p>Редактируемый набор полей паспорта проекта</p>
 	                    </div>
 	                    <button
@@ -6139,6 +6124,11 @@ function App() {
 	                <article className="panel project-card">
 	                  <div className="panel-title">
 	                    <div>
+	                      <h2>
+	                        {activeView === "project-structure"
+	                          ? "Структура"
+	                          : "Гантт"}
+	                      </h2>
 	                      <p>
 	                        {activeView === "project-structure"
 	                          ? "Иерархия работ проекта, сроки, ответственные, календарь и связи с предшественниками"
@@ -6977,6 +6967,7 @@ function App() {
 	                <article className="panel project-card">
 	                  <div className="panel-title">
 	                    <div>
+	                      <h2>Календари</h2>
 	                      <p>
 	                        RU и CN календари проекта: клик по дню меняет рабочий
 	                        день на выходной или праздник и наоборот
@@ -7162,6 +7153,7 @@ function App() {
 	                <article className="panel overview-panel">
 	                  <div className="panel-title">
 	                    <div>
+	                      <h2>Реестр открытых вопросов</h2>
 	                      <p>
 	                        Единый список открытых проблем из Jira и внутренних
 	                        управленческих вопросов
@@ -7469,6 +7461,7 @@ function App() {
 	                <article className="panel overview-panel">
 	                  <div className="panel-title">
 	                    <div>
+	                      <h2>Риски и проблемы</h2>
 	                      <p>
 	                        Риски, проблемы и допущения с влиянием на сроки и обзор
 	                        для руководства
@@ -8053,6 +8046,7 @@ function App() {
 	                <article className="panel project-card">
 	                  <div className="panel-title">
 	                    <div>
+	                      <h2>Артефакты проекта</h2>
 	                      <p>
 	                        Рабочие управленческие артефакты, собранные из данных
 	                        проекта

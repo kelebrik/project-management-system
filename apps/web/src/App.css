@@ -468,14 +468,6 @@
   color: #075985;
 }
 
-.topbar-section {
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 900;
-  margin-bottom: 5px;
-  text-transform: uppercase;
-}
-
 .topbar-project {
   align-items: center;
   display: flex;
