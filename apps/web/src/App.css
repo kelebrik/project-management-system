@@ -1883,9 +1883,15 @@ code {
   margin-bottom: 18px;
   max-width: 100%;
   min-width: 0;
-  overflow: auto;
+  overflow: hidden;
   position: relative;
   width: var(--gantt-panel-width, 100%);
+}
+
+.gantt-panel-scroll {
+  height: 100%;
+  overflow: auto;
+  width: 100%;
 }
 
 .gantt-controls {

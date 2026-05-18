@@ -6563,6 +6563,7 @@ function App() {
 	                            } as GanttCssProperties
 	                          }
 	                        >
+                          <div className="gantt-panel-scroll">
 	                    <div className="gantt-head">
                           <span>Структура</span>
                       <button
@@ -6912,6 +6913,7 @@ function App() {
                           чтобы увидеть дочерние задачи и связи.
                         </div>
                       )}
+                          </div>
                       <button
                         type="button"
                         className="gantt-panel-resizer horizontal"
