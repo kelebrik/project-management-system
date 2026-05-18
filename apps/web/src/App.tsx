@@ -4594,9 +4594,9 @@ function App() {
     <>
       <span className="nav-icon" aria-hidden="true">
         {icon}
+        {sidebarCollapsed && <span className="nav-tooltip">{label}</span>}
       </span>
       <span className="nav-text">{label}</span>
-      {sidebarCollapsed && <span className="nav-tooltip">{label}</span>}
     </>
   );
   const toggleSidebar = () => {
@@ -6804,7 +6804,8 @@ function App() {
                       </p>
                     </div>
                   </div>
-                  <div className="raid-topline">
+                  <div className="raid-board">
+                    <div className="raid-main-column">
                     <div className="wbs-kpis raid-kpis">
                       <div>
                         <span>Активные записи</span>
@@ -6827,29 +6828,6 @@ function App() {
                         <small>активные записи</small>
                       </div>
                     </div>
-                    <section className="risk-matrix-card">
-                      <div className="subhead">Матрица рисков</div>
-                      <div className="risk-matrix" aria-label="Матрица рисков">
-                        {[5, 4, 3, 2, 1].map((impact) =>
-                          [1, 2, 3, 4, 5].map((probability) => {
-                            const count =
-                              riskMatrix.get(`${probability}:${impact}`) ?? 0;
-                            const score = probability * impact;
-                            return (
-                              <span
-                                className={`risk-matrix-cell ${riskTone(score)}`}
-                                key={`${probability}-${impact}`}
-                                title={`Вероятность ${probability}, влияние ${impact}`}
-                              >
-                                {count > 0 ? count : ""}
-                              </span>
-                            );
-                          }),
-                        )}
-                      </div>
-                    </section>
-                  </div>
-                  <div className="raid-layout">
                     <section className="raid-register">
                       <div className="subhead">Реестр рисков и проблем</div>
                       <section className="raid-filter-card">
@@ -7203,7 +7181,29 @@ function App() {
                         </section>
                       ))}
                     </section>
+                    </div>
                     <div className="raid-side-column">
+                      <section className="risk-matrix-card">
+                        <div className="subhead">Матрица рисков</div>
+                        <div className="risk-matrix" aria-label="Матрица рисков">
+                          {[5, 4, 3, 2, 1].map((impact) =>
+                            [1, 2, 3, 4, 5].map((probability) => {
+                              const count =
+                                riskMatrix.get(`${probability}:${impact}`) ?? 0;
+                              const score = probability * impact;
+                              return (
+                                <span
+                                  className={`risk-matrix-cell ${riskTone(score)}`}
+                                  key={`${probability}-${impact}`}
+                                  title={`Вероятность ${probability}, влияние ${impact}`}
+                                >
+                                  {count > 0 ? count : ""}
+                                </span>
+                              );
+                            }),
+                          )}
+                        </div>
+                      </section>
 		                    <form className="raid-form stack-form" onSubmit={createRaidItem}>
 		                      <h3>Новая запись</h3>
 	                      <div className="form-section-title">Основное</div>

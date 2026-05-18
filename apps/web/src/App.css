@@ -149,6 +149,7 @@
   height: 28px;
   justify-content: center;
   letter-spacing: 0;
+  position: relative;
   width: 28px;
 }
 
@@ -170,7 +171,7 @@
   display: none;
   font-size: 12px;
   font-weight: 800;
-  left: calc(100% + 10px);
+  left: calc(100% + 12px);
   max-width: 220px;
   padding: 7px 9px;
   pointer-events: none;
@@ -395,8 +396,8 @@
   width: 42px;
 }
 
-.sidebar-collapsed .sidebar button:hover .nav-tooltip,
-.sidebar-collapsed .sidebar button:focus-visible .nav-tooltip {
+.sidebar-collapsed .nav-icon:hover .nav-tooltip,
+.sidebar-collapsed .sidebar button:focus-visible .nav-icon .nav-tooltip {
   display: block;
 }
 
@@ -3134,19 +3135,16 @@ code {
   gap: 8px;
 }
 
-.raid-layout {
+.raid-board {
   align-items: start;
   display: grid;
   gap: 18px;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 0.34fr);
 }
 
-.raid-topline {
-  align-items: start;
+.raid-main-column {
   display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.34fr);
-  margin-bottom: 18px;
+  gap: 12px;
 }
 
 .raid-kpis {
@@ -3914,7 +3912,7 @@ code {
   .milestone-head,
   .milestone-row,
   .wbs-kpis,
-  .raid-layout,
+  .raid-board,
   .raid-edit-grid,
   .artifact-edit-grid,
   .project-tree-head,
