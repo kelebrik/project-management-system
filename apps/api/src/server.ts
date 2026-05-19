@@ -33,6 +33,10 @@ const port = Number(process.env.PORT ?? 3000);
 const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 
 function serverErrorMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('40P01') || message.includes('deadlock detected')) {
+    return `${fallback}: конфликт параллельного сохранения. Повторите действие`;
+  }
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     return `${fallback}: ${error.code}`;
   }
@@ -867,6 +871,51 @@ const wbsSnapshotSchema = z.object({
     }),
   ),
   wbsDependencies: z.array(wbsDependencySnapshotSchema).default([]),
+});
+
+let wbsWriteQueue: Promise<void> = Promise.resolve();
+
+function isWbsWriteRequest(req: Request) {
+  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) return false;
+  return [
+    '/wbs-items',
+    '/wbs-dependencies',
+    '/wbs-snapshot',
+    '/wbs-baseline',
+  ].some((segment) => req.path.includes(segment));
+}
+
+app.use((req, res, next) => {
+  if (!isWbsWriteRequest(req)) {
+    next();
+    return;
+  }
+
+  const previous = wbsWriteQueue;
+  let release!: () => void;
+  wbsWriteQueue = previous
+    .catch(() => undefined)
+    .then(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+
+  void previous
+    .catch(() => undefined)
+    .then(() => {
+      let released = false;
+      const done = () => {
+        if (released) return;
+        released = true;
+        release();
+      };
+
+      res.once('finish', done);
+      res.once('close', done);
+      next();
+    });
 });
 
 async function validateWbsProjectAndParent(
