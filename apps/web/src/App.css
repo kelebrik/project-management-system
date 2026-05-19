@@ -2127,9 +2127,9 @@ code {
 }
 
 .overview-graph-milestone i {
-  background: #64748b;
+  background: #8b5cf6;
   border: 2px solid #f8fafc;
-  box-shadow: 0 0 0 1px #475569;
+  box-shadow: 0 0 0 1px #7c3aed;
   height: 13px;
   left: calc(50% - 6px);
   position: absolute;
@@ -2140,7 +2140,7 @@ code {
 }
 
 .overview-graph-milestone::before {
-  background: #94a3b8;
+  background: #64748b;
   content: "";
   height: 28px;
   left: 50%;
@@ -2162,6 +2162,58 @@ code {
   top: -7px;
   transform: rotate(45deg);
   width: 12px;
+}
+
+.overview-graph-milestone.callout-left,
+.overview-graph-milestone.callout-right {
+  max-width: 238px;
+  min-width: 188px;
+  text-align: left;
+}
+
+.overview-graph-milestone.callout-left {
+  transform: translateX(calc(-100% - 26px));
+}
+
+.overview-graph-milestone.callout-right {
+  transform: translateX(26px);
+}
+
+.overview-graph-milestone.callout-left i,
+.overview-graph-milestone.callout-right i {
+  left: -32px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.overview-graph-milestone.callout-left i {
+  left: auto;
+  right: -32px;
+}
+
+.overview-graph-milestone.callout-left::before,
+.overview-graph-milestone.callout-right::before {
+  height: 32px;
+  left: -23px;
+  top: 50%;
+  transform: translateY(-50%) rotate(90deg);
+}
+
+.overview-graph-milestone.callout-left::before {
+  left: auto;
+  right: -23px;
+}
+
+.overview-graph-milestone.callout-left::after,
+.overview-graph-milestone.callout-right::after {
+  left: -7px;
+  top: calc(50% - 6px);
+  transform: rotate(-45deg);
+}
+
+.overview-graph-milestone.callout-left::after {
+  left: auto;
+  right: -7px;
 }
 
 .overview-graph-milestone.g {

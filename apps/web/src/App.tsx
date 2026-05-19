@@ -590,6 +590,7 @@ type OverviewGraphItem = {
   code: string;
   title: string;
   kind: "task" | "milestone";
+  calloutPlacement?: "below" | "left" | "right";
   status: WbsItemStatus;
   type: WbsItemType;
   offset: number;
@@ -622,6 +623,8 @@ const OVERVIEW_GRAPH_TRACK_MIN_WIDTH = 1360;
 const OVERVIEW_GRAPH_MONTH_WIDTH = 180;
 const OVERVIEW_GRAPH_TASK_MIN_WIDTH = 150;
 const OVERVIEW_GRAPH_MILESTONE_WIDTH = 166;
+const OVERVIEW_GRAPH_MILESTONE_SIDE_WIDTH = 238;
+const OVERVIEW_GRAPH_MILESTONE_LONG_TITLE = 32;
 const OVERVIEW_GRAPH_ROW_GAP = 26;
 const OVERVIEW_GRAPH_ROW_HEIGHT = 68;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -2204,6 +2207,8 @@ function App() {
     const itemGap = (OVERVIEW_GRAPH_ROW_GAP / trackWidth) * 100;
     const taskMinWidth = (OVERVIEW_GRAPH_TASK_MIN_WIDTH / trackWidth) * 100;
     const milestoneWidth = (OVERVIEW_GRAPH_MILESTONE_WIDTH / trackWidth) * 100;
+    const milestoneSideFootprint =
+      ((OVERVIEW_GRAPH_MILESTONE_SIDE_WIDTH + 56) / trackWidth) * 100;
     const datedById = new Map(datedItems.map((entry) => [entry.item.id, entry]));
     const criticalIds = new Set(project?.criticalPath?.criticalItemIds ?? []);
     const phases = wbsTree
@@ -2266,13 +2271,34 @@ function App() {
       const laneItems = laneItemsFromPhase(phase);
       const rowEnds: number[] = [];
       laneItems.forEach((item) => {
+        const calloutPlacement =
+          item.kind === "milestone" &&
+          item.title.length > OVERVIEW_GRAPH_MILESTONE_LONG_TITLE
+            ? item.offset > 64
+              ? "left"
+              : "right"
+            : undefined;
         const visualStart =
           item.kind === "milestone"
-            ? Math.max(0, item.offset - milestoneWidth / 2)
+            ? Math.max(
+                0,
+                calloutPlacement === "left"
+                  ? item.offset - milestoneSideFootprint
+                  : calloutPlacement === "right"
+                    ? item.offset - itemGap
+                  : item.offset - milestoneWidth / 2,
+              )
             : item.offset;
         const visualEnd =
           item.kind === "milestone"
-            ? Math.min(100, item.offset + milestoneWidth / 2)
+            ? Math.min(
+                100,
+                calloutPlacement === "left"
+                  ? item.offset + itemGap
+                  : calloutPlacement === "right"
+                    ? item.offset + milestoneSideFootprint
+                  : item.offset + milestoneWidth / 2,
+              )
             : Math.min(100, item.offset + Math.max(item.width, taskMinWidth));
         let row = rowEnds.findIndex((end) => visualStart >= end + itemGap);
         if (row === -1) {
@@ -2282,6 +2308,7 @@ function App() {
           rowEnds[row] = visualEnd;
         }
         item.row = row;
+        item.calloutPlacement = calloutPlacement;
       });
 
       return {
@@ -2925,6 +2952,35 @@ function App() {
       cancelled = true;
     };
   }, [applyProject, selectedProjectId]);
+
+  useEffect(() => {
+    if (!selectedProjectId || activeView !== "project-overview") {
+      return;
+    }
+    let cancelled = false;
+    apiClient
+      .get<ProjectDetails>(
+        `/api/projects/${selectedProjectId}/overview`,
+        "Не удалось обновить обзор проекта",
+      )
+      .then((data) => {
+        if (!cancelled) {
+          applyProject(data);
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Не удалось обновить обзор проекта",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView, applyProject, selectedProjectId]);
 
   function applyWbsSnapshotResult(
     nextItems: WbsItem[],
@@ -6559,7 +6615,7 @@ function App() {
                                 item.kind === "milestone" ? (
                                   <button
                                     type="button"
-                                    className={`overview-graph-milestone ${wbsToneClass(item).replace("tone-", "")}`}
+                                    className={`overview-graph-milestone ${item.calloutPlacement ? `callout-${item.calloutPlacement}` : ""} ${wbsToneClass(item).replace("tone-", "")}`}
                                     key={item.id}
                                     onClick={() => openView("project-structure")}
                                     style={{
