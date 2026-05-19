@@ -623,13 +623,13 @@ const OVERVIEW_GRAPH_TRACK_MIN_WIDTH = 1360;
 const OVERVIEW_GRAPH_MONTH_WIDTH = 180;
 const OVERVIEW_GRAPH_TASK_MIN_WIDTH = 150;
 const OVERVIEW_GRAPH_MILESTONE_WIDTH = 166;
-const OVERVIEW_GRAPH_MILESTONE_SIDE_WIDTH = 238;
+const OVERVIEW_GRAPH_MILESTONE_SIDE_WIDTH = 226;
 const OVERVIEW_GRAPH_MILESTONE_LONG_TITLE = 32;
-const OVERVIEW_GRAPH_ROW_GAP = 26;
-const OVERVIEW_GRAPH_ROW_HEIGHT = 58;
-const OVERVIEW_GRAPH_TASK_TOP = 14;
-const OVERVIEW_GRAPH_MILESTONE_TOP = 30;
-const OVERVIEW_GRAPH_SIDE_MILESTONE_TOP = 10;
+const OVERVIEW_GRAPH_ROW_GAP = 18;
+const OVERVIEW_GRAPH_ROW_HEIGHT = 48;
+const OVERVIEW_GRAPH_TASK_TOP = 9;
+const OVERVIEW_GRAPH_MILESTONE_TOP = 24;
+const OVERVIEW_GRAPH_SIDE_MILESTONE_TOP = 5;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -2214,7 +2214,7 @@ function App() {
     const taskMinWidth = (OVERVIEW_GRAPH_TASK_MIN_WIDTH / trackWidth) * 100;
     const milestoneWidth = (OVERVIEW_GRAPH_MILESTONE_WIDTH / trackWidth) * 100;
     const milestoneSideFootprint =
-      ((OVERVIEW_GRAPH_MILESTONE_SIDE_WIDTH + 56) / trackWidth) * 100;
+      ((OVERVIEW_GRAPH_MILESTONE_SIDE_WIDTH + 36) / trackWidth) * 100;
     const datedById = new Map(datedItems.map((entry) => [entry.item.id, entry]));
     const criticalIds = new Set(project?.criticalPath?.criticalItemIds ?? []);
     const phases = wbsTree

@@ -1899,8 +1899,8 @@ code {
 }
 
 .overview-project-graph {
-  --overview-graph-row-height: 58px;
-  --overview-graph-lane-padding-y: 34px;
+  --overview-graph-row-height: 48px;
+  --overview-graph-lane-padding-y: 28px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   overflow: auto;
@@ -2070,7 +2070,7 @@ code {
   font-size: 11px;
   font-weight: 800;
   gap: 6px;
-  height: 30px;
+  height: 28px;
   justify-content: center;
   line-height: 1.15;
   min-width: 150px;
@@ -2121,9 +2121,9 @@ code {
   font-weight: 900;
   gap: 2px;
   line-height: 1.12;
-  max-width: 156px;
-  min-width: 132px;
-  padding: 7px 9px;
+  max-width: 150px;
+  min-width: 126px;
+  padding: 6px 9px;
   text-align: center;
   transform: translateX(-50%);
 }
@@ -2168,29 +2168,29 @@ code {
 
 .overview-graph-milestone.callout-left,
 .overview-graph-milestone.callout-right {
-  max-width: 238px;
-  min-width: 188px;
+  max-width: 226px;
+  min-width: 176px;
   text-align: left;
 }
 
 .overview-graph-milestone.callout-left {
-  transform: translateX(calc(-100% - 26px));
+  transform: translateX(calc(-100% - 18px));
 }
 
 .overview-graph-milestone.callout-right {
-  transform: translateX(26px);
+  transform: translateX(18px);
 }
 
 .overview-graph-milestone.callout-left i,
 .overview-graph-milestone.callout-right i {
-  left: -32px;
+  left: -24px;
   top: 50%;
   transform: translateY(-50%) rotate(45deg);
 }
 
 .overview-graph-milestone.callout-left i {
   left: auto;
-  right: -32px;
+  right: -24px;
 }
 
 .overview-graph-milestone.callout-left::before,
