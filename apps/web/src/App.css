@@ -2290,10 +2290,10 @@ code {
 
 .gantt-jira-badge {
   align-items: center;
-  background: rgba(100, 116, 139, 0.26);
-  border: 1px solid rgba(100, 116, 139, 0.24);
+  background: rgba(100, 116, 139, 0.14);
+  border: 1px solid rgba(100, 116, 139, 0.12);
   border-radius: 999px;
-  color: #334155;
+  color: rgba(51, 65, 85, 0.56);
   display: inline-flex;
   font-size: 10px;
   font-weight: 900;
@@ -2313,8 +2313,8 @@ code {
 
 .gantt-jira-badge:hover,
 .gantt-jira-badge:focus-visible {
-  background: rgba(100, 116, 139, 0.38);
-  color: #0f172a;
+  background: rgba(100, 116, 139, 0.24);
+  color: rgba(15, 23, 42, 0.72);
   outline: none;
 }
 
