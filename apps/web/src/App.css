@@ -2193,15 +2193,7 @@ code {
 
 .overview-graph-milestone.callout-left::before,
 .overview-graph-milestone.callout-right::before {
-  height: 32px;
-  left: -23px;
-  top: 50%;
-  transform: translateY(-50%) rotate(90deg);
-}
-
-.overview-graph-milestone.callout-left::before {
-  left: auto;
-  right: -23px;
+  display: none;
 }
 
 .overview-graph-milestone.callout-left::after,
