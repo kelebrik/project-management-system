@@ -623,17 +623,13 @@ const GANTT_HIERARCHY_LEVELS = [1, 2, 3, 4, 5] as const;
 const GANTT_PANEL_WIDTH_MIN = 760;
 const OVERVIEW_GRAPH_TRACK_MIN_WIDTH = 1360;
 const OVERVIEW_GRAPH_MONTH_WIDTH = 180;
-const OVERVIEW_GRAPH_TASK_MIN_WIDTH = 150;
-const OVERVIEW_GRAPH_MILESTONE_WIDTH = 166;
 const OVERVIEW_GRAPH_MILESTONE_LONG_TITLE = 32;
-const OVERVIEW_GRAPH_ROW_GAP = 18;
 const OVERVIEW_GRAPH_ROW_HEIGHT = 48;
 const OVERVIEW_GRAPH_TASK_TOP = 9;
 const OVERVIEW_GRAPH_MILESTONE_TOP = 24;
 const OVERVIEW_GRAPH_SIDE_MILESTONE_TOP = 5;
 const OVERVIEW_GRAPH_MILESTONE_CALLOUT_GAP = 18;
 const OVERVIEW_GRAPH_MILESTONE_COMPACT_WIDTH = 132;
-const OVERVIEW_GRAPH_MILESTONE_COLLISION_PAD = 28;
 const OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH = 204;
 const OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH = 248;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -2216,9 +2212,6 @@ function App() {
     const today = startOfDay(new Date());
     const todayOffset =
       today >= rawStart && today <= rawEnd ? offsetForDate(today) : null;
-    const itemGap = (OVERVIEW_GRAPH_ROW_GAP / trackWidth) * 100;
-    const taskMinWidth = (OVERVIEW_GRAPH_TASK_MIN_WIDTH / trackWidth) * 100;
-    const milestoneWidth = (OVERVIEW_GRAPH_MILESTONE_WIDTH / trackWidth) * 100;
     const percentFromPx = (value: number) => (value / trackWidth) * 100;
     const datedById = new Map(datedItems.map((entry) => [entry.item.id, entry]));
     const criticalIds = new Set(project?.criticalPath?.criticalItemIds ?? []);
@@ -2259,72 +2252,11 @@ function App() {
             jiraTicketKey: item.jiraTicketKey,
           } satisfies OverviewGraphItem;
         })
-        .filter((item): item is OverviewGraphItem => item !== null)
-        .filter(
-          (item) =>
-            item.kind === "milestone" ||
-            item.type === "WORK_PACKAGE" ||
-            item.type === "DELIVERABLE" ||
-            item.critical ||
-            item.status === "IN_PROGRESS" ||
-            item.status === "AT_RISK" ||
-            item.status === "BLOCKED",
-        )
-        .sort(
-          (left, right) =>
-            left.offset - right.offset ||
-            right.width - left.width ||
-            left.code.localeCompare(right.code),
-        )
-        .slice(0, 14);
+        .filter((item): item is OverviewGraphItem => item !== null);
     };
     const lanes = laneRoots.map((phase) => {
       const laneItems = laneItemsFromPhase(phase);
-      const rowIntervals: Array<Array<{ end: number; start: number }>> = [];
-      const rowHasSpace = (
-        rowIndex: number,
-        visualStart: number,
-        visualEnd: number,
-      ) =>
-        (rowIntervals[rowIndex] ?? []).every(
-          (interval) =>
-            visualEnd + itemGap <= interval.start ||
-            visualStart >= interval.end + itemGap,
-        );
-      const rowSpanHasSpace = (
-        rowIndex: number,
-        visualStart: number,
-        visualEnd: number,
-        rowSpan: number,
-      ) =>
-        Array.from({ length: rowSpan }, (_, spanIndex) =>
-          rowHasSpace(rowIndex + spanIndex, visualStart, visualEnd),
-        ).every(Boolean);
-      const candidateRow = (
-        visualStart: number,
-        visualEnd: number,
-        rowSpan = 1,
-      ) => {
-        const searchLimit = rowIntervals.length + 1;
-        const row = Array.from({ length: searchLimit }, (_, index) => index).find(
-          (rowIndex) =>
-            rowSpanHasSpace(rowIndex, visualStart, visualEnd, rowSpan),
-        );
-        return row ?? rowIntervals.length;
-      };
-      const reserveRow = (
-        rowIndex: number,
-        visualStart: number,
-        visualEnd: number,
-        rowSpan = 1,
-      ) => {
-        for (let spanIndex = 0; spanIndex < rowSpan; spanIndex += 1) {
-          const targetRow = rowIndex + spanIndex;
-          if (!rowIntervals[targetRow]) rowIntervals[targetRow] = [];
-          rowIntervals[targetRow].push({ start: visualStart, end: visualEnd });
-          rowIntervals[targetRow].sort((left, right) => left.start - right.start);
-        }
-      };
+      let currentRow = 0;
       laneItems.forEach((item) => {
         const overlapsToday =
           todayOffset !== null && Math.abs(todayOffset - item.offset) < 2.4;
@@ -2335,23 +2267,14 @@ function App() {
         let calloutPlacement: OverviewGraphItem["calloutPlacement"];
         let calloutShape: OverviewGraphItem["calloutShape"];
         let calloutWidth: number | undefined;
-        let visualStart = item.offset;
-        let visualEnd = Math.min(100, item.offset + Math.max(item.width, taskMinWidth));
-        let visualRowSpan = 1;
-        let collisionStart = visualStart;
-        let collisionEnd = visualEnd;
 
         if (item.kind === "milestone") {
           type MilestoneCandidate = {
             clipped: boolean;
-            collisionEnd: number;
-            collisionStart: number;
             overflow: number;
             placement: OverviewGraphItem["calloutPlacement"];
             severeOverflow: boolean;
             shape: OverviewGraphItem["calloutShape"];
-            row: number;
-            rowSpan: number;
             visualEnd: number;
             visualStart: number;
             width: number;
@@ -2373,48 +2296,25 @@ function App() {
               placement === "left"
                 ? item.offset - sideFootprint
                 : placement === "diagonal-right"
-                  ? item.offset + itemGap
+                  ? item.offset
                 : placement === "right"
-                  ? item.offset - itemGap
-                  : item.offset - milestoneWidth / 2;
+                  ? item.offset
+                  : item.offset - percentFromPx(OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH) / 2;
             const rawEnd =
               placement === "left"
-                ? item.offset + itemGap
+                ? item.offset
                 : placement === "diagonal-right"
                   ? item.offset + sideFootprint
                 : placement === "right"
                   ? item.offset + sideFootprint
-                  : item.offset + milestoneWidth / 2;
+                  : item.offset + percentFromPx(OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH) / 2;
             const overflow = Math.max(0, -rawStart, rawEnd - 100);
             const start = clampNumber(rawStart, 0, 100);
             const end = clampNumber(rawEnd, 0, 100);
-            const collisionPad = percentFromPx(
-              OVERVIEW_GRAPH_MILESTONE_COLLISION_PAD,
-            );
-            const candidateCollisionStart = clampNumber(
-              start - collisionPad,
-              0,
-              100,
-            );
-            const candidateCollisionEnd = clampNumber(end + collisionPad, 0, 100);
-            const rowSpan =
-              placement === "diagonal-right" ||
-              shape === "compact" ||
-              item.title.length > 42
-                ? 2
-                : 1;
             return {
               clipped: overflow > 0,
-              collisionEnd: candidateCollisionEnd,
-              collisionStart: candidateCollisionStart,
               overflow,
               placement,
-              row: candidateRow(
-                candidateCollisionStart,
-                candidateCollisionEnd,
-                rowSpan,
-              ),
-              rowSpan,
               severeOverflow: overflow > 7,
               shape,
               visualEnd: end,
@@ -2464,7 +2364,6 @@ function App() {
           );
           const bestCandidate = [...(softVisibleCandidates.length > 0 ? softVisibleCandidates : candidates)].sort(
             (left, right) =>
-              left.row - right.row ||
               left.overflow - right.overflow ||
               candidatePreference(left) - candidatePreference(right) ||
               right.visualStart - left.visualStart,
@@ -2472,16 +2371,15 @@ function App() {
           calloutPlacement = bestCandidate.placement;
           calloutShape = bestCandidate.shape;
           calloutWidth = bestCandidate.width;
-          visualStart = bestCandidate.visualStart;
-          visualEnd = bestCandidate.visualEnd;
-          visualRowSpan = bestCandidate.rowSpan;
-          collisionStart = bestCandidate.collisionStart;
-          collisionEnd = bestCandidate.collisionEnd;
         }
 
-        const row = candidateRow(collisionStart, collisionEnd, visualRowSpan);
-        reserveRow(row, collisionStart, collisionEnd, visualRowSpan);
-        item.row = row;
+        const rowSpan =
+          item.kind === "milestone" &&
+          (calloutShape === "compact" || item.title.length > 42)
+            ? 2
+            : 1;
+        item.row = currentRow;
+        currentRow += rowSpan;
         item.calloutPlacement = calloutPlacement;
         item.calloutShape = calloutShape;
         item.calloutWidth = calloutWidth;
@@ -2492,7 +2390,7 @@ function App() {
         code: phase.code,
         title: phase.title,
         items: laneItems,
-        rowCount: Math.max(1, rowIntervals.length),
+        rowCount: Math.max(1, currentRow),
       };
     });
     return {
