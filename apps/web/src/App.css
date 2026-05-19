@@ -1703,7 +1703,7 @@ code {
   flex-direction: column;
   gap: 4px;
   justify-content: center;
-  min-height: 172px;
+  min-height: var(--milestone-lane-height, 188px);
   padding-right: 18px;
 }
 
@@ -1720,8 +1720,8 @@ code {
 }
 
 .milestone-lane-canvas {
-  --milestone-axis-center: 86px;
-  min-height: 172px;
+  --milestone-axis-center: calc(var(--milestone-lane-height, 188px) / 2);
+  min-height: var(--milestone-lane-height, 188px);
   padding: 0 42px 0 18px;
   position: relative;
 }
@@ -1871,19 +1871,19 @@ code {
 }
 
 .milestone-point.top .milestone-date {
-  top: -52px;
+  top: calc(-52px - var(--milestone-label-level, 0) * 78px);
 }
 
 .milestone-point.bottom .milestone-date {
-  top: 36px;
+  top: calc(36px + var(--milestone-label-level, 0) * 78px);
 }
 
 .milestone-point.top .milestone-label {
-  bottom: 56px;
+  bottom: calc(56px + var(--milestone-label-level, 0) * 78px);
 }
 
 .milestone-point.bottom .milestone-label {
-  top: 58px;
+  top: calc(58px + var(--milestone-label-level, 0) * 78px);
 }
 
 .milestone-range {

@@ -581,6 +581,10 @@ type WbsTableCssProperties = CSSProperties & {
   "--wbs-level-width": string;
 };
 
+type MilestonePointStyle = CSSProperties & {
+  "--milestone-label-level": number;
+};
+
 const WBS_LEVEL_MIN_WIDTH = 128;
 const GANTT_PANEL_HEIGHT_DEFAULT = 456;
 const GANTT_PANEL_WIDTH_DEFAULT = 0;
@@ -1849,6 +1853,7 @@ function App() {
         startDate: null,
         endDate: null,
         trackWidth: 960,
+        laneHeight: 188,
       };
     }
 
@@ -1869,6 +1874,7 @@ function App() {
             (typeof datedMilestones)[number] & {
               offset: number;
               side: "top" | "bottom";
+              level: number;
             }
           >,
         },
@@ -1882,6 +1888,7 @@ function App() {
         (typeof datedMilestones)[number] & {
           offset: number;
           side: "top" | "bottom";
+          level: number;
         }
       >,
     };
@@ -1907,6 +1914,7 @@ function App() {
         ...entry,
         offset,
         side: "top" as "top" | "bottom",
+        level: 0,
       };
       const phaseId = phaseIdForMilestone(entry.milestone);
       const lane = phaseId ? laneByPhaseId.get(phaseId) : null;
@@ -1924,17 +1932,35 @@ function App() {
             ...(unassignedLane.items.length > 0 ? [unassignedLane] : []),
           ]
         : [unassignedLane];
+    let maxLaneLevel = 0;
     lanes.forEach((lane) => {
-      lane.items
-        .sort(
-          (left, right) =>
-            String(left.milestone.dueDate ?? "").localeCompare(
-              String(right.milestone.dueDate ?? ""),
-            ) || left.milestone.sortOrder - right.milestone.sortOrder,
-        )
-        .forEach((item, index) => {
-          item.side = index % 2 === 0 ? "top" : "bottom";
-        });
+      const sideLevels: Record<"top" | "bottom", number[]> = {
+        top: [],
+        bottom: [],
+      };
+      lane.items.sort(
+        (left, right) =>
+          String(left.milestone.dueDate ?? "").localeCompare(
+            String(right.milestone.dueDate ?? ""),
+          ) || left.milestone.sortOrder - right.milestone.sortOrder,
+      );
+
+      lane.items.forEach((item, index) => {
+        const side = index % 2 === 0 ? "top" : "bottom";
+        const lastOffsets = sideLevels[side];
+        let level = lastOffsets.findIndex(
+          (lastOffset) => item.offset - lastOffset >= 0.12,
+        );
+        if (level === -1) {
+          level = lastOffsets.length;
+          lastOffsets.push(item.offset);
+        } else {
+          lastOffsets[level] = item.offset;
+        }
+        item.side = side;
+        item.level = level;
+        maxLaneLevel = Math.max(maxLaneLevel, level);
+      });
     });
     const maxLaneMilestones = Math.max(
       1,
@@ -1946,6 +1972,7 @@ function App() {
       startDate: new Date(minTime).toISOString(),
       endDate: new Date(maxTime).toISOString(),
       trackWidth: Math.max(960, maxLaneMilestones * 190),
+      laneHeight: 188 + maxLaneLevel * 78,
     };
   }, [project?.wbsItems, structureMilestones]);
   const overviewDashboard = useMemo(() => {
@@ -6166,6 +6193,7 @@ function App() {
                     style={
                       {
                         "--milestone-track-width": `${milestoneTimeline.trackWidth}px`,
+                        "--milestone-lane-height": `${milestoneTimeline.laneHeight}px`,
                       } as CSSProperties
                     }
                   >
@@ -6193,6 +6221,7 @@ function App() {
                                   state,
                                   offset,
                                   side,
+                                  level,
                                 }) => (
                                   <button
                                     type="button"
@@ -6201,7 +6230,8 @@ function App() {
                                     onClick={() => openView("project-structure")}
                                     style={{
                                       left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
-                                    }}
+                                      "--milestone-label-level": level,
+                                    } as MilestonePointStyle}
                                     title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
                                   >
                                     <span className="milestone-marker" />
