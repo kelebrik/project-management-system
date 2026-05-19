@@ -2291,20 +2291,39 @@ function App() {
             visualEnd + itemGap <= interval.start ||
             visualStart >= interval.end + itemGap,
         );
-      const candidateRow = (visualStart: number, visualEnd: number) => {
-        const row = rowIntervals.findIndex((_, rowIndex) =>
-          rowHasSpace(rowIndex, visualStart, visualEnd),
+      const rowSpanHasSpace = (
+        rowIndex: number,
+        visualStart: number,
+        visualEnd: number,
+        rowSpan: number,
+      ) =>
+        Array.from({ length: rowSpan }, (_, spanIndex) =>
+          rowHasSpace(rowIndex + spanIndex, visualStart, visualEnd),
+        ).every(Boolean);
+      const candidateRow = (
+        visualStart: number,
+        visualEnd: number,
+        rowSpan = 1,
+      ) => {
+        const searchLimit = rowIntervals.length + 1;
+        const row = Array.from({ length: searchLimit }, (_, index) => index).find(
+          (rowIndex) =>
+            rowSpanHasSpace(rowIndex, visualStart, visualEnd, rowSpan),
         );
-        return row === -1 ? rowIntervals.length : row;
+        return row ?? rowIntervals.length;
       };
       const reserveRow = (
         rowIndex: number,
         visualStart: number,
         visualEnd: number,
+        rowSpan = 1,
       ) => {
-        if (!rowIntervals[rowIndex]) rowIntervals[rowIndex] = [];
-        rowIntervals[rowIndex].push({ start: visualStart, end: visualEnd });
-        rowIntervals[rowIndex].sort((left, right) => left.start - right.start);
+        for (let spanIndex = 0; spanIndex < rowSpan; spanIndex += 1) {
+          const targetRow = rowIndex + spanIndex;
+          if (!rowIntervals[targetRow]) rowIntervals[targetRow] = [];
+          rowIntervals[targetRow].push({ start: visualStart, end: visualEnd });
+          rowIntervals[targetRow].sort((left, right) => left.start - right.start);
+        }
       };
       laneItems.forEach((item) => {
         const overlapsToday =
@@ -2318,6 +2337,7 @@ function App() {
         let calloutWidth: number | undefined;
         let visualStart = item.offset;
         let visualEnd = Math.min(100, item.offset + Math.max(item.width, taskMinWidth));
+        let visualRowSpan = 1;
 
         if (item.kind === "milestone") {
           type MilestoneCandidate = {
@@ -2327,6 +2347,7 @@ function App() {
             severeOverflow: boolean;
             shape: OverviewGraphItem["calloutShape"];
             row: number;
+            rowSpan: number;
             visualEnd: number;
             visualStart: number;
             width: number;
@@ -2369,11 +2390,18 @@ function App() {
             const overflow = Math.max(0, -rawStart, rawEnd - 100);
             const start = clampNumber(rawStart, 0, 100);
             const end = clampNumber(rawEnd, 0, 100);
+            const rowSpan =
+              placement === "diagonal-right" ||
+              shape === "compact" ||
+              item.title.length > 42
+                ? 2
+                : 1;
             return {
               clipped: overflow > 0,
               overflow,
               placement,
-              row: candidateRow(start, end),
+              row: candidateRow(start, end, rowSpan),
+              rowSpan,
               severeOverflow: overflow > 7,
               shape,
               visualEnd: end,
@@ -2437,10 +2465,11 @@ function App() {
           calloutWidth = bestCandidate.width;
           visualStart = bestCandidate.visualStart;
           visualEnd = bestCandidate.visualEnd;
+          visualRowSpan = bestCandidate.rowSpan;
         }
 
-        const row = candidateRow(visualStart, visualEnd);
-        reserveRow(row, visualStart, visualEnd);
+        const row = candidateRow(visualStart, visualEnd, visualRowSpan);
+        reserveRow(row, visualStart, visualEnd, visualRowSpan);
         item.row = row;
         item.calloutPlacement = calloutPlacement;
         item.calloutShape = calloutShape;
