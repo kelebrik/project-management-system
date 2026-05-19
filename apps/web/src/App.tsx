@@ -626,7 +626,10 @@ const OVERVIEW_GRAPH_MILESTONE_WIDTH = 166;
 const OVERVIEW_GRAPH_MILESTONE_SIDE_WIDTH = 238;
 const OVERVIEW_GRAPH_MILESTONE_LONG_TITLE = 32;
 const OVERVIEW_GRAPH_ROW_GAP = 26;
-const OVERVIEW_GRAPH_ROW_HEIGHT = 68;
+const OVERVIEW_GRAPH_ROW_HEIGHT = 58;
+const OVERVIEW_GRAPH_TASK_TOP = 14;
+const OVERVIEW_GRAPH_MILESTONE_TOP = 30;
+const OVERVIEW_GRAPH_SIDE_MILESTONE_TOP = 10;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -2324,7 +2327,7 @@ function App() {
         code: phase.code,
         title: phase.title,
         items: laneItems,
-        rowCount: Math.max(2, rowEnds.length),
+        rowCount: Math.max(1, rowEnds.length),
       };
     });
     return {
@@ -6624,7 +6627,7 @@ function App() {
                                     onClick={() => openView("project-structure")}
                                     style={{
                                       left: `${item.offset}%`,
-                                      top: `calc(34px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
+                                      top: `calc(${item.calloutPlacement ? OVERVIEW_GRAPH_SIDE_MILESTONE_TOP : OVERVIEW_GRAPH_MILESTONE_TOP}px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
                                     }}
                                     title={`${item.code} ${item.title}: ${date(item.dueDate)}.`}
                                   >
@@ -6640,7 +6643,7 @@ function App() {
                                     onClick={() => openView("project-structure")}
                                     style={{
                                       left: `${item.offset}%`,
-                                      top: `calc(18px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
+                                      top: `calc(${OVERVIEW_GRAPH_TASK_TOP}px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
                                       width: `${item.width}%`,
                                     }}
                                     title={`${item.code} ${item.title}: ${date(item.startDate)} - ${date(item.dueDate)}.`}
