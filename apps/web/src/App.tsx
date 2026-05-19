@@ -590,7 +590,9 @@ type OverviewGraphItem = {
   code: string;
   title: string;
   kind: "task" | "milestone";
-  calloutPlacement?: "below" | "left" | "right";
+  calloutPlacement?: "below" | "left" | "right" | "diagonal-right";
+  calloutShape?: "compact" | "wide" | "standard";
+  calloutWidth?: number;
   status: WbsItemStatus;
   type: WbsItemType;
   offset: number;
@@ -623,13 +625,16 @@ const OVERVIEW_GRAPH_TRACK_MIN_WIDTH = 1360;
 const OVERVIEW_GRAPH_MONTH_WIDTH = 180;
 const OVERVIEW_GRAPH_TASK_MIN_WIDTH = 150;
 const OVERVIEW_GRAPH_MILESTONE_WIDTH = 166;
-const OVERVIEW_GRAPH_MILESTONE_SIDE_WIDTH = 226;
 const OVERVIEW_GRAPH_MILESTONE_LONG_TITLE = 32;
 const OVERVIEW_GRAPH_ROW_GAP = 18;
 const OVERVIEW_GRAPH_ROW_HEIGHT = 48;
 const OVERVIEW_GRAPH_TASK_TOP = 9;
 const OVERVIEW_GRAPH_MILESTONE_TOP = 24;
 const OVERVIEW_GRAPH_SIDE_MILESTONE_TOP = 5;
+const OVERVIEW_GRAPH_MILESTONE_CALLOUT_GAP = 18;
+const OVERVIEW_GRAPH_MILESTONE_COMPACT_WIDTH = 176;
+const OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH = 220;
+const OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH = 292;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -2213,8 +2218,7 @@ function App() {
     const itemGap = (OVERVIEW_GRAPH_ROW_GAP / trackWidth) * 100;
     const taskMinWidth = (OVERVIEW_GRAPH_TASK_MIN_WIDTH / trackWidth) * 100;
     const milestoneWidth = (OVERVIEW_GRAPH_MILESTONE_WIDTH / trackWidth) * 100;
-    const milestoneSideFootprint =
-      ((OVERVIEW_GRAPH_MILESTONE_SIDE_WIDTH + 36) / trackWidth) * 100;
+    const percentFromPx = (value: number) => (value / trackWidth) * 100;
     const datedById = new Map(datedItems.map((entry) => [entry.item.id, entry]));
     const criticalIds = new Set(project?.criticalPath?.criticalItemIds ?? []);
     const phases = wbsTree
@@ -2290,47 +2294,108 @@ function App() {
           (item.title.length > OVERVIEW_GRAPH_MILESTONE_LONG_TITLE ||
             overlapsToday);
         let calloutPlacement: OverviewGraphItem["calloutPlacement"];
+        let calloutShape: OverviewGraphItem["calloutShape"];
+        let calloutWidth: number | undefined;
         let visualStart = item.offset;
         let visualEnd = Math.min(100, item.offset + Math.max(item.width, taskMinWidth));
 
         if (item.kind === "milestone") {
           type MilestoneCandidate = {
             clipped: boolean;
-            severeOverflow: boolean;
+            overflow: number;
             placement: OverviewGraphItem["calloutPlacement"];
+            severeOverflow: boolean;
+            shape: OverviewGraphItem["calloutShape"];
             row: number;
             visualEnd: number;
             visualStart: number;
+            width: number;
           };
           const candidateFor = (
             placement: OverviewGraphItem["calloutPlacement"],
+            shape: OverviewGraphItem["calloutShape"] = "standard",
           ): MilestoneCandidate => {
+            const candidateWidth =
+              shape === "compact"
+                ? OVERVIEW_GRAPH_MILESTONE_COMPACT_WIDTH
+                : shape === "wide"
+                  ? OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH
+                  : OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH;
+            const sideFootprint = percentFromPx(
+              candidateWidth + OVERVIEW_GRAPH_MILESTONE_CALLOUT_GAP,
+            );
             const rawStart =
               placement === "left"
-                ? item.offset - milestoneSideFootprint
+                ? item.offset - sideFootprint
+                : placement === "diagonal-right"
+                  ? item.offset + itemGap
                 : placement === "right"
                   ? item.offset - itemGap
                   : item.offset - milestoneWidth / 2;
             const rawEnd =
               placement === "left"
                 ? item.offset + itemGap
+                : placement === "diagonal-right"
+                  ? item.offset + sideFootprint
                 : placement === "right"
-                  ? item.offset + milestoneSideFootprint
+                  ? item.offset + sideFootprint
                   : item.offset + milestoneWidth / 2;
             const overflow = Math.max(0, -rawStart, rawEnd - 100);
             const start = clampNumber(rawStart, 0, 100);
             const end = clampNumber(rawEnd, 0, 100);
             return {
               clipped: overflow > 0,
+              overflow,
               placement,
               row: candidateRow(start),
               severeOverflow: overflow > 7,
+              shape,
               visualEnd: end,
               visualStart: start,
+              width: candidateWidth,
             };
           };
+          const prefersDiagonal =
+            item.offset > 70 && item.offset < 94 && item.title.length <= 24;
+          const prefersWide =
+            !prefersDiagonal &&
+            !overlapsToday &&
+            item.offset > 44 &&
+            item.offset < 82 &&
+            item.title.length <= 32;
+          const candidatePreference = (candidate: MilestoneCandidate) => {
+            if (
+              prefersDiagonal &&
+              candidate.placement === "diagonal-right"
+            ) {
+              return 0;
+            }
+            if (
+              prefersWide &&
+              candidate.placement === "right" &&
+              candidate.shape === "wide"
+            ) {
+              return 0;
+            }
+            if (
+              !prefersWide &&
+              !prefersDiagonal &&
+              candidate.placement === "left" &&
+              candidate.shape === "compact"
+            ) {
+              return 0;
+            }
+            return 1;
+          };
           const candidates = needsSideCallout
-            ? [candidateFor("left"), candidateFor("right")]
+            ? [
+                candidateFor("left", "compact"),
+                candidateFor("right", "compact"),
+                candidateFor("right", "wide"),
+                ...(item.offset > 70 && item.offset < 94
+                  ? [candidateFor("diagonal-right", "compact")]
+                  : []),
+              ]
             : [candidateFor(undefined)];
           const softVisibleCandidates = candidates.filter(
             (candidate) => !candidate.severeOverflow,
@@ -2338,11 +2403,15 @@ function App() {
           const bestCandidate = [...(softVisibleCandidates.length > 0 ? softVisibleCandidates : candidates)].sort(
             (left, right) =>
               left.row - right.row ||
+              left.overflow - right.overflow ||
+              candidatePreference(left) - candidatePreference(right) ||
               left.visualEnd - right.visualEnd ||
-              Number(left.clipped) - Number(right.clipped) ||
+              right.width - left.width ||
               right.visualStart - left.visualStart,
           )[0];
           calloutPlacement = bestCandidate.placement;
+          calloutShape = bestCandidate.shape;
+          calloutWidth = bestCandidate.width;
           visualStart = bestCandidate.visualStart;
           visualEnd = bestCandidate.visualEnd;
         }
@@ -2355,6 +2424,8 @@ function App() {
         }
         item.row = row;
         item.calloutPlacement = calloutPlacement;
+        item.calloutShape = calloutShape;
+        item.calloutWidth = calloutWidth;
       });
 
       return {
@@ -6657,13 +6728,16 @@ function App() {
                                 item.kind === "milestone" ? (
                                   <button
                                     type="button"
-                                    className={`overview-graph-milestone ${item.calloutPlacement ? `callout-${item.calloutPlacement}` : ""} ${wbsToneClass(item).replace("tone-", "")}`}
+                                    className={`overview-graph-milestone ${item.calloutPlacement ? `callout-${item.calloutPlacement}` : ""} ${item.calloutShape ? `shape-${item.calloutShape}` : ""} ${wbsToneClass(item).replace("tone-", "")}`}
                                     key={item.id}
                                     onClick={() => openView("project-structure")}
                                     style={{
                                       left: `${item.offset}%`,
                                       top: `calc(${item.calloutPlacement ? OVERVIEW_GRAPH_SIDE_MILESTONE_TOP : OVERVIEW_GRAPH_MILESTONE_TOP}px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
-                                    }}
+                                      "--overview-milestone-callout-width": item.calloutWidth
+                                        ? `${item.calloutWidth}px`
+                                        : undefined,
+                                    } as CSSProperties}
                                     title={`${item.code} ${item.title}: ${date(item.dueDate)}.`}
                                   >
                                     <i aria-hidden="true" />
