@@ -891,6 +891,10 @@ async function validateWbsProjectAndParent(
     }
   }
 
+  if (jiraTicketUrl && !jiraTicketUrl.startsWith('https://')) {
+    return { error: 'Ссылка Jira должна начинаться с https://' as const };
+  }
+
   const jiraBaseUrl = project.jiraIntegration?.baseUrl;
   if (jiraBaseUrl && jiraTicketUrl && !jiraTicketUrl.startsWith(jiraBaseUrl)) {
     return { error: `URL Jira должен начинаться с ${jiraBaseUrl}` as const };

@@ -678,6 +678,7 @@ const WBS_TABLE_COLUMNS = [
   { key: "calendarDays", label: "Кал. дни", width: 96 },
   { key: "calendar", label: "Календарь", width: 110 },
   { key: "progress", label: "%", width: 72 },
+  { key: "jiraTicketUrl", label: "Jira URL", width: 240 },
   { key: "predecessor1", label: "Предшественник 1", width: 148 },
   { key: "predecessor2", label: "Предшественник 2", width: 148 },
   { key: "predecessor3", label: "Предшественник 3", width: 148 },
@@ -707,6 +708,7 @@ const WBS_DIRTY_FIELDS: Array<keyof WbsFormState> = [
   "calendarDays",
   "calendarCode",
   "progress",
+  "jiraTicketUrl",
   "predecessor1",
   "predecessor2",
   "predecessor3",
@@ -729,6 +731,7 @@ const WBS_COLUMN_FIELDS: Record<WbsTableColumnKey, Array<keyof WbsFormState>> = 
   calendarDays: ["calendarDays"],
   calendar: ["calendarCode"],
   progress: ["progress"],
+  jiraTicketUrl: ["jiraTicketUrl"],
   predecessor1: ["predecessor1"],
   predecessor2: ["predecessor2"],
   predecessor3: ["predecessor3"],
@@ -1076,6 +1079,15 @@ function responseErrorMessage(result: unknown, fallback: string) {
     if (fieldErrors.length > 0) return fieldErrors.join(", ");
   }
   return fallback;
+}
+
+function isHttpsUrl(value: string) {
+  if (!value.trim()) return true;
+  try {
+    return new URL(value.trim()).protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function projectOptionLabel(project: ProjectListItem) {
@@ -4058,6 +4070,22 @@ function App() {
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
+      case "jiraTicketUrl":
+        return (
+          <input
+            className={
+              draft.jiraTicketUrl && !isHttpsUrl(draft.jiraTicketUrl)
+                ? "input-error"
+                : ""
+            }
+            value={draft.jiraTicketUrl}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { jiraTicketUrl: event.target.value })
+            }
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            placeholder="https://..."
+          />
+        );
       case "predecessor1":
       case "predecessor2":
       case "predecessor3":
@@ -4104,6 +4132,10 @@ function App() {
     if (!draft) return;
     const currentItem = project.wbsItems.find((item) => item.id === itemId);
     const nextPayload = wbsPayload(itemId, draft);
+    if (!isHttpsUrl(draft.jiraTicketUrl)) {
+      setError("Ссылка Jira должна начинаться с https://");
+      return;
+    }
     const currentPayload = currentItem
       ? wbsPayload(itemId, wbsToForm(currentItem))
       : null;
@@ -6915,6 +6947,21 @@ function App() {
                                       title="Конец связи"
                                     />
                                   </i>
+                                  {item.jiraTicketUrl && (
+                                    <a
+                                      className="gantt-jira-badge"
+                                      href={item.jiraTicketUrl}
+                                      rel="noreferrer"
+                                      style={{
+                                        left: `calc(${offset + (milestone ? 0 : width)}% + 8px)`,
+                                      }}
+                                      target="_blank"
+                                      title={`Открыть Jira: ${item.jiraTicketKey || item.jiraTicketUrl}`}
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      Jira
+                                    </a>
+                                  )}
                                 </div>
                               ),
                             )}

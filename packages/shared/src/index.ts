@@ -158,7 +158,13 @@ export const wbsItemSchema = z.object({
   forecastCost: z.coerce.number().nonnegative().default(0),
   progress: z.coerce.number().int().min(0).max(100).default(0),
   jiraTicketKey: z.string().trim().optional().nullable(),
-  jiraTicketUrl: z.string().trim().url().optional().nullable(),
+  jiraTicketUrl: z
+    .string()
+    .trim()
+    .url()
+    .startsWith("https://", "Ссылка Jira должна начинаться с https://")
+    .optional()
+    .nullable(),
   description: z.string().trim().optional().nullable(),
   sortOrder: z.coerce.number().int().default(0),
 });
