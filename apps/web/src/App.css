@@ -2183,12 +2183,12 @@ code {
 }
 
 .overview-graph-milestone.callout-diagonal-right {
-  transform: translate(34px, 24px);
+  transform: translate(56px, 34px);
 }
 
 .overview-graph-milestone.shape-compact {
   line-height: 1.08;
-  padding: 6px 9px;
+  padding: 7px 9px;
 }
 
 .overview-graph-milestone.shape-wide {
@@ -2213,8 +2213,8 @@ code {
 }
 
 .overview-graph-milestone.callout-diagonal-right i {
-  left: -30px;
-  top: -14px;
+  left: -54px;
+  top: -30px;
   transform: rotate(45deg);
 }
 
@@ -2237,9 +2237,34 @@ code {
 }
 
 .overview-graph-milestone.callout-diagonal-right::after {
+  display: none;
+}
+
+.overview-graph-milestone.callout-diagonal-right::before {
+  background: #94a3b8;
+  content: "";
+  display: block;
+  height: 46px;
+  left: -40px;
+  position: absolute;
+  top: -26px;
+  transform: rotate(45deg);
+  transform-origin: left top;
+  width: 2px;
+}
+
+.overview-graph-milestone.callout-diagonal-right.shape-compact::after {
+  background: #f8fafc;
+  border-left: 1px solid #cbd5e1;
+  border-top: 1px solid #cbd5e1;
+  content: "";
+  display: block;
+  height: 12px;
   left: -7px;
-  top: 9px;
+  position: absolute;
+  top: 7px;
   transform: rotate(-45deg);
+  width: 12px;
 }
 
 .overview-graph-milestone.callout-left::after {

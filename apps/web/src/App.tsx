@@ -632,9 +632,10 @@ const OVERVIEW_GRAPH_TASK_TOP = 9;
 const OVERVIEW_GRAPH_MILESTONE_TOP = 24;
 const OVERVIEW_GRAPH_SIDE_MILESTONE_TOP = 5;
 const OVERVIEW_GRAPH_MILESTONE_CALLOUT_GAP = 18;
-const OVERVIEW_GRAPH_MILESTONE_COMPACT_WIDTH = 176;
-const OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH = 220;
-const OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH = 292;
+const OVERVIEW_GRAPH_MILESTONE_DIAGONAL_OFFSET = 56;
+const OVERVIEW_GRAPH_MILESTONE_COMPACT_WIDTH = 132;
+const OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH = 204;
+const OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH = 248;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -2279,12 +2280,31 @@ function App() {
     };
     const lanes = laneRoots.map((phase) => {
       const laneItems = laneItemsFromPhase(phase);
-      const rowEnds: number[] = [];
-      const rowForVisualStart = (visualStart: number) =>
-        rowEnds.findIndex((end) => visualStart >= end + itemGap);
-      const candidateRow = (visualStart: number) => {
-        const row = rowForVisualStart(visualStart);
-        return row === -1 ? rowEnds.length : row;
+      const rowIntervals: Array<Array<{ end: number; start: number }>> = [];
+      const rowHasSpace = (
+        rowIndex: number,
+        visualStart: number,
+        visualEnd: number,
+      ) =>
+        (rowIntervals[rowIndex] ?? []).every(
+          (interval) =>
+            visualEnd + itemGap <= interval.start ||
+            visualStart >= interval.end + itemGap,
+        );
+      const candidateRow = (visualStart: number, visualEnd: number) => {
+        const row = rowIntervals.findIndex((_, rowIndex) =>
+          rowHasSpace(rowIndex, visualStart, visualEnd),
+        );
+        return row === -1 ? rowIntervals.length : row;
+      };
+      const reserveRow = (
+        rowIndex: number,
+        visualStart: number,
+        visualEnd: number,
+      ) => {
+        if (!rowIntervals[rowIndex]) rowIntervals[rowIndex] = [];
+        rowIntervals[rowIndex].push({ start: visualStart, end: visualEnd });
+        rowIntervals[rowIndex].sort((left, right) => left.start - right.start);
       };
       laneItems.forEach((item) => {
         const overlapsToday =
@@ -2324,11 +2344,17 @@ function App() {
             const sideFootprint = percentFromPx(
               candidateWidth + OVERVIEW_GRAPH_MILESTONE_CALLOUT_GAP,
             );
+            const diagonalShift = percentFromPx(
+              OVERVIEW_GRAPH_MILESTONE_DIAGONAL_OFFSET,
+            );
+            const diagonalFootprint = percentFromPx(
+              candidateWidth + OVERVIEW_GRAPH_MILESTONE_DIAGONAL_OFFSET,
+            );
             const rawStart =
               placement === "left"
                 ? item.offset - sideFootprint
                 : placement === "diagonal-right"
-                  ? item.offset + itemGap
+                  ? item.offset + diagonalShift
                 : placement === "right"
                   ? item.offset - itemGap
                   : item.offset - milestoneWidth / 2;
@@ -2336,7 +2362,7 @@ function App() {
               placement === "left"
                 ? item.offset + itemGap
                 : placement === "diagonal-right"
-                  ? item.offset + sideFootprint
+                  ? item.offset + diagonalFootprint
                 : placement === "right"
                   ? item.offset + sideFootprint
                   : item.offset + milestoneWidth / 2;
@@ -2347,7 +2373,7 @@ function App() {
               clipped: overflow > 0,
               overflow,
               placement,
-              row: candidateRow(start),
+              row: candidateRow(start, end),
               severeOverflow: overflow > 7,
               shape,
               visualEnd: end,
@@ -2371,26 +2397,25 @@ function App() {
               return 0;
             }
             if (
-              prefersWide &&
-              candidate.placement === "right" &&
-              candidate.shape === "wide"
-            ) {
-              return 0;
-            }
-            if (
-              !prefersWide &&
-              !prefersDiagonal &&
               candidate.placement === "left" &&
               candidate.shape === "compact"
             ) {
               return 0;
             }
-            return 1;
+            if (
+              prefersWide &&
+              candidate.placement === "right" &&
+              candidate.shape === "wide"
+            ) {
+              return 1;
+            }
+            return 2;
           };
           const candidates = needsSideCallout
             ? [
                 candidateFor("left", "compact"),
                 candidateFor("right", "compact"),
+                candidateFor("left", "wide"),
                 candidateFor("right", "wide"),
                 ...(item.offset > 70 && item.offset < 94
                   ? [candidateFor("diagonal-right", "compact")]
@@ -2405,8 +2430,6 @@ function App() {
               left.row - right.row ||
               left.overflow - right.overflow ||
               candidatePreference(left) - candidatePreference(right) ||
-              left.visualEnd - right.visualEnd ||
-              right.width - left.width ||
               right.visualStart - left.visualStart,
           )[0];
           calloutPlacement = bestCandidate.placement;
@@ -2416,12 +2439,8 @@ function App() {
           visualEnd = bestCandidate.visualEnd;
         }
 
-        const row = candidateRow(visualStart);
-        if (row === rowEnds.length) {
-          rowEnds.push(visualEnd);
-        } else {
-          rowEnds[row] = visualEnd;
-        }
+        const row = candidateRow(visualStart, visualEnd);
+        reserveRow(row, visualStart, visualEnd);
         item.row = row;
         item.calloutPlacement = calloutPlacement;
         item.calloutShape = calloutShape;
@@ -2433,7 +2452,7 @@ function App() {
         code: phase.code,
         title: phase.title,
         items: laneItems,
-        rowCount: Math.max(1, rowEnds.length),
+        rowCount: Math.max(1, rowIntervals.length),
       };
     });
     return {
