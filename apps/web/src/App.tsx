@@ -2276,6 +2276,12 @@ function App() {
     const lanes = laneRoots.map((phase) => {
       const laneItems = laneItemsFromPhase(phase);
       const rowEnds: number[] = [];
+      const rowForVisualStart = (visualStart: number) =>
+        rowEnds.findIndex((end) => visualStart >= end + itemGap);
+      const candidateRow = (visualStart: number) => {
+        const row = rowForVisualStart(visualStart);
+        return row === -1 ? rowEnds.length : row;
+      };
       laneItems.forEach((item) => {
         const overlapsToday =
           todayOffset !== null && Math.abs(todayOffset - item.offset) < 2.4;
@@ -2283,37 +2289,66 @@ function App() {
           item.kind === "milestone" &&
           (item.title.length > OVERVIEW_GRAPH_MILESTONE_LONG_TITLE ||
             overlapsToday);
-        const calloutPlacement =
-          needsSideCallout
-            ? item.offset > 64
-              ? "left"
-              : "right"
-            : undefined;
-        const visualStart =
-          item.kind === "milestone"
-            ? Math.max(
-                0,
-                calloutPlacement === "left"
-                  ? item.offset - milestoneSideFootprint
-                  : calloutPlacement === "right"
-                    ? item.offset - itemGap
-                  : item.offset - milestoneWidth / 2,
-              )
-            : item.offset;
-        const visualEnd =
-          item.kind === "milestone"
-            ? Math.min(
-                100,
-                calloutPlacement === "left"
-                  ? item.offset + itemGap
-                  : calloutPlacement === "right"
-                    ? item.offset + milestoneSideFootprint
-                  : item.offset + milestoneWidth / 2,
-              )
-            : Math.min(100, item.offset + Math.max(item.width, taskMinWidth));
-        let row = rowEnds.findIndex((end) => visualStart >= end + itemGap);
-        if (row === -1) {
-          row = rowEnds.length;
+        let calloutPlacement: OverviewGraphItem["calloutPlacement"];
+        let visualStart = item.offset;
+        let visualEnd = Math.min(100, item.offset + Math.max(item.width, taskMinWidth));
+
+        if (item.kind === "milestone") {
+          type MilestoneCandidate = {
+            clipped: boolean;
+            severeOverflow: boolean;
+            placement: OverviewGraphItem["calloutPlacement"];
+            row: number;
+            visualEnd: number;
+            visualStart: number;
+          };
+          const candidateFor = (
+            placement: OverviewGraphItem["calloutPlacement"],
+          ): MilestoneCandidate => {
+            const rawStart =
+              placement === "left"
+                ? item.offset - milestoneSideFootprint
+                : placement === "right"
+                  ? item.offset - itemGap
+                  : item.offset - milestoneWidth / 2;
+            const rawEnd =
+              placement === "left"
+                ? item.offset + itemGap
+                : placement === "right"
+                  ? item.offset + milestoneSideFootprint
+                  : item.offset + milestoneWidth / 2;
+            const overflow = Math.max(0, -rawStart, rawEnd - 100);
+            const start = clampNumber(rawStart, 0, 100);
+            const end = clampNumber(rawEnd, 0, 100);
+            return {
+              clipped: overflow > 0,
+              placement,
+              row: candidateRow(start),
+              severeOverflow: overflow > 7,
+              visualEnd: end,
+              visualStart: start,
+            };
+          };
+          const candidates = needsSideCallout
+            ? [candidateFor("left"), candidateFor("right")]
+            : [candidateFor(undefined)];
+          const softVisibleCandidates = candidates.filter(
+            (candidate) => !candidate.severeOverflow,
+          );
+          const bestCandidate = [...(softVisibleCandidates.length > 0 ? softVisibleCandidates : candidates)].sort(
+            (left, right) =>
+              left.row - right.row ||
+              left.visualEnd - right.visualEnd ||
+              Number(left.clipped) - Number(right.clipped) ||
+              right.visualStart - left.visualStart,
+          )[0];
+          calloutPlacement = bestCandidate.placement;
+          visualStart = bestCandidate.visualStart;
+          visualEnd = bestCandidate.visualEnd;
+        }
+
+        const row = candidateRow(visualStart);
+        if (row === rowEnds.length) {
           rowEnds.push(visualEnd);
         } else {
           rowEnds[row] = visualEnd;
