@@ -1649,14 +1649,80 @@ code {
 .milestone-timeline {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: auto;
   padding: 0;
 }
 
-.milestone-timeline-canvas {
-  --milestone-axis-center: 182px;
-  min-height: 380px;
-  padding: 22px 16px 18px;
+.milestone-lanes {
+  display: grid;
+  gap: 18px;
+  min-width: calc(176px + 18px + var(--milestone-track-width, 960px));
+  padding: 18px 20px 22px;
+}
+
+.milestone-scale,
+.milestone-lane {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 176px var(--milestone-track-width, 960px);
+}
+
+.milestone-scale {
+  color: #64748b;
+  position: relative;
+  font-size: 12px;
+  font-weight: 800;
+  height: 18px;
+  text-transform: uppercase;
+}
+
+.milestone-scale::before {
+  content: "";
+}
+
+.milestone-scale span {
+  position: absolute;
+  left: calc(176px + 18px + 18px);
+  top: 0;
+}
+
+.milestone-scale span + span {
+  left: auto;
+  right: 42px;
+}
+
+.milestone-lane {
+  align-items: center;
+}
+
+.milestone-lane-title {
+  align-self: stretch;
+  border-right: 1px solid #e2e8f0;
+  color: #334155;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  min-height: 172px;
+  padding-right: 18px;
+}
+
+.milestone-lane-title span {
+  color: #00608a;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.milestone-lane-title strong {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.milestone-lane-canvas {
+  --milestone-axis-center: 86px;
+  min-height: 172px;
+  padding: 0 42px 0 18px;
   position: relative;
 }
 
@@ -1665,9 +1731,9 @@ code {
   border: 1px solid #475569;
   box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.18);
   height: 20px;
-  left: 28px;
+  left: 18px;
   position: absolute;
-  right: 46px;
+  right: 42px;
   top: calc(var(--milestone-axis-center) - 10px);
 }
 
@@ -1677,7 +1743,7 @@ code {
   border-top: 21px solid transparent;
   height: 0;
   position: absolute;
-  right: 18px;
+  right: 14px;
   top: calc(var(--milestone-axis-center) - 21px);
   width: 0;
 }
@@ -1694,7 +1760,7 @@ code {
   text-align: left;
   top: var(--milestone-axis-center);
   transform: translateX(-50%);
-  width: clamp(92px, 10.8vw, 142px);
+  width: 138px;
 }
 
 .milestone-point:hover .milestone-label,
@@ -1718,10 +1784,10 @@ code {
 .milestone-point::before {
   background: #94a3b8;
   content: "";
-  height: 86px;
+  height: 56px;
   left: 50%;
   position: absolute;
-  width: 4px;
+  width: 3px;
 }
 
 .milestone-point.top::before {
@@ -1755,20 +1821,20 @@ code {
 .milestone-marker {
   border-radius: 999px;
   box-shadow: 0 0 0 3px #fff;
-  height: 12px;
-  left: calc(50% - 4px);
+  height: 13px;
+  left: calc(50% - 6.5px);
   position: absolute;
-  top: -6px;
+  top: -6.5px;
   width: 12px;
   z-index: 2;
 }
 
 .milestone-point.top .milestone-marker {
-  top: -6px;
+  top: -6.5px;
 }
 
 .milestone-point.bottom .milestone-marker {
-  top: -6px;
+  top: -6.5px;
 }
 
 .milestone-point.green .milestone-marker {
@@ -1805,19 +1871,19 @@ code {
 }
 
 .milestone-point.top .milestone-date {
-  bottom: 100px;
+  top: -52px;
 }
 
 .milestone-point.bottom .milestone-date {
-  top: 100px;
+  top: 36px;
 }
 
 .milestone-point.top .milestone-label {
-  bottom: 124px;
+  bottom: 56px;
 }
 
 .milestone-point.bottom .milestone-label {
-  top: 124px;
+  top: 58px;
 }
 
 .milestone-range {

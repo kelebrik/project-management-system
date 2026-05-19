@@ -1289,37 +1289,6 @@ function riskTone(score: number) {
   return "green";
 }
 
-function overviewStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    DRAFT: "Черновик",
-    GENERATED: "Сгенерировано",
-    PM_REVIEW: "Проверка РП",
-    APPROVED: "Одобрено",
-    PUBLISHED: "Опубликовано",
-  };
-  return labels[status] ?? status;
-}
-
-function gateStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    OK: "В норме",
-    WARN: "Предупреждение",
-    BLOCKED: "Заблокировано",
-  };
-  return labels[status] ?? status;
-}
-
-function dateTime(value: string | null) {
-  if (!value) return "не задано";
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
 function buildWbsTree(items: WbsItem[]) {
   const byId = new Map<string, WbsTreeItem>();
   const roots: WbsTreeItem[] = [];
@@ -1576,8 +1545,6 @@ function App() {
   const [syncing, setSyncing] = useState(false);
   const [savingJira, setSavingJira] = useState(false);
   const [creatingIssue, setCreatingIssue] = useState(false);
-  const [generatingOverview, setGeneratingOverview] = useState(false);
-  const [publishingOverview, setPublishingOverview] = useState(false);
   const [savingBaseline, setSavingBaseline] = useState(false);
   const [savingCalendar, setSavingCalendar] = useState<string | null>(null);
   const [selectedCalendarYear, setSelectedCalendarYear] = useState<number | null>(
@@ -1690,8 +1657,6 @@ function App() {
   const [projectSearch, setProjectSearch] = useState("");
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [recentProjectIds, setRecentProjectIds] = useState<string[]>([]);
-  const [executivePresentationMode, setExecutivePresentationMode] =
-    useState(false);
 
   const handleEditableFocus = useCallback(
     (event: ReactFocusEvent<HTMLDivElement>) => {
@@ -1751,7 +1716,6 @@ function App() {
     setWbsRedoStack(nextStack);
   }, []);
 
-  const latestOverview = project?.overviews[0];
   const projectTree = useMemo(() => buildProjectTree(projects), [projects]);
   const selectedProjectListItem = useMemo(
     () => projects.find((item) => item.id === selectedProjectId) ?? null,
@@ -1869,6 +1833,11 @@ function App() {
       );
   }, [project?.wbsItems]);
   const milestoneTimeline = useMemo(() => {
+    const items = project?.wbsItems ?? [];
+    const itemById = new Map(items.map((item) => [item.id, item]));
+    const phases = items
+      .filter((item) => item.type === "PHASE")
+      .sort((left, right) => left.sortOrder - right.sortOrder);
     const datedMilestones = structureMilestones.filter(
       (entry) =>
         entry.milestone.dueDate &&
@@ -1876,9 +1845,10 @@ function App() {
     );
     if (datedMilestones.length === 0) {
       return {
-        items: [],
+        lanes: [],
         startDate: null,
         endDate: null,
+        trackWidth: 960,
       };
     }
 
@@ -1887,23 +1857,85 @@ function App() {
     );
     const minTime = Math.min(...dates.map((item) => item.getTime()));
     const maxTime = Math.max(...dates.map((item) => item.getTime()));
-    const step =
-      datedMilestones.length > 1 ? 88 / (datedMilestones.length - 1) : 0;
+    const range = maxTime - minTime;
+    const laneByPhaseId = new Map(
+      phases.map((phase) => [
+        phase.id,
+        {
+          id: phase.id,
+          code: phase.code,
+          title: phase.title,
+          items: [] as Array<
+            (typeof datedMilestones)[number] & {
+              offset: number;
+              side: "top" | "bottom";
+            }
+          >,
+        },
+      ]),
+    );
+    const unassignedLane = {
+      id: "unassigned",
+      code: "",
+      title: phases.length > 0 ? "Без фазы" : "Все вехи",
+      items: [] as Array<
+        (typeof datedMilestones)[number] & {
+          offset: number;
+          side: "top" | "bottom";
+        }
+      >,
+    };
+    const phaseIdForMilestone = (milestone: WbsItem) => {
+      let currentId = milestone.parentId;
+      const visited = new Set<string>();
+      while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
+        const current = itemById.get(currentId);
+        if (!current) break;
+        if (current.type === "PHASE") return current.id;
+        currentId = current.parentId;
+      }
+      return null;
+    };
+
+    datedMilestones.forEach((entry, index) => {
+      const dueTime = startOfDay(
+        new Date(entry.milestone.dueDate as string),
+      ).getTime();
+      const offset = range === 0 ? 0.5 : (dueTime - minTime) / range;
+      const laneItem = {
+        ...entry,
+        offset,
+        side: (index % 2 === 0 ? "top" : "bottom") as "top" | "bottom",
+      };
+      const phaseId = phaseIdForMilestone(entry.milestone);
+      const lane = phaseId ? laneByPhaseId.get(phaseId) : null;
+      if (lane) {
+        lane.items.push(laneItem);
+      } else {
+        unassignedLane.items.push(laneItem);
+      }
+    });
+
+    const lanes =
+      phases.length > 0
+        ? [
+            ...Array.from(laneByPhaseId.values()),
+            ...(unassignedLane.items.length > 0 ? [unassignedLane] : []),
+          ]
+        : [unassignedLane];
+    const maxLaneMilestones = Math.max(
+      1,
+      ...lanes.map((lane) => lane.items.length),
+    );
 
     return {
-      items: datedMilestones.map((entry, index) => {
-        const offset = datedMilestones.length === 1 ? 50 : 6 + step * index;
-
-        return {
-          ...entry,
-          offset,
-          side: index % 2 === 0 ? "top" : "bottom",
-        };
-      }),
+      lanes,
       startDate: new Date(minTime).toISOString(),
       endDate: new Date(maxTime).toISOString(),
+      trackWidth: Math.max(960, maxLaneMilestones * 190),
     };
-  }, [structureMilestones]);
+  }, [project?.wbsItems, structureMilestones]);
   const overviewDashboard = useMemo(() => {
     const today = startOfDay(new Date());
     const wbsItems = project?.wbsItems ?? [];
@@ -5114,95 +5146,6 @@ function App() {
     }
   }
 
-  async function generateOverview() {
-    if (!project) return;
-    setGeneratingOverview(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/projects/${project.id}/executive-overviews/generate`,
-        {
-          method: "POST",
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error ?? "Не удалось сгенерировать обзор");
-      }
-      await refreshProject(project.id);
-      setNotice(`Обзор для руководства v${result.version} сгенерирован`);
-    } catch (generateError) {
-      setError(
-        generateError instanceof Error
-          ? generateError.message
-          : "Не удалось сгенерировать обзор",
-      );
-    } finally {
-      setGeneratingOverview(false);
-    }
-  }
-
-  async function publishOverview() {
-    if (!latestOverview) return;
-    setPublishingOverview(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/executive-overviews/${latestOverview.id}/publish`,
-        {
-          method: "POST",
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error ?? "Не удалось опубликовать обзор");
-      }
-      await refreshProject();
-      setNotice(`Обзор для руководства v${result.version} опубликован`);
-    } catch (publishError) {
-      setError(
-        publishError instanceof Error
-          ? publishError.message
-          : "Не удалось опубликовать обзор",
-      );
-    } finally {
-      setPublishingOverview(false);
-    }
-  }
-
-  async function moveOverviewStatus(status: "PM_REVIEW" | "APPROVED") {
-    if (!latestOverview) return;
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await fetch(
-        `${apiBase}/api/executive-overviews/${latestOverview.id}/status`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status,
-            approvedBy: status === "APPROVED" ? "Проектный офис" : null,
-          }),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error ?? "Не удалось сменить статус обзора");
-      }
-      await refreshProject();
-      setNotice(`Обзор для руководства v${result.version}: ${overviewStatusLabel(result.status)}`);
-    } catch (workflowError) {
-      setError(
-        workflowError instanceof Error
-          ? workflowError.message
-          : "Не удалось сменить статус обзора",
-      );
-    }
-  }
-
   function openView(nextView: AppView) {
     setError(null);
     setNotice(null);
@@ -5521,7 +5464,7 @@ function App() {
       </aside>
 
       <main
-        className={`workspace ${executivePresentationMode ? "presentation-mode" : ""}`}
+        className="workspace"
       >
         <header
           className={`topbar ${project && isProjectView && activeView !== "project-create" ? "project-topbar" : ""}`}
@@ -6206,42 +6149,64 @@ function App() {
                       </a>
                     )}
                   </div>
-                  <div className="milestone-timeline">
-                    {milestoneTimeline.items.length > 0 ? (
-                      <div className="milestone-timeline-canvas">
-                        <div className="milestone-axis" aria-hidden="true" />
-                        <div className="milestone-axis-arrow" aria-hidden="true" />
-                        {milestoneTimeline.items.map(
-                          ({
-                            milestone,
-                            workDaysLeft,
-                            calendarDaysLeft,
-                            state,
-                            offset,
-                            side,
-                          }) => (
-                            <button
-                              type="button"
-                              className={`milestone-point ${side} ${state.tone}`}
-                              key={milestone.id}
-                              onClick={() => openView("project-structure")}
-                              style={{ left: `${offset}%` }}
-                              title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}. ${formatDaysLeft(workDaysLeft)} раб., ${formatDaysLeft(calendarDaysLeft)} кал.`}
-                            >
-                              <span className="milestone-marker" />
-                              <span className="milestone-label">
-                                {milestone.title}
-                              </span>
-                              <span className="milestone-date">
-                                {shortDate(milestone.dueDate)}
-                              </span>
-                            </button>
-                          ),
-                        )}
-                        <div className="milestone-range">
+                  <div
+                    className="milestone-timeline"
+                    style={
+                      {
+                        "--milestone-track-width": `${milestoneTimeline.trackWidth}px`,
+                      } as CSSProperties
+                    }
+                  >
+                    {milestoneTimeline.lanes.length > 0 ? (
+                      <div className="milestone-lanes">
+                        <div className="milestone-scale">
                           <span>{shortDate(milestoneTimeline.startDate)}</span>
                           <span>{shortDate(milestoneTimeline.endDate)}</span>
                         </div>
+                        {milestoneTimeline.lanes.map((lane) => (
+                          <div className="milestone-lane" key={lane.id}>
+                            <div className="milestone-lane-title">
+                              {lane.code && <span>{lane.code}</span>}
+                              <strong>{lane.title}</strong>
+                            </div>
+                            <div className="milestone-lane-canvas">
+                              <div className="milestone-axis" aria-hidden="true" />
+                              <div
+                                className="milestone-axis-arrow"
+                                aria-hidden="true"
+                              />
+                              {lane.items.map(
+                                ({
+                                  milestone,
+                                  workDaysLeft,
+                                  calendarDaysLeft,
+                                  state,
+                                  offset,
+                                  side,
+                                }) => (
+                                  <button
+                                    type="button"
+                                    className={`milestone-point ${side} ${state.tone}`}
+                                    key={milestone.id}
+                                    onClick={() => openView("project-structure")}
+                                    style={{
+                                      left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
+                                    }}
+                                    title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}. ${formatDaysLeft(workDaysLeft)} раб., ${formatDaysLeft(calendarDaysLeft)} кал.`}
+                                  >
+                                    <span className="milestone-marker" />
+                                    <span className="milestone-label">
+                                      {milestone.title}
+                                    </span>
+                                    <span className="milestone-date">
+                                      {shortDate(milestone.dueDate)}
+                                    </span>
+                                  </button>
+                                ),
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="empty-state">
@@ -8534,285 +8499,6 @@ function App() {
                 </article>
               )}
 
-              {project && activeView === "project-overview" && (
-                <article className="panel overview-panel">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Обзор для руководства</h2>
-                      <p>
-                        Детерминированная генерация управленческого пакета из текущих
-                        данных проекта
-                      </p>
-                    </div>
-                    <div className="overview-actions">
-                      <button
-                        type="button"
-                        onClick={generateOverview}
-                        disabled={generatingOverview}
-                      >
-                        {generatingOverview
-                          ? "Генерирую..."
-                          : "Сгенерировать новую версию"}
-                      </button>
-	                      <button
-	                        type="button"
-	                        onClick={publishOverview}
-                        disabled={
-                          !latestOverview ||
-                          latestOverview.status !== "APPROVED" ||
-                          publishingOverview
-                        }
-                      >
-	                        {publishingOverview ? "Публикую..." : "Опубликовать"}
-	                      </button>
-	                      <button
-	                        type="button"
-	                        className={executivePresentationMode ? "active" : ""}
-	                        onClick={() =>
-	                          setExecutivePresentationMode((current) => !current)
-	                        }
-	                      >
-	                        {executivePresentationMode
-	                          ? "Выйти из презентации"
-	                          : "Режим презентации"}
-	                      </button>
-	                      <button type="button" disabled={!latestOverview}>
-	                        Экспорт PDF
-	                      </button>
-	                      <button type="button" disabled={!latestOverview}>
-	                        Экспорт PPTX
-	                      </button>
-	                      <span className="version">
-	                        v{latestOverview?.version ?? 0}
-	                      </span>
-                    </div>
-                  </div>
-                  {latestOverview && (
-                    <>
-                      <div className="overview-status-line">
-                        <span>
-                          Статус:{" "}
-                          <b>{overviewStatusLabel(latestOverview.status)}</b>
-                        </span>
-                        <span>
-                          Сгенерировано:{" "}
-                          {latestOverview.generatedAt
-                            ? dateTime(latestOverview.generatedAt)
-                            : "не задано"}
-                        </span>
-                        <span>
-                          Проверка: {dateTime(latestOverview.reviewRequestedAt)}
-                        </span>
-                        <span>
-                          Одобрено: {dateTime(latestOverview.approvedAt)}
-                        </span>
-                        <span>
-                          Опубликовано:{" "}
-                          {latestOverview.publishedAt
-                            ? dateTime(latestOverview.publishedAt)
-                            : "не опубликовано"}
-                        </span>
-                      </div>
-                      <div className="overview-workflow">
-                        <button
-                          type="button"
-                          onClick={() => moveOverviewStatus("PM_REVIEW")}
-                          disabled={
-                            latestOverview.status === "PM_REVIEW" ||
-                            latestOverview.status === "APPROVED" ||
-                            latestOverview.status === "PUBLISHED"
-                          }
-                        >
-                          Отправить РП на проверку
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveOverviewStatus("APPROVED")}
-                          disabled={
-                            latestOverview.status === "APPROVED" ||
-                            latestOverview.status === "PUBLISHED"
-                          }
-                        >
-                          Одобрить
-                        </button>
-                        {latestOverview.approvedBy && (
-                          <span>Одобрил: {latestOverview.approvedBy}</span>
-                        )}
-                      </div>
-	                      <section className="overview-pack executive-hero">
-	                        <div>
-	                          <span>Управленческий обзор</span>
-	                          <h2>{project.code} - {project.name}</h2>
-                            <div className="executive-brief-grid">
-                              <div>
-                                <small>Статус</small>
-                                <strong>{projectHealthLabel(project.rag)}</strong>
-                              </div>
-                              <div>
-                                <small>Готовность</small>
-                                <strong>{project.progress}%</strong>
-                              </div>
-                              <div>
-                                <small>Ближайшая веха</small>
-                                <strong>
-                                  {overviewDashboard.nextMilestone
-                                    ? overviewDashboard.nextMilestone.milestone.title
-                                    : "не задана"}
-                                </strong>
-                              </div>
-                              <div>
-                                <small>Решения</small>
-                                <strong>{overviewDashboard.decisionItems}</strong>
-                              </div>
-                            </div>
-                            <ul className="executive-brief-list">
-                              <li>
-                                Срок: {date(project.targetDate)}, отклонение{" "}
-                                {project.scheduleVariance > 0 ? "+" : ""}
-                                {project.scheduleVariance} дней.
-                              </li>
-                              <li>
-                                Открытые вопросы: {overviewDashboard.openIssues.length},
-                                просроченные элементы Структуры:{" "}
-                                {overviewDashboard.overdueItems.length}.
-                              </li>
-                              <li>
-                                Риски и проблемы: {overviewDashboard.riskItems.length}
-                                {" "}активных записей.
-                              </li>
-                            </ul>
-	                        </div>
-	                        <strong className={`rag ${project.rag.toLowerCase()}`}>
-	                          {projectHealthLabel(project.rag)}
-	                        </strong>
-	                      </section>
-	                      <section className="overview-pack">
-	                        <h3>KPI для руководства</h3>
-                        <div className="overview-kpis">
-                          {(latestOverview.kpis ?? []).map((item) => (
-                            <div
-                              className={`overview-kpi ${item.tone}`}
-                              key={item.label}
-                            >
-                              <span>{item.label}</span>
-                              <strong>{item.value}</strong>
-                              <small>{item.secondary}</small>
-                              <em>{item.source}</em>
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                      <section className="overview-pack">
-                        <h3>Контрольные проверки качества</h3>
-                        <div className="gate-list">
-                          {(latestOverview.qualityGates ?? []).map((gate) => (
-                            <div className="gate-row" key={gate.name}>
-                              <span
-                                className={`gate-status ${gate.status.toLowerCase()}`}
-                              >
-                                {gateStatusLabel(gate.status)}
-                              </span>
-                              <div>
-                                <strong>{gate.name}</strong>
-                                <p>{gate.detail}</p>
-                                <small>{gate.source}</small>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                      <div className="overview-columns">
-                        <section>
-                          <h3>Нужные решения</h3>
-                          {latestOverview.decisions.length === 0 && (
-                            <p>Решения руководства не требуются.</p>
-                          )}
-                          {latestOverview.decisions.map((decision) => (
-                            <div className="decision" key={decision.title}>
-                              <strong>{decision.title}</strong>
-                              <span>При одобрении: {decision.impactIfApproved}</span>
-                              <span>При задержке: {decision.impactIfDelayed}</span>
-                              {decision.source && (
-                                <span>Источник: {decision.source}</span>
-                              )}
-                            </div>
-                          ))}
-                        </section>
-                        <section>
-                          <h3>Ключевые риски и вопросы</h3>
-                          <div className="overview-list">
-                            {(latestOverview.risks ?? []).length === 0 && (
-                              <p>Ключевые риски и вопросы не зафиксированы.</p>
-                            )}
-                            {(latestOverview.risks ?? []).map((risk) => (
-                              <div className="risk-line" key={risk.title}>
-                                <strong>{risk.title}</strong>
-                                <span>
-                                  {risk.severity} / {risk.owner} /{" "}
-                                  {risk.dueDate ? date(risk.dueDate) : "срок не задан"}
-                                </span>
-                                <p>{risk.impact}</p>
-                                <small>{risk.source}</small>
-                              </div>
-                            ))}
-                          </div>
-                        </section>
-                      </div>
-                      <div className="overview-columns">
-                        <section>
-                          <h3>Следующие действия</h3>
-                          <div className="overview-list">
-                            {(latestOverview.nextSteps ?? []).length === 0 && (
-                              <p>Следующие действия не сформированы.</p>
-                            )}
-                            {(latestOverview.nextSteps ?? []).map((step) => (
-                              <div className="action-line" key={step.title}>
-                                <strong>{step.title}</strong>
-                                <span>
-                                  {step.owner} /{" "}
-                                  {step.dueDate ? date(step.dueDate) : "срок не задан"}
-                                </span>
-                                <small>{step.source}</small>
-                              </div>
-                            ))}
-                          </div>
-                        </section>
-                        <section>
-                          <h3>Подтверждения</h3>
-                          <div className="evidence-list">
-                            {latestOverview.evidence.map((item) => (
-                              <span key={`${item.metric}-${item.source}`}>
-                                {item.metric}: {item.source}
-                              </span>
-                            ))}
-                          </div>
-                        </section>
-                      </div>
-                      {project.overviews.length > 1 && (
-                        <section className="overview-pack">
-                          <h3>История версий</h3>
-                          <div className="overview-history">
-                            {project.overviews.map((item) => (
-                              <div key={item.id}>
-                                <strong>v{item.version}</strong>
-                                <span>{overviewStatusLabel(item.status)}</span>
-                                <small>{dateTime(item.generatedAt)}</small>
-                              </div>
-                            ))}
-                          </div>
-                        </section>
-                      )}
-                    </>
-                  )}
-                  {!latestOverview && (
-                    <div className="empty-state">
-                      Нажмите «Сгенерировать новую версию», чтобы собрать первый
-                      обзор из статуса, сроков, снимка Jira и реестра открытых
-                      вопросов.
-                    </div>
-                  )}
-                </article>
-              )}
             </section>
           </>
         )}
