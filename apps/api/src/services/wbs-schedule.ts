@@ -3,6 +3,7 @@ import { prisma } from "../db.js";
 
 export type WbsScheduleItem = {
   id: string;
+  parentId?: string | null;
   code: string;
   type: WbsItemType;
   startDate: Date | null;
@@ -19,6 +20,7 @@ export type WbsScheduleItem = {
   workDays: number | null;
   calendarDays: number | null;
   calendarCode: ProjectCalendarCode;
+  wbsLevel?: number | null;
   sortOrder: number;
 };
 
@@ -144,6 +146,61 @@ function resolveDurationWorkDays(item: WbsScheduleItem) {
   return null;
 }
 
+function wbsLevelFromCode(code: string) {
+  return Math.max(1, code.split(".").filter(Boolean).length);
+}
+
+function wbsLevelFromItem(item: WbsScheduleItem) {
+  return Math.max(1, item.wbsLevel ?? wbsLevelFromCode(item.code));
+}
+
+function parentCodeFromCode(code: string) {
+  const parts = code.split(".").filter(Boolean);
+  if (parts.length <= 1) return null;
+  return parts.slice(0, -1).join(".");
+}
+
+function buildChildrenByParent(
+  items: WbsScheduleItem[],
+  itemsById: Map<string, WbsScheduleItem>,
+  itemsByCode: Map<string, WbsScheduleItem>,
+) {
+  const childrenByParent = new Map<string, WbsScheduleItem[]>();
+  for (const item of items) {
+    const explicitParentId =
+      item.parentId && itemsById.has(item.parentId) ? item.parentId : null;
+    const inferredParentCode = parentCodeFromCode(item.code);
+    const inferredParentId = inferredParentCode
+      ? itemsByCode.get(inferredParentCode)?.id ?? null
+      : null;
+    const parentId = explicitParentId ?? inferredParentId;
+    if (!parentId || parentId === item.id) continue;
+    childrenByParent.set(parentId, [
+      ...(childrenByParent.get(parentId) ?? []),
+      item,
+    ]);
+  }
+  return childrenByParent;
+}
+
+function minDate(dates: Date[]) {
+  if (dates.length === 0) return null;
+  return dates.reduce((earliest, current) =>
+    current.getTime() < earliest.getTime() ? current : earliest,
+  );
+}
+
+function maxDate(dates: Date[]) {
+  if (dates.length === 0) return null;
+  return dates.reduce((latest, current) =>
+    current.getTime() > latest.getTime() ? current : latest,
+  );
+}
+
+function usesChildScheduleRange(item: WbsScheduleItem) {
+  return item.type === "PHASE" || item.type === "WORK_PACKAGE";
+}
+
 function sortByPlanOrder(left: WbsScheduleItem, right: WbsScheduleItem) {
   return left.sortOrder - right.sortOrder || left.code.localeCompare(right.code, "ru");
 }
@@ -156,6 +213,7 @@ export function calculateWbsScheduleUpdates(
   const overridesByKey = buildCalendarOverrides(calendarOverrides);
   const itemsById = new Map(items.map((item) => [item.id, item]));
   const itemsByCode = new Map(items.map((item) => [item.code, item]));
+  const childrenByParent = buildChildrenByParent(items, itemsById, itemsByCode);
   const dependenciesBySuccessor = new Map<string, WbsScheduleDependency[]>();
   const dependencyBySuccessorAndPredecessor = new Map<string, WbsScheduleDependency>();
 
@@ -260,7 +318,7 @@ export function calculateWbsScheduleUpdates(
   }
 
   const computedById = new Map<string, WbsScheduleUpdate>();
-  const updates: WbsScheduleUpdate[] = [];
+  const updatesById = new Map<string, WbsScheduleUpdate>();
 
   for (const item of scheduledOrder) {
     const predecessorRefs = predecessorRefsByItem.get(item.id) ?? [];
@@ -326,11 +384,62 @@ export function calculateWbsScheduleUpdates(
       !sameNumber(item.workDays, update.workDays) ||
       !sameNumber(item.calendarDays, update.calendarDays)
     ) {
-      updates.push(update);
+      updatesById.set(item.id, update);
     }
   }
 
-  return updates;
+  const hierarchyOrder = [...items].sort(
+    (left, right) =>
+      wbsLevelFromItem(right) - wbsLevelFromItem(left) ||
+      right.sortOrder - left.sortOrder,
+  );
+  for (const item of hierarchyOrder) {
+    const children = childrenByParent.get(item.id) ?? [];
+    if (children.length === 0 || !usesChildScheduleRange(item)) continue;
+
+    const childSchedules = children
+      .map((child) => computedById.get(child.id))
+      .filter((schedule): schedule is WbsScheduleUpdate => Boolean(schedule));
+    const childStartDates = childSchedules
+      .map((schedule) => schedule.startDate)
+      .filter((date): date is Date => date !== null);
+    const childDueDates = childSchedules
+      .map((schedule) => schedule.dueDate)
+      .filter((date): date is Date => date !== null);
+    if (childStartDates.length === 0 && childDueDates.length === 0) continue;
+
+    const nextStartDate = minDate(childStartDates);
+    const nextDueDate = maxDate(childDueDates);
+    const nextCalendarDays =
+      nextStartDate && nextDueDate
+        ? calendarDaysInclusive(nextStartDate, nextDueDate)
+        : null;
+    const update: WbsScheduleUpdate = {
+      id: item.id,
+      startDate: nextStartDate,
+      dueDate: nextDueDate,
+      forecastStartDate: nextStartDate,
+      forecastDueDate: nextDueDate,
+      workDays: item.workDays,
+      calendarDays: nextCalendarDays,
+    };
+    computedById.set(item.id, update);
+
+    if (
+      !sameDate(item.startDate, update.startDate) ||
+      !sameDate(item.dueDate, update.dueDate) ||
+      !sameDate(item.forecastStartDate ?? null, update.forecastStartDate) ||
+      !sameDate(item.forecastDueDate ?? null, update.forecastDueDate) ||
+      !sameNumber(item.workDays, update.workDays) ||
+      !sameNumber(item.calendarDays, update.calendarDays)
+    ) {
+      updatesById.set(item.id, update);
+    } else {
+      updatesById.delete(item.id);
+    }
+  }
+
+  return [...updatesById.values()];
 }
 
 export async function recalculateProjectWbsSchedule(projectId: string) {

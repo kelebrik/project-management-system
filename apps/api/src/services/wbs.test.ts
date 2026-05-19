@@ -302,3 +302,87 @@ test("calculateWbsScheduleUpdates uses selected project calendar overrides", () 
   assert.equal(taskB?.dueDate?.toISOString().slice(0, 10), "2026-05-23");
   assert.equal(taskB?.calendarDays, 1);
 });
+
+test("calculateWbsScheduleUpdates aggregates phase and work package dates from children", () => {
+  const items = [
+    {
+      id: "phase",
+      parentId: null,
+      code: "1",
+      type: "PHASE" as const,
+      startDate: new Date("2026-05-01T00:00:00.000Z"),
+      dueDate: new Date("2026-05-01T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-01T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-01T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: null,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      wbsLevel: 1,
+      sortOrder: 10,
+    },
+    {
+      id: "package",
+      parentId: "phase",
+      code: "1.1",
+      type: "WORK_PACKAGE" as const,
+      startDate: new Date("2026-05-02T00:00:00.000Z"),
+      dueDate: new Date("2026-05-02T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-02T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-02T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: null,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      wbsLevel: 2,
+      sortOrder: 20,
+    },
+    {
+      id: "task-a",
+      parentId: "package",
+      code: "1.1.1",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      dueDate: new Date("2026-05-20T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-18T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-20T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: null,
+      calendarDays: 3,
+      calendarCode: "RU" as const,
+      wbsLevel: 3,
+      sortOrder: 30,
+    },
+    {
+      id: "task-b",
+      parentId: "package",
+      code: "1.1.2",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-25T00:00:00.000Z"),
+      dueDate: new Date("2026-05-29T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-25T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-29T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 5,
+      calendarDays: 5,
+      calendarCode: "RU" as const,
+      wbsLevel: 3,
+      sortOrder: 40,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], []);
+  const phase = updates.find((item) => item.id === "phase");
+  const workPackage = updates.find((item) => item.id === "package");
+
+  assert.equal(workPackage?.startDate?.toISOString().slice(0, 10), "2026-05-18");
+  assert.equal(workPackage?.dueDate?.toISOString().slice(0, 10), "2026-05-29");
+  assert.equal(workPackage?.calendarDays, 12);
+  assert.equal(phase?.startDate?.toISOString().slice(0, 10), "2026-05-18");
+  assert.equal(phase?.dueDate?.toISOString().slice(0, 10), "2026-05-29");
+  assert.equal(phase?.calendarDays, 12);
+});
