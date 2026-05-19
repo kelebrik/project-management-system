@@ -1737,9 +1737,9 @@ function App() {
     () => new Set(),
   );
   const [showGanttDependencies, setShowGanttDependencies] = useState(true);
-  const [showGanttBaseline, setShowGanttBaseline] = useState(true);
-  const [showGanttForecast, setShowGanttForecast] = useState(true);
-  const [showGanttCriticalPath, setShowGanttCriticalPath] = useState(true);
+  const [showGanttBaseline, setShowGanttBaseline] = useState(false);
+  const [showGanttForecast, setShowGanttForecast] = useState(false);
+  const [showGanttCriticalPath, setShowGanttCriticalPath] = useState(false);
   const [ganttScale, setGanttScale] = useState<GanttScale>("month");
   const [showWbsColumnMenu, setShowWbsColumnMenu] = useState(false);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
@@ -5941,6 +5941,24 @@ function App() {
       );
     }
   };
+  const toggleGanttDependencies = () => {
+    setShowGanttDependencies((current) => {
+      const next = !current;
+      if (next) {
+        setShowGanttCriticalPath(false);
+      }
+      return next;
+    });
+  };
+  const toggleGanttCriticalPath = () => {
+    setShowGanttCriticalPath((current) => {
+      const next = !current;
+      if (next) {
+        setShowGanttDependencies(false);
+      }
+      return next;
+    });
+  };
 
   if (loading) {
     return (
@@ -7810,18 +7828,14 @@ function App() {
 	                            <button
 	                              type="button"
 	                              className={showGanttDependencies ? "active" : ""}
-	                              onClick={() =>
-	                                setShowGanttDependencies((current) => !current)
-	                              }
+	                              onClick={toggleGanttDependencies}
 	                            >
 	                              Связи
 	                            </button>
 	                            <button
 	                              type="button"
 	                              className={showGanttCriticalPath ? "active" : ""}
-	                              onClick={() =>
-	                                setShowGanttCriticalPath((current) => !current)
-	                              }
+	                              onClick={toggleGanttCriticalPath}
 	                              title="Показать задачи и связи с нулевым резервом"
 	                            >
 	                              Критический путь
@@ -8027,71 +8041,65 @@ function App() {
                                 title={`Сегодня: ${date(new Date().toISOString())}`}
                               />
                             )}
-                            {showGanttDependencies && (
+                            {(showGanttDependencies || showGanttCriticalPath) && (
                               <svg
                                 className={`gantt-links ${ganttLinkDraft ? "drawing" : ""}`}
                                 viewBox={`0 0 100 ${wbsGantt.height}`}
                                 preserveAspectRatio="none"
                                 aria-hidden="true"
                               >
-                                {wbsGantt.dependencyLines.map((line) => {
-                                  const endpointInset = 0.35;
-                                  const startX = line.fromMilestone
-                                    ? line.fromX
-                                    : Math.max(
-                                        0,
-                                        Math.min(
-                                          100,
-                                          line.fromX +
-                                            (line.fromSide === "start"
-                                              ? endpointInset
-                                              : -endpointInset),
-                                        ),
-                                      );
-                                  const endX = line.toMilestone
-                                    ? line.toX
-                                    : Math.max(
-                                        0,
-                                        Math.min(
-                                          100,
-                                          line.toX +
-                                            (line.toSide === "start"
-                                              ? endpointInset
-                                              : -endpointInset),
-                                        ),
-                                      );
-                                  const horizontalGap = Math.abs(endX - startX);
-                                  const connectorStub =
-                                    horizontalGap === 0
-                                      ? 0.8
-                                      : horizontalGap >= 2.2
-                                        ? 1.1
-                                        : Math.max(0.2, horizontalGap / 2);
-                                  const bendX =
-                                    line.direction === "forward"
-                                      ? Math.min(
-                                          99,
-                                          startX + connectorStub,
-                                        )
+                                {wbsGantt.dependencyLines
+                                  .filter(
+                                    (line) =>
+                                      !showGanttCriticalPath || line.critical,
+                                  )
+                                  .map((line) => {
+                                    const endpointInset = 0.35;
+                                    const startX = line.fromMilestone
+                                      ? line.fromX
                                       : Math.max(
-                                          1,
-                                          startX - connectorStub,
+                                          0,
+                                          Math.min(
+                                            100,
+                                            line.fromX +
+                                              (line.fromSide === "start"
+                                                ? endpointInset
+                                                : -endpointInset),
+                                          ),
                                         );
-                                  return (
-                                    <path
-	                                      className={
-	                                        `slot-${line.styleSlot}${
-                                          showGanttCriticalPath && line.critical
+                                    const endX = line.toMilestone
+                                      ? line.toX
+                                      : Math.max(
+                                          0,
+                                          Math.min(
+                                            100,
+                                            line.toX +
+                                              (line.toSide === "start"
+                                                ? endpointInset
+                                                : -endpointInset),
+                                          ),
+                                        );
+                                    const horizontalGap = Math.abs(endX - startX);
+                                    const connectorStub =
+                                      horizontalGap === 0
+                                        ? 0.8
+                                        : horizontalGap >= 2.2
+                                          ? 1.1
+                                          : Math.max(0.2, horizontalGap / 2);
+                                    const bendX =
+                                      line.direction === "forward"
+                                        ? Math.min(99, startX + connectorStub)
+                                        : Math.max(1, startX - connectorStub);
+                                    return (
+                                      <path
+                                        className={`slot-${line.styleSlot}${
+                                          showGanttCriticalPath
                                             ? " critical-path"
                                             : ""
                                         }${
-                                          showGanttCriticalPath && !line.critical
-                                            ? " non-critical-path"
-                                            : ""
-                                        }${
-	                                          activeGanttLinkIds.sourceId &&
-	                                          (line.predecessorId ===
-	                                            activeGanttLinkIds.sourceId ||
+                                          activeGanttLinkIds.sourceId &&
+                                          (line.predecessorId ===
+                                            activeGanttLinkIds.sourceId ||
                                             line.successorId ===
                                               activeGanttLinkIds.sourceId)
                                             ? " active"
@@ -8101,25 +8109,24 @@ function App() {
                                           line.id
                                             ? " moving"
                                             : ""
-                                        }`
-                                      }
-                                      onPointerDown={(event) =>
-                                        startGanttLinkDrag(
-                                          {
-                                            itemId: line.predecessorId,
-                                            side: line.fromSide,
-                                          },
-                                          event,
-                                          line.id,
-                                        )
-                                      }
-                                      d={`M ${startX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${endX} ${line.toY}`}
-                                      key={line.id}
-                                      data-dependency-type={line.type}
-                                      aria-label="Связь Гантта"
-                                    />
-                                  );
-                                })}
+                                        }`}
+                                        onPointerDown={(event) =>
+                                          startGanttLinkDrag(
+                                            {
+                                              itemId: line.predecessorId,
+                                              side: line.fromSide,
+                                            },
+                                            event,
+                                            line.id,
+                                          )
+                                        }
+                                        d={`M ${startX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${endX} ${line.toY}`}
+                                        key={line.id}
+                                        data-dependency-type={line.type}
+                                        aria-label="Связь Гантта"
+                                      />
+                                    );
+                                  })}
                                 {ganttLinkDraft &&
                                   (() => {
                                     const source = wbsGantt.items.find(
