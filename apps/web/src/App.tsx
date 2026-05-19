@@ -6564,10 +6564,11 @@ function App() {
                                     onClick={() => openView("project-structure")}
                                     style={{
                                       left: `${item.offset}%`,
-                                      top: `calc(18px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
+                                      top: `calc(34px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
                                     }}
                                     title={`${item.code} ${item.title}: ${date(item.dueDate)}.`}
                                   >
+                                    <i aria-hidden="true" />
                                     <strong>{item.title}</strong>
                                     <span>{shortDate(item.dueDate)}</span>
                                   </button>
