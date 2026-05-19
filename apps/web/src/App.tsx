@@ -7376,17 +7376,16 @@ function App() {
                                 />
                               ))}
                             </div>
-                            <div className="gantt-sub-grid" aria-hidden="true">
-                              {(ganttScale === "quarter"
-                                ? wbsGantt.months
-                                : wbsGantt.weeks
-                              ).map((period) => (
-                                <span
-                                  key={`${ganttScale}-${period.label}`}
-                                  style={{ left: `${period.offset}%` }}
-                                />
-                              ))}
-                            </div>
+                            {ganttScale === "quarter" && (
+                              <div className="gantt-sub-grid" aria-hidden="true">
+                                {wbsGantt.months.map((period) => (
+                                  <span
+                                    key={`${ganttScale}-${period.label}`}
+                                    style={{ left: `${period.offset}%` }}
+                                  />
+                                ))}
+                              </div>
+                            )}
                             {wbsGantt.todayOffset !== null && (
                               <span
                                 className="gantt-today"
