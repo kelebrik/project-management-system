@@ -632,8 +632,8 @@ const OVERVIEW_GRAPH_TASK_TOP = 9;
 const OVERVIEW_GRAPH_MILESTONE_TOP = 24;
 const OVERVIEW_GRAPH_SIDE_MILESTONE_TOP = 5;
 const OVERVIEW_GRAPH_MILESTONE_CALLOUT_GAP = 18;
-const OVERVIEW_GRAPH_MILESTONE_DIAGONAL_OFFSET = 56;
 const OVERVIEW_GRAPH_MILESTONE_COMPACT_WIDTH = 132;
+const OVERVIEW_GRAPH_MILESTONE_COLLISION_PAD = 28;
 const OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH = 204;
 const OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH = 248;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -2338,10 +2338,14 @@ function App() {
         let visualStart = item.offset;
         let visualEnd = Math.min(100, item.offset + Math.max(item.width, taskMinWidth));
         let visualRowSpan = 1;
+        let collisionStart = visualStart;
+        let collisionEnd = visualEnd;
 
         if (item.kind === "milestone") {
           type MilestoneCandidate = {
             clipped: boolean;
+            collisionEnd: number;
+            collisionStart: number;
             overflow: number;
             placement: OverviewGraphItem["calloutPlacement"];
             severeOverflow: boolean;
@@ -2365,17 +2369,11 @@ function App() {
             const sideFootprint = percentFromPx(
               candidateWidth + OVERVIEW_GRAPH_MILESTONE_CALLOUT_GAP,
             );
-            const diagonalShift = percentFromPx(
-              OVERVIEW_GRAPH_MILESTONE_DIAGONAL_OFFSET,
-            );
-            const diagonalFootprint = percentFromPx(
-              candidateWidth + OVERVIEW_GRAPH_MILESTONE_DIAGONAL_OFFSET,
-            );
             const rawStart =
               placement === "left"
                 ? item.offset - sideFootprint
                 : placement === "diagonal-right"
-                  ? item.offset + diagonalShift
+                  ? item.offset + itemGap
                 : placement === "right"
                   ? item.offset - itemGap
                   : item.offset - milestoneWidth / 2;
@@ -2383,13 +2381,22 @@ function App() {
               placement === "left"
                 ? item.offset + itemGap
                 : placement === "diagonal-right"
-                  ? item.offset + diagonalFootprint
+                  ? item.offset + sideFootprint
                 : placement === "right"
                   ? item.offset + sideFootprint
                   : item.offset + milestoneWidth / 2;
             const overflow = Math.max(0, -rawStart, rawEnd - 100);
             const start = clampNumber(rawStart, 0, 100);
             const end = clampNumber(rawEnd, 0, 100);
+            const collisionPad = percentFromPx(
+              OVERVIEW_GRAPH_MILESTONE_COLLISION_PAD,
+            );
+            const candidateCollisionStart = clampNumber(
+              start - collisionPad,
+              0,
+              100,
+            );
+            const candidateCollisionEnd = clampNumber(end + collisionPad, 0, 100);
             const rowSpan =
               placement === "diagonal-right" ||
               shape === "compact" ||
@@ -2398,9 +2405,15 @@ function App() {
                 : 1;
             return {
               clipped: overflow > 0,
+              collisionEnd: candidateCollisionEnd,
+              collisionStart: candidateCollisionStart,
               overflow,
               placement,
-              row: candidateRow(start, end, rowSpan),
+              row: candidateRow(
+                candidateCollisionStart,
+                candidateCollisionEnd,
+                rowSpan,
+              ),
               rowSpan,
               severeOverflow: overflow > 7,
               shape,
@@ -2409,8 +2422,7 @@ function App() {
               width: candidateWidth,
             };
           };
-          const prefersDiagonal =
-            item.offset > 70 && item.offset < 94 && item.title.length <= 24;
+          const prefersDiagonal = false;
           const prefersWide =
             !prefersDiagonal &&
             !overlapsToday &&
@@ -2445,9 +2457,6 @@ function App() {
                 candidateFor("right", "compact"),
                 candidateFor("left", "wide"),
                 candidateFor("right", "wide"),
-                ...(item.offset > 70 && item.offset < 94
-                  ? [candidateFor("diagonal-right", "compact")]
-                  : []),
               ]
             : [candidateFor(undefined)];
           const softVisibleCandidates = candidates.filter(
@@ -2466,10 +2475,12 @@ function App() {
           visualStart = bestCandidate.visualStart;
           visualEnd = bestCandidate.visualEnd;
           visualRowSpan = bestCandidate.rowSpan;
+          collisionStart = bestCandidate.collisionStart;
+          collisionEnd = bestCandidate.collisionEnd;
         }
 
-        const row = candidateRow(visualStart, visualEnd, visualRowSpan);
-        reserveRow(row, visualStart, visualEnd, visualRowSpan);
+        const row = candidateRow(collisionStart, collisionEnd, visualRowSpan);
+        reserveRow(row, collisionStart, collisionEnd, visualRowSpan);
         item.row = row;
         item.calloutPlacement = calloutPlacement;
         item.calloutShape = calloutShape;
