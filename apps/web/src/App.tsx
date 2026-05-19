@@ -24,15 +24,18 @@ import {
   FileText,
   FolderTree,
   GanttChartSquare,
+  KeyRound,
   LayoutDashboard,
   ListChecks,
+  LogOut,
   Plus,
   Search,
   Settings,
   ShieldAlert,
+  Users,
 } from "lucide-react";
 import { labels } from "@pms/shared";
-import { apiClient } from "./api/client";
+import { ApiError, apiClient } from "./api/client";
 import "./App.css";
 
 type RagStatus = "GREEN" | "AMBER" | "RED";
@@ -61,6 +64,50 @@ type AppView =
   | "project-calendars"
   | "project-artifacts"
   | "admin";
+
+type AuthMode = "checking" | "setup" | "login" | "ready";
+type UserRole =
+  | "ADMIN"
+  | "PROJECT_MANAGER"
+  | "TEAM_MEMBER"
+  | "EXECUTIVE_VIEWER";
+
+type CurrentUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+  lastLoginAt: string | null;
+};
+
+type SystemUser = CurrentUser & {
+  createdAt: string;
+  updatedAt: string;
+  hasPassword: boolean;
+};
+
+type AuthFormState = {
+  email: string;
+  name: string;
+  password: string;
+};
+
+type UserFormState = {
+  email: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+  password: string;
+};
+
+type UserDraftState = {
+  email: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+  password: string;
+};
 
 type ProjectListItem = {
   id: string;
@@ -642,6 +689,17 @@ const OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH = 204;
 const OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH = 248;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
+function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  return fetch(input, {
+    ...init,
+    credentials: "include",
+    headers: {
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...init.headers,
+    },
+  });
+}
+
 const emptyIssueForm: IssueFormState = {
   title: "",
   severity: "HIGH",
@@ -1042,6 +1100,38 @@ function projectsToRegistryDrafts(projects: ProjectListItem[]) {
   return Object.fromEntries(
     projects.map((project) => [project.id, projectToRegistryDraft(project)]),
   );
+}
+
+const emptyAuthForm: AuthFormState = {
+  email: "",
+  name: "",
+  password: "",
+};
+
+const emptyUserForm: UserFormState = {
+  email: "",
+  name: "",
+  role: "PROJECT_MANAGER",
+  isActive: true,
+  password: "",
+};
+
+function userRoleLabel(role: UserRole) {
+  return labels.userRole[role] ?? role;
+}
+
+function userToDraft(user: SystemUser): UserDraftState {
+  return {
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    isActive: user.isActive,
+    password: "",
+  };
+}
+
+function usersToDrafts(users: SystemUser[]) {
+  return Object.fromEntries(users.map((user) => [user.id, userToDraft(user)]));
 }
 
 function date(value: string | null) {
@@ -1585,6 +1675,10 @@ function buildProjectTree(items: ProjectListItem[]) {
 }
 
 function App() {
+  const [authMode, setAuthMode] = useState<AuthMode>("checking");
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [authForm, setAuthForm] = useState<AuthFormState>(emptyAuthForm);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null,
@@ -1603,6 +1697,13 @@ function App() {
   const [savingProjectRegistryId, setSavingProjectRegistryId] = useState<
     string | null
   >(null);
+  const [users, setUsers] = useState<SystemUser[]>([]);
+  const [userDrafts, setUserDrafts] = useState<Record<string, UserDraftState>>(
+    {},
+  );
+  const [newUserForm, setNewUserForm] = useState<UserFormState>(emptyUserForm);
+  const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [creatingUser, setCreatingUser] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [jiraForm, setJiraForm] = useState<JiraFormState>({
@@ -1732,23 +1833,119 @@ function App() {
   );
 
   useEffect(() => {
-    apiClient
-      .get<ProjectListItem[]>("/api/projects", "Не удалось загрузить список проектов")
-      .then((data: ProjectListItem[]) => {
+    let cancelled = false;
+
+    async function initializeAuth() {
+      setLoading(true);
+      try {
+        const me = await apiClient.get<{ user: CurrentUser }>(
+          "/api/auth/me",
+          "Не удалось проверить сессию",
+        );
+        if (cancelled) return;
+        setCurrentUser(me.user);
+        setAuthMode("ready");
+      } catch (authError) {
+        if (cancelled) return;
+        if (authError instanceof ApiError && authError.status === 401) {
+          try {
+            const setup = await apiClient.get<{ needsSetup: boolean }>(
+              "/api/auth/setup-status",
+              "Не удалось проверить первичную настройку",
+            );
+            if (cancelled) return;
+            setAuthMode(setup.needsSetup ? "setup" : "login");
+          } catch (setupError) {
+            setAuthMode("login");
+            setError(
+              setupError instanceof Error
+                ? setupError.message
+                : "Не удалось проверить первичную настройку",
+            );
+          }
+        } else {
+          setAuthMode("login");
+          setError(
+            authError instanceof Error
+              ? authError.message
+              : "Не удалось проверить сессию",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void initializeAuth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authMode !== "ready" || !currentUser) return;
+    let cancelled = false;
+
+    async function loadProjects() {
+      setLoading(true);
+      try {
+        const data = await apiClient.get<ProjectListItem[]>(
+          "/api/projects",
+          "Не удалось загрузить список проектов",
+        );
+        if (cancelled) return;
         const firstProject = data[0];
         setProjects(data);
         setProjectRegistryDrafts(projectsToRegistryDrafts(data));
-        setSelectedProjectId(firstProject?.id ?? null);
-      })
-      .catch((loadError) =>
+        setSelectedProjectId((current) => current ?? firstProject?.id ?? null);
+      } catch (loadError) {
+        if (cancelled) return;
         setError(
           loadError instanceof Error
             ? loadError.message
             : "Не удалось загрузить список проектов",
-        ),
-      )
-      .finally(() => setLoading(false));
-  }, []);
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadProjects();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authMode, currentUser]);
+
+  useEffect(() => {
+    if (authMode !== "ready" || activeView !== "admin" || currentUser?.role !== "ADMIN") {
+      return;
+    }
+    let cancelled = false;
+    apiClient
+      .get<SystemUser[]>("/api/users", "Не удалось загрузить пользователей")
+      .then((data) => {
+        if (cancelled) return;
+        setUsers(data);
+        setUserDrafts(usersToDrafts(data));
+      })
+      .catch((loadError) => {
+        if (cancelled) return;
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Не удалось загрузить пользователей",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView, authMode, currentUser]);
 
   useEffect(() => {
     if (!notice) return;
@@ -2862,7 +3059,7 @@ function App() {
     setSyncing(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/jira/sync`,
         {
           method: "POST",
@@ -2872,7 +3069,7 @@ function App() {
       if (!response.ok) {
         throw new Error(result.error ?? "Не удалось синхронизировать Jira");
       }
-      const refreshed = await fetch(
+      const refreshed = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/overview`,
       );
       applyProject(await refreshed.json());
@@ -3021,10 +3218,13 @@ function App() {
   );
 
   useEffect(() => {
-    if (!selectedProjectId) return;
+    if (authMode !== "ready" || !selectedProjectId) return;
     let cancelled = false;
-    fetch(`${apiBase}/api/projects/${selectedProjectId}/overview`)
-      .then((response) => response.json())
+    apiClient
+      .get<ProjectDetails>(
+        `/api/projects/${selectedProjectId}/overview`,
+        "Не удалось загрузить проект",
+      )
       .then((data: ProjectDetails) => {
         if (!cancelled) {
           applyProject(data);
@@ -3034,7 +3234,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [applyProject, selectedProjectId]);
+  }, [applyProject, authMode, selectedProjectId]);
 
   useEffect(() => {
     if (!selectedProjectId || activeView !== "project-overview") {
@@ -3135,7 +3335,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/wbs-snapshot/restore`,
         {
           method: "POST",
@@ -3201,7 +3401,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/wbs-baseline`,
         { method: "POST" },
       );
@@ -3244,7 +3444,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/calendar-overrides`,
         {
           method: "PUT",
@@ -3305,7 +3505,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/jira-integration`,
         {
           method: "PUT",
@@ -3346,6 +3546,64 @@ function App() {
     }
   }
 
+  async function reloadUsers() {
+    if (currentUser?.role !== "ADMIN") return;
+    const data = await apiClient.get<SystemUser[]>(
+      "/api/users",
+      "Не удалось загрузить пользователей",
+    );
+    setUsers(data);
+    setUserDrafts(usersToDrafts(data));
+  }
+
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthSubmitting(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const path =
+        authMode === "setup" ? "/api/auth/bootstrap" : "/api/auth/login";
+      const payload =
+        authMode === "setup"
+          ? authForm
+          : { email: authForm.email, password: authForm.password };
+      const result = await apiClient.post<{ user: CurrentUser }>(
+        path,
+        payload,
+        authMode === "setup"
+          ? "Не удалось создать администратора"
+          : "Не удалось войти",
+      );
+      setCurrentUser(result.user);
+      setAuthMode("ready");
+      setAuthForm(emptyAuthForm);
+      setNotice(authMode === "setup" ? "Администратор создан" : "Вход выполнен");
+    } catch (authError) {
+      setError(
+        authError instanceof Error
+          ? authError.message
+          : "Не удалось выполнить вход",
+      );
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }
+
+  async function logout() {
+    setError(null);
+    setNotice(null);
+    await apiClient.post<null>("/api/auth/logout", undefined, "Не удалось выйти").catch(
+      () => null,
+    );
+    setCurrentUser(null);
+    setAuthMode("login");
+    setProjects([]);
+    setProject(null);
+    setSelectedProjectId(null);
+    setUsers([]);
+  }
+
   async function saveProjectUiState(
     patch: ProjectUiState,
     options?: {
@@ -3373,7 +3631,7 @@ function App() {
     setProject((current) =>
       current ? { ...current, uiState: nextUiState } : current,
     );
-    const response = await fetch(`${apiBase}/api/projects/${project.id}`, {
+    const response = await authenticatedFetch(`${apiBase}/api/projects/${project.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ uiState: nextUiState }),
@@ -3401,7 +3659,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/api/projects`, {
+      const response = await authenticatedFetch(`${apiBase}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(projectPayload(newProjectForm)),
@@ -3453,6 +3711,88 @@ function App() {
     });
   }
 
+  function updateUserDraft(userId: string, patch: Partial<UserDraftState>) {
+    setUserDrafts((current) => {
+      const sourceUser = users.find((item) => item.id === userId);
+      const currentDraft =
+        current[userId] ?? (sourceUser ? userToDraft(sourceUser) : null);
+      if (!currentDraft) return current;
+      return {
+        ...current,
+        [userId]: {
+          ...currentDraft,
+          ...patch,
+        },
+      };
+    });
+  }
+
+  async function createUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreatingUser(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await apiClient.post<SystemUser>(
+        "/api/users",
+        {
+          ...newUserForm,
+          email: newUserForm.email.trim(),
+          name: newUserForm.name.trim(),
+        },
+        "Не удалось создать пользователя",
+      );
+      setNewUserForm(emptyUserForm);
+      await reloadUsers();
+      setNotice("Пользователь создан");
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Не удалось создать пользователя",
+      );
+    } finally {
+      setCreatingUser(false);
+    }
+  }
+
+  async function saveUser(userId: string) {
+    const draft = userDrafts[userId];
+    if (!draft) return;
+    setSavingUserId(userId);
+    setError(null);
+    setNotice(null);
+    try {
+      await apiClient.patch<SystemUser>(
+        `/api/users/${userId}`,
+        {
+          email: draft.email.trim(),
+          name: draft.name.trim(),
+          role: draft.role,
+          isActive: draft.isActive,
+        },
+        "Не удалось сохранить пользователя",
+      );
+      if (draft.password.trim()) {
+        await apiClient.post<SystemUser>(
+          `/api/users/${userId}/password`,
+          { password: draft.password },
+          "Не удалось сменить пароль",
+        );
+      }
+      await reloadUsers();
+      setNotice("Пользователь обновлен");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить пользователя",
+      );
+    } finally {
+      setSavingUserId(null);
+    }
+  }
+
   async function savePortfolioProjectIdentity(projectId: string) {
     const draft = projectRegistryDrafts[projectId];
     if (!draft) return;
@@ -3474,7 +3814,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/api/projects/${projectId}`, {
+      const response = await authenticatedFetch(`${apiBase}/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3513,7 +3853,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/api/projects/${projectId}`, {
+      const response = await authenticatedFetch(`${apiBase}/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3630,7 +3970,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/project-artifacts/${artifactId}`,
         {
           method: "PATCH",
@@ -3662,7 +4002,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/project-artifacts/${artifactId}`,
         {
           method: "DELETE",
@@ -3698,7 +4038,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/artifacts`,
         {
           method: "POST",
@@ -3724,7 +4064,7 @@ function App() {
       const orderedIds = currentArtifacts.map((artifact) => artifact.id);
       const insertIndex = afterIndex >= 0 ? afterIndex + 1 : orderedIds.length;
       orderedIds.splice(insertIndex, 0, result.id);
-      await fetch(`${apiBase}/api/projects/${project.id}/artifacts/reorder`, {
+      await authenticatedFetch(`${apiBase}/api/projects/${project.id}/artifacts/reorder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderedIds }),
@@ -3761,7 +4101,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/artifacts/reorder`,
         {
           method: "POST",
@@ -3823,7 +4163,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/raid-items`,
         {
           method: "POST",
@@ -3858,7 +4198,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/api/raid-items/${itemId}`, {
+      const response = await authenticatedFetch(`${apiBase}/api/raid-items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(raidPayload(draft)),
@@ -3887,7 +4227,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/api/raid-items/${itemId}`, {
+      const response = await authenticatedFetch(`${apiBase}/api/raid-items/${itemId}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -4804,7 +5144,7 @@ function App() {
 
     rememberWbsSnapshot();
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/wbs-items/insert-after`,
         {
           method: "POST",
@@ -4882,7 +5222,7 @@ function App() {
     setNotice(null);
 
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/wbs-items/reorder`,
         {
           method: "POST",
@@ -4998,7 +5338,7 @@ function App() {
           draft.type === dependency.type,
       );
       if (!shouldKeep) {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           `${apiBase}/api/wbs-dependencies/${dependency.id}`,
           { method: "DELETE" },
         );
@@ -5011,7 +5351,7 @@ function App() {
     }
 
     for (const draft of desiredPredecessors) {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/wbs-dependencies`,
         {
           method: "POST",
@@ -5066,7 +5406,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/wbs-dependencies/${dependencyId}`,
         { method: "DELETE" },
       );
@@ -5174,7 +5514,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         ganttLinkDraft.replaceDependencyId
           ? `${apiBase}/api/wbs-dependencies/${ganttLinkDraft.replaceDependencyId}`
           : `${apiBase}/api/projects/${project.id}/wbs-dependencies`,
@@ -5226,7 +5566,7 @@ function App() {
     setNotice(null);
     rememberWbsSnapshot();
     try {
-      const response = await fetch(`${apiBase}/api/wbs-items/${itemId}`, {
+      const response = await authenticatedFetch(`${apiBase}/api/wbs-items/${itemId}`, {
         method: "DELETE",
       });
       const result = await response.json().catch(() => null);
@@ -5283,7 +5623,7 @@ function App() {
           (link) => link.jiraKey.trim() && link.jiraUrl.trim(),
         ),
       };
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/open-issues`,
         {
           method: "POST",
@@ -5320,7 +5660,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/api/tasks/${taskId}/jira-link`, {
+      const response = await authenticatedFetch(`${apiBase}/api/tasks/${taskId}/jira-link`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -5379,7 +5719,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/open-issues/${issueId}/jira-links`,
         {
           method: "POST",
@@ -5410,7 +5750,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${apiBase}/api/open-issues/${issueId}/jira-links/${linkId}`,
         {
           method: "DELETE",
@@ -5446,7 +5786,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/api/open-issues/${issueId}`, {
+      const response = await authenticatedFetch(`${apiBase}/api/open-issues/${issueId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -5497,7 +5837,7 @@ function App() {
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/api/open-issues/${issueId}`, {
+      const response = await authenticatedFetch(`${apiBase}/api/open-issues/${issueId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -5594,15 +5934,99 @@ function App() {
   const toggleSidebar = () => {
     const nextCollapsed = !sidebarCollapsed;
     setSidebarCollapsed(nextCollapsed);
-    void saveProjectUiState(
-      { sidebarCollapsed: nextCollapsed },
-      { sidebarCollapsed: nextCollapsed },
-    );
+    if (project) {
+      void saveProjectUiState(
+        { sidebarCollapsed: nextCollapsed },
+        { sidebarCollapsed: nextCollapsed },
+      );
+    }
   };
 
   if (loading) {
     return (
       <main className="loading">Загрузка системы управления проектами...</main>
+    );
+  }
+
+  if (authMode === "setup" || authMode === "login") {
+    return (
+      <main className="auth-page">
+        <section className="auth-card">
+          <div className="brand auth-brand">
+            <div className="logo">УП</div>
+            <div>
+              <strong>Система УП</strong>
+              <span>Контур управления</span>
+            </div>
+          </div>
+          <div className="auth-title">
+            <KeyRound size={22} />
+            <div>
+              <h1>
+                {authMode === "setup"
+                  ? "Первичная настройка"
+                  : "Вход в систему"}
+              </h1>
+              <p>
+                {authMode === "setup"
+                  ? "Создайте первого администратора системы"
+                  : "Введите email и пароль пользователя"}
+              </p>
+            </div>
+          </div>
+          {error && (
+            <div className="auth-error">
+              <strong>Ошибка</strong>
+              <span>{error}</span>
+            </div>
+          )}
+          <form className="auth-form" onSubmit={submitAuth}>
+            {authMode === "setup" && (
+              <label>
+                Имя администратора
+                <input
+                  value={authForm.name}
+                  onChange={(event) =>
+                    setAuthForm({ ...authForm, name: event.target.value })
+                  }
+                  autoComplete="name"
+                />
+              </label>
+            )}
+            <label>
+              Email
+              <input
+                type="email"
+                value={authForm.email}
+                onChange={(event) =>
+                  setAuthForm({ ...authForm, email: event.target.value })
+                }
+                autoComplete="email"
+              />
+            </label>
+            <label>
+              Пароль
+              <input
+                type="password"
+                value={authForm.password}
+                onChange={(event) =>
+                  setAuthForm({ ...authForm, password: event.target.value })
+                }
+                autoComplete={
+                  authMode === "setup" ? "new-password" : "current-password"
+                }
+              />
+            </label>
+            <button type="submit" disabled={authSubmitting}>
+              {authSubmitting
+                ? "Проверяю..."
+                : authMode === "setup"
+                  ? "Создать администратора"
+                  : "Войти"}
+            </button>
+          </form>
+        </section>
+      </main>
     );
   }
 
@@ -5636,6 +6060,18 @@ function App() {
             <b>Система УП</b>
             <small>Контур управления</small>
           </span>
+        </div>
+        <div className="sidebar-user">
+          <span className="sidebar-user-icon" aria-hidden="true">
+            <Users size={16} />
+          </span>
+          <span className="sidebar-user-text">
+            <b>{currentUser?.name}</b>
+            <small>{currentUser ? userRoleLabel(currentUser.role) : ""}</small>
+          </span>
+          <button type="button" onClick={logout} aria-label="Выйти">
+            <LogOut size={15} />
+          </button>
         </div>
         <nav>
           <button
@@ -6355,156 +6791,354 @@ function App() {
               )}
 
               {activeView === "admin" && (
-                <article className="panel project-card">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Администрирование: реестр проектов</h2>
-                      <p>
-                        Управление кодами, наименованиями и иерархией проектов
-                      </p>
+                <>
+                  <article className="panel project-card">
+                    <div className="panel-title">
+                      <div>
+                        <h2>Администрирование: пользователи</h2>
+                        <p>Базовые учетные записи, роли и доступ в систему</p>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => openView("project-create")}
-                    >
-                      Создать проект
-                    </button>
-                  </div>
-                  <div className="project-admin-table">
-                    <div className="project-admin-head">
-                      <span>Код</span>
-                      <span>Наименование</span>
-                      <span>Родитель</span>
-                      <span>РП</span>
-                      <span>Статус</span>
-                      <span>Индикатор</span>
-                      <span>Порядок</span>
-                      <span />
-                    </div>
-                    {projectTree.map((item) => {
-                      const draft =
-                        projectRegistryDrafts[item.id] ??
-                        projectToRegistryDraft(item);
-                      return (
-                        <div className="project-admin-row" key={item.id}>
-                          <div className="project-admin-readonly">
-                            <span>Код</span>
-                            <b>{item.code}</b>
-                          </div>
-                          <div
-                            className="project-admin-readonly project-admin-name"
-                            style={{
-                              paddingLeft: `${Math.min(item.level * 18, 72) + 10}px`,
-                            }}
-                          >
-                            <span>Наименование</span>
-                            <b>{item.name}</b>
-                          </div>
+                    {currentUser?.role === "ADMIN" ? (
+                      <>
+                        <form className="user-create-form" onSubmit={createUser}>
                           <label>
-                            <span>Родитель</span>
-                            <select
-                              value={draft.parentId}
-                              onChange={(event) =>
-                                updateProjectRegistryDraft(item.id, {
-                                  parentId: event.target.value,
-                                })
-                              }
-                            >
-                              <option value="">Корень</option>
-                              {projectTree
-                                .filter((option) => option.id !== item.id)
-                                .map((option) => (
-                                  <option key={option.id} value={option.id}>
-                                    {"- ".repeat(option.level)}
-                                    {projectOptionLabel(option)}
-                                  </option>
-                                ))}
-                            </select>
-                          </label>
-                          <label>
-                            <span>РП</span>
+                            Имя
                             <input
-                              value={draft.projectManager}
+                              value={newUserForm.name}
                               onChange={(event) =>
-                                updateProjectRegistryDraft(item.id, {
-                                  projectManager: event.target.value,
+                                setNewUserForm({
+                                  ...newUserForm,
+                                  name: event.target.value,
                                 })
                               }
+                              placeholder="Иван Иванов"
                             />
                           </label>
                           <label>
-                            <span>Статус</span>
-                            <select
-                              value={draft.status}
-                              onChange={(event) =>
-                                updateProjectRegistryDraft(item.id, {
-                                  status: event.target
-                                    .value as ProjectRegistryDraft["status"],
-                                })
-                              }
-                            >
-                              <option value="DRAFT">{projectStatusLabel("DRAFT")}</option>
-                              <option value="ACTIVE">{projectStatusLabel("ACTIVE")}</option>
-                              <option value="ON_HOLD">{projectStatusLabel("ON_HOLD")}</option>
-                              <option value="CLOSED">{projectStatusLabel("CLOSED")}</option>
-                            </select>
-                          </label>
-                          <label>
-                            <span>Индикатор</span>
-                            <select
-                              value={draft.rag}
-                              onChange={(event) =>
-                                updateProjectRegistryDraft(item.id, {
-                                  rag: event.target.value as RagStatus,
-                                })
-                              }
-                            >
-                              <option value="GREEN">{ragOptionLabel("GREEN")}</option>
-                              <option value="AMBER">{ragOptionLabel("AMBER")}</option>
-                              <option value="RED">{ragOptionLabel("RED")}</option>
-                            </select>
-                          </label>
-                          <label>
-                            <span>Порядок</span>
+                            Email
                             <input
-                              type="number"
-                              value={draft.sortOrder}
+                              type="email"
+                              value={newUserForm.email}
                               onChange={(event) =>
-                                updateProjectRegistryDraft(item.id, {
-                                  sortOrder: event.target.value,
+                                setNewUserForm({
+                                  ...newUserForm,
+                                  email: event.target.value,
                                 })
                               }
+                              placeholder="user@company.ru"
                             />
                           </label>
-                          <div className="project-admin-actions">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                selectProject(item.id, "project-overview")
+                          <label>
+                            Роль
+                            <select
+                              value={newUserForm.role}
+                              onChange={(event) =>
+                                setNewUserForm({
+                                  ...newUserForm,
+                                  role: event.target.value as UserRole,
+                                })
                               }
                             >
-                              Открыть
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void saveProjectRegistryItem(item.id)
+                              <option value="ADMIN">{userRoleLabel("ADMIN")}</option>
+                              <option value="PROJECT_MANAGER">
+                                {userRoleLabel("PROJECT_MANAGER")}
+                              </option>
+                              <option value="TEAM_MEMBER">
+                                {userRoleLabel("TEAM_MEMBER")}
+                              </option>
+                              <option value="EXECUTIVE_VIEWER">
+                                {userRoleLabel("EXECUTIVE_VIEWER")}
+                              </option>
+                            </select>
+                          </label>
+                          <label>
+                            Пароль
+                            <input
+                              type="password"
+                              value={newUserForm.password}
+                              onChange={(event) =>
+                                setNewUserForm({
+                                  ...newUserForm,
+                                  password: event.target.value,
+                                })
                               }
-                              disabled={savingProjectRegistryId === item.id}
-                            >
-                              {savingProjectRegistryId === item.id
-                                ? "Сохраняю..."
-                                : "Сохранить"}
-                            </button>
+                              placeholder="Минимум 8 символов"
+                            />
+                          </label>
+                          <button type="submit" disabled={creatingUser}>
+                            {creatingUser ? "Создаю..." : "Создать пользователя"}
+                          </button>
+                        </form>
+                        <div className="project-admin-table user-admin-table">
+                          <div className="project-admin-head user-admin-head">
+                            <span>Имя</span>
+                            <span>Email</span>
+                            <span>Роль</span>
+                            <span>Активен</span>
+                            <span>Последний вход</span>
+                            <span>Новый пароль</span>
+                            <span />
                           </div>
+                          {users.map((user) => {
+                            const draft = userDrafts[user.id] ?? userToDraft(user);
+                            return (
+                              <div className="project-admin-row user-admin-row" key={user.id}>
+                                <label>
+                                  <span>Имя</span>
+                                  <input
+                                    value={draft.name}
+                                    onChange={(event) =>
+                                      updateUserDraft(user.id, {
+                                        name: event.target.value,
+                                      })
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  <span>Email</span>
+                                  <input
+                                    type="email"
+                                    value={draft.email}
+                                    onChange={(event) =>
+                                      updateUserDraft(user.id, {
+                                        email: event.target.value,
+                                      })
+                                    }
+                                  />
+                                </label>
+                                <label>
+                                  <span>Роль</span>
+                                  <select
+                                    value={draft.role}
+                                    onChange={(event) =>
+                                      updateUserDraft(user.id, {
+                                        role: event.target.value as UserRole,
+                                      })
+                                    }
+                                  >
+                                    <option value="ADMIN">{userRoleLabel("ADMIN")}</option>
+                                    <option value="PROJECT_MANAGER">
+                                      {userRoleLabel("PROJECT_MANAGER")}
+                                    </option>
+                                    <option value="TEAM_MEMBER">
+                                      {userRoleLabel("TEAM_MEMBER")}
+                                    </option>
+                                    <option value="EXECUTIVE_VIEWER">
+                                      {userRoleLabel("EXECUTIVE_VIEWER")}
+                                    </option>
+                                  </select>
+                                </label>
+                                <label className="checkbox-field">
+                                  <span>Активен</span>
+                                  <input
+                                    type="checkbox"
+                                    checked={draft.isActive}
+                                    onChange={(event) =>
+                                      updateUserDraft(user.id, {
+                                        isActive: event.target.checked,
+                                      })
+                                    }
+                                  />
+                                </label>
+                                <div className="project-admin-readonly">
+                                  <span>Последний вход</span>
+                                  <b>{date(user.lastLoginAt)}</b>
+                                </div>
+                                <label>
+                                  <span>Новый пароль</span>
+                                  <input
+                                    type="password"
+                                    value={draft.password}
+                                    onChange={(event) =>
+                                      updateUserDraft(user.id, {
+                                        password: event.target.value,
+                                      })
+                                    }
+                                    placeholder={
+                                      user.hasPassword ? "Не менять" : "Задать пароль"
+                                    }
+                                  />
+                                </label>
+                                <div className="project-admin-actions">
+                                  <button
+                                    type="button"
+                                    onClick={() => void saveUser(user.id)}
+                                    disabled={savingUserId === user.id}
+                                  >
+                                    {savingUserId === user.id
+                                      ? "Сохраняю..."
+                                      : "Сохранить"}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {users.length === 0 && (
+                            <div className="empty-state">
+                              Пользователи еще не созданы.
+                            </div>
+                          )}
                         </div>
-                      );
-                    })}
-                    {projects.length === 0 && (
-                      <div className="empty-state">Проекты еще не созданы.</div>
+                      </>
+                    ) : (
+                      <div className="empty-state">
+                        Управление пользователями доступно только администратору.
+                      </div>
                     )}
-                  </div>
-                </article>
+                  </article>
+
+                  <article className="panel project-card">
+                    <div className="panel-title">
+                      <div>
+                        <h2>Администрирование: реестр проектов</h2>
+                        <p>
+                          Управление кодами, наименованиями и иерархией проектов
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openView("project-create")}
+                      >
+                        Создать проект
+                      </button>
+                    </div>
+                    <div className="project-admin-table">
+                      <div className="project-admin-head">
+                        <span>Код</span>
+                        <span>Наименование</span>
+                        <span>Родитель</span>
+                        <span>РП</span>
+                        <span>Статус</span>
+                        <span>Индикатор</span>
+                        <span>Порядок</span>
+                        <span />
+                      </div>
+                      {projectTree.map((item) => {
+                        const draft =
+                          projectRegistryDrafts[item.id] ??
+                          projectToRegistryDraft(item);
+                        return (
+                          <div className="project-admin-row" key={item.id}>
+                            <div className="project-admin-readonly">
+                              <span>Код</span>
+                              <b>{item.code}</b>
+                            </div>
+                            <div
+                              className="project-admin-readonly project-admin-name"
+                              style={{
+                                paddingLeft: `${Math.min(item.level * 18, 72) + 10}px`,
+                              }}
+                            >
+                              <span>Наименование</span>
+                              <b>{item.name}</b>
+                            </div>
+                            <label>
+                              <span>Родитель</span>
+                              <select
+                                value={draft.parentId}
+                                onChange={(event) =>
+                                  updateProjectRegistryDraft(item.id, {
+                                    parentId: event.target.value,
+                                  })
+                                }
+                              >
+                                <option value="">Корень</option>
+                                {projectTree
+                                  .filter((option) => option.id !== item.id)
+                                  .map((option) => (
+                                    <option key={option.id} value={option.id}>
+                                      {"- ".repeat(option.level)}
+                                      {projectOptionLabel(option)}
+                                    </option>
+                                  ))}
+                              </select>
+                            </label>
+                            <label>
+                              <span>РП</span>
+                              <input
+                                value={draft.projectManager}
+                                onChange={(event) =>
+                                  updateProjectRegistryDraft(item.id, {
+                                    projectManager: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                            <label>
+                              <span>Статус</span>
+                              <select
+                                value={draft.status}
+                                onChange={(event) =>
+                                  updateProjectRegistryDraft(item.id, {
+                                    status: event.target
+                                      .value as ProjectRegistryDraft["status"],
+                                  })
+                                }
+                              >
+                                <option value="DRAFT">{projectStatusLabel("DRAFT")}</option>
+                                <option value="ACTIVE">{projectStatusLabel("ACTIVE")}</option>
+                                <option value="ON_HOLD">{projectStatusLabel("ON_HOLD")}</option>
+                                <option value="CLOSED">{projectStatusLabel("CLOSED")}</option>
+                              </select>
+                            </label>
+                            <label>
+                              <span>Индикатор</span>
+                              <select
+                                value={draft.rag}
+                                onChange={(event) =>
+                                  updateProjectRegistryDraft(item.id, {
+                                    rag: event.target.value as RagStatus,
+                                  })
+                                }
+                              >
+                                <option value="GREEN">{ragOptionLabel("GREEN")}</option>
+                                <option value="AMBER">{ragOptionLabel("AMBER")}</option>
+                                <option value="RED">{ragOptionLabel("RED")}</option>
+                              </select>
+                            </label>
+                            <label>
+                              <span>Порядок</span>
+                              <input
+                                type="number"
+                                value={draft.sortOrder}
+                                onChange={(event) =>
+                                  updateProjectRegistryDraft(item.id, {
+                                    sortOrder: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                            <div className="project-admin-actions">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  selectProject(item.id, "project-overview")
+                                }
+                              >
+                                Открыть
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void saveProjectRegistryItem(item.id)
+                                }
+                                disabled={savingProjectRegistryId === item.id}
+                              >
+                                {savingProjectRegistryId === item.id
+                                  ? "Сохраняю..."
+                                  : "Сохранить"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {projects.length === 0 && (
+                        <div className="empty-state">Проекты еще не созданы.</div>
+                      )}
+                    </div>
+                  </article>
+                </>
               )}
 
               {project && activeView === "project-overview" && (

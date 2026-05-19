@@ -1,15 +1,21 @@
 import cors from 'cors';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import { Prisma } from '@prisma/client';
+import { Prisma, type UserRole } from '@prisma/client';
 import {
+  bootstrapAdminSchema,
+  changeUserPasswordSchema,
+  createUserSchema,
   createIssueSchema,
   labels,
+  loginSchema,
   projectSchema,
   raidItemSchema,
+  updateUserSchema,
   updateIssueSchema,
   wbsItemSchema,
 } from '@pms/shared';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -31,6 +37,25 @@ import { recalculateProjectWbsSchedule } from './services/wbs-schedule.js';
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
+const authCookieName = process.env.AUTH_COOKIE_NAME ?? 'pms_session';
+const sessionDays = Math.max(1, Number(process.env.AUTH_SESSION_DAYS ?? 7));
+const authCookieSecure =
+  process.env.AUTH_COOKIE_SECURE === 'true' ||
+  (process.env.AUTH_COOKIE_SECURE !== 'false' && process.env.NODE_ENV === 'production');
+
+type CurrentUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+  lastLoginAt: Date | null;
+};
+
+type AuthRequest = Request & {
+  currentUser?: CurrentUser;
+  currentSessionId?: string;
+};
 
 function serverErrorMessage(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : String(error);
@@ -52,10 +77,211 @@ function isValidUrl(value: string) {
   }
 }
 
+function safeUser(user: CurrentUser): CurrentUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    isActive: user.isActive,
+    lastLoginAt: user.lastLoginAt,
+  };
+}
+
+function hashPassword(password: string) {
+  const salt = randomBytes(16).toString('base64url');
+  const hash = scryptSync(password, salt, 64).toString('base64url');
+  return `scrypt:${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, passwordHash: string | null) {
+  if (!passwordHash) return false;
+  const [scheme, salt, expectedHash] = passwordHash.split(':');
+  if (scheme !== 'scrypt' || !salt || !expectedHash) return false;
+  const expected = Buffer.from(expectedHash, 'base64url');
+  const actual = scryptSync(password, salt, expected.length);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function hashSessionToken(token: string) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function readCookie(req: Request, name: string) {
+  const header = req.headers.cookie;
+  if (!header) return null;
+  for (const item of header.split(';')) {
+    const [rawName, ...rawValue] = item.trim().split('=');
+    if (rawName === name) {
+      return decodeURIComponent(rawValue.join('='));
+    }
+  }
+  return null;
+}
+
+function sessionCookie(token: string, expiresAt: Date) {
+  const maxAgeSeconds = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+  const parts = [
+    `${authCookieName}=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    `Max-Age=${maxAgeSeconds}`,
+    `Expires=${expiresAt.toUTCString()}`,
+    'SameSite=Lax',
+  ];
+  if (authCookieSecure) parts.push('Secure');
+  return parts.join('; ');
+}
+
+function clearSessionCookie() {
+  const parts = [
+    `${authCookieName}=`,
+    'Path=/',
+    'HttpOnly',
+    'Max-Age=0',
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    'SameSite=Lax',
+  ];
+  if (authCookieSecure) parts.push('Secure');
+  return parts.join('; ');
+}
+
+async function createSession(userId: string, req: Request, res: Response) {
+  const token = randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
+  await prisma.userSession.create({
+    data: {
+      userId,
+      tokenHash: hashSessionToken(token),
+      expiresAt,
+      userAgent: req.get('user-agent') ?? null,
+      ipAddress: req.ip,
+    },
+  });
+  res.setHeader('Set-Cookie', sessionCookie(token, expiresAt));
+}
+
+async function attachAuth(req: Request, _res: Response, next: NextFunction) {
+  try {
+    const token = readCookie(req, authCookieName);
+    if (!token) {
+      next();
+      return;
+    }
+
+    const session = await prisma.userSession.findUnique({
+      where: { tokenHash: hashSessionToken(token) },
+      include: { user: true },
+    });
+
+    if (!session) {
+      next();
+      return;
+    }
+
+    if (session.expiresAt.getTime() <= Date.now()) {
+      await prisma.userSession.delete({ where: { id: session.id } }).catch(() => undefined);
+      next();
+      return;
+    }
+
+    if (!session.user.isActive) {
+      next();
+      return;
+    }
+
+    const authReq = req as AuthRequest;
+    authReq.currentSessionId = session.id;
+    authReq.currentUser = safeUser(session.user);
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+function currentUser(req: Request) {
+  return (req as AuthRequest).currentUser ?? null;
+}
+
+function currentSessionId(req: Request) {
+  return (req as AuthRequest).currentSessionId ?? null;
+}
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!currentUser(req)) {
+    res.status(401).json({ error: 'Требуется вход в систему' });
+    return;
+  }
+  next();
+}
+
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = currentUser(req);
+  if (!user) {
+    res.status(401).json({ error: 'Требуется вход в систему' });
+    return;
+  }
+  if (user.role !== 'ADMIN') {
+    res.status(403).json({ error: 'Недостаточно прав' });
+    return;
+  }
+  next();
+}
+
+async function hasConfiguredAdmin() {
+  const count = await prisma.user.count({
+    where: {
+      role: 'ADMIN',
+      isActive: true,
+      passwordHash: { not: null },
+    },
+  });
+  return count > 0;
+}
+
+async function wouldRemoveLastAdmin(userId: string, data: { role?: UserRole; isActive?: boolean }) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, isActive: true, passwordHash: true },
+  });
+  if (!user || user.role !== 'ADMIN' || !user.isActive || !user.passwordHash) {
+    return false;
+  }
+  const nextRole = data.role ?? user.role;
+  const nextIsActive = data.isActive ?? user.isActive;
+  if (nextRole === 'ADMIN' && nextIsActive) {
+    return false;
+  }
+  const otherAdmins = await prisma.user.count({
+    where: {
+      id: { not: userId },
+      role: 'ADMIN',
+      isActive: true,
+      passwordHash: { not: null },
+    },
+  });
+  return otherAdmins === 0;
+}
+
+function userResponse(user: CurrentUser & { createdAt?: Date; updatedAt?: Date; passwordHash?: string | null }) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    isActive: user.isActive,
+    lastLoginAt: user.lastLoginAt,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    hasPassword: Boolean(user.passwordHash),
+  };
+}
+
 app.use(express.json({ limit: '5mb' }));
 app.use(
   cors({
     origin: webOrigin === '*' ? true : webOrigin.split(',').map((origin) => origin.trim()),
+    credentials: true,
   }),
 );
 
@@ -69,6 +295,268 @@ app.get('/api/health', async (_req, res) => {
       database: 'unavailable',
       jiraConfigured: isJiraConfigured(),
     });
+  }
+});
+
+app.use('/api', attachAuth);
+
+app.get('/api/auth/setup-status', async (_req, res) => {
+  res.json({ needsSetup: !(await hasConfiguredAdmin()) });
+});
+
+app.post('/api/auth/bootstrap', async (req, res) => {
+  const parsed = bootstrapAdminSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  if (await hasConfiguredAdmin()) {
+    res.status(409).json({ error: 'Администратор уже настроен' });
+    return;
+  }
+
+  const passwordHash = hashPassword(parsed.data.password);
+  const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+  const user = existing
+    ? await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          name: parsed.data.name,
+          role: 'ADMIN',
+          isActive: true,
+          passwordHash,
+          lastLoginAt: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          lastLoginAt: true,
+        },
+      })
+    : await prisma.user.create({
+        data: {
+          email: parsed.data.email,
+          name: parsed.data.name,
+          role: 'ADMIN',
+          isActive: true,
+          passwordHash,
+          lastLoginAt: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          lastLoginAt: true,
+        },
+      });
+
+  await createSession(user.id, req, res);
+  res.status(201).json({ user });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: parsed.data.email },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      isActive: true,
+      passwordHash: true,
+      lastLoginAt: true,
+    },
+  });
+
+  if (!user || !user.isActive || !verifyPassword(parsed.data.password, user.passwordHash)) {
+    res.status(401).json({ error: 'Неверный email или пароль' });
+    return;
+  }
+
+  const lastLoginAt = new Date();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt },
+  });
+  await createSession(user.id, req, res);
+  res.json({
+    user: safeUser({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isActive: user.isActive,
+      lastLoginAt,
+    }),
+  });
+});
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  res.json({ user: currentUser(req) });
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+  const sessionId = currentSessionId(req);
+  if (sessionId) {
+    await prisma.userSession.delete({ where: { id: sessionId } }).catch(() => undefined);
+  }
+  res.setHeader('Set-Cookie', clearSessionCookie());
+  res.status(204).send();
+});
+
+app.use('/api', requireAuth);
+
+app.get('/api/users', requireAdmin, async (_req, res) => {
+  const users = await prisma.user.findMany({
+    orderBy: [{ isActive: 'desc' }, { role: 'asc' }, { name: 'asc' }],
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      isActive: true,
+      passwordHash: true,
+      lastLoginAt: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  res.json(users.map(userResponse));
+});
+
+app.post('/api/users', requireAdmin, async (req, res) => {
+  const parsed = createUserSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  try {
+    const user = await prisma.user.create({
+      data: {
+        email: parsed.data.email,
+        name: parsed.data.name,
+        role: parsed.data.role,
+        isActive: parsed.data.isActive,
+        passwordHash: hashPassword(parsed.data.password),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        passwordHash: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    res.status(201).json(userResponse(user));
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      res.status(409).json({ error: 'Пользователь с таким email уже существует' });
+      return;
+    }
+    throw error;
+  }
+});
+
+app.patch('/api/users/:userId', requireAdmin, async (req, res) => {
+  const parsed = updateUserSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  if (!userId) {
+    res.status(400).json({ error: 'Пользователь не указан' });
+    return;
+  }
+
+  if (await wouldRemoveLastAdmin(userId, parsed.data)) {
+    res.status(400).json({ error: 'Нельзя отключить или понизить последнего администратора' });
+    return;
+  }
+
+  try {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: parsed.data,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        passwordHash: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    res.json(userResponse(user));
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      res.status(409).json({ error: 'Пользователь с таким email уже существует' });
+      return;
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+    throw error;
+  }
+});
+
+app.post('/api/users/:userId/password', requireAdmin, async (req, res) => {
+  const parsed = changeUserPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  if (!userId) {
+    res.status(400).json({ error: 'Пользователь не указан' });
+    return;
+  }
+
+  try {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hashPassword(parsed.data.password) },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        passwordHash: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    await prisma.userSession.deleteMany({ where: { userId: user.id } });
+    res.json(userResponse(user));
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+    throw error;
   }
 });
 

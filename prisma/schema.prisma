@@ -172,13 +172,30 @@ model User {
   email        String        @unique
   name         String
   role         UserRole      @default(PROJECT_MANAGER)
+  passwordHash String?
   isActive     Boolean       @default(true)
+  lastLoginAt  DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  sessions      UserSession[]
   wbsCommands  WbsCommand[]
   wbsBaselines WbsBaseline[]
 
   @@index([role, isActive])
+}
+
+model UserSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  expiresAt  DateTime
+  userAgent  String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
 }
 
 model Milestone {

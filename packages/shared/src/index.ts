@@ -27,6 +27,12 @@ export const raidItemStatuses = [
   "CLOSED",
 ] as const;
 export const projectCalendarCodes = ["RU", "CN"] as const;
+export const userRoles = [
+  "ADMIN",
+  "PROJECT_MANAGER",
+  "TEAM_MEMBER",
+  "EXECUTIVE_VIEWER",
+] as const;
 export const issueSeverities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 export const openIssueStatuses = [
   "Open",
@@ -43,6 +49,7 @@ export type WbsItemStatus = (typeof wbsItemStatuses)[number];
 export type RaidItemType = (typeof raidItemTypes)[number];
 export type RaidItemStatus = (typeof raidItemStatuses)[number];
 export type ProjectCalendarCode = (typeof projectCalendarCodes)[number];
+export type UserRole = (typeof userRoles)[number];
 export type IssueSeverity = (typeof issueSeverities)[number];
 export type OpenIssueStatus = (typeof openIssueStatuses)[number];
 
@@ -99,7 +106,47 @@ export const labels = {
     Resolved: "Решено",
     Closed: "Закрыто",
   },
+  userRole: {
+    ADMIN: "Администратор",
+    PROJECT_MANAGER: "Руководитель проекта",
+    TEAM_MEMBER: "Участник команды",
+    EXECUTIVE_VIEWER: "Руководитель",
+  },
 } as const;
+
+export const passwordSchema = z
+  .string()
+  .min(8, "Пароль должен содержать минимум 8 символов");
+
+export const loginSchema = z.object({
+  email: z.string().trim().email("Некорректный email").toLowerCase(),
+  password: z.string().min(1, "Введите пароль"),
+});
+
+export const bootstrapAdminSchema = z.object({
+  email: z.string().trim().email("Некорректный email").toLowerCase(),
+  name: z.string().trim().min(2, "Укажите имя администратора"),
+  password: passwordSchema,
+});
+
+export const createUserSchema = z.object({
+  email: z.string().trim().email("Некорректный email").toLowerCase(),
+  name: z.string().trim().min(2, "Укажите имя пользователя"),
+  role: z.enum(userRoles).default("PROJECT_MANAGER"),
+  isActive: z.boolean().default(true),
+  password: passwordSchema,
+});
+
+export const updateUserSchema = z.object({
+  email: z.string().trim().email("Некорректный email").toLowerCase().optional(),
+  name: z.string().trim().min(2, "Укажите имя пользователя").optional(),
+  role: z.enum(userRoles).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const changeUserPasswordSchema = z.object({
+  password: passwordSchema,
+});
 
 export const projectIdentitySchema = z.object({
   code: z.string().trim().min(2),
