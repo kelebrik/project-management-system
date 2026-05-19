@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import {
   createIssueSchema,
@@ -1255,7 +1256,7 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
     where: { id: existing.id },
     data: {
       parentId: parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
-      code: parsed.data.code,
+      code: undefined,
       title: parsed.data.title,
       type: parsed.data.type,
       status: parsed.data.status,
@@ -2603,6 +2604,23 @@ app.post('/api/projects/:projectId/jira/sync', async (req, res) => {
       error: error instanceof Error ? error.message : 'Не удалось синхронизировать Jira',
     });
   }
+});
+
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' });
+});
+
+app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
+  if (!req.path.startsWith('/api')) {
+    next(error);
+    return;
+  }
+  if (res.headersSent) {
+    next(error);
+    return;
+  }
+  console.error(error);
+  res.status(500).json({ error: serverErrorMessage(error, 'Внутренняя ошибка API') });
 });
 
 const __filename = fileURLToPath(import.meta.url);

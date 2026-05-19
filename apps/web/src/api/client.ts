@@ -50,7 +50,15 @@ async function request<T>(
       ...options.headers,
     },
   });
-  const result = response.status === 204 ? null : await response.json().catch(() => null);
+  const text = response.status === 204 ? "" : await response.text();
+  let result: unknown = null;
+  if (text) {
+    try {
+      result = JSON.parse(text);
+    } catch {
+      throw new ApiError(`${fallback}: сервер вернул не JSON`, response.status, text);
+    }
+  }
   if (!response.ok) {
     throw new ApiError(errorMessage(result, fallback), response.status, result);
   }

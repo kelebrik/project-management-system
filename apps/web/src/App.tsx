@@ -290,6 +290,14 @@ type WbsSnapshot = {
   wbsDependencies: WbsDependencySnapshot[];
 };
 
+type WbsSnapshotResponse = {
+  item?: WbsItem;
+  updatedCount?: number;
+  wbsItems?: WbsItem[];
+  wbsDependencies?: WbsDependency[];
+  criticalPath?: WbsCriticalPath | null;
+};
+
 type ProjectCalendarOverride = {
   id: string;
   projectId: string;
@@ -2138,6 +2146,8 @@ function App() {
     [overviewDashboard.overdueItems],
   );
   const overviewProjectGraph = useMemo(() => {
+    const isOverviewGraphLevel = (item: WbsTreeItem) =>
+      (item.wbsLevel ?? item.level + 1) <= 2;
     const validDate = (value: string | null) => {
       const parsed = value ? new Date(value) : null;
       return parsed && !Number.isNaN(parsed.getTime())
@@ -2145,6 +2155,7 @@ function App() {
         : null;
     };
     const datedItems = wbsTree
+      .filter(isOverviewGraphLevel)
       .map((item) => {
         const start = validDate(item.startDate);
         const end = validDate(item.dueDate);
@@ -2229,7 +2240,9 @@ function App() {
     const laneItemsFromPhase = (phase: WbsTreeItem): OverviewGraphItem[] => {
       const descendants = [phase, ...flattenWbsDescendants(phase)];
       return descendants
-        .filter((item) => item.id !== phase.id)
+        .filter((item) => {
+          return item.id !== phase.id && isOverviewGraphLevel(item);
+        })
         .map((item) => {
           const dated = datedById.get(item.id);
           if (!dated) return null;
@@ -4723,6 +4736,11 @@ function App() {
         (key) => nextPayload[key] !== currentItem[key],
       ) ||
         nextPayload.leadLagDays !== currentItem.leadLagDays);
+    const requiresRenumber =
+      currentItem !== undefined &&
+      (nextPayload.wbsLevel !== currentItem.wbsLevel ||
+        nextPayload.parentId !== currentItem.parentId ||
+        draftWbsCodes.get(itemId) !== currentItem.code);
     if (
       currentItem &&
       !rowChanged
@@ -4733,42 +4751,30 @@ function App() {
     setError(null);
     if (!options.silent) setNotice(null);
     try {
-      const response = await fetch(`${apiBase}/api/wbs-items/${itemId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextPayload),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result.error?.formErrors?.join(", ") ||
-            result.error ||
-            "Не удалось сохранить элемент Структуры",
-        );
-      }
+      await apiClient.patch<WbsSnapshotResponse>(
+        `/api/wbs-items/${itemId}`,
+        nextPayload,
+        "Не удалось сохранить элемент Структуры",
+      );
       const predecessorResult = await saveWbsPredecessors(itemId, {
         remember: !predecessorsChanged,
       });
       if (predecessorResult?.wbsItems) {
-        applyWbsSnapshotResult(
-          predecessorResult.wbsItems,
-          predecessorResult.wbsDependencies,
-          predecessorResult.criticalPath,
-        );
-        if (!options.silent) setNotice("Элемент Структуры обновлен");
-        return;
+        if (!requiresRenumber) {
+          applyWbsSnapshotResult(
+            predecessorResult.wbsItems,
+            predecessorResult.wbsDependencies,
+            predecessorResult.criticalPath,
+          );
+          if (!options.silent) setNotice("Элемент Структуры обновлен");
+          return;
+        }
       }
-      const renumberResponse = await fetch(
-        `${apiBase}/api/projects/${project.id}/wbs-items/renumber`,
-        { method: "POST" },
+      const renumberResult = await apiClient.post<WbsSnapshotResponse>(
+        `/api/projects/${project.id}/wbs-items/renumber`,
+        undefined,
+        "Не удалось перенумеровать Структуру",
       );
-      if (!renumberResponse.ok) {
-        const renumberResult = await renumberResponse.json();
-        throw new Error(
-          renumberResult.error ?? "Не удалось перенумеровать Структуру",
-        );
-      }
-      const renumberResult = await renumberResponse.json();
       if (renumberResult.wbsItems) {
         applyWbsSnapshotResult(
           renumberResult.wbsItems,
