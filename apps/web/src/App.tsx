@@ -1898,7 +1898,7 @@ function App() {
       return null;
     };
 
-    datedMilestones.forEach((entry, index) => {
+    datedMilestones.forEach((entry) => {
       const dueTime = startOfDay(
         new Date(entry.milestone.dueDate as string),
       ).getTime();
@@ -1906,7 +1906,7 @@ function App() {
       const laneItem = {
         ...entry,
         offset,
-        side: (index % 2 === 0 ? "top" : "bottom") as "top" | "bottom",
+        side: "top" as "top" | "bottom",
       };
       const phaseId = phaseIdForMilestone(entry.milestone);
       const lane = phaseId ? laneByPhaseId.get(phaseId) : null;
@@ -1924,6 +1924,18 @@ function App() {
             ...(unassignedLane.items.length > 0 ? [unassignedLane] : []),
           ]
         : [unassignedLane];
+    lanes.forEach((lane) => {
+      lane.items
+        .sort(
+          (left, right) =>
+            String(left.milestone.dueDate ?? "").localeCompare(
+              String(right.milestone.dueDate ?? ""),
+            ) || left.milestone.sortOrder - right.milestone.sortOrder,
+        )
+        .forEach((item, index) => {
+          item.side = index % 2 === 0 ? "top" : "bottom";
+        });
+    });
     const maxLaneMilestones = Math.max(
       1,
       ...lanes.map((lane) => lane.items.length),
@@ -6178,8 +6190,6 @@ function App() {
                               {lane.items.map(
                                 ({
                                   milestone,
-                                  workDaysLeft,
-                                  calendarDaysLeft,
                                   state,
                                   offset,
                                   side,
@@ -6192,7 +6202,7 @@ function App() {
                                     style={{
                                       left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
                                     }}
-                                    title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}. ${formatDaysLeft(workDaysLeft)} раб., ${formatDaysLeft(calendarDaysLeft)} кал.`}
+                                    title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
                                   >
                                     <span className="milestone-marker" />
                                     <span className="milestone-label">
