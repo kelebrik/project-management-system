@@ -66,7 +66,7 @@ const emptyPredecessors = {
   predecessor6: null,
 };
 
-test("calculateWbsScheduleUpdates starts successor from latest predecessor plus one working day and lag", () => {
+test("calculateWbsScheduleUpdates starts successor from latest predecessor plus one working day and dependency lag", () => {
   const items = [
     {
       id: "task-a",
@@ -112,8 +112,131 @@ test("calculateWbsScheduleUpdates starts successor from latest predecessor plus 
       predecessor4: null,
       predecessor5: null,
       predecessor6: null,
-      leadLagDays: 1,
+      leadLagDays: 30,
       workDays: 3,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      sortOrder: 30,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(
+    items,
+    [
+      {
+        predecessorId: "task-b",
+        successorId: "task-c",
+        lagDays: 1,
+      },
+    ],
+    [],
+  );
+  const taskC = updates.find((item) => item.id === "task-c");
+
+  assert.equal(taskC?.startDate?.toISOString().slice(0, 10), "2026-05-22");
+  assert.equal(taskC?.dueDate?.toISOString().slice(0, 10), "2026-05-26");
+  assert.equal(taskC?.calendarDays, 5);
+});
+
+test("calculateWbsScheduleUpdates keeps empty work days empty and does not derive duration from dates", () => {
+  const items = [
+    {
+      id: "task-a",
+      code: "1.1",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      dueDate: new Date("2026-05-22T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-18T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-22T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: null,
+      calendarDays: 5,
+      calendarCode: "RU" as const,
+      sortOrder: 10,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], []);
+
+  assert.deepEqual(updates, []);
+});
+
+test("calculateWbsScheduleUpdates uses work days to calculate due date", () => {
+  const items = [
+    {
+      id: "task-a",
+      code: "1.1",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      dueDate: new Date("2026-05-18T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-18T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-18T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 5,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      sortOrder: 10,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], []);
+  const taskA = updates.find((item) => item.id === "task-a");
+
+  assert.equal(taskA?.dueDate?.toISOString().slice(0, 10), "2026-05-22");
+  assert.equal(taskA?.workDays, 5);
+  assert.equal(taskA?.calendarDays, 5);
+});
+
+test("calculateWbsScheduleUpdates starts from latest predecessor when several predecessor fields are filled", () => {
+  const items = [
+    {
+      id: "task-a",
+      code: "1.3",
+      type: "TASK" as const,
+      startDate: new Date("2026-02-12T00:00:00.000Z"),
+      dueDate: new Date("2026-02-13T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-02-12T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-02-13T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 2,
+      calendarDays: 2,
+      calendarCode: "RU" as const,
+      sortOrder: 10,
+    },
+    {
+      id: "task-b",
+      code: "1.4",
+      type: "TASK" as const,
+      startDate: new Date("2026-02-16T00:00:00.000Z"),
+      dueDate: new Date("2026-02-20T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-02-16T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-02-20T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 5,
+      calendarDays: 5,
+      calendarCode: "RU" as const,
+      sortOrder: 20,
+    },
+    {
+      id: "task-c",
+      code: "1.5",
+      type: "TASK" as const,
+      startDate: new Date("2026-02-16T00:00:00.000Z"),
+      dueDate: new Date("2026-02-16T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-02-16T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-02-16T00:00:00.000Z"),
+      predecessor1: "1.3",
+      predecessor2: "1.4",
+      predecessor3: null,
+      predecessor4: null,
+      predecessor5: null,
+      predecessor6: null,
+      leadLagDays: 30,
+      workDays: 1,
       calendarDays: 1,
       calendarCode: "RU" as const,
       sortOrder: 30,
@@ -123,9 +246,8 @@ test("calculateWbsScheduleUpdates starts successor from latest predecessor plus 
   const updates = calculateWbsScheduleUpdates(items, [], []);
   const taskC = updates.find((item) => item.id === "task-c");
 
-  assert.equal(taskC?.startDate?.toISOString().slice(0, 10), "2026-05-22");
-  assert.equal(taskC?.dueDate?.toISOString().slice(0, 10), "2026-05-26");
-  assert.equal(taskC?.calendarDays, 5);
+  assert.equal(taskC?.startDate?.toISOString().slice(0, 10), "2026-02-23");
+  assert.equal(taskC?.dueDate?.toISOString().slice(0, 10), "2026-02-23");
 });
 
 test("calculateWbsScheduleUpdates uses selected project calendar overrides", () => {

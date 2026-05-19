@@ -2,7 +2,9 @@ import {
   type CSSProperties,
   type ClipboardEvent as ReactClipboardEvent,
   type DragEvent as ReactDragEvent,
+  type FocusEvent as ReactFocusEvent,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useCallback,
@@ -133,6 +135,16 @@ type ProjectUiState = {
   ganttWbsWidth?: number;
   passportRows?: PassportRow[];
 };
+
+type EditableElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+
+function isEditableElement(value: EventTarget | null): value is EditableElement {
+  return (
+    value instanceof HTMLInputElement ||
+    value instanceof HTMLSelectElement ||
+    value instanceof HTMLTextAreaElement
+  );
+}
 
 type ProjectFormState = {
   parentId: string;
@@ -1443,6 +1455,88 @@ function parentIdFromWbsLevel(
   return null;
 }
 
+function rememberEditableInitialValue(target: EditableElement) {
+  target.dataset.editInitialValue =
+    target instanceof HTMLInputElement && target.type === "checkbox"
+      ? String(target.checked)
+      : target.value;
+}
+
+function setNativeEditableValue(target: EditableElement, value: string) {
+  const descriptor = Object.getOwnPropertyDescriptor(target, "value");
+  const prototype = Object.getPrototypeOf(target) as EditableElement;
+  const prototypeDescriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+  const setter =
+    prototypeDescriptor?.set && prototypeDescriptor.set !== descriptor?.set
+      ? prototypeDescriptor.set
+      : descriptor?.set;
+  setter?.call(target, value);
+}
+
+function restoreEditableInitialValue(target: EditableElement) {
+  const initialValue = target.dataset.editInitialValue;
+  if (initialValue === undefined) return;
+  if (target instanceof HTMLInputElement && target.type === "checkbox") {
+    target.checked = initialValue === "true";
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+  setNativeEditableValue(target, initialValue);
+  target.dispatchEvent(new Event("input", { bubbles: true }));
+  target.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function handleEditableKey(
+  target: EditableElement,
+  key: string,
+  options: {
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+    preventDefault: () => void;
+    onEnter?: () => void;
+    onEscape?: () => void;
+  },
+) {
+  const isTextArea = target instanceof HTMLTextAreaElement;
+  if (
+    isTextArea &&
+    key === "Enter" &&
+    options.shiftKey
+  ) {
+    return;
+  }
+  if (key === "Enter" && (!isTextArea || options.metaKey || options.ctrlKey)) {
+    options.preventDefault();
+    options.onEnter?.();
+    target.blur();
+    return;
+  }
+  if (key === "Escape") {
+    options.preventDefault();
+    restoreEditableInitialValue(target);
+    options.onEscape?.();
+    target.blur();
+  }
+}
+
+function editableKeyHandler(
+  options: {
+    onEnter?: () => void;
+    onEscape?: () => void;
+  } = {},
+) {
+  return (event: ReactKeyboardEvent<EditableElement>) => {
+    handleEditableKey(event.currentTarget, event.key, {
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      preventDefault: () => event.preventDefault(),
+      ...options,
+    });
+  };
+}
+
 function buildProjectTree(items: ProjectListItem[]) {
   const byId = new Map<string, ProjectTreeItem>();
   const roots: ProjectTreeItem[] = [];
@@ -1598,6 +1692,29 @@ function App() {
   const [recentProjectIds, setRecentProjectIds] = useState<string[]>([]);
   const [executivePresentationMode, setExecutivePresentationMode] =
     useState(false);
+
+  const handleEditableFocus = useCallback(
+    (event: ReactFocusEvent<HTMLDivElement>) => {
+      if (!isEditableElement(event.target)) return;
+      if (event.target.closest(".wbs-excel-table")) return;
+      rememberEditableInitialValue(event.target);
+    },
+    [],
+  );
+
+  const handleEditableKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (!isEditableElement(event.target)) return;
+      if (event.target.closest(".wbs-excel-table")) return;
+      handleEditableKey(event.target, event.key, {
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        preventDefault: () => event.preventDefault(),
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     apiClient
@@ -3376,6 +3493,11 @@ function App() {
 
   function wbsPayload(itemId: string, form: WbsFormState) {
     const nextLevel = form.wbsLevel ? Number(form.wbsLevel) : null;
+    const workDays = form.workDays.trim();
+    const calendarDays = form.calendarDays.trim();
+    const leadLagDays = form.leadLagDays.trim();
+    const planWorkDays = form.planWorkDays.trim();
+    const planCalendarDays = form.planCalendarDays.trim();
     return {
       ...form,
       parentId: parentIdFromWbsLevel(itemId, nextLevel, wbsTree, wbsDrafts),
@@ -3390,14 +3512,14 @@ function App() {
       ...Object.fromEntries(
         WBS_PREDECESSOR_KEYS.map((key) => [key, form[key] || null]),
       ),
-      leadLagDays: Number(form.leadLagDays),
-      workDays: form.workDays ? Number(form.workDays) : null,
-      calendarDays: form.calendarDays ? Number(form.calendarDays) : null,
+      leadLagDays: leadLagDays ? Number(leadLagDays) : 0,
+      workDays: workDays ? Number(workDays) : null,
+      calendarDays: calendarDays ? Number(calendarDays) : null,
       excelStartDate: form.excelStartDate || null,
       excelEndDate: form.excelEndDate || null,
-      planWorkDays: form.planWorkDays ? Number(form.planWorkDays) : null,
-      planCalendarDays: form.planCalendarDays
-        ? Number(form.planCalendarDays)
+      planWorkDays: planWorkDays ? Number(planWorkDays) : null,
+      planCalendarDays: planCalendarDays
+        ? Number(planCalendarDays)
         : null,
       calendarCode: form.calendarCode,
       templateColor: form.templateColor || null,
@@ -3418,6 +3540,30 @@ function App() {
     setWbsDrafts({
       ...wbsDrafts,
       [itemId]: { ...current, ...patch },
+    });
+  }
+
+  function resetWbsDraft(itemId: string) {
+    const currentItem = project?.wbsItems.find((item) => item.id === itemId);
+    if (!currentItem) return;
+    setWbsDrafts((current) => {
+      const source = wbsToForm(currentItem);
+      return {
+        ...current,
+        [itemId]: {
+          ...source,
+          code: draftWbsCodes.get(itemId) ?? source.code,
+        },
+      };
+    });
+  }
+
+  function wbsEditKeyHandler(itemId: string) {
+    return editableKeyHandler({
+      onEnter: () => {
+        void saveWbsItem(itemId, { silent: true });
+      },
+      onEscape: () => resetWbsDraft(itemId),
     });
   }
 
@@ -3848,6 +3994,8 @@ function App() {
               onChange={(event) =>
                 updateWbsDraft(item.id, { title: event.target.value })
               }
+              onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+              onKeyDown={wbsEditKeyHandler(item.id)}
               onBlur={() => void saveWbsItem(item.id, { silent: true })}
             />
           </div>
@@ -3901,6 +4049,8 @@ function App() {
               onChange={(event) =>
                 updateWbsDraft(item.id, { wbsLevel: event.target.value })
               }
+              onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+              onKeyDown={wbsEditKeyHandler(item.id)}
               onBlur={() => void saveWbsItem(item.id, { silent: true })}
             />
             <div className="wbs-row-controls">
@@ -3954,6 +4104,8 @@ function App() {
                 type: event.target.value as WbsItemType,
               });
             }}
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           >
             <option value="PHASE">{wbsTypeLabel("PHASE")}</option>
@@ -3972,6 +4124,8 @@ function App() {
                 status: event.target.value as WbsItemStatus,
               });
             }}
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           >
             <option value="NOT_STARTED">{wbsStatusLabel("NOT_STARTED")}</option>
@@ -3989,6 +4143,8 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { owner: event.target.value })
             }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
@@ -4003,6 +4159,8 @@ function App() {
                 excelStartDate: event.target.value,
               })
             }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
@@ -4017,6 +4175,8 @@ function App() {
                 excelEndDate: event.target.value,
               })
             }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
@@ -4028,6 +4188,8 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { workDays: event.target.value })
             }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
@@ -4039,6 +4201,8 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { calendarDays: event.target.value })
             }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
@@ -4051,6 +4215,8 @@ function App() {
                 calendarCode: event.target.value as ProjectCalendarCode,
               });
             }}
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           >
             <option value="RU">RU</option>
@@ -4067,6 +4233,8 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { progress: event.target.value })
             }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
@@ -4082,6 +4250,8 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { jiraTicketUrl: event.target.value })
             }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
             placeholder="https://..."
           />
@@ -4103,6 +4273,8 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { [columnKey]: event.target.value })
             }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
             placeholder="Код"
           />
@@ -4115,6 +4287,8 @@ function App() {
             onChange={(event) =>
               updateWbsDraft(item.id, { leadLagDays: event.target.value })
             }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
@@ -5115,7 +5289,11 @@ function App() {
   }
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+    <div
+      className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}
+      onFocusCapture={handleEditableFocus}
+      onKeyDownCapture={handleEditableKeyDown}
+    >
       <button
         type="button"
         className="sidebar-toggle"
