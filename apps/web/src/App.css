@@ -1906,7 +1906,7 @@ code {
 
 .overview-graph-canvas {
   display: grid;
-  min-width: calc(206px + var(--overview-graph-track-width, 1160px));
+  min-width: calc(206px + var(--overview-graph-track-width, 1360px));
   padding: 14px 18px 18px;
 }
 
@@ -1974,7 +1974,7 @@ code {
 .overview-graph-lane {
   display: grid;
   gap: 18px;
-  grid-template-columns: 188px var(--overview-graph-track-width, 1160px);
+  grid-template-columns: 188px var(--overview-graph-track-width, 1360px);
 }
 
 .overview-graph-months {
@@ -2007,7 +2007,7 @@ code {
 
 .overview-graph-lane {
   border-top: 1px solid #cbd5e1;
-  min-height: calc(52px + var(--overview-graph-rows, 2) * 44px);
+  min-height: calc(58px + var(--overview-graph-rows, 2) * 68px);
 }
 
 .overview-graph-lane-title {
@@ -2017,7 +2017,7 @@ code {
   flex-direction: column;
   gap: 6px;
   justify-content: center;
-  min-height: calc(52px + var(--overview-graph-rows, 2) * 44px);
+  min-height: calc(58px + var(--overview-graph-rows, 2) * 68px);
   padding: 18px 18px 18px 4px;
 }
 
@@ -2033,7 +2033,7 @@ code {
 }
 
 .overview-graph-track {
-  min-height: calc(52px + var(--overview-graph-rows, 2) * 44px);
+  min-height: calc(58px + var(--overview-graph-rows, 2) * 68px);
   position: relative;
 }
 
@@ -2071,7 +2071,7 @@ code {
   height: 30px;
   justify-content: center;
   line-height: 1.15;
-  min-width: 126px;
+  min-width: 150px;
   overflow: hidden;
   padding: 4px 18px 4px 18px;
   text-align: center;
@@ -2119,7 +2119,7 @@ code {
   gap: 3px;
   line-height: 1.12;
   max-width: 156px;
-  min-width: 118px;
+  min-width: 132px;
   padding: 7px 9px;
   text-align: center;
   transform: translateX(-50%);

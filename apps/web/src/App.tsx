@@ -618,6 +618,12 @@ const GANTT_SCALE_WIDTH: Record<GanttScale, number> = {
 };
 const GANTT_HIERARCHY_LEVELS = [1, 2, 3, 4, 5] as const;
 const GANTT_PANEL_WIDTH_MIN = 760;
+const OVERVIEW_GRAPH_TRACK_MIN_WIDTH = 1360;
+const OVERVIEW_GRAPH_MONTH_WIDTH = 180;
+const OVERVIEW_GRAPH_TASK_MIN_WIDTH = 150;
+const OVERVIEW_GRAPH_MILESTONE_WIDTH = 166;
+const OVERVIEW_GRAPH_ROW_GAP = 26;
+const OVERVIEW_GRAPH_ROW_HEIGHT = 68;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const emptyIssueForm: IssueFormState = {
@@ -2155,7 +2161,7 @@ function App() {
       return {
         months: [] as Array<{ label: string; offset: number; width: number }>,
         lanes: [] as OverviewGraphLane[],
-        trackWidth: 1080,
+        trackWidth: OVERVIEW_GRAPH_TRACK_MIN_WIDTH,
         todayOffset: null as number | null,
       };
     }
@@ -2191,6 +2197,13 @@ function App() {
       });
     }
 
+    const trackWidth = Math.max(
+      OVERVIEW_GRAPH_TRACK_MIN_WIDTH,
+      months.length * OVERVIEW_GRAPH_MONTH_WIDTH,
+    );
+    const itemGap = (OVERVIEW_GRAPH_ROW_GAP / trackWidth) * 100;
+    const taskMinWidth = (OVERVIEW_GRAPH_TASK_MIN_WIDTH / trackWidth) * 100;
+    const milestoneWidth = (OVERVIEW_GRAPH_MILESTONE_WIDTH / trackWidth) * 100;
     const datedById = new Map(datedItems.map((entry) => [entry.item.id, entry]));
     const criticalIds = new Set(project?.criticalPath?.criticalItemIds ?? []);
     const phases = wbsTree
@@ -2253,14 +2266,20 @@ function App() {
       const laneItems = laneItemsFromPhase(phase);
       const rowEnds: number[] = [];
       laneItems.forEach((item) => {
-        const itemEnd =
-          item.kind === "milestone" ? item.offset + 3 : item.offset + item.width;
-        let row = rowEnds.findIndex((end) => item.offset >= end + 2);
+        const visualStart =
+          item.kind === "milestone"
+            ? Math.max(0, item.offset - milestoneWidth / 2)
+            : item.offset;
+        const visualEnd =
+          item.kind === "milestone"
+            ? Math.min(100, item.offset + milestoneWidth / 2)
+            : Math.min(100, item.offset + Math.max(item.width, taskMinWidth));
+        let row = rowEnds.findIndex((end) => visualStart >= end + itemGap);
         if (row === -1) {
           row = rowEnds.length;
-          rowEnds.push(itemEnd);
+          rowEnds.push(visualEnd);
         } else {
-          rowEnds[row] = itemEnd;
+          rowEnds[row] = visualEnd;
         }
         item.row = row;
       });
@@ -2280,7 +2299,7 @@ function App() {
     return {
       months,
       lanes,
-      trackWidth: Math.max(1160, months.length * 154),
+      trackWidth,
       todayOffset,
     };
   }, [project?.criticalPath?.criticalItemIds, wbsTree]);
@@ -6545,7 +6564,7 @@ function App() {
                                     onClick={() => openView("project-structure")}
                                     style={{
                                       left: `${item.offset}%`,
-                                      top: `calc(18px + ${item.row} * 44px)`,
+                                      top: `calc(18px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
                                     }}
                                     title={`${item.code} ${item.title}: ${date(item.dueDate)}.`}
                                   >
@@ -6560,7 +6579,7 @@ function App() {
                                     onClick={() => openView("project-structure")}
                                     style={{
                                       left: `${item.offset}%`,
-                                      top: `calc(18px + ${item.row} * 44px)`,
+                                      top: `calc(18px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
                                       width: `${item.width}%`,
                                     }}
                                     title={`${item.code} ${item.title}: ${date(item.startDate)} - ${date(item.dueDate)}.`}
