@@ -2204,6 +2204,9 @@ function App() {
       OVERVIEW_GRAPH_TRACK_MIN_WIDTH,
       months.length * OVERVIEW_GRAPH_MONTH_WIDTH,
     );
+    const today = startOfDay(new Date());
+    const todayOffset =
+      today >= rawStart && today <= rawEnd ? offsetForDate(today) : null;
     const itemGap = (OVERVIEW_GRAPH_ROW_GAP / trackWidth) * 100;
     const taskMinWidth = (OVERVIEW_GRAPH_TASK_MIN_WIDTH / trackWidth) * 100;
     const milestoneWidth = (OVERVIEW_GRAPH_MILESTONE_WIDTH / trackWidth) * 100;
@@ -2271,9 +2274,14 @@ function App() {
       const laneItems = laneItemsFromPhase(phase);
       const rowEnds: number[] = [];
       laneItems.forEach((item) => {
-        const calloutPlacement =
+        const overlapsToday =
+          todayOffset !== null && Math.abs(todayOffset - item.offset) < 2.4;
+        const needsSideCallout =
           item.kind === "milestone" &&
-          item.title.length > OVERVIEW_GRAPH_MILESTONE_LONG_TITLE
+          (item.title.length > OVERVIEW_GRAPH_MILESTONE_LONG_TITLE ||
+            overlapsToday);
+        const calloutPlacement =
+          needsSideCallout
             ? item.offset > 64
               ? "left"
               : "right"
@@ -2319,10 +2327,6 @@ function App() {
         rowCount: Math.max(2, rowEnds.length),
       };
     });
-    const today = startOfDay(new Date());
-    const todayOffset =
-      today >= rawStart && today <= rawEnd ? offsetForDate(today) : null;
-
     return {
       months,
       lanes,
