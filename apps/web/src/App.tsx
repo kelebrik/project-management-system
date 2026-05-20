@@ -28,6 +28,8 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  Maximize2,
+  Minimize2,
   Plus,
   Search,
   Settings,
@@ -64,6 +66,10 @@ type AppView =
   | "project-calendars"
   | "project-artifacts"
   | "admin";
+type FullscreenWorkspaceView = Extract<
+  AppView,
+  "project-structure" | "project-gantt"
+>;
 
 type AuthMode = "checking" | "setup" | "login" | "ready";
 type UserRole =
@@ -1740,6 +1746,8 @@ function App() {
   const [showGanttBaseline, setShowGanttBaseline] = useState(false);
   const [showGanttForecast, setShowGanttForecast] = useState(false);
   const [showGanttCriticalPath, setShowGanttCriticalPath] = useState(false);
+  const [fullscreenWorkspaceView, setFullscreenWorkspaceView] =
+    useState<FullscreenWorkspaceView | null>(null);
   const [ganttScale, setGanttScale] = useState<GanttScale>("month");
   const [showWbsColumnMenu, setShowWbsColumnMenu] = useState(false);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
@@ -3264,6 +3272,29 @@ function App() {
       cancelled = true;
     };
   }, [activeView, applyProject, selectedProjectId]);
+
+  useEffect(() => {
+    if (
+      fullscreenWorkspaceView &&
+      activeView !== "project-structure" &&
+      activeView !== "project-gantt"
+    ) {
+      setFullscreenWorkspaceView(null);
+    }
+  }, [activeView, fullscreenWorkspaceView]);
+
+  useEffect(() => {
+    if (!fullscreenWorkspaceView) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFullscreenWorkspaceView(null);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [fullscreenWorkspaceView]);
 
   function applyWbsSnapshotResult(
     nextItems: WbsItem[],
@@ -5959,6 +5990,9 @@ function App() {
       return next;
     });
   };
+  const toggleWorkspaceFullscreen = (view: FullscreenWorkspaceView) => {
+    setFullscreenWorkspaceView((current) => (current === view ? null : view));
+  };
 
   if (loading) {
     return (
@@ -7474,7 +7508,17 @@ function App() {
               {project &&
                 (activeView === "project-structure" ||
                   activeView === "project-gantt") && (
-	                <article className="panel project-card">
+		                <article
+                      className={`panel project-card workspace-focus-panel ${
+                        fullscreenWorkspaceView === activeView
+                          ? "workspace-focus-panel-fullscreen"
+                          : ""
+                      } ${
+                        activeView === "project-structure"
+                          ? "workspace-focus-structure"
+                          : "workspace-focus-gantt"
+                      }`}
+                    >
 	                  <div className="panel-title">
 	                    <div>
 	                      <h2>
@@ -7492,7 +7536,31 @@ function App() {
 		                  <div className="wbs-gantt-layout">
 	                    {activeView === "project-structure" && (
 	                      <>
-		                    <div className="wbs-history-toolbar" aria-label="История Структуры">
+			                    <div className="wbs-history-toolbar" aria-label="История Структуры">
+                      <button
+                        type="button"
+                        className="workspace-fullscreen-button"
+                        onClick={() => toggleWorkspaceFullscreen("project-structure")}
+                        aria-label={
+                          fullscreenWorkspaceView === "project-structure"
+                            ? "Вернуть обычный режим Структуры"
+                            : "Развернуть Структуру на весь экран"
+                        }
+                        title={
+                          fullscreenWorkspaceView === "project-structure"
+                            ? "Вернуть обычный режим"
+                            : "На весь экран"
+                        }
+                      >
+                        {fullscreenWorkspaceView === "project-structure" ? (
+                          <Minimize2 size={15} />
+                        ) : (
+                          <Maximize2 size={15} />
+                        )}
+                        {fullscreenWorkspaceView === "project-structure"
+                          ? "Обычный режим"
+                          : "На весь экран"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => void undoWbsChange()}
@@ -7767,11 +7835,35 @@ function App() {
 	                    )}
 	                    {activeView === "project-gantt" && (
 	                      <>
-	                        <div className="gantt-controls">
-	                          <div className="gantt-controls-row">
-	                            <button
-	                              type="button"
-	                              onClick={() => void undoWbsChange()}
+		                        <div className="gantt-controls">
+		                          <div className="gantt-controls-row">
+                            <button
+                              type="button"
+                              className="workspace-fullscreen-button"
+                              onClick={() => toggleWorkspaceFullscreen("project-gantt")}
+                              aria-label={
+                                fullscreenWorkspaceView === "project-gantt"
+                                  ? "Вернуть обычный режим Гантта"
+                                  : "Развернуть Гантт на весь экран"
+                              }
+                              title={
+                                fullscreenWorkspaceView === "project-gantt"
+                                  ? "Вернуть обычный режим"
+                                  : "На весь экран"
+                              }
+                            >
+                              {fullscreenWorkspaceView === "project-gantt" ? (
+                                <Minimize2 size={15} />
+                              ) : (
+                                <Maximize2 size={15} />
+                              )}
+                              {fullscreenWorkspaceView === "project-gantt"
+                                ? "Обычный режим"
+                                : "На весь экран"}
+                            </button>
+		                            <button
+		                              type="button"
+		                              onClick={() => void undoWbsChange()}
 	                              onMouseDown={(event) => event.preventDefault()}
 	                              disabled={
 	                                restoringWbsSnapshot ||

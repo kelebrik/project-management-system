@@ -1063,6 +1063,56 @@ button:disabled {
   grid-column: span 2;
 }
 
+.workspace-focus-panel {
+  transition:
+    border-radius 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.workspace-focus-panel-fullscreen {
+  border-radius: 0;
+  bottom: 0;
+  box-shadow: none;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  left: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 14px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 120;
+}
+
+.workspace-focus-panel-fullscreen .panel-title {
+  margin-bottom: 10px;
+}
+
+.workspace-focus-panel-fullscreen .wbs-gantt-layout {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-focus-panel-fullscreen .wbs-table-shell {
+  max-height: none;
+  min-height: 0;
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-structure .wbs-table-shell {
+  height: 100%;
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-gantt .wbs-gantt-layout {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.workspace-focus-panel-fullscreen .gantt-panel {
+  height: 100%;
+  margin-bottom: 0;
+  width: 100%;
+}
+
 .panel-title {
   align-items: flex-start;
   display: flex;
@@ -2508,6 +2558,12 @@ code {
   color: #1d4ed8;
 }
 
+.workspace-fullscreen-button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
 .hierarchy-control {
   margin-left: 4px;
 }
@@ -3182,6 +3238,12 @@ code {
   color: #94a3b8;
   cursor: not-allowed;
   opacity: 0.65;
+}
+
+.wbs-history-toolbar .workspace-fullscreen-button,
+.gantt-controls .workspace-fullscreen-button {
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 
 .wbs-save-state {
