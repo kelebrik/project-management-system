@@ -2049,10 +2049,11 @@ code {
 .milestone-point::before {
   background: #94a3b8;
   content: "";
-  height: 42px;
+  height: calc(42px + var(--milestone-label-level, 0) * 56px);
   left: 50%;
   position: absolute;
   width: 3px;
+  z-index: 1;
 }
 
 .milestone-point.top::before {
@@ -2091,7 +2092,7 @@ code {
   position: absolute;
   top: -6.5px;
   width: 12px;
-  z-index: 2;
+  z-index: 4;
 }
 
 .milestone-point.top .milestone-marker {
@@ -2126,6 +2127,7 @@ code {
   overflow-wrap: anywhere;
   position: absolute;
   width: 100%;
+  z-index: 3;
 }
 
 .milestone-date {
@@ -2133,6 +2135,7 @@ code {
   font-weight: 800;
   position: absolute;
   width: 100%;
+  z-index: 3;
 }
 
 .milestone-point.top .milestone-date {
