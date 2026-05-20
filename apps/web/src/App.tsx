@@ -697,6 +697,59 @@ const OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH = 204;
 const OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH = 248;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
+const appViewPaths: Record<AppView, string> = {
+  portfolio: "/portfolio",
+  "project-create": "/new-project",
+  "project-overview": "/overview",
+  "project-passport": "/passport",
+  "project-structure": "/wbs",
+  "project-gantt": "/gantt",
+  "project-issues": "/issues",
+  "project-raid": "/risks",
+  "project-calendars": "/calendars",
+  "project-artifacts": "/artifacts",
+  admin: "/admin",
+};
+
+const appPathViews: Record<string, AppView> = {
+  "/": "portfolio",
+  "/portfolio": "portfolio",
+  "/projects": "portfolio",
+  "/new-project": "project-create",
+  "/create-project": "project-create",
+  "/overview": "project-overview",
+  "/passport": "project-passport",
+  "/wbs": "project-structure",
+  "/structure": "project-structure",
+  "/gantt": "project-gantt",
+  "/issues": "project-issues",
+  "/open-issues": "project-issues",
+  "/risks": "project-raid",
+  "/raid": "project-raid",
+  "/calendars": "project-calendars",
+  "/calendar": "project-calendars",
+  "/artifacts": "project-artifacts",
+  "/admin": "admin",
+};
+
+function normalizeAppPath(pathname: string) {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  return path.toLowerCase();
+}
+
+function appViewFromPath(pathname: string): AppView {
+  return appPathViews[normalizeAppPath(pathname)] ?? "portfolio";
+}
+
+function appPathForView(view: AppView) {
+  return appViewPaths[view] ?? "/portfolio";
+}
+
+function initialAppView(): AppView {
+  if (typeof window === "undefined") return "portfolio";
+  return appViewFromPath(window.location.pathname);
+}
+
 async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const response = await fetch(input, {
     ...init,
@@ -1710,7 +1763,7 @@ function App() {
     null,
   );
   const [project, setProject] = useState<ProjectDetails | null>(null);
-  const [activeView, setActiveView] = useState<AppView>("portfolio");
+  const [activeView, setActiveView] = useState<AppView>(() => initialAppView());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [savingJira, setSavingJira] = useState(false);
@@ -1916,6 +1969,18 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const onPopState = () => {
+      setError(null);
+      setNotice(null);
+      setActiveView(appViewFromPath(window.location.pathname));
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
     const onAuthRequired = () => {
       setCurrentUser(null);
       setAuthMode("login");
@@ -1927,6 +1992,15 @@ function App() {
       window.removeEventListener("pms-auth-required", onAuthRequired);
     };
   }, []);
+
+  useEffect(() => {
+    if (authMode !== "ready") return;
+    if (!isAuthenticated && writeProtectedViews.has(activeView)) {
+      openView(selectedProjectId ? "project-overview" : "portfolio", {
+        replace: true,
+      });
+    }
+  }, [activeView, authMode, isAuthenticated, selectedProjectId]);
 
   useEffect(() => {
     if (authMode !== "ready") return;
@@ -3695,7 +3769,9 @@ function App() {
     setCurrentUser(null);
     setAuthMode("ready");
     if (writeProtectedViews.has(activeView)) {
-      setActiveView(selectedProjectId ? "project-overview" : "portfolio");
+      openView(selectedProjectId ? "project-overview" : "portfolio", {
+        replace: true,
+      });
     }
     setUsers([]);
     setNotice("Включен режим только для просмотра");
@@ -3773,7 +3849,7 @@ function App() {
         throw new Error("API не вернул идентификатор созданного проекта");
       }
       setNewProjectForm(newProjectFormDefaults());
-      setActiveView("project-structure");
+      openView("project-structure", { replace: true });
       setSelectedProjectId(result.id);
       setProject(null);
       await reloadProjects(result.id);
@@ -5958,7 +6034,7 @@ function App() {
     }
   }
 
-  function openView(nextView: AppView) {
+  function openView(nextView: AppView, options?: { replace?: boolean }) {
     setError(null);
     setNotice(null);
     if (!isAuthenticated && writeProtectedViews.has(nextView)) {
@@ -5967,6 +6043,15 @@ function App() {
       return;
     }
     setActiveView(nextView);
+    const nextPath = appPathForView(nextView);
+    if (window.location.pathname !== nextPath) {
+      const nextUrl = `${nextPath}${window.location.search}${window.location.hash}`;
+      if (options?.replace) {
+        window.history.replaceState(null, "", nextUrl);
+      } else {
+        window.history.pushState(null, "", nextUrl);
+      }
+    }
   }
 
   function selectProject(projectId: string, nextView: AppView = activeView) {
