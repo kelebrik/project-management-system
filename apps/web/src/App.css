@@ -1920,9 +1920,9 @@ code {
 
 .milestone-lanes {
   display: grid;
-  gap: 18px;
+  gap: 10px;
   min-width: calc(176px + 18px + var(--milestone-track-width, 960px));
-  padding: 18px 20px 22px;
+  padding: 14px 20px 18px;
 }
 
 .milestone-scale,
@@ -1987,7 +1987,7 @@ code {
 .milestone-lane-canvas {
   --milestone-axis-center: calc(var(--milestone-lane-height, 188px) / 2);
   min-height: var(--milestone-lane-height, 188px);
-  padding: 0 42px 0 18px;
+  padding: 0 38px 0 18px;
   position: relative;
 }
 
@@ -1998,7 +1998,7 @@ code {
   height: 20px;
   left: 18px;
   position: absolute;
-  right: 42px;
+  right: 38px;
   top: calc(var(--milestone-axis-center) - 10px);
 }
 
@@ -2008,7 +2008,7 @@ code {
   border-top: 21px solid transparent;
   height: 0;
   position: absolute;
-  right: 14px;
+  right: 10px;
   top: calc(var(--milestone-axis-center) - 21px);
   width: 0;
 }
@@ -2025,7 +2025,7 @@ code {
   text-align: left;
   top: var(--milestone-axis-center);
   transform: translateX(-50%);
-  width: 138px;
+  width: 148px;
 }
 
 .milestone-point:hover .milestone-label,
@@ -2049,7 +2049,7 @@ code {
 .milestone-point::before {
   background: #94a3b8;
   content: "";
-  height: 56px;
+  height: 42px;
   left: 50%;
   position: absolute;
   width: 3px;
@@ -2119,9 +2119,9 @@ code {
 }
 
 .milestone-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
-  line-height: 1.22;
+  line-height: 1.16;
   max-width: 100%;
   overflow-wrap: anywhere;
   position: absolute;
@@ -2129,26 +2129,26 @@ code {
 }
 
 .milestone-date {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   position: absolute;
   width: 100%;
 }
 
 .milestone-point.top .milestone-date {
-  top: calc(-52px - var(--milestone-label-level, 0) * 78px);
+  top: calc(-42px - var(--milestone-label-level, 0) * 56px);
 }
 
 .milestone-point.bottom .milestone-date {
-  top: calc(36px + var(--milestone-label-level, 0) * 78px);
+  top: calc(30px + var(--milestone-label-level, 0) * 56px);
 }
 
 .milestone-point.top .milestone-label {
-  bottom: calc(56px + var(--milestone-label-level, 0) * 78px);
+  bottom: calc(42px + var(--milestone-label-level, 0) * 56px);
 }
 
 .milestone-point.bottom .milestone-label {
-  top: calc(58px + var(--milestone-label-level, 0) * 78px);
+  top: calc(44px + var(--milestone-label-level, 0) * 56px);
 }
 
 .milestone-range {

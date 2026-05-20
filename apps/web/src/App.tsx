@@ -2219,6 +2219,7 @@ function App() {
           ]
         : [unassignedLane];
     let maxLaneLevel = 0;
+    const labelMinGap = 0.15;
     lanes.forEach((lane) => {
       const sideLevels: Record<"top" | "bottom", number[]> = {
         top: [],
@@ -2232,13 +2233,42 @@ function App() {
       );
 
       lane.items.forEach((item, index) => {
-        const side = index % 2 === 0 ? "top" : "bottom";
+        const previous = index > 0 ? lane.items[index - 1] : null;
+        if (previous && item.offset - previous.offset < 0.018) {
+          item.offset = Math.min(0.985, previous.offset + 0.018);
+        }
+        const preferredSide = index % 2 === 0 ? "top" : "bottom";
+        const sides: Array<"top" | "bottom"> = [
+          preferredSide,
+          preferredSide === "top" ? "bottom" : "top",
+        ];
+        const sideCandidates = sides
+          .map((side) => {
+            const lastOffsets = sideLevels[side];
+            const reusableLevel = lastOffsets.findIndex(
+              (lastOffset) => item.offset - lastOffset >= labelMinGap,
+            );
+            return {
+              side,
+              level: reusableLevel === -1 ? lastOffsets.length : reusableLevel,
+              reusesLevel: reusableLevel !== -1,
+            };
+          })
+          .sort((left, right) => {
+            if (left.level !== right.level) return left.level - right.level;
+            if (left.reusesLevel !== right.reusesLevel) {
+              return left.reusesLevel ? -1 : 1;
+            }
+            return left.side === preferredSide ? -1 : 1;
+          });
+        const best = sideCandidates[0];
+        const side = best.side;
         const lastOffsets = sideLevels[side];
-        let level = lastOffsets.findIndex(
-          (lastOffset) => item.offset - lastOffset >= 0.12,
-        );
+        let level = best.level;
         if (level === -1) {
           level = lastOffsets.length;
+          lastOffsets.push(item.offset);
+        } else if (level >= lastOffsets.length) {
           lastOffsets.push(item.offset);
         } else {
           lastOffsets[level] = item.offset;
@@ -2257,8 +2287,8 @@ function App() {
       lanes,
       startDate: new Date(minTime).toISOString(),
       endDate: new Date(maxTime).toISOString(),
-      trackWidth: Math.max(960, maxLaneMilestones * 190),
-      laneHeight: 188 + maxLaneLevel * 78,
+      trackWidth: Math.max(1040, maxLaneMilestones * 160),
+      laneHeight: 156 + maxLaneLevel * 56,
     };
   }, [project?.wbsItems, structureMilestones]);
   const overviewDashboard = useMemo(() => {
