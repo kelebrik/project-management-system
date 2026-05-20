@@ -601,6 +601,12 @@ const projectDetailsInclude = {
   changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
 } satisfies Prisma.ProjectInclude;
 
+const closedIssuesInclude = {
+  where: { status: { in: ['Done', 'Closed', 'Resolved'] } },
+  orderBy: [{ updatedAt: 'desc' }],
+  include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
+} satisfies Prisma.IssueFindManyArgs;
+
 const defaultProjectWbsItems = [
   { code: '1', title: 'Инициация проекта', type: 'PHASE', status: 'IN_PROGRESS', owner: 'РП', startOffset: 0, duration: 14, level: 1 },
   { code: '1.1', title: 'Паспорт проекта', type: 'TASK', status: 'DONE', owner: 'РП', startOffset: 0, duration: 4, level: 2 },
@@ -814,12 +820,19 @@ app.patch('/api/projects/:projectId', async (req, res) => {
 });
 
 app.get('/api/projects/:projectId/overview', async (req, res) => {
-  const [project, criticalPath] = await Promise.all([
+  const [project, criticalPath, closedIssues] = await Promise.all([
     prisma.project.findUnique({
       where: { id: req.params.projectId },
       include: projectDetailsInclude,
     }),
     calculateProjectCriticalPath(req.params.projectId),
+    prisma.issue.findMany({
+      ...closedIssuesInclude,
+      where: {
+        ...closedIssuesInclude.where,
+        projectId: req.params.projectId,
+      },
+    }),
   ]);
 
   if (!project) {
@@ -827,7 +840,7 @@ app.get('/api/projects/:projectId/overview', async (req, res) => {
     return;
   }
 
-  res.json({ ...project, criticalPath });
+  res.json({ ...project, closedIssues, criticalPath });
 });
 
 const calendarOverrideSchema = z.object({

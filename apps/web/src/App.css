@@ -1486,6 +1486,10 @@ code {
   overflow: hidden;
 }
 
+.issue-row.closed {
+  background: #f8fafc;
+}
+
 .issue-row a,
 .table-row,
 .ticket {
@@ -1493,11 +1497,60 @@ code {
   text-decoration: none;
 }
 
+.issue-jira-key {
+  font-weight: 900;
+}
+
+.closed-issues-section {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.section-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.section-heading h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.section-heading p {
+  color: #64748b;
+  font-size: 12px;
+  margin: 2px 0 0;
+}
+
+.section-heading > span {
+  background: #eef2f7;
+  border: 1px solid #d8e0eb;
+  border-radius: 999px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 5px 9px;
+}
+
+.section-heading.compact {
+  margin-bottom: 2px;
+}
+
+.closed-issue-list {
+  gap: 8px;
+}
+
 .issue-summary-row {
   align-items: center;
   background: transparent;
   border: 0;
   border-radius: 0;
+  cursor: pointer;
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(0, 1fr) 112px 118px 96px 152px 28px;
