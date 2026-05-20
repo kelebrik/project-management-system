@@ -561,6 +561,7 @@ type Issue = {
   decisionRequired: boolean;
   dueDate: string | null;
   initialDueDate: string | null;
+  closedDelayDays: number | null;
   jiraTicketKey: string | null;
   jiraTicketUrl: string | null;
   jiraLinks: IssueJiraLink[];
@@ -6121,7 +6122,7 @@ function App() {
   const toggleSidebar = () => {
     const nextCollapsed = !sidebarCollapsed;
     setSidebarCollapsed(nextCollapsed);
-    if (project) {
+    if (project && isAuthenticated) {
       void saveProjectUiState(
         { sidebarCollapsed: nextCollapsed },
         { sidebarCollapsed: nextCollapsed },
@@ -6697,24 +6698,15 @@ function App() {
                       : "Проверьте Структуру проекта"}
                   </small>
                 </button>
-                <button type="button" onClick={() => openView("project-structure")}>
-                  <span>Просроченные элементы</span>
-                  <strong>{overviewDashboard.overdueItems.length}</strong>
-                  <small>
-                    {topOverdueItems[0]
-                      ? `${topOverdueItems[0].item.code}: ${topOverdueItems[0].days} дн.`
-                      : "Просрочки по Структуре нет"}
-                  </small>
-                </button>
                 <button type="button" onClick={() => openView("project-raid")}>
                   <span>Риски и проблемы</span>
                   <strong>{overviewDashboard.riskItems.length}</strong>
                   <small>Активные записи под контролем</small>
                 </button>
                 <button type="button" onClick={() => openView("project-issues")}>
-                  <span>Нужны решения</span>
+                  <span>Вопросы на решение</span>
                   <strong>{overviewDashboard.decisionItems}</strong>
-                  <small>Только открытые вопросы</small>
+                  <small>Подмножество открытых вопросов</small>
                 </button>
               </section>
             )}
@@ -9027,12 +9019,15 @@ function App() {
                           <span>Наименование</span>
                           <span>Ключ Jira</span>
                           <span>Срок</span>
-                          <span>Статус</span>
+                          <span>Отставание</span>
                           <span>Ответственный</span>
                           <span />
                         </div>
                         {(project.closedIssues ?? []).map((issue) => {
                           const jiraLink = issuePrimaryJiraLink(issue);
+                          const delayDays =
+                            issue.closedDelayDays ??
+                            calendarDelayDays(issue.initialDueDate, issue.dueDate);
                           return (
                             <div className="issue-row closed" key={issue.id}>
                               <div
@@ -9077,8 +9072,10 @@ function App() {
                                 <span className="issue-summary-cell">
                                   {date(issue.dueDate)}
                                 </span>
-                                <span className="issue-summary-cell">
-                                  {issueStatusLabel(issue.status)}
+                                <span
+                                  className={`issue-summary-cell ${delayDays > 0 ? "issue-delay" : ""}`}
+                                >
+                                  {delayDays > 0 ? `+${delayDays} дн.` : "нет"}
                                 </span>
                                 <span className="issue-summary-cell">
                                   {issue.owner || "не назначен"}
@@ -9100,6 +9097,10 @@ function App() {
                                     </span>
                                     <span>
                                       Статус: {issueStatusLabel(issue.status)}
+                                    </span>
+                                    <span>
+                                      Отставание на момент закрытия:{" "}
+                                      {delayDays > 0 ? `+${delayDays} кал. дн.` : "нет"}
                                     </span>
                                     <span>
                                       Источник:{" "}

@@ -412,6 +412,7 @@ model Issue {
   decisionRequired Boolean         @default(false)
   dueDate          DateTime?
   initialDueDate   DateTime?
+  closedDelayDays  Int?
   jiraTicketKey    String?
   jiraTicketUrl    String?
   createdAt        DateTime        @default(now())

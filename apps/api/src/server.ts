@@ -88,6 +88,20 @@ function safeUser(user: CurrentUser): CurrentUser {
   };
 }
 
+function calendarDelayDays(initialValue: Date | null, currentValue: Date | null) {
+  if (!initialValue || !currentValue) return 0;
+  const initialDate = new Date(initialValue);
+  initialDate.setHours(0, 0, 0, 0);
+  const currentDate = new Date(currentValue);
+  currentDate.setHours(0, 0, 0, 0);
+  if (Number.isNaN(initialDate.getTime()) || Number.isNaN(currentDate.getTime())) return 0;
+  return Math.max(0, Math.round((currentDate.getTime() - initialDate.getTime()) / 86_400_000));
+}
+
+function isClosedIssueStatus(status: string | undefined) {
+  return status === 'Done' || status === 'Closed' || status === 'Resolved';
+}
+
 function hashPassword(password: string) {
   const salt = randomBytes(16).toString('base64url');
   const hash = scryptSync(password, salt, 64).toString('base64url');
@@ -2501,6 +2515,13 @@ app.patch('/api/open-issues/:issueId', async (req, res) => {
     res.status(400).json({ error: `Некорректный Jira URL: ${nextJiraUrl}` });
     return;
   }
+  const nextStatus = parsed.data.status ?? issue.status;
+  const resolvedDueDate = nextDueDate === undefined ? issue.dueDate : nextDueDate;
+  const resolvedInitialDueDate =
+    nextInitialDueDate === undefined ? issue.initialDueDate : nextInitialDueDate;
+  const shouldCaptureClosedDelay =
+    isClosedIssueStatus(nextStatus) &&
+    !isClosedIssueStatus(issue.status);
 
   const updated = await prisma.issue.update({
     where: { id: issue.id },
@@ -2508,6 +2529,9 @@ app.patch('/api/open-issues/:issueId', async (req, res) => {
       ...parsed.data,
       dueDate: nextDueDate,
       initialDueDate: nextInitialDueDate,
+      closedDelayDays: shouldCaptureClosedDelay
+        ? calendarDelayDays(resolvedInitialDueDate, resolvedDueDate)
+        : undefined,
       jiraTicketKey:
         parsed.data.jiraTicketKey === undefined
           ? undefined
