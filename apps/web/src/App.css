@@ -1094,13 +1094,24 @@ button:disabled {
   overflow: hidden;
 }
 
+.workspace-focus-panel-fullscreen .wbs-history-toolbar {
+  position: static;
+  top: auto;
+}
+
 .workspace-focus-panel-fullscreen .wbs-table-shell {
   max-height: none;
   min-height: 0;
 }
 
 .workspace-focus-panel-fullscreen.workspace-focus-structure .wbs-table-shell {
+  flex: 1 1 auto;
   height: 100%;
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-structure .wbs-gantt-layout {
+  display: flex;
+  flex-direction: column;
 }
 
 .workspace-focus-panel-fullscreen.workspace-focus-gantt .wbs-gantt-layout {
@@ -3538,7 +3549,7 @@ code {
   position: sticky;
   text-transform: uppercase;
   top: 0;
-  z-index: 7;
+  z-index: 30;
 }
 
 .wbs-column-header,
@@ -3560,7 +3571,7 @@ code {
   background: #eef2f7;
   left: 0;
   position: sticky;
-  z-index: 9;
+  z-index: 20;
 }
 
 .wbs-column-header.structure-column,
@@ -3568,7 +3579,15 @@ code {
   background: #eef2f7;
   left: var(--wbs-level-width, 128px);
   position: sticky;
-  z-index: 8;
+  z-index: 19;
+}
+
+.wbs-table-head .wbs-column-header.level-column {
+  z-index: 33;
+}
+
+.wbs-table-head .wbs-column-header.structure-column {
+  z-index: 32;
 }
 
 .wbs-cell-level {
@@ -3765,7 +3784,7 @@ code {
   top: calc(100% - 6px);
   transition: opacity 120ms ease;
   width: 22px;
-  z-index: 16;
+  z-index: 12;
 }
 
 .wbs-row-drag-handle,

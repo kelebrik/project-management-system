@@ -173,7 +173,7 @@ function buildChildrenByParent(
     const inferredParentId = inferredParentCode
       ? itemsByCode.get(inferredParentCode)?.id ?? null
       : null;
-    const parentId = explicitParentId ?? inferredParentId;
+    const parentId = inferredParentId ?? explicitParentId;
     if (!parentId || parentId === item.id) continue;
     childrenByParent.set(parentId, [
       ...(childrenByParent.get(parentId) ?? []),
@@ -195,10 +195,6 @@ function maxDate(dates: Date[]) {
   return dates.reduce((latest, current) =>
     current.getTime() > latest.getTime() ? current : latest,
   );
-}
-
-function usesChildScheduleRange(item: WbsScheduleItem) {
-  return item.type === "PHASE" || item.type === "WORK_PACKAGE";
 }
 
 function sortByPlanOrder(left: WbsScheduleItem, right: WbsScheduleItem) {
@@ -390,12 +386,12 @@ export function calculateWbsScheduleUpdates(
 
   const hierarchyOrder = [...items].sort(
     (left, right) =>
-      wbsLevelFromItem(right) - wbsLevelFromItem(left) ||
+      wbsLevelFromCode(right.code) - wbsLevelFromCode(left.code) ||
       right.sortOrder - left.sortOrder,
   );
   for (const item of hierarchyOrder) {
     const children = childrenByParent.get(item.id) ?? [];
-    if (children.length === 0 || !usesChildScheduleRange(item)) continue;
+    if (children.length === 0) continue;
 
     const childSchedules = children
       .map((child) => computedById.get(child.id))
