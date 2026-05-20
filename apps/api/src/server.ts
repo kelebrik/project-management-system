@@ -215,6 +215,14 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function requireAuthForWrites(req: Request, res: Response, next: NextFunction) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    next();
+    return;
+  }
+  requireAuth(req, res, next);
+}
+
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = currentUser(req);
   if (!user) {
@@ -416,7 +424,7 @@ app.post('/api/auth/logout', async (req, res) => {
   res.status(204).send();
 });
 
-app.use('/api', requireAuth);
+app.use('/api', requireAuthForWrites);
 
 app.get('/api/users', requireAdmin, async (_req, res) => {
   const users = await prisma.user.findMany({

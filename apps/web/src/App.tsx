@@ -72,6 +72,7 @@ type FullscreenWorkspaceView = Extract<
 >;
 
 type AuthMode = "checking" | "setup" | "login" | "ready";
+const writeProtectedViews = new Set<AppView>(["project-create", "admin"]);
 type UserRole =
   | "ADMIN"
   | "PROJECT_MANAGER"
@@ -696,8 +697,8 @@ const OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH = 204;
 const OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH = 248;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
-function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
-  return fetch(input, {
+async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const response = await fetch(input, {
     ...init,
     credentials: "include",
     headers: {
@@ -705,6 +706,14 @@ function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
       ...init.headers,
     },
   });
+  const method = (init.method ?? "GET").toUpperCase();
+  if (
+    response.status === 401 &&
+    !["GET", "HEAD", "OPTIONS"].includes(method)
+  ) {
+    window.dispatchEvent(new CustomEvent("pms-auth-required"));
+  }
+  return response;
 }
 
 const emptyIssueForm: IssueFormState = {
@@ -1759,6 +1768,8 @@ function App() {
   const [showGanttCriticalPath, setShowGanttCriticalPath] = useState(false);
   const [fullscreenWorkspaceView, setFullscreenWorkspaceView] =
     useState<FullscreenWorkspaceView | null>(null);
+  const isAuthenticated = Boolean(currentUser);
+  const isReadOnly = !isAuthenticated;
   const [ganttScale, setGanttScale] = useState<GanttScale>("month");
   const [showWbsColumnMenu, setShowWbsColumnMenu] = useState(false);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
@@ -1873,9 +1884,9 @@ function App() {
               "Не удалось проверить первичную настройку",
             );
             if (cancelled) return;
-            setAuthMode(setup.needsSetup ? "setup" : "login");
+            setAuthMode(setup.needsSetup ? "setup" : "ready");
           } catch (setupError) {
-            setAuthMode("login");
+            setAuthMode("ready");
             setError(
               setupError instanceof Error
                 ? setupError.message
@@ -1883,7 +1894,7 @@ function App() {
             );
           }
         } else {
-          setAuthMode("login");
+          setAuthMode("ready");
           setError(
             authError instanceof Error
               ? authError.message
@@ -1905,7 +1916,20 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (authMode !== "ready" || !currentUser) return;
+    const onAuthRequired = () => {
+      setCurrentUser(null);
+      setAuthMode("login");
+      setNotice(null);
+      setError("Для редактирования нужно войти в систему");
+    };
+    window.addEventListener("pms-auth-required", onAuthRequired);
+    return () => {
+      window.removeEventListener("pms-auth-required", onAuthRequired);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authMode !== "ready") return;
     let cancelled = false;
 
     async function loadProjects() {
@@ -1939,7 +1963,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [authMode, currentUser]);
+  }, [authMode]);
 
   useEffect(() => {
     if (authMode !== "ready" || activeView !== "admin" || currentUser?.role !== "ADMIN") {
@@ -3639,11 +3663,12 @@ function App() {
       () => null,
     );
     setCurrentUser(null);
-    setAuthMode("login");
-    setProjects([]);
-    setProject(null);
-    setSelectedProjectId(null);
+    setAuthMode("ready");
+    if (writeProtectedViews.has(activeView)) {
+      setActiveView(selectedProjectId ? "project-overview" : "portfolio");
+    }
     setUsers([]);
+    setNotice("Включен режим только для просмотра");
   }
 
   async function saveProjectUiState(
@@ -5906,6 +5931,11 @@ function App() {
   function openView(nextView: AppView) {
     setError(null);
     setNotice(null);
+    if (!isAuthenticated && writeProtectedViews.has(nextView)) {
+      setAuthMode("login");
+      setError("Для редактирования нужно войти в систему");
+      return;
+    }
     setActiveView(nextView);
   }
 
@@ -6087,6 +6117,19 @@ function App() {
                   ? "Создать администратора"
                   : "Войти"}
             </button>
+            {authMode === "login" && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setAuthMode("ready");
+                  setError(null);
+                  setNotice(null);
+                }}
+              >
+                Продолжить только просмотр
+              </button>
+            )}
           </form>
         </section>
       </main>
@@ -6095,7 +6138,7 @@ function App() {
 
   return (
     <div
-      className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}
+      className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${isReadOnly ? "read-only-mode" : ""}`}
       onFocusCapture={handleEditableFocus}
       onKeyDownCapture={handleEditableKeyDown}
     >
@@ -6129,11 +6172,28 @@ function App() {
             <Users size={16} />
           </span>
           <span className="sidebar-user-text">
-            <b>{currentUser?.name}</b>
-            <small>{currentUser ? userRoleLabel(currentUser.role) : ""}</small>
+            <b>{currentUser?.name ?? "Только просмотр"}</b>
+            <small>
+              {currentUser
+                ? userRoleLabel(currentUser.role)
+                : "Вход нужен для редактирования"}
+            </small>
           </span>
-          <button type="button" onClick={logout} aria-label="Выйти">
-            <LogOut size={15} />
+          <button
+            type="button"
+            onClick={
+              currentUser
+                ? logout
+                : () => {
+                    setAuthMode("login");
+                    setError(null);
+                    setNotice(null);
+                  }
+            }
+            aria-label={currentUser ? "Выйти" : "Войти"}
+            title={currentUser ? "Выйти" : "Войти для редактирования"}
+          >
+            {currentUser ? <LogOut size={15} /> : <KeyRound size={15} />}
           </button>
         </div>
         <nav>
@@ -6145,14 +6205,16 @@ function App() {
           >
             {navLabel(<BriefcaseBusiness size={17} />, "Портфель проектов")}
           </button>
-          <button
-            type="button"
-            className={activeView === "project-create" ? "active" : ""}
-            onClick={() => openView("project-create")}
-            aria-label="Создать новый проект"
-          >
-            {navLabel(<Plus size={17} />, "Создать новый проект")}
-          </button>
+          {isAuthenticated && (
+            <button
+              type="button"
+              className={activeView === "project-create" ? "active" : ""}
+              onClick={() => openView("project-create")}
+              aria-label="Создать новый проект"
+            >
+              {navLabel(<Plus size={17} />, "Создать новый проект")}
+            </button>
+          )}
           <div className="project-picker">
             <button
               type="button"
@@ -6326,14 +6388,16 @@ function App() {
               </div>
             )}
           </div>
-          <button
-            type="button"
-            className={activeView === "admin" ? "active" : ""}
-            onClick={() => openView("admin")}
-            aria-label="Администрирование"
-          >
-            {navLabel(<Settings size={17} />, "Администрирование")}
-          </button>
+          {isAuthenticated && (
+            <button
+              type="button"
+              className={activeView === "admin" ? "active" : ""}
+              onClick={() => openView("admin")}
+              aria-label="Администрирование"
+            >
+              {navLabel(<Settings size={17} />, "Администрирование")}
+            </button>
+          )}
         </nav>
       </aside>
 
@@ -6394,6 +6458,25 @@ function App() {
             </div>
           )}
         </div>
+        {isReadOnly && (
+          <div className="readonly-banner">
+            <KeyRound size={16} />
+            <span>
+              Режим только для просмотра. Для создания и изменения данных нужно
+              войти в систему.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("login");
+                setError(null);
+                setNotice(null);
+              }}
+            >
+              Войти
+            </button>
+          </div>
+        )}
 
         {(project ||
           activeView === "portfolio" ||

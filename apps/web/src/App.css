@@ -127,6 +127,43 @@
   padding: 0;
 }
 
+.read-only-mode .sidebar-user {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.read-only-mode .sidebar-user-icon {
+  background: #ffedd5;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
+.readonly-banner {
+  align-items: center;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  color: #9a3412;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.readonly-banner span {
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.readonly-banner button {
+  background: #fff;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 7px 10px;
+}
+
 .sidebar-toggle {
   align-items: center;
   background: #fff;
