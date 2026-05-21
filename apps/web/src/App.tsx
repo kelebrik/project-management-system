@@ -1438,6 +1438,20 @@ function addMonths(value: Date, months: number) {
   return new Date(value.getFullYear(), value.getMonth() + months, 1);
 }
 
+function addCalendarMonths(value: Date, months: number) {
+  const targetMonth = value.getMonth() + months;
+  const lastDayOfTargetMonth = new Date(
+    value.getFullYear(),
+    targetMonth + 1,
+    0,
+  ).getDate();
+  return new Date(
+    value.getFullYear(),
+    targetMonth,
+    Math.min(value.getDate(), lastDayOfTargetMonth),
+  );
+}
+
 function monthLabel(value: Date) {
   return new Intl.DateTimeFormat("ru-RU", {
     month: "short",
@@ -2217,23 +2231,28 @@ function App() {
         entry.milestone.dueDate &&
         !Number.isNaN(new Date(entry.milestone.dueDate).getTime()),
     );
-    if (datedMilestones.length === 0) {
+    const today = startOfDay(new Date());
+    const timelineStart = startOfDay(addCalendarMonths(today, -4));
+    const timelineEnd = startOfDay(addCalendarMonths(today, 4));
+    const visibleMilestones = datedMilestones.filter((entry) => {
+      const dueDate = startOfDay(new Date(entry.milestone.dueDate as string));
+      return dueDate >= timelineStart && dueDate <= timelineEnd;
+    });
+    if (visibleMilestones.length === 0) {
       return {
         lanes: [],
-        startDate: null,
-        endDate: null,
+        startDate: timelineStart.toISOString(),
+        endDate: timelineEnd.toISOString(),
         trackWidth: 960,
         laneHeight: 188,
+        todayOffset: 0.5,
+        hasMilestonesOutsideRange: datedMilestones.length > 0,
       };
     }
 
-    const dates = datedMilestones.map((entry) =>
-      startOfDay(new Date(entry.milestone.dueDate as string)),
-    );
-    const minTime = Math.min(...dates.map((item) => item.getTime()));
-    const maxTime = Math.max(...dates.map((item) => item.getTime()));
+    const minTime = timelineStart.getTime();
+    const maxTime = timelineEnd.getTime();
     const range = maxTime - minTime;
-    const today = startOfDay(new Date());
     const todayOffset =
       today.getTime() >= minTime && today.getTime() <= maxTime
         ? range === 0
@@ -2248,7 +2267,7 @@ function App() {
           code: phase.code,
           title: phase.title,
           items: [] as Array<
-            (typeof datedMilestones)[number] & {
+            (typeof visibleMilestones)[number] & {
               offset: number;
               side: "top" | "bottom";
               level: number;
@@ -2262,7 +2281,7 @@ function App() {
       code: "",
       title: phases.length > 0 ? "Без фазы" : "Все вехи",
       items: [] as Array<
-        (typeof datedMilestones)[number] & {
+        (typeof visibleMilestones)[number] & {
           offset: number;
           side: "top" | "bottom";
           level: number;
@@ -2282,7 +2301,7 @@ function App() {
       return null;
     };
 
-    datedMilestones.forEach((entry) => {
+    visibleMilestones.forEach((entry) => {
       const dueTime = startOfDay(
         new Date(entry.milestone.dueDate as string),
       ).getTime();
@@ -2381,6 +2400,7 @@ function App() {
       trackWidth: Math.max(1040, maxLaneMilestones * 160),
       laneHeight: 156 + maxLaneLevel * 56,
       todayOffset,
+      hasMilestonesOutsideRange: datedMilestones.length > visibleMilestones.length,
     };
   }, [project?.wbsItems, structureMilestones]);
   const overviewDashboard = useMemo(() => {
@@ -7628,7 +7648,9 @@ function App() {
                       </div>
                     ) : (
                       <div className="empty-state">
-                        В Структуре пока нет элементов типа «Веха».
+                        {milestoneTimeline.hasMilestonesOutsideRange
+                          ? "В окне ±4 месяца от текущей даты нет вех."
+                          : "В Структуре пока нет элементов типа «Веха»."}
                       </div>
                     )}
                   </div>
