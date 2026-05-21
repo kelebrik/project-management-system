@@ -3804,16 +3804,32 @@ code {
   align-items: start;
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(420px, 0.46fr);
+  grid-template-columns: minmax(0, 3fr) minmax(360px, 1fr);
 }
 
 .raid-main-column {
+  display: contents;
+}
+
+.raid-main-column > .raid-kpis {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.raid-main-column > .raid-register {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.raid-side-column {
   display: grid;
   gap: 12px;
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 
 .raid-kpis {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   margin-bottom: 0;
 }
 
@@ -3827,9 +3843,8 @@ code {
   padding: 10px 12px;
 }
 
-.raid-side-column {
-  display: grid;
-  gap: 12px;
+.risk-matrix-card {
+  align-self: start;
 }
 
 .raid-filter-card {
@@ -3913,7 +3928,7 @@ code {
 
 .risk-matrix {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   grid-template-columns: repeat(5, 1fr);
 }
 
@@ -3924,7 +3939,7 @@ code {
   display: inline-flex;
   font-size: 12px;
   font-weight: 900;
-  height: 42px;
+  height: 46px;
   justify-content: center;
 }
 
