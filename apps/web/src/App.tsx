@@ -6644,6 +6644,31 @@ function App() {
                         placeholder="Миграция CRM"
                       />
                     </label>
+                    <div className="form-section-title span-2">Базовый план</div>
+                    <label className="span-2">
+                      Скопировать из проекта
+                      <select
+                        value={newProjectForm.copyBaselineFromProjectId}
+                        onChange={(event) =>
+                          setNewProjectForm({
+                            ...newProjectForm,
+                            copyBaselineFromProjectId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Не копировать, создать тестовую структуру</option>
+                        {projectTree.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {"- ".repeat(item.level)}
+                            {item.code} - {item.name}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="form-note">
+                        Новый проект получит структуру, связи, даты и календари
+                        из последнего активного базового плана выбранного проекта.
+                      </span>
+                    </label>
                     <label>
                       Родительский проект
                       <select
@@ -6677,31 +6702,6 @@ function App() {
                         }
 	                        />
 	                      </label>
-                    <div className="form-section-title span-2">Структура проекта</div>
-                    <label className="span-2">
-                      Скопировать базовый план
-                      <select
-                        value={newProjectForm.copyBaselineFromProjectId}
-                        onChange={(event) =>
-                          setNewProjectForm({
-                            ...newProjectForm,
-                            copyBaselineFromProjectId: event.target.value,
-                          })
-                        }
-                      >
-                        <option value="">Не копировать, создать тестовую структуру</option>
-                        {projectTree.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {"- ".repeat(item.level)}
-                            {item.code} - {item.name}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="form-note">
-                        При выборе проекта новый проект получит структуру, связи,
-                        даты и календари из последнего активного базового плана.
-                      </span>
-                    </label>
 	                    <div className="form-section-title span-2">Команда и статус</div>
 	                    <label>
 	                      Портфель
