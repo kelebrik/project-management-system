@@ -1161,12 +1161,28 @@ button:disabled {
   width: 100%;
 }
 
+.workspace-focus-panel-fullscreen.workspace-focus-milestones {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.workspace-focus-panel-fullscreen .milestone-timeline {
+  min-height: 0;
+}
+
 .panel-title {
   align-items: flex-start;
   display: flex;
   gap: 12px;
   justify-content: space-between;
   margin-bottom: 14px;
+}
+
+.panel-title-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .details {

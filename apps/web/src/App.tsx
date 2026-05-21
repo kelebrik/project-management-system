@@ -69,7 +69,7 @@ type AppView =
 type FullscreenWorkspaceView = Extract<
   AppView,
   "project-structure" | "project-gantt"
->;
+> | "overview-milestones";
 
 type AuthMode = "checking" | "setup" | "login" | "ready";
 const writeProtectedViews = new Set<AppView>(["project-create", "admin"]);
@@ -3414,11 +3414,14 @@ function App() {
   }, [activeView, applyProject, selectedProjectId]);
 
   useEffect(() => {
-    if (
-      fullscreenWorkspaceView &&
-      activeView !== "project-structure" &&
-      activeView !== "project-gantt"
-    ) {
+    if (!fullscreenWorkspaceView) return;
+
+    const expectedView =
+      fullscreenWorkspaceView === "overview-milestones"
+        ? "project-overview"
+        : fullscreenWorkspaceView;
+
+    if (activeView !== expectedView) {
       setFullscreenWorkspaceView(null);
     }
   }, [activeView, fullscreenWorkspaceView]);
@@ -7395,21 +7398,55 @@ function App() {
               )}
 
               {project && activeView === "project-overview" && (
-                <article className="panel project-card">
+                <article
+                  className={`panel project-card workspace-focus-panel workspace-focus-milestones ${
+                    fullscreenWorkspaceView === "overview-milestones"
+                      ? "workspace-focus-panel-fullscreen"
+                      : ""
+                  }`}
+                >
                   <div className="panel-title">
                     <div>
                       <h2>Вехи</h2>
                     </div>
-                    {project.jiraIntegration && (
-                      <a
-                        className="button"
-                        href={project.jiraIntegration.boardUrl}
-                        target="_blank"
-                        rel="noreferrer"
+                    <div className="panel-title-actions">
+                      <button
+                        type="button"
+                        className="workspace-fullscreen-button"
+                        onClick={() =>
+                          toggleWorkspaceFullscreen("overview-milestones")
+                        }
+                        aria-label={
+                          fullscreenWorkspaceView === "overview-milestones"
+                            ? "Вернуть обычный режим вех"
+                            : "Развернуть вехи на весь экран"
+                        }
+                        title={
+                          fullscreenWorkspaceView === "overview-milestones"
+                            ? "Вернуть обычный режим"
+                            : "На весь экран"
+                        }
                       >
-                        Открыть доску Jira
-                      </a>
-                    )}
+                        {fullscreenWorkspaceView === "overview-milestones" ? (
+                          <Minimize2 size={15} />
+                        ) : (
+                          <Maximize2 size={15} />
+                        )}
+                        {fullscreenWorkspaceView === "overview-milestones"
+                          ? "Обычный режим"
+                          : "На весь экран"}
+                      </button>
+                      {project.jiraIntegration && (
+                        <a
+                          className="button"
+                          href={project.jiraIntegration.boardUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Открыть доску Jira
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <div
                     className="milestone-timeline"
