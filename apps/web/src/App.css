@@ -1257,6 +1257,13 @@ code {
   gap: 6px;
 }
 
+.form-note {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 .form-section-title {
   border-top: 1px solid #dbe4ef;
   color: #334155;

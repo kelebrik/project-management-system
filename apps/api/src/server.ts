@@ -30,7 +30,10 @@ import {
   wbsItemSnapshotData,
 } from './services/wbs.js';
 import { recordWbsCommand } from './services/wbs-audit.js';
-import { createWbsBaselineFromCurrentPlan } from './services/wbs-baseline.js';
+import {
+  copyLatestWbsBaselineToProject,
+  createWbsBaselineFromCurrentPlan,
+} from './services/wbs-baseline.js';
 import { calculateProjectCriticalPath } from './services/wbs-critical-path.js';
 import { recalculateProjectWbsSchedule } from './services/wbs-schedule.js';
 
@@ -623,6 +626,10 @@ const projectDetailsInclude = {
   changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
 } satisfies Prisma.ProjectInclude;
 
+const createProjectSchema = projectSchema.extend({
+  copyBaselineFromProjectId: z.string().trim().optional().nullable(),
+});
+
 const closedIssuesInclude = {
   where: { status: { in: ['Done', 'Closed', 'Resolved'] } },
   orderBy: [{ updatedAt: 'desc' }],
@@ -729,15 +736,17 @@ async function wouldCreateProjectCycle(projectId: string, nextParentId: string |
 }
 
 app.post('/api/projects', async (req, res) => {
-  const parsed = projectSchema.safeParse(req.body);
+  const parsed = createProjectSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
 
-  if (parsed.data.parentId) {
+  const { copyBaselineFromProjectId, ...projectData } = parsed.data;
+
+  if (projectData.parentId) {
     const parent = await prisma.project.findUnique({
-      where: { id: parsed.data.parentId },
+      where: { id: projectData.parentId },
     });
     if (!parent) {
       res.status(400).json({ error: 'Родительский проект не найден' });
@@ -745,29 +754,80 @@ app.post('/api/projects', async (req, res) => {
     }
   }
 
+  if (copyBaselineFromProjectId) {
+    const sourceProject = await prisma.project.findUnique({
+      where: { id: copyBaselineFromProjectId },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            wbsBaselines: { where: { status: 'ACTIVE' } },
+          },
+        },
+      },
+    });
+    if (!sourceProject) {
+      res.status(400).json({ error: 'Проект-источник базового плана не найден' });
+      return;
+    }
+    if (sourceProject._count.wbsBaselines === 0) {
+      res.status(400).json({ error: 'У выбранного проекта нет активного базового плана' });
+      return;
+    }
+  }
+
   try {
     const project = await prisma.project.create({
       data: {
-        ...parsed.data,
-        parentId: parsed.data.parentId || null,
-        startDate: new Date(parsed.data.startDate),
-        targetDate: new Date(parsed.data.targetDate),
-        budgetPlanned: parsed.data.budgetPlanned,
-        budgetForecast: parsed.data.budgetForecast,
-        uiState: sanitizeProjectUiState(parsed.data.uiState),
+        ...projectData,
+        parentId: projectData.parentId || null,
+        startDate: new Date(projectData.startDate),
+        targetDate: new Date(projectData.targetDate),
+        budgetPlanned: projectData.budgetPlanned,
+        budgetForecast: projectData.budgetForecast,
+        uiState: sanitizeProjectUiState(projectData.uiState),
       },
       include: projectInclude,
     });
 
-    await createDefaultProjectStructure(project.id, project.startDate);
+    let copiedBaseline: Awaited<ReturnType<typeof copyLatestWbsBaselineToProject>> | null = null;
+    if (copyBaselineFromProjectId) {
+      copiedBaseline = await copyLatestWbsBaselineToProject({
+        sourceProjectId: copyBaselineFromProjectId,
+        targetProjectId: project.id,
+        createdById: currentUser(req)?.id ?? null,
+      });
+      await recalculateProjectWbsSchedule(project.id);
+      const snapshot = await getProjectWbsSnapshot(project.id);
+      await recordWbsCommand({
+        projectId: project.id,
+        type: 'BASELINE',
+        payload: {
+          action: 'copy-baseline-from-project',
+          sourceProjectId: copyBaselineFromProjectId,
+          sourceBaselineId: copiedBaseline.sourceBaselineId,
+          sourceVersion: copiedBaseline.sourceVersion,
+          copiedBaselineId: copiedBaseline.copiedBaseline.id,
+          itemCount: copiedBaseline.itemCount,
+          dependencyCount: copiedBaseline.dependencyCount,
+        },
+        afterSnapshot: snapshot,
+      });
+    } else {
+      await createDefaultProjectStructure(project.id, project.startDate);
+    }
 
-    res.status(201).json(project);
+    res.status(201).json({ ...project, copiedBaseline });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
       res.status(409).json({ error: 'Код проекта уже существует' });
+      return;
+    }
+    if (error instanceof Error && error.message.includes('базового плана')) {
+      res.status(400).json({ error: error.message });
       return;
     }
     throw error;

@@ -203,6 +203,7 @@ function isEditableElement(value: EventTarget | null): value is EditableElement 
 
 type ProjectFormState = {
   parentId: string;
+  copyBaselineFromProjectId: string;
   code: string;
   name: string;
   portfolio: string;
@@ -746,6 +747,7 @@ const emptyIssueForm: IssueFormState = {
 
 const emptyProjectForm: ProjectFormState = {
   parentId: "",
+  copyBaselineFromProjectId: "",
   code: "",
   name: "",
   portfolio: "",
@@ -3571,6 +3573,7 @@ function App() {
     return {
       ...form,
       parentId: form.parentId || null,
+      copyBaselineFromProjectId: form.copyBaselineFromProjectId || null,
       budgetPlanned: Number(form.budgetPlanned),
       budgetForecast: Number(form.budgetForecast),
       scheduleVariance: Number(form.scheduleVariance),
@@ -6674,6 +6677,31 @@ function App() {
                         }
 	                        />
 	                      </label>
+                    <div className="form-section-title span-2">Структура проекта</div>
+                    <label className="span-2">
+                      Скопировать базовый план
+                      <select
+                        value={newProjectForm.copyBaselineFromProjectId}
+                        onChange={(event) =>
+                          setNewProjectForm({
+                            ...newProjectForm,
+                            copyBaselineFromProjectId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Не копировать, создать тестовую структуру</option>
+                        {projectTree.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {"- ".repeat(item.level)}
+                            {item.code} - {item.name}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="form-note">
+                        При выборе проекта новый проект получит структуру, связи,
+                        даты и календари из последнего активного базового плана.
+                      </span>
+                    </label>
 	                    <div className="form-section-title span-2">Команда и статус</div>
 	                    <label>
 	                      Портфель
