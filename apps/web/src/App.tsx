@@ -6781,7 +6781,7 @@ function App() {
                           className="project-tree-open"
                           onClick={() => selectProject(item.id, "project-overview")}
                         >
-                          Открыть
+                          Посмотреть
                         </button>
                         <span>{item.projectManager}</span>
                         <span>{item.progress}%</span>
