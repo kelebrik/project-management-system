@@ -3801,7 +3801,7 @@ code {
 }
 
 .raid-board {
-  align-items: start;
+  align-items: stretch;
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3841,9 +3841,11 @@ code {
 }
 
 .risk-matrix-card {
+  align-self: stretch;
   grid-column: 3 / span 2;
   grid-row: 1;
-  align-self: start;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100%;
 }
 
 .raid-side-column > .raid-form {
@@ -3932,9 +3934,12 @@ code {
 }
 
 .risk-matrix {
+  align-content: stretch;
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  height: 100%;
 }
 
 .risk-matrix-cell {
@@ -3944,8 +3949,8 @@ code {
   display: inline-flex;
   font-size: 12px;
   font-weight: 900;
-  height: 46px;
   justify-content: center;
+  min-height: 46px;
 }
 
 .risk-matrix-cell.green {
