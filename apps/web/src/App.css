@@ -3804,7 +3804,7 @@ code {
   align-items: start;
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.34fr);
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 0.46fr);
 }
 
 .raid-main-column {
@@ -3913,7 +3913,7 @@ code {
 
 .risk-matrix {
   display: grid;
-  gap: 3px;
+  gap: 6px;
   grid-template-columns: repeat(5, 1fr);
 }
 
@@ -3924,7 +3924,7 @@ code {
   display: inline-flex;
   font-size: 12px;
   font-weight: 900;
-  height: 30px;
+  height: 42px;
   justify-content: center;
 }
 
