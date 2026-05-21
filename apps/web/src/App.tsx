@@ -1802,6 +1802,8 @@ function App() {
   const [showGanttBaseline, setShowGanttBaseline] = useState(false);
   const [showGanttForecast, setShowGanttForecast] = useState(false);
   const [showGanttCriticalPath, setShowGanttCriticalPath] = useState(false);
+  const [showStructureCriticalPath, setShowStructureCriticalPath] =
+    useState(false);
   const [fullscreenWorkspaceView, setFullscreenWorkspaceView] =
     useState<FullscreenWorkspaceView | null>(null);
   const isAuthenticated = Boolean(currentUser);
@@ -2150,6 +2152,14 @@ function App() {
       return true;
     });
   }, [collapsedWbsIds, wbsTree]);
+  const structureCriticalPathIds = useMemo(
+    () => new Set(project?.criticalPath?.criticalItemIds ?? []),
+    [project?.criticalPath?.criticalItemIds],
+  );
+  const visibleStructureWbsTree = useMemo(() => {
+    if (!showStructureCriticalPath) return visibleWbsTree;
+    return visibleWbsTree.filter((item) => structureCriticalPathIds.has(item.id));
+  }, [showStructureCriticalPath, structureCriticalPathIds, visibleWbsTree]);
   const activeWbsHierarchyLevel = useMemo(() => {
     if (collapsedWbsIds.size === 0) return null;
     for (const level of GANTT_HIERARCHY_LEVELS) {
@@ -4550,7 +4560,10 @@ function App() {
     if (!activeWbsItemId || !clipboardText || !/[\t\n\r]/.test(clipboardText)) {
       return;
     }
-    const startIndex = visibleWbsTree.findIndex(
+    const tableRows = showStructureCriticalPath
+      ? visibleStructureWbsTree
+      : visibleWbsTree;
+    const startIndex = tableRows.findIndex(
       (item) => item.id === activeWbsItemId,
     );
     if (startIndex === -1) return;
@@ -4565,7 +4578,7 @@ function App() {
     setWbsDrafts((current) => {
       const next = { ...current };
       pastedRows.forEach((row, rowIndex) => {
-        const item = visibleWbsTree[startIndex + rowIndex];
+        const item = tableRows[startIndex + rowIndex];
         if (!item || !next[item.id]) return;
         let draft = { ...next[item.id] };
         row.forEach((cellValue, columnIndex) => {
@@ -7795,6 +7808,19 @@ function App() {
                             >
                               Зафиксировать базовый план
                             </button>
+                            <button
+                              type="button"
+                              className={showStructureCriticalPath ? "active" : ""}
+                              onClick={() =>
+                                setShowStructureCriticalPath((current) => !current)
+                              }
+                              disabled={
+                                (project.criticalPath?.criticalItemIds.length ?? 0) === 0
+                              }
+                              title="Показать только задачи критического пути"
+                            >
+                              Критический путь
+                            </button>
                             <div className="column-menu">
                               <button
                                 type="button"
@@ -7982,7 +8008,7 @@ function App() {
                             </span>
                           ))}
                         </div>
-                        {visibleWbsTree.map((item) => {
+                        {visibleStructureWbsTree.map((item) => {
                           const draft = wbsDrafts[item.id];
                           if (!draft) return null;
                           return (
@@ -8036,10 +8062,16 @@ function App() {
                             </div>
                           );
                         })}
-                        {project.wbsItems.length === 0 && (
-                          <div className="empty-state">Структура еще не создана.</div>
-                        )}
-                      </div>
+	                        {project.wbsItems.length === 0 && (
+	                          <div className="empty-state">Структура еще не создана.</div>
+	                        )}
+	                        {project.wbsItems.length > 0 &&
+                            visibleStructureWbsTree.length === 0 && (
+	                          <div className="empty-state">
+	                            Нет задач критического пути для текущего фильтра.
+	                          </div>
+	                        )}
+	                      </div>
                     </div>
                       </>
 	                    )}
