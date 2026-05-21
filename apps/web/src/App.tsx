@@ -2407,21 +2407,6 @@ function App() {
       .filter((item) => item.type === "RISK" && item.riskScore >= 15)
       .sort((left, right) => right.riskScore - left.riskScore)
       .slice(0, 5);
-    const latestRaidStatusItems = riskItems
-      .map((item) => ({
-        item,
-        update: latestRaidStatusUpdate(item),
-      }))
-      .filter(
-        (entry): entry is { item: RaidItem; update: RaidItemStatusUpdate } =>
-          Boolean(entry.update),
-      )
-      .sort(
-        (left, right) =>
-          new Date(right.update.statusAt).getTime() -
-          new Date(left.update.statusAt).getTime(),
-      )
-      .slice(0, 6);
     const blockerIssues = openIssues
       .filter(
         (issue) =>
@@ -2498,7 +2483,6 @@ function App() {
       decisionItems: decisionItems.length,
       nextMilestone,
       redZoneRisks,
-      latestRaidStatusItems,
       blockingTickets,
       openDecisionItems,
       scheduleDeltaItems,
@@ -6745,29 +6729,6 @@ function App() {
                   </div>
                 </article>
 
-                <article className="executive-overview-card">
-                  <div className="executive-overview-card-title">
-                    <span>Последние статусы рисков, проблем и допущений</span>
-                    <strong>{overviewDashboard.latestRaidStatusItems.length}</strong>
-                  </div>
-                  <div className="executive-overview-list">
-                    {overviewDashboard.latestRaidStatusItems.map(({ item, update }) => (
-                      <div
-                        className="executive-overview-row"
-                        key={`${item.id}-${update.id}`}
-                      >
-                        <b>{item.title}</b>
-                        <span>
-                          {raidTypeLabel(item.type)} / {shortDate(update.statusAt)}
-                        </span>
-                        <p className="executive-status-text">{update.text}</p>
-                      </div>
-                    ))}
-                    {overviewDashboard.latestRaidStatusItems.length === 0 && (
-                      <p>Статусы по рискам, проблемам и допущениям не добавлены.</p>
-                    )}
-                  </div>
-                </article>
               </section>
             )}
 
