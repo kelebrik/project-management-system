@@ -455,6 +455,15 @@ type RaidItemStatus =
   | "BREACHED"
   | "CLOSED";
 
+type RaidItemStatusUpdate = {
+  id: string;
+  raidItemId: string;
+  statusAt: string;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type RaidItem = {
   id: string;
   type: RaidItemType;
@@ -481,6 +490,7 @@ type RaidItem = {
   escalationLevel: string;
   scheduleImpactDays: number;
   budgetImpact: string;
+  statusUpdates: RaidItemStatusUpdate[];
 };
 
 type RaidFormState = {
@@ -1057,6 +1067,15 @@ function raidToForm(item: RaidItem): RaidFormState {
     scheduleImpactDays: String(item.scheduleImpactDays),
     budgetImpact: String(item.budgetImpact),
   };
+}
+
+function latestRaidStatusUpdate(item: RaidItem) {
+  return [...(item.statusUpdates ?? [])].sort((left, right) => {
+    const statusDelta =
+      new Date(right.statusAt).getTime() - new Date(left.statusAt).getTime();
+    if (statusDelta !== 0) return statusDelta;
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  })[0];
 }
 
 function issueToDraft(issue: Issue): IssueEditDraft {
@@ -1771,6 +1790,9 @@ function App() {
   const [raidDrafts, setRaidDrafts] = useState<Record<string, RaidFormState>>(
     {},
   );
+  const [raidStatusDrafts, setRaidStatusDrafts] = useState<
+    Record<string, { statusAt: string; text: string }>
+  >({});
   const [expandedRaidId, setExpandedRaidId] = useState<string | null>(null);
   const [wbsDrafts, setWbsDrafts] = useState<Record<string, WbsFormState>>({});
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(
@@ -2364,12 +2386,15 @@ function App() {
         item.dueDate !== null &&
         startOfDay(new Date(item.dueDate)) < today,
     );
-    const riskItems = project?.raidItems.filter(
-      (item) =>
-        item.status !== "CLOSED" &&
-        item.status !== "VALIDATED" &&
-        (item.type === "RISK" || item.type === "DEPENDENCY"),
-    ) ?? [];
+    const riskItems =
+      project?.raidItems.filter(
+        (item) =>
+          item.status !== "CLOSED" &&
+          item.status !== "VALIDATED" &&
+          (item.type === "RISK" ||
+            item.type === "DEPENDENCY" ||
+            item.type === "ASSUMPTION"),
+      ) ?? [];
     const decisionItems = openIssues.filter(
       (issue) => issue.decisionRequired,
     );
@@ -2382,6 +2407,21 @@ function App() {
       .filter((item) => item.type === "RISK" && item.riskScore >= 15)
       .sort((left, right) => right.riskScore - left.riskScore)
       .slice(0, 5);
+    const latestRaidStatusItems = riskItems
+      .map((item) => ({
+        item,
+        update: latestRaidStatusUpdate(item),
+      }))
+      .filter(
+        (entry): entry is { item: RaidItem; update: RaidItemStatusUpdate } =>
+          Boolean(entry.update),
+      )
+      .sort(
+        (left, right) =>
+          new Date(right.update.statusAt).getTime() -
+          new Date(left.update.statusAt).getTime(),
+      )
+      .slice(0, 6);
     const blockerIssues = openIssues
       .filter(
         (issue) =>
@@ -2458,6 +2498,7 @@ function App() {
       decisionItems: decisionItems.length,
       nextMilestone,
       redZoneRisks,
+      latestRaidStatusItems,
       blockingTickets,
       openDecisionItems,
       scheduleDeltaItems,
@@ -3127,6 +3168,14 @@ function App() {
       setRaidDrafts(
         Object.fromEntries(
           nextProject.raidItems.map((item) => [item.id, raidToForm(item)]),
+        ),
+      );
+      setRaidStatusDrafts((current) =>
+        Object.fromEntries(
+          nextProject.raidItems.map((item) => [
+            item.id,
+            current[item.id] ?? { statusAt: isoDate(new Date()), text: "" },
+          ]),
         ),
       );
       setExpandedRaidId((currentRaidId) =>
@@ -4201,6 +4250,18 @@ function App() {
     });
   }
 
+  function updateRaidStatusDraft(
+    itemId: string,
+    patch: Partial<{ statusAt: string; text: string }>,
+  ) {
+    const current =
+      raidStatusDrafts[itemId] ?? { statusAt: isoDate(new Date()), text: "" };
+    setRaidStatusDrafts({
+      ...raidStatusDrafts,
+      [itemId]: { ...current, ...patch },
+    });
+  }
+
   async function createRaidItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!project) return;
@@ -4262,6 +4323,50 @@ function App() {
         saveError instanceof Error
           ? saveError.message
           : "Не удалось сохранить запись о риске",
+      );
+    }
+  }
+
+  async function addRaidStatusUpdate(itemId: string) {
+    const draft =
+      raidStatusDrafts[itemId] ?? { statusAt: isoDate(new Date()), text: "" };
+    if (!draft.text.trim()) {
+      setError("Заполните текст статуса");
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await authenticatedFetch(
+        `${apiBase}/api/raid-items/${itemId}/status-updates`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            statusAt: draft.statusAt || isoDate(new Date()),
+            text: draft.text.trim(),
+          }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось добавить статус",
+        );
+      }
+      setRaidStatusDrafts({
+        ...raidStatusDrafts,
+        [itemId]: { statusAt: isoDate(new Date()), text: "" },
+      });
+      await refreshProject();
+      setNotice("Статус добавлен");
+    } catch (statusError) {
+      setError(
+        statusError instanceof Error
+          ? statusError.message
+          : "Не удалось добавить статус",
       );
     }
   }
@@ -6538,6 +6643,11 @@ function App() {
                           Оценка {item.riskScore} / ответственный:{" "}
                           {item.owner || "не назначен"}
                         </span>
+                        {latestRaidStatusUpdate(item) && (
+                          <p className="executive-status-text">
+                            {latestRaidStatusUpdate(item)?.text}
+                          </p>
+                        )}
                       </div>
                     ))}
                     {overviewDashboard.redZoneRisks.length === 0 && (
@@ -6631,6 +6741,30 @@ function App() {
                     ))}
                     {overviewDashboard.scheduleDeltaItems.length === 0 && (
                       <p>Отклонений от базового плана нет.</p>
+                    )}
+                  </div>
+                </article>
+
+                <article className="executive-overview-card">
+                  <div className="executive-overview-card-title">
+                    <span>Последние статусы рисков, проблем и допущений</span>
+                    <strong>{overviewDashboard.latestRaidStatusItems.length}</strong>
+                  </div>
+                  <div className="executive-overview-list">
+                    {overviewDashboard.latestRaidStatusItems.map(({ item, update }) => (
+                      <div
+                        className="executive-overview-row"
+                        key={`${item.id}-${update.id}`}
+                      >
+                        <b>{item.title}</b>
+                        <span>
+                          {raidTypeLabel(item.type)} / {shortDate(update.statusAt)}
+                        </span>
+                        <p className="executive-status-text">{update.text}</p>
+                      </div>
+                    ))}
+                    {overviewDashboard.latestRaidStatusItems.length === 0 && (
+                      <p>Статусы по рискам, проблемам и допущениям не добавлены.</p>
                     )}
                   </div>
                 </article>
@@ -9322,6 +9456,65 @@ function App() {
                             </div>
                             {expandedRaidId === item.id && raidDrafts[item.id] && (
                               <div className="raid-details">
+                                {(() => {
+                                  const latestStatus = latestRaidStatusUpdate(item);
+                                  return (
+                                    <section className="raid-status-panel">
+                                      <div className="subhead">Статус</div>
+                                      {latestStatus ? (
+                                        <div className="raid-status-latest">
+                                          <strong>{date(latestStatus.statusAt)}</strong>
+                                          <p>{latestStatus.text}</p>
+                                        </div>
+                                      ) : (
+                                        <p className="muted-text">
+                                          Статус пока не добавлен.
+                                        </p>
+                                      )}
+                                      <div className="raid-status-history">
+                                        {item.statusUpdates.map((statusUpdate) => (
+                                          <div
+                                            className="raid-status-history-row"
+                                            key={statusUpdate.id}
+                                          >
+                                            <span>{date(statusUpdate.statusAt)}</span>
+                                            <p>{statusUpdate.text}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div className="raid-status-add">
+                                        <input
+                                          type="date"
+                                          value={
+                                            raidStatusDrafts[item.id]?.statusAt ??
+                                            isoDate(new Date())
+                                          }
+                                          onChange={(event) =>
+                                            updateRaidStatusDraft(item.id, {
+                                              statusAt: event.target.value,
+                                            })
+                                          }
+                                        />
+                                        <textarea
+                                          rows={2}
+                                          value={raidStatusDrafts[item.id]?.text ?? ""}
+                                          onChange={(event) =>
+                                            updateRaidStatusDraft(item.id, {
+                                              text: event.target.value,
+                                            })
+                                          }
+                                          placeholder="Новый статус: что изменилось, что требуется, следующий шаг"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => addRaidStatusUpdate(item.id)}
+                                        >
+                                          Добавить статус
+                                        </button>
+                                      </div>
+                                    </section>
+                                  );
+                                })()}
                                 <div className="raid-detail-meta">
                                   <span>{raidStatusLabel(item.status)}</span>
                                   <span>{raidTypeLabel(item.type)}</span>

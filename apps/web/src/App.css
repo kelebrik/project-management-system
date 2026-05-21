@@ -928,6 +928,16 @@ button:disabled {
   margin: 0;
 }
 
+.executive-overview-list .executive-status-text {
+  color: #334155;
+  display: -webkit-box;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .executive-overview-list a {
   color: #1d4ed8;
   font-weight: 900;
@@ -4071,6 +4081,68 @@ code {
   padding: 12px;
 }
 
+.raid-status-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.raid-status-latest {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+}
+
+.raid-status-latest strong,
+.raid-status-history-row span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.raid-status-latest p,
+.raid-status-history-row p {
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.raid-status-history {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.raid-status-history-row {
+  border-left: 3px solid #cbd5e1;
+  display: grid;
+  gap: 3px;
+  padding-left: 8px;
+}
+
+.raid-status-add {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 140px minmax(0, 1fr) auto;
+}
+
+.muted-text {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+}
+
 .raid-detail-meta {
   display: flex;
   flex-wrap: wrap;
@@ -4118,6 +4190,9 @@ code {
 .raid-edit-grid select,
 .raid-edit-grid textarea,
 .raid-edit-grid button,
+.raid-status-add input,
+.raid-status-add textarea,
+.raid-status-add button,
 .raid-form input,
 .raid-form select,
 .raid-form textarea,

@@ -11,6 +11,7 @@ import {
   loginSchema,
   projectSchema,
   raidItemSchema,
+  raidItemStatusUpdateSchema,
   updateUserSchema,
   updateIssueSchema,
   wbsItemSchema,
@@ -662,7 +663,12 @@ const projectDetailsInclude = {
   },
   calendarOverrides: { orderBy: [{ calendarCode: 'asc' }, { date: 'asc' }] },
   artifacts: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
-  raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
+  raidItems: {
+    orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }],
+    include: {
+      statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
+    },
+  },
   changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
 } satisfies Prisma.ProjectInclude;
 
@@ -957,6 +963,9 @@ async function deleteProjectCascade(projectId: string) {
       await tx.raidItem.updateMany({
         where: { linkedRiskId: { in: projectRaidItemIds } },
         data: { linkedRiskId: null },
+      });
+      await tx.raidItemStatusUpdate.deleteMany({
+        where: { raidItemId: { in: projectRaidItemIds } },
       });
     }
     await tx.wbsDependency.deleteMany({ where: { projectId } });
@@ -1494,6 +1503,17 @@ app.post('/api/projects/:projectId/raid-items', async (req, res) => {
     data: {
       projectId: project.id,
       ...raidPayload(parsed.data),
+      statusUpdates: parsed.data.description.trim()
+        ? {
+            create: {
+              statusAt: new Date(),
+              text: parsed.data.description.trim(),
+            },
+          }
+        : undefined,
+    },
+    include: {
+      statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
     },
   });
 
@@ -1552,9 +1572,42 @@ app.patch('/api/raid-items/:itemId', async (req, res) => {
   const updated = await prisma.raidItem.update({
     where: { id: existing.id },
     data: raidPayload(merged),
+    include: {
+      statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
+    },
   });
 
   res.json(updated);
+});
+
+app.post('/api/raid-items/:itemId/status-updates', async (req, res) => {
+  const parsed = raidItemStatusUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const existing = await prisma.raidItem.findUnique({ where: { id: req.params.itemId } });
+  if (!existing) {
+    res.status(404).json({ error: 'Запись о риске не найдена' });
+    return;
+  }
+
+  const statusAt = new Date(parsed.data.statusAt);
+  if (Number.isNaN(statusAt.getTime())) {
+    res.status(400).json({ error: 'Некорректная дата статуса' });
+    return;
+  }
+
+  const update = await prisma.raidItemStatusUpdate.create({
+    data: {
+      raidItemId: existing.id,
+      statusAt,
+      text: parsed.data.text,
+    },
+  });
+
+  res.status(201).json(update);
 });
 
 app.delete('/api/raid-items/:itemId', async (req, res) => {
@@ -3380,7 +3433,12 @@ async function getProjectForOverviewGeneration(projectId: string) {
         },
       },
       artifacts: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
-      raidItems: { orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }] },
+      raidItems: {
+        orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }],
+        include: {
+          statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
+        },
+      },
       changeRequests: { orderBy: [{ updatedAt: 'desc' }] },
       overviews: { orderBy: { version: 'desc' }, take: 1 },
     },

@@ -524,10 +524,24 @@ model RaidItem {
   project            Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   linkedRisk         RaidItem?      @relation("RaidLinkedRisk", fields: [linkedRiskId], references: [id], onDelete: SetNull)
   linkedAssumptions  RaidItem[]     @relation("RaidLinkedRisk")
+  statusUpdates      RaidItemStatusUpdate[]
 
   @@index([projectId, type, status])
   @@index([projectId, riskScore])
   @@index([linkedRiskId])
+}
+
+model RaidItemStatusUpdate {
+  id        String   @id @default(cuid())
+  raidItemId String
+  statusAt  DateTime
+  text      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  raidItem  RaidItem @relation(fields: [raidItemId], references: [id], onDelete: Cascade)
+
+  @@index([raidItemId, statusAt])
+  @@index([raidItemId, createdAt])
 }
 
 model ChangeRequest {
