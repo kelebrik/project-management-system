@@ -7729,120 +7729,128 @@ function App() {
 		                  <div className="wbs-gantt-layout">
 	                    {activeView === "project-structure" && (
 	                      <>
-			                    <div className="wbs-history-toolbar" aria-label="История Структуры">
-                      <button
-                        type="button"
-                        className="workspace-fullscreen-button"
-                        onClick={() => toggleWorkspaceFullscreen("project-structure")}
-                        aria-label={
-                          fullscreenWorkspaceView === "project-structure"
-                            ? "Вернуть обычный режим Структуры"
-                            : "Развернуть Структуру на весь экран"
-                        }
-                        title={
-                          fullscreenWorkspaceView === "project-structure"
-                            ? "Вернуть обычный режим"
-                            : "На весь экран"
-                        }
-                      >
-                        {fullscreenWorkspaceView === "project-structure" ? (
-                          <Minimize2 size={15} />
-                        ) : (
-                          <Maximize2 size={15} />
-                        )}
-                        {fullscreenWorkspaceView === "project-structure"
-                          ? "Обычный режим"
-                          : "На весь экран"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void undoWbsChange()}
-                        onMouseDown={(event) => event.preventDefault()}
-                        disabled={
-                          restoringWbsSnapshot || wbsUndoStack.length === 0
-                        }
-                        aria-label="Откатить последнее изменение Структуры"
-                        title="Назад"
-                      >
-                        ← Назад
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void redoWbsChange()}
-                        onMouseDown={(event) => event.preventDefault()}
-                        disabled={
-                          restoringWbsSnapshot || wbsRedoStack.length === 0
-                        }
-                        aria-label="Вернуть отмененное изменение Структуры"
-                        title="Вперед"
-                      >
-                        Вперед →
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void saveDirtyWbsItems()}
-                        disabled={savingWbsBulk || dirtyWbsItemIds.size === 0}
-                      >
-                        {savingWbsBulk ? "Сохраняю..." : "Сохранить изменения"}
-                      </button>
-		                      <button
-		                        type="button"
-		                        onClick={() => void saveWbsBaseline()}
-		                        disabled={savingBaseline || project.wbsItems.length === 0}
-		                      >
-		                        Зафиксировать базовый план
-		                      </button>
-		                      <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Структуры">
-		                        {GANTT_HIERARCHY_LEVELS.map((level) => (
-		                          <button
-		                            type="button"
-		                            key={level}
-		                            className={activeWbsHierarchyLevel === level ? "active" : ""}
-		                            onClick={() => setWbsHierarchyLevel(level)}
-		                            title={`Показать структуру до ${level} уровня`}
-		                          >
-		                            {level}
-		                          </button>
-		                        ))}
-		                      </div>
-		                      <div className="column-menu">
-		                        <button
-		                          type="button"
-	                          onClick={() =>
-	                            setShowWbsColumnMenu((current) => !current)
-	                          }
-	                        >
-	                          Колонки
-	                        </button>
-	                        {showWbsColumnMenu && (
-	                          <div className="column-menu-popover">
-	                            {WBS_TABLE_COLUMNS.filter(
-	                              (column) =>
-	                                column.key !== "level" &&
-	                                column.key !== "structure",
-	                            ).map((column) => (
-	                              <label key={column.key}>
-		                                <input
-		                                  type="checkbox"
-		                                  checked={!wbsHiddenColumns.includes(column.key)}
-		                                  onChange={() => toggleWbsColumn(column.key)}
-		                                />
-	                                {column.label}
-	                              </label>
-	                            ))}
-	                          </div>
-	                        )}
-	                      </div>
-                      <span
-                        className={`wbs-save-state ${dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
-                      >
-                        {dirtyWbsItemIds.size > 0
-                          ? `Не сохранено: ${dirtyWbsItemIds.size}`
-                          : "Сохранено"}
-                      </span>
-	                    </div>
-                      {selectedWbsIds.size > 0 && (
-                        <div className="wbs-bulk-toolbar">
+			                    <div className="gantt-controls wbs-structure-controls" aria-label="Панель управления Структурой">
+                          <div className="gantt-controls-row">
+                            <button
+                              type="button"
+                              className="workspace-fullscreen-button"
+                              onClick={() =>
+                                toggleWorkspaceFullscreen("project-structure")
+                              }
+                              aria-label={
+                                fullscreenWorkspaceView === "project-structure"
+                                  ? "Вернуть обычный режим Структуры"
+                                  : "Развернуть Структуру на весь экран"
+                              }
+                              title={
+                                fullscreenWorkspaceView === "project-structure"
+                                  ? "Вернуть обычный режим"
+                                  : "На весь экран"
+                              }
+                            >
+                              {fullscreenWorkspaceView === "project-structure" ? (
+                                <Minimize2 size={15} />
+                              ) : (
+                                <Maximize2 size={15} />
+                              )}
+                              {fullscreenWorkspaceView === "project-structure"
+                                ? "Обычный режим"
+                                : "На весь экран"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void undoWbsChange()}
+                              onMouseDown={(event) => event.preventDefault()}
+                              disabled={
+                                restoringWbsSnapshot || wbsUndoStack.length === 0
+                              }
+                              aria-label="Откатить последнее изменение Структуры"
+                              title="Назад"
+                            >
+                              ← Назад
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void redoWbsChange()}
+                              onMouseDown={(event) => event.preventDefault()}
+                              disabled={
+                                restoringWbsSnapshot || wbsRedoStack.length === 0
+                              }
+                              aria-label="Вернуть отмененное изменение Структуры"
+                              title="Вперед"
+                            >
+                              Вперед →
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void saveDirtyWbsItems()}
+                              disabled={savingWbsBulk || dirtyWbsItemIds.size === 0}
+                            >
+                              {savingWbsBulk ? "Сохраняю..." : "Сохранить изменения"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void saveWbsBaseline()}
+                              disabled={savingBaseline || project.wbsItems.length === 0}
+                            >
+                              Зафиксировать базовый план
+                            </button>
+                            <div className="column-menu">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowWbsColumnMenu((current) => !current)
+                                }
+                              >
+                                Колонки
+                              </button>
+                              {showWbsColumnMenu && (
+                                <div className="column-menu-popover">
+                                  {WBS_TABLE_COLUMNS.filter(
+                                    (column) =>
+                                      column.key !== "level" &&
+                                      column.key !== "structure",
+                                  ).map((column) => (
+                                    <label key={column.key}>
+                                      <input
+                                        type="checkbox"
+                                        checked={!wbsHiddenColumns.includes(column.key)}
+                                        onChange={() => toggleWbsColumn(column.key)}
+                                      />
+                                      {column.label}
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div
+                              className="segmented-control hierarchy-control"
+                              aria-label="Глубина иерархии Структуры"
+                            >
+                              {GANTT_HIERARCHY_LEVELS.map((level) => (
+                                <button
+                                  type="button"
+                                  key={level}
+                                  className={
+                                    activeWbsHierarchyLevel === level ? "active" : ""
+                                  }
+                                  onClick={() => setWbsHierarchyLevel(level)}
+                                  title={`Показать структуру до ${level} уровня`}
+                                >
+                                  {level}
+                                </button>
+                              ))}
+                            </div>
+                            <span
+                              className={`wbs-save-state ${dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
+                            >
+                              {dirtyWbsItemIds.size > 0
+                                ? `Не сохранено: ${dirtyWbsItemIds.size}`
+                                : "Сохранено"}
+                            </span>
+                          </div>
+                          {selectedWbsIds.size > 0 && (
+                            <div className="wbs-bulk-toolbar">
                           <span>Выбрано: {selectedWbsIds.size}</span>
                           <select
                             defaultValue=""
@@ -7914,6 +7922,15 @@ function App() {
                           </button>
                         </div>
                       )}
+                          <div className="status-legend gantt-status-legend" aria-label="Легенда статусов Структуры">
+                            <span><i className="tone-b" />В работе</span>
+                            <span><i className="tone-g" />Сделано</span>
+                            <span><i className="tone-r" />Провалено</span>
+                            <span><i className="tone-p" />Просрочено</span>
+                            <span><i className="tone-x" />Не начато</span>
+                            <span><i className="tone-o" />Веха</span>
+                          </div>
+                        </div>
                     <div className="wbs-table-shell">
                       <div
                         className="wbs-excel-table"
