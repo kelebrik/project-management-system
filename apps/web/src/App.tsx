@@ -9274,17 +9274,43 @@ function App() {
                         </div>
                         {items.map((item) => (
                           <div className="raid-item" key={item.id}>
-                            <button
-                              type="button"
+                            <div
                               className="raid-row"
+                              role="button"
+                              tabIndex={0}
                               onClick={() =>
                                 setExpandedRaidId(
                                   expandedRaidId === item.id ? null : item.id,
                                 )
                               }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  setExpandedRaidId(
+                                    expandedRaidId === item.id ? null : item.id,
+                                  );
+                                }
+                              }}
                             >
                               <span className="raid-title">{item.title}</span>
-                              <span>{item.jiraTicketKey || "не задан"}</span>
+                              <span>
+                                {item.jiraTicketUrl ? (
+                                  <a
+                                    className="raid-jira-link"
+                                    href={item.jiraTicketUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(event) => event.stopPropagation()}
+                                    onKeyDown={(event) => event.stopPropagation()}
+                                  >
+                                    {item.jiraTicketKey || "Jira"}
+                                  </a>
+                                ) : (
+                                  <span className="raid-jira-empty">
+                                    {item.jiraTicketKey || "не задан"}
+                                  </span>
+                                )}
+                              </span>
                               <span className={`risk-score ${riskTone(item.riskScore)}`}>
                                 {item.riskScore}
                               </span>
@@ -9293,7 +9319,7 @@ function App() {
                               <span className="issue-chevron">
                                 {expandedRaidId === item.id ? "-" : "+"}
                               </span>
-                            </button>
+                            </div>
                             {expandedRaidId === item.id && raidDrafts[item.id] && (
                               <div className="raid-details">
                                 <div className="raid-detail-meta">

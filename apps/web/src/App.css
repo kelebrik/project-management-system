@@ -3984,6 +3984,7 @@ code {
   background: #fff;
   border: 0;
   border-radius: 0;
+  cursor: pointer;
   min-width: 0;
   padding: 10px 12px;
   text-align: left;
@@ -4015,6 +4016,29 @@ code {
 .raid-title {
   color: #1f2937 !important;
   font-weight: 900 !important;
+}
+
+.raid-jira-link {
+  color: #1d4ed8;
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 800;
+  max-width: 100%;
+  overflow: hidden;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.raid-jira-link:hover,
+.raid-jira-link:focus-visible {
+  color: #1e40af;
+  text-decoration: underline;
+}
+
+.raid-jira-empty {
+  color: #64748b;
 }
 
 .risk-score {
