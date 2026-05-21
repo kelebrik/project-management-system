@@ -1020,6 +1020,10 @@ button:disabled {
   background: #f8fafc;
 }
 
+.project-tree-row.closed {
+  background: #fbfdff;
+}
+
 .project-tree-code-input,
 .project-tree-name-input {
   border-color: transparent;
@@ -1038,6 +1042,33 @@ button:disabled {
 .project-tree-name-input {
   background: transparent;
   color: #1f2937;
+}
+
+.project-tree-code-static,
+.project-tree-name-static {
+  align-items: center;
+  display: flex;
+  min-height: 34px;
+  min-width: 0;
+}
+
+.project-tree-code-static {
+  background: #f1f5f9;
+  border-radius: 4px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 6px 8px;
+  width: calc(100% - var(--project-indent, 0px));
+}
+
+.project-tree-name-static {
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .project-tree-code-input:hover,
@@ -1364,8 +1395,8 @@ code {
   gap: 0;
   grid-template-columns:
     132px minmax(260px, 1.35fr) minmax(220px, 0.9fr) 160px 132px 108px
-    104px 190px;
-  min-width: 1320px;
+    104px 360px;
+  min-width: 1490px;
 }
 
 .project-admin-head {
@@ -1447,9 +1478,19 @@ code {
 }
 
 .project-admin-actions button {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+  justify-content: center;
   min-height: 38px;
   padding-left: 10px;
   padding-right: 10px;
+}
+
+.closed-project-banner {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #334155;
 }
 
 .user-create-form {

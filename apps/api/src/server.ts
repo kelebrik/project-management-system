@@ -253,6 +253,46 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+async function ensureProjectWritable(projectId: string, res: Response) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, status: true },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
+    return null;
+  }
+  if (project.status === 'CLOSED') {
+    res.status(423).json({
+      error: 'Проект закрыт и доступен только для чтения',
+    });
+    return null;
+  }
+  return project;
+}
+
+async function ensureEntityProjectWritable(
+  projectId: string,
+  res: Response,
+  notFoundMessage = 'Проект не найден',
+) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, status: true },
+  });
+  if (!project) {
+    res.status(404).json({ error: notFoundMessage });
+    return false;
+  }
+  if (project.status === 'CLOSED') {
+    res.status(423).json({
+      error: 'Проект закрыт и доступен только для чтения',
+    });
+    return false;
+  }
+  return true;
+}
+
 async function hasConfiguredAdmin() {
   const count = await prisma.user.count({
     where: {
@@ -636,6 +676,173 @@ const closedIssuesInclude = {
   include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
 } satisfies Prisma.IssueFindManyArgs;
 
+function isReadRequest(req: Request) {
+  return ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+}
+
+app.use('/api/projects/:projectId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const project = await ensureProjectWritable(req.params.projectId, res);
+  if (!project) return;
+  next();
+});
+
+app.use('/api/project-artifacts/:artifactId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const artifact = await prisma.projectArtifact.findUnique({
+    where: { id: req.params.artifactId },
+    select: { projectId: true },
+  });
+  if (!artifact) {
+    res.status(404).json({ error: 'Artifact not found' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(artifact.projectId, res))) return;
+  next();
+});
+
+app.use('/api/raid-items/:itemId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const item = await prisma.raidItem.findUnique({
+    where: { id: req.params.itemId },
+    select: { projectId: true },
+  });
+  if (!item) {
+    res.status(404).json({ error: 'Запись о риске не найдена' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(item.projectId, res))) return;
+  next();
+});
+
+app.use('/api/change-requests/:requestId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const request = await prisma.changeRequest.findUnique({
+    where: { id: req.params.requestId },
+    select: { projectId: true },
+  });
+  if (!request) {
+    res.status(404).json({ error: 'Запрос на изменение не найден' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(request.projectId, res))) return;
+  next();
+});
+
+app.use('/api/milestones/:milestoneId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const milestone = await prisma.milestone.findUnique({
+    where: { id: req.params.milestoneId },
+    select: { projectId: true },
+  });
+  if (!milestone) {
+    res.status(404).json({ error: 'Milestone not found' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(milestone.projectId, res))) return;
+  next();
+});
+
+app.use('/api/wbs-items/:itemId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const item = await prisma.wbsItem.findUnique({
+    where: { id: req.params.itemId },
+    select: { projectId: true },
+  });
+  if (!item) {
+    res.status(404).json({ error: 'Элемент Структуры не найден' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(item.projectId, res))) return;
+  next();
+});
+
+app.use('/api/wbs-dependencies/:dependencyId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const dependency = await prisma.wbsDependency.findUnique({
+    where: { id: req.params.dependencyId },
+    select: { projectId: true },
+  });
+  if (!dependency) {
+    res.status(404).json({ error: 'Связь Структуры не найдена' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(dependency.projectId, res))) return;
+  next();
+});
+
+app.use('/api/open-issues/:issueId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const issue = await prisma.issue.findUnique({
+    where: { id: req.params.issueId },
+    select: { projectId: true },
+  });
+  if (!issue) {
+    res.status(404).json({ error: 'Открытый вопрос не найден' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(issue.projectId, res))) return;
+  next();
+});
+
+app.use('/api/tasks/:taskId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const task = await prisma.task.findUnique({
+    where: { id: req.params.taskId },
+    select: { projectId: true },
+  });
+  if (!task) {
+    res.status(404).json({ error: 'Задача не найдена' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(task.projectId, res))) return;
+  next();
+});
+
+app.use('/api/executive-overviews/:overviewId', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const overview = await prisma.executiveOverview.findUnique({
+    where: { id: req.params.overviewId },
+    select: { projectId: true },
+  });
+  if (!overview) {
+    res.status(404).json({ error: 'Executive overview not found' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(overview.projectId, res))) return;
+  next();
+});
+
 const defaultProjectWbsItems = [
   { code: '1', title: 'Инициация проекта', type: 'PHASE', status: 'IN_PROGRESS', owner: 'РП', startOffset: 0, duration: 14, level: 1 },
   { code: '1.1', title: 'Паспорт проекта', type: 'TASK', status: 'DONE', owner: 'РП', startOffset: 0, duration: 4, level: 2 },
@@ -733,6 +940,49 @@ async function wouldCreateProjectCycle(projectId: string, nextParentId: string |
     cursor = parent?.parentId ?? null;
   }
   return false;
+}
+
+async function deleteProjectCascade(projectId: string) {
+  await prisma.$transaction(async (tx) => {
+    const projectRaidItems = await tx.raidItem.findMany({
+      where: { projectId },
+      select: { id: true },
+    });
+    const projectRaidItemIds = projectRaidItems.map((item) => item.id);
+    await tx.project.updateMany({
+      where: { parentId: projectId },
+      data: { parentId: null },
+    });
+    if (projectRaidItemIds.length > 0) {
+      await tx.raidItem.updateMany({
+        where: { linkedRiskId: { in: projectRaidItemIds } },
+        data: { linkedRiskId: null },
+      });
+    }
+    await tx.wbsDependency.deleteMany({ where: { projectId } });
+    await tx.wbsItem.updateMany({
+      where: { projectId },
+      data: { parentId: null },
+    });
+    await tx.issueJiraLink.deleteMany({ where: { issue: { projectId } } });
+    await tx.issue.deleteMany({ where: { projectId } });
+    await tx.jiraIssueSnapshot.deleteMany({ where: { projectId } });
+    await tx.task.deleteMany({ where: { projectId } });
+    await tx.milestone.deleteMany({ where: { projectId } });
+    await tx.executiveOverview.deleteMany({ where: { projectId } });
+    await tx.projectArtifact.deleteMany({ where: { projectId } });
+    await tx.raidItem.deleteMany({ where: { projectId } });
+    await tx.changeRequest.deleteMany({ where: { projectId } });
+    await tx.projectCalendarOverride.deleteMany({ where: { projectId } });
+    await tx.wbsCommand.deleteMany({ where: { projectId } });
+    await tx.wbsBaselineItem.deleteMany({
+      where: { baseline: { projectId } },
+    });
+    await tx.wbsBaseline.deleteMany({ where: { projectId } });
+    await tx.wbsItem.deleteMany({ where: { projectId } });
+    await tx.jiraIntegration.deleteMany({ where: { projectId } });
+    await tx.project.delete({ where: { id: projectId } });
+  });
 }
 
 app.post('/api/projects', async (req, res) => {
@@ -850,6 +1100,11 @@ app.patch('/api/projects/:projectId', async (req, res) => {
     return;
   }
 
+  if (project.status === 'CLOSED') {
+    res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
+    return;
+  }
+
   if (parsed.data.parentId === project.id) {
     res.status(400).json({ error: 'Проект не может быть своим родителем' });
     return;
@@ -899,6 +1154,51 @@ app.patch('/api/projects/:projectId', async (req, res) => {
     }
     throw error;
   }
+});
+
+app.post('/api/projects/:projectId/close', requireAdmin, async (req, res) => {
+  const projectId = Array.isArray(req.params.projectId)
+    ? req.params.projectId[0]
+    : req.params.projectId;
+  if (!projectId) {
+    res.status(400).json({ error: 'Проект не указан' });
+    return;
+  }
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
+    return;
+  }
+  if (project.status === 'CLOSED') {
+    res.json(project);
+    return;
+  }
+
+  const updated = await prisma.project.update({
+    where: { id: project.id },
+    data: { status: 'CLOSED' },
+    include: projectInclude,
+  });
+  res.json(updated);
+});
+
+app.delete('/api/projects/:projectId', requireAdmin, async (req, res) => {
+  const projectId = Array.isArray(req.params.projectId)
+    ? req.params.projectId[0]
+    : req.params.projectId;
+  if (!projectId) {
+    res.status(400).json({ error: 'Проект не указан' });
+    return;
+  }
+  const project = await ensureProjectWritable(projectId, res);
+  if (!project) {
+    return;
+  }
+
+  await deleteProjectCascade(project.id);
+  res.status(204).send();
 });
 
 app.get('/api/projects/:projectId/overview', async (req, res) => {
@@ -991,15 +1291,20 @@ app.delete('/api/projects/:projectId/calendar-overrides', async (req, res) => {
 
   const date = new Date(parsed.data.date);
   date.setUTCHours(0, 0, 0, 0);
+  const project = await ensureProjectWritable(req.params.projectId, res);
+  if (!project) {
+    return;
+  }
+
   await prisma.projectCalendarOverride.deleteMany({
     where: {
-      projectId: req.params.projectId,
+      projectId: project.id,
       calendarCode: parsed.data.calendarCode,
       date,
     },
   });
 
-  await recalculateProjectWbsSchedule(req.params.projectId);
+  await recalculateProjectWbsSchedule(project.id);
 
   res.status(204).send();
 });
@@ -1021,12 +1326,9 @@ app.post('/api/projects/:projectId/artifacts', async (req, res) => {
     return;
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: req.params.projectId },
-  });
+  const project = await ensureProjectWritable(req.params.projectId, res);
 
   if (!project) {
-    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -1058,6 +1360,9 @@ app.patch('/api/project-artifacts/:artifactId', async (req, res) => {
     res.status(404).json({ error: 'Artifact not found' });
     return;
   }
+  if (!(await ensureEntityProjectWritable(artifact.projectId, res))) {
+    return;
+  }
 
   const updated = await prisma.projectArtifact.update({
     where: { id: artifact.id },
@@ -1079,6 +1384,9 @@ app.delete('/api/project-artifacts/:artifactId', async (req, res) => {
 
   if (!artifact) {
     res.status(404).json({ error: 'Artifact not found' });
+    return;
+  }
+  if (!(await ensureEntityProjectWritable(artifact.projectId, res))) {
     return;
   }
 
@@ -1104,6 +1412,9 @@ app.post('/api/projects/:projectId/artifacts/reorder', async (req, res) => {
     where: { projectId: req.params.projectId },
     select: { id: true },
   });
+  if (!(await ensureEntityProjectWritable(req.params.projectId, res))) {
+    return;
+  }
   const artifactIds = new Set(artifacts.map((artifact) => artifact.id));
   const orderedIds = parsed.data.orderedIds.filter((id) => artifactIds.has(id));
 

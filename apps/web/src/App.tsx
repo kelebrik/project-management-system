@@ -20,6 +20,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Archive,
+  Trash2,
   FileArchive,
   FileText,
   FolderTree,
@@ -65,6 +67,7 @@ type AppView =
   | "project-raid"
   | "project-calendars"
   | "project-artifacts"
+  | "closed-projects"
   | "admin";
 type FullscreenWorkspaceView = Extract<
   AppView,
@@ -672,6 +675,7 @@ const appViewPaths: Record<AppView, string> = {
   "project-raid": "/risks",
   "project-calendars": "/calendars",
   "project-artifacts": "/artifacts",
+  "closed-projects": "/closed-projects",
   admin: "/admin",
 };
 
@@ -693,6 +697,8 @@ const appPathViews: Record<string, AppView> = {
   "/calendars": "project-calendars",
   "/calendar": "project-calendars",
   "/artifacts": "project-artifacts",
+  "/closed-projects": "closed-projects",
+  "/closed": "closed-projects",
   "/admin": "admin",
 };
 
@@ -1777,7 +1783,8 @@ function App() {
   const [fullscreenWorkspaceView, setFullscreenWorkspaceView] =
     useState<FullscreenWorkspaceView | null>(null);
   const isAuthenticated = Boolean(currentUser);
-  const isReadOnly = !isAuthenticated;
+  const isClosedProject = project?.status === "CLOSED";
+  const isReadOnly = !isAuthenticated || isClosedProject;
   const [ganttScale, setGanttScale] = useState<GanttScale>("month");
   const [showWbsColumnMenu, setShowWbsColumnMenu] = useState(false);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
@@ -1969,7 +1976,8 @@ function App() {
           "Не удалось загрузить список проектов",
         );
         if (cancelled) return;
-        const firstProject = data[0];
+        const firstProject =
+          data.find((item) => item.status !== "CLOSED") ?? data[0];
         setProjects(data);
         setProjectRegistryDrafts(projectsToRegistryDrafts(data));
         setSelectedProjectId((current) => current ?? firstProject?.id ?? null);
@@ -2035,7 +2043,22 @@ function App() {
     setWbsRedoStack(nextStack);
   }, []);
 
-  const projectTree = useMemo(() => buildProjectTree(projects), [projects]);
+  const activeProjects = useMemo(
+    () => projects.filter((item) => item.status !== "CLOSED"),
+    [projects],
+  );
+  const closedProjects = useMemo(
+    () => projects.filter((item) => item.status === "CLOSED"),
+    [projects],
+  );
+  const activeProjectTree = useMemo(
+    () => buildProjectTree(activeProjects),
+    [activeProjects],
+  );
+  const closedProjectTree = useMemo(
+    () => buildProjectTree(closedProjects),
+    [closedProjects],
+  );
   const selectedProjectListItem = useMemo(
     () => projects.find((item) => item.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
@@ -2050,15 +2073,15 @@ function App() {
   );
   const filteredProjectOptions = useMemo(() => {
     const query = projectSearch.trim().toLowerCase();
-    if (!query) return projects;
-    return projects.filter((item) =>
+    if (!query) return activeProjects;
+    return activeProjects.filter((item) =>
       [item.code, item.name, item.projectManager, item.portfolio, item.summary]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(query)),
     );
-  }, [projectSearch, projects]);
+  }, [activeProjects, projectSearch]);
   const portfolioStats = useMemo(() => {
-    const activeProjects = projects.filter(
+    const activeProjectsCount = projects.filter(
       (item) => item.status === "ACTIVE",
     ).length;
     const redProjects = projects.filter((item) => item.rag === "RED").length;
@@ -2078,7 +2101,7 @@ function App() {
           );
 
     return {
-      activeProjects,
+      activeProjects: activeProjectsCount,
       redProjects,
       amberProjects,
       openIssues,
@@ -3467,6 +3490,13 @@ function App() {
     setProjectRegistryDrafts(projectsToRegistryDrafts(data));
     if (selectedId) {
       setSelectedProjectId(selectedId);
+    } else {
+      setSelectedProjectId((currentId) => {
+        if (currentId && data.some((item) => item.id === currentId)) {
+          return currentId;
+        }
+        return data.find((item) => item.status !== "CLOSED")?.id ?? data[0]?.id ?? null;
+      });
     }
   }
 
@@ -3810,6 +3840,92 @@ function App() {
         saveError instanceof Error
           ? saveError.message
           : "Не удалось сохранить проект",
+      );
+    } finally {
+      setSavingProjectRegistryId(null);
+    }
+  }
+
+  async function closeProject(projectId: string) {
+    const sourceProject = projects.find((item) => item.id === projectId);
+    if (!sourceProject) return;
+    if (
+      !window.confirm(
+        `Закрыть проект ${sourceProject.code}? После закрытия проект будет доступен только для чтения даже администратору.`,
+      )
+    ) {
+      return;
+    }
+    setSavingProjectRegistryId(projectId);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await authenticatedFetch(
+        `${apiBase}/api/projects/${projectId}/close`,
+        { method: "POST" },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось закрыть проект");
+      }
+      await reloadProjects(
+        selectedProjectId === projectId
+          ? projects.find((item) => item.id !== projectId && item.status !== "CLOSED")?.id
+          : selectedProjectId ?? undefined,
+      );
+      if (selectedProjectId === projectId) {
+        setProject(null);
+        openView("closed-projects");
+      }
+      setNotice(`Проект ${sourceProject.code} закрыт`);
+    } catch (closeError) {
+      setError(
+        closeError instanceof Error
+          ? closeError.message
+          : "Не удалось закрыть проект",
+      );
+    } finally {
+      setSavingProjectRegistryId(null);
+    }
+  }
+
+  async function deleteProject(projectId: string) {
+    const sourceProject = projects.find((item) => item.id === projectId);
+    if (!sourceProject) return;
+    if (
+      !window.confirm(
+        `Удалить проект ${sourceProject.code} и все его данные? Это действие нельзя отменить.`,
+      )
+    ) {
+      return;
+    }
+    setSavingProjectRegistryId(projectId);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await authenticatedFetch(
+        `${apiBase}/api/projects/${projectId}`,
+        { method: "DELETE" },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось удалить проект");
+      }
+      const nextSelectedProjectId =
+        selectedProjectId === projectId
+          ? projects.find((item) => item.id !== projectId && item.status !== "CLOSED")?.id
+          : selectedProjectId ?? undefined;
+      await reloadProjects(nextSelectedProjectId);
+      if (selectedProjectId === projectId) {
+        setProject(null);
+        openView(nextSelectedProjectId ? "project-overview" : "portfolio");
+      }
+      setNotice(`Проект ${sourceProject.code} удален`);
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Не удалось удалить проект",
       );
     } finally {
       setSavingProjectRegistryId(null);
@@ -5849,6 +5965,7 @@ function App() {
     "project-artifacts": project
       ? `${project.code} - Артефакты проекта`
       : "Артефакты проекта",
+    "closed-projects": "Закрытые проекты",
     admin: "Администрирование",
   };
   const projectViews: AppView[] = [
@@ -5876,7 +5993,7 @@ function App() {
   const toggleSidebar = () => {
     const nextCollapsed = !sidebarCollapsed;
     setSidebarCollapsed(nextCollapsed);
-    if (project && isAuthenticated) {
+    if (project && isAuthenticated && !isClosedProject) {
       void saveProjectUiState(
         { sidebarCollapsed: nextCollapsed },
         { sidebarCollapsed: nextCollapsed },
@@ -6258,6 +6375,14 @@ function App() {
               </div>
             )}
           </div>
+          <button
+            type="button"
+            className={activeView === "closed-projects" ? "active" : ""}
+            onClick={() => openView("closed-projects")}
+            aria-label="Закрытые проекты"
+          >
+            {navLabel(<Archive size={17} />, "Закрытые проекты")}
+          </button>
           {isAuthenticated && (
             <button
               type="button"
@@ -6328,7 +6453,7 @@ function App() {
             </div>
           )}
         </div>
-        {isReadOnly && (
+        {!isAuthenticated && (
           <div className="readonly-banner">
             <KeyRound size={16} />
             <span>
@@ -6347,10 +6472,20 @@ function App() {
             </button>
           </div>
         )}
+        {isClosedProject && (
+          <div className="readonly-banner closed-project-banner">
+            <Archive size={16} />
+            <span>
+              Проект закрыт. Данные доступны только для чтения, редактирование
+              заблокировано для всех ролей.
+            </span>
+          </div>
+        )}
 
         {(project ||
           activeView === "portfolio" ||
           activeView === "project-create" ||
+          activeView === "closed-projects" ||
           activeView === "admin") && (
           <>
             {activeView === "portfolio" && (
@@ -6528,7 +6663,7 @@ function App() {
                       <span>Прогресс</span>
                       <span>Индикатор</span>
                     </div>
-                    {projectTree.map((item) => {
+                    {activeProjectTree.map((item) => {
                       const draft =
                         projectRegistryDrafts[item.id] ??
                         projectToRegistryDraft(item);
@@ -6596,8 +6731,65 @@ function App() {
                         </div>
                       );
                     })}
-                    {projects.length === 0 && (
-                      <div className="empty-state">Проекты еще не созданы.</div>
+                    {activeProjectTree.length === 0 && (
+                      <div className="empty-state">Активные проекты не найдены.</div>
+                    )}
+                  </div>
+                </article>
+              </section>
+            )}
+
+            {activeView === "closed-projects" && (
+              <section className="projects-tree-section">
+                <article className="panel project-tree-panel">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Закрытые проекты</h2>
+                      <p>
+                        Архив завершенных проектов. Проекты в этом разделе
+                        доступны только для просмотра.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="project-tree-list">
+                    <div className="project-tree-head">
+                      <span>Код проекта</span>
+                      <span>Имя проекта</span>
+                      <span />
+                      <span>РП</span>
+                      <span>Прогресс</span>
+                      <span>Индикатор</span>
+                    </div>
+                    {closedProjectTree.map((item) => (
+                      <div className="project-tree-row closed" key={item.id}>
+                        <span
+                          className="project-tree-code-static"
+                          style={
+                            {
+                              marginLeft: `${item.level * 18}px`,
+                              "--project-indent": `${item.level * 18}px`,
+                            } as CSSProperties
+                          }
+                        >
+                          {item.code}
+                        </span>
+                        <span className="project-tree-name-static">
+                          {item.name}
+                        </span>
+                        <button
+                          type="button"
+                          className="project-tree-open"
+                          onClick={() => selectProject(item.id, "project-overview")}
+                        >
+                          Открыть
+                        </button>
+                        <span>{item.projectManager}</span>
+                        <span>{item.progress}%</span>
+                        <span className={`rag-dot ${item.rag.toLowerCase()}`} />
+                      </div>
+                    ))}
+                    {closedProjectTree.length === 0 && (
+                      <div className="empty-state">Закрытых проектов пока нет.</div>
                     )}
                   </div>
                 </article>
@@ -6657,7 +6849,7 @@ function App() {
                         }
                       >
                         <option value="">Не копировать, создать тестовую структуру</option>
-                        {projectTree.map((item) => (
+                        {activeProjectTree.map((item) => (
                           <option key={item.id} value={item.id}>
                             {"- ".repeat(item.level)}
                             {item.code} - {item.name}
@@ -6681,7 +6873,7 @@ function App() {
                         }
                       >
                         <option value="">Корень</option>
-                        {projectTree.map((item) => (
+                        {activeProjectTree.map((item) => (
                           <option key={item.id} value={item.id}>
                             {"- ".repeat(item.level)}
                             {item.code} - {item.name}
@@ -7058,7 +7250,7 @@ function App() {
                         <span>Порядок</span>
                         <span />
                       </div>
-                      {projectTree.map((item) => {
+                      {activeProjectTree.map((item) => {
                         const draft =
                           projectRegistryDrafts[item.id] ??
                           projectToRegistryDraft(item);
@@ -7088,7 +7280,7 @@ function App() {
                                 }
                               >
                                 <option value="">Корень</option>
-                                {projectTree
+                                {activeProjectTree
                                   .filter((option) => option.id !== item.id)
                                   .map((option) => (
                                     <option key={option.id} value={option.id}>
@@ -7123,7 +7315,6 @@ function App() {
                                 <option value="DRAFT">{projectStatusLabel("DRAFT")}</option>
                                 <option value="ACTIVE">{projectStatusLabel("ACTIVE")}</option>
                                 <option value="ON_HOLD">{projectStatusLabel("ON_HOLD")}</option>
-                                <option value="CLOSED">{projectStatusLabel("CLOSED")}</option>
                               </select>
                             </label>
                             <label>
@@ -7173,12 +7364,34 @@ function App() {
                                   ? "Сохраняю..."
                                   : "Сохранить"}
                               </button>
+                              {currentUser?.role === "ADMIN" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => void closeProject(item.id)}
+                                    disabled={savingProjectRegistryId === item.id}
+                                    title="Перенести проект в закрытые и заблокировать редактирование"
+                                  >
+                                    Закрыть
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="danger-button"
+                                    onClick={() => void deleteProject(item.id)}
+                                    disabled={savingProjectRegistryId === item.id}
+                                    title="Удалить проект и все связанные данные"
+                                  >
+                                    <Trash2 size={14} />
+                                    Удалить
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         );
                       })}
-                      {projects.length === 0 && (
-                        <div className="empty-state">Проекты еще не созданы.</div>
+                      {activeProjectTree.length === 0 && (
+                        <div className="empty-state">Активные проекты не найдены.</div>
                       )}
                     </div>
                   </article>
