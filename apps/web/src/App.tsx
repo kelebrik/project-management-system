@@ -2232,7 +2232,7 @@ function App() {
         !Number.isNaN(new Date(entry.milestone.dueDate).getTime()),
     );
     const today = startOfDay(new Date());
-    const timelineStart = startOfDay(addCalendarMonths(today, -4));
+    const timelineStart = startOfDay(addCalendarMonths(today, -2));
     const timelineEnd = startOfDay(addCalendarMonths(today, 4));
     const visibleMilestones = datedMilestones.filter((entry) => {
       const dueDate = startOfDay(new Date(entry.milestone.dueDate as string));
@@ -7649,7 +7649,7 @@ function App() {
                     ) : (
                       <div className="empty-state">
                         {milestoneTimeline.hasMilestonesOutsideRange
-                          ? "В окне ±4 месяца от текущей даты нет вех."
+                          ? "В окне от -2 до +4 месяцев от текущей даты нет вех."
                           : "В Структуре пока нет элементов типа «Веха»."}
                       </div>
                     )}
