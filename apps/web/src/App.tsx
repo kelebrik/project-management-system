@@ -649,33 +649,6 @@ type MilestonePointStyle = CSSProperties & {
   "--milestone-label-level": number;
 };
 
-type OverviewGraphItem = {
-  id: string;
-  code: string;
-  title: string;
-  kind: "task" | "milestone";
-  calloutPlacement?: "below" | "left" | "right" | "diagonal-right";
-  calloutShape?: "compact" | "wide" | "standard";
-  calloutWidth?: number;
-  status: WbsItemStatus;
-  type: WbsItemType;
-  offset: number;
-  width: number;
-  row: number;
-  startDate: string | null;
-  dueDate: string | null;
-  critical: boolean;
-  jiraTicketKey: string | null;
-};
-
-type OverviewGraphLane = {
-  id: string;
-  code: string;
-  title: string;
-  rowCount: number;
-  items: OverviewGraphItem[];
-};
-
 const WBS_LEVEL_MIN_WIDTH = 128;
 const GANTT_PANEL_HEIGHT_DEFAULT = 456;
 const GANTT_PANEL_WIDTH_DEFAULT = 0;
@@ -685,17 +658,6 @@ const GANTT_SCALE_WIDTH: Record<GanttScale, number> = {
 };
 const GANTT_HIERARCHY_LEVELS = [1, 2, 3, 4, 5] as const;
 const GANTT_PANEL_WIDTH_MIN = 760;
-const OVERVIEW_GRAPH_TRACK_MIN_WIDTH = 1360;
-const OVERVIEW_GRAPH_MONTH_WIDTH = 180;
-const OVERVIEW_GRAPH_MILESTONE_LONG_TITLE = 32;
-const OVERVIEW_GRAPH_ROW_HEIGHT = 48;
-const OVERVIEW_GRAPH_TASK_TOP = 9;
-const OVERVIEW_GRAPH_MILESTONE_TOP = 24;
-const OVERVIEW_GRAPH_SIDE_MILESTONE_TOP = 5;
-const OVERVIEW_GRAPH_MILESTONE_CALLOUT_GAP = 18;
-const OVERVIEW_GRAPH_MILESTONE_COMPACT_WIDTH = 132;
-const OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH = 204;
-const OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH = 248;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const appViewPaths: Record<AppView, string> = {
@@ -1241,12 +1203,6 @@ function signedDaysUntil(value: string | null) {
   return Math.round((target.getTime() - today.getTime()) / 86_400_000);
 }
 
-function formatDaysLeft(days: number | null) {
-  if (days === null) return "не задано";
-  if (days === 0) return "сегодня";
-  return `${days > 0 ? days : Math.abs(days)} дн.${days < 0 ? " проср." : ""}`;
-}
-
 function calendarDelayDays(initialValue: string | null, currentValue: string | null) {
   if (!initialValue || !currentValue) return 0;
   const initialDate = startOfDay(new Date(initialValue));
@@ -1258,10 +1214,6 @@ function calendarDelayDays(initialValue: string | null, currentValue: string | n
     0,
     Math.round((currentDate.getTime() - initialDate.getTime()) / 86_400_000),
   );
-}
-
-function isImportedSummary(value: string | null | undefined) {
-  return Boolean(value?.trim().toLowerCase().startsWith("imported from "));
 }
 
 function signedWorkingDaysUntil(value: string | null) {
@@ -2224,6 +2176,13 @@ function App() {
     const minTime = Math.min(...dates.map((item) => item.getTime()));
     const maxTime = Math.max(...dates.map((item) => item.getTime()));
     const range = maxTime - minTime;
+    const today = startOfDay(new Date());
+    const todayOffset =
+      today.getTime() >= minTime && today.getTime() <= maxTime
+        ? range === 0
+          ? 0
+          : (today.getTime() - minTime) / range
+        : null;
     const laneByPhaseId = new Map(
       phases.map((phase) => [
         phase.id,
@@ -2364,6 +2323,7 @@ function App() {
       endDate: new Date(maxTime).toISOString(),
       trackWidth: Math.max(1040, maxLaneMilestones * 160),
       laneHeight: 156 + maxLaneLevel * 56,
+      todayOffset,
     };
   }, [project?.wbsItems, structureMilestones]);
   const overviewDashboard = useMemo(() => {
@@ -2387,19 +2347,95 @@ function App() {
     ) ?? [];
     const decisionItems = openIssues.filter(
       (issue) => issue.decisionRequired,
-    ).length;
+    );
     const nextMilestone = structureMilestones.find(
       (entry) =>
         entry.milestone.dueDate &&
         startOfDay(new Date(entry.milestone.dueDate)) >= today,
     );
+    const redZoneRisks = riskItems
+      .filter((item) => item.type === "RISK" && item.riskScore >= 15)
+      .sort((left, right) => right.riskScore - left.riskScore)
+      .slice(0, 5);
+    const blockerIssues = openIssues
+      .filter(
+        (issue) =>
+          issue.severity === "CRITICAL" ||
+          issue.status === "Blocked",
+      )
+      .sort((left, right) =>
+        String(left.dueDate ?? "9999").localeCompare(
+          String(right.dueDate ?? "9999"),
+        ),
+      );
+    const blockedWbsItems = wbsItems
+      .filter((item) => item.status === "BLOCKED")
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        code: item.code,
+        dueDate: item.dueDate,
+        jiraTicketKey: item.jiraTicketKey,
+        jiraTicketUrl: item.jiraTicketUrl,
+        source: "structure" as const,
+      }));
+    const blockingTickets = [
+      ...blockerIssues.map((issue) => {
+        const jiraLink = issuePrimaryJiraLink(issue);
+        return {
+          id: issue.id,
+          title: issue.title,
+          code: jiraLink.key || issue.severity,
+          dueDate: issue.dueDate,
+          jiraTicketKey: jiraLink.key,
+          jiraTicketUrl: jiraLink.url,
+          source: "issue" as const,
+        };
+      }),
+      ...blockedWbsItems,
+    ]
+      .sort((left, right) =>
+        String(left.dueDate ?? "9999").localeCompare(
+          String(right.dueDate ?? "9999"),
+        ),
+      )
+      .slice(0, 6);
+    const openDecisionItems = decisionItems
+      .sort((left, right) =>
+        String(left.dueDate ?? "9999").localeCompare(
+          String(right.dueDate ?? "9999"),
+        ),
+      )
+      .slice(0, 5);
+    const scheduleDeltaItems = wbsItems
+      .filter(
+        (item) =>
+          item.baselineDueDate &&
+          item.dueDate &&
+          item.status !== "DONE" &&
+          item.status !== "CANCELLED",
+      )
+      .map((item) => ({
+        item,
+        delay: signedDaysBetween(
+          startOfDay(new Date(item.baselineDueDate as string)),
+          startOfDay(new Date(item.dueDate as string)),
+        ),
+      }))
+      .filter(({ delay }) => delay > 0)
+      .sort((left, right) => right.delay - left.delay)
+      .slice(0, 5);
 
     return {
       openIssues,
       overdueItems,
       riskItems,
-      decisionItems,
+      decisionItems: decisionItems.length,
       nextMilestone,
+      redZoneRisks,
+      blockingTickets,
+      openDecisionItems,
+      scheduleDeltaItems,
     };
   }, [project?.issues, project?.raidItems, project?.wbsItems, structureMilestones]);
   const raidSummary = useMemo(() => {
@@ -2470,294 +2506,6 @@ function App() {
     }),
     [filteredRaidItems],
   );
-  const topOverdueItems = useMemo(
-    () =>
-      overviewDashboard.overdueItems
-        .map((item) => {
-          const overdueDays = signedDaysUntil(item.dueDate);
-          return {
-            item,
-            days: overdueDays === null ? 0 : Math.abs(overdueDays),
-            impact:
-              item.type === "MILESTONE"
-                ? "Сдвигает контрольную веху"
-                : item.status === "BLOCKED"
-                  ? "Блокирует последующие работы"
-                  : "Требует перепланирования срока",
-          };
-        })
-        .sort((left, right) => right.days - left.days)
-        .slice(0, 3),
-    [overviewDashboard.overdueItems],
-  );
-  const overviewProjectGraph = useMemo(() => {
-    const isOverviewGraphLevel = (item: WbsTreeItem) =>
-      (item.wbsLevel ?? item.level + 1) <= 2;
-    const validDate = (value: string | null) => {
-      const parsed = value ? new Date(value) : null;
-      return parsed && !Number.isNaN(parsed.getTime())
-        ? startOfDay(parsed)
-        : null;
-    };
-    const datedItems = wbsTree
-      .filter(isOverviewGraphLevel)
-      .map((item) => {
-        const start = validDate(item.startDate);
-        const end = validDate(item.dueDate);
-        if (!start && !end) return null;
-        return {
-          item,
-          start: start ?? end,
-          end: end ?? start,
-        };
-      })
-      .filter(
-        (
-          entry,
-        ): entry is {
-          item: WbsTreeItem;
-          start: Date;
-          end: Date;
-        } => entry !== null && entry.start !== null && entry.end !== null,
-      );
-
-    if (datedItems.length === 0) {
-      return {
-        months: [] as Array<{ label: string; offset: number; width: number }>,
-        lanes: [] as OverviewGraphLane[],
-        trackWidth: OVERVIEW_GRAPH_TRACK_MIN_WIDTH,
-        todayOffset: null as number | null,
-      };
-    }
-
-    const rawStart = startOfMonth(
-      new Date(Math.min(...datedItems.map((entry) => entry.start.getTime()))),
-    );
-    const rawEnd = addMonths(
-      startOfMonth(
-        new Date(Math.max(...datedItems.map((entry) => entry.end.getTime()))),
-      ),
-      1,
-    );
-    const totalDays = Math.max(1, signedDaysBetween(rawStart, rawEnd));
-    const offsetForDate = (value: Date) =>
-      clampNumber(
-        (signedDaysBetween(rawStart, value) / totalDays) * 100,
-        0,
-        100,
-      );
-    const months: Array<{ label: string; offset: number; width: number }> = [];
-    for (
-      let cursor = new Date(rawStart);
-      cursor < rawEnd;
-      cursor = addMonths(cursor, 1)
-    ) {
-      const nextMonth = addMonths(cursor, 1);
-      const offset = offsetForDate(cursor);
-      months.push({
-        label: monthLabel(cursor),
-        offset,
-        width: Math.max(2, offsetForDate(nextMonth) - offset),
-      });
-    }
-
-    const trackWidth = Math.max(
-      OVERVIEW_GRAPH_TRACK_MIN_WIDTH,
-      months.length * OVERVIEW_GRAPH_MONTH_WIDTH,
-    );
-    const today = startOfDay(new Date());
-    const todayOffset =
-      today >= rawStart && today <= rawEnd ? offsetForDate(today) : null;
-    const percentFromPx = (value: number) => (value / trackWidth) * 100;
-    const datedById = new Map(datedItems.map((entry) => [entry.item.id, entry]));
-    const criticalIds = new Set(project?.criticalPath?.criticalItemIds ?? []);
-    const phases = wbsTree
-      .filter((item) => item.type === "PHASE")
-      .sort((left, right) => left.sortOrder - right.sortOrder);
-    const fallbackPhase = {
-      id: "all",
-      code: "",
-      title: "Работы проекта",
-      children: wbsTree,
-      level: 1,
-    } as WbsTreeItem;
-    const laneRoots = phases.length > 0 ? phases : [fallbackPhase];
-    const laneItemsFromPhase = (phase: WbsTreeItem): OverviewGraphItem[] => {
-      const descendants = [phase, ...flattenWbsDescendants(phase)];
-      return descendants
-        .filter((item) => {
-          return item.id !== phase.id && isOverviewGraphLevel(item);
-        })
-        .map((item) => {
-          const dated = datedById.get(item.id);
-          if (!dated) return null;
-          const startOffset = offsetForDate(dated.start);
-          const endOffset = offsetForDate(dated.end);
-          const milestone = item.type === "MILESTONE";
-          return {
-            id: item.id,
-            code: item.code,
-            title: item.title,
-            kind: milestone ? "milestone" : "task",
-            status: item.status,
-            type: item.type,
-            offset: startOffset,
-            width: milestone ? 0 : Math.max(4, endOffset - startOffset),
-            row: 0,
-            startDate: item.startDate,
-            dueDate: item.dueDate,
-            critical: criticalIds.has(item.id),
-            jiraTicketKey: item.jiraTicketKey,
-          } satisfies OverviewGraphItem;
-        })
-        .filter((item): item is OverviewGraphItem => item !== null);
-    };
-    const lanes = laneRoots.map((phase) => {
-      const laneItems = laneItemsFromPhase(phase);
-      let currentRow = 0;
-      laneItems.forEach((item) => {
-        const overlapsToday =
-          todayOffset !== null && Math.abs(todayOffset - item.offset) < 2.4;
-        const needsSideCallout =
-          item.kind === "milestone" &&
-          (item.title.length > OVERVIEW_GRAPH_MILESTONE_LONG_TITLE ||
-            overlapsToday);
-        let calloutPlacement: OverviewGraphItem["calloutPlacement"];
-        let calloutShape: OverviewGraphItem["calloutShape"];
-        let calloutWidth: number | undefined;
-
-        if (item.kind === "milestone") {
-          type MilestoneCandidate = {
-            clipped: boolean;
-            overflow: number;
-            placement: OverviewGraphItem["calloutPlacement"];
-            severeOverflow: boolean;
-            shape: OverviewGraphItem["calloutShape"];
-            visualEnd: number;
-            visualStart: number;
-            width: number;
-          };
-          const candidateFor = (
-            placement: OverviewGraphItem["calloutPlacement"],
-            shape: OverviewGraphItem["calloutShape"] = "standard",
-          ): MilestoneCandidate => {
-            const candidateWidth =
-              shape === "compact"
-                ? OVERVIEW_GRAPH_MILESTONE_COMPACT_WIDTH
-                : shape === "wide"
-                  ? OVERVIEW_GRAPH_MILESTONE_WIDE_WIDTH
-                  : OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH;
-            const sideFootprint = percentFromPx(
-              candidateWidth + OVERVIEW_GRAPH_MILESTONE_CALLOUT_GAP,
-            );
-            const rawStart =
-              placement === "left"
-                ? item.offset - sideFootprint
-                : placement === "diagonal-right"
-                  ? item.offset
-                : placement === "right"
-                  ? item.offset
-                  : item.offset - percentFromPx(OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH) / 2;
-            const rawEnd =
-              placement === "left"
-                ? item.offset
-                : placement === "diagonal-right"
-                  ? item.offset + sideFootprint
-                : placement === "right"
-                  ? item.offset + sideFootprint
-                  : item.offset + percentFromPx(OVERVIEW_GRAPH_MILESTONE_STANDARD_WIDTH) / 2;
-            const overflow = Math.max(0, -rawStart, rawEnd - 100);
-            const start = clampNumber(rawStart, 0, 100);
-            const end = clampNumber(rawEnd, 0, 100);
-            return {
-              clipped: overflow > 0,
-              overflow,
-              placement,
-              severeOverflow: overflow > 7,
-              shape,
-              visualEnd: end,
-              visualStart: start,
-              width: candidateWidth,
-            };
-          };
-          const prefersDiagonal = false;
-          const prefersWide =
-            !prefersDiagonal &&
-            !overlapsToday &&
-            item.offset > 44 &&
-            item.offset < 82 &&
-            item.title.length <= 32;
-          const candidatePreference = (candidate: MilestoneCandidate) => {
-            if (
-              prefersDiagonal &&
-              candidate.placement === "diagonal-right"
-            ) {
-              return 0;
-            }
-            if (
-              candidate.placement === "left" &&
-              candidate.shape === "compact"
-            ) {
-              return 0;
-            }
-            if (
-              prefersWide &&
-              candidate.placement === "right" &&
-              candidate.shape === "wide"
-            ) {
-              return 1;
-            }
-            return 2;
-          };
-          const candidates = needsSideCallout
-            ? [
-                candidateFor("left", "compact"),
-                candidateFor("right", "compact"),
-                candidateFor("left", "wide"),
-                candidateFor("right", "wide"),
-              ]
-            : [candidateFor(undefined)];
-          const softVisibleCandidates = candidates.filter(
-            (candidate) => !candidate.severeOverflow,
-          );
-          const bestCandidate = [...(softVisibleCandidates.length > 0 ? softVisibleCandidates : candidates)].sort(
-            (left, right) =>
-              left.overflow - right.overflow ||
-              candidatePreference(left) - candidatePreference(right) ||
-              right.visualStart - left.visualStart,
-          )[0];
-          calloutPlacement = bestCandidate.placement;
-          calloutShape = bestCandidate.shape;
-          calloutWidth = bestCandidate.width;
-        }
-
-        const rowSpan =
-          item.kind === "milestone" &&
-          (calloutShape === "compact" || item.title.length > 42)
-            ? 2
-            : 1;
-        item.row = currentRow;
-        currentRow += rowSpan;
-        item.calloutPlacement = calloutPlacement;
-        item.calloutShape = calloutShape;
-        item.calloutWidth = calloutWidth;
-      });
-
-      return {
-        id: phase.id,
-        code: phase.code,
-        title: phase.title,
-        items: laneItems,
-        rowCount: Math.max(1, currentRow),
-      };
-    });
-    return {
-      months,
-      lanes,
-      trackWidth,
-      todayOffset,
-    };
-  }, [project?.criticalPath?.criticalItemIds, wbsTree]);
   const wbsGantt = useMemo(() => {
     const validDate = (value: string | null) => {
       const parsed = value ? new Date(value) : null;
@@ -6635,109 +6383,121 @@ function App() {
             )}
 
             {project && activeView === "project-overview" && (
-              <section className="summary-grid">
-                <button
-                  type="button"
-                  className="metric metric-button"
-                  onClick={() => openView("project-passport")}
-                >
-                  <span>Статус проекта</span>
-                  <strong className={`rag ${project.rag.toLowerCase()}`}>
-                    {projectHealthLabel(project.rag)}
-                  </strong>
-                  <small>
-                    {isImportedSummary(project.summary)
-                      ? "Сводка проекта требует заполнения"
-                      : project.summary}
-                  </small>
-                </button>
-                <button
-                  type="button"
-                  className="metric metric-button"
-                  onClick={() => openView("project-structure")}
-                >
-                  <span>Прогресс</span>
-                  <strong>{project.progress}%</strong>
-                  <div className="progress">
-                    <i style={{ width: `${project.progress}%` }} />
+              <section className="executive-overview-grid">
+                <article className="executive-overview-card danger">
+                  <div className="executive-overview-card-title">
+                    <span>Ключевые риски в красной зоне</span>
+                    <strong>{overviewDashboard.redZoneRisks.length}</strong>
                   </div>
-                </button>
-                <button
-                  type="button"
-                  className="metric metric-button"
-                  onClick={() => openView("project-gantt")}
-                >
-                  <span>Отклонение сроков</span>
-                  <strong>
-                    {project.scheduleVariance > 0 ? "+" : ""}
-                    {project.scheduleVariance} дней
-                  </strong>
-                  <small>Относительно базового плана</small>
-                </button>
-                <button
-                  type="button"
-                  className="metric metric-button"
-                  onClick={() => openView("project-issues")}
-                >
-                  <span>Открытые вопросы</span>
-                  <strong>{project.issues.length}</strong>
-                  <small>Требуют контроля РП</small>
-                </button>
-              </section>
-            )}
-
-            {project && activeView === "project-overview" && (
-              <section className="overview-action-grid">
-                <button type="button" onClick={() => openView("project-overview")}>
-                  <span>Ближайшая веха</span>
-                  <strong>
-                    {overviewDashboard.nextMilestone
-                      ? overviewDashboard.nextMilestone.milestone.title
-                      : "Нет будущих вех"}
-                  </strong>
-                  <small>
-                    {overviewDashboard.nextMilestone
-                      ? `${formatDaysLeft(overviewDashboard.nextMilestone.workDaysLeft)} раб. / ${formatDaysLeft(overviewDashboard.nextMilestone.calendarDaysLeft)} кал.`
-                      : "Проверьте Структуру проекта"}
-                  </small>
-                </button>
-                <button type="button" onClick={() => openView("project-raid")}>
-                  <span>Риски и проблемы</span>
-                  <strong>{overviewDashboard.riskItems.length}</strong>
-                  <small>Активные записи под контролем</small>
-                </button>
-                <button type="button" onClick={() => openView("project-issues")}>
-                  <span>Вопросы на решение</span>
-                  <strong>{overviewDashboard.decisionItems}</strong>
-                  <small>Подмножество открытых вопросов</small>
-                </button>
-              </section>
-            )}
-
-            {project &&
-              activeView === "project-overview" &&
-              topOverdueItems.length > 0 && (
-                <section className="overview-overdue-panel">
-                  <div>
-                    <h3>Просроченные элементы</h3>
-                    <p>Что просрочено, на сколько дней и какой управленческий эффект.</p>
-                  </div>
-                  <div className="overview-overdue-list">
-                    {topOverdueItems.map(({ item, days, impact }) => (
-                      <button
-                        type="button"
+                  <div className="executive-overview-list">
+                    {overviewDashboard.redZoneRisks.map((item) => (
+                      <div
+                        className="executive-overview-row"
                         key={item.id}
-                        onClick={() => openView("project-structure")}
                       >
-                        <b>{item.code}</b>
-                        <span>{item.title}</span>
-                        <strong>{days} кал. дн.</strong>
-                        <small>{impact}</small>
-                      </button>
+                        <b>{item.title}</b>
+                        <span>
+                          Оценка {item.riskScore} / ответственный:{" "}
+                          {item.owner || "не назначен"}
+                        </span>
+                      </div>
                     ))}
+                    {overviewDashboard.redZoneRisks.length === 0 && (
+                      <p>Рисков с оценкой 15+ нет.</p>
+                    )}
                   </div>
-                </section>
-              )}
+                </article>
+
+                <article className="executive-overview-card">
+                  <div className="executive-overview-card-title">
+                    <span>Блокирующие тикеты со сроками</span>
+                    <strong>{overviewDashboard.blockingTickets.length}</strong>
+                  </div>
+                  <div className="executive-overview-list">
+                    {overviewDashboard.blockingTickets.map((item) => (
+                      <div
+                        className="executive-overview-row"
+                        key={`${item.source}-${item.id}`}
+                      >
+                        <b>{item.title}</b>
+                        <span>
+                          {item.jiraTicketUrl ? (
+                            <a
+                              href={item.jiraTicketUrl}
+                              rel="noreferrer"
+                              target="_blank"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {item.jiraTicketKey || "Jira"}
+                            </a>
+                          ) : (
+                            item.jiraTicketKey || item.code || "без Jira"
+                          )}
+                          {" / срок "}
+                          {date(item.dueDate)}
+                        </span>
+                      </div>
+                    ))}
+                    {overviewDashboard.blockingTickets.length === 0 && (
+                      <p>Блокирующих тикетов нет.</p>
+                    )}
+                  </div>
+                </article>
+
+                <article className="executive-overview-card">
+                  <div className="executive-overview-card-title">
+                    <span>Решения по ключевым открытым вопросам</span>
+                    <strong>{overviewDashboard.decisionItems}</strong>
+                  </div>
+                  <div className="executive-overview-list">
+                    {overviewDashboard.openDecisionItems.map((issue) => (
+                      <div
+                        className="executive-overview-row"
+                        key={issue.id}
+                      >
+                        <b>{issue.title}</b>
+                        <span>
+                          {issue.owner || "не назначен"} / срок{" "}
+                          {date(issue.dueDate)}
+                        </span>
+                      </div>
+                    ))}
+                    {overviewDashboard.openDecisionItems.length === 0 && (
+                      <p>Открытых вопросов, требующих решения, нет.</p>
+                    )}
+                  </div>
+                </article>
+
+                <article className="executive-overview-card">
+                  <div className="executive-overview-card-title">
+                    <span>Отклонение сроков</span>
+                    <strong>
+                      {project.scheduleVariance > 0 ? "+" : ""}
+                      {project.scheduleVariance} дн.
+                    </strong>
+                  </div>
+                  <div className="executive-overview-list">
+                    {overviewDashboard.scheduleDeltaItems.map(({ item, delay }) => (
+                      <div
+                        className="executive-overview-row"
+                        key={item.id}
+                      >
+                        <b>
+                          {item.code} {item.title}
+                        </b>
+                        <span>
+                          +{delay} кал. дн. к базовому плану / срок{" "}
+                          {date(item.dueDate)}
+                        </span>
+                      </div>
+                    ))}
+                    {overviewDashboard.scheduleDeltaItems.length === 0 && (
+                      <p>Отклонений от базового плана нет.</p>
+                    )}
+                  </div>
+                </article>
+              </section>
+            )}
 
             {activeView === "portfolio" && (
               <section className="projects-tree-section">
@@ -7475,6 +7235,15 @@ function App() {
                                 className="milestone-axis-arrow"
                                 aria-hidden="true"
                               />
+                              {milestoneTimeline.todayOffset !== null && (
+                                <span
+                                  className="milestone-today"
+                                  aria-hidden="true"
+                                  style={{
+                                    left: `calc(18px + ${(milestoneTimeline.todayOffset * 100).toFixed(3)}% - ${(milestoneTimeline.todayOffset * 60).toFixed(3)}px)`,
+                                  }}
+                                />
+                              )}
                               {lane.items.map(
                                 ({
                                   milestone,
@@ -7511,156 +7280,6 @@ function App() {
                     ) : (
                       <div className="empty-state">
                         В Структуре пока нет элементов типа «Веха».
-                      </div>
-                    )}
-                  </div>
-                </article>
-              )}
-
-              {project && activeView === "project-overview" && (
-                <article className="panel project-card">
-                  <div className="panel-title">
-                    <div>
-                      <h2>График проекта</h2>
-                      <p>
-                        Фазы, крупные работы и вехи проекта на общей временной шкале
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    className="overview-project-graph"
-                    style={
-                      {
-                        "--overview-graph-track-width": `${overviewProjectGraph.trackWidth}px`,
-                      } as CSSProperties
-                    }
-                  >
-                    {overviewProjectGraph.lanes.length > 0 ? (
-                      <div className="overview-graph-canvas">
-                        <div className="overview-graph-legend">
-                          <span>
-                            <i className="graph-legend-task planned" />
-                            Запланировано
-                          </span>
-                          <span>
-                            <i className="graph-legend-task active" />
-                            В работе
-                          </span>
-                          <span>
-                            <i className="graph-legend-task done" />
-                            Сделано
-                          </span>
-                          <span>
-                            <i className="graph-legend-task risk" />
-                            Риск / проблема
-                          </span>
-                          <span>
-                            <i className="graph-legend-task critical" />
-                            Критический путь
-                          </span>
-                          <span>
-                            <i className="graph-legend-milestone" />
-                            Веха
-                          </span>
-                        </div>
-                        <div className="overview-graph-months">
-                          <span />
-                          <div className="overview-graph-month-track">
-                            {overviewProjectGraph.months.map((month) => (
-                              <span
-                                key={`${month.label}-${month.offset}`}
-                                style={{
-                                  left: `${month.offset}%`,
-                                  width: `${month.width}%`,
-                                }}
-                              >
-                                {month.label}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        {overviewProjectGraph.lanes.map((lane) => (
-                          <div
-                            className="overview-graph-lane"
-                            key={lane.id}
-                            style={
-                              {
-                                "--overview-graph-rows": lane.rowCount,
-                              } as CSSProperties
-                            }
-                          >
-                            <div className="overview-graph-lane-title">
-                              {lane.code && <span>{lane.code}</span>}
-                              <strong>{lane.title}</strong>
-                            </div>
-                            <div className="overview-graph-track">
-                              {overviewProjectGraph.months
-                                .slice(1)
-                                .map((month) => (
-                                  <span
-                                    className="overview-graph-month-line"
-                                    key={`${lane.id}-${month.offset}`}
-                                    style={{ left: `${month.offset}%` }}
-                                  />
-                                ))}
-                              {overviewProjectGraph.todayOffset !== null && (
-                                <span
-                                  className="overview-graph-today"
-                                  style={{
-                                    left: `${overviewProjectGraph.todayOffset}%`,
-                                  }}
-                                />
-                              )}
-                              {lane.items.map((item) =>
-                                item.kind === "milestone" ? (
-                                  <button
-                                    type="button"
-                                    className={`overview-graph-milestone ${item.calloutPlacement ? `callout-${item.calloutPlacement}` : ""} ${item.calloutShape ? `shape-${item.calloutShape}` : ""} ${wbsToneClass(item).replace("tone-", "")}`}
-                                    key={item.id}
-                                    onClick={() => openView("project-structure")}
-                                    style={{
-                                      left: `${item.offset}%`,
-                                      top: `calc(${item.calloutPlacement ? OVERVIEW_GRAPH_SIDE_MILESTONE_TOP : OVERVIEW_GRAPH_MILESTONE_TOP}px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
-                                      "--overview-milestone-callout-width": item.calloutWidth
-                                        ? `${item.calloutWidth}px`
-                                        : undefined,
-                                    } as CSSProperties}
-                                    title={`${item.code} ${item.title}: ${date(item.dueDate)}.`}
-                                  >
-                                    <i aria-hidden="true" />
-                                    <strong>{item.title}</strong>
-                                    <span>{shortDate(item.dueDate)}</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className={`overview-graph-task ${item.status.toLowerCase().replaceAll("_", "-")} ${item.critical ? "critical" : ""}`}
-                                    key={item.id}
-                                    onClick={() => openView("project-structure")}
-                                    style={{
-                                      left: `${item.offset}%`,
-                                      top: `calc(${OVERVIEW_GRAPH_TASK_TOP}px + ${item.row} * ${OVERVIEW_GRAPH_ROW_HEIGHT}px)`,
-                                      width: `${item.width}%`,
-                                    }}
-                                    title={`${item.code} ${item.title}: ${date(item.startDate)} - ${date(item.dueDate)}.`}
-                                  >
-                                    <span>{item.title}</span>
-                                    {item.jiraTicketKey && <em>{item.jiraTicketKey}</em>}
-                                  </button>
-                                ),
-                              )}
-                              {lane.items.length === 0 && (
-                                <div className="overview-graph-empty-lane">
-                                  Нет крупных работ или вех с датами
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="empty-state">
-                        Для графика проекта нужны элементы Структуры с датами.
                       </div>
                     )}
                   </div>
