@@ -734,6 +734,43 @@ type MilestonePointStyle = CSSProperties & {
   "--milestone-label-level": number;
 };
 
+type MilestoneTone = "green" | "blue" | "red" | "gray";
+
+type MilestoneState = {
+  label: string;
+  tone: MilestoneTone;
+};
+
+type StructureMilestone = {
+  milestone: WbsItem;
+  calendarDaysLeft: number | null;
+  workDaysLeft: number | null;
+  state: MilestoneState;
+};
+
+type MilestoneTimelineItem = StructureMilestone & {
+  offset: number;
+  side: "top" | "bottom";
+  level: number;
+};
+
+type MilestoneTimelineLane = {
+  id: string;
+  code: string;
+  title: string;
+  items: MilestoneTimelineItem[];
+};
+
+type MilestoneTimelineModel = {
+  lanes: MilestoneTimelineLane[];
+  startDate: string;
+  endDate: string;
+  trackWidth: number;
+  laneHeight: number;
+  todayOffset: number | null;
+  hasMilestonesOutsideRange: boolean;
+};
+
 const WBS_LEVEL_MIN_WIDTH = 128;
 const GANTT_PANEL_HEIGHT_DEFAULT = 456;
 const GANTT_PANEL_WIDTH_DEFAULT = 0;
@@ -1610,7 +1647,10 @@ function wbsToneClass(
   return "tone-x";
 }
 
-function milestoneStateLabel(milestone: WbsItem, precedingTasks: WbsItem[]) {
+function milestoneStateLabel(
+  milestone: WbsItem,
+  precedingTasks: WbsItem[],
+): MilestoneState {
   const today = startOfDay(new Date());
   if (milestone.status === "DONE") {
     return { label: "Веха пройдена", tone: "green" };
@@ -1635,6 +1675,316 @@ function milestoneStateLabel(milestone: WbsItem, precedingTasks: WbsItem[]) {
     return { label: "Последние задачи в работе", tone: "blue" };
   }
   return { label: "Веха запланирована", tone: "gray" };
+}
+
+function splitPhaseTitle(value: string) {
+  return value
+    .trim()
+    .split(/\s+/)
+    .reduce<string[]>((lines, word) => {
+      const current = lines[lines.length - 1] ?? "";
+      if (!current) return [word];
+      if (`${current} ${word}`.length <= 12) {
+        return [...lines.slice(0, -1), `${current} ${word}`];
+      }
+      return [...lines, word];
+    }, [])
+    .slice(0, 4);
+}
+
+function createMilestoneTimelineModel({
+  milestones,
+  lanes,
+  today,
+  timelineStart,
+  timelineEnd,
+  laneIdByMilestoneId,
+  minTrackWidth = 1040,
+}: {
+  milestones: StructureMilestone[];
+  lanes: MilestoneTimelineLane[];
+  today: Date;
+  timelineStart: Date;
+  timelineEnd: Date;
+  laneIdByMilestoneId?: Map<string, string>;
+  minTrackWidth?: number;
+}): MilestoneTimelineModel {
+  const datedMilestones = milestones.filter(
+    (entry) =>
+      entry.milestone.dueDate &&
+      !Number.isNaN(new Date(entry.milestone.dueDate).getTime()),
+  );
+  const visibleMilestones = datedMilestones.filter((entry) => {
+    const dueDate = startOfDay(new Date(entry.milestone.dueDate as string));
+    return dueDate >= timelineStart && dueDate <= timelineEnd;
+  });
+  const minTime = timelineStart.getTime();
+  const maxTime = timelineEnd.getTime();
+  const range = maxTime - minTime;
+  const todayOffset =
+    today.getTime() >= minTime && today.getTime() <= maxTime
+      ? range === 0
+        ? 0
+        : (today.getTime() - minTime) / range
+      : null;
+
+  if (visibleMilestones.length === 0) {
+    return {
+      lanes: [],
+      startDate: timelineStart.toISOString(),
+      endDate: timelineEnd.toISOString(),
+      trackWidth: minTrackWidth,
+      laneHeight: 154,
+      todayOffset,
+      hasMilestonesOutsideRange: datedMilestones.length > 0,
+    };
+  }
+
+  const laneById = new Map(
+    lanes.map((lane) => [
+      lane.id,
+      { ...lane, items: [] as MilestoneTimelineItem[] },
+    ]),
+  );
+  const fallbackLane =
+    laneById.get("all") ??
+    laneById.get("unassigned") ??
+    ({
+      id: "unassigned",
+      code: "",
+      title: "Вехи",
+      items: [] as MilestoneTimelineItem[],
+    } satisfies MilestoneTimelineLane);
+
+  visibleMilestones.forEach((entry) => {
+    const dueTime = startOfDay(
+      new Date(entry.milestone.dueDate as string),
+    ).getTime();
+    const offset = range === 0 ? 0.5 : (dueTime - minTime) / range;
+    const targetLane =
+      laneById.get(laneIdByMilestoneId?.get(entry.milestone.id) ?? "") ??
+      fallbackLane;
+    targetLane.items.push({
+      ...entry,
+      offset,
+      side: "top",
+      level: 0,
+    });
+  });
+
+  if (!laneById.has(fallbackLane.id) && fallbackLane.items.length > 0) {
+    laneById.set(fallbackLane.id, fallbackLane);
+  }
+
+  let maxLaneLevel = 0;
+  const labelMinGap = 0.15;
+  const modelLanes = Array.from(laneById.values()).filter(
+    (lane) => lane.items.length > 0 || lane.id !== "unassigned",
+  );
+
+  modelLanes.forEach((lane) => {
+    const sideLevels: Record<"top" | "bottom", number[]> = {
+      top: [],
+      bottom: [],
+    };
+    lane.items.sort(
+      (left, right) =>
+        String(left.milestone.dueDate ?? "").localeCompare(
+          String(right.milestone.dueDate ?? ""),
+        ) || left.milestone.sortOrder - right.milestone.sortOrder,
+    );
+
+    lane.items.forEach((item, index) => {
+      const previous = index > 0 ? lane.items[index - 1] : null;
+      if (previous && item.offset - previous.offset < 0.018) {
+        item.offset = Math.min(0.985, previous.offset + 0.018);
+      }
+      const preferredSide = index % 2 === 0 ? "top" : "bottom";
+      const sides: Array<"top" | "bottom"> = [
+        preferredSide,
+        preferredSide === "top" ? "bottom" : "top",
+      ];
+      const sideCandidates = sides
+        .map((side) => {
+          const lastOffsets = sideLevels[side];
+          const reusableLevel = lastOffsets.findIndex(
+            (lastOffset) => item.offset - lastOffset >= labelMinGap,
+          );
+          return {
+            side,
+            level: reusableLevel === -1 ? lastOffsets.length : reusableLevel,
+            reusesLevel: reusableLevel !== -1,
+          };
+        })
+        .sort((left, right) => {
+          if (left.level !== right.level) return left.level - right.level;
+          if (left.reusesLevel !== right.reusesLevel) {
+            return left.reusesLevel ? -1 : 1;
+          }
+          return left.side === preferredSide ? -1 : 1;
+        });
+      const best = sideCandidates[0];
+      const lastOffsets = sideLevels[best.side];
+      const level = best.level;
+      if (level >= lastOffsets.length) {
+        lastOffsets.push(item.offset);
+      } else {
+        lastOffsets[level] = item.offset;
+      }
+      item.side = best.side;
+      item.level = level;
+      maxLaneLevel = Math.max(maxLaneLevel, level);
+    });
+  });
+
+  const maxLaneMilestones = Math.max(
+    1,
+    ...modelLanes.map((lane) => lane.items.length),
+  );
+
+  return {
+    lanes: modelLanes,
+    startDate: new Date(minTime).toISOString(),
+    endDate: new Date(maxTime).toISOString(),
+    trackWidth: Math.max(minTrackWidth, maxLaneMilestones * 150),
+    laneHeight: 146 + maxLaneLevel * 52,
+    todayOffset,
+    hasMilestonesOutsideRange: datedMilestones.length > visibleMilestones.length,
+  };
+}
+
+function printSectionAsPdf(sectionId: string, title: string) {
+  if (!document.getElementById(sectionId)) return;
+  const previousTitle = document.title;
+  document.body.dataset.printTarget = sectionId;
+  document.title = title;
+  window.setTimeout(() => {
+    window.print();
+    window.setTimeout(() => {
+      delete document.body.dataset.printTarget;
+      document.title = previousTitle;
+    }, 150);
+  }, 50);
+}
+
+function MilestoneLegend() {
+  return (
+    <div className="milestone-legend" aria-label="Легенда вех">
+      <span>
+        <i className="green" /> Пройдена
+      </span>
+      <span>
+        <i className="blue" /> В работе перед вехой
+      </span>
+      <span>
+        <i className="red" /> Просрочена
+      </span>
+      <span>
+        <i className="gray" /> Не начата или запланирована
+      </span>
+      <span>
+        <i className="today" /> Сегодня
+      </span>
+    </div>
+  );
+}
+
+function MilestoneTimelineSection({
+  sectionId,
+  title,
+  timeline,
+  onOpenStructure,
+  onPrint,
+}: {
+  sectionId: string;
+  title: string;
+  timeline: MilestoneTimelineModel;
+  onOpenStructure: () => void;
+  onPrint: () => void;
+}) {
+  return (
+    <section className="milestone-section" data-print-section={sectionId} id={sectionId}>
+      <div className="milestone-section-head">
+        <h3>{title}</h3>
+        <div className="milestone-section-actions">
+          <MilestoneLegend />
+          <button type="button" onClick={onPrint}>
+            Сохранить в PDF
+          </button>
+        </div>
+      </div>
+      <div
+        className="milestone-timeline"
+        style={
+          {
+            "--milestone-track-width": `${timeline.trackWidth}px`,
+            "--milestone-lane-height": `${timeline.laneHeight}px`,
+          } as CSSProperties
+        }
+      >
+        {timeline.lanes.length > 0 ? (
+          <div className="milestone-lanes">
+            <div className="milestone-scale">
+              <span>{shortDate(timeline.startDate)}</span>
+              <span>{shortDate(timeline.endDate)}</span>
+            </div>
+            {timeline.lanes.map((lane) => (
+              <div className="milestone-lane" key={lane.id}>
+                <div className="milestone-lane-title">
+                  {lane.code && <span>{lane.code}</span>}
+                  <strong>
+                    {splitPhaseTitle(lane.title).map((line) => (
+                      <span key={line}>{line}</span>
+                    ))}
+                  </strong>
+                </div>
+                <div className="milestone-lane-canvas">
+                  <div className="milestone-axis" aria-hidden="true" />
+                  <div className="milestone-axis-arrow" aria-hidden="true" />
+                  {timeline.todayOffset !== null && (
+                    <span
+                      className="milestone-today"
+                      aria-hidden="true"
+                      style={{
+                        left: `calc(18px + ${(timeline.todayOffset * 100).toFixed(3)}% - ${(timeline.todayOffset * 60).toFixed(3)}px)`,
+                      }}
+                    />
+                  )}
+                  {lane.items.map(({ milestone, state, offset, side, level }) => (
+                    <button
+                      type="button"
+                      className={`milestone-point ${side} ${state.tone}`}
+                      key={milestone.id}
+                      onClick={onOpenStructure}
+                      style={
+                        {
+                          left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
+                          "--milestone-label-level": level,
+                        } as MilestonePointStyle
+                      }
+                      title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
+                    >
+                      <span className="milestone-marker" />
+                      <span className="milestone-label">{milestone.title}</span>
+                      <span className="milestone-date">
+                        {shortDate(milestone.dueDate)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            {timeline.hasMilestonesOutsideRange
+              ? "В окне от -2 до +4 месяцев от текущей даты нет вех."
+              : "В Структуре пока нет элементов типа «Веха»."}
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
 
 function summaryToneClass(item: WbsTreeItem) {
@@ -2496,68 +2846,27 @@ function App() {
     const phases = items
       .filter((item) => item.type === "PHASE")
       .sort((left, right) => left.sortOrder - right.sortOrder);
-    const datedMilestones = structureMilestones.filter(
-      (entry) =>
-        entry.milestone.dueDate &&
-        !Number.isNaN(new Date(entry.milestone.dueDate).getTime()),
-    );
     const today = startOfDay(new Date());
     const timelineStart = startOfDay(addCalendarMonths(today, -2));
     const timelineEnd = startOfDay(addCalendarMonths(today, 4));
-    const visibleMilestones = datedMilestones.filter((entry) => {
-      const dueDate = startOfDay(new Date(entry.milestone.dueDate as string));
-      return dueDate >= timelineStart && dueDate <= timelineEnd;
-    });
-    if (visibleMilestones.length === 0) {
-      return {
-        lanes: [],
-        startDate: timelineStart.toISOString(),
-        endDate: timelineEnd.toISOString(),
-        trackWidth: 960,
-        laneHeight: 188,
-        todayOffset: 0.5,
-        hasMilestonesOutsideRange: datedMilestones.length > 0,
-      };
-    }
-
-    const minTime = timelineStart.getTime();
-    const maxTime = timelineEnd.getTime();
-    const range = maxTime - minTime;
-    const todayOffset =
-      today.getTime() >= minTime && today.getTime() <= maxTime
-        ? range === 0
-          ? 0
-          : (today.getTime() - minTime) / range
-        : null;
-    const laneByPhaseId = new Map(
-      phases.map((phase) => [
-        phase.id,
-        {
-          id: phase.id,
-          code: phase.code,
-          title: phase.title,
-          items: [] as Array<
-            (typeof visibleMilestones)[number] & {
-              offset: number;
-              side: "top" | "bottom";
-              level: number;
-            }
-          >,
-        },
-      ]),
-    );
-    const unassignedLane = {
-      id: "unassigned",
-      code: "",
-      title: phases.length > 0 ? "Без фазы" : "Все вехи",
-      items: [] as Array<
-        (typeof visibleMilestones)[number] & {
-          offset: number;
-          side: "top" | "bottom";
-          level: number;
-        }
-      >,
-    };
+    const allMilestoneDates = structureMilestones
+      .map((entry) =>
+        entry.milestone.dueDate
+          ? startOfDay(new Date(entry.milestone.dueDate))
+          : null,
+      )
+      .filter(
+        (value): value is Date =>
+          value !== null && !Number.isNaN(value.getTime()),
+      );
+    const allTimelineStart =
+      allMilestoneDates.length > 0
+        ? new Date(Math.min(...allMilestoneDates.map((value) => value.getTime())))
+        : timelineStart;
+    const allTimelineEnd =
+      allMilestoneDates.length > 0
+        ? new Date(Math.max(...allMilestoneDates.map((value) => value.getTime())))
+        : timelineEnd;
     const phaseIdForMilestone = (milestone: WbsItem) => {
       let currentId = milestone.parentId;
       const visited = new Set<string>();
@@ -2571,107 +2880,64 @@ function App() {
       return null;
     };
 
-    visibleMilestones.forEach((entry) => {
-      const dueTime = startOfDay(
-        new Date(entry.milestone.dueDate as string),
-      ).getTime();
-      const offset = range === 0 ? 0.5 : (dueTime - minTime) / range;
-      const laneItem = {
-        ...entry,
-        offset,
-        side: "top" as "top" | "bottom",
-        level: 0,
-      };
-      const phaseId = phaseIdForMilestone(entry.milestone);
-      const lane = phaseId ? laneByPhaseId.get(phaseId) : null;
-      if (lane) {
-        lane.items.push(laneItem);
-      } else {
-        unassignedLane.items.push(laneItem);
-      }
-    });
-
-    const lanes =
+    const laneIdByMilestoneId = new Map(
+      structureMilestones.map((entry) => [
+        entry.milestone.id,
+        phaseIdForMilestone(entry.milestone) ?? "unassigned",
+      ]),
+    );
+    const phaseLanes =
       phases.length > 0
         ? [
-            ...Array.from(laneByPhaseId.values()),
-            ...(unassignedLane.items.length > 0 ? [unassignedLane] : []),
+            ...phases.map((phase) => ({
+              id: phase.id,
+              code: phase.code,
+              title: phase.title,
+              items: [] as MilestoneTimelineItem[],
+            })),
+            {
+              id: "unassigned",
+              code: "",
+              title: "Без фазы",
+              items: [] as MilestoneTimelineItem[],
+            },
           ]
-        : [unassignedLane];
-    let maxLaneLevel = 0;
-    const labelMinGap = 0.15;
-    lanes.forEach((lane) => {
-      const sideLevels: Record<"top" | "bottom", number[]> = {
-        top: [],
-        bottom: [],
-      };
-      lane.items.sort(
-        (left, right) =>
-          String(left.milestone.dueDate ?? "").localeCompare(
-            String(right.milestone.dueDate ?? ""),
-          ) || left.milestone.sortOrder - right.milestone.sortOrder,
-      );
-
-      lane.items.forEach((item, index) => {
-        const previous = index > 0 ? lane.items[index - 1] : null;
-        if (previous && item.offset - previous.offset < 0.018) {
-          item.offset = Math.min(0.985, previous.offset + 0.018);
-        }
-        const preferredSide = index % 2 === 0 ? "top" : "bottom";
-        const sides: Array<"top" | "bottom"> = [
-          preferredSide,
-          preferredSide === "top" ? "bottom" : "top",
-        ];
-        const sideCandidates = sides
-          .map((side) => {
-            const lastOffsets = sideLevels[side];
-            const reusableLevel = lastOffsets.findIndex(
-              (lastOffset) => item.offset - lastOffset >= labelMinGap,
-            );
-            return {
-              side,
-              level: reusableLevel === -1 ? lastOffsets.length : reusableLevel,
-              reusesLevel: reusableLevel !== -1,
-            };
-          })
-          .sort((left, right) => {
-            if (left.level !== right.level) return left.level - right.level;
-            if (left.reusesLevel !== right.reusesLevel) {
-              return left.reusesLevel ? -1 : 1;
-            }
-            return left.side === preferredSide ? -1 : 1;
-          });
-        const best = sideCandidates[0];
-        const side = best.side;
-        const lastOffsets = sideLevels[side];
-        let level = best.level;
-        if (level === -1) {
-          level = lastOffsets.length;
-          lastOffsets.push(item.offset);
-        } else if (level >= lastOffsets.length) {
-          lastOffsets.push(item.offset);
-        } else {
-          lastOffsets[level] = item.offset;
-        }
-        item.side = side;
-        item.level = level;
-        maxLaneLevel = Math.max(maxLaneLevel, level);
-      });
+        : [
+            {
+              id: "unassigned",
+              code: "",
+              title: "Все вехи",
+              items: [] as MilestoneTimelineItem[],
+            },
+          ];
+    const byPhase = createMilestoneTimelineModel({
+      milestones: structureMilestones,
+      lanes: phaseLanes,
+      today,
+      timelineStart,
+      timelineEnd,
+      laneIdByMilestoneId,
     });
-    const maxLaneMilestones = Math.max(
-      1,
-      ...lanes.map((lane) => lane.items.length),
-    );
+    const all = createMilestoneTimelineModel({
+      milestones: structureMilestones,
+      lanes: [
+        {
+          id: "all",
+          code: "",
+          title: "Все вехи",
+          items: [] as MilestoneTimelineItem[],
+        },
+      ],
+      today,
+      timelineStart: allTimelineStart,
+      timelineEnd: allTimelineEnd,
+      laneIdByMilestoneId: new Map(
+        structureMilestones.map((entry) => [entry.milestone.id, "all"]),
+      ),
+      minTrackWidth: byPhase.trackWidth,
+    });
 
-    return {
-      lanes,
-      startDate: new Date(minTime).toISOString(),
-      endDate: new Date(maxTime).toISOString(),
-      trackWidth: Math.max(1040, maxLaneMilestones * 160),
-      laneHeight: 156 + maxLaneLevel * 56,
-      todayOffset,
-      hasMilestonesOutsideRange: datedMilestones.length > visibleMilestones.length,
-    };
+    return { byPhase, all };
   }, [project?.wbsItems, structureMilestones]);
   const overviewDashboard = useMemo(() => {
     const today = startOfDay(new Date());
@@ -8604,82 +8870,31 @@ function App() {
                       )}
                     </div>
                   </div>
-                  <div
-                    className="milestone-timeline"
-                    style={
-                      {
-                        "--milestone-track-width": `${milestoneTimeline.trackWidth}px`,
-                        "--milestone-lane-height": `${milestoneTimeline.laneHeight}px`,
-                      } as CSSProperties
-                    }
-                  >
-                    {milestoneTimeline.lanes.length > 0 ? (
-                      <div className="milestone-lanes">
-                        <div className="milestone-scale">
-                          <span>{shortDate(milestoneTimeline.startDate)}</span>
-                          <span>{shortDate(milestoneTimeline.endDate)}</span>
-                        </div>
-                        {milestoneTimeline.lanes.map((lane) => (
-                          <div className="milestone-lane" key={lane.id}>
-                            <div className="milestone-lane-title">
-                              {lane.code && <span>{lane.code}</span>}
-                              <strong>{lane.title}</strong>
-                            </div>
-                            <div className="milestone-lane-canvas">
-                              <div className="milestone-axis" aria-hidden="true" />
-                              <div
-                                className="milestone-axis-arrow"
-                                aria-hidden="true"
-                              />
-                              {milestoneTimeline.todayOffset !== null && (
-                                <span
-                                  className="milestone-today"
-                                  aria-hidden="true"
-                                  style={{
-                                    left: `calc(18px + ${(milestoneTimeline.todayOffset * 100).toFixed(3)}% - ${(milestoneTimeline.todayOffset * 60).toFixed(3)}px)`,
-                                  }}
-                                />
-                              )}
-                              {lane.items.map(
-                                ({
-                                  milestone,
-                                  state,
-                                  offset,
-                                  side,
-                                  level,
-                                }) => (
-                                  <button
-                                    type="button"
-                                    className={`milestone-point ${side} ${state.tone}`}
-                                    key={milestone.id}
-                                    onClick={() => openView("project-structure")}
-                                    style={{
-                                      left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
-                                      "--milestone-label-level": level,
-                                    } as MilestonePointStyle}
-                                    title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
-                                  >
-                                    <span className="milestone-marker" />
-                                    <span className="milestone-label">
-                                      {milestone.title}
-                                    </span>
-                                    <span className="milestone-date">
-                                      {shortDate(milestone.dueDate)}
-                                    </span>
-                                  </button>
-                                ),
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="empty-state">
-                        {milestoneTimeline.hasMilestonesOutsideRange
-                          ? "В окне от -2 до +4 месяцев от текущей даты нет вех."
-                          : "В Структуре пока нет элементов типа «Веха»."}
-                      </div>
-                    )}
+                  <div className="milestone-sections">
+                    <MilestoneTimelineSection
+                      sectionId="milestones-by-phase"
+                      title="Вехи по фазам"
+                      timeline={milestoneTimeline.byPhase}
+                      onOpenStructure={() => openView("project-structure")}
+                      onPrint={() =>
+                        printSectionAsPdf(
+                          "milestones-by-phase",
+                          `${project.code} - вехи по фазам`,
+                        )
+                      }
+                    />
+                    <MilestoneTimelineSection
+                      sectionId="milestones-all"
+                      title="Все вехи"
+                      timeline={milestoneTimeline.all}
+                      onOpenStructure={() => openView("project-structure")}
+                      onPrint={() =>
+                        printSectionAsPdf(
+                          "milestones-all",
+                          `${project.code} - все вехи`,
+                        )
+                      }
+                    />
                   </div>
                 </article>
               )}

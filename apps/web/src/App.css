@@ -1437,6 +1437,7 @@ button:disabled {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.workspace-focus-panel-fullscreen .milestone-sections,
 .workspace-focus-panel-fullscreen .milestone-timeline {
   min-height: 0;
 }
@@ -2401,6 +2402,101 @@ code {
   color: #be185d;
 }
 
+.milestone-sections {
+  display: grid;
+  gap: 16px;
+}
+
+.milestone-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.milestone-section-head {
+  align-items: flex-end;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.milestone-section-head h3 {
+  font-size: 16px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.milestone-section-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.milestone-section-actions button {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 10px;
+}
+
+.milestone-section-actions button:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.milestone-legend {
+  align-items: center;
+  color: #64748b;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.milestone-legend span {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.milestone-legend i {
+  border-radius: 999px;
+  display: inline-flex;
+  height: 10px;
+  width: 10px;
+}
+
+.milestone-legend i.green {
+  background: #16a34a;
+}
+
+.milestone-legend i.blue {
+  background: #2563eb;
+}
+
+.milestone-legend i.red {
+  background: #dc2626;
+}
+
+.milestone-legend i.gray {
+  background: #94a3b8;
+}
+
+.milestone-legend i.today {
+  background: transparent;
+  border-left: 2px dashed #ef4444;
+  border-radius: 0;
+  width: 0;
+}
+
 .milestone-timeline {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -2411,15 +2507,15 @@ code {
 .milestone-lanes {
   display: grid;
   gap: 10px;
-  min-width: calc(176px + 18px + var(--milestone-track-width, 960px));
+  min-width: calc(128px + 14px + var(--milestone-track-width, 960px));
   padding: 14px 20px 18px;
 }
 
 .milestone-scale,
 .milestone-lane {
   display: grid;
-  gap: 18px;
-  grid-template-columns: 176px var(--milestone-track-width, 960px);
+  gap: 14px;
+  grid-template-columns: 128px var(--milestone-track-width, 960px);
 }
 
 .milestone-scale {
@@ -2437,7 +2533,7 @@ code {
 
 .milestone-scale span {
   position: absolute;
-  left: calc(176px + 18px + 18px);
+  left: calc(128px + 14px + 18px);
   top: 0;
 }
 
@@ -2459,10 +2555,11 @@ code {
   gap: 4px;
   justify-content: center;
   min-height: var(--milestone-lane-height, 188px);
-  padding-right: 18px;
+  overflow-wrap: anywhere;
+  padding-right: 12px;
 }
 
-.milestone-lane-title span {
+.milestone-lane-title > span {
   color: #00608a;
   font-size: 12px;
   font-weight: 900;
@@ -2470,8 +2567,14 @@ code {
 }
 
 .milestone-lane-title strong {
+  display: grid;
   font-size: 16px;
+  gap: 2px;
   line-height: 1.2;
+}
+
+.milestone-lane-title strong span {
+  display: block;
 }
 
 .milestone-lane-canvas {
@@ -2662,6 +2765,58 @@ code {
   left: 24px;
   position: absolute;
   right: 24px;
+}
+
+@media print {
+  body[data-print-target] {
+    background: #fff;
+  }
+
+  body[data-print-target] .app-shell {
+    display: block;
+    min-height: auto;
+  }
+
+  body[data-print-target] .sidebar,
+  body[data-print-target] .sidebar-toggle,
+  body[data-print-target] .topbar,
+  body[data-print-target] .toast-stack,
+  body[data-print-target] .panel-title,
+  body[data-print-target] .milestone-section,
+  body[data-print-target] .milestone-section-actions,
+  body[data-print-target] .workspace > :not(.content-grid),
+  body[data-print-target] .content-grid > :not(.workspace-focus-milestones) {
+    display: none !important;
+  }
+
+  body[data-print-target="milestones-by-phase"]
+    [data-print-section="milestones-by-phase"],
+  body[data-print-target="milestones-all"] [data-print-section="milestones-all"] {
+    display: grid !important;
+  }
+
+  body[data-print-target] .workspace,
+  body[data-print-target] .content-grid,
+  body[data-print-target] .workspace-focus-milestones {
+    display: block !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  body[data-print-target] .workspace-focus-milestones {
+    border: 0;
+    box-shadow: none;
+  }
+
+  body[data-print-target] .milestone-timeline {
+    border: 0;
+    overflow: visible;
+  }
+
+  body[data-print-target] .milestone-lanes {
+    min-width: 0;
+    width: max-content;
+  }
 }
 
 .overview-wbs-kpis {
