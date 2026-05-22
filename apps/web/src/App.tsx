@@ -6047,6 +6047,20 @@ function App() {
     }
   }
 
+  function openRaidItemFromOverview(itemId: string) {
+    setRaidTypeFilter("RISK");
+    setRaidDecisionOnly(false);
+    setRaidOverdueOnly(false);
+    setRaidHighOnly(true);
+    setExpandedRaidId(itemId);
+    openView("project-raid");
+    window.setTimeout(() => {
+      document
+        .getElementById(`raid-item-${itemId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  }
+
   function selectProject(projectId: string, nextView: AppView = activeView) {
     setError(null);
     setNotice(null);
@@ -6655,7 +6669,13 @@ function App() {
                         className="executive-overview-row"
                         key={item.id}
                       >
-                        <b>{item.title}</b>
+                        <button
+                          className="executive-overview-risk-link"
+                          type="button"
+                          onClick={() => openRaidItemFromOverview(item.id)}
+                        >
+                          {item.title}
+                        </button>
                         <span>
                           Оценка {item.riskScore} / ответственный:{" "}
                           {item.owner || "не назначен"}
@@ -9439,7 +9459,11 @@ function App() {
                           <span />
                         </div>
                         {items.map((item) => (
-                          <div className="raid-item" key={item.id}>
+                          <div
+                            className="raid-item"
+                            id={`raid-item-${item.id}`}
+                            key={item.id}
+                          >
                             <div
                               className="raid-row"
                               role="button"

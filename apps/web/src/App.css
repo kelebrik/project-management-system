@@ -920,6 +920,27 @@ button:disabled {
   white-space: nowrap;
 }
 
+.executive-overview-risk-link {
+  background: transparent;
+  border: 0;
+  color: #1f2937;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.executive-overview-risk-link:hover,
+.executive-overview-risk-link:focus-visible {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
 .executive-overview-list span,
 .executive-overview-list p {
   color: #64748b;
