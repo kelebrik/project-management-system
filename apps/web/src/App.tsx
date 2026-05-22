@@ -774,7 +774,8 @@ type MilestoneTimelineModel = {
 type MilestoneSnakePoint = {
   x: number;
   y: number;
-  rowIndex: number;
+  tangentX: number;
+  tangentY: number;
 };
 
 type MilestoneSnakeLabel = {
@@ -790,9 +791,31 @@ type MilestoneSnakeLabel = {
 
 const MILESTONE_SNAKE_WIDTH = 1120;
 const MILESTONE_SNAKE_HEIGHT = 792;
-const MILESTONE_SNAKE_LEFT = 74;
-const MILESTONE_SNAKE_RIGHT = 1046;
-const MILESTONE_SNAKE_ROWS = [682, 542, 402, 262, 122];
+const MILESTONE_SNAKE_SAMPLES = 720;
+const MILESTONE_SNAKE_CONTROL_POINTS = [
+  { x: 66, y: 712 },
+  { x: 80, y: 620 },
+  { x: 54, y: 520 },
+  { x: 118, y: 452 },
+  { x: 170, y: 444 },
+  { x: 198, y: 518 },
+  { x: 300, y: 586 },
+  { x: 374, y: 688 },
+  { x: 456, y: 680 },
+  { x: 410, y: 542 },
+  { x: 364, y: 374 },
+  { x: 396, y: 226 },
+  { x: 506, y: 268 },
+  { x: 552, y: 392 },
+  { x: 642, y: 498 },
+  { x: 748, y: 570 },
+  { x: 870, y: 616 },
+  { x: 854, y: 512 },
+  { x: 810, y: 372 },
+  { x: 864, y: 234 },
+  { x: 956, y: 164 },
+  { x: 1048, y: 126 },
+];
 
 const WBS_LEVEL_MIN_WIDTH = 128;
 const GANTT_PANEL_HEIGHT_DEFAULT = 456;
@@ -1739,21 +1762,86 @@ function wrapText(value: string, maxLineLength: number, maxLines: number) {
   return lines.length > 0 ? lines : [value];
 }
 
+function catmullRomPoint(
+  points: Array<{ x: number; y: number }>,
+  index: number,
+  t: number,
+) {
+  const p0 = points[Math.max(0, index - 1)];
+  const p1 = points[index];
+  const p2 = points[Math.min(points.length - 1, index + 1)];
+  const p3 = points[Math.min(points.length - 1, index + 2)];
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return {
+    x:
+      0.5 *
+      (2 * p1.x +
+        (-p0.x + p2.x) * t +
+        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y:
+      0.5 *
+      (2 * p1.y +
+        (-p0.y + p2.y) * t +
+        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+  };
+}
+
+function sampleSnakePath() {
+  const points: Array<{ x: number; y: number; distance: number }> = [];
+  let previous = MILESTONE_SNAKE_CONTROL_POINTS[0];
+  let distance = 0;
+  points.push({ ...previous, distance });
+
+  for (let sample = 1; sample <= MILESTONE_SNAKE_SAMPLES; sample += 1) {
+    const globalT =
+      (sample / MILESTONE_SNAKE_SAMPLES) *
+      (MILESTONE_SNAKE_CONTROL_POINTS.length - 1);
+    const index = Math.min(
+      MILESTONE_SNAKE_CONTROL_POINTS.length - 2,
+      Math.floor(globalT),
+    );
+    const t = globalT - index;
+    const current = catmullRomPoint(MILESTONE_SNAKE_CONTROL_POINTS, index, t);
+    distance += Math.hypot(current.x - previous.x, current.y - previous.y);
+    points.push({ ...current, distance });
+    previous = current;
+  }
+
+  return points;
+}
+
+const MILESTONE_SNAKE_PATH_POINTS = sampleSnakePath();
+const MILESTONE_SNAKE_TOTAL_LENGTH =
+  MILESTONE_SNAKE_PATH_POINTS[MILESTONE_SNAKE_PATH_POINTS.length - 1]
+    ?.distance ?? 1;
+const MILESTONE_SNAKE_PATH_D = MILESTONE_SNAKE_PATH_POINTS.map((point, index) =>
+  `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`,
+).join(" ");
+
 function interpolateSnakePoint(progress: number): MilestoneSnakePoint {
   const bounded = Math.max(0, Math.min(1, progress));
-  const segmentCount = MILESTONE_SNAKE_ROWS.length - 1;
-  const scaled = bounded * segmentCount;
-  const rowIndex = Math.min(segmentCount - 1, Math.floor(scaled));
-  const segmentProgress = scaled - rowIndex;
-  const fromLeft = rowIndex % 2 === 0;
-  const startX = fromLeft ? MILESTONE_SNAKE_LEFT : MILESTONE_SNAKE_RIGHT;
-  const endX = fromLeft ? MILESTONE_SNAKE_RIGHT : MILESTONE_SNAKE_LEFT;
-  const startY = MILESTONE_SNAKE_ROWS[rowIndex];
-  const endY = MILESTONE_SNAKE_ROWS[rowIndex + 1];
+  const targetDistance = bounded * MILESTONE_SNAKE_TOTAL_LENGTH;
+  const targetIndex = MILESTONE_SNAKE_PATH_POINTS.findIndex(
+    (point) => point.distance >= targetDistance,
+  );
+  const nextIndex =
+    targetIndex === -1 ? MILESTONE_SNAKE_PATH_POINTS.length - 1 : targetIndex;
+  const previousIndex = Math.max(0, nextIndex - 1);
+  const previous = MILESTONE_SNAKE_PATH_POINTS[previousIndex];
+  const next = MILESTONE_SNAKE_PATH_POINTS[nextIndex];
+  const localRange = Math.max(1, next.distance - previous.distance);
+  const localProgress = (targetDistance - previous.distance) / localRange;
+  const x = previous.x + (next.x - previous.x) * localProgress;
+  const y = previous.y + (next.y - previous.y) * localProgress;
+  const tangentLength = Math.max(1, Math.hypot(next.x - previous.x, next.y - previous.y));
   return {
-    x: startX + (endX - startX) * segmentProgress,
-    y: startY + (endY - startY) * segmentProgress,
-    rowIndex,
+    x,
+    y,
+    tangentX: (next.x - previous.x) / tangentLength,
+    tangentY: (next.y - previous.y) / tangentLength,
   };
 }
 
@@ -1765,15 +1853,20 @@ function snakeLabelForPoint(
   const compact = total > 18;
   const boxWidth = compact ? 148 : 176;
   const boxHeight = compact ? 68 : 76;
-  const placeAbove = index % 2 === 0;
+  const normalX = -point.tangentY;
+  const normalY = point.tangentX;
+  const primarySide = index % 2 === 0 ? 1 : -1;
+  const labelDistance = compact ? 70 : 82;
+  const placeX = point.x + normalX * labelDistance * primarySide;
+  const placeY = point.y + normalY * labelDistance * primarySide;
   const preferRight =
-    point.x < MILESTONE_SNAKE_LEFT + 170
+    placeX < 210
       ? true
-      : point.x > MILESTONE_SNAKE_RIGHT - 170
+      : placeX > MILESTONE_SNAKE_WIDTH - 210
         ? false
-        : index % 4 < 2;
-  let boxX = point.x + (preferRight ? 22 : -boxWidth - 22);
-  let boxY = point.y + (placeAbove ? -boxHeight - 26 : 26);
+        : placeX >= point.x;
+  let boxX = placeX + (preferRight ? 16 : -boxWidth - 16);
+  let boxY = placeY - boxHeight / 2;
   boxX = Math.max(18, Math.min(MILESTONE_SNAKE_WIDTH - boxWidth - 18, boxX));
   boxY = Math.max(18, Math.min(MILESTONE_SNAKE_HEIGHT - boxHeight - 18, boxY));
   return {
@@ -2100,10 +2193,6 @@ function MilestoneSnakeTimelineSection({
   const startTime = new Date(timeline.startDate).getTime();
   const endTime = new Date(timeline.endDate).getTime();
   const range = endTime - startTime;
-  const snakePath = MILESTONE_SNAKE_ROWS.map((y, index) => {
-    const x = index % 2 === 0 ? MILESTONE_SNAKE_LEFT : MILESTONE_SNAKE_RIGHT;
-    return `${index === 0 ? "M" : "L"} ${x} ${y}`;
-  }).join(" ");
   const monthTicks = (() => {
     const start = startOfMonth(new Date(timeline.startDate));
     const end = startOfMonth(new Date(timeline.endDate));
@@ -2165,7 +2254,7 @@ function MilestoneSnakeTimelineSection({
               fill="#fff"
             />
             <path
-              d={snakePath}
+              d={MILESTONE_SNAKE_PATH_D}
               className="milestone-snake-axis"
               markerEnd="url(#milestoneSnakeArrow)"
             />
@@ -2173,15 +2262,15 @@ function MilestoneSnakeTimelineSection({
               <g key={`${tick.label}-${tick.point.x}-${tick.point.y}`}>
                 <line
                   className="milestone-snake-tick"
-                  x1={tick.point.x}
-                  x2={tick.point.x}
-                  y1={tick.point.y - 14}
-                  y2={tick.point.y + 14}
+                  x1={tick.point.x - tick.point.tangentY * 14}
+                  x2={tick.point.x + tick.point.tangentY * 14}
+                  y1={tick.point.y + tick.point.tangentX * 14}
+                  y2={tick.point.y - tick.point.tangentX * 14}
                 />
                 <text
                   className="milestone-snake-month"
                   x={tick.point.x}
-                  y={tick.point.y + (tick.point.rowIndex % 2 === 0 ? 34 : -26)}
+                  y={tick.point.y + 34}
                 >
                   {tick.label}
                 </text>
@@ -2193,10 +2282,10 @@ function MilestoneSnakeTimelineSection({
                 <g>
                   <line
                     className="milestone-snake-today"
-                    x1={todayPoint.x}
-                    x2={todayPoint.x}
-                    y1={todayPoint.y - 42}
-                    y2={todayPoint.y + 42}
+                    x1={todayPoint.x - todayPoint.tangentY * 42}
+                    x2={todayPoint.x + todayPoint.tangentY * 42}
+                    y1={todayPoint.y + todayPoint.tangentX * 42}
+                    y2={todayPoint.y - todayPoint.tangentX * 42}
                   />
                   <text
                     className="milestone-snake-today-label"
