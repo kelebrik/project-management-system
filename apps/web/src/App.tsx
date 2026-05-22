@@ -1499,17 +1499,6 @@ function projectOptionLabel(project: ProjectListItem) {
   return `${project.code} - ${project.name}`;
 }
 
-function overviewStatusLabel(status: ExecutiveOverview["status"]) {
-  const labelsByStatus: Record<string, string> = {
-    DRAFT: "Черновик",
-    GENERATED: "Сгенерирован",
-    PM_REVIEW: "На проверке РП",
-    APPROVED: "Согласован",
-    PUBLISHED: "Опубликован",
-  };
-  return labelsByStatus[status] ?? status;
-}
-
 function auditActionLabel(action: string) {
   const labelsByAction: Record<string, string> = {
     "auth.bootstrap_admin": "Первичная настройка администратора",
@@ -2044,10 +2033,6 @@ function App() {
     useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [selectedOverviewId, setSelectedOverviewId] = useState<string | null>(
-    null,
-  );
-  const [overviewAction, setOverviewAction] = useState<string | null>(null);
   const [jiraForm, setJiraForm] = useState<JiraFormState>({
     baseUrl: "",
     boardUrl: "",
@@ -2771,9 +2756,15 @@ function App() {
         ),
       )
       .slice(0, 5);
-    const scheduleDeltaItems = wbsItems
+    const criticalPathIds = new Set(project?.criticalPath?.criticalItemIds ?? []);
+    const scheduleVarianceItems =
+      criticalPathIds.size > 0
+        ? wbsItems.filter((item) => criticalPathIds.has(item.id))
+        : wbsItems;
+    const scheduleDeltaItems = scheduleVarianceItems
       .filter(
         (item) =>
+          item.type !== "MILESTONE" &&
           item.baselineDueDate &&
           item.dueDate &&
           item.status !== "DONE" &&
@@ -2789,6 +2780,22 @@ function App() {
       .filter(({ delay }) => delay > 0)
       .sort((left, right) => right.delay - left.delay)
       .slice(0, 5);
+    const scheduleVarianceFromStructure = scheduleVarianceItems
+      .filter(
+        (item) =>
+          item.type !== "MILESTONE" &&
+          item.baselineDueDate &&
+          item.dueDate &&
+          item.status !== "DONE" &&
+          item.status !== "CANCELLED",
+      )
+      .reduce((maxDelay, item) => {
+        const delay = signedDaysBetween(
+          startOfDay(new Date(item.baselineDueDate as string)),
+          startOfDay(new Date(item.dueDate as string)),
+        );
+        return Math.max(maxDelay, delay);
+      }, 0);
 
     return {
       openIssues,
@@ -2800,8 +2807,9 @@ function App() {
       blockingTickets,
       openDecisionItems,
       scheduleDeltaItems,
+      scheduleVarianceFromStructure,
     };
-  }, [project?.issues, project?.raidItems, project?.wbsItems, structureMilestones]);
+  }, [project?.criticalPath, project?.issues, project?.raidItems, project?.wbsItems, structureMilestones]);
   const raidSummary = useMemo(() => {
     const raidItems = project?.raidItems ?? [];
     const activeRaid = raidItems.filter(
@@ -3314,14 +3322,6 @@ function App() {
     }
     return map;
   }, [project?.calendarOverrides]);
-  const selectedExecutiveOverview = useMemo(() => {
-    const overviews = project?.overviews ?? [];
-    return (
-      overviews.find((overview) => overview.id === selectedOverviewId) ??
-      overviews[0] ??
-      null
-    );
-  }, [project?.overviews, selectedOverviewId]);
   async function syncJira() {
     if (!project) return;
     setSyncing(true);
@@ -3488,12 +3488,6 @@ function App() {
         nextProject.raidItems.some((item) => item.id === currentRaidId)
           ? currentRaidId
           : null,
-      );
-      setSelectedOverviewId((currentOverviewId) =>
-        currentOverviewId &&
-        nextProject.overviews.some((overview) => overview.id === currentOverviewId)
-          ? currentOverviewId
-          : nextProject.overviews[0]?.id ?? null,
       );
     },
     [setWbsRedoHistory, setWbsUndoHistory],
@@ -3804,89 +3798,6 @@ function App() {
       "Не удалось загрузить проект",
     );
     applyProject(refreshed);
-  }
-
-  async function generateExecutiveOverview() {
-    if (!project || isReadOnly) return;
-    setOverviewAction("generate");
-    setError(null);
-    setNotice(null);
-    try {
-      const overview = await apiClient.post<ExecutiveOverview>(
-        `/api/projects/${project.id}/executive-overviews/generate`,
-        undefined,
-        "Не удалось сгенерировать обзор",
-      );
-      setSelectedOverviewId(overview.id);
-      await refreshProject(project.id);
-      setNotice(`Обзор для руководства v${overview.version} сгенерирован`);
-    } catch (overviewError) {
-      setError(
-        overviewError instanceof Error
-          ? overviewError.message
-          : "Не удалось сгенерировать обзор",
-      );
-    } finally {
-      setOverviewAction(null);
-    }
-  }
-
-  async function changeExecutiveOverviewStatus(
-    overview: ExecutiveOverview,
-    status: "PM_REVIEW" | "APPROVED",
-  ) {
-    if (!project || isReadOnly) return;
-    setOverviewAction(status);
-    setError(null);
-    setNotice(null);
-    try {
-      await apiClient.post<ExecutiveOverview>(
-        `/api/executive-overviews/${overview.id}/status`,
-        {
-          status,
-          approvedBy: currentUser?.name ?? "Проектный офис",
-        },
-        "Не удалось изменить статус обзора",
-      );
-      await refreshProject(project.id);
-      setNotice(
-        status === "PM_REVIEW"
-          ? `Обзор v${overview.version} отправлен на проверку`
-          : `Обзор v${overview.version} согласован`,
-      );
-    } catch (overviewError) {
-      setError(
-        overviewError instanceof Error
-          ? overviewError.message
-          : "Не удалось изменить статус обзора",
-      );
-    } finally {
-      setOverviewAction(null);
-    }
-  }
-
-  async function publishExecutiveOverview(overview: ExecutiveOverview) {
-    if (!project || isReadOnly) return;
-    setOverviewAction("publish");
-    setError(null);
-    setNotice(null);
-    try {
-      await apiClient.post<ExecutiveOverview>(
-        `/api/executive-overviews/${overview.id}/publish`,
-        undefined,
-        "Не удалось опубликовать обзор",
-      );
-      await refreshProject(project.id);
-      setNotice(`Обзор v${overview.version} опубликован`);
-    } catch (overviewError) {
-      setError(
-        overviewError instanceof Error
-          ? overviewError.message
-          : "Не удалось опубликовать обзор",
-      );
-    } finally {
-      setOverviewAction(null);
-    }
   }
 
   async function saveJiraIntegration(event: FormEvent<HTMLFormElement>) {
@@ -7287,7 +7198,7 @@ function App() {
 
                   <article className="executive-overview-card">
                     <div className="executive-overview-card-title">
-                      <span>Блокирующие тикеты со сроками</span>
+                      <span>Тикеты под риском</span>
                       <strong>{JIRA_BLOCKING_TICKET_PLACEHOLDER.length}</strong>
                     </div>
                     <div
@@ -7348,8 +7259,8 @@ function App() {
                     <div className="executive-overview-card-title">
                       <span>Отклонение сроков</span>
                       <strong>
-                        {project.scheduleVariance > 0 ? "+" : ""}
-                        {project.scheduleVariance} дн.
+                        {overviewDashboard.scheduleVarianceFromStructure > 0 ? "+" : ""}
+                        {overviewDashboard.scheduleVarianceFromStructure} дн.
                       </strong>
                     </div>
                     <div className="executive-overview-list">
@@ -7373,157 +7284,6 @@ function App() {
                     </div>
                   </article>
                 </section>
-
-                <article className="panel project-card executive-publish-panel">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Executive Overview</h2>
-                      <p>Версии, evidence, публикация и экспорт обзора для руководства</p>
-                    </div>
-                    <div className="panel-title-actions">
-                      <button
-                        type="button"
-                        onClick={() => void generateExecutiveOverview()}
-                        disabled={isReadOnly || overviewAction !== null}
-                      >
-                        {overviewAction === "generate"
-                          ? "Генерирую..."
-                          : "Сгенерировать версию"}
-                      </button>
-                    </div>
-                  </div>
-                  {selectedExecutiveOverview ? (
-                    <div className="executive-publish-layout">
-                      <div className="overview-version-list">
-                        {project.overviews.map((overview) => (
-                          <button
-                            type="button"
-                            className={
-                              selectedExecutiveOverview.id === overview.id
-                                ? "active"
-                                : ""
-                            }
-                            key={overview.id}
-                            onClick={() => setSelectedOverviewId(overview.id)}
-                          >
-                            <strong>v{overview.version}</strong>
-                            <span>{overviewStatusLabel(overview.status)}</span>
-                            <small>
-                              {dateTime(
-                                overview.publishedAt ?? overview.generatedAt,
-                              )}
-                            </small>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="overview-version-detail">
-                        <div className="overview-version-toolbar">
-                          <span className="overview-status-pill">
-                            {overviewStatusLabel(selectedExecutiveOverview.status)}
-                          </span>
-                          <span>
-                            Сгенерирован:{" "}
-                            {dateTime(selectedExecutiveOverview.generatedAt)}
-                          </span>
-                          {selectedExecutiveOverview.approvedBy && (
-                            <span>
-                              Согласовал: {selectedExecutiveOverview.approvedBy}
-                            </span>
-                          )}
-                          <div className="overview-version-actions">
-                            {selectedExecutiveOverview.status === "GENERATED" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void changeExecutiveOverviewStatus(
-                                    selectedExecutiveOverview,
-                                    "PM_REVIEW",
-                                  )
-                                }
-                                disabled={isReadOnly || overviewAction !== null}
-                              >
-                                На проверку
-                              </button>
-                            )}
-                            {selectedExecutiveOverview.status === "PM_REVIEW" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void changeExecutiveOverviewStatus(
-                                    selectedExecutiveOverview,
-                                    "APPROVED",
-                                  )
-                                }
-                                disabled={isReadOnly || overviewAction !== null}
-                              >
-                                Согласовать
-                              </button>
-                            )}
-                            {selectedExecutiveOverview.status === "APPROVED" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void publishExecutiveOverview(
-                                    selectedExecutiveOverview,
-                                  )
-                                }
-                                disabled={isReadOnly || overviewAction !== null}
-                              >
-                                Опубликовать
-                              </button>
-                            )}
-                            <a
-                              className="button"
-                              href={`${apiBase}/api/executive-overviews/${selectedExecutiveOverview.id}/export.html`}
-                            >
-                              Экспорт HTML
-                            </a>
-                            <a
-                              className="button"
-                              href={`${apiBase}/api/executive-overviews/${selectedExecutiveOverview.id}/export.json`}
-                            >
-                              Экспорт JSON
-                            </a>
-                          </div>
-                        </div>
-                        <p className="overview-summary-text">
-                          {selectedExecutiveOverview.executiveSummary}
-                        </p>
-                        <div className="overview-evidence-grid">
-                          <div>
-                            <h3>Evidence</h3>
-                            <div className="evidence-list">
-                              {selectedExecutiveOverview.evidence.map((item) => (
-                                <span key={`${item.metric}-${item.source}`}>
-                                  <b>{item.metric}</b>: {item.source}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <h3>Решения</h3>
-                            <div className="overview-list compact">
-                              {selectedExecutiveOverview.decisions.map((item) => (
-                                <div key={`${item.title}-${item.deadline}`}>
-                                  <b>{item.title}</b>
-                                  <span>Срок: {date(item.deadline)}</span>
-                                </div>
-                              ))}
-                              {selectedExecutiveOverview.decisions.length === 0 && (
-                                <p>Решений для публикации нет.</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="empty-state">
-                      Версий executive overview пока нет. Сгенерируйте первую
-                      версию после проверки данных проекта.
-                    </div>
-                  )}
-                </article>
               </>
             )}
 
