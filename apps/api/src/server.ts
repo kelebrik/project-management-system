@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { fetchJiraIssues, isJiraConfigured } from './jira.js';
+import { recordAuditEvent } from './services/audit.js';
 import {
   getProjectWbsSnapshot,
   levelFromWbsCode,
@@ -423,6 +424,14 @@ app.post('/api/auth/bootstrap', async (req, res) => {
       });
 
   await createSession(user.id, req, res);
+  await recordAuditEvent({
+    req,
+    actor: user,
+    action: 'auth.bootstrap_admin',
+    objectType: 'User',
+    objectId: user.id,
+    afterValue: user,
+  });
   res.status(201).json({ user });
 });
 
@@ -457,6 +466,14 @@ app.post('/api/auth/login', async (req, res) => {
     data: { lastLoginAt },
   });
   await createSession(user.id, req, res);
+  await recordAuditEvent({
+    req,
+    actor: user,
+    action: 'auth.login',
+    objectType: 'User',
+    objectId: user.id,
+    metadata: { lastLoginAt },
+  });
   res.json({
     user: safeUser({
       id: user.id,
@@ -475,14 +492,33 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
 
 app.post('/api/auth/logout', async (req, res) => {
   const sessionId = currentSessionId(req);
+  const user = currentUser(req);
   if (sessionId) {
     await prisma.userSession.delete({ where: { id: sessionId } }).catch(() => undefined);
+  }
+  if (user) {
+    await recordAuditEvent({
+      req,
+      actor: user,
+      action: 'auth.logout',
+      objectType: 'User',
+      objectId: user.id,
+    });
   }
   res.setHeader('Set-Cookie', clearSessionCookie());
   res.status(204).send();
 });
 
 app.use('/api', requireAuthForWrites);
+
+app.get('/api/audit-events', requireAdmin, async (req, res) => {
+  const take = Math.min(200, Math.max(1, Number(req.query.limit ?? 100)));
+  const events = await prisma.auditEvent.findMany({
+    orderBy: { createdAt: 'desc' },
+    take,
+  });
+  res.json(events);
+});
 
 app.get('/api/users', requireAdmin, async (_req, res) => {
   const users = await prisma.user.findMany({
@@ -530,6 +566,14 @@ app.post('/api/users', requireAdmin, async (req, res) => {
         updatedAt: true,
       },
     });
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'user.create',
+      objectType: 'User',
+      objectId: user.id,
+      afterValue: userResponse(user),
+    });
     res.status(201).json(userResponse(user));
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -558,6 +602,19 @@ app.patch('/api/users/:userId', requireAdmin, async (req, res) => {
   }
 
   try {
+    const before = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
     const user = await prisma.user.update({
       where: { id: userId },
       data: parsed.data,
@@ -572,6 +629,15 @@ app.patch('/api/users/:userId', requireAdmin, async (req, res) => {
         createdAt: true,
         updatedAt: true,
       },
+    });
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'user.update',
+      objectType: 'User',
+      objectId: user.id,
+      beforeValue: before,
+      afterValue: userResponse(user),
     });
     res.json(userResponse(user));
   } catch (error) {
@@ -616,6 +682,14 @@ app.post('/api/users/:userId/password', requireAdmin, async (req, res) => {
       },
     });
     await prisma.userSession.deleteMany({ where: { userId: user.id } });
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'user.password_change',
+      objectType: 'User',
+      objectId: user.id,
+      metadata: { sessionsRevoked: true },
+    });
     res.json(userResponse(user));
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -994,6 +1068,30 @@ async function deleteProjectCascade(projectId: string) {
   });
 }
 
+async function projectAuditSnapshot(projectId: string) {
+  return prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      jiraIntegration: true,
+      _count: {
+        select: {
+          tasks: true,
+          issues: true,
+          jiraSnapshots: true,
+          milestones: true,
+          wbsItems: true,
+          wbsDependencies: true,
+          wbsBaselines: true,
+          artifacts: true,
+          raidItems: true,
+          changeRequests: true,
+          calendarOverrides: true,
+        },
+      },
+    },
+  });
+}
+
 app.post('/api/projects', async (req, res) => {
   const parsed = createProjectSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1076,6 +1174,26 @@ app.post('/api/projects', async (req, res) => {
       await createDefaultProjectStructure(project.id, project.startDate);
     }
 
+    const afterSnapshot = await projectAuditSnapshot(project.id);
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'project.create',
+      objectType: 'Project',
+      objectId: project.id,
+      projectId: project.id,
+      afterValue: afterSnapshot ?? project,
+      metadata: copiedBaseline
+        ? {
+            copiedBaselineFromProjectId: copyBaselineFromProjectId,
+            sourceBaselineId: copiedBaseline.sourceBaselineId,
+            copiedBaselineId: copiedBaseline.copiedBaseline.id,
+            itemCount: copiedBaseline.itemCount,
+            dependencyCount: copiedBaseline.dependencyCount,
+          }
+        : { defaultStructureCreated: true },
+    });
+
     res.status(201).json({ ...project, copiedBaseline });
   } catch (error) {
     if (
@@ -1136,6 +1254,7 @@ app.patch('/api/projects/:projectId', async (req, res) => {
   }
 
   try {
+    const beforeSnapshot = await projectAuditSnapshot(project.id);
     const updated = await prisma.project.update({
       where: { id: project.id },
       data: {
@@ -1150,6 +1269,19 @@ app.patch('/api/projects/:projectId', async (req, res) => {
             ? undefined
             : sanitizeProjectUiState(parsed.data.uiState),
       },
+    });
+
+    const afterSnapshot = await projectAuditSnapshot(project.id);
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'project.update',
+      objectType: 'Project',
+      objectId: project.id,
+      projectId: project.id,
+      beforeValue: beforeSnapshot ?? project,
+      afterValue: afterSnapshot ?? updated,
+      metadata: { changedFields: Object.keys(parsed.data) },
     });
 
     res.json(updated);
@@ -1190,6 +1322,16 @@ app.post('/api/projects/:projectId/close', requireAdmin, async (req, res) => {
     data: { status: 'CLOSED' },
     include: projectInclude,
   });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'project.close',
+    objectType: 'Project',
+    objectId: project.id,
+    projectId: project.id,
+    beforeValue: project,
+    afterValue: updated,
+  });
   res.json(updated);
 });
 
@@ -1206,7 +1348,17 @@ app.delete('/api/projects/:projectId', requireAdmin, async (req, res) => {
     return;
   }
 
+  const beforeSnapshot = await projectAuditSnapshot(project.id);
   await deleteProjectCascade(project.id);
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'project.delete',
+    objectType: 'Project',
+    objectId: project.id,
+    projectId: project.id,
+    beforeValue: beforeSnapshot ?? project,
+  });
   res.status(204).send();
 });
 

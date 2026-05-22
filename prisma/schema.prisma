@@ -180,6 +180,7 @@ model User {
   sessions      UserSession[]
   wbsCommands  WbsCommand[]
   wbsBaselines WbsBaseline[]
+  auditEvents  AuditEvent[]
 
   @@index([role, isActive])
 }
@@ -568,4 +569,28 @@ model ChangeRequest {
 
   @@index([projectId, status])
   @@index([projectId, updatedAt])
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actorEmail  String?
+  actorName   String?
+  action      String
+  objectType  String
+  objectId    String?
+  projectId   String?
+  ipAddress   String?
+  userAgent   String?
+  beforeValue Json?
+  afterValue  Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actor       User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([objectType, objectId])
+  @@index([projectId, createdAt])
+  @@index([action, createdAt])
 }

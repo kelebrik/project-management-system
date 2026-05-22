@@ -1551,6 +1551,53 @@ code {
   min-width: 1220px;
 }
 
+.audit-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.audit-head,
+.audit-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns: 172px minmax(240px, 1fr) minmax(220px, 0.8fr) minmax(260px, 1fr) 140px;
+  min-width: 1040px;
+}
+
+.audit-head {
+  background: #eaf0f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  min-height: 42px;
+  text-transform: uppercase;
+}
+
+.audit-head span,
+.audit-row span,
+.audit-row strong {
+  min-width: 0;
+  overflow: hidden;
+  padding: 10px 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-row {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+  color: #475569;
+  font-size: 13px;
+}
+
+.audit-row strong {
+  color: #1f2937;
+  font-size: 13px;
+}
+
 .checkbox-field {
   align-items: center;
   grid-template-columns: 1fr auto;
@@ -4818,6 +4865,8 @@ code {
   .project-tree-row,
   .project-admin-head,
   .project-admin-row,
+  .audit-head,
+  .audit-row,
   .artifact-head,
   .artifact-row,
   .raid-row,
@@ -4870,6 +4919,7 @@ code {
 
   .project-tree-head,
   .project-admin-head,
+  .audit-head,
   .artifact-head,
   .raid-head,
   .cr-head {
@@ -4888,7 +4938,9 @@ code {
   }
 
   .project-admin-row label,
-  .project-admin-readonly {
+  .project-admin-readonly,
+  .audit-row span,
+  .audit-row strong {
     border-right: 0;
     padding: 8px 10px;
   }
@@ -4900,6 +4952,17 @@ code {
 
   .project-admin-actions {
     justify-content: flex-end;
+  }
+
+  .audit-table {
+    overflow-x: visible;
+  }
+
+  .audit-row {
+    border: 1px solid #dbe4ef;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    min-width: 0;
   }
 
   .project-tree-row > span,

@@ -97,6 +97,23 @@ type SystemUser = CurrentUser & {
   hasPassword: boolean;
 };
 
+type AuditEvent = {
+  id: string;
+  actorId: string | null;
+  actorEmail: string | null;
+  actorName: string | null;
+  action: string;
+  objectType: string;
+  objectId: string | null;
+  projectId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  beforeValue: unknown;
+  afterValue: unknown;
+  metadata: unknown;
+  createdAt: string;
+};
+
 type AuthFormState = {
   email: string;
   name: string;
@@ -1202,6 +1219,17 @@ function date(value: string | null) {
   }).format(new Date(value));
 }
 
+function dateTime(value: string | null) {
+  if (!value) return "не задано";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function shortDate(value: string | null) {
   if (!value) return "не задано";
   return new Intl.DateTimeFormat("ru-RU", {
@@ -1293,6 +1321,28 @@ function isHttpsUrl(value: string) {
 
 function projectOptionLabel(project: ProjectListItem) {
   return `${project.code} - ${project.name}`;
+}
+
+function auditActionLabel(action: string) {
+  const labelsByAction: Record<string, string> = {
+    "auth.bootstrap_admin": "Первичная настройка администратора",
+    "auth.login": "Вход в систему",
+    "auth.logout": "Выход из системы",
+    "user.create": "Создание пользователя",
+    "user.update": "Изменение пользователя",
+    "user.password_change": "Смена пароля пользователя",
+    "project.create": "Создание проекта",
+    "project.update": "Изменение проекта",
+    "project.close": "Закрытие проекта",
+    "project.delete": "Удаление проекта",
+  };
+  return labelsByAction[action] ?? action;
+}
+
+function auditObjectLabel(event: AuditEvent) {
+  if (event.objectType === "Project" && event.projectId) return "Проект";
+  if (event.objectType === "User") return "Пользователь";
+  return event.objectType;
 }
 
 function projectStatusLabel(status: ProjectListItem["status"]) {
@@ -1774,6 +1824,7 @@ function App() {
   const [userDrafts, setUserDrafts] = useState<Record<string, UserDraftState>>(
     {},
   );
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [newUserForm, setNewUserForm] = useState<UserFormState>(emptyUserForm);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
@@ -2045,12 +2096,18 @@ function App() {
       return;
     }
     let cancelled = false;
-    apiClient
-      .get<SystemUser[]>("/api/users", "Не удалось загрузить пользователей")
-      .then((data) => {
+    Promise.all([
+      apiClient.get<SystemUser[]>("/api/users", "Не удалось загрузить пользователей"),
+      apiClient.get<AuditEvent[]>(
+        "/api/audit-events?limit=100",
+        "Не удалось загрузить журнал аудита",
+      ),
+    ])
+      .then(([data, events]) => {
         if (cancelled) return;
         setUsers(data);
         setUserDrafts(usersToDrafts(data));
+        setAuditEvents(events);
       })
       .catch((loadError) => {
         if (cancelled) return;
@@ -3573,6 +3630,15 @@ function App() {
     setUserDrafts(usersToDrafts(data));
   }
 
+  async function reloadAuditEvents() {
+    if (currentUser?.role !== "ADMIN") return;
+    const data = await apiClient.get<AuditEvent[]>(
+      "/api/audit-events?limit=100",
+      "Не удалось загрузить журнал аудита",
+    );
+    setAuditEvents(data);
+  }
+
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthSubmitting(true);
@@ -3621,6 +3687,7 @@ function App() {
       });
     }
     setUsers([]);
+    setAuditEvents([]);
     setNotice("Включен режим только для просмотра");
   }
 
@@ -3702,6 +3769,7 @@ function App() {
       setProject(null);
       await reloadProjects(result.id);
       await refreshProject(result.id);
+      await reloadAuditEvents();
       setNotice(`Проект ${result.code} создан`);
     } catch (createError) {
       setError(
@@ -3765,6 +3833,7 @@ function App() {
       );
       setNewUserForm(emptyUserForm);
       await reloadUsers();
+      await reloadAuditEvents();
       setNotice("Пользователь создан");
     } catch (createError) {
       setError(
@@ -3802,6 +3871,7 @@ function App() {
         );
       }
       await reloadUsers();
+      await reloadAuditEvents();
       setNotice("Пользователь обновлен");
     } catch (saveError) {
       setError(
@@ -3855,6 +3925,7 @@ function App() {
       if (project?.id === projectId) {
         await refreshProject(projectId);
       }
+      await reloadAuditEvents();
       setNotice(`Проект ${code} обновлен`);
     } catch (saveError) {
       setError(
@@ -3897,6 +3968,7 @@ function App() {
       if (project?.id === projectId) {
         await refreshProject(projectId);
       }
+      await reloadAuditEvents();
       setNotice("Параметры проекта обновлены");
     } catch (saveError) {
       setError(
@@ -3940,6 +4012,7 @@ function App() {
         setProject(null);
         openView("closed-projects");
       }
+      await reloadAuditEvents();
       setNotice(`Проект ${sourceProject.code} закрыт`);
     } catch (closeError) {
       setError(
@@ -3983,6 +4056,7 @@ function App() {
         setProject(null);
         openView(nextSelectedProjectId ? "project-overview" : "portfolio");
       }
+      await reloadAuditEvents();
       setNotice(`Проект ${sourceProject.code} удален`);
     } catch (deleteError) {
       setError(
@@ -7540,6 +7614,46 @@ function App() {
                       })}
                       {activeProjectTree.length === 0 && (
                         <div className="empty-state">Активные проекты не найдены.</div>
+                      )}
+                    </div>
+                  </article>
+
+                  <article className="panel project-card">
+                    <div className="panel-title">
+                      <div>
+                        <h2>Администрирование: журнал аудита</h2>
+                        <p>Последние системные события и изменения данных</p>
+                      </div>
+                      <button type="button" onClick={() => void reloadAuditEvents()}>
+                        Обновить
+                      </button>
+                    </div>
+                    <div className="audit-table">
+                      <div className="audit-head">
+                        <span>Время</span>
+                        <span>Действие</span>
+                        <span>Пользователь</span>
+                        <span>Объект</span>
+                        <span>IP</span>
+                      </div>
+                      {auditEvents.map((event) => (
+                        <div className="audit-row" key={event.id}>
+                          <span>{dateTime(event.createdAt)}</span>
+                          <strong>{auditActionLabel(event.action)}</strong>
+                          <span>
+                            {event.actorName || event.actorEmail || "Система"}
+                          </span>
+                          <span>
+                            {auditObjectLabel(event)}
+                            {event.objectId ? `: ${event.objectId}` : ""}
+                          </span>
+                          <span>{event.ipAddress || "не задано"}</span>
+                        </div>
+                      ))}
+                      {auditEvents.length === 0 && (
+                        <div className="empty-state">
+                          События аудита пока не записаны.
+                        </div>
                       )}
                     </div>
                   </article>
