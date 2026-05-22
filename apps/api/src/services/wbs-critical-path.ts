@@ -15,6 +15,13 @@ export type WbsCriticalPathItemInput = {
   workDays: number | null;
   calendarCode: ProjectCalendarCode;
   sortOrder: number;
+  predecessor1?: string | null;
+  predecessor2?: string | null;
+  predecessor3?: string | null;
+  predecessor4?: string | null;
+  predecessor5?: string | null;
+  predecessor6?: string | null;
+  leadLagDays?: number | null;
 };
 
 export type WbsCriticalPathDependencyInput = {
@@ -66,6 +73,14 @@ type ComputedNode = {
 
 const MILLISECONDS_IN_DAY = 86_400_000;
 const NEAR_CRITICAL_FLOAT_DAYS = 5;
+const PREDECESSOR_FIELDS = [
+  "predecessor1",
+  "predecessor2",
+  "predecessor3",
+  "predecessor4",
+  "predecessor5",
+  "predecessor6",
+] as const;
 
 function startOfUtcDay(value: Date) {
   const result = new Date(value);
@@ -389,6 +404,81 @@ function dependencyIsTight(
   return finishConstraint ? sameDate(finishConstraint, successor.earlyFinishDate) : false;
 }
 
+function dependencyKey(dependency: {
+  predecessorId: string;
+  successorId: string;
+  type: WbsDependencyType;
+}) {
+  return `${dependency.predecessorId}:${dependency.successorId}:${dependency.type}`;
+}
+
+function mergeDependenciesFromPredecessorFields(
+  items: WbsCriticalPathItemInput[],
+  inputDependencies: WbsCriticalPathDependencyInput[],
+  warnings: string[],
+) {
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  const itemsByCode = new Map(items.map((item) => [item.code.trim(), item]));
+  const dependenciesByKey = new Map<string, WbsCriticalPathDependencyInput>();
+  const dependenciesByPair = new Map<string, WbsCriticalPathDependencyInput>();
+
+  for (const dependency of inputDependencies) {
+    if (
+      !itemsById.has(dependency.predecessorId) ||
+      !itemsById.has(dependency.successorId) ||
+      dependency.predecessorId === dependency.successorId
+    ) {
+      continue;
+    }
+    dependenciesByKey.set(dependencyKey(dependency), dependency);
+    dependenciesByPair.set(
+      `${dependency.predecessorId}:${dependency.successorId}`,
+      dependency,
+    );
+  }
+
+  for (const successor of items) {
+    const predecessorCodes = PREDECESSOR_FIELDS.map((field) => successor[field])
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const predecessorIds = predecessorCodes
+      .map((code) => {
+        const predecessor = itemsByCode.get(code);
+        if (!predecessor) {
+          warnings.push(
+            `Предшественник ${code} для ${successor.code} не найден в Структуре`,
+          );
+          return null;
+        }
+        return predecessor.id;
+      })
+      .filter((value): value is string => value !== null)
+      .filter((predecessorId, index, ids) => {
+        if (predecessorId === successor.id) return false;
+        return ids.indexOf(predecessorId) === index;
+      });
+
+    for (const predecessorId of predecessorIds) {
+      if (dependenciesByPair.has(`${predecessorId}:${successor.id}`)) {
+        continue;
+      }
+      const dependency: WbsCriticalPathDependencyInput = {
+        id: `field:${predecessorId}:${successor.id}`,
+        predecessorId,
+        successorId: successor.id,
+        type: "FS",
+        lagDays:
+          predecessorIds.length === 1 ? successor.leadLagDays ?? 0 : 0,
+      };
+      dependenciesByKey.set(dependencyKey(dependency), dependency);
+      dependenciesByPair.set(`${predecessorId}:${successor.id}`, dependency);
+    }
+  }
+
+  return [...dependenciesByKey.values()];
+}
+
 export function calculateWbsCriticalPath(
   inputItems: WbsCriticalPathItemInput[],
   inputDependencies: WbsCriticalPathDependencyInput[],
@@ -398,11 +488,10 @@ export function calculateWbsCriticalPath(
   const overridesByKey = buildCalendarOverrides(calendarOverrides);
   const items = [...inputItems].sort(sortByPlanOrder);
   const itemsById = new Map(items.map((item) => [item.id, item]));
-  const dependencies = inputDependencies.filter(
-    (dependency) =>
-      itemsById.has(dependency.predecessorId) &&
-      itemsById.has(dependency.successorId) &&
-      dependency.predecessorId !== dependency.successorId,
+  const dependencies = mergeDependenciesFromPredecessorFields(
+    items,
+    inputDependencies,
+    warnings,
   );
 
   if (items.length === 0) {
@@ -612,7 +701,7 @@ export function calculateWbsCriticalPath(
     });
 
   const resultItemsById = new Map(resultItems.map((item) => [item.itemId, item]));
-  const criticalDependencyIds = dependencies
+  const tightCriticalDependencyIds = dependencies
     .filter((dependency) => {
       const predecessor = computedById.get(dependency.predecessorId);
       const successor = computedById.get(dependency.successorId);
@@ -626,9 +715,34 @@ export function calculateWbsCriticalPath(
     })
     .map((dependency) => dependency.id);
 
-  const criticalItemIds = resultItems
+  const criticalItemIdSet = new Set(
+    resultItems
     .filter((item) => item.isCritical)
+      .map((item) => item.itemId),
+  );
+  const criticalDependencyIdSet = new Set(tightCriticalDependencyIds);
+  const upstreamQueue = [...criticalItemIdSet];
+  const visitedSuccessors = new Set<string>();
+
+  while (upstreamQueue.length > 0) {
+    const successorId = upstreamQueue.shift();
+    if (!successorId || visitedSuccessors.has(successorId)) continue;
+    visitedSuccessors.add(successorId);
+    for (const dependency of incomingBySuccessor.get(successorId) ?? []) {
+      criticalDependencyIdSet.add(dependency.id);
+      if (!criticalItemIdSet.has(dependency.predecessorId)) {
+        criticalItemIdSet.add(dependency.predecessorId);
+        upstreamQueue.push(dependency.predecessorId);
+      }
+    }
+  }
+
+  const criticalItemIds = resultItems
+    .filter((item) => criticalItemIdSet.has(item.itemId))
     .map((item) => item.itemId);
+  const criticalDependencyIds = dependencies
+    .filter((dependency) => criticalDependencyIdSet.has(dependency.id))
+    .map((dependency) => dependency.id);
 
   return {
     projectStartDate,
@@ -657,6 +771,13 @@ export async function calculateProjectCriticalPath(projectId: string) {
         workDays: true,
         calendarCode: true,
         sortOrder: true,
+        predecessor1: true,
+        predecessor2: true,
+        predecessor3: true,
+        predecessor4: true,
+        predecessor5: true,
+        predecessor6: true,
+        leadLagDays: true,
       },
     }),
     prisma.wbsDependency.findMany({

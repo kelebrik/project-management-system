@@ -211,6 +211,13 @@ export async function getProjectWbsSnapshot(projectId: string) {
         workDays: item.workDays,
         calendarCode: item.calendarCode,
         sortOrder: item.sortOrder,
+        predecessor1: item.predecessor1,
+        predecessor2: item.predecessor2,
+        predecessor3: item.predecessor3,
+        predecessor4: item.predecessor4,
+        predecessor5: item.predecessor5,
+        predecessor6: item.predecessor6,
+        leadLagDays: item.leadLagDays,
       })),
       wbsDependencies.map((dependency) => ({
         id: dependency.id,
