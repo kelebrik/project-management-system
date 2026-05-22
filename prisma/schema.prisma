@@ -185,6 +185,42 @@ model User {
   @@index([role, isActive])
 }
 
+model RolePermission {
+  id         String   @id @default(cuid())
+  role       UserRole
+  permission String
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([role, permission])
+  @@index([role])
+  @@index([permission])
+}
+
+model DictionaryItem {
+  id          String   @id @default(cuid())
+  dictionary  String
+  code        String
+  label       String
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([dictionary, code])
+  @@index([dictionary, isActive, sortOrder])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String   @default("")
+  isSecret  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model UserSession {
   id         String   @id @default(cuid())
   tokenHash  String   @unique

@@ -1551,6 +1551,144 @@ code {
   min-width: 1220px;
 }
 
+.permission-table,
+.dictionary-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.permission-head,
+.permission-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(260px, 1fr) repeat(4, minmax(160px, 0.6fr));
+  min-width: 920px;
+}
+
+.permission-head,
+.dictionary-head {
+  background: #eaf0f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  min-height: 42px;
+  text-transform: uppercase;
+}
+
+.permission-head span,
+.permission-row strong,
+.permission-toggle {
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.permission-row {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+}
+
+.permission-row strong {
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.permission-toggle {
+  align-items: center;
+  border-left: 1px solid #e5edf6;
+  display: flex;
+  justify-content: center;
+}
+
+.permission-toggle input {
+  height: 18px;
+  min-height: 18px;
+  width: 18px;
+}
+
+.dictionary-create-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns:
+    minmax(220px, 1fr) minmax(160px, 0.65fr) minmax(260px, 1.2fr)
+    116px auto;
+  margin-bottom: 14px;
+}
+
+.dictionary-create-form label {
+  color: #64748b;
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.dictionary-create-form button {
+  min-height: 38px;
+}
+
+.dictionary-head,
+.dictionary-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns:
+    minmax(210px, 0.9fr) minmax(150px, 0.7fr) minmax(240px, 1fr)
+    minmax(260px, 1.2fr) 96px 104px 218px;
+  min-width: 1280px;
+}
+
+.dictionary-head span,
+.dictionary-row label,
+.dictionary-actions {
+  min-width: 0;
+  padding: 10px;
+}
+
+.dictionary-row {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+}
+
+.dictionary-row label {
+  border-right: 1px solid #e5edf6;
+  display: grid;
+  gap: 4px;
+}
+
+.dictionary-row label > span {
+  color: #64748b;
+  display: none;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.dictionary-row input,
+.dictionary-row select {
+  font-size: 13px;
+  min-height: 38px;
+  padding-bottom: 7px;
+  padding-top: 7px;
+}
+
+.dictionary-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.dictionary-actions button {
+  min-height: 38px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
 .audit-table {
   border: 1px solid #dbe4ef;
   border-radius: 8px;
@@ -4865,6 +5003,10 @@ code {
   .project-tree-row,
   .project-admin-head,
   .project-admin-row,
+  .permission-head,
+  .permission-row,
+  .dictionary-head,
+  .dictionary-row,
   .audit-head,
   .audit-row,
   .artifact-head,
@@ -4919,6 +5061,8 @@ code {
 
   .project-tree-head,
   .project-admin-head,
+  .permission-head,
+  .dictionary-head,
   .audit-head,
   .artifact-head,
   .raid-head,
@@ -4926,11 +5070,15 @@ code {
     display: none;
   }
 
-  .project-admin-table {
+  .project-admin-table,
+  .permission-table,
+  .dictionary-table {
     overflow-x: visible;
   }
 
-  .project-admin-row {
+  .project-admin-row,
+  .permission-row,
+  .dictionary-row {
     border: 1px solid #dbe4ef;
     border-radius: 8px;
     margin-bottom: 10px;
@@ -4939,6 +5087,10 @@ code {
 
   .project-admin-row label,
   .project-admin-readonly,
+  .dictionary-row label,
+  .dictionary-actions,
+  .permission-row strong,
+  .permission-toggle,
   .audit-row span,
   .audit-row strong {
     border-right: 0;
@@ -4946,11 +5098,13 @@ code {
   }
 
   .project-admin-row label > span,
-  .project-admin-readonly > span {
+  .project-admin-readonly > span,
+  .dictionary-row label > span {
     display: block;
   }
 
-  .project-admin-actions {
+  .project-admin-actions,
+  .dictionary-actions {
     justify-content: flex-end;
   }
 

@@ -114,6 +114,42 @@ type AuditEvent = {
   createdAt: string;
 };
 
+type RolePermission = {
+  id: string;
+  role: UserRole;
+  permission: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type DictionaryItem = {
+  id: string;
+  dictionary: string;
+  code: string;
+  label: string;
+  description: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type SystemSetting = {
+  key: string;
+  value: string;
+  isSecret: boolean;
+  hasValue: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AdminConfig = {
+  rolePermissions: RolePermission[];
+  dictionaryItems: DictionaryItem[];
+  systemSettings: SystemSetting[];
+};
+
 type AuthFormState = {
   email: string;
   name: string;
@@ -134,6 +170,23 @@ type UserDraftState = {
   role: UserRole;
   isActive: boolean;
   password: string;
+};
+
+type DictionaryItemDraft = {
+  dictionary: string;
+  code: string;
+  label: string;
+  description: string;
+  sortOrder: string;
+  isActive: boolean;
+};
+
+type SystemSettingsDraft = {
+  jiraEnabled: boolean;
+  jiraBaseUrl: string;
+  jiraEmail: string;
+  jiraApiToken: string;
+  jiraMaxResults: string;
 };
 
 type ProjectListItem = {
@@ -1192,8 +1245,60 @@ const emptyUserForm: UserFormState = {
   password: "",
 };
 
+const emptyDictionaryDraft: DictionaryItemDraft = {
+  dictionary: "wbs_type",
+  code: "",
+  label: "",
+  description: "",
+  sortOrder: "0",
+  isActive: true,
+};
+
+const emptySystemSettingsDraft: SystemSettingsDraft = {
+  jiraEnabled: false,
+  jiraBaseUrl: "",
+  jiraEmail: "",
+  jiraApiToken: "",
+  jiraMaxResults: "100",
+};
+
+const adminPermissionOrder = [
+  "project.read",
+  "project.write",
+  "wbs.write",
+  "issue.write",
+  "raid.write",
+  "overview.publish",
+  "admin.manage",
+];
+
+const adminDictionaryLabels: Record<string, string> = {
+  wbs_type: "Типы Структуры",
+  wbs_status: "Статусы Структуры",
+  issue_severity: "Критичность открытых вопросов",
+  raid_type: "Типы рисков и проблем",
+  raid_status: "Статусы рисков и проблем",
+};
+
 function userRoleLabel(role: UserRole) {
   return labels.userRole[role] ?? role;
+}
+
+function adminPermissionLabel(permission: string) {
+  const labelsByPermission: Record<string, string> = {
+    "project.read": "Просмотр проектов",
+    "project.write": "Редактирование проектов",
+    "wbs.write": "Редактирование Структуры",
+    "issue.write": "Открытые вопросы",
+    "raid.write": "Риски и проблемы",
+    "overview.publish": "Публикация обзора",
+    "admin.manage": "Администрирование",
+  };
+  return labelsByPermission[permission] ?? permission;
+}
+
+function dictionaryLabel(dictionary: string) {
+  return adminDictionaryLabels[dictionary] ?? dictionary;
 }
 
 function userToDraft(user: SystemUser): UserDraftState {
@@ -1208,6 +1313,38 @@ function userToDraft(user: SystemUser): UserDraftState {
 
 function usersToDrafts(users: SystemUser[]) {
   return Object.fromEntries(users.map((user) => [user.id, userToDraft(user)]));
+}
+
+function dictionaryItemToDraft(item: DictionaryItem): DictionaryItemDraft {
+  return {
+    dictionary: item.dictionary,
+    code: item.code,
+    label: item.label,
+    description: item.description ?? "",
+    sortOrder: String(item.sortOrder),
+    isActive: item.isActive,
+  };
+}
+
+function dictionaryItemsToDrafts(items: DictionaryItem[]) {
+  return Object.fromEntries(
+    items.map((item) => [item.id, dictionaryItemToDraft(item)]),
+  );
+}
+
+function systemSettingsToDraft(settings: SystemSetting[]): SystemSettingsDraft {
+  const byKey = new Map(settings.map((setting) => [setting.key, setting]));
+  return {
+    jiraEnabled: byKey.get("jira.enabled")?.value === "true",
+    jiraBaseUrl: byKey.get("jira.baseUrl")?.value ?? "",
+    jiraEmail: byKey.get("jira.email")?.value ?? "",
+    jiraApiToken: "",
+    jiraMaxResults: byKey.get("jira.maxResults")?.value || "100",
+  };
+}
+
+function systemSettingHasValue(settings: SystemSetting[], key: string) {
+  return Boolean(settings.find((setting) => setting.key === key)?.hasValue);
 }
 
 function date(value: string | null) {
@@ -1335,6 +1472,11 @@ function auditActionLabel(action: string) {
     "project.update": "Изменение проекта",
     "project.close": "Закрытие проекта",
     "project.delete": "Удаление проекта",
+    "admin.role_permission.update": "Изменение прав роли",
+    "admin.dictionary.upsert": "Создание элемента справочника",
+    "admin.dictionary.update": "Изменение элемента справочника",
+    "admin.dictionary.deactivate": "Отключение элемента справочника",
+    "admin.system_settings.update": "Изменение системных настроек",
   };
   return labelsByAction[action] ?? action;
 }
@@ -1342,6 +1484,9 @@ function auditActionLabel(action: string) {
 function auditObjectLabel(event: AuditEvent) {
   if (event.objectType === "Project" && event.projectId) return "Проект";
   if (event.objectType === "User") return "Пользователь";
+  if (event.objectType === "RolePermission") return "Право роли";
+  if (event.objectType === "DictionaryItem") return "Справочник";
+  if (event.objectType === "SystemSetting") return "Системные настройки";
   return event.objectType;
 }
 
@@ -1828,6 +1973,22 @@ function App() {
   const [newUserForm, setNewUserForm] = useState<UserFormState>(emptyUserForm);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
+  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
+  const [dictionaryItems, setDictionaryItems] = useState<DictionaryItem[]>([]);
+  const [dictionaryDrafts, setDictionaryDrafts] = useState<
+    Record<string, DictionaryItemDraft>
+  >({});
+  const [newDictionaryDraft, setNewDictionaryDraft] =
+    useState<DictionaryItemDraft>(emptyDictionaryDraft);
+  const [savingDictionaryItemId, setSavingDictionaryItemId] =
+    useState<string | null>(null);
+  const [creatingDictionaryItem, setCreatingDictionaryItem] = useState(false);
+  const [systemSettings, setSystemSettings] = useState<SystemSetting[]>([]);
+  const [systemSettingsDraft, setSystemSettingsDraft] =
+    useState<SystemSettingsDraft>(emptySystemSettingsDraft);
+  const [savingSystemSettings, setSavingSystemSettings] = useState(false);
+  const [savingRolePermissionId, setSavingRolePermissionId] =
+    useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [jiraForm, setJiraForm] = useState<JiraFormState>({
@@ -2102,12 +2263,21 @@ function App() {
         "/api/audit-events?limit=100",
         "Не удалось загрузить журнал аудита",
       ),
+      apiClient.get<AdminConfig>(
+        "/api/admin/config",
+        "Не удалось загрузить настройки администрирования",
+      ),
     ])
-      .then(([data, events]) => {
+      .then(([data, events, config]) => {
         if (cancelled) return;
         setUsers(data);
         setUserDrafts(usersToDrafts(data));
         setAuditEvents(events);
+        setRolePermissions(config.rolePermissions);
+        setDictionaryItems(config.dictionaryItems);
+        setDictionaryDrafts(dictionaryItemsToDrafts(config.dictionaryItems));
+        setSystemSettings(config.systemSettings);
+        setSystemSettingsDraft(systemSettingsToDraft(config.systemSettings));
       })
       .catch((loadError) => {
         if (cancelled) return;
@@ -3639,6 +3809,19 @@ function App() {
     setAuditEvents(data);
   }
 
+  async function reloadAdminConfig() {
+    if (currentUser?.role !== "ADMIN") return;
+    const config = await apiClient.get<AdminConfig>(
+      "/api/admin/config",
+      "Не удалось загрузить настройки администрирования",
+    );
+    setRolePermissions(config.rolePermissions);
+    setDictionaryItems(config.dictionaryItems);
+    setDictionaryDrafts(dictionaryItemsToDrafts(config.dictionaryItems));
+    setSystemSettings(config.systemSettings);
+    setSystemSettingsDraft(systemSettingsToDraft(config.systemSettings));
+  }
+
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthSubmitting(true);
@@ -3688,6 +3871,11 @@ function App() {
     }
     setUsers([]);
     setAuditEvents([]);
+    setRolePermissions([]);
+    setDictionaryItems([]);
+    setDictionaryDrafts({});
+    setSystemSettings([]);
+    setSystemSettingsDraft(emptySystemSettingsDraft);
     setNotice("Включен режим только для просмотра");
   }
 
@@ -3814,6 +4002,185 @@ function App() {
         },
       };
     });
+  }
+
+  function updateDictionaryDraft(
+    itemId: string,
+    patch: Partial<DictionaryItemDraft>,
+  ) {
+    setDictionaryDrafts((current) => {
+      const sourceItem = dictionaryItems.find((item) => item.id === itemId);
+      const currentDraft =
+        current[itemId] ??
+        (sourceItem ? dictionaryItemToDraft(sourceItem) : null);
+      if (!currentDraft) return current;
+      return {
+        ...current,
+        [itemId]: {
+          ...currentDraft,
+          ...patch,
+        },
+      };
+    });
+  }
+
+  async function toggleRolePermission(permission: RolePermission) {
+    setSavingRolePermissionId(permission.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const updated = await apiClient.patch<RolePermission>(
+        `/api/admin/role-permissions/${permission.id}`,
+        { enabled: !permission.enabled },
+        "Не удалось сохранить право роли",
+      );
+      setRolePermissions((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      await reloadAuditEvents();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить право роли",
+      );
+    } finally {
+      setSavingRolePermissionId(null);
+    }
+  }
+
+  function dictionaryPayload(draft: DictionaryItemDraft) {
+    return {
+      dictionary: draft.dictionary.trim(),
+      code: draft.code.trim(),
+      label: draft.label.trim(),
+      description: draft.description.trim() || null,
+      sortOrder: Number(draft.sortOrder) || 0,
+      isActive: draft.isActive,
+    };
+  }
+
+  async function createDictionaryItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreatingDictionaryItem(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await apiClient.post<DictionaryItem>(
+        "/api/admin/dictionary-items",
+        dictionaryPayload(newDictionaryDraft),
+        "Не удалось создать элемент справочника",
+      );
+      setNewDictionaryDraft({
+        ...emptyDictionaryDraft,
+        dictionary: newDictionaryDraft.dictionary,
+      });
+      await reloadAdminConfig();
+      await reloadAuditEvents();
+      setNotice("Элемент справочника сохранен");
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Не удалось создать элемент справочника",
+      );
+    } finally {
+      setCreatingDictionaryItem(false);
+    }
+  }
+
+  async function saveDictionaryItem(itemId: string) {
+    const draft = dictionaryDrafts[itemId];
+    if (!draft) return;
+    setSavingDictionaryItemId(itemId);
+    setError(null);
+    setNotice(null);
+    try {
+      await apiClient.patch<DictionaryItem>(
+        `/api/admin/dictionary-items/${itemId}`,
+        dictionaryPayload(draft),
+        "Не удалось сохранить элемент справочника",
+      );
+      await reloadAdminConfig();
+      await reloadAuditEvents();
+      setNotice("Справочник обновлен");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить элемент справочника",
+      );
+    } finally {
+      setSavingDictionaryItemId(null);
+    }
+  }
+
+  async function deactivateDictionaryItem(itemId: string) {
+    setSavingDictionaryItemId(itemId);
+    setError(null);
+    setNotice(null);
+    try {
+      await apiClient.delete(
+        `/api/admin/dictionary-items/${itemId}`,
+        "Не удалось отключить элемент справочника",
+      );
+      await reloadAdminConfig();
+      await reloadAuditEvents();
+      setNotice("Элемент справочника отключен");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось отключить элемент справочника",
+      );
+    } finally {
+      setSavingDictionaryItemId(null);
+    }
+  }
+
+  async function saveSystemSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingSystemSettings(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const updated = await apiClient.put<SystemSetting[]>(
+        "/api/admin/system-settings",
+        {
+          settings: {
+            "jira.enabled": {
+              value: systemSettingsDraft.jiraEnabled ? "true" : "false",
+            },
+            "jira.baseUrl": {
+              value: systemSettingsDraft.jiraBaseUrl.trim(),
+            },
+            "jira.email": {
+              value: systemSettingsDraft.jiraEmail.trim(),
+            },
+            "jira.apiToken": {
+              value: systemSettingsDraft.jiraApiToken.trim(),
+              isSecret: true,
+            },
+            "jira.maxResults": {
+              value: String(Number(systemSettingsDraft.jiraMaxResults) || 100),
+            },
+          },
+        },
+        "Не удалось сохранить системные настройки",
+      );
+      setSystemSettings(updated);
+      setSystemSettingsDraft(systemSettingsToDraft(updated));
+      await reloadAuditEvents();
+      setNotice("Системные настройки сохранены");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить системные настройки",
+      );
+    } finally {
+      setSavingSystemSettings(false);
+    }
   }
 
   async function createUser(event: FormEvent<HTMLFormElement>) {
@@ -6613,11 +6980,11 @@ function App() {
           className={`topbar ${project && isProjectView && activeView !== "project-create" ? "project-topbar" : ""}`}
         >
           <div className="topbar-main">
-	            {project && isProjectView && activeView !== "project-create" ? (
-	              <>
-	                <h1>
-	                  <span>{project.code}</span>
-	                  {project.name}
+              {project && isProjectView && activeView !== "project-create" ? (
+                <>
+                  <h1>
+                    <span>{project.code}</span>
+                    {project.name}
                 </h1>
               </>
             ) : (
@@ -7027,13 +7394,13 @@ function App() {
                       <p>Быстрый ввод нового проекта с базовыми полями проектного офиса</p>
                     </div>
                   </div>
-	                  <form
-	                    className="form-grid compact-form"
-	                    onSubmit={createProject}
-	                  >
-	                    <div className="form-section-title span-2">Основное</div>
-	                    <label>
-	                      Код
+                    <form
+                      className="form-grid compact-form"
+                      onSubmit={createProject}
+                    >
+                      <div className="form-section-title span-2">Основное</div>
+                      <label>
+                        Код
                       <input
                         value={newProjectForm.code}
                         onChange={(event) =>
@@ -7114,11 +7481,11 @@ function App() {
                             sortOrder: event.target.value,
                           })
                         }
-	                        />
-	                      </label>
-	                    <div className="form-section-title span-2">Команда и статус</div>
-	                    <label>
-	                      Портфель
+                          />
+                        </label>
+                      <div className="form-section-title span-2">Команда и статус</div>
+                      <label>
+                        Портфель
                       <input
                         value={newProjectForm.portfolio}
                         onChange={(event) =>
@@ -7169,12 +7536,12 @@ function App() {
                       >
                         <option value="GREEN">{ragOptionLabel("GREEN")}</option>
                         <option value="AMBER">{ragOptionLabel("AMBER")}</option>
-	                        <option value="RED">{ragOptionLabel("RED")}</option>
-	                      </select>
-	                    </label>
-	                    <div className="form-section-title span-2">Сроки</div>
-	                    <label>
-	                      Старт
+                          <option value="RED">{ragOptionLabel("RED")}</option>
+                        </select>
+                      </label>
+                      <div className="form-section-title span-2">Сроки</div>
+                      <label>
+                        Старт
                       <input
                         type="date"
                         value={newProjectForm.startDate}
@@ -7225,11 +7592,11 @@ function App() {
                             scheduleVariance: event.target.value,
                           })
                         }
-	                        />
-	                      </label>
-	                    <div className="form-section-title span-2">Управленческая сводка</div>
-	                    <label className="span-2">
-	                      Сводка
+                          />
+                        </label>
+                      <div className="form-section-title span-2">Управленческая сводка</div>
+                      <label className="span-2">
+                        Сводка
                       <textarea
                         value={newProjectForm.summary}
                         onChange={(event) =>
@@ -7444,12 +7811,347 @@ function App() {
                         Управление пользователями доступно только администратору.
                       </div>
                     )}
-                  </article>
+                    </article>
 
-                  <article className="panel project-card">
-                    <div className="panel-title">
-                      <div>
-                        <h2>Администрирование: реестр проектов</h2>
+                    <article className="panel project-card">
+                      <div className="panel-title">
+                        <div>
+                          <h2>Администрирование: роли и права</h2>
+                          <p>Матрица доступов по системным ролям</p>
+                        </div>
+                        <button type="button" onClick={() => void reloadAdminConfig()}>
+                          Обновить
+                        </button>
+                      </div>
+                      <div className="permission-table">
+                        <div className="permission-head">
+                          <span>Право</span>
+                          <span>{userRoleLabel("ADMIN")}</span>
+                          <span>{userRoleLabel("PROJECT_MANAGER")}</span>
+                          <span>{userRoleLabel("TEAM_MEMBER")}</span>
+                          <span>{userRoleLabel("EXECUTIVE_VIEWER")}</span>
+                        </div>
+                        {adminPermissionOrder.map((permissionName) => {
+                          const permissionsByRole = new Map(
+                            rolePermissions
+                              .filter((item) => item.permission === permissionName)
+                              .map((item) => [item.role, item]),
+                          );
+                          return (
+                            <div className="permission-row" key={permissionName}>
+                              <strong>{adminPermissionLabel(permissionName)}</strong>
+                              {(
+                                [
+                                  "ADMIN",
+                                  "PROJECT_MANAGER",
+                                  "TEAM_MEMBER",
+                                  "EXECUTIVE_VIEWER",
+                                ] as UserRole[]
+                              ).map((role) => {
+                                const permission = permissionsByRole.get(role);
+                                return (
+                                  <label className="permission-toggle" key={role}>
+                                    <input
+                                      type="checkbox"
+                                      checked={permission?.enabled ?? false}
+                                      disabled={
+                                        role === "ADMIN" ||
+                                        !permission ||
+                                        savingRolePermissionId === permission.id
+                                      }
+                                      onChange={() =>
+                                        permission && void toggleRolePermission(permission)
+                                      }
+                                    />
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </article>
+
+                    <article className="panel project-card">
+                      <div className="panel-title">
+                        <div>
+                          <h2>Администрирование: справочники</h2>
+                          <p>Единые значения для типов, статусов и критичности</p>
+                        </div>
+                      </div>
+                      <form className="dictionary-create-form" onSubmit={createDictionaryItem}>
+                        <label>
+                          Справочник
+                          <select
+                            value={newDictionaryDraft.dictionary}
+                            onChange={(event) =>
+                              setNewDictionaryDraft({
+                                ...newDictionaryDraft,
+                                dictionary: event.target.value,
+                              })
+                            }
+                          >
+                            {Object.keys(adminDictionaryLabels).map((dictionary) => (
+                              <option key={dictionary} value={dictionary}>
+                                {dictionaryLabel(dictionary)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Код
+                          <input
+                            value={newDictionaryDraft.code}
+                            onChange={(event) =>
+                              setNewDictionaryDraft({
+                                ...newDictionaryDraft,
+                                code: event.target.value,
+                              })
+                            }
+                            placeholder="CODE"
+                          />
+                        </label>
+                        <label>
+                          Название
+                          <input
+                            value={newDictionaryDraft.label}
+                            onChange={(event) =>
+                              setNewDictionaryDraft({
+                                ...newDictionaryDraft,
+                                label: event.target.value,
+                              })
+                            }
+                            placeholder="Название"
+                          />
+                        </label>
+                        <label>
+                          Порядок
+                          <input
+                            type="number"
+                            value={newDictionaryDraft.sortOrder}
+                            onChange={(event) =>
+                              setNewDictionaryDraft({
+                                ...newDictionaryDraft,
+                                sortOrder: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <button type="submit" disabled={creatingDictionaryItem}>
+                          {creatingDictionaryItem ? "Сохраняю..." : "Добавить"}
+                        </button>
+                      </form>
+                      <div className="dictionary-table">
+                        <div className="dictionary-head">
+                          <span>Справочник</span>
+                          <span>Код</span>
+                          <span>Название</span>
+                          <span>Описание</span>
+                          <span>Порядок</span>
+                          <span>Активен</span>
+                          <span />
+                        </div>
+                        {dictionaryItems.map((item) => {
+                          const draft =
+                            dictionaryDrafts[item.id] ?? dictionaryItemToDraft(item);
+                          return (
+                            <div className="dictionary-row" key={item.id}>
+                              <label>
+                                <span>Справочник</span>
+                                <select
+                                  value={draft.dictionary}
+                                  onChange={(event) =>
+                                    updateDictionaryDraft(item.id, {
+                                      dictionary: event.target.value,
+                                    })
+                                  }
+                                >
+                                  {Object.keys(adminDictionaryLabels).map((dictionary) => (
+                                    <option key={dictionary} value={dictionary}>
+                                      {dictionaryLabel(dictionary)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                <span>Код</span>
+                                <input
+                                  value={draft.code}
+                                  onChange={(event) =>
+                                    updateDictionaryDraft(item.id, {
+                                      code: event.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label>
+                                <span>Название</span>
+                                <input
+                                  value={draft.label}
+                                  onChange={(event) =>
+                                    updateDictionaryDraft(item.id, {
+                                      label: event.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label>
+                                <span>Описание</span>
+                                <input
+                                  value={draft.description}
+                                  onChange={(event) =>
+                                    updateDictionaryDraft(item.id, {
+                                      description: event.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label>
+                                <span>Порядок</span>
+                                <input
+                                  type="number"
+                                  value={draft.sortOrder}
+                                  onChange={(event) =>
+                                    updateDictionaryDraft(item.id, {
+                                      sortOrder: event.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="checkbox-field">
+                                <span>Активен</span>
+                                <input
+                                  type="checkbox"
+                                  checked={draft.isActive}
+                                  onChange={(event) =>
+                                    updateDictionaryDraft(item.id, {
+                                      isActive: event.target.checked,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <div className="dictionary-actions">
+                                <button
+                                  type="button"
+                                  onClick={() => void saveDictionaryItem(item.id)}
+                                  disabled={savingDictionaryItemId === item.id}
+                                >
+                                  {savingDictionaryItemId === item.id
+                                    ? "Сохраняю..."
+                                    : "Сохранить"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void deactivateDictionaryItem(item.id)}
+                                  disabled={
+                                    savingDictionaryItemId === item.id || !item.isActive
+                                  }
+                                >
+                                  Отключить
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {dictionaryItems.length === 0 && (
+                          <div className="empty-state">Справочники пока пустые.</div>
+                        )}
+                      </div>
+                    </article>
+
+                    <article className="panel project-card">
+                      <div className="panel-title">
+                        <div>
+                          <h2>Администрирование: системные настройки Jira</h2>
+                          <p>Общие параметры подключения для синхронизации Jira</p>
+                        </div>
+                      </div>
+                      <form className="form-grid" onSubmit={saveSystemSettings}>
+                        <label className="checkbox-line span-2">
+                          <input
+                            type="checkbox"
+                            checked={systemSettingsDraft.jiraEnabled}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                jiraEnabled: event.target.checked,
+                              })
+                            }
+                          />
+                          Синхронизация Jira включена
+                        </label>
+                        <label>
+                          Базовый URL Jira
+                          <input
+                            value={systemSettingsDraft.jiraBaseUrl}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                jiraBaseUrl: event.target.value,
+                              })
+                            }
+                            placeholder="https://company.atlassian.net"
+                          />
+                        </label>
+                        <label>
+                          Email пользователя Jira
+                          <input
+                            type="email"
+                            value={systemSettingsDraft.jiraEmail}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                jiraEmail: event.target.value,
+                              })
+                            }
+                            placeholder="user@company.ru"
+                          />
+                        </label>
+                        <label>
+                          API token
+                          <input
+                            type="password"
+                            value={systemSettingsDraft.jiraApiToken}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                jiraApiToken: event.target.value,
+                              })
+                            }
+                            placeholder={
+                              systemSettingHasValue(systemSettings, "jira.apiToken")
+                                ? "Задан, оставьте пустым чтобы не менять"
+                                : "Jira API token"
+                            }
+                          />
+                        </label>
+                        <label>
+                          Максимум задач за синхронизацию
+                          <input
+                            type="number"
+                            min="1"
+                            max="500"
+                            value={systemSettingsDraft.jiraMaxResults}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                jiraMaxResults: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <div className="form-actions span-2">
+                          <button type="submit" disabled={savingSystemSettings}>
+                            {savingSystemSettings ? "Сохраняю..." : "Сохранить Jira"}
+                          </button>
+                        </div>
+                      </form>
+                    </article>
+
+                    <article className="panel project-card">
+                      <div className="panel-title">
+                        <div>
+                          <h2>Администрирование: реестр проектов</h2>
                         <p>
                           Управление кодами, наименованиями и иерархией проектов
                         </p>
@@ -7792,13 +8494,13 @@ function App() {
               )}
 
               {project && activeView === "project-passport" && (
-	                <article className="panel project-card">
-	                  <div className="panel-title">
-	                    <div>
-	                      <h2>Паспорт проекта</h2>
-	                      <p>Редактируемый набор полей паспорта проекта</p>
-	                    </div>
-	                    <button
+                  <article className="panel project-card">
+                    <div className="panel-title">
+                      <div>
+                        <h2>Паспорт проекта</h2>
+                        <p>Редактируемый набор полей паспорта проекта</p>
+                      </div>
+                      <button
                       type="button"
                       onClick={() => addPassportRow(passportRows.length - 1)}
                     >
@@ -7870,7 +8572,7 @@ function App() {
               {project &&
                 (activeView === "project-structure" ||
                   activeView === "project-gantt") && (
-		                <article
+                    <article
                       className={`panel project-card workspace-focus-panel ${
                         fullscreenWorkspaceView === activeView
                           ? "workspace-focus-panel-fullscreen"
@@ -7881,24 +8583,24 @@ function App() {
                           : "workspace-focus-gantt"
                       }`}
                     >
-	                  <div className="panel-title">
-	                    <div>
-	                      <h2>
-	                        {activeView === "project-structure"
-	                          ? "Структура"
-	                          : "Гантт"}
-	                      </h2>
-	                      <p>
-	                        {activeView === "project-structure"
-	                          ? "Иерархия работ проекта, сроки, ответственные, календарь и связи с предшественниками"
+                    <div className="panel-title">
+                      <div>
+                        <h2>
+                          {activeView === "project-structure"
+                            ? "Структура"
+                            : "Гантт"}
+                        </h2>
+                        <p>
+                          {activeView === "project-structure"
+                            ? "Иерархия работ проекта, сроки, ответственные, календарь и связи с предшественниками"
                           : "Временная шкала проекта, связи и базовый план"}
                       </p>
                     </div>
-			                  </div>
-		                  <div className="wbs-gantt-layout">
-	                    {activeView === "project-structure" && (
-	                      <>
-			                    <div className="gantt-controls wbs-structure-controls" aria-label="Панель управления Структурой">
+                        </div>
+                      <div className="wbs-gantt-layout">
+                      {activeView === "project-structure" && (
+                        <>
+                          <div className="gantt-controls wbs-structure-controls" aria-label="Панель управления Структурой">
                           <div className="gantt-controls-row">
                             <button
                               type="button"
@@ -8218,23 +8920,23 @@ function App() {
                             </div>
                           );
                         })}
-	                        {project.wbsItems.length === 0 && (
-	                          <div className="empty-state">Структура еще не создана.</div>
-	                        )}
-	                        {project.wbsItems.length > 0 &&
+                          {project.wbsItems.length === 0 && (
+                            <div className="empty-state">Структура еще не создана.</div>
+                          )}
+                          {project.wbsItems.length > 0 &&
                             visibleStructureWbsTree.length === 0 && (
-	                          <div className="empty-state">
-	                            Нет задач критического пути для текущего фильтра.
-	                          </div>
-	                        )}
-	                      </div>
+                            <div className="empty-state">
+                              Нет задач критического пути для текущего фильтра.
+                            </div>
+                          )}
+                        </div>
                     </div>
                       </>
-	                    )}
-	                    {activeView === "project-gantt" && (
-	                      <>
-		                        <div className="gantt-controls">
-		                          <div className="gantt-controls-row">
+                      )}
+                      {activeView === "project-gantt" && (
+                        <>
+                            <div className="gantt-controls">
+                              <div className="gantt-controls-row">
                             <button
                               type="button"
                               className="workspace-fullscreen-button"
@@ -8259,151 +8961,151 @@ function App() {
                                 ? "Обычный режим"
                                 : "На весь экран"}
                             </button>
-		                            <button
-		                              type="button"
-		                              onClick={() => void undoWbsChange()}
-	                              onMouseDown={(event) => event.preventDefault()}
-	                              disabled={
-	                                restoringWbsSnapshot ||
-	                                wbsUndoStack.length === 0
-	                              }
-	                              aria-label="Откатить последнее изменение Гантта"
-	                              title="Назад"
-	                            >
-	                              ← Назад
-	                            </button>
-	                            <button
-	                              type="button"
-	                              onClick={() => void redoWbsChange()}
-	                              onMouseDown={(event) => event.preventDefault()}
-	                              disabled={
-	                                restoringWbsSnapshot ||
-	                                wbsRedoStack.length === 0
-	                              }
-	                              aria-label="Вернуть отмененное изменение Гантта"
-	                              title="Вперед"
-	                            >
-	                              Вперед →
-	                            </button>
-	                            <div className="segmented-control" aria-label="Масштаб Гантта">
-	                              <button
-	                                type="button"
-	                                className={ganttScale === "month" ? "active" : ""}
-	                                onClick={() => setGanttScale("month")}
-	                              >
-	                                Месяцы
-	                              </button>
-	                              <button
-	                                type="button"
-	                                className={ganttScale === "quarter" ? "active" : ""}
-	                                onClick={() => setGanttScale("quarter")}
-	                              >
-	                                Кварталы
-	                              </button>
-	                            </div>
-	                            <button
-	                              type="button"
-	                              onClick={() =>
-	                                document
-	                                  .querySelector(".gantt-today")
-	                                  ?.scrollIntoView({
-	                                    inline: "center",
-	                                    block: "nearest",
-	                                    behavior: "smooth",
-	                                  })
-	                              }
-	                            >
-	                              Сегодня
-	                            </button>
-	                            <button
-	                              type="button"
-	                              className={showGanttDependencies ? "active" : ""}
-	                              onClick={toggleGanttDependencies}
-	                            >
-	                              Связи
-	                            </button>
-	                            <button
-	                              type="button"
-	                              className={showGanttCriticalPath ? "active" : ""}
-	                              onClick={toggleGanttCriticalPath}
-	                              title="Показать задачи и связи с нулевым резервом"
-	                            >
-	                              Критический путь
-	                            </button>
-	                            <button
-	                              type="button"
-	                              className={showGanttBaseline ? "active" : ""}
-	                              onClick={() =>
-	                                setShowGanttBaseline((current) => !current)
-	                              }
-	                            >
-	                              Базовый план
-	                            </button>
-	                            <button
-	                              type="button"
-	                              className={showGanttForecast ? "active" : ""}
-	                              onClick={() =>
-	                                setShowGanttForecast((current) => !current)
-	                              }
-	                            >
-	                              Прогноз
-	                            </button>
-	                            <button
-	                              type="button"
-	                              onClick={() => void resetGanttPanelSize()}
-	                            >
-	                              Сбросить размер
-	                            </button>
-	                            <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Гантта">
-	                              {GANTT_HIERARCHY_LEVELS.map((level) => (
-	                                <button
-	                                  type="button"
-	                                  key={level}
-	                                  className={activeWbsHierarchyLevel === level ? "active" : ""}
-	                                  onClick={() => setWbsHierarchyLevel(level)}
-	                                  title={`Показать иерархию до ${level} уровня`}
-	                                >
-	                                  {level}
-	                                </button>
-	                              ))}
-	                            </div>
-	                          </div>
-	                          <div className="status-legend gantt-status-legend" aria-label="Легенда статусов">
-	                            <span><i className="tone-b" />В работе</span>
-	                            <span><i className="tone-g" />Сделано</span>
-	                            <span><i className="tone-r" />Провалено</span>
-	                            <span><i className="tone-p" />Просрочено</span>
-	                            <span><i className="tone-x" />Не начато</span>
-	                            <span><i className="tone-o" />Веха</span>
-	                            <span><i className="tone-critical" />Критический путь</span>
-	                            <span><i className="tone-near-critical" />Резерв до 5 дн.</span>
-	                          </div>
-	                          {project.criticalPath?.warnings?.map((warning) => (
-	                            <p className="gantt-warning" key={warning}>{warning}</p>
-	                          ))}
-	                        </div>
-	                        <div
-	                          className="gantt-panel"
-	                          style={
-	                            {
-	                              "--gantt-panel-height": `${ganttPanelHeight}px`,
-	                              "--gantt-panel-width":
-	                                ganttPanelWidth > 0
-	                                  ? `min(${ganttPanelWidth}px, 100%)`
-	                                  : "100%",
-	                              "--gantt-wbs-width": `${ganttWbsWidth}px`,
-	                              "--gantt-timeline-width": `${Math.max(
-	                                520,
-	                                (ganttScale === "quarter"
-	                                  ? wbsGantt.quarters.length
-	                                  : wbsGantt.months.length) *
-	                                  GANTT_SCALE_WIDTH[ganttScale],
-	                              )}px`,
-	                            } as GanttCssProperties
-	                          }
-	                        >
+                                <button
+                                  type="button"
+                                  onClick={() => void undoWbsChange()}
+                                onMouseDown={(event) => event.preventDefault()}
+                                disabled={
+                                  restoringWbsSnapshot ||
+                                  wbsUndoStack.length === 0
+                                }
+                                aria-label="Откатить последнее изменение Гантта"
+                                title="Назад"
+                              >
+                                ← Назад
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void redoWbsChange()}
+                                onMouseDown={(event) => event.preventDefault()}
+                                disabled={
+                                  restoringWbsSnapshot ||
+                                  wbsRedoStack.length === 0
+                                }
+                                aria-label="Вернуть отмененное изменение Гантта"
+                                title="Вперед"
+                              >
+                                Вперед →
+                              </button>
+                              <div className="segmented-control" aria-label="Масштаб Гантта">
+                                <button
+                                  type="button"
+                                  className={ganttScale === "month" ? "active" : ""}
+                                  onClick={() => setGanttScale("month")}
+                                >
+                                  Месяцы
+                                </button>
+                                <button
+                                  type="button"
+                                  className={ganttScale === "quarter" ? "active" : ""}
+                                  onClick={() => setGanttScale("quarter")}
+                                >
+                                  Кварталы
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  document
+                                    .querySelector(".gantt-today")
+                                    ?.scrollIntoView({
+                                      inline: "center",
+                                      block: "nearest",
+                                      behavior: "smooth",
+                                    })
+                                }
+                              >
+                                Сегодня
+                              </button>
+                              <button
+                                type="button"
+                                className={showGanttDependencies ? "active" : ""}
+                                onClick={toggleGanttDependencies}
+                              >
+                                Связи
+                              </button>
+                              <button
+                                type="button"
+                                className={showGanttCriticalPath ? "active" : ""}
+                                onClick={toggleGanttCriticalPath}
+                                title="Показать задачи и связи с нулевым резервом"
+                              >
+                                Критический путь
+                              </button>
+                              <button
+                                type="button"
+                                className={showGanttBaseline ? "active" : ""}
+                                onClick={() =>
+                                  setShowGanttBaseline((current) => !current)
+                                }
+                              >
+                                Базовый план
+                              </button>
+                              <button
+                                type="button"
+                                className={showGanttForecast ? "active" : ""}
+                                onClick={() =>
+                                  setShowGanttForecast((current) => !current)
+                                }
+                              >
+                                Прогноз
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void resetGanttPanelSize()}
+                              >
+                                Сбросить размер
+                              </button>
+                              <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Гантта">
+                                {GANTT_HIERARCHY_LEVELS.map((level) => (
+                                  <button
+                                    type="button"
+                                    key={level}
+                                    className={activeWbsHierarchyLevel === level ? "active" : ""}
+                                    onClick={() => setWbsHierarchyLevel(level)}
+                                    title={`Показать иерархию до ${level} уровня`}
+                                  >
+                                    {level}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="status-legend gantt-status-legend" aria-label="Легенда статусов">
+                              <span><i className="tone-b" />В работе</span>
+                              <span><i className="tone-g" />Сделано</span>
+                              <span><i className="tone-r" />Провалено</span>
+                              <span><i className="tone-p" />Просрочено</span>
+                              <span><i className="tone-x" />Не начато</span>
+                              <span><i className="tone-o" />Веха</span>
+                              <span><i className="tone-critical" />Критический путь</span>
+                              <span><i className="tone-near-critical" />Резерв до 5 дн.</span>
+                            </div>
+                            {project.criticalPath?.warnings?.map((warning) => (
+                              <p className="gantt-warning" key={warning}>{warning}</p>
+                            ))}
+                          </div>
+                          <div
+                            className="gantt-panel"
+                            style={
+                              {
+                                "--gantt-panel-height": `${ganttPanelHeight}px`,
+                                "--gantt-panel-width":
+                                  ganttPanelWidth > 0
+                                    ? `min(${ganttPanelWidth}px, 100%)`
+                                    : "100%",
+                                "--gantt-wbs-width": `${ganttWbsWidth}px`,
+                                "--gantt-timeline-width": `${Math.max(
+                                  520,
+                                  (ganttScale === "quarter"
+                                    ? wbsGantt.quarters.length
+                                    : wbsGantt.months.length) *
+                                    GANTT_SCALE_WIDTH[ganttScale],
+                                )}px`,
+                              } as GanttCssProperties
+                            }
+                          >
                           <div className="gantt-panel-scroll">
-	                    <div className="gantt-head">
+                      <div className="gantt-head">
                           <span>Структура</span>
                       <button
                         type="button"
@@ -8651,13 +9353,13 @@ function App() {
                                 critical,
                                 summary,
                                 baselineRange,
-	                                forecastRange,
-	                                scheduleVarianceDays,
-	                                toneClass,
-	                                nearCritical,
-	                                totalFloatWorkDays,
-	                              }) => (
-	                                <div
+                                  forecastRange,
+                                  scheduleVarianceDays,
+                                  toneClass,
+                                  nearCritical,
+                                  totalFloatWorkDays,
+                                }) => (
+                                  <div
                                   className={`gantt-track-row ${
                                     activeWbsItemId === item.id ? "active" : ""
                                   } ${
@@ -8697,18 +9399,18 @@ function App() {
                                       title={`${item.code} прогноз: ${date(item.forecastStartDate)} - ${date(item.forecastDueDate)}`}
                                     />
                                   )}
-	                                  <i
-	                                    className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${summary ? "summary" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
-	                                    style={{
-	                                      left: `${offset}%`,
-	                                      width: milestone ? undefined : `${width}%`,
-	                                    }}
-	                                    title={`${item.code} ${item.title}: ${date(item.startDate)} - ${date(item.dueDate)}${
-	                                      totalFloatWorkDays === null
-	                                        ? ""
-	                                        : `. Резерв: ${totalFloatWorkDays} раб. дн.`
-	                                    }`}
-	                                  >
+                                    <i
+                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${summary ? "summary" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
+                                      style={{
+                                        left: `${offset}%`,
+                                        width: milestone ? undefined : `${width}%`,
+                                      }}
+                                      title={`${item.code} ${item.title}: ${date(item.startDate)} - ${date(item.dueDate)}${
+                                        totalFloatWorkDays === null
+                                          ? ""
+                                          : `. Резерв: ${totalFloatWorkDays} раб. дн.`
+                                      }`}
+                                    >
                                     <button
                                       type="button"
                                       className="gantt-link-handle start"
@@ -8801,22 +9503,22 @@ function App() {
                         aria-label="Изменить размер поля Гантта"
                         title="Изменить размер поля Гантта"
                       />
-	                        </div>
-	                        </div>
-	                      </>
-	                    )}
+                          </div>
+                          </div>
+                        </>
+                      )}
                   </div>
                 </article>
               )}
 
               {project && activeView === "project-calendars" && (
-	                <article className="panel project-card">
-	                  <div className="panel-title">
-	                    <div>
-	                      <h2>Календари</h2>
-	                      <p>
-	                        RU и CN календари проекта: клик по дню меняет рабочий
-	                        день на выходной или праздник и наоборот
+                  <article className="panel project-card">
+                    <div className="panel-title">
+                      <div>
+                        <h2>Календари</h2>
+                        <p>
+                          RU и CN календари проекта: клик по дню меняет рабочий
+                          день на выходной или праздник и наоборот
                       </p>
                     </div>
                   </div>
@@ -8996,13 +9698,13 @@ function App() {
               )}
 
               {project && activeView === "project-issues" && (
-	                <article className="panel overview-panel">
-	                  <div className="panel-title">
-	                    <div>
-	                      <h2>Реестр открытых вопросов</h2>
-	                      <p>
-	                        Единый список открытых проблем из Jira и внутренних
-	                        управленческих вопросов
+                  <article className="panel overview-panel">
+                    <div className="panel-title">
+                      <div>
+                        <h2>Реестр открытых вопросов</h2>
+                        <p>
+                          Единый список открытых проблем из Jira и внутренних
+                          управленческих вопросов
                       </p>
                     </div>
                     <button
@@ -9025,14 +9727,14 @@ function App() {
                       <span>Ответственный</span>
                       <span />
                     </div>
-	                    {project.issues.map((issue) => {
-	                      const delayDays = calendarDelayDays(
-	                        issue.initialDueDate,
-	                        issue.dueDate,
-	                      );
+                      {project.issues.map((issue) => {
+                        const delayDays = calendarDelayDays(
+                          issue.initialDueDate,
+                          issue.dueDate,
+                        );
                         const jiraLink = issuePrimaryJiraLink(issue);
-	                      return (
-	                      <div className="issue-row" key={issue.id}>
+                        return (
+                        <div className="issue-row" key={issue.id}>
                           <div
                             className="issue-summary-row"
                             role="button"
@@ -9056,8 +9758,8 @@ function App() {
                           >
                             <span className="issue-summary-title">
                               {issue.title}
-	                            </span>
-	                            <span className="issue-summary-cell">
+                              </span>
+                              <span className="issue-summary-cell">
                                 {jiraLink.key && jiraLink.url ? (
                                   <a
                                     className="issue-jira-key"
@@ -9071,7 +9773,7 @@ function App() {
                                 ) : (
                                   jiraLink.key || "не задан"
                                 )}
-	                            </span>
+                              </span>
                             <span className="issue-summary-cell">
                               {date(issue.dueDate)}
                             </span>
@@ -9083,10 +9785,10 @@ function App() {
                             <span className="issue-summary-cell">
                               {issue.owner || "не назначен"}
                             </span>
-	                            <span className="issue-chevron" aria-hidden="true">
-	                              {expandedIssueId === issue.id ? "-" : "+"}
-	                            </span>
-	                          </div>
+                              <span className="issue-chevron" aria-hidden="true">
+                                {expandedIssueId === issue.id ? "-" : "+"}
+                              </span>
+                            </div>
                         {expandedIssueId === issue.id && (
                           <div
                             className="issue-details-panel"
@@ -9200,9 +9902,9 @@ function App() {
                           </div>
                         )}
                       </div>
-	                    );
-	                    })}
-	                  </div>
+                      );
+                      })}
+                    </div>
                     <section className="closed-issues-section">
                       <div className="section-heading compact">
                         <div>
@@ -9338,8 +10040,8 @@ function App() {
                         )}
                       </div>
                     </section>
-	                </article>
-	              )}
+                  </article>
+                )}
 
               {project && activeView === "admin" && (
                 <article className="panel">
@@ -9460,13 +10162,13 @@ function App() {
               )}
 
               {project && activeView === "project-raid" && (
-	                <article className="panel overview-panel">
-	                  <div className="panel-title">
-	                    <div>
-	                      <h2>Риски и проблемы</h2>
-	                      <p>
-	                        Риски, проблемы и допущения с влиянием на сроки и обзор
-	                        для руководства
+                  <article className="panel overview-panel">
+                    <div className="panel-title">
+                      <div>
+                        <h2>Риски и проблемы</h2>
+                        <p>
+                          Риски, проблемы и допущения с влиянием на сроки и обзор
+                          для руководства
                       </p>
                     </div>
                   </div>
@@ -9695,7 +10397,7 @@ function App() {
                                   {item.jiraTicketKey && (
                                     <span>Jira: {item.jiraTicketKey}</span>
                                   )}
-	                                  {item.decisionRequired && (
+                                    {item.decisionRequired && (
                                     <b>Требует решения</b>
                                   )}
                                 </div>
@@ -9867,7 +10569,7 @@ function App() {
                                     }
                                     placeholder="Дни по срокам"
                                   />
-	                                  <label className="checkbox-line compact-checkbox">
+                                    <label className="checkbox-line compact-checkbox">
                                     <input
                                       type="checkbox"
                                       checked={raidDrafts[item.id].decisionRequired}
@@ -9959,10 +10661,10 @@ function App() {
                           )}
                         </div>
                       </section>
-		                    <form className="raid-form stack-form" onSubmit={createRaidItem}>
-		                      <h3>Новая запись</h3>
-	                      <div className="form-section-title">Основное</div>
-	                      <div className="two-col">
+                        <form className="raid-form stack-form" onSubmit={createRaidItem}>
+                          <h3>Новая запись</h3>
+                        <div className="form-section-title">Основное</div>
+                        <div className="two-col">
                         <label>
                           Тип
                           <select
@@ -10048,11 +10750,11 @@ function App() {
                               description: event.target.value,
                             })
                           }
-	                          rows={3}
-	                        />
-	                      </label>
-	                      <div className="form-section-title">Оценка и влияние</div>
-	                      <div className="two-col">
+                            rows={3}
+                          />
+                        </label>
+                        <div className="form-section-title">Оценка и влияние</div>
+                        <div className="two-col">
                         <label>
                           Вероятность
                           <input
@@ -10098,10 +10800,10 @@ function App() {
                             }
                           />
                         </label>
-		                      </div>
-	                      <div className="form-section-title">План действий</div>
-	                      <label>
-	                        План действий
+                          </div>
+                        <div className="form-section-title">План действий</div>
+                        <label>
+                          План действий
                         <textarea
                           value={raidForm.mitigationPlan}
                           onChange={(event) =>
@@ -10134,13 +10836,13 @@ function App() {
               )}
 
               {project && activeView === "project-artifacts" && (
-	                <article className="panel project-card">
-	                  <div className="panel-title">
-	                    <div>
-	                      <h2>Артефакты проекта</h2>
-	                      <p>
-	                        Рабочие управленческие артефакты, собранные из данных
-	                        проекта
+                  <article className="panel project-card">
+                    <div className="panel-title">
+                      <div>
+                        <h2>Артефакты проекта</h2>
+                        <p>
+                          Рабочие управленческие артефакты, собранные из данных
+                          проекта
                       </p>
                     </div>
                     <button

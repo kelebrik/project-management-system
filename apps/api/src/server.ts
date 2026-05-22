@@ -62,6 +62,14 @@ type AuthRequest = Request & {
   currentSessionId?: string;
 };
 
+type PermissionName =
+  | 'project.write'
+  | 'wbs.write'
+  | 'issue.write'
+  | 'raid.write'
+  | 'overview.publish'
+  | 'admin.manage';
+
 function serverErrorMessage(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes('40P01') || message.includes('deadlock detected')) {
@@ -253,6 +261,25 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
     return;
   }
   next();
+}
+
+async function userHasPermission(user: CurrentUser, permission: PermissionName) {
+  if (user.role === 'ADMIN') {
+    return true;
+  }
+  const record = await prisma.rolePermission
+    .findUnique({
+      where: {
+        role_permission: {
+          role: user.role,
+          permission,
+        },
+      },
+      select: { enabled: true },
+    })
+    .catch(() => null);
+
+  return record?.enabled ?? false;
 }
 
 async function ensureProjectWritable(projectId: string, res: Response) {
@@ -511,6 +538,68 @@ app.post('/api/auth/logout', async (req, res) => {
 
 app.use('/api', requireAuthForWrites);
 
+function writePermissionForPath(pathname: string): PermissionName | null {
+  if (pathname.startsWith('/admin') || pathname.startsWith('/users')) {
+    return 'admin.manage';
+  }
+  if (pathname.startsWith('/wbs-items') || pathname.startsWith('/wbs-dependencies')) {
+    return 'wbs.write';
+  }
+  if (pathname.startsWith('/open-issues') || pathname.startsWith('/tasks')) {
+    return 'issue.write';
+  }
+  if (pathname.startsWith('/raid-items') || pathname.startsWith('/change-requests')) {
+    return 'raid.write';
+  }
+  if (pathname.startsWith('/executive-overviews')) {
+    return 'overview.publish';
+  }
+  if (!pathname.startsWith('/projects')) {
+    return null;
+  }
+  if (
+    pathname.includes('/wbs-items') ||
+    pathname.includes('/wbs-dependencies') ||
+    pathname.includes('/wbs-snapshot') ||
+    pathname.includes('/wbs-baseline') ||
+    pathname.includes('/calendar-overrides')
+  ) {
+    return 'wbs.write';
+  }
+  if (pathname.includes('/open-issues')) {
+    return 'issue.write';
+  }
+  if (pathname.includes('/raid-items') || pathname.includes('/change-requests')) {
+    return 'raid.write';
+  }
+  if (pathname.includes('/executive-overviews')) {
+    return 'overview.publish';
+  }
+  return 'project.write';
+}
+
+app.use('/api', async (req, res, next) => {
+  if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  const requiredPermission = writePermissionForPath(req.path);
+  if (!requiredPermission) {
+    next();
+    return;
+  }
+  const user = currentUser(req);
+  if (!user) {
+    res.status(401).json({ error: 'Требуется вход в систему' });
+    return;
+  }
+  if (!(await userHasPermission(user, requiredPermission))) {
+    res.status(403).json({ error: 'Недостаточно прав' });
+    return;
+  }
+  next();
+});
+
 app.get('/api/audit-events', requireAdmin, async (req, res) => {
   const take = Math.min(200, Math.max(1, Number(req.query.limit ?? 100)));
   const events = await prisma.auditEvent.findMany({
@@ -518,6 +607,261 @@ app.get('/api/audit-events', requireAdmin, async (req, res) => {
     take,
   });
   res.json(events);
+});
+
+const rolePermissionSchema = z.object({
+  enabled: z.boolean(),
+});
+
+const dictionaryItemSchema = z.object({
+  dictionary: z.string().trim().min(1),
+  code: z.string().trim().min(1),
+  label: z.string().trim().min(1),
+  description: z.string().trim().optional().nullable(),
+  sortOrder: z.coerce.number().int().default(0),
+  isActive: z.boolean().default(true),
+});
+
+const systemSettingsSchema = z.object({
+  settings: z.record(
+    z.string(),
+    z.object({
+      value: z.string(),
+      isSecret: z.boolean().optional(),
+    }),
+  ),
+});
+
+function adminSettingResponse(setting: {
+  key: string;
+  value: string;
+  isSecret: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    ...setting,
+    value: setting.isSecret ? '' : setting.value,
+    hasValue: setting.value.length > 0,
+  };
+}
+
+app.get('/api/admin/config', requireAdmin, async (_req, res) => {
+  const [rolePermissions, dictionaryItems, systemSettings] = await Promise.all([
+    prisma.rolePermission.findMany({
+      orderBy: [{ role: 'asc' }, { permission: 'asc' }],
+    }),
+    prisma.dictionaryItem.findMany({
+      orderBy: [{ dictionary: 'asc' }, { sortOrder: 'asc' }, { code: 'asc' }],
+    }),
+    prisma.systemSetting.findMany({
+      orderBy: { key: 'asc' },
+    }),
+  ]);
+  res.json({
+    rolePermissions,
+    dictionaryItems,
+    systemSettings: systemSettings.map(adminSettingResponse),
+  });
+});
+
+app.patch('/api/admin/role-permissions/:permissionId', requireAdmin, async (req, res) => {
+  const parsed = rolePermissionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const permissionId = Array.isArray(req.params.permissionId)
+    ? req.params.permissionId[0]
+    : req.params.permissionId;
+  if (!permissionId) {
+    res.status(400).json({ error: 'Право не указано' });
+    return;
+  }
+
+  const before = await prisma.rolePermission.findUnique({ where: { id: permissionId } });
+  if (!before) {
+    res.status(404).json({ error: 'Право не найдено' });
+    return;
+  }
+  if (before.role === 'ADMIN' && !parsed.data.enabled) {
+    res.status(400).json({ error: 'Права администратора нельзя отключить' });
+    return;
+  }
+  const updated = await prisma.rolePermission.update({
+    where: { id: permissionId },
+    data: { enabled: parsed.data.enabled },
+  });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'admin.role_permission.update',
+    objectType: 'RolePermission',
+    objectId: updated.id,
+    beforeValue: before,
+    afterValue: updated,
+  });
+  res.json(updated);
+});
+
+app.post('/api/admin/dictionary-items', requireAdmin, async (req, res) => {
+  const parsed = dictionaryItemSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const item = await prisma.dictionaryItem.upsert({
+    where: {
+      dictionary_code: {
+        dictionary: parsed.data.dictionary,
+        code: parsed.data.code,
+      },
+    },
+    update: {
+      label: parsed.data.label,
+      description: parsed.data.description || null,
+      sortOrder: parsed.data.sortOrder,
+      isActive: parsed.data.isActive,
+    },
+    create: {
+      dictionary: parsed.data.dictionary,
+      code: parsed.data.code,
+      label: parsed.data.label,
+      description: parsed.data.description || null,
+      sortOrder: parsed.data.sortOrder,
+      isActive: parsed.data.isActive,
+    },
+  });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'admin.dictionary.upsert',
+    objectType: 'DictionaryItem',
+    objectId: item.id,
+    afterValue: item,
+    metadata: { dictionary: item.dictionary, code: item.code },
+  });
+  res.status(201).json(item);
+});
+
+app.patch('/api/admin/dictionary-items/:itemId', requireAdmin, async (req, res) => {
+  const parsed = dictionaryItemSchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const itemId = Array.isArray(req.params.itemId) ? req.params.itemId[0] : req.params.itemId;
+  if (!itemId) {
+    res.status(400).json({ error: 'Элемент справочника не указан' });
+    return;
+  }
+
+  const before = await prisma.dictionaryItem.findUnique({ where: { id: itemId } });
+  if (!before) {
+    res.status(404).json({ error: 'Элемент справочника не найден' });
+    return;
+  }
+  const updated = await prisma.dictionaryItem.update({
+    where: { id: itemId },
+    data: {
+      dictionary: parsed.data.dictionary,
+      code: parsed.data.code,
+      label: parsed.data.label,
+      description:
+        parsed.data.description === undefined ? undefined : parsed.data.description || null,
+      sortOrder: parsed.data.sortOrder,
+      isActive: parsed.data.isActive,
+    },
+  });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'admin.dictionary.update',
+    objectType: 'DictionaryItem',
+    objectId: updated.id,
+    beforeValue: before,
+    afterValue: updated,
+    metadata: { dictionary: updated.dictionary, code: updated.code },
+  });
+  res.json(updated);
+});
+
+app.delete('/api/admin/dictionary-items/:itemId', requireAdmin, async (req, res) => {
+  const itemId = Array.isArray(req.params.itemId) ? req.params.itemId[0] : req.params.itemId;
+  if (!itemId) {
+    res.status(400).json({ error: 'Элемент справочника не указан' });
+    return;
+  }
+  const before = await prisma.dictionaryItem.findUnique({ where: { id: itemId } });
+  if (!before) {
+    res.status(404).json({ error: 'Элемент справочника не найден' });
+    return;
+  }
+  const updated = await prisma.dictionaryItem.update({
+    where: { id: itemId },
+    data: { isActive: false },
+  });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'admin.dictionary.deactivate',
+    objectType: 'DictionaryItem',
+    objectId: updated.id,
+    beforeValue: before,
+    afterValue: updated,
+    metadata: { dictionary: updated.dictionary, code: updated.code },
+  });
+  res.json(updated);
+});
+
+app.put('/api/admin/system-settings', requireAdmin, async (req, res) => {
+  const parsed = systemSettingsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const keys = Object.keys(parsed.data.settings);
+  if (keys.length === 0) {
+    res.status(400).json({ error: 'Настройки не переданы' });
+    return;
+  }
+
+  const before = await prisma.systemSetting.findMany({
+    where: { key: { in: keys } },
+  });
+  const beforeByKey = new Map(before.map((setting) => [setting.key, setting]));
+  const updated = await prisma.$transaction(
+    keys.map((key) => {
+      const input = parsed.data.settings[key];
+      const current = beforeByKey.get(key);
+      const isSecret = input.isSecret ?? current?.isSecret ?? false;
+      const preserveSecret = isSecret && input.value === '' && current?.value;
+      return prisma.systemSetting.upsert({
+        where: { key },
+        update: {
+          value: preserveSecret ? current.value : input.value,
+          isSecret,
+        },
+        create: {
+          key,
+          value: input.value,
+          isSecret,
+        },
+      });
+    }),
+  );
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'admin.system_settings.update',
+    objectType: 'SystemSetting',
+    metadata: {
+      keys,
+      secretKeys: updated.filter((setting) => setting.isSecret).map((setting) => setting.key),
+    },
+  });
+  res.json(updated.map(adminSettingResponse));
 });
 
 app.get('/api/users', requireAdmin, async (_req, res) => {
@@ -3704,14 +4048,6 @@ app.post('/api/projects/:projectId/jira/sync', async (req, res) => {
 
   if (!project?.jiraIntegration) {
     res.status(404).json({ error: 'Интеграция Jira не настроена для этого проекта' });
-    return;
-  }
-
-  if (!isJiraConfigured()) {
-    res.status(400).json({
-      error: 'Переменные окружения Jira не настроены',
-      required: ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN'],
-    });
     return;
   }
 
