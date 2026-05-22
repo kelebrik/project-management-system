@@ -1,4 +1,8 @@
-import type { ProjectCalendarCode, WbsItemType } from "@prisma/client";
+import type {
+  ProjectCalendarCode,
+  WbsDependencyType,
+  WbsItemType,
+} from "@prisma/client";
 import { prisma } from "../db.js";
 
 export type WbsScheduleItem = {
@@ -27,6 +31,7 @@ export type WbsScheduleItem = {
 export type WbsScheduleDependency = {
   predecessorId: string;
   successorId: string;
+  type?: WbsDependencyType;
   lagDays?: number;
 };
 
@@ -48,6 +53,7 @@ export type WbsScheduleUpdate = {
 
 type WbsPredecessorRef = {
   predecessorId: string;
+  type: WbsDependencyType;
   lagDays: number;
 };
 
@@ -197,6 +203,21 @@ function maxDate(dates: Date[]) {
   );
 }
 
+function startFromFinish(
+  finishDate: Date,
+  durationWorkDays: number,
+  calendarCode: ProjectCalendarCode,
+  overridesByKey: Map<string, boolean>,
+) {
+  if (durationWorkDays <= 1) return startOfUtcDay(finishDate);
+  return addWorkingDays(
+    finishDate,
+    -(durationWorkDays - 1),
+    calendarCode,
+    overridesByKey,
+  );
+}
+
 function sortByPlanOrder(left: WbsScheduleItem, right: WbsScheduleItem) {
   return left.sortOrder - right.sortOrder || left.code.localeCompare(right.code, "ru");
 }
@@ -251,6 +272,7 @@ export function calculateWbsScheduleUpdates(
       );
       return {
         predecessorId,
+        type: dependency?.type ?? "FS",
         lagDays:
           dependency?.lagDays ??
           (fieldPredecessorIds.length === 1 ? item.leadLagDays ?? 0 : 0),
@@ -265,6 +287,7 @@ export function calculateWbsScheduleUpdates(
         ) {
           refs.push({
             predecessorId: dependency.predecessorId,
+            type: dependency.type ?? "FS",
             lagDays: dependency.lagDays ?? 0,
           });
         }
@@ -322,26 +345,78 @@ export function calculateWbsScheduleUpdates(
     let nextDueDate = normalizedDate(item.dueDate);
     const durationWorkDays = resolveDurationWorkDays(item);
 
-    const predecessorStartDates = predecessorRefs
-      .map((predecessorRef) => {
-        const predecessorDueDate =
-          computedById.get(predecessorRef.predecessorId)?.dueDate ??
-          normalizedDate(itemsById.get(predecessorRef.predecessorId)?.dueDate ?? null);
-        if (!predecessorDueDate) return null;
-        return addWorkingDays(
-          predecessorDueDate,
-          1 + predecessorRef.lagDays,
-          item.calendarCode,
-          overridesByKey,
-        );
-      })
-      .filter((value): value is Date => value !== null);
-    const hasScheduledPredecessors = predecessorStartDates.length > 0;
+    const startConstraints: Date[] = [];
+    const finishConstraints: Date[] = [];
+    for (const predecessorRef of predecessorRefs) {
+      const predecessor = itemsById.get(predecessorRef.predecessorId);
+      const predecessorSchedule = computedById.get(predecessorRef.predecessorId);
+      const predecessorStartDate =
+        predecessorSchedule?.startDate ??
+        normalizedDate(predecessor?.startDate ?? null);
+      const predecessorDueDate =
+        predecessorSchedule?.dueDate ??
+        normalizedDate(predecessor?.dueDate ?? null);
 
-    if (hasScheduledPredecessors) {
-      nextStartDate = predecessorStartDates.reduce((latest, current) =>
-        current.getTime() > latest.getTime() ? current : latest,
-      );
+      if (predecessorRef.type === "FS" && predecessorDueDate) {
+        startConstraints.push(
+          addWorkingDays(
+            predecessorDueDate,
+            1 + predecessorRef.lagDays,
+            item.calendarCode,
+            overridesByKey,
+          ),
+        );
+      } else if (predecessorRef.type === "SS" && predecessorStartDate) {
+        startConstraints.push(
+          addWorkingDays(
+            predecessorStartDate,
+            predecessorRef.lagDays,
+            item.calendarCode,
+            overridesByKey,
+          ),
+        );
+      } else if (predecessorRef.type === "FF" && predecessorDueDate) {
+        finishConstraints.push(
+          addWorkingDays(
+            predecessorDueDate,
+            predecessorRef.lagDays,
+            item.calendarCode,
+            overridesByKey,
+          ),
+        );
+      } else if (predecessorRef.type === "SF" && predecessorStartDate) {
+        finishConstraints.push(
+          addWorkingDays(
+            predecessorStartDate,
+            predecessorRef.lagDays,
+            item.calendarCode,
+            overridesByKey,
+          ),
+        );
+      }
+    }
+
+    if (durationWorkDays !== null) {
+      const requiredStartDates = [
+        ...startConstraints,
+        ...finishConstraints.map((finishConstraint) =>
+          startFromFinish(
+            finishConstraint,
+            durationWorkDays,
+            item.calendarCode,
+            overridesByKey,
+          ),
+        ),
+      ];
+      const constrainedStartDate = maxDate(requiredStartDates);
+      if (constrainedStartDate) {
+        nextStartDate = constrainedStartDate;
+      }
+    } else {
+      const constrainedStartDate = maxDate(startConstraints);
+      const constrainedFinishDate = maxDate(finishConstraints);
+      if (constrainedStartDate) nextStartDate = constrainedStartDate;
+      if (constrainedFinishDate) nextDueDate = constrainedFinishDate;
     }
 
     if (nextStartDate && durationWorkDays !== null) {
@@ -450,6 +525,7 @@ export async function recalculateProjectWbsSchedule(projectId: string) {
       select: {
         predecessorId: true,
         successorId: true,
+        type: true,
         lagDays: true,
       },
     }),
