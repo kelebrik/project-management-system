@@ -771,6 +771,29 @@ type MilestoneTimelineModel = {
   hasMilestonesOutsideRange: boolean;
 };
 
+type MilestoneSnakePoint = {
+  x: number;
+  y: number;
+  rowIndex: number;
+};
+
+type MilestoneSnakeLabel = {
+  boxX: number;
+  boxY: number;
+  boxWidth: number;
+  boxHeight: number;
+  connectorX: number;
+  connectorY: number;
+  lines: string[];
+  dateY: number;
+};
+
+const MILESTONE_SNAKE_WIDTH = 1120;
+const MILESTONE_SNAKE_HEIGHT = 792;
+const MILESTONE_SNAKE_LEFT = 74;
+const MILESTONE_SNAKE_RIGHT = 1046;
+const MILESTONE_SNAKE_ROWS = [682, 542, 402, 262, 122];
+
 const WBS_LEVEL_MIN_WIDTH = 128;
 const GANTT_PANEL_HEIGHT_DEFAULT = 456;
 const GANTT_PANEL_WIDTH_DEFAULT = 0;
@@ -1692,6 +1715,79 @@ function splitPhaseTitle(value: string) {
     .slice(0, 4);
 }
 
+function wrapText(value: string, maxLineLength: number, maxLines: number) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  words.forEach((word) => {
+    const current = lines[lines.length - 1] ?? "";
+    if (!current) {
+      lines.push(word);
+      return;
+    }
+    if (`${current} ${word}`.length <= maxLineLength) {
+      lines[lines.length - 1] = `${current} ${word}`;
+      return;
+    }
+    if (lines.length < maxLines) {
+      lines.push(word);
+      return;
+    }
+    const lastLine = lines[lines.length - 1] ?? "";
+    lines[lines.length - 1] =
+      lastLine.length > 0 ? `${lastLine.slice(0, Math.max(0, maxLineLength - 1))}…` : "…";
+  });
+  return lines.length > 0 ? lines : [value];
+}
+
+function interpolateSnakePoint(progress: number): MilestoneSnakePoint {
+  const bounded = Math.max(0, Math.min(1, progress));
+  const segmentCount = MILESTONE_SNAKE_ROWS.length - 1;
+  const scaled = bounded * segmentCount;
+  const rowIndex = Math.min(segmentCount - 1, Math.floor(scaled));
+  const segmentProgress = scaled - rowIndex;
+  const fromLeft = rowIndex % 2 === 0;
+  const startX = fromLeft ? MILESTONE_SNAKE_LEFT : MILESTONE_SNAKE_RIGHT;
+  const endX = fromLeft ? MILESTONE_SNAKE_RIGHT : MILESTONE_SNAKE_LEFT;
+  const startY = MILESTONE_SNAKE_ROWS[rowIndex];
+  const endY = MILESTONE_SNAKE_ROWS[rowIndex + 1];
+  return {
+    x: startX + (endX - startX) * segmentProgress,
+    y: startY + (endY - startY) * segmentProgress,
+    rowIndex,
+  };
+}
+
+function snakeLabelForPoint(
+  point: MilestoneSnakePoint,
+  index: number,
+  total: number,
+): MilestoneSnakeLabel {
+  const compact = total > 18;
+  const boxWidth = compact ? 148 : 176;
+  const boxHeight = compact ? 68 : 76;
+  const placeAbove = index % 2 === 0;
+  const preferRight =
+    point.x < MILESTONE_SNAKE_LEFT + 170
+      ? true
+      : point.x > MILESTONE_SNAKE_RIGHT - 170
+        ? false
+        : index % 4 < 2;
+  let boxX = point.x + (preferRight ? 22 : -boxWidth - 22);
+  let boxY = point.y + (placeAbove ? -boxHeight - 26 : 26);
+  boxX = Math.max(18, Math.min(MILESTONE_SNAKE_WIDTH - boxWidth - 18, boxX));
+  boxY = Math.max(18, Math.min(MILESTONE_SNAKE_HEIGHT - boxHeight - 18, boxY));
+  return {
+    boxX,
+    boxY,
+    boxWidth,
+    boxHeight,
+    connectorX: boxX + (preferRight ? 0 : boxWidth),
+    connectorY: boxY + boxHeight / 2,
+    lines: [],
+    dateY: boxY + boxHeight - 18,
+  };
+}
+
 function createMilestoneTimelineModel({
   milestones,
   lanes,
@@ -1979,6 +2075,207 @@ function MilestoneTimelineSection({
           <div className="empty-state">
             {timeline.hasMilestonesOutsideRange
               ? "В окне от -2 до +4 месяцев от текущей даты нет вех."
+              : "В Структуре пока нет элементов типа «Веха»."}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MilestoneSnakeTimelineSection({
+  sectionId,
+  title,
+  timeline,
+  onOpenStructure,
+  onPrint,
+}: {
+  sectionId: string;
+  title: string;
+  timeline: MilestoneTimelineModel;
+  onOpenStructure: () => void;
+  onPrint: () => void;
+}) {
+  const milestones = timeline.lanes.flatMap((lane) => lane.items);
+  const startTime = new Date(timeline.startDate).getTime();
+  const endTime = new Date(timeline.endDate).getTime();
+  const range = endTime - startTime;
+  const snakePath = MILESTONE_SNAKE_ROWS.map((y, index) => {
+    const x = index % 2 === 0 ? MILESTONE_SNAKE_LEFT : MILESTONE_SNAKE_RIGHT;
+    return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+  }).join(" ");
+  const monthTicks = (() => {
+    const start = startOfMonth(new Date(timeline.startDate));
+    const end = startOfMonth(new Date(timeline.endDate));
+    const ticks: Array<{ label: string; point: MilestoneSnakePoint }> = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const progress =
+        range === 0 ? 0 : (cursor.getTime() - startTime) / range;
+      ticks.push({
+        label: monthLabel(cursor).replace(".", ""),
+        point: interpolateSnakePoint(progress),
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return ticks;
+  })();
+
+  return (
+    <section
+      className="milestone-section milestone-snake-section"
+      data-print-section={sectionId}
+      id={sectionId}
+    >
+      <div className="milestone-section-head">
+        <h3>{title}</h3>
+        <div className="milestone-section-actions">
+          <MilestoneLegend />
+          <button type="button" onClick={onPrint}>
+            Сохранить в PDF
+          </button>
+        </div>
+      </div>
+      <div className="milestone-snake-shell">
+        {milestones.length > 0 ? (
+          <svg
+            className="milestone-snake-svg"
+            viewBox={`0 0 ${MILESTONE_SNAKE_WIDTH} ${MILESTONE_SNAKE_HEIGHT}`}
+            role="img"
+            aria-label="Все вехи проекта на змеевидной временной шкале"
+          >
+            <defs>
+              <marker
+                id="milestoneSnakeArrow"
+                markerHeight="10"
+                markerWidth="10"
+                orient="auto"
+                refX="8"
+                refY="5"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+              </marker>
+            </defs>
+            <rect
+              x="0"
+              y="0"
+              width={MILESTONE_SNAKE_WIDTH}
+              height={MILESTONE_SNAKE_HEIGHT}
+              rx="10"
+              fill="#fff"
+            />
+            <path
+              d={snakePath}
+              className="milestone-snake-axis"
+              markerEnd="url(#milestoneSnakeArrow)"
+            />
+            {monthTicks.map((tick) => (
+              <g key={`${tick.label}-${tick.point.x}-${tick.point.y}`}>
+                <line
+                  className="milestone-snake-tick"
+                  x1={tick.point.x}
+                  x2={tick.point.x}
+                  y1={tick.point.y - 14}
+                  y2={tick.point.y + 14}
+                />
+                <text
+                  className="milestone-snake-month"
+                  x={tick.point.x}
+                  y={tick.point.y + (tick.point.rowIndex % 2 === 0 ? 34 : -26)}
+                >
+                  {tick.label}
+                </text>
+              </g>
+            ))}
+            {timeline.todayOffset !== null && (() => {
+              const todayPoint = interpolateSnakePoint(timeline.todayOffset);
+              return (
+                <g>
+                  <line
+                    className="milestone-snake-today"
+                    x1={todayPoint.x}
+                    x2={todayPoint.x}
+                    y1={todayPoint.y - 42}
+                    y2={todayPoint.y + 42}
+                  />
+                  <text
+                    className="milestone-snake-today-label"
+                    x={todayPoint.x + 8}
+                    y={todayPoint.y - 48}
+                  >
+                    сегодня
+                  </text>
+                </g>
+              );
+            })()}
+            {milestones.map((entry, index) => {
+              const dueTime = entry.milestone.dueDate
+                ? new Date(entry.milestone.dueDate).getTime()
+                : startTime;
+              const progress = range === 0 ? 0 : (dueTime - startTime) / range;
+              const point = interpolateSnakePoint(progress);
+              const label = snakeLabelForPoint(point, index, milestones.length);
+              const lines = wrapText(
+                entry.milestone.title,
+                label.boxWidth > 160 ? 23 : 18,
+                label.boxHeight > 70 ? 3 : 2,
+              );
+              return (
+                <g
+                  key={entry.milestone.id}
+                  className={`milestone-snake-item ${entry.state.tone}`}
+                  onClick={onOpenStructure}
+                  tabIndex={0}
+                >
+                  <line
+                    className="milestone-snake-connector"
+                    x1={point.x}
+                    x2={label.connectorX}
+                    y1={point.y}
+                    y2={label.connectorY}
+                  />
+                  <circle
+                    className="milestone-snake-marker"
+                    cx={point.x}
+                    cy={point.y}
+                    r="8"
+                  />
+                  <rect
+                    className="milestone-snake-label-box"
+                    x={label.boxX}
+                    y={label.boxY}
+                    width={label.boxWidth}
+                    height={label.boxHeight}
+                    rx="8"
+                  />
+                  {lines.map((line, lineIndex) => (
+                    <text
+                      className="milestone-snake-title"
+                      key={`${entry.milestone.id}-${line}`}
+                      x={label.boxX + 12}
+                      y={label.boxY + 22 + lineIndex * 15}
+                    >
+                      {line}
+                    </text>
+                  ))}
+                  <text
+                    className="milestone-snake-date"
+                    x={label.boxX + 12}
+                    y={label.dateY}
+                  >
+                    {shortDate(entry.milestone.dueDate)}
+                  </text>
+                  <title>
+                    {`${entry.milestone.code} ${entry.milestone.title}: ${date(entry.milestone.dueDate)}. ${entry.state.label}.`}
+                  </title>
+                </g>
+              );
+            })}
+          </svg>
+        ) : (
+          <div className="empty-state">
+            {timeline.hasMilestonesOutsideRange
+              ? "Вехи не попали в диапазон графика."
               : "В Структуре пока нет элементов типа «Веха»."}
           </div>
         )}
@@ -8883,7 +9180,7 @@ function App() {
                         )
                       }
                     />
-                    <MilestoneTimelineSection
+                    <MilestoneSnakeTimelineSection
                       sectionId="milestones-all"
                       title="Все вехи"
                       timeline={milestoneTimeline.all}
