@@ -2890,6 +2890,7 @@ function App() {
           inheritedDelay,
         };
       })
+      .filter(({ delay }) => delay > 0)
       .sort(
         (left, right) =>
           right.rawDelay - left.rawDelay ||
