@@ -2793,7 +2793,6 @@ function App() {
       item.type !== "MILESTONE" &&
       item.baselineDueDate &&
       item.dueDate &&
-      item.status !== "DONE" &&
       item.status !== "CANCELLED";
     const allScheduleDelays = wbsItems
       .filter(isScheduleVarianceCandidate)
@@ -2808,42 +2807,41 @@ function App() {
     const delayByItemId = new Map(
       allScheduleDelays.map(({ item, delay }) => [item.id, delay]),
     );
-    const maxUpstreamDelayCache = new Map<string, number>();
-    const maxUpstreamDelay = (itemId: string, visiting = new Set<string>()): number => {
-      const cached = maxUpstreamDelayCache.get(itemId);
-      if (cached !== undefined) return cached;
-      if (visiting.has(itemId)) return 0;
-      visiting.add(itemId);
-      let maxDelay = 0;
-      for (const predecessorId of predecessorIdsByItemId.get(itemId) ?? []) {
-        maxDelay = Math.max(
-          maxDelay,
-          delayByItemId.get(predecessorId) ?? 0,
-          maxUpstreamDelay(predecessorId, visiting),
-        );
-      }
-      visiting.delete(itemId);
-      maxUpstreamDelayCache.set(itemId, maxDelay);
-      return maxDelay;
-    };
-    const scheduleDeltaItems = scheduleVarianceItems
+    const openStatuses: WbsItemStatus[] = ["IN_PROGRESS", "AT_RISK", "BLOCKED"];
+    const isScheduleVarianceOpenCandidate = (item: WbsItem) =>
+      isScheduleVarianceCandidate(item) && item.status !== "DONE";
+    const scheduleDeltaItems = allScheduleDelays
       .filter(
-        (item) =>
-          isScheduleVarianceCandidate(item) &&
-          !childrenByParentId.has(item.id),
+        ({ item, delay }) => {
+          if (delay <= 0 || childrenByParentId.has(item.id)) return false;
+          const delayedPredecessorIds = [
+            ...(predecessorIdsByItemId.get(item.id) ?? []),
+          ].filter((predecessorId) => (delayByItemId.get(predecessorId) ?? 0) > 0);
+
+          if (delayedPredecessorIds.length === 0) return true;
+
+          const allDelayedPredecessorsClosed = delayedPredecessorIds.every(
+            (predecessorId) =>
+              wbsItems.find((entry) => entry.id === predecessorId)?.status === "DONE",
+          );
+
+          return (
+            criticalPathIds.has(item.id) &&
+            openStatuses.includes(item.status) &&
+            allDelayedPredecessorsClosed
+          );
+        },
       )
-      .map((item) => ({
-        item,
-        delay: signedDaysBetween(
-          startOfDay(new Date(item.baselineDueDate as string)),
-          startOfDay(new Date(item.dueDate as string)),
-        ),
-      }))
-      .filter(({ item, delay }) => delay > 0 && delay > maxUpstreamDelay(item.id))
-      .sort((left, right) => right.delay - left.delay)
+      .sort(
+        (left, right) =>
+          right.delay - left.delay ||
+          left.item.code.localeCompare(right.item.code, undefined, {
+            numeric: true,
+          }),
+      )
       .slice(0, 5);
     const scheduleVarianceFromStructure = scheduleVarianceItems
-      .filter(isScheduleVarianceCandidate)
+      .filter(isScheduleVarianceOpenCandidate)
       .reduce((maxDelay, item) => {
         const delay = signedDaysBetween(
           startOfDay(new Date(item.baselineDueDate as string)),
