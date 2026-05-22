@@ -2761,14 +2761,76 @@ function App() {
       criticalPathIds.size > 0
         ? wbsItems.filter((item) => criticalPathIds.has(item.id))
         : wbsItems;
+    const wbsByCode = new Map(wbsItems.map((item) => [item.code, item]));
+    const childrenByParentId = new Map<string, WbsItem[]>();
+    for (const item of wbsItems) {
+      if (!item.parentId) continue;
+      childrenByParentId.set(item.parentId, [
+        ...(childrenByParentId.get(item.parentId) ?? []),
+        item,
+      ]);
+    }
+    const predecessorIdsByItemId = new Map<string, Set<string>>();
+    const addPredecessor = (itemId: string, predecessorId: string) => {
+      if (itemId === predecessorId) return;
+      const current = predecessorIdsByItemId.get(itemId) ?? new Set<string>();
+      current.add(predecessorId);
+      predecessorIdsByItemId.set(itemId, current);
+    };
+    for (const dependency of project?.wbsDependencies ?? []) {
+      addPredecessor(dependency.successorId, dependency.predecessorId);
+    }
+    for (const item of wbsItems) {
+      for (const key of WBS_PREDECESSOR_KEYS) {
+        const predecessorCode = item[key]?.trim();
+        const predecessor = predecessorCode ? wbsByCode.get(predecessorCode) : null;
+        if (predecessor) {
+          addPredecessor(item.id, predecessor.id);
+        }
+      }
+    }
+    const isScheduleVarianceCandidate = (item: WbsItem) =>
+      item.type !== "MILESTONE" &&
+      item.baselineDueDate &&
+      item.dueDate &&
+      item.status !== "DONE" &&
+      item.status !== "CANCELLED";
+    const allScheduleDelays = wbsItems
+      .filter(isScheduleVarianceCandidate)
+      .map((item) => ({
+        item,
+        delay: signedDaysBetween(
+          startOfDay(new Date(item.baselineDueDate as string)),
+          startOfDay(new Date(item.dueDate as string)),
+        ),
+      }))
+      .filter(({ delay }) => delay > 0);
+    const delayByItemId = new Map(
+      allScheduleDelays.map(({ item, delay }) => [item.id, delay]),
+    );
+    const maxUpstreamDelayCache = new Map<string, number>();
+    const maxUpstreamDelay = (itemId: string, visiting = new Set<string>()): number => {
+      const cached = maxUpstreamDelayCache.get(itemId);
+      if (cached !== undefined) return cached;
+      if (visiting.has(itemId)) return 0;
+      visiting.add(itemId);
+      let maxDelay = 0;
+      for (const predecessorId of predecessorIdsByItemId.get(itemId) ?? []) {
+        maxDelay = Math.max(
+          maxDelay,
+          delayByItemId.get(predecessorId) ?? 0,
+          maxUpstreamDelay(predecessorId, visiting),
+        );
+      }
+      visiting.delete(itemId);
+      maxUpstreamDelayCache.set(itemId, maxDelay);
+      return maxDelay;
+    };
     const scheduleDeltaItems = scheduleVarianceItems
       .filter(
         (item) =>
-          item.type !== "MILESTONE" &&
-          item.baselineDueDate &&
-          item.dueDate &&
-          item.status !== "DONE" &&
-          item.status !== "CANCELLED",
+          isScheduleVarianceCandidate(item) &&
+          !childrenByParentId.has(item.id),
       )
       .map((item) => ({
         item,
@@ -2777,18 +2839,11 @@ function App() {
           startOfDay(new Date(item.dueDate as string)),
         ),
       }))
-      .filter(({ delay }) => delay > 0)
+      .filter(({ item, delay }) => delay > 0 && delay > maxUpstreamDelay(item.id))
       .sort((left, right) => right.delay - left.delay)
       .slice(0, 5);
     const scheduleVarianceFromStructure = scheduleVarianceItems
-      .filter(
-        (item) =>
-          item.type !== "MILESTONE" &&
-          item.baselineDueDate &&
-          item.dueDate &&
-          item.status !== "DONE" &&
-          item.status !== "CANCELLED",
-      )
+      .filter(isScheduleVarianceCandidate)
       .reduce((maxDelay, item) => {
         const delay = signedDaysBetween(
           startOfDay(new Date(item.baselineDueDate as string)),
@@ -2809,7 +2864,14 @@ function App() {
       scheduleDeltaItems,
       scheduleVarianceFromStructure,
     };
-  }, [project?.criticalPath, project?.issues, project?.raidItems, project?.wbsItems, structureMilestones]);
+  }, [
+    project?.criticalPath,
+    project?.issues,
+    project?.raidItems,
+    project?.wbsDependencies,
+    project?.wbsItems,
+    structureMilestones,
+  ]);
   const raidSummary = useMemo(() => {
     const raidItems = project?.raidItems ?? [];
     const activeRaid = raidItems.filter(
@@ -7270,6 +7332,7 @@ function App() {
                           key={item.id}
                         >
                           <b>
+                            {item.jiraTicketKey ? `${item.jiraTicketKey} / ` : ""}
                             {item.code} {item.title}
                           </b>
                           <span>
