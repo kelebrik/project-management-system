@@ -15,6 +15,7 @@ Corporate project management system with PM web UI, admin back office scope, Jir
 - WBS/Gantt planning: hierarchy, milestones, dependency links, month scale, today marker, collapse/expand tree, and critical path highlighting.
 - Executive Overview deterministic generation, evidence list, versioning, and publish action.
 - Render blueprint in `render.yaml`.
+- Docker image and `docker-compose.yml` for corporate deployment.
 - Detailed technical specification in `docs/TZ.md`.
 
 ## Local Development
@@ -66,3 +67,13 @@ Render service settings if creating manually:
 ## Jira Strategy
 
 Jira remains the operational Kanban/Scrum system. This application does not duplicate Jira boards. It stores Jira board links, Jira ticket URLs on tasks, and synchronized issue snapshots for portfolio reporting, open issues, and executive overview evidence.
+
+## Docker Deployment
+
+Corporate container deployment is described in `docs/docker-deployment.md`.
+
+Short local compose command:
+
+```bash
+docker compose up -d --build
+```
