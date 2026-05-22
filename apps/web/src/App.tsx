@@ -7383,7 +7383,7 @@ function App() {
                     </div>
                     <div className="executive-overview-list">
                       {overviewDashboard.scheduleDeltaItems.map(
-                        ({ item, delay, inheritedFrom, inheritedDelay }) => (
+                        ({ item, delay, inheritedFrom }) => (
                         <div
                           className="executive-overview-row"
                           key={item.id}
@@ -7396,11 +7396,8 @@ function App() {
                             {delay > 0
                               ? `+${delay} кал. дн. собственного отклонения`
                               : inheritedFrom
-                                ? `сдвиг унаследован от ${inheritedFrom.code}`
+                                ? `собственное отклонение 0 кал. дн. / причина ${inheritedFrom.code}`
                                 : "собственный сдвиг не выделен"}
-                            {inheritedFrom && inheritedDelay > 0
-                              ? ` / источник ${inheritedFrom.code}: +${inheritedDelay} кал. дн.`
-                              : ""}
                             {" / срок "}
                             {date(item.dueDate)}
                           </span>
