@@ -3639,6 +3639,142 @@ function overviewTone(value: 'green' | 'amber' | 'red' | 'neutral') {
   return value;
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => {
+    const replacements: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return replacements[char] ?? char;
+  });
+}
+
+function exportFilePart(value: string) {
+  return value
+    .trim()
+    .replace(/[^a-zа-яё0-9_-]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+    .toLowerCase();
+}
+
+function overviewStatusLabel(status: string) {
+  return (
+    {
+      DRAFT: 'Черновик',
+      GENERATED: 'Сгенерирован',
+      PM_REVIEW: 'На проверке РП',
+      APPROVED: 'Согласован',
+      PUBLISHED: 'Опубликован',
+    }[status] ?? status
+  );
+}
+
+function renderJsonRecordList(value: unknown) {
+  const items = Array.isArray(value) ? value : [];
+  if (items.length === 0) {
+    return '<p class="muted">Нет данных</p>';
+  }
+  return `<div class="record-list">${items
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return `<article>${escapeHtml(item)}</article>`;
+      }
+      const rows = Object.entries(item as Record<string, unknown>)
+        .filter(([, entryValue]) => entryValue !== null && entryValue !== undefined && entryValue !== '')
+        .map(
+          ([key, entryValue]) =>
+            `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(
+              typeof entryValue === 'object' ? JSON.stringify(entryValue) : entryValue,
+            )}</dd></div>`,
+        )
+        .join('');
+      return `<article><dl>${rows}</dl></article>`;
+    })
+    .join('')}</div>`;
+}
+
+async function getExecutiveOverviewForExport(overviewId: string) {
+  return prisma.executiveOverview.findUnique({
+    where: { id: overviewId },
+    include: {
+      project: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          projectManager: true,
+          rag: true,
+          status: true,
+          targetDate: true,
+          progress: true,
+          scheduleVariance: true,
+        },
+      },
+    },
+  });
+}
+
+function renderExecutiveOverviewHtml(
+  overview: Awaited<ReturnType<typeof getExecutiveOverviewForExport>>,
+) {
+  if (!overview) return '';
+  const project = overview.project;
+  return `<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(project.code)} v${overview.version} Executive Overview</title>
+  <style>
+    body { color: #111827; font: 14px/1.45 Arial, sans-serif; margin: 32px; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { border-bottom: 1px solid #dbe4ef; font-size: 18px; margin: 28px 0 12px; padding-bottom: 8px; }
+    .meta, .muted { color: #64748b; }
+    .summary { background: #0f172a; border-radius: 10px; color: #f8fafc; font-size: 16px; margin: 20px 0; padding: 20px; }
+    .kpis { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .kpi, .record-list article { border: 1px solid #dbe4ef; border-radius: 8px; padding: 12px; }
+    .kpi strong { display: block; font-size: 22px; margin: 4px 0; }
+    .record-list { display: grid; gap: 10px; }
+    dl { display: grid; gap: 8px; margin: 0; }
+    .record-list div { display: grid; gap: 4px; grid-template-columns: 150px minmax(0, 1fr); }
+    dt { color: #64748b; font-weight: 700; }
+    dd { margin: 0; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(project.code)} ${escapeHtml(project.name)}</h1>
+  <div class="meta">
+    Версия ${overview.version} / ${escapeHtml(overviewStatusLabel(overview.status))} /
+    РП: ${escapeHtml(project.projectManager)} / прогресс ${project.progress}% /
+    отклонение сроков ${project.scheduleVariance} дн.
+  </div>
+  <section class="summary">${escapeHtml(overview.executiveSummary)}</section>
+  <h2>KPI</h2>
+  <div class="kpis">
+    ${(Array.isArray(overview.kpis) ? overview.kpis : [])
+      .map((item) => {
+        const kpi = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+        return `<article class="kpi"><span>${escapeHtml(kpi.label)}</span><strong>${escapeHtml(
+          kpi.value,
+        )}</strong><small>${escapeHtml(kpi.secondary)}</small></article>`;
+      })
+      .join('')}
+  </div>
+  <h2>Ключевые риски</h2>
+  ${renderJsonRecordList(overview.risks)}
+  <h2>Решения</h2>
+  ${renderJsonRecordList(overview.decisions)}
+  <h2>Следующие шаги</h2>
+  ${renderJsonRecordList(overview.nextSteps)}
+  <h2>Evidence</h2>
+  ${renderJsonRecordList(overview.evidence)}
+</body>
+</html>`;
+}
+
 function generateExecutiveSummary(project: Awaited<ReturnType<typeof getProjectForOverviewGeneration>>) {
   if (!project) {
     throw new Error('Проект не найден');
@@ -3966,6 +4102,15 @@ app.post('/api/projects/:projectId/executive-overviews/generate', async (req, re
       evidence: generated.evidence,
     },
   });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'overview.generate',
+    objectType: 'ExecutiveOverview',
+    objectId: overview.id,
+    projectId: project.id,
+    afterValue: { version: overview.version, status: overview.status },
+  });
 
   res.status(201).json(overview);
 });
@@ -4010,6 +4155,16 @@ app.post('/api/executive-overviews/:overviewId/status', async (req, res) => {
             approvedBy: parsed.data.approvedBy || 'Проектный офис',
           },
   });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'overview.status',
+    objectType: 'ExecutiveOverview',
+    objectId: updated.id,
+    projectId: updated.projectId,
+    beforeValue: { version: overview.version, status: overview.status },
+    afterValue: { version: updated.version, status: updated.status },
+  });
 
   res.json(updated);
 });
@@ -4036,8 +4191,66 @@ app.post('/api/executive-overviews/:overviewId/publish', async (req, res) => {
       publishedAt: new Date(),
     },
   });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'overview.publish',
+    objectType: 'ExecutiveOverview',
+    objectId: published.id,
+    projectId: published.projectId,
+    beforeValue: { version: overview.version, status: overview.status },
+    afterValue: { version: published.version, status: published.status },
+  });
 
   res.json(published);
+});
+
+app.get('/api/executive-overviews/:overviewId/export.json', async (req, res) => {
+  const overview = await getExecutiveOverviewForExport(req.params.overviewId);
+
+  if (!overview) {
+    res.status(404).json({ error: 'Executive overview not found' });
+    return;
+  }
+
+  const fileName = `executive-overview-${exportFilePart(overview.project.code)}-v${overview.version}.json`;
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.json({
+    exportedAt: new Date().toISOString(),
+    project: overview.project,
+    overview: {
+      id: overview.id,
+      version: overview.version,
+      status: overview.status,
+      statusLabel: overviewStatusLabel(overview.status),
+      generatedAt: overview.generatedAt,
+      reviewRequestedAt: overview.reviewRequestedAt,
+      approvedAt: overview.approvedAt,
+      approvedBy: overview.approvedBy,
+      publishedAt: overview.publishedAt,
+      executiveSummary: overview.executiveSummary,
+      kpis: overview.kpis,
+      qualityGates: overview.qualityGates,
+      risks: overview.risks,
+      nextSteps: overview.nextSteps,
+      decisions: overview.decisions,
+      evidence: overview.evidence,
+    },
+  });
+});
+
+app.get('/api/executive-overviews/:overviewId/export.html', async (req, res) => {
+  const overview = await getExecutiveOverviewForExport(req.params.overviewId);
+
+  if (!overview) {
+    res.status(404).json({ error: 'Executive overview not found' });
+    return;
+  }
+
+  const fileName = `executive-overview-${exportFilePart(overview.project.code)}-v${overview.version}.html`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.send(renderExecutiveOverviewHtml(overview));
 });
 
 app.post('/api/projects/:projectId/jira/sync', async (req, res) => {
