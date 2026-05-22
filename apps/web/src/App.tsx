@@ -1002,6 +1002,45 @@ const MONTH_LABELS = [
   "Декабрь",
 ];
 
+const JIRA_BLOCKING_TICKET_PLACEHOLDER = [
+  {
+    key: "STAROS-39855",
+    summary: "[cvte968] Падает StarOS на старте",
+    assignee: "Белобров Андрей Петрович",
+    checked: true,
+  },
+  {
+    key: "SDFW-11625",
+    summary: "Скомпилировать и запустить CPCD и ZigbeeD",
+    assignee: "Саломатов Павел Александрович",
+    checked: true,
+  },
+  {
+    key: "QATASK-15504",
+    summary: "Провести регрессионное тестирование на имеющейся плате 968",
+    assignee: "Иванов Артем Николаевич",
+    checked: true,
+  },
+  {
+    key: "CVTE-1479",
+    summary: "[cvte968] FarField isn't working.",
+    assignee: "Dacio Dai",
+    checked: false,
+  },
+  {
+    key: "CVTE-1474",
+    summary: "[cvte968] Errors in logs",
+    assignee: "Dacio Dai",
+    checked: false,
+  },
+  {
+    key: "CVTE-1467",
+    summary: "codec issues on 968 board",
+    assignee: "Dacio Dai",
+    checked: false,
+  },
+] as const;
+
 type WbsTableColumnKey = (typeof WBS_TABLE_COLUMNS)[number]["key"];
 type WbsTableColumn = (typeof WBS_TABLE_COLUMNS)[number];
 
@@ -7233,10 +7272,6 @@ function App() {
                           >
                             {item.title}
                           </button>
-                          <span>
-                            Оценка {item.riskScore} / ответственный:{" "}
-                            {item.owner || "не назначен"}
-                          </span>
                           {latestRaidStatusUpdate(item) && (
                             <p className="executive-status-text">
                               {latestRaidStatusUpdate(item)?.text}
@@ -7253,36 +7288,35 @@ function App() {
                   <article className="executive-overview-card">
                     <div className="executive-overview-card-title">
                       <span>Блокирующие тикеты со сроками</span>
-                      <strong>{overviewDashboard.blockingTickets.length}</strong>
+                      <strong>{JIRA_BLOCKING_TICKET_PLACEHOLDER.length}</strong>
                     </div>
-                    <div className="executive-overview-list">
-                      {overviewDashboard.blockingTickets.map((item) => (
-                        <div
-                          className="executive-overview-row"
-                          key={`${item.source}-${item.id}`}
-                        >
-                          <b>{item.title}</b>
-                          <span>
-                            {item.jiraTicketUrl ? (
-                              <a
-                                href={item.jiraTicketUrl}
-                                rel="noreferrer"
-                                target="_blank"
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                {item.jiraTicketKey || "Jira"}
-                              </a>
-                            ) : (
-                              item.jiraTicketKey || item.code || "без Jira"
-                            )}
-                            {" / срок "}
-                            {date(item.dueDate)}
+                    <div
+                      className="jira-placeholder-table"
+                      aria-label="Временный снимок блокирующих тикетов Jira"
+                    >
+                      <div className="jira-placeholder-head">
+                        <span>T</span>
+                        <span>Key</span>
+                        <span>Summary</span>
+                        <span>Assignee</span>
+                      </div>
+                      {JIRA_BLOCKING_TICKET_PLACEHOLDER.map((ticket) => (
+                        <div className="jira-placeholder-row" key={ticket.key}>
+                          <span
+                            className={`jira-placeholder-type ${
+                              ticket.checked ? "checked" : "open"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {ticket.checked ? "✓" : ""}
                           </span>
+                          <span className="jira-placeholder-key">
+                            {ticket.key}
+                          </span>
+                          <b>{ticket.summary}</b>
+                          <span>{ticket.assignee}</span>
                         </div>
                       ))}
-                      {overviewDashboard.blockingTickets.length === 0 && (
-                        <p>Блокирующих тикетов нет.</p>
-                      )}
                     </div>
                   </article>
 
