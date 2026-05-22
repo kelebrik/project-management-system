@@ -2762,6 +2762,7 @@ function App() {
         ? wbsItems.filter((item) => criticalPathIds.has(item.id))
         : wbsItems;
     const wbsByCode = new Map(wbsItems.map((item) => [item.code, item]));
+    const wbsById = new Map(wbsItems.map((item) => [item.id, item]));
     const childrenByParentId = new Map<string, WbsItem[]>();
     for (const item of wbsItems) {
       if (!item.parentId) continue;
@@ -2789,13 +2790,12 @@ function App() {
         }
       }
     }
-    const isScheduleVarianceCandidate = (item: WbsItem) =>
-      item.type !== "MILESTONE" &&
+    const hasScheduleVarianceDates = (item: WbsItem) =>
       item.baselineDueDate &&
       item.dueDate &&
       item.status !== "CANCELLED";
     const allScheduleDelays = wbsItems
-      .filter(isScheduleVarianceCandidate)
+      .filter(hasScheduleVarianceDates)
       .map((item) => ({
         item,
         delay: signedDaysBetween(
@@ -2807,34 +2807,92 @@ function App() {
     const delayByItemId = new Map(
       allScheduleDelays.map(({ item, delay }) => [item.id, delay]),
     );
+    const delayedLeafTaskIds = new Set(
+      allScheduleDelays
+        .filter(
+          ({ item, delay }) =>
+            delay > 0 &&
+            item.type !== "MILESTONE" &&
+            !childrenByParentId.has(item.id),
+        )
+        .map(({ item }) => item.id),
+    );
+    const upstreamCauseCache = new Map<string, Set<string>>();
+    const upstreamDelayedCauseIds = (
+      itemId: string,
+      visiting = new Set<string>(),
+    ): Set<string> => {
+      const cached = upstreamCauseCache.get(itemId);
+      if (cached) return cached;
+      if (visiting.has(itemId)) return new Set<string>();
+      visiting.add(itemId);
+      const causeIds = new Set<string>();
+      for (const predecessorId of predecessorIdsByItemId.get(itemId) ?? []) {
+        if (delayedLeafTaskIds.has(predecessorId)) {
+          causeIds.add(predecessorId);
+        }
+        for (const upstreamId of upstreamDelayedCauseIds(predecessorId, visiting)) {
+          causeIds.add(upstreamId);
+        }
+      }
+      visiting.delete(itemId);
+      upstreamCauseCache.set(itemId, causeIds);
+      return causeIds;
+    };
     const openStatuses: WbsItemStatus[] = ["IN_PROGRESS", "AT_RISK", "BLOCKED"];
     const isScheduleVarianceOpenCandidate = (item: WbsItem) =>
-      isScheduleVarianceCandidate(item) && item.status !== "DONE";
+      hasScheduleVarianceDates(item) &&
+      item.type !== "MILESTONE" &&
+      item.status !== "DONE";
     const scheduleDeltaItems = allScheduleDelays
       .filter(
         ({ item, delay }) => {
-          if (delay <= 0 || childrenByParentId.has(item.id)) return false;
-          const delayedPredecessorIds = [
-            ...(predecessorIdsByItemId.get(item.id) ?? []),
-          ].filter((predecessorId) => (delayByItemId.get(predecessorId) ?? 0) > 0);
+          if (
+            delay <= 0 ||
+            item.type === "MILESTONE" ||
+            childrenByParentId.has(item.id)
+          ) {
+            return false;
+          }
+          const upstreamCauseIds = [...upstreamDelayedCauseIds(item.id)];
 
-          if (delayedPredecessorIds.length === 0) return true;
+          if (upstreamCauseIds.length === 0) return true;
 
-          const allDelayedPredecessorsClosed = delayedPredecessorIds.every(
-            (predecessorId) =>
-              wbsItems.find((entry) => entry.id === predecessorId)?.status === "DONE",
+          const allUpstreamCausesClosed = upstreamCauseIds.every(
+            (predecessorId) => wbsById.get(predecessorId)?.status === "DONE",
           );
 
           return (
             criticalPathIds.has(item.id) &&
             openStatuses.includes(item.status) &&
-            allDelayedPredecessorsClosed
+            allUpstreamCausesClosed
           );
         },
       )
+      .map(({ item, delay: rawDelay }) => {
+        const upstreamCauseIds = [...upstreamDelayedCauseIds(item.id)];
+        const inheritedFrom = upstreamCauseIds
+          .map((itemId) => wbsById.get(itemId))
+          .filter((entry): entry is WbsItem => Boolean(entry))
+          .sort(
+            (left, right) =>
+              (delayByItemId.get(right.id) ?? 0) -
+              (delayByItemId.get(left.id) ?? 0),
+          )[0];
+        const inheritedDelay = inheritedFrom
+          ? delayByItemId.get(inheritedFrom.id) ?? 0
+          : 0;
+        return {
+          item,
+          delay: Math.max(0, rawDelay - inheritedDelay),
+          rawDelay,
+          inheritedFrom,
+          inheritedDelay,
+        };
+      })
       .sort(
         (left, right) =>
-          right.delay - left.delay ||
+          right.rawDelay - left.rawDelay ||
           left.item.code.localeCompare(right.item.code, undefined, {
             numeric: true,
           }),
@@ -7324,7 +7382,8 @@ function App() {
                       </strong>
                     </div>
                     <div className="executive-overview-list">
-                      {overviewDashboard.scheduleDeltaItems.map(({ item, delay }) => (
+                      {overviewDashboard.scheduleDeltaItems.map(
+                        ({ item, delay, rawDelay, inheritedFrom, inheritedDelay }) => (
                         <div
                           className="executive-overview-row"
                           key={item.id}
@@ -7334,11 +7393,23 @@ function App() {
                             {item.code} {item.title}
                           </b>
                           <span>
-                            +{delay} кал. дн. к базовому плану / срок{" "}
+                            {delay > 0
+                              ? `+${delay} кал. дн. собственного отклонения`
+                              : inheritedFrom
+                                ? `сдвиг унаследован от ${inheritedFrom.code}`
+                                : "собственный сдвиг не выделен"}
+                            {inheritedFrom && inheritedDelay > 0
+                              ? ` / источник +${inheritedDelay} кал. дн.`
+                              : ""}
+                            {rawDelay > delay
+                              ? ` / всего +${rawDelay} кал. дн. к базовому плану`
+                              : ""}
+                            {" / срок "}
                             {date(item.dueDate)}
                           </span>
                         </div>
-                      ))}
+                        ),
+                      )}
                       {overviewDashboard.scheduleDeltaItems.length === 0 && (
                         <p>Отклонений от базового плана нет.</p>
                       )}
