@@ -1286,6 +1286,18 @@ function addDays(value: Date, days: number) {
   return result;
 }
 
+function closedAtForWbsStatus(
+  nextStatus: string | undefined,
+  current?: { status: string; closedAt: Date | null },
+) {
+  if (nextStatus === undefined) return undefined;
+  if (nextStatus === 'DONE') {
+    return current?.closedAt ?? new Date();
+  }
+  if (current?.status === 'DONE') return null;
+  return undefined;
+}
+
 async function createDefaultProjectStructure(projectId: string, projectStartDate: Date) {
   const createdByCode = new Map<string, { id: string }>();
   for (const [index, item] of defaultProjectWbsItems.entries()) {
@@ -1310,6 +1322,7 @@ async function createDefaultProjectStructure(projectId: string, projectStartDate
         calendarDays: item.duration === 0 ? 0 : item.duration + 1,
         calendarCode: index % 3 === 0 ? 'CN' : 'RU',
         progress: item.status === 'DONE' ? 100 : item.status === 'IN_PROGRESS' ? 35 : 0,
+        closedAt: item.status === 'DONE' ? dueDate : null,
         sortOrder: (index + 1) * 10,
       },
       select: { id: true },
@@ -2311,6 +2324,7 @@ const wbsSnapshotSchema = z.object({
   wbsItems: z.array(
     wbsItemSchema.extend({
       id: z.string().trim().min(1),
+      closedAt: z.string().trim().optional().nullable(),
     }),
   ),
   wbsDependencies: z.array(wbsDependencySnapshotSchema).default([]),
@@ -2696,6 +2710,7 @@ app.post('/api/projects/:projectId/wbs-items', async (req, res) => {
       jiraTicketKey: parsed.data.jiraTicketKey || null,
       jiraTicketUrl: parsed.data.jiraTicketUrl || null,
       description: parsed.data.description || null,
+      closedAt: parsed.data.status === 'DONE' ? new Date() : null,
       sortOrder: parsed.data.sortOrder,
     },
   });
@@ -2819,6 +2834,7 @@ app.patch('/api/wbs-items/:itemId', async (req, res) => {
       jiraTicketKey: parsed.data.jiraTicketKey === undefined ? undefined : parsed.data.jiraTicketKey || null,
       jiraTicketUrl: parsed.data.jiraTicketUrl === undefined ? undefined : parsed.data.jiraTicketUrl || null,
       description: parsed.data.description === undefined ? undefined : parsed.data.description || null,
+      closedAt: closedAtForWbsStatus(parsed.data.status, existing),
       sortOrder: parsed.data.sortOrder,
     },
   });

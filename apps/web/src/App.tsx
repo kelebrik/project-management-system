@@ -353,6 +353,7 @@ type WbsItem = {
   jiraTicketKey: string | null;
   jiraTicketUrl: string | null;
   description: string | null;
+  closedAt: string | null;
   sortOrder: number;
 };
 
@@ -2794,6 +2795,15 @@ function App() {
       item.baselineDueDate &&
       item.dueDate &&
       item.status !== "CANCELLED";
+    const closedScheduleCauseCutoff = startOfDay(new Date(today));
+    closedScheduleCauseCutoff.setDate(closedScheduleCauseCutoff.getDate() - 30);
+    const isVisibleScheduleVarianceCause = (item: WbsItem) => {
+      if (item.status !== "DONE") return true;
+      if (!item.closedAt) return true;
+      const closedAt = startOfDay(new Date(item.closedAt));
+      if (Number.isNaN(closedAt.getTime())) return true;
+      return closedAt >= closedScheduleCauseCutoff;
+    };
     const allScheduleDelays = wbsItems
       .filter(hasScheduleVarianceDates)
       .map((item) => ({
@@ -2850,7 +2860,8 @@ function App() {
           if (
             delay <= 0 ||
             item.type === "MILESTONE" ||
-            childrenByParentId.has(item.id)
+            childrenByParentId.has(item.id) ||
+            !isVisibleScheduleVarianceCause(item)
           ) {
             return false;
           }

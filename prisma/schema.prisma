@@ -324,6 +324,7 @@ model WbsItem {
   jiraTicketKey String?
   jiraTicketUrl String?
   description   String?
+  closedAt      DateTime?
   sortOrder     Int           @default(0)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -336,6 +337,7 @@ model WbsItem {
   @@unique([projectId, code])
   @@index([projectId, parentId])
   @@index([projectId, sortOrder])
+  @@index([projectId, closedAt])
 }
 
 model WbsCommand {

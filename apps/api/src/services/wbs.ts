@@ -233,8 +233,20 @@ export async function getProjectWbsSnapshot(projectId: string) {
 
 export function wbsItemSnapshotData(
   projectId: string,
-  item: z.infer<typeof wbsItemSchema> & { id: string },
+  item: z.infer<typeof wbsItemSchema> & {
+    id: string;
+    closedAt?: string | Date | null;
+  },
 ) {
+  const closedAt =
+    item.closedAt === undefined
+      ? item.status === "DONE" && item.dueDate
+        ? new Date(item.dueDate)
+        : null
+      : item.closedAt
+        ? new Date(item.closedAt)
+        : null;
+
   return {
     id: item.id,
     projectId,
@@ -273,6 +285,7 @@ export function wbsItemSnapshotData(
     jiraTicketKey: item.jiraTicketKey || null,
     jiraTicketUrl: item.jiraTicketUrl || null,
     description: item.description || null,
+    closedAt,
     sortOrder: item.sortOrder,
   };
 }

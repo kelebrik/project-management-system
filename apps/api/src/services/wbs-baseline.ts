@@ -141,6 +141,7 @@ export async function copyLatestWbsBaselineToProject(input: {
           calendarDays: item.calendarDays,
           calendarCode: item.calendarCode,
           progress: item.progress,
+          closedAt: item.status === "DONE" ? item.dueDate : null,
           sortOrder: item.sortOrder,
         },
         select: { id: true },
