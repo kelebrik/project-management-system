@@ -808,6 +808,10 @@ const MILESTONE_SNAKE_START_Y = 704;
 const MILESTONE_SNAKE_END_Y = 112;
 const MILESTONE_SNAKE_AMPLITUDE = 142;
 const MILESTONE_SNAKE_CENTER_AMPLITUDE_BOOST = 1;
+const MILESTONE_SNAKE_LEFT_PEAK_SHIFT_X = -86;
+const MILESTONE_SNAKE_LEFT_PEAK_SHIFT_Y = -72;
+const MILESTONE_SNAKE_RIGHT_TROUGH_SHIFT_X = 96;
+const MILESTONE_SNAKE_RIGHT_TROUGH_SHIFT_Y = 82;
 const MILESTONE_SNAKE_WAVES = 4.05;
 
 const WBS_LEVEL_MIN_WIDTH = 128;
@@ -1774,15 +1778,23 @@ function sampleSnakePath() {
       1 +
       MILESTONE_SNAKE_CENTER_AMPLITUDE_BOOST *
         Math.exp(-Math.pow((t - 0.5) / 0.23, 2));
+    const leftPeakBoost = Math.exp(-Math.pow((t - 0.38) / 0.105, 2));
+    const rightTroughBoost = Math.exp(-Math.pow((t - 0.57) / 0.105, 2));
     const current = {
-      x: MILESTONE_SNAKE_MARGIN_X + trackWidth * t,
+      x:
+        MILESTONE_SNAKE_MARGIN_X +
+        trackWidth * t +
+        MILESTONE_SNAKE_LEFT_PEAK_SHIFT_X * leftPeakBoost +
+        MILESTONE_SNAKE_RIGHT_TROUGH_SHIFT_X * rightTroughBoost,
       y:
         MILESTONE_SNAKE_START_Y -
         trackHeight * easing +
         MILESTONE_SNAKE_AMPLITUDE *
           centerBoost *
           taper *
-          Math.sin(MILESTONE_SNAKE_WAVES * Math.PI * t),
+          Math.sin(MILESTONE_SNAKE_WAVES * Math.PI * t) +
+        MILESTONE_SNAKE_LEFT_PEAK_SHIFT_Y * leftPeakBoost +
+        MILESTONE_SNAKE_RIGHT_TROUGH_SHIFT_Y * rightTroughBoost,
     };
     distance += Math.hypot(current.x - previous.x, current.y - previous.y);
     points.push({ ...current, distance });
