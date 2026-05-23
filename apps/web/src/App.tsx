@@ -804,11 +804,10 @@ const MILESTONE_SNAKE_WIDTH = 1120;
 const MILESTONE_SNAKE_HEIGHT = 792;
 const MILESTONE_SNAKE_SAMPLES = 720;
 const MILESTONE_SNAKE_MARGIN_X = 74;
-const MILESTONE_SNAKE_START_Y = 700;
-const MILESTONE_SNAKE_END_Y = 116;
-const MILESTONE_SNAKE_HORIZONTAL_AMPLITUDE = 128;
-const MILESTONE_SNAKE_VERTICAL_AMPLITUDE = 58;
-const MILESTONE_SNAKE_WAVES = 3.2;
+const MILESTONE_SNAKE_START_Y = 704;
+const MILESTONE_SNAKE_END_Y = 112;
+const MILESTONE_SNAKE_AMPLITUDE = 142;
+const MILESTONE_SNAKE_WAVES = 4.05;
 
 const WBS_LEVEL_MIN_WIDTH = 128;
 const GANTT_PANEL_HEIGHT_DEFAULT = 456;
@@ -1770,20 +1769,14 @@ function sampleSnakePath() {
     const t = sample / MILESTONE_SNAKE_SAMPLES;
     const easing = t * t * (3 - 2 * t);
     const taper = Math.sin(Math.PI * t);
-    const horizontalWave =
-      Math.sin(MILESTONE_SNAKE_WAVES * Math.PI * t - 0.9) +
-      0.28 * Math.sin(MILESTONE_SNAKE_WAVES * 2 * Math.PI * t + 0.6);
-    const verticalWave =
-      Math.sin(MILESTONE_SNAKE_WAVES * 2 * Math.PI * t + 0.45);
     const current = {
-      x:
-        MILESTONE_SNAKE_MARGIN_X +
-        trackWidth * t +
-        MILESTONE_SNAKE_HORIZONTAL_AMPLITUDE * taper * horizontalWave,
+      x: MILESTONE_SNAKE_MARGIN_X + trackWidth * t,
       y:
         MILESTONE_SNAKE_START_Y -
         trackHeight * easing +
-        MILESTONE_SNAKE_VERTICAL_AMPLITUDE * taper * verticalWave,
+        MILESTONE_SNAKE_AMPLITUDE *
+          taper *
+          Math.sin(MILESTONE_SNAKE_WAVES * Math.PI * t),
     };
     distance += Math.hypot(current.x - previous.x, current.y - previous.y);
     points.push({ ...current, distance });
