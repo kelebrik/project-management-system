@@ -1757,6 +1757,43 @@ const MILESTONE_SNAKE_TOTAL_LENGTH =
 const MILESTONE_SNAKE_PATH_D = MILESTONE_SNAKE_PATH_POINTS.map((point, index) =>
   `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`,
 ).join(" ");
+const MILESTONE_SNAKE_START_PROGRESS = 0.018;
+const MILESTONE_SNAKE_TODAY_PROGRESS = 0.3;
+const MILESTONE_SNAKE_END_PROGRESS = 0.948;
+
+function compressSnakeTimelineOffset(
+  offset: number,
+  todayOffset: number | null,
+) {
+  const boundedOffset = Math.max(0, Math.min(1, offset));
+  const usableRange =
+    MILESTONE_SNAKE_END_PROGRESS - MILESTONE_SNAKE_START_PROGRESS;
+
+  if (
+    todayOffset === null ||
+    todayOffset <= 0 ||
+    todayOffset >= 1 ||
+    !Number.isFinite(todayOffset)
+  ) {
+    return MILESTONE_SNAKE_START_PROGRESS + boundedOffset * usableRange;
+  }
+
+  if (boundedOffset <= todayOffset) {
+    const beforeTodayProgress = boundedOffset / todayOffset;
+    return (
+      MILESTONE_SNAKE_START_PROGRESS +
+      beforeTodayProgress *
+        (MILESTONE_SNAKE_TODAY_PROGRESS - MILESTONE_SNAKE_START_PROGRESS)
+    );
+  }
+
+  const afterTodayProgress = (boundedOffset - todayOffset) / (1 - todayOffset);
+  return (
+    MILESTONE_SNAKE_TODAY_PROGRESS +
+    afterTodayProgress *
+      (MILESTONE_SNAKE_END_PROGRESS - MILESTONE_SNAKE_TODAY_PROGRESS)
+  );
+}
 
 function interpolateSnakePoint(progress: number): MilestoneSnakePoint {
   const bounded = Math.max(0, Math.min(1, progress));
@@ -1984,12 +2021,14 @@ function buildSnakeMilestoneLayouts(
   milestones: MilestoneTimelineItem[],
   startTime: number,
   range: number,
+  todayOffset: number | null,
 ): MilestoneSnakeLayout[] {
   const entries = milestones.map((entry, originalIndex) => {
     const dueTime = entry.milestone.dueDate
       ? new Date(entry.milestone.dueDate).getTime()
       : startTime;
-    const progress = range === 0 ? 0 : (dueTime - startTime) / range;
+    const rawProgress = range === 0 ? 0.5 : (dueTime - startTime) / range;
+    const progress = compressSnakeTimelineOffset(rawProgress, todayOffset);
     return {
       entry,
       originalIndex,
@@ -2078,62 +2117,19 @@ function buildSnakeMilestonePointLayouts(
   milestones: MilestoneTimelineItem[],
   startTime: number,
   range: number,
+  todayOffset: number | null,
 ): MilestoneSnakePointLayout[] {
   return milestones.map((entry) => {
     const dueTime = entry.milestone.dueDate
       ? new Date(entry.milestone.dueDate).getTime()
       : startTime;
-    const progress = range === 0 ? 0 : (dueTime - startTime) / range;
+    const rawProgress = range === 0 ? 0.5 : (dueTime - startTime) / range;
+    const progress = compressSnakeTimelineOffset(rawProgress, todayOffset);
     return {
       entry,
       point: interpolateSnakePoint(progress),
     };
   });
-}
-
-function selectSnakeInlineMilestones(
-  milestones: MilestoneTimelineItem[],
-  todayOffset: number | null,
-) {
-  if (milestones.length <= 9) return milestones;
-
-  const maxInlineLabels = 7;
-  const selectedIndexes = new Set<number>([0, milestones.length - 1]);
-  const scored = milestones.map((entry, index) => {
-    const stateScore =
-      entry.state.tone === "red"
-        ? 0
-        : entry.state.tone === "blue"
-          ? 8
-          : entry.state.tone === "green"
-            ? 18
-            : 28;
-    const todayScore =
-      todayOffset === null ? 20 : Math.abs(entry.offset - todayOffset) * 70;
-    return {
-      index,
-      score: stateScore + todayScore + index * 0.02,
-    };
-  });
-
-  scored
-    .sort((left, right) => left.score - right.score)
-    .forEach(({ index }) => {
-      if (selectedIndexes.size < maxInlineLabels) {
-        selectedIndexes.add(index);
-      }
-    });
-
-  const step = Math.max(1, Math.floor(milestones.length / maxInlineLabels));
-  for (
-    let index = Math.floor(step / 2);
-    selectedIndexes.size < maxInlineLabels && index < milestones.length;
-    index += step
-  ) {
-    selectedIndexes.add(index);
-  }
-
-  return milestones.filter((_, index) => selectedIndexes.has(index));
 }
 
 function createMilestoneTimelineModel({
@@ -2472,19 +2468,18 @@ function MilestoneSnakeTimelineSection({
   const startTime = new Date(timeline.startDate).getTime();
   const endTime = new Date(timeline.endDate).getTime();
   const range = endTime - startTime;
-  const inlineMilestones = selectSnakeInlineMilestones(
-    milestones,
-    timeline.todayOffset,
-  );
+  const inlineMilestones = milestones;
   const milestoneLayouts = buildSnakeMilestoneLayouts(
     inlineMilestones,
     startTime,
     range,
+    timeline.todayOffset,
   );
   const milestonePointLayouts = buildSnakeMilestonePointLayouts(
     milestones,
     startTime,
     range,
+    timeline.todayOffset,
   );
   const monthTicks = (() => {
     const start = startOfMonth(new Date(timeline.startDate));
@@ -2492,11 +2487,13 @@ function MilestoneSnakeTimelineSection({
     const ticks: Array<{ label: string; point: MilestoneSnakePoint }> = [];
     const cursor = new Date(start);
     while (cursor <= end) {
-      const progress =
+      const rawProgress =
         range === 0 ? 0 : (cursor.getTime() - startTime) / range;
       ticks.push({
         label: monthLabel(cursor).replace(".", ""),
-        point: interpolateSnakePoint(progress),
+        point: interpolateSnakePoint(
+          compressSnakeTimelineOffset(rawProgress, timeline.todayOffset),
+        ),
       });
       cursor.setMonth(cursor.getMonth() + 1);
     }
@@ -2585,7 +2582,12 @@ function MilestoneSnakeTimelineSection({
               </g>
             ))}
             {timeline.todayOffset !== null && (() => {
-              const todayPoint = interpolateSnakePoint(timeline.todayOffset);
+              const todayPoint = interpolateSnakePoint(
+                compressSnakeTimelineOffset(
+                  timeline.todayOffset,
+                  timeline.todayOffset,
+                ),
+              );
               return (
                 <g>
                   <line
