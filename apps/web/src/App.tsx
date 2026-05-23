@@ -807,6 +807,7 @@ const MILESTONE_SNAKE_MARGIN_X = 74;
 const MILESTONE_SNAKE_START_Y = 704;
 const MILESTONE_SNAKE_END_Y = 112;
 const MILESTONE_SNAKE_AMPLITUDE = 142;
+const MILESTONE_SNAKE_CENTER_AMPLITUDE_BOOST = 1;
 const MILESTONE_SNAKE_WAVES = 4.05;
 
 const WBS_LEVEL_MIN_WIDTH = 128;
@@ -1769,12 +1770,17 @@ function sampleSnakePath() {
     const t = sample / MILESTONE_SNAKE_SAMPLES;
     const easing = t * t * (3 - 2 * t);
     const taper = Math.sin(Math.PI * t);
+    const centerBoost =
+      1 +
+      MILESTONE_SNAKE_CENTER_AMPLITUDE_BOOST *
+        Math.exp(-Math.pow((t - 0.5) / 0.23, 2));
     const current = {
       x: MILESTONE_SNAKE_MARGIN_X + trackWidth * t,
       y:
         MILESTONE_SNAKE_START_Y -
         trackHeight * easing +
         MILESTONE_SNAKE_AMPLITUDE *
+          centerBoost *
           taper *
           Math.sin(MILESTONE_SNAKE_WAVES * Math.PI * t),
     };
