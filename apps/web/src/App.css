@@ -2414,10 +2414,8 @@ code {
 }
 
 .milestone-section-head {
-  align-items: flex-end;
-  display: flex;
+  display: grid;
   gap: 12px;
-  justify-content: space-between;
   min-width: 0;
 }
 
@@ -2429,10 +2427,14 @@ code {
 
 .milestone-section-actions {
   align-items: center;
+  background: #f8fafc;
+  border: 1px solid #d8e0eb;
+  border-radius: 8px;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  padding: 10px;
 }
 
 .milestone-section-actions button {
@@ -2775,7 +2777,7 @@ code {
 }
 
 .milestone-snake-shell {
-  align-items: center;
+  align-items: stretch;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -2796,7 +2798,7 @@ code {
   height: auto;
   max-height: min(78vh, 760px);
   max-width: 100%;
-  width: min(100%, 1188px);
+  width: 100%;
 }
 
 .milestone-snake-axis {

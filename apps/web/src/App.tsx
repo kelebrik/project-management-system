@@ -72,7 +72,7 @@ type AppView =
 type FullscreenWorkspaceView = Extract<
   AppView,
   "project-structure" | "project-gantt"
-> | "overview-milestones";
+> | "overview-milestones-by-phase" | "overview-milestones-all";
 
 type AuthMode = "checking" | "setup" | "login" | "ready";
 const writeProtectedViews = new Set<AppView>(["project-create", "admin"]);
@@ -812,6 +812,8 @@ const MILESTONE_SNAKE_LEFT_PEAK_SHIFT_X = -86;
 const MILESTONE_SNAKE_LEFT_PEAK_SHIFT_Y = -72;
 const MILESTONE_SNAKE_RIGHT_TROUGH_SHIFT_X = 96;
 const MILESTONE_SNAKE_RIGHT_TROUGH_SHIFT_Y = 82;
+const MILESTONE_SNAKE_LEFT_PEAK_SPREAD = 0.105;
+const MILESTONE_SNAKE_RIGHT_TROUGH_SPREAD = 0.17;
 const MILESTONE_SNAKE_WAVES = 4.05;
 
 const WBS_LEVEL_MIN_WIDTH = 128;
@@ -1778,8 +1780,12 @@ function sampleSnakePath() {
       1 +
       MILESTONE_SNAKE_CENTER_AMPLITUDE_BOOST *
         Math.exp(-Math.pow((t - 0.5) / 0.23, 2));
-    const leftPeakBoost = Math.exp(-Math.pow((t - 0.38) / 0.105, 2));
-    const rightTroughBoost = Math.exp(-Math.pow((t - 0.57) / 0.105, 2));
+    const leftPeakBoost = Math.exp(
+      -Math.pow((t - 0.38) / MILESTONE_SNAKE_LEFT_PEAK_SPREAD, 2),
+    );
+    const rightTroughBoost = Math.exp(
+      -Math.pow((t - 0.57) / MILESTONE_SNAKE_RIGHT_TROUGH_SPREAD, 2),
+    );
     const current = {
       x:
         MILESTONE_SNAKE_MARGIN_X +
@@ -2391,12 +2397,16 @@ function MilestoneTimelineSection({
   sectionId,
   title,
   timeline,
+  isFullscreen = false,
+  onToggleFullscreen,
   onOpenStructure,
   onPrint,
 }: {
   sectionId: string;
   title: string;
   timeline: MilestoneTimelineModel;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
   onOpenStructure: () => void;
   onPrint: () => void;
 }) {
@@ -2406,6 +2416,22 @@ function MilestoneTimelineSection({
         <h3>{title}</h3>
         <div className="milestone-section-actions">
           <MilestoneLegend />
+          {onToggleFullscreen && (
+            <button
+              type="button"
+              className="workspace-fullscreen-button"
+              onClick={onToggleFullscreen}
+              aria-label={
+                isFullscreen
+                  ? "Вернуть обычный режим вех по фазам"
+                  : "Развернуть вехи по фазам на весь экран"
+              }
+              title={isFullscreen ? "Вернуть обычный режим" : "На весь экран"}
+            >
+              {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              {isFullscreen ? "Обычный режим" : "На весь экран"}
+            </button>
+          )}
           <button type="button" onClick={onPrint}>
             Сохранить в PDF
           </button>
@@ -4680,7 +4706,8 @@ function App() {
     if (!fullscreenWorkspaceView) return;
 
     const expectedView =
-      fullscreenWorkspaceView === "overview-milestones"
+      fullscreenWorkspaceView === "overview-milestones-by-phase" ||
+      fullscreenWorkspaceView === "overview-milestones-all"
         ? "project-overview"
         : fullscreenWorkspaceView;
 
@@ -9561,7 +9588,8 @@ function App() {
               {project && activeView === "project-overview" && (
                 <article
                   className={`panel project-card workspace-focus-panel workspace-focus-milestones ${
-                    fullscreenWorkspaceView === "overview-milestones"
+                    fullscreenWorkspaceView === "overview-milestones-by-phase" ||
+                    fullscreenWorkspaceView === "overview-milestones-all"
                       ? "workspace-focus-panel-fullscreen"
                       : ""
                   }`}
@@ -9571,32 +9599,6 @@ function App() {
                       <h2>Вехи</h2>
                     </div>
                     <div className="panel-title-actions">
-                      <button
-                        type="button"
-                        className="workspace-fullscreen-button"
-                        onClick={() =>
-                          toggleWorkspaceFullscreen("overview-milestones")
-                        }
-                        aria-label={
-                          fullscreenWorkspaceView === "overview-milestones"
-                            ? "Вернуть обычный режим вех"
-                            : "Развернуть вехи на весь экран"
-                        }
-                        title={
-                          fullscreenWorkspaceView === "overview-milestones"
-                            ? "Вернуть обычный режим"
-                            : "На весь экран"
-                        }
-                      >
-                        {fullscreenWorkspaceView === "overview-milestones" ? (
-                          <Minimize2 size={15} />
-                        ) : (
-                          <Maximize2 size={15} />
-                        )}
-                        {fullscreenWorkspaceView === "overview-milestones"
-                          ? "Обычный режим"
-                          : "На весь экран"}
-                      </button>
                       {project.jiraIntegration && (
                         <a
                           className="button"
@@ -9610,36 +9612,50 @@ function App() {
                     </div>
                   </div>
                   <div className="milestone-sections">
-                    <MilestoneTimelineSection
-                      sectionId="milestones-by-phase"
-                      title="Вехи по фазам"
-                      timeline={milestoneTimeline.byPhase}
-                      onOpenStructure={() => openView("project-structure")}
-                      onPrint={() =>
-                        printSectionAsPdf(
-                          "milestones-by-phase",
-                          `${project.code} - вехи по фазам`,
-                        )
-                      }
-                    />
-                    <MilestoneSnakeTimelineSection
-                      sectionId="milestones-all"
-                      title="Все вехи"
-                      timeline={milestoneTimeline.all}
-                      isFullscreen={
-                        fullscreenWorkspaceView === "overview-milestones"
-                      }
-                      onToggleFullscreen={() =>
-                        toggleWorkspaceFullscreen("overview-milestones")
-                      }
-                      onOpenStructure={() => openView("project-structure")}
-                      onPrint={() =>
-                        printSectionAsPdf(
-                          "milestones-all",
-                          `${project.code} - все вехи`,
-                        )
-                      }
-                    />
+                    {fullscreenWorkspaceView !== "overview-milestones-all" && (
+                      <MilestoneTimelineSection
+                        sectionId="milestones-by-phase"
+                        title="Вехи по фазам"
+                        timeline={milestoneTimeline.byPhase}
+                        isFullscreen={
+                          fullscreenWorkspaceView ===
+                          "overview-milestones-by-phase"
+                        }
+                        onToggleFullscreen={() =>
+                          toggleWorkspaceFullscreen(
+                            "overview-milestones-by-phase",
+                          )
+                        }
+                        onOpenStructure={() => openView("project-structure")}
+                        onPrint={() =>
+                          printSectionAsPdf(
+                            "milestones-by-phase",
+                            `${project.code} - вехи по фазам`,
+                          )
+                        }
+                      />
+                    )}
+                    {fullscreenWorkspaceView !==
+                      "overview-milestones-by-phase" && (
+                      <MilestoneSnakeTimelineSection
+                        sectionId="milestones-all"
+                        title="Все вехи"
+                        timeline={milestoneTimeline.all}
+                        isFullscreen={
+                          fullscreenWorkspaceView === "overview-milestones-all"
+                        }
+                        onToggleFullscreen={() =>
+                          toggleWorkspaceFullscreen("overview-milestones-all")
+                        }
+                        onOpenStructure={() => openView("project-structure")}
+                        onPrint={() =>
+                          printSectionAsPdf(
+                            "milestones-all",
+                            `${project.code} - все вехи`,
+                          )
+                        }
+                      />
+                    )}
                   </div>
                 </article>
               )}
