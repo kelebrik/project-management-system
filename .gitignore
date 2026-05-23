@@ -9,3 +9,6 @@ build
 coverage
 .vite
 .render
+backups
+playwright-report
+test-results

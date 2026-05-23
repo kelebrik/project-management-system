@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { fetchJiraIssues, isJiraConfigured } from './jira.js';
+import { openApiDocument } from './openapi.js';
 import { recordAuditEvent } from './services/audit.js';
 import {
   getProjectWbsSnapshot,
@@ -47,6 +48,13 @@ const sessionDays = Math.max(1, Number(process.env.AUTH_SESSION_DAYS ?? 7));
 const authCookieSecure =
   process.env.AUTH_COOKIE_SECURE === 'true' ||
   (process.env.AUTH_COOKIE_SECURE !== 'false' && process.env.NODE_ENV === 'production');
+const metricsToken = process.env.METRICS_TOKEN ?? '';
+const startedAt = new Date();
+const requestMetrics = {
+  total: 0,
+  errors: 0,
+  byRoute: new Map<string, number>(),
+};
 
 type CurrentUser = {
   id: string;
@@ -371,6 +379,38 @@ function userResponse(user: CurrentUser & { createdAt?: Date; updatedAt?: Date; 
   };
 }
 
+function logEvent(level: 'info' | 'warn' | 'error', event: string, payload: Record<string, unknown> = {}) {
+  const line = {
+    timestamp: new Date().toISOString(),
+    level,
+    event,
+    ...payload,
+  };
+  const serialized = JSON.stringify(line);
+  if (level === 'error') {
+    console.error(serialized);
+  } else if (level === 'warn') {
+    console.warn(serialized);
+  } else {
+    console.log(serialized);
+  }
+}
+
+function metricRoute(req: Request) {
+  if (req.path.startsWith('/api/projects/') && req.path.endsWith('/overview')) {
+    return '/api/projects/:projectId/overview';
+  }
+  if (req.path.startsWith('/api/projects/')) {
+    return req.path.replace(/\/api\/projects\/[^/]+/, '/api/projects/:projectId');
+  }
+  if (req.path.startsWith('/api/wbs-items/')) return '/api/wbs-items/:itemId';
+  if (req.path.startsWith('/api/wbs-dependencies/')) return '/api/wbs-dependencies/:dependencyId';
+  if (req.path.startsWith('/api/open-issues/')) return '/api/open-issues/:issueId';
+  if (req.path.startsWith('/api/raid-items/')) return '/api/raid-items/:itemId';
+  if (req.path.startsWith('/api/executive-overviews/')) return '/api/executive-overviews/:overviewId';
+  return req.path;
+}
+
 app.use(express.json({ limit: '5mb' }));
 app.use(
   cors({
@@ -378,6 +418,28 @@ app.use(
     credentials: true,
   }),
 );
+
+app.use((req, res, next) => {
+  const started = process.hrtime.bigint();
+  res.on('finish', () => {
+    if (!req.path.startsWith('/api')) return;
+    const durationMs = Number(process.hrtime.bigint() - started) / 1_000_000;
+    const route = metricRoute(req);
+    requestMetrics.total += 1;
+    if (res.statusCode >= 500) requestMetrics.errors += 1;
+    requestMetrics.byRoute.set(route, (requestMetrics.byRoute.get(route) ?? 0) + 1);
+    logEvent(res.statusCode >= 500 ? 'error' : 'info', 'http.request', {
+      method: req.method,
+      path: route,
+      status: res.statusCode,
+      durationMs: Math.round(durationMs),
+      requestId: req.get('x-request-id') ?? null,
+      userAgent: req.get('user-agent') ?? null,
+      ipAddress: req.ip,
+    });
+  });
+  next();
+});
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -390,6 +452,64 @@ app.get('/api/health', async (_req, res) => {
       jiraConfigured: isJiraConfigured(),
     });
   }
+});
+
+app.get('/api/ready', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`select 1`;
+    res.json({
+      ok: true,
+      database: 'ok',
+      uptimeSeconds: Math.floor(process.uptime()),
+      startedAt,
+    });
+  } catch {
+    res.status(503).json({
+      ok: false,
+      database: 'unavailable',
+      uptimeSeconds: Math.floor(process.uptime()),
+      startedAt,
+    });
+  }
+});
+
+app.get('/api/metrics', (_req, res) => {
+  if (metricsToken) {
+    const auth = _req.get('authorization') ?? '';
+    const queryToken = typeof _req.query.token === 'string' ? _req.query.token : '';
+    if (auth !== `Bearer ${metricsToken}` && queryToken !== metricsToken) {
+      res.status(401).type('text/plain').send('unauthorized\n');
+      return;
+    }
+  }
+
+  const routeMetrics = [...requestMetrics.byRoute.entries()]
+    .map(([route, count]) => `pms_http_requests_by_route_total{route="${route.replaceAll('"', '\\"')}"} ${count}`)
+    .join('\n');
+  res.type('text/plain').send(
+    [
+      '# HELP pms_uptime_seconds Application uptime in seconds',
+      '# TYPE pms_uptime_seconds gauge',
+      `pms_uptime_seconds ${Math.floor(process.uptime())}`,
+      '# HELP pms_http_requests_total Total API requests handled by this process',
+      '# TYPE pms_http_requests_total counter',
+      `pms_http_requests_total ${requestMetrics.total}`,
+      '# HELP pms_http_errors_total Total API requests with HTTP 5xx status',
+      '# TYPE pms_http_errors_total counter',
+      `pms_http_errors_total ${requestMetrics.errors}`,
+      '# HELP pms_jira_configured Jira integration environment/configuration flag',
+      '# TYPE pms_jira_configured gauge',
+      `pms_jira_configured ${isJiraConfigured() ? 1 : 0}`,
+      '# HELP pms_http_requests_by_route_total Total API requests by normalized route',
+      '# TYPE pms_http_requests_by_route_total counter',
+      routeMetrics,
+      '',
+    ].join('\n'),
+  );
+});
+
+app.get('/api/openapi.json', (_req, res) => {
+  res.json(openApiDocument);
 });
 
 app.use('/api', attachAuth);
@@ -4347,7 +4467,12 @@ app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
     next(error);
     return;
   }
-  console.error(error);
+  logEvent('error', 'api.error', {
+    path: req.path,
+    method: req.method,
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+  });
   res.status(500).json({ error: serverErrorMessage(error, 'Внутренняя ошибка API') });
 });
 
@@ -4361,5 +4486,5 @@ app.get(/.*/, (_req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`API listening on ${port}`);
+  logEvent('info', 'api.listen', { port });
 });

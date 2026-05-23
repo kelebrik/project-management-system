@@ -12,3 +12,7 @@ npm-debug.log*
 Dockerfile
 docker-compose.yml
 docs/overview-milestones-variants.html
+backups
+playwright-report
+test-results
+coverage

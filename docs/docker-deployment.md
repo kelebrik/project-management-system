@@ -51,6 +51,35 @@ JIRA_API_TOKEN=<secret>
 
 ```bash
 curl http://localhost:3000/api/health
+curl http://localhost:3000/api/ready
 ```
 
 Ожидаемый ответ содержит `ok: true` и `database: "ok"`.
+
+## Backup/restore в Docker Compose
+
+Разовый backup:
+
+```bash
+docker compose --profile ops run --rm backup
+```
+
+Файлы складываются в локальный каталог `./backups` и дополнительно получают `.sha256`.
+Для checksum используется `sha256sum`, а на macOS поддержан fallback на `shasum -a 256`.
+
+Restore из backup-файла:
+
+```bash
+RESTORE_CONFIRM=yes \
+RESTORE_FILE=/backups/pms-YYYYMMDDTHHMMSSZ.dump \
+docker compose --profile ops run --rm restore
+```
+
+Для промышленного контура безопаснее запускать `scripts/restore-db.sh` из отдельного ops-контейнера или jump-host с установленным `pg_restore`, чтобы не смешивать восстановление с работающим приложением.
+
+## Monitoring
+
+- `/api/health` - liveness для балансировщика.
+- `/api/ready` - readiness для Kubernetes/Compose healthcheck, проверяет доступность PostgreSQL.
+- `/api/metrics` - Prometheus text exposition. Если задан `METRICS_TOKEN`, доступ только с `Authorization: Bearer <token>` или `?token=<token>`.
+- API пишет структурированные JSON-логи в stdout/stderr. В контейнерной среде их должен забирать штатный log collector.

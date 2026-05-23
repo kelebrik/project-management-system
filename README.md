@@ -77,3 +77,18 @@ Short local compose command:
 ```bash
 docker compose up -d --build
 ```
+
+## Production Readiness
+
+- Unit tests: `npm run test:unit`
+- Integration API smoke tests: `INTEGRATION_BASE_URL=http://localhost:3000 npm run test:integration`
+- E2E read-only UI smoke tests: `E2E_BASE_URL=http://localhost:3000 npm run test:e2e`
+- Full verification: `npm run typecheck && npm run test && npm run build`
+- OpenAPI: `/api/openapi.json`
+- Health/readiness: `/api/health`, `/api/ready`
+- Metrics: `/api/metrics`
+- Backup: `DATABASE_URL=... npm run backup`
+- Restore: `DATABASE_URL=... RESTORE_CONFIRM=yes npm run restore -- backups/pms-YYYYMMDDTHHMMSSZ.dump`
+
+Operational details are documented in `docs/production-readiness.md`.
+User guide: `docs/user-guide.md`. Admin guide: `docs/admin-guide.md`.

@@ -4845,9 +4845,13 @@ function App() {
         ? "project-overview"
         : fullscreenWorkspaceView;
 
-    if (activeView !== expectedView) {
+    if (activeView === expectedView) return;
+
+    const timeoutId = window.setTimeout(() => {
       setFullscreenWorkspaceView(null);
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [activeView, fullscreenWorkspaceView]);
 
   useEffect(() => {

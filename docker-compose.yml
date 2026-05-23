@@ -15,8 +15,15 @@ services:
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     restart: unless-stopped
 
   postgres:
@@ -34,7 +41,37 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./backups:/backups
     restart: unless-stopped
+
+  backup:
+    image: postgres:16-alpine
+    profiles: ["ops"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://pms_user:pms_password@postgres:5432/project_management_system
+      BACKUP_DIR: /backups
+    volumes:
+      - ./backups:/backups
+      - ./scripts:/scripts:ro
+    entrypoint: ["/bin/sh", "/scripts/backup-db.sh"]
+
+  restore:
+    image: postgres:16-alpine
+    profiles: ["ops"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://pms_user:pms_password@postgres:5432/project_management_system
+      RESTORE_CONFIRM: ${RESTORE_CONFIRM:-no}
+      RESTORE_FILE: ${RESTORE_FILE:-}
+    volumes:
+      - ./backups:/backups
+      - ./scripts:/scripts:ro
+    entrypoint: ["/bin/sh", "-lc", "/scripts/restore-db.sh \"$RESTORE_FILE\""]
 
 volumes:
   postgres-data:
