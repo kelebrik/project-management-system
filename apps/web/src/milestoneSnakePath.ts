@@ -10,89 +10,79 @@ export type MilestoneSnakePathPoint = MilestoneSnakeRawPoint & {
 export const MILESTONE_SNAKE_WIDTH = 1120;
 export const MILESTONE_SNAKE_HEIGHT = 792;
 
-const SEGMENT_SAMPLES = 42;
+const SEGMENT_SAMPLES = 56;
 
 const referenceBounds = {
-  minX: 58,
-  maxX: 1636,
-  minY: 50,
-  maxY: 937,
+  minX: 0,
+  maxX: MILESTONE_SNAKE_WIDTH,
+  minY: 0,
+  maxY: MILESTONE_SNAKE_HEIGHT,
 };
 
 const canvasBounds = {
-  left: 68,
-  right: 1054,
-  top: 54,
-  bottom: 724,
+  left: 0,
+  right: MILESTONE_SNAKE_WIDTH,
+  top: 0,
+  bottom: MILESTONE_SNAKE_HEIGHT,
 };
 
 const referencePath = {
-  start: { x: 58, y: 937 },
+  start: { x: 38, y: 746 },
   segments: [
     {
-      c1: { x: 82, y: 850 },
-      c2: { x: 104, y: 822 },
-      to: { x: 101, y: 710 },
+      c1: { x: 46, y: 678 },
+      c2: { x: 48, y: 648 },
+      to: { x: 76, y: 604 },
     },
     {
-      c1: { x: 98, y: 582 },
-      c2: { x: 90, y: 510 },
-      to: { x: 132, y: 431 },
+      c1: { x: 118, y: 526 },
+      c2: { x: 80, y: 430 },
+      to: { x: 172, y: 362 },
     },
     {
-      c1: { x: 181, y: 356 },
-      c2: { x: 245, y: 332 },
-      to: { x: 286, y: 365 },
+      c1: { x: 252, y: 302 },
+      c2: { x: 338, y: 336 },
+      to: { x: 386, y: 450 },
     },
     {
-      c1: { x: 352, y: 421 },
-      c2: { x: 390, y: 543 },
-      to: { x: 440, y: 636 },
+      c1: { x: 438, y: 578 },
+      c2: { x: 508, y: 736 },
+      to: { x: 630, y: 702 },
     },
     {
-      c1: { x: 493, y: 735 },
-      c2: { x: 613, y: 845 },
-      to: { x: 715, y: 835 },
+      c1: { x: 758, y: 666 },
+      c2: { x: 692, y: 486 },
+      to: { x: 650, y: 366 },
     },
     {
-      c1: { x: 825, y: 825 },
-      c2: { x: 817, y: 671 },
-      to: { x: 780, y: 551 },
+      c1: { x: 600, y: 214 },
+      c2: { x: 612, y: 58 },
+      to: { x: 750, y: 34 },
     },
     {
-      c1: { x: 735, y: 404 },
-      c2: { x: 642, y: 262 },
-      to: { x: 634, y: 162 },
+      c1: { x: 880, y: 12 },
+      c2: { x: 940, y: 172 },
+      to: { x: 1006, y: 292 },
     },
     {
-      c1: { x: 626, y: 70 },
-      c2: { x: 720, y: 28 },
-      to: { x: 803, y: 32 },
+      c1: { x: 1096, y: 456 },
+      c2: { x: 1138, y: 612 },
+      to: { x: 1024, y: 652 },
     },
     {
-      c1: { x: 914, y: 37 },
-      c2: { x: 977, y: 155 },
-      to: { x: 1046, y: 275 },
+      c1: { x: 936, y: 684 },
+      c2: { x: 846, y: 612 },
+      to: { x: 790, y: 530 },
     },
     {
-      c1: { x: 1138, y: 433 },
-      c2: { x: 1242, y: 610 },
-      to: { x: 1378, y: 655 },
+      c1: { x: 724, y: 432 },
+      c2: { x: 816, y: 312 },
+      to: { x: 922, y: 230 },
     },
     {
-      c1: { x: 1462, y: 682 },
-      c2: { x: 1503, y: 654 },
-      to: { x: 1493, y: 573 },
-    },
-    {
-      c1: { x: 1483, y: 494 },
-      c2: { x: 1406, y: 372 },
-      to: { x: 1392, y: 272 },
-    },
-    {
-      c1: { x: 1378, y: 170 },
-      c2: { x: 1486, y: 102 },
-      to: { x: 1636, y: 50 },
+      c1: { x: 1002, y: 168 },
+      c2: { x: 1056, y: 112 },
+      to: { x: 1090, y: 62 },
     },
   ],
 };
