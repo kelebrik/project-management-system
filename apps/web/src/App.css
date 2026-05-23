@@ -2410,9 +2410,13 @@ code {
 }
 
 .milestone-section {
+  background: #fff;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
   display: grid;
   gap: 10px;
   min-width: 0;
+  padding: 14px;
 }
 
 .milestone-section-head {
