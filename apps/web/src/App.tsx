@@ -2489,12 +2489,16 @@ function MilestoneSnakeTimelineSection({
   sectionId,
   title,
   timeline,
+  isFullscreen,
+  onToggleFullscreen,
   onOpenStructure,
   onPrint,
 }: {
   sectionId: string;
   title: string;
   timeline: MilestoneTimelineModel;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
   onOpenStructure: () => void;
   onPrint: () => void;
 }) {
@@ -2543,6 +2547,20 @@ function MilestoneSnakeTimelineSection({
         <h3>{title}</h3>
         <div className="milestone-section-actions">
           <MilestoneLegend />
+          <button
+            type="button"
+            className="workspace-fullscreen-button"
+            onClick={onToggleFullscreen}
+            aria-label={
+              isFullscreen
+                ? "Вернуть обычный режим всех вех"
+                : "Развернуть все вехи на весь экран"
+            }
+            title={isFullscreen ? "Вернуть обычный режим" : "На весь экран"}
+          >
+            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            {isFullscreen ? "Обычный режим" : "На весь экран"}
+          </button>
           <button type="button" onClick={onPrint}>
             Сохранить в PDF
           </button>
@@ -2703,32 +2721,6 @@ function MilestoneSnakeTimelineSection({
           </div>
         )}
         </div>
-        {milestones.length > 0 && (
-          <div className="milestone-snake-index" aria-label="Список всех вех">
-            <div className="milestone-snake-index-title">Все вехи</div>
-            <div className="milestone-snake-index-list">
-              {milestones.map(({ milestone, state }, index) => (
-                <button
-                  type="button"
-                  className={`milestone-snake-index-row ${state.tone}`}
-                  key={milestone.id}
-                  onClick={onOpenStructure}
-                  title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
-                >
-                  <span className="milestone-snake-index-number">
-                    {index + 1}
-                  </span>
-                  <span className="milestone-snake-index-main">
-                    <strong>{milestone.title}</strong>
-                    <small>
-                      {milestone.code} / {shortDate(milestone.dueDate)}
-                    </small>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );
@@ -9634,6 +9626,12 @@ function App() {
                       sectionId="milestones-all"
                       title="Все вехи"
                       timeline={milestoneTimeline.all}
+                      isFullscreen={
+                        fullscreenWorkspaceView === "overview-milestones"
+                      }
+                      onToggleFullscreen={() =>
+                        toggleWorkspaceFullscreen("overview-milestones")
+                      }
                       onOpenStructure={() => openView("project-structure")}
                       onPrint={() =>
                         printSectionAsPdf(

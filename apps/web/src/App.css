@@ -2771,7 +2771,7 @@ code {
   align-items: start;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .milestone-snake-shell {
@@ -2916,112 +2916,6 @@ code {
   fill: #475569;
   font-size: 11px;
   font-weight: 900;
-}
-
-.milestone-snake-index {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  display: grid;
-  gap: 10px;
-  max-height: min(78vh, 760px);
-  min-height: 0;
-  overflow: hidden;
-  padding: 12px;
-}
-
-.milestone-snake-index-title {
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.milestone-snake-index-list {
-  display: grid;
-  gap: 6px;
-  min-height: 0;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.milestone-snake-index-row {
-  align-items: center;
-  background: #fff;
-  border: 1px solid #dbe5f0;
-  border-radius: 6px;
-  color: #1f2937;
-  cursor: pointer;
-  display: grid;
-  gap: 9px;
-  grid-template-columns: 28px minmax(0, 1fr);
-  min-height: 0;
-  padding: 7px 8px;
-  text-align: left;
-}
-
-.milestone-snake-index-row:hover,
-.milestone-snake-index-row:focus {
-  border-color: #93c5fd;
-  outline: none;
-}
-
-.milestone-snake-index-number {
-  align-items: center;
-  background: #94a3b8;
-  border-radius: 999px;
-  color: #fff;
-  display: inline-flex;
-  font-size: 11px;
-  font-weight: 900;
-  height: 24px;
-  justify-content: center;
-  width: 24px;
-}
-
-.milestone-snake-index-row.green .milestone-snake-index-number {
-  background: #16a34a;
-}
-
-.milestone-snake-index-row.blue .milestone-snake-index-number {
-  background: #2563eb;
-}
-
-.milestone-snake-index-row.red .milestone-snake-index-number {
-  background: #dc2626;
-}
-
-.milestone-snake-index-row.gray .milestone-snake-index-number {
-  background: #94a3b8;
-}
-
-.milestone-snake-index-main {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.milestone-snake-index-main strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.milestone-snake-index-main small {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-@media (max-width: 1280px) {
-  .milestone-snake-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .milestone-snake-index {
-    max-height: 280px;
-  }
 }
 
 @media print {
