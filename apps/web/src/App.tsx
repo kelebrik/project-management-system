@@ -73,7 +73,13 @@ type AppView =
   | "project-calendars"
   | "project-artifacts"
   | "closed-projects"
-  | "admin";
+  | "admin"
+  | "admin-users"
+  | "admin-roles"
+  | "admin-dictionaries"
+  | "admin-jira"
+  | "admin-projects"
+  | "admin-audit";
 type ProjectSectionView = Extract<
   AppView,
   | "project-overview"
@@ -85,13 +91,35 @@ type ProjectSectionView = Extract<
   | "project-calendars"
   | "project-artifacts"
 >;
+type AdminSectionView = Extract<
+  AppView,
+  | "admin"
+  | "admin-users"
+  | "admin-roles"
+  | "admin-dictionaries"
+  | "admin-jira"
+  | "admin-projects"
+  | "admin-audit"
+>;
 type FullscreenWorkspaceView = Extract<
   AppView,
   "project-structure" | "project-gantt"
 > | "overview-milestones-by-phase" | "overview-milestones-all";
 
 type AuthMode = "checking" | "setup" | "login" | "ready";
-const writeProtectedViews = new Set<AppView>(["project-create", "admin"]);
+const adminSectionViews: AdminSectionView[] = [
+  "admin",
+  "admin-users",
+  "admin-roles",
+  "admin-dictionaries",
+  "admin-jira",
+  "admin-projects",
+  "admin-audit",
+];
+const writeProtectedViews = new Set<AppView>([
+  "project-create",
+  ...adminSectionViews,
+]);
 type UserRole =
   | "ADMIN"
   | "PROJECT_MANAGER"
@@ -851,6 +879,12 @@ const appViewPaths: Record<AppView, string> = {
   "project-artifacts": "/artifacts",
   "closed-projects": "/closed-projects",
   admin: "/admin",
+  "admin-users": "/admin/users",
+  "admin-roles": "/admin/roles",
+  "admin-dictionaries": "/admin/dictionaries",
+  "admin-jira": "/admin/jira",
+  "admin-projects": "/admin/projects",
+  "admin-audit": "/admin/audit",
 };
 
 const projectPathViews: Record<string, ProjectSectionView> = {
@@ -888,7 +922,13 @@ const appPathViews: Record<string, AppView> = {
   "/artifacts": "project-artifacts",
   "/closed-projects": "closed-projects",
   "/closed": "closed-projects",
-  "/admin": "admin",
+  "/admin": "admin-projects",
+  "/admin/users": "admin-users",
+  "/admin/roles": "admin-roles",
+  "/admin/dictionaries": "admin-dictionaries",
+  "/admin/jira": "admin-jira",
+  "/admin/projects": "admin-projects",
+  "/admin/audit": "admin-audit",
 };
 
 function normalizeAppPath(pathname: string) {
@@ -930,6 +970,10 @@ function appViewFromPath(pathname: string): AppView {
 
 function isProjectSectionViewName(view: AppView): view is ProjectSectionView {
   return view in projectSectionSlugs;
+}
+
+function isAdminSectionViewName(view: AppView): view is AdminSectionView {
+  return adminSectionViews.includes(view as AdminSectionView);
 }
 
 function appPathForView(view: AppView, projectCode?: string | null) {
@@ -3216,6 +3260,7 @@ function App() {
   const [fullscreenWorkspaceView, setFullscreenWorkspaceView] =
     useState<FullscreenWorkspaceView | null>(null);
   const isAuthenticated = Boolean(currentUser);
+  const isAdminUser = currentUser?.role === "ADMIN";
   const isClosedProject = project?.status === "CLOSED";
   const isReadOnly = !isAuthenticated || isClosedProject;
   const [ganttScale, setGanttScale] = useState<GanttScale>("month");
@@ -3407,8 +3452,14 @@ function App() {
       openView(selectedProjectId ? "project-overview" : "portfolio", {
         replace: true,
       });
+      return;
     }
-  }, [activeView, authMode, isAuthenticated, selectedProjectId]);
+    if (isAuthenticated && isAdminSectionViewName(activeView) && !isAdminUser) {
+      openView(selectedProjectId ? "project-overview" : "portfolio", {
+        replace: true,
+      });
+    }
+  }, [activeView, authMode, isAdminUser, isAuthenticated, selectedProjectId]);
 
   useEffect(() => {
     if (authMode !== "ready") return;
@@ -3459,7 +3510,11 @@ function App() {
   }, [authMode]);
 
   useEffect(() => {
-    if (authMode !== "ready" || activeView !== "admin" || currentUser?.role !== "ADMIN") {
+    if (
+      authMode !== "ready" ||
+      !isAdminSectionViewName(activeView) ||
+      currentUser?.role !== "ADMIN"
+    ) {
       return;
     }
     let cancelled = false;
@@ -7785,6 +7840,10 @@ function App() {
       setError("Для редактирования нужно войти в систему");
       return;
     }
+    if (isAdminSectionViewName(nextView) && !isAdminUser) {
+      setError("Раздел администрирования доступен только администратору");
+      return;
+    }
     setActiveView(nextView);
     const routeProjectCode =
       options?.projectCode ??
@@ -7860,6 +7919,12 @@ function App() {
       : "Артефакты проекта",
     "closed-projects": "Закрытые проекты",
     admin: "Администрирование",
+    "admin-users": "Администрирование: пользователи",
+    "admin-roles": "Администрирование: роли и права",
+    "admin-dictionaries": "Администрирование: справочники",
+    "admin-jira": "Администрирование: Jira",
+    "admin-projects": "Администрирование: реестр проектов",
+    "admin-audit": "Администрирование: журнал аудита",
   };
   const projectViews: AppView[] = [
     "project-create",
@@ -7874,6 +7939,7 @@ function App() {
   ];
   const isProjectView = projectViews.includes(activeView);
   const isProjectSectionView = isProjectView && activeView !== "project-create";
+  const isAdminSectionView = isAdminSectionViewName(activeView);
   const navLabel = (icon: ReactNode, label: string) => (
     <>
       <span className="nav-icon" aria-hidden="true">
@@ -8276,15 +8342,93 @@ function App() {
           >
             {navLabel(<Archive size={17} />, "Закрытые проекты")}
           </button>
-          {isAuthenticated && (
-            <button
-              type="button"
-              className={activeView === "admin" ? "active" : ""}
-              onClick={() => openView("admin")}
-              aria-label="Администрирование"
-            >
-              {navLabel(<Settings size={17} />, "Администрирование")}
-            </button>
+          {isAdminUser && (
+            <>
+              <button
+                type="button"
+                className={isAdminSectionView ? "active" : ""}
+                onClick={() => openView("admin-projects")}
+                aria-label="Администрирование"
+              >
+                {navLabel(<Settings size={17} />, "Администрирование")}
+              </button>
+              <div className="sidebar-group">
+                <div className="project-menu">
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-projects"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-projects")}
+                    aria-label="Реестр проектов"
+                  >
+                    {navLabel(<FolderTree size={17} />, "Реестр проектов")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-users"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-users")}
+                    aria-label="Пользователи"
+                  >
+                    {navLabel(<Users size={17} />, "Пользователи")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-roles"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-roles")}
+                    aria-label="Роли и права"
+                  >
+                    {navLabel(<KeyRound size={17} />, "Роли и права")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-dictionaries"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-dictionaries")}
+                    aria-label="Справочники"
+                  >
+                    {navLabel(<ListChecks size={17} />, "Справочники")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-jira"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-jira")}
+                    aria-label="Jira"
+                  >
+                    {navLabel(<BriefcaseBusiness size={17} />, "Jira")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-audit"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-audit")}
+                    aria-label="Журнал аудита"
+                  >
+                    {navLabel(<FileText size={17} />, "Журнал аудита")}
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </nav>
       </aside>
@@ -8379,7 +8523,7 @@ function App() {
           activeView === "portfolio" ||
           activeView === "project-create" ||
           activeView === "closed-projects" ||
-          activeView === "admin") && (
+          isAdminSectionView) && (
           <>
             {activeView === "portfolio" && (
               <section className="summary-grid">
@@ -8927,8 +9071,7 @@ function App() {
                 </article>
               )}
 
-              {activeView === "admin" && (
-                <>
+              {activeView === "admin-users" && (
                   <article className="panel project-card">
                     <div className="panel-title">
                       <div>
@@ -9123,8 +9266,10 @@ function App() {
                         Управление пользователями доступно только администратору.
                       </div>
                     )}
-                    </article>
+                  </article>
+              )}
 
+              {activeView === "admin-roles" && (
                     <article className="panel project-card">
                       <div className="panel-title">
                         <div>
@@ -9183,7 +9328,9 @@ function App() {
                         })}
                       </div>
                     </article>
+              )}
 
+              {activeView === "admin-dictionaries" && (
                     <article className="panel project-card">
                       <div className="panel-title">
                         <div>
@@ -9370,7 +9517,9 @@ function App() {
                         )}
                       </div>
                     </article>
+              )}
 
+              {activeView === "admin-jira" && (
                     <article className="panel project-card">
                       <div className="panel-title">
                         <div>
@@ -9459,7 +9608,9 @@ function App() {
                         </div>
                       </form>
                     </article>
+              )}
 
+              {activeView === "admin-projects" && (
                     <article className="panel project-card">
                       <div className="panel-title">
                         <div>
@@ -9631,7 +9782,9 @@ function App() {
                       )}
                     </div>
                   </article>
+              )}
 
+              {activeView === "admin-audit" && (
                   <article className="panel project-card">
                     <div className="panel-title">
                       <div>
@@ -9671,7 +9824,6 @@ function App() {
                       )}
                     </div>
                   </article>
-                </>
               )}
 
               {project && activeView === "project-overview" && (
@@ -10865,7 +11017,7 @@ function App() {
                 </article>
               )}
 
-              {project && activeView === "admin" && (
+              {project && activeView === "admin-jira" && (
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
@@ -11299,7 +11451,7 @@ function App() {
                   </article>
                 )}
 
-              {project && activeView === "admin" && (
+              {project && activeView === "admin-jira" && (
                 <article className="panel">
                   <div className="panel-title">
                     <div>
@@ -11343,7 +11495,7 @@ function App() {
                 </article>
               )}
 
-              {project && activeView === "admin" && (
+              {project && activeView === "admin-jira" && (
                 <article className="panel">
                   <div className="panel-title">
                     <div>
