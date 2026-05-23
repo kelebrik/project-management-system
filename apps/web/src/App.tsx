@@ -785,8 +785,14 @@ type MilestoneSnakeLabel = {
   boxHeight: number;
   connectorX: number;
   connectorY: number;
-  lines: string[];
   dateY: number;
+};
+
+type MilestoneSnakeLayout = {
+  entry: MilestoneTimelineItem;
+  point: MilestoneSnakePoint;
+  label: MilestoneSnakeLabel;
+  lines: string[];
 };
 
 const MILESTONE_SNAKE_WIDTH = 1120;
@@ -1845,40 +1851,296 @@ function interpolateSnakePoint(progress: number): MilestoneSnakePoint {
   };
 }
 
-function snakeLabelForPoint(
+function rectOverlap(
+  left: { x: number; y: number; width: number; height: number },
+  right: { x: number; y: number; width: number; height: number },
+) {
+  const x = Math.max(
+    0,
+    Math.min(left.x + left.width, right.x + right.width) -
+      Math.max(left.x, right.x),
+  );
+  const y = Math.max(
+    0,
+    Math.min(left.y + left.height, right.y + right.height) -
+      Math.max(left.y, right.y),
+  );
+  return x * y;
+}
+
+function rectGap(
+  left: { x: number; y: number; width: number; height: number },
+  right: { x: number; y: number; width: number; height: number },
+) {
+  const dx = Math.max(
+    right.x - (left.x + left.width),
+    left.x - (right.x + right.width),
+    0,
+  );
+  const dy = Math.max(
+    right.y - (left.y + left.height),
+    left.y - (right.y + right.height),
+    0,
+  );
+  return Math.hypot(dx, dy);
+}
+
+function snakeConnectorPoint(
   point: MilestoneSnakePoint,
-  index: number,
-  total: number,
-): MilestoneSnakeLabel {
-  const compact = total > 18;
-  const boxWidth = compact ? 148 : 176;
-  const boxHeight = compact ? 68 : 76;
-  const normalX = -point.tangentY;
-  const normalY = point.tangentX;
-  const primarySide = index % 2 === 0 ? 1 : -1;
-  const labelDistance = compact ? 70 : 82;
-  const placeX = point.x + normalX * labelDistance * primarySide;
-  const placeY = point.y + normalY * labelDistance * primarySide;
-  const preferRight =
-    placeX < 210
-      ? true
-      : placeX > MILESTONE_SNAKE_WIDTH - 210
-        ? false
-        : placeX >= point.x;
-  let boxX = placeX + (preferRight ? 16 : -boxWidth - 16);
-  let boxY = placeY - boxHeight / 2;
-  boxX = Math.max(18, Math.min(MILESTONE_SNAKE_WIDTH - boxWidth - 18, boxX));
-  boxY = Math.max(18, Math.min(MILESTONE_SNAKE_HEIGHT - boxHeight - 18, boxY));
-  return {
-    boxX,
-    boxY,
-    boxWidth,
-    boxHeight,
-    connectorX: boxX + (preferRight ? 0 : boxWidth),
-    connectorY: boxY + boxHeight / 2,
-    lines: [],
-    dateY: boxY + boxHeight - 18,
+  boxX: number,
+  boxY: number,
+  boxWidth: number,
+  boxHeight: number,
+) {
+  const nearestX = Math.max(boxX, Math.min(boxX + boxWidth, point.x));
+  const nearestY = Math.max(boxY, Math.min(boxY + boxHeight, point.y));
+  const distances = [
+    { x: boxX, y: nearestY, value: Math.abs(point.x - boxX) },
+    {
+      x: boxX + boxWidth,
+      y: nearestY,
+      value: Math.abs(point.x - (boxX + boxWidth)),
+    },
+    { x: nearestX, y: boxY, value: Math.abs(point.y - boxY) },
+    {
+      x: nearestX,
+      y: boxY + boxHeight,
+      value: Math.abs(point.y - (boxY + boxHeight)),
+    },
+  ];
+  return distances.sort((left, right) => left.value - right.value)[0];
+}
+
+function snakeLabelCandidates(point: MilestoneSnakePoint, title: string) {
+  const compactTitle = title.length > 34;
+  const sizes = compactTitle
+    ? [
+        { width: 126, maxLines: 4, preference: 8 },
+        { width: 154, maxLines: 3, preference: 4 },
+        { width: 190, maxLines: 2, preference: 0 },
+      ]
+    : [
+        { width: 112, maxLines: 3, preference: 8 },
+        { width: 136, maxLines: 2, preference: 4 },
+        { width: 168, maxLines: 2, preference: 0 },
+      ];
+  const distances = [48, 84, 124, 170, 226, 288];
+  const angles = [-165, -135, -105, -75, -45, -15, 15, 45, 75, 105, 135, 165, 0, 180];
+
+  return sizes.flatMap((size) => {
+    const maxLineLength = Math.max(10, Math.floor(size.width / 7.1));
+    const lines = wrapText(title, maxLineLength, size.maxLines);
+    const boxHeight = 32 + lines.length * 13;
+    const makeCandidate = (
+      unclampedX: number,
+      unclampedY: number,
+      preference: number,
+    ) => {
+      const boxX = Math.max(
+        14,
+        Math.min(MILESTONE_SNAKE_WIDTH - size.width - 14, unclampedX),
+      );
+      const boxY = Math.max(
+        14,
+        Math.min(MILESTONE_SNAKE_HEIGHT - boxHeight - 14, unclampedY),
+      );
+      const connector = snakeConnectorPoint(
+        point,
+        boxX,
+        boxY,
+        size.width,
+        boxHeight,
+      );
+      return {
+        label: {
+          boxX,
+          boxY,
+          boxWidth: size.width,
+          boxHeight,
+          connectorX: connector.x,
+          connectorY: connector.y,
+          dateY: boxY + boxHeight - 10,
+        },
+        lines,
+        clampPenalty:
+          Math.abs(boxX - unclampedX) * 8 + Math.abs(boxY - unclampedY) * 8,
+        preference: preference + size.preference,
+      };
+    };
+
+    const radialCandidates = distances.flatMap((distance, distanceIndex) =>
+      angles.map((angle, angleIndex) => {
+        const radians = (angle * Math.PI) / 180;
+        const cos = Math.cos(radians);
+        const sin = Math.sin(radians);
+        let unclampedX = point.x + cos * distance - size.width / 2;
+        let unclampedY = point.y + sin * distance - boxHeight / 2;
+
+        if (Math.abs(cos) > 0.72) {
+          unclampedX =
+            cos > 0
+              ? point.x + distance
+              : point.x - distance - size.width;
+        }
+        if (Math.abs(sin) > 0.72) {
+          unclampedY =
+            sin > 0
+              ? point.y + distance
+              : point.y - distance - boxHeight;
+        }
+
+        return makeCandidate(
+          unclampedX,
+          unclampedY,
+          distanceIndex * 8 + angleIndex * 0.2,
+        );
+      }),
+    );
+
+    const gridColumns = 6;
+    const gridRows = 7;
+    const gridCandidates = Array.from({ length: gridColumns * gridRows }, (_, cell) => {
+      const column = cell % gridColumns;
+      const row = Math.floor(cell / gridColumns);
+      const x =
+        18 +
+        ((MILESTONE_SNAKE_WIDTH - size.width - 36) * column) /
+          Math.max(1, gridColumns - 1);
+      const y =
+        18 +
+        ((MILESTONE_SNAKE_HEIGHT - boxHeight - 36) * row) /
+          Math.max(1, gridRows - 1);
+      const centerX = x + size.width / 2;
+      const centerY = y + boxHeight / 2;
+      const distancePenalty = Math.hypot(centerX - point.x, centerY - point.y) * 0.12;
+      return makeCandidate(x, y, 56 + distancePenalty);
+    });
+
+    return [...radialCandidates, ...gridCandidates];
+  });
+}
+
+function snakeAxisPenalty(label: MilestoneSnakeLabel, point: MilestoneSnakePoint) {
+  const expanded = {
+    x: label.boxX - 8,
+    y: label.boxY - 8,
+    width: label.boxWidth + 16,
+    height: label.boxHeight + 16,
   };
+  const pointInside =
+    point.x >= expanded.x &&
+    point.x <= expanded.x + expanded.width &&
+    point.y >= expanded.y &&
+    point.y <= expanded.y + expanded.height;
+  let penalty = pointInside ? 5000 : 0;
+
+  for (let index = 0; index < MILESTONE_SNAKE_PATH_POINTS.length; index += 18) {
+    const axisPoint = MILESTONE_SNAKE_PATH_POINTS[index];
+    if (
+      axisPoint.x >= expanded.x &&
+      axisPoint.x <= expanded.x + expanded.width &&
+      axisPoint.y >= expanded.y &&
+      axisPoint.y <= expanded.y + expanded.height
+    ) {
+      penalty += 120;
+    }
+  }
+
+  return penalty;
+}
+
+function buildSnakeMilestoneLayouts(
+  milestones: MilestoneTimelineItem[],
+  startTime: number,
+  range: number,
+): MilestoneSnakeLayout[] {
+  const entries = milestones.map((entry, originalIndex) => {
+    const dueTime = entry.milestone.dueDate
+      ? new Date(entry.milestone.dueDate).getTime()
+      : startTime;
+    const progress = range === 0 ? 0 : (dueTime - startTime) / range;
+    return {
+      entry,
+      originalIndex,
+      point: interpolateSnakePoint(progress),
+    };
+  });
+  const markerRects = entries.map(({ point }) => ({
+    x: point.x - 14,
+    y: point.y - 14,
+    width: 28,
+    height: 28,
+  }));
+  const orderedEntries = entries
+    .map((entry) => {
+      const nearest = entries.reduce((best, other) => {
+        if (other.originalIndex === entry.originalIndex) return best;
+        return Math.min(
+          best,
+          Math.hypot(other.point.x - entry.point.x, other.point.y - entry.point.y),
+        );
+      }, Number.POSITIVE_INFINITY);
+      return { ...entry, nearest };
+    })
+    .sort((left, right) => left.nearest - right.nearest);
+  const placed: Array<{ x: number; y: number; width: number; height: number }> = [];
+  const layouts: MilestoneSnakeLayout[] = new Array(milestones.length);
+
+  orderedEntries.forEach(({ entry, originalIndex, point }) => {
+    const candidates = snakeLabelCandidates(point, entry.milestone.title);
+    const best = candidates
+      .map((candidate) => {
+        const rect = {
+          x: candidate.label.boxX,
+          y: candidate.label.boxY,
+          width: candidate.label.boxWidth,
+          height: candidate.label.boxHeight,
+        };
+        const collisionPenalty = placed.reduce((sum, occupied) => {
+          const overlap = rectOverlap(rect, occupied);
+          const gap = rectGap(rect, occupied);
+          return sum + overlap * 80 + (gap < 26 ? (26 - gap) * 160 : 0);
+        }, 0);
+        const markerPenalty = markerRects.reduce((sum, marker, markerIndex) => {
+          if (markerIndex === originalIndex) return sum;
+          return sum + rectOverlap(rect, marker) * 80;
+        }, 0);
+        const distancePenalty =
+          Math.hypot(
+            candidate.label.connectorX - point.x,
+            candidate.label.connectorY - point.y,
+          ) * 0.18;
+        const chronologicalPenalty = originalIndex * 0.4;
+        return {
+          ...candidate,
+          score:
+            collisionPenalty +
+            markerPenalty +
+            distancePenalty +
+            chronologicalPenalty +
+            candidate.preference +
+            candidate.clampPenalty +
+            snakeAxisPenalty(candidate.label, point),
+        };
+      })
+      .sort((left, right) => left.score - right.score)[0];
+
+    placed.push({
+      x: best.label.boxX,
+      y: best.label.boxY,
+      width: best.label.boxWidth,
+      height: best.label.boxHeight,
+    });
+
+    layouts[originalIndex] = {
+      entry,
+      point,
+      label: best.label,
+      lines: best.lines,
+    };
+  });
+
+  return layouts;
 }
 
 function createMilestoneTimelineModel({
@@ -2193,6 +2455,11 @@ function MilestoneSnakeTimelineSection({
   const startTime = new Date(timeline.startDate).getTime();
   const endTime = new Date(timeline.endDate).getTime();
   const range = endTime - startTime;
+  const milestoneLayouts = buildSnakeMilestoneLayouts(
+    milestones,
+    startTime,
+    range,
+  );
   const monthTicks = (() => {
     const start = startOfMonth(new Date(timeline.startDate));
     const end = startOfMonth(new Date(timeline.endDate));
@@ -2297,21 +2564,10 @@ function MilestoneSnakeTimelineSection({
                 </g>
               );
             })()}
-            {milestones.map((entry, index) => {
-              const dueTime = entry.milestone.dueDate
-                ? new Date(entry.milestone.dueDate).getTime()
-                : startTime;
-              const progress = range === 0 ? 0 : (dueTime - startTime) / range;
-              const point = interpolateSnakePoint(progress);
-              const label = snakeLabelForPoint(point, index, milestones.length);
-              const lines = wrapText(
-                entry.milestone.title,
-                label.boxWidth > 160 ? 23 : 18,
-                label.boxHeight > 70 ? 3 : 2,
-              );
-              return (
+            <g className="milestone-snake-label-layer">
+              {milestoneLayouts.map(({ entry, point, label, lines }) => (
                 <g
-                  key={entry.milestone.id}
+                  key={`label-${entry.milestone.id}`}
                   className={`milestone-snake-item ${entry.state.tone}`}
                   onClick={onOpenStructure}
                   tabIndex={0}
@@ -2323,37 +2579,51 @@ function MilestoneSnakeTimelineSection({
                     y1={point.y}
                     y2={label.connectorY}
                   />
-                  <circle
-                    className="milestone-snake-marker"
-                    cx={point.x}
-                    cy={point.y}
-                    r="8"
-                  />
                   <rect
                     className="milestone-snake-label-box"
                     x={label.boxX}
                     y={label.boxY}
                     width={label.boxWidth}
                     height={label.boxHeight}
-                    rx="8"
+                    rx="7"
                   />
                   {lines.map((line, lineIndex) => (
                     <text
                       className="milestone-snake-title"
                       key={`${entry.milestone.id}-${line}`}
-                      x={label.boxX + 12}
-                      y={label.boxY + 22 + lineIndex * 15}
+                      x={label.boxX + 10}
+                      y={label.boxY + 19 + lineIndex * 13}
                     >
                       {line}
                     </text>
                   ))}
                   <text
                     className="milestone-snake-date"
-                    x={label.boxX + 12}
+                    x={label.boxX + 10}
                     y={label.dateY}
                   >
                     {shortDate(entry.milestone.dueDate)}
                   </text>
+                  <title>
+                    {`${entry.milestone.code} ${entry.milestone.title}: ${date(entry.milestone.dueDate)}. ${entry.state.label}.`}
+                  </title>
+                </g>
+              ))}
+            </g>
+            {milestoneLayouts.map(({ entry, point }) => {
+              return (
+                <g
+                  key={`point-${entry.milestone.id}`}
+                  className={`milestone-snake-item ${entry.state.tone}`}
+                  onClick={onOpenStructure}
+                  tabIndex={0}
+                >
+                  <circle
+                    className="milestone-snake-marker"
+                    cx={point.x}
+                    cy={point.y}
+                    r="8"
+                  />
                   <title>
                     {`${entry.milestone.code} ${entry.milestone.title}: ${date(entry.milestone.dueDate)}. ${entry.state.label}.`}
                   </title>

@@ -2798,7 +2798,7 @@ code {
   stroke: #64748b;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 16;
+  stroke-width: 8;
 }
 
 .milestone-snake-tick {
@@ -2832,16 +2832,20 @@ code {
   cursor: pointer;
 }
 
+.milestone-snake-label-layer {
+  opacity: 0.98;
+}
+
 .milestone-snake-connector {
   stroke: #94a3b8;
   stroke-linecap: round;
-  stroke-width: 3;
+  stroke-width: 2;
 }
 
 .milestone-snake-marker {
   fill: #94a3b8;
   stroke: #fff;
-  stroke-width: 4;
+  stroke-width: 3;
 }
 
 .milestone-snake-item.green .milestone-snake-marker,
@@ -2889,13 +2893,13 @@ code {
 
 .milestone-snake-title {
   fill: #111827;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
 }
 
 .milestone-snake-date {
   fill: #475569;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
 }
 
