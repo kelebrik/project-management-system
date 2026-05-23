@@ -803,30 +803,11 @@ type MilestoneSnakePointLayout = {
 const MILESTONE_SNAKE_WIDTH = 1120;
 const MILESTONE_SNAKE_HEIGHT = 792;
 const MILESTONE_SNAKE_SAMPLES = 720;
-const MILESTONE_SNAKE_CONTROL_POINTS = [
-  { x: 66, y: 712 },
-  { x: 80, y: 620 },
-  { x: 54, y: 520 },
-  { x: 118, y: 452 },
-  { x: 170, y: 444 },
-  { x: 198, y: 518 },
-  { x: 300, y: 586 },
-  { x: 374, y: 688 },
-  { x: 456, y: 680 },
-  { x: 410, y: 542 },
-  { x: 364, y: 374 },
-  { x: 396, y: 226 },
-  { x: 506, y: 268 },
-  { x: 552, y: 392 },
-  { x: 642, y: 498 },
-  { x: 748, y: 570 },
-  { x: 870, y: 616 },
-  { x: 854, y: 512 },
-  { x: 810, y: 372 },
-  { x: 864, y: 234 },
-  { x: 956, y: 164 },
-  { x: 1048, y: 126 },
-];
+const MILESTONE_SNAKE_MARGIN_X = 74;
+const MILESTONE_SNAKE_START_Y = 690;
+const MILESTONE_SNAKE_END_Y = 122;
+const MILESTONE_SNAKE_AMPLITUDE = 96;
+const MILESTONE_SNAKE_WAVES = 2.5;
 
 const WBS_LEVEL_MIN_WIDTH = 128;
 const GANTT_PANEL_HEIGHT_DEFAULT = 456;
@@ -1773,49 +1754,28 @@ function wrapText(value: string, maxLineLength: number, maxLines: number) {
   return lines.length > 0 ? lines : [value];
 }
 
-function catmullRomPoint(
-  points: Array<{ x: number; y: number }>,
-  index: number,
-  t: number,
-) {
-  const p0 = points[Math.max(0, index - 1)];
-  const p1 = points[index];
-  const p2 = points[Math.min(points.length - 1, index + 1)];
-  const p3 = points[Math.min(points.length - 1, index + 2)];
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return {
-    x:
-      0.5 *
-      (2 * p1.x +
-        (-p0.x + p2.x) * t +
-        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
-        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
-    y:
-      0.5 *
-      (2 * p1.y +
-        (-p0.y + p2.y) * t +
-        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
-        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
-  };
-}
-
 function sampleSnakePath() {
   const points: Array<{ x: number; y: number; distance: number }> = [];
-  let previous = MILESTONE_SNAKE_CONTROL_POINTS[0];
+  const trackWidth = MILESTONE_SNAKE_WIDTH - MILESTONE_SNAKE_MARGIN_X * 2;
+  const trackHeight = MILESTONE_SNAKE_START_Y - MILESTONE_SNAKE_END_Y;
+  let previous = {
+    x: MILESTONE_SNAKE_MARGIN_X,
+    y: MILESTONE_SNAKE_START_Y,
+  };
   let distance = 0;
   points.push({ ...previous, distance });
 
   for (let sample = 1; sample <= MILESTONE_SNAKE_SAMPLES; sample += 1) {
-    const globalT =
-      (sample / MILESTONE_SNAKE_SAMPLES) *
-      (MILESTONE_SNAKE_CONTROL_POINTS.length - 1);
-    const index = Math.min(
-      MILESTONE_SNAKE_CONTROL_POINTS.length - 2,
-      Math.floor(globalT),
-    );
-    const t = globalT - index;
-    const current = catmullRomPoint(MILESTONE_SNAKE_CONTROL_POINTS, index, t);
+    const t = sample / MILESTONE_SNAKE_SAMPLES;
+    const easing = t * t * (3 - 2 * t);
+    const current = {
+      x: MILESTONE_SNAKE_MARGIN_X + trackWidth * t,
+      y:
+        MILESTONE_SNAKE_START_Y -
+        trackHeight * easing +
+        MILESTONE_SNAKE_AMPLITUDE *
+          Math.sin(MILESTONE_SNAKE_WAVES * Math.PI * t),
+    };
     distance += Math.hypot(current.x - previous.x, current.y - previous.y);
     points.push({ ...current, distance });
     previous = current;
