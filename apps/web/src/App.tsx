@@ -74,6 +74,17 @@ type AppView =
   | "project-artifacts"
   | "closed-projects"
   | "admin";
+type ProjectSectionView = Extract<
+  AppView,
+  | "project-overview"
+  | "project-passport"
+  | "project-structure"
+  | "project-gantt"
+  | "project-issues"
+  | "project-raid"
+  | "project-calendars"
+  | "project-artifacts"
+>;
 type FullscreenWorkspaceView = Extract<
   AppView,
   "project-structure" | "project-gantt"
@@ -816,6 +827,17 @@ const GANTT_HIERARCHY_LEVELS = [1, 2, 3, 4, 5] as const;
 const GANTT_PANEL_WIDTH_MIN = 760;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
+const projectSectionSlugs: Record<ProjectSectionView, string> = {
+  "project-overview": "overview",
+  "project-passport": "passport",
+  "project-structure": "wbs",
+  "project-gantt": "gantt",
+  "project-issues": "issues",
+  "project-raid": "risks",
+  "project-calendars": "calendars",
+  "project-artifacts": "artifacts",
+};
+
 const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
   "project-create": "/new-project",
@@ -829,6 +851,21 @@ const appViewPaths: Record<AppView, string> = {
   "project-artifacts": "/artifacts",
   "closed-projects": "/closed-projects",
   admin: "/admin",
+};
+
+const projectPathViews: Record<string, ProjectSectionView> = {
+  overview: "project-overview",
+  passport: "project-passport",
+  wbs: "project-structure",
+  structure: "project-structure",
+  gantt: "project-gantt",
+  issues: "project-issues",
+  "open-issues": "project-issues",
+  risks: "project-raid",
+  raid: "project-raid",
+  calendars: "project-calendars",
+  calendar: "project-calendars",
+  artifacts: "project-artifacts",
 };
 
 const appPathViews: Record<string, AppView> = {
@@ -859,17 +896,62 @@ function normalizeAppPath(pathname: string) {
   return path.toLowerCase();
 }
 
-function appViewFromPath(pathname: string): AppView {
-  return appPathViews[normalizeAppPath(pathname)] ?? "portfolio";
+function decodePathSegment(segment: string) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
-function appPathForView(view: AppView) {
+function appRouteFromPath(pathname: string) {
+  const legacyView = appPathViews[normalizeAppPath(pathname)];
+  if (legacyView) {
+    return { view: legacyView, projectCode: null as string | null };
+  }
+
+  const segments = pathname
+    .replace(/\/+$/, "")
+    .split("/")
+    .filter(Boolean)
+    .map(decodePathSegment);
+  const [projectCode, section] = segments;
+  const projectView = projectPathViews[section?.toLowerCase() ?? ""];
+  if (projectCode && projectView) {
+    return { view: projectView, projectCode };
+  }
+
+  return { view: "portfolio" as AppView, projectCode: null as string | null };
+}
+
+function appViewFromPath(pathname: string): AppView {
+  return appRouteFromPath(pathname).view;
+}
+
+function isProjectSectionViewName(view: AppView): view is ProjectSectionView {
+  return view in projectSectionSlugs;
+}
+
+function appPathForView(view: AppView, projectCode?: string | null) {
+  if (isProjectSectionViewName(view)) {
+    const slug = projectSectionSlugs[view];
+    return projectCode ? `/${encodeURIComponent(projectCode)}/${slug}` : `/${slug}`;
+  }
   return appViewPaths[view] ?? "/portfolio";
+}
+
+function normalizeProjectRouteCode(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function initialAppView(): AppView {
   if (typeof window === "undefined") return "portfolio";
   return appViewFromPath(window.location.pathname);
+}
+
+function initialRouteProjectCode() {
+  if (typeof window === "undefined") return null;
+  return appRouteFromPath(window.location.pathname).projectCode;
 }
 
 async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
@@ -3043,6 +3125,7 @@ function buildProjectTree(items: ProjectListItem[]) {
 }
 
 function App() {
+  const initialProjectCodeRef = useRef<string | null>(initialRouteProjectCode());
   const [authMode, setAuthMode] = useState<AuthMode>("checking");
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [authForm, setAuthForm] = useState<AuthFormState>(emptyAuthForm);
@@ -3284,13 +3367,26 @@ function App() {
     const onPopState = () => {
       setError(null);
       setNotice(null);
-      setActiveView(appViewFromPath(window.location.pathname));
+      const route = appRouteFromPath(window.location.pathname);
+      setActiveView(route.view);
+      if (route.projectCode) {
+        const nextProject = projects.find(
+          (item) =>
+            normalizeProjectRouteCode(item.code) ===
+            normalizeProjectRouteCode(route.projectCode ?? ""),
+        );
+        if (nextProject) {
+          setSelectedProjectId(nextProject.id);
+        } else {
+          initialProjectCodeRef.current = route.projectCode;
+        }
+      }
     };
     window.addEventListener("popstate", onPopState);
     return () => {
       window.removeEventListener("popstate", onPopState);
     };
-  }, []);
+  }, [projects]);
 
   useEffect(() => {
     const onAuthRequired = () => {
@@ -3328,9 +3424,19 @@ function App() {
         if (cancelled) return;
         const firstProject =
           data.find((item) => item.status !== "CLOSED") ?? data[0];
+        const routeProjectCode = initialProjectCodeRef.current;
+        const routeProject = routeProjectCode
+          ? data.find(
+              (item) =>
+                normalizeProjectRouteCode(item.code) ===
+                normalizeProjectRouteCode(routeProjectCode),
+            )
+          : null;
         setProjects(data);
         setProjectRegistryDrafts(projectsToRegistryDrafts(data));
-        setSelectedProjectId((current) => current ?? firstProject?.id ?? null);
+        setSelectedProjectId(
+          (current) => current ?? routeProject?.id ?? firstProject?.id ?? null,
+        );
       } catch (loadError) {
         if (cancelled) return;
         setError(
@@ -3428,6 +3534,37 @@ function App() {
     () => projects.find((item) => item.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   );
+  useEffect(() => {
+    const routeProjectCode = initialProjectCodeRef.current;
+    if (!routeProjectCode || projects.length === 0) return;
+
+    const routeProject = projects.find(
+      (item) =>
+        normalizeProjectRouteCode(item.code) ===
+        normalizeProjectRouteCode(routeProjectCode),
+    );
+    if (!routeProject) {
+      setError(`Проект ${routeProjectCode} не найден`);
+      initialProjectCodeRef.current = null;
+      return;
+    }
+
+    setSelectedProjectId(routeProject.id);
+    initialProjectCodeRef.current = null;
+  }, [projects]);
+  useEffect(() => {
+    if (!selectedProjectListItem || !isProjectSectionViewName(activeView)) {
+      return;
+    }
+    const expectedPath = appPathForView(activeView, selectedProjectListItem.code);
+    if (normalizeAppPath(window.location.pathname) !== normalizeAppPath(expectedPath)) {
+      window.history.replaceState(
+        null,
+        "",
+        `${expectedPath}${window.location.search}${window.location.hash}`,
+      );
+    }
+  }, [activeView, selectedProjectListItem]);
   const recentProjects = useMemo(
     () =>
       recentProjectIds
@@ -7637,7 +7774,10 @@ function App() {
     }
   }
 
-  function openView(nextView: AppView, options?: { replace?: boolean }) {
+  function openView(
+    nextView: AppView,
+    options?: { replace?: boolean; projectCode?: string | null },
+  ) {
     setError(null);
     setNotice(null);
     if (!isAuthenticated && writeProtectedViews.has(nextView)) {
@@ -7646,7 +7786,12 @@ function App() {
       return;
     }
     setActiveView(nextView);
-    const nextPath = appPathForView(nextView);
+    const routeProjectCode =
+      options?.projectCode ??
+      selectedProjectListItem?.code ??
+      project?.code ??
+      null;
+    const nextPath = appPathForView(nextView, routeProjectCode);
     if (window.location.pathname !== nextPath) {
       const nextUrl = `${nextPath}${window.location.search}${window.location.hash}`;
       if (options?.replace) {
@@ -7674,6 +7819,7 @@ function App() {
   function selectProject(projectId: string, nextView: AppView = activeView) {
     setError(null);
     setNotice(null);
+    const nextProject = projects.find((item) => item.id === projectId);
     setSelectedProjectId(projectId);
     setProjectSearch("");
     setShowProjectPicker(false);
@@ -7685,6 +7831,7 @@ function App() {
       nextView === "portfolio" || nextView === "project-create"
         ? "project-overview"
         : nextView,
+      { projectCode: nextProject?.code ?? null },
     );
   }
 
