@@ -2665,12 +2665,12 @@ function MilestoneSnakeTimelineSection({
                     className="milestone-snake-marker"
                     cx={point.x}
                     cy={point.y}
-                    r="8"
+                    r="11"
                   />
                   <text
                     className="milestone-snake-marker-number"
                     x={point.x}
-                    y={point.y + 3.5}
+                    y={point.y + 4}
                   >
                     {index + 1}
                   </text>

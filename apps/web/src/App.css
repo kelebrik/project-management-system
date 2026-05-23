@@ -2854,12 +2854,13 @@ code {
 .milestone-snake-marker {
   fill: #94a3b8;
   stroke: #fff;
-  stroke-width: 3;
+  stroke-width: 4;
+  filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.24));
 }
 
 .milestone-snake-marker-number {
   fill: #fff;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 900;
   pointer-events: none;
   text-anchor: middle;
@@ -2867,26 +2868,26 @@ code {
 
 .milestone-snake-item.green .milestone-snake-marker,
 .milestone-snake-item.green .milestone-snake-connector {
-  fill: #16a34a;
-  stroke: #16a34a;
+  fill: #00b050;
+  stroke: #00b050;
 }
 
 .milestone-snake-item.blue .milestone-snake-marker,
 .milestone-snake-item.blue .milestone-snake-connector {
-  fill: #2563eb;
-  stroke: #2563eb;
+  fill: #1d4ed8;
+  stroke: #1d4ed8;
 }
 
 .milestone-snake-item.red .milestone-snake-marker,
 .milestone-snake-item.red .milestone-snake-connector {
-  fill: #dc2626;
-  stroke: #dc2626;
+  fill: #ef1f1f;
+  stroke: #ef1f1f;
 }
 
 .milestone-snake-item.gray .milestone-snake-marker,
 .milestone-snake-item.gray .milestone-snake-connector {
-  fill: #94a3b8;
-  stroke: #94a3b8;
+  fill: #7c8da3;
+  stroke: #7c8da3;
 }
 
 .milestone-snake-item.green .milestone-snake-marker,
