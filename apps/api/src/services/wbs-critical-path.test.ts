@@ -168,3 +168,91 @@ test("calculateWbsCriticalPath includes predecessor fields in upstream critical 
   assert.deepEqual(result.criticalItemIds, ["a", "b", "c"]);
   assert.deepEqual(result.criticalDependencyIds.sort(), ["field:a:c", "field:b:c"]);
 });
+
+test("calculateWbsCriticalPath keeps every upstream predecessor of a critical merge task", () => {
+  const items = [
+    {
+      id: "a1",
+      code: "1.1",
+      title: "A1",
+      ...baseItem,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      dueDate: new Date("2026-05-18T00:00:00.000Z"),
+      workDays: 1,
+      sortOrder: 10,
+    },
+    {
+      id: "a2",
+      code: "1.2",
+      title: "A2",
+      ...baseItem,
+      startDate: new Date("2026-05-19T00:00:00.000Z"),
+      dueDate: new Date("2026-05-19T00:00:00.000Z"),
+      workDays: 1,
+      predecessor1: "1.1",
+      sortOrder: 20,
+    },
+    {
+      id: "b1",
+      code: "2.1",
+      title: "B1",
+      ...baseItem,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      dueDate: new Date("2026-05-29T00:00:00.000Z"),
+      workDays: 10,
+      sortOrder: 30,
+    },
+    {
+      id: "b2",
+      code: "2.2",
+      title: "B2",
+      ...baseItem,
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      dueDate: new Date("2026-06-01T00:00:00.000Z"),
+      workDays: 1,
+      predecessor1: "2.1",
+      sortOrder: 40,
+    },
+    {
+      id: "merge",
+      code: "3.8.1",
+      title: "Merge",
+      ...baseItem,
+      startDate: new Date("2026-06-02T00:00:00.000Z"),
+      dueDate: new Date("2026-06-05T00:00:00.000Z"),
+      workDays: 4,
+      predecessor1: "1.2",
+      predecessor2: "2.2",
+      sortOrder: 50,
+    },
+    {
+      id: "finish",
+      code: "3.8.2",
+      title: "Finish",
+      ...baseItem,
+      startDate: new Date("2026-06-08T00:00:00.000Z"),
+      dueDate: new Date("2026-06-08T00:00:00.000Z"),
+      workDays: 1,
+      predecessor1: "3.8.1",
+      sortOrder: 60,
+    },
+  ];
+
+  const result = calculateWbsCriticalPath(items, [], []);
+
+  assert.deepEqual(result.criticalItemIds, [
+    "a1",
+    "a2",
+    "b1",
+    "b2",
+    "merge",
+    "finish",
+  ]);
+  assert.deepEqual(result.criticalDependencyIds.sort(), [
+    "field:a1:a2",
+    "field:a2:merge",
+    "field:b1:b2",
+    "field:b2:merge",
+    "field:merge:finish",
+  ]);
+});

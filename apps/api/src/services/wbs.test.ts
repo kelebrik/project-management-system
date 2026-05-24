@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateWbsScheduleUpdates } from "./wbs-schedule.js";
+import {
+  calculateWbsBaselineVariance,
+  calculateWbsScheduleUpdates,
+} from "./wbs-schedule.js";
 import { buildWbsRenumberPlan, levelFromWbsCode } from "./wbs.js";
 
 test("levelFromWbsCode reads hierarchy depth from dotted code", () => {
@@ -474,6 +477,81 @@ test("calculateWbsScheduleUpdates uses selected project calendar overrides", () 
   assert.equal(taskB?.calendarDays, 1);
 });
 
+test("calculateWbsScheduleUpdates calculates dates with different RU and CN calendars", () => {
+  const items = [
+    {
+      id: "ru-predecessor",
+      code: "1.1",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-15T00:00:00.000Z"),
+      dueDate: new Date("2026-05-15T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-15T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-15T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 1,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      sortOrder: 10,
+    },
+    {
+      id: "ru-successor",
+      code: "1.2",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-19T00:00:00.000Z"),
+      dueDate: new Date("2026-05-19T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-19T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-19T00:00:00.000Z"),
+      predecessor1: "1.1",
+      predecessor2: null,
+      predecessor3: null,
+      predecessor4: null,
+      predecessor5: null,
+      predecessor6: null,
+      leadLagDays: 0,
+      workDays: 1,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      sortOrder: 20,
+    },
+    {
+      id: "cn-successor",
+      code: "1.3",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      dueDate: new Date("2026-05-18T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-18T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-18T00:00:00.000Z"),
+      predecessor1: "1.1",
+      predecessor2: null,
+      predecessor3: null,
+      predecessor4: null,
+      predecessor5: null,
+      predecessor6: null,
+      leadLagDays: 0,
+      workDays: 1,
+      calendarDays: 1,
+      calendarCode: "CN" as const,
+      sortOrder: 30,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], [
+    {
+      calendarCode: "CN",
+      date: new Date("2026-05-16T00:00:00.000Z"),
+      isWorkingDay: true,
+    },
+  ]);
+  const ruSuccessor = updates.find((item) => item.id === "ru-successor");
+  const cnSuccessor = updates.find((item) => item.id === "cn-successor");
+
+  assert.equal(ruSuccessor?.startDate?.toISOString().slice(0, 10), "2026-05-18");
+  assert.equal(ruSuccessor?.calendarDays, 1);
+  assert.equal(cnSuccessor?.startDate?.toISOString().slice(0, 10), "2026-05-16");
+  assert.equal(cnSuccessor?.calendarDays, 1);
+});
+
 test("calculateWbsScheduleUpdates aggregates phase and work package dates from children", () => {
   const items = [
     {
@@ -556,4 +634,128 @@ test("calculateWbsScheduleUpdates aggregates phase and work package dates from c
   assert.equal(phase?.startDate?.toISOString().slice(0, 10), "2026-05-18");
   assert.equal(phase?.dueDate?.toISOString().slice(0, 10), "2026-05-29");
   assert.equal(phase?.calendarDays, 12);
+});
+
+test("calculateWbsBaselineVariance reports only root schedule deviations", () => {
+  const variance = calculateWbsBaselineVariance(
+    [
+      {
+        id: "sync-codebase",
+        code: "3.5.1",
+        title: "Синк новой кодобазы",
+        type: "TASK" as const,
+        baselineDueDate: new Date("2026-05-08T00:00:00.000Z"),
+        dueDate: new Date("2026-06-12T00:00:00.000Z"),
+        sortOrder: 10,
+      },
+      {
+        id: "troubleshooting",
+        code: "3.5.3",
+        title: "Первичный траблшутинг",
+        type: "TASK" as const,
+        baselineDueDate: new Date("2026-05-22T00:00:00.000Z"),
+        dueDate: new Date("2026-06-26T00:00:00.000Z"),
+        predecessor1: "3.5.1",
+        sortOrder: 20,
+      },
+      {
+        id: "ambient",
+        code: "3.3.1.1",
+        title: "Требования Ambient",
+        type: "TASK" as const,
+        baselineDueDate: new Date("2026-05-25T00:00:00.000Z"),
+        dueDate: new Date("2026-06-19T00:00:00.000Z"),
+        sortOrder: 30,
+      },
+      {
+        id: "regression-planning",
+        code: "3.8.1",
+        title: "Планирование регрессионных тестов",
+        type: "TASK" as const,
+        baselineDueDate: new Date("2026-08-06T00:00:00.000Z"),
+        dueDate: new Date("2026-08-13T00:00:00.000Z"),
+        sortOrder: 40,
+      },
+      {
+        id: "regression-fix",
+        code: "3.8.7",
+        title: "Исправления по регрессу",
+        type: "TASK" as const,
+        baselineDueDate: new Date("2026-08-28T00:00:00.000Z"),
+        dueDate: new Date("2026-09-04T00:00:00.000Z"),
+        predecessor1: "3.8.1",
+        sortOrder: 50,
+      },
+    ],
+    [],
+  );
+
+  assert.equal(variance.scheduleVarianceDays, 35);
+  assert.deepEqual(
+    variance.rootCauses.map((entry) => [entry.item.code, entry.delayDays]),
+    [
+      ["3.5.1", 35],
+      ["3.3.1.1", 25],
+      ["3.8.1", 7],
+    ],
+  );
+  assert.equal(
+    variance.rootCauses.some((entry) => entry.item.code === "3.5.3"),
+    false,
+  );
+  assert.equal(
+    variance.rootCauses.some((entry) => entry.item.code === "3.8.7"),
+    false,
+  );
+});
+
+test("calculateWbsBaselineVariance subtracts inherited predecessor shift from successor delay", () => {
+  const variance = calculateWbsBaselineVariance(
+    [
+      {
+        id: "predecessor",
+        code: "1.1",
+        type: "TASK" as const,
+        baselineDueDate: new Date("2026-05-01T00:00:00.000Z"),
+        dueDate: new Date("2026-05-06T00:00:00.000Z"),
+        sortOrder: 10,
+      },
+      {
+        id: "successor",
+        code: "1.2",
+        type: "TASK" as const,
+        baselineDueDate: new Date("2026-05-10T00:00:00.000Z"),
+        dueDate: new Date("2026-05-18T00:00:00.000Z"),
+        predecessor1: "1.1",
+        sortOrder: 20,
+      },
+    ],
+    [],
+  );
+
+  assert.deepEqual(
+    variance.rootCauses.map((entry) => ({
+      code: entry.item.code,
+      delayDays: entry.delayDays,
+      rawDelayDays: entry.rawDelayDays,
+      inheritedDelayDays: entry.inheritedDelayDays,
+      inheritedFrom: entry.inheritedFrom?.code ?? null,
+    })),
+    [
+      {
+        code: "1.1",
+        delayDays: 5,
+        rawDelayDays: 5,
+        inheritedDelayDays: 0,
+        inheritedFrom: null,
+      },
+      {
+        code: "1.2",
+        delayDays: 3,
+        rawDelayDays: 8,
+        inheritedDelayDays: 5,
+        inheritedFrom: "1.1",
+      },
+    ],
+  );
 });
