@@ -8736,6 +8736,8 @@ function App() {
   const isProjectView = projectViews.includes(activeView);
   const isProjectSectionView = isProjectView && activeView !== "project-create";
   const isAdminSectionView = isAdminSectionViewName(activeView);
+  const shouldShowProjectMenu = Boolean(selectedProjectListItem && isProjectSectionView);
+  const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
   const navLabel = (icon: ReactNode, label: string) => (
     <>
       <span className="nav-icon" aria-hidden="true">
@@ -9111,8 +9113,8 @@ function App() {
           >
             {navLabel(<FolderTree size={17} />, "Проекты")}
           </button>
-          <div className="sidebar-group">
-            {selectedProjectListItem && (
+          {shouldShowProjectMenu && (
+            <div className="sidebar-group">
               <div className="project-menu">
                 <button
                   type="button"
@@ -9211,8 +9213,8 @@ function App() {
                   {navLabel(<FileArchive size={17} />, "Артефакты проекта")}
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
           <button
             type="button"
             className={activeView === "closed-projects" ? "active" : ""}
@@ -9231,7 +9233,8 @@ function App() {
               >
                 {navLabel(<Settings size={17} />, "Администрирование")}
               </button>
-              <div className="sidebar-group">
+              {shouldShowAdminMenu && (
+                <div className="sidebar-group">
                 <div className="project-menu">
                   <button
                     type="button"
@@ -9391,6 +9394,7 @@ function App() {
                   </button>
                 </div>
               </div>
+              )}
             </>
           )}
         </nav>
