@@ -24,8 +24,12 @@ import {
   Trash2,
   FileArchive,
   FileText,
+  HeartPulse,
   FolderTree,
   GanttChartSquare,
+  GitBranch,
+  HardDriveDownload,
+  Import,
   KeyRound,
   LayoutDashboard,
   ListChecks,
@@ -36,6 +40,7 @@ import {
   Search,
   Settings,
   ShieldAlert,
+  SlidersHorizontal,
   Users,
 } from "lucide-react";
 import { labels } from "@pms/shared";
@@ -45,6 +50,7 @@ import {
   MILESTONE_SNAKE_WIDTH,
   sampleMilestoneSnakePath,
 } from "./milestoneSnakePath";
+import { PageBoundary } from "./pages";
 import "./App.css";
 
 type RagStatus = "GREEN" | "AMBER" | "RED";
@@ -77,7 +83,14 @@ type AppView =
   | "admin-users"
   | "admin-roles"
   | "admin-dictionaries"
+  | "admin-templates"
+  | "admin-rag"
+  | "admin-workflows"
   | "admin-jira"
+  | "admin-integrations"
+  | "admin-health"
+  | "admin-backups"
+  | "admin-config"
   | "admin-projects"
   | "admin-audit";
 type ProjectSectionView = Extract<
@@ -97,7 +110,14 @@ type AdminSectionView = Extract<
   | "admin-users"
   | "admin-roles"
   | "admin-dictionaries"
+  | "admin-templates"
+  | "admin-rag"
+  | "admin-workflows"
   | "admin-jira"
+  | "admin-integrations"
+  | "admin-health"
+  | "admin-backups"
+  | "admin-config"
   | "admin-projects"
   | "admin-audit"
 >;
@@ -112,7 +132,14 @@ const adminSectionViews: AdminSectionView[] = [
   "admin-users",
   "admin-roles",
   "admin-dictionaries",
+  "admin-templates",
+  "admin-rag",
+  "admin-workflows",
   "admin-jira",
+  "admin-integrations",
+  "admin-health",
+  "admin-backups",
+  "admin-config",
   "admin-projects",
   "admin-audit",
 ];
@@ -188,10 +215,125 @@ type SystemSetting = {
   updatedAt: string;
 };
 
+type AdminHealth = {
+  ok: boolean;
+  database: string;
+  databaseLatencyMs: number;
+  jiraConfigured: boolean;
+  uptimeSeconds: number;
+  startedAt: string;
+  nodeEnv: string;
+};
+
+type BackupStatus = {
+  ok: boolean;
+  backupDir: string;
+  retentionDays: number;
+  totalBackups: number;
+  latestBackup: {
+    file: string;
+    path: string;
+    sizeBytes: number;
+    updatedAt: string;
+  } | null;
+  latestChecksum: string | null;
+  message: string;
+};
+
 type AdminConfig = {
   rolePermissions: RolePermission[];
   dictionaryItems: DictionaryItem[];
   systemSettings: SystemSetting[];
+  managedPermissions: string[];
+  health: AdminHealth;
+  backupStatus: BackupStatus;
+};
+
+type SearchResult = {
+  type: string;
+  id: string;
+  projectId: string | null;
+  projectCode: string | null;
+  title: string;
+  subtitle: string;
+  url: string;
+  updatedAt: string;
+};
+
+type SavedView = {
+  id: string;
+  ownerId: string | null;
+  projectId: string | null;
+  viewType: string;
+  name: string;
+  config: Record<string, unknown>;
+  isShared: boolean;
+  sortOrder: number;
+  lastUsedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ApiTokenInfo = {
+  id: string;
+  name: string;
+  tokenPrefix: string;
+  scopes: string[];
+  isActive: boolean;
+  rateLimitPerMinute: number;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  createdById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  token?: string;
+};
+
+type WebhookEndpointInfo = {
+  id: string;
+  name: string;
+  url: string;
+  hasSecret: boolean;
+  events: string[];
+  isActive: boolean;
+  createdById: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type WebhookDeliveryInfo = {
+  id: string;
+  endpointId: string;
+  eventType: string;
+  status: string;
+  statusCode: number | null;
+  responseBody: string | null;
+  error: string | null;
+  attemptedAt: string | null;
+  createdAt: string;
+  endpoint?: { name: string };
+};
+
+type AdminIntegrations = {
+  apiTokens: ApiTokenInfo[];
+  webhookEndpoints: WebhookEndpointInfo[];
+  webhookDeliveries: WebhookDeliveryInfo[];
+  integrationSettings: SystemSetting[];
+};
+
+type ApiTokenDraft = {
+  name: string;
+  scopes: string;
+  rateLimitPerMinute: string;
+  expiresAt: string;
+};
+
+type WebhookDraft = {
+  name: string;
+  url: string;
+  events: string;
+  secret: string;
+  isActive: boolean;
 };
 
 type AuthFormState = {
@@ -231,6 +373,24 @@ type SystemSettingsDraft = {
   jiraEmail: string;
   jiraApiToken: string;
   jiraMaxResults: string;
+  gitlabEnabled: boolean;
+  gitlabBaseUrl: string;
+  gitlabToken: string;
+  githubEnabled: boolean;
+  githubBaseUrl: string;
+  githubToken: string;
+  azureDevOpsEnabled: boolean;
+  azureDevOpsOrganizationUrl: string;
+  azureDevOpsToken: string;
+  biEnabled: boolean;
+  biExportUrl: string;
+  ragGreenFormula: string;
+  ragAmberFormula: string;
+  ragRedFormula: string;
+  overviewWorkflow: string;
+  baselineWorkflow: string;
+  projectCloseWorkflow: string;
+  wbsTemplates: string;
 };
 
 type ProjectListItem = {
@@ -882,7 +1042,14 @@ const appViewPaths: Record<AppView, string> = {
   "admin-users": "/admin/users",
   "admin-roles": "/admin/roles",
   "admin-dictionaries": "/admin/dictionaries",
+  "admin-templates": "/admin/templates",
+  "admin-rag": "/admin/rag",
+  "admin-workflows": "/admin/workflows",
   "admin-jira": "/admin/jira",
+  "admin-integrations": "/admin/integrations",
+  "admin-health": "/admin/health",
+  "admin-backups": "/admin/backups",
+  "admin-config": "/admin/config",
   "admin-projects": "/admin/projects",
   "admin-audit": "/admin/audit",
 };
@@ -926,7 +1093,14 @@ const appPathViews: Record<string, AppView> = {
   "/admin/users": "admin-users",
   "/admin/roles": "admin-roles",
   "/admin/dictionaries": "admin-dictionaries",
+  "/admin/templates": "admin-templates",
+  "/admin/rag": "admin-rag",
+  "/admin/workflows": "admin-workflows",
   "/admin/jira": "admin-jira",
+  "/admin/integrations": "admin-integrations",
+  "/admin/health": "admin-health",
+  "/admin/backups": "admin-backups",
+  "/admin/config": "admin-config",
   "/admin/projects": "admin-projects",
   "/admin/audit": "admin-audit",
 };
@@ -1497,19 +1671,70 @@ const emptySystemSettingsDraft: SystemSettingsDraft = {
   jiraEmail: "",
   jiraApiToken: "",
   jiraMaxResults: "100",
+  gitlabEnabled: false,
+  gitlabBaseUrl: "",
+  gitlabToken: "",
+  githubEnabled: false,
+  githubBaseUrl: "https://api.github.com",
+  githubToken: "",
+  azureDevOpsEnabled: false,
+  azureDevOpsOrganizationUrl: "",
+  azureDevOpsToken: "",
+  biEnabled: false,
+  biExportUrl: "",
+  ragGreenFormula: "",
+  ragAmberFormula: "",
+  ragRedFormula: "",
+  overviewWorkflow: "",
+  baselineWorkflow: "",
+  projectCloseWorkflow: "",
+  wbsTemplates: "",
 };
 
 const adminPermissionOrder = [
   "project.read",
-  "project.write",
-  "wbs.write",
-  "issue.write",
-  "raid.write",
+  "project.create",
+  "project.update",
+  "project.close",
+  "project.delete",
+  "wbs.read",
+  "wbs.create",
+  "wbs.update",
+  "wbs.delete",
+  "wbs.move",
+  "wbs.baseline",
+  "wbs.dependency",
+  "issue.read",
+  "issue.create",
+  "issue.update",
+  "issue.close",
+  "issue.delete",
+  "raid.read",
+  "raid.create",
+  "raid.update",
+  "raid.close",
+  "raid.delete",
+  "overview.generate",
   "overview.publish",
-  "admin.manage",
+  "overview.export",
+  "admin.users",
+  "admin.roles",
+  "admin.dictionaries",
+  "admin.templates",
+  "admin.rag",
+  "admin.workflow",
+  "admin.jira",
+  "admin.health",
+  "admin.backup",
+  "admin.config",
+  "admin.audit",
+  "admin.integrations",
 ];
 
 const adminDictionaryLabels: Record<string, string> = {
+  project_status: "Статусы проектов",
+  project_type: "Типы проектов",
+  risk_type: "Типы рисков",
   wbs_type: "Типы Структуры",
   wbs_status: "Статусы Структуры",
   issue_severity: "Критичность открытых вопросов",
@@ -1524,12 +1749,42 @@ function userRoleLabel(role: UserRole) {
 function adminPermissionLabel(permission: string) {
   const labelsByPermission: Record<string, string> = {
     "project.read": "Просмотр проектов",
-    "project.write": "Редактирование проектов",
-    "wbs.write": "Редактирование Структуры",
-    "issue.write": "Открытые вопросы",
-    "raid.write": "Риски и проблемы",
+    "project.create": "Создание проектов",
+    "project.update": "Редактирование паспорта проекта",
+    "project.close": "Закрытие проектов",
+    "project.delete": "Удаление проектов",
+    "wbs.read": "Просмотр Структуры",
+    "wbs.create": "Создание строк Структуры",
+    "wbs.update": "Редактирование Структуры",
+    "wbs.delete": "Удаление строк Структуры",
+    "wbs.move": "Перемещение строк Структуры",
+    "wbs.baseline": "Фиксация базового плана",
+    "wbs.dependency": "Связи Структуры и Гантта",
+    "issue.read": "Просмотр открытых вопросов",
+    "issue.create": "Создание открытых вопросов",
+    "issue.update": "Редактирование открытых вопросов",
+    "issue.close": "Закрытие открытых вопросов",
+    "issue.delete": "Удаление открытых вопросов",
+    "raid.read": "Просмотр рисков и проблем",
+    "raid.create": "Создание рисков и проблем",
+    "raid.update": "Редактирование рисков и проблем",
+    "raid.close": "Закрытие рисков и проблем",
+    "raid.delete": "Удаление рисков и проблем",
+    "overview.generate": "Генерация обзора",
     "overview.publish": "Публикация обзора",
-    "admin.manage": "Администрирование",
+    "overview.export": "Экспорт обзора",
+    "admin.users": "Пользователи",
+    "admin.roles": "Роли и права",
+    "admin.dictionaries": "Справочники",
+    "admin.templates": "Шаблоны Структуры",
+    "admin.rag": "Формулы RAG",
+    "admin.workflow": "Workflow согласований",
+    "admin.jira": "Настройки Jira",
+    "admin.health": "System health",
+    "admin.backup": "Backup/restore status",
+    "admin.config": "Import/export конфигурации",
+    "admin.audit": "Журнал аудита",
+    "admin.integrations": "Интеграции и API",
   };
   return labelsByPermission[permission] ?? permission;
 }
@@ -1577,6 +1832,24 @@ function systemSettingsToDraft(settings: SystemSetting[]): SystemSettingsDraft {
     jiraEmail: byKey.get("jira.email")?.value ?? "",
     jiraApiToken: "",
     jiraMaxResults: byKey.get("jira.maxResults")?.value || "100",
+    gitlabEnabled: byKey.get("gitlab.enabled")?.value === "true",
+    gitlabBaseUrl: byKey.get("gitlab.baseUrl")?.value ?? "",
+    gitlabToken: "",
+    githubEnabled: byKey.get("github.enabled")?.value === "true",
+    githubBaseUrl: byKey.get("github.baseUrl")?.value ?? "https://api.github.com",
+    githubToken: "",
+    azureDevOpsEnabled: byKey.get("azureDevOps.enabled")?.value === "true",
+    azureDevOpsOrganizationUrl: byKey.get("azureDevOps.organizationUrl")?.value ?? "",
+    azureDevOpsToken: "",
+    biEnabled: byKey.get("bi.enabled")?.value === "true",
+    biExportUrl: byKey.get("bi.exportUrl")?.value ?? "",
+    ragGreenFormula: byKey.get("rag.formula.green")?.value ?? "",
+    ragAmberFormula: byKey.get("rag.formula.amber")?.value ?? "",
+    ragRedFormula: byKey.get("rag.formula.red")?.value ?? "",
+    overviewWorkflow: byKey.get("workflow.overview")?.value ?? "",
+    baselineWorkflow: byKey.get("workflow.baseline")?.value ?? "",
+    projectCloseWorkflow: byKey.get("workflow.projectClose")?.value ?? "",
+    wbsTemplates: byKey.get("wbs.templates")?.value ?? "",
   };
 }
 
@@ -1602,6 +1875,13 @@ function dateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function fileSize(value: number | null | undefined) {
+  if (!value) return "0 Б";
+  if (value < 1024) return `${value} Б`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} КБ`;
+  return `${(value / 1024 / 1024).toFixed(1)} МБ`;
 }
 
 function shortDate(value: string | null) {
@@ -3205,6 +3485,7 @@ function App() {
   const [dictionaryDrafts, setDictionaryDrafts] = useState<
     Record<string, DictionaryItemDraft>
   >({});
+  const [selectedDictionary, setSelectedDictionary] = useState("wbs_type");
   const [newDictionaryDraft, setNewDictionaryDraft] =
     useState<DictionaryItemDraft>(emptyDictionaryDraft);
   const [savingDictionaryItemId, setSavingDictionaryItemId] =
@@ -3214,6 +3495,27 @@ function App() {
   const [systemSettingsDraft, setSystemSettingsDraft] =
     useState<SystemSettingsDraft>(emptySystemSettingsDraft);
   const [savingSystemSettings, setSavingSystemSettings] = useState(false);
+  const [adminHealth, setAdminHealth] = useState<AdminHealth | null>(null);
+  const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
+  const [adminIntegrations, setAdminIntegrations] =
+    useState<AdminIntegrations | null>(null);
+  const [apiTokenDraft, setApiTokenDraft] = useState<ApiTokenDraft>({
+    name: "Внешняя интеграция",
+    scopes: "project.read,wbs.read,issue.read,raid.read",
+    rateLimitPerMinute: "120",
+    expiresAt: "",
+  });
+  const [webhookDraft, setWebhookDraft] = useState<WebhookDraft>({
+    name: "Webhook",
+    url: "",
+    events: "*",
+    secret: "",
+    isActive: true,
+  });
+  const [createdApiToken, setCreatedApiToken] = useState<string | null>(null);
+  const [savingIntegration, setSavingIntegration] = useState(false);
+  const [configTransferText, setConfigTransferText] = useState("");
+  const [importingConfig, setImportingConfig] = useState(false);
   const [savingRolePermissionId, setSavingRolePermissionId] =
     useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -3330,6 +3632,13 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [savedViewName, setSavedViewName] = useState("");
+  const [savingSavedView, setSavingSavedView] = useState(false);
   const [recentProjectIds, setRecentProjectIds] = useState<string[]>([]);
 
   const handleEditableFocus = useCallback(
@@ -3448,18 +3757,27 @@ function App() {
 
   useEffect(() => {
     if (authMode !== "ready") return;
-    if (!isAuthenticated && writeProtectedViews.has(activeView)) {
-      openView(selectedProjectId ? "project-overview" : "portfolio", {
-        replace: true,
-      });
-      return;
-    }
-    if (isAuthenticated && isAdminSectionViewName(activeView) && !isAdminUser) {
-      openView(selectedProjectId ? "project-overview" : "portfolio", {
-        replace: true,
-      });
-    }
-  }, [activeView, authMode, isAdminUser, isAuthenticated, selectedProjectId]);
+    const shouldRedirect =
+      (!isAuthenticated && writeProtectedViews.has(activeView)) ||
+      (isAuthenticated && isAdminSectionViewName(activeView) && !isAdminUser);
+    if (!shouldRedirect) return;
+
+    const fallbackView = selectedProjectId ? "project-overview" : "portfolio";
+    const redirectId = window.setTimeout(() => {
+      setError(null);
+      setNotice(null);
+      setActiveView(fallbackView);
+      const nextPath = appPathForView(fallbackView, project?.code ?? null);
+      if (window.location.pathname !== nextPath) {
+        window.history.replaceState(
+          null,
+          "",
+          `${nextPath}${window.location.search}${window.location.hash}`,
+        );
+      }
+    }, 0);
+    return () => window.clearTimeout(redirectId);
+  }, [activeView, authMode, isAdminUser, isAuthenticated, project?.code, selectedProjectId]);
 
   useEffect(() => {
     if (authMode !== "ready") return;
@@ -3510,6 +3828,44 @@ function App() {
   }, [authMode]);
 
   useEffect(() => {
+    const query = globalSearch.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSearchLoading(true);
+    const timeoutId = window.setTimeout(() => {
+      apiClient
+        .get<SearchResult[]>(
+          `/api/search?q=${encodeURIComponent(query)}&limit=12`,
+          "Не удалось выполнить поиск",
+        )
+        .then((results) => {
+          if (!cancelled) {
+            setSearchResults(results);
+            setSearchOpen(true);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setSearchResults([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setSearchLoading(false);
+          }
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [globalSearch]);
+
+  useEffect(() => {
     if (
       authMode !== "ready" ||
       !isAdminSectionViewName(activeView) ||
@@ -3528,8 +3884,12 @@ function App() {
         "/api/admin/config",
         "Не удалось загрузить настройки администрирования",
       ),
+      apiClient.get<AdminIntegrations>(
+        "/api/admin/integrations",
+        "Не удалось загрузить интеграции",
+      ),
     ])
-      .then(([data, events, config]) => {
+      .then(([data, events, config, integrations]) => {
         if (cancelled) return;
         setUsers(data);
         setUserDrafts(usersToDrafts(data));
@@ -3539,6 +3899,9 @@ function App() {
         setDictionaryDrafts(dictionaryItemsToDrafts(config.dictionaryItems));
         setSystemSettings(config.systemSettings);
         setSystemSettingsDraft(systemSettingsToDraft(config.systemSettings));
+        setAdminHealth(config.health);
+        setBackupStatus(config.backupStatus);
+        setAdminIntegrations(integrations);
       })
       .catch((loadError) => {
         if (cancelled) return;
@@ -3552,6 +3915,33 @@ function App() {
       cancelled = true;
     };
   }, [activeView, authMode, currentUser]);
+
+  useEffect(() => {
+    const viewType = savedViewTypeForActiveView();
+    if (authMode !== "ready" || !viewType || !selectedProjectId) {
+      setSavedViews([]);
+      return;
+    }
+    let cancelled = false;
+    const params = new URLSearchParams({
+      viewType,
+      projectId: selectedProjectId,
+    });
+    apiClient
+      .get<SavedView[]>(
+        `/api/saved-views?${params.toString()}`,
+        "Не удалось загрузить сохраненные представления",
+      )
+      .then((views) => {
+        if (!cancelled) setSavedViews(views);
+      })
+      .catch(() => {
+        if (!cancelled) setSavedViews([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView, authMode, selectedProjectId]);
 
   useEffect(() => {
     if (!notice) return;
@@ -3588,6 +3978,11 @@ function App() {
   const selectedProjectListItem = useMemo(
     () => projects.find((item) => item.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
+  );
+  const filteredDictionaryItems = useMemo(
+    () =>
+      dictionaryItems.filter((item) => item.dictionary === selectedDictionary),
+    [dictionaryItems, selectedDictionary],
   );
   useEffect(() => {
     const routeProjectCode = initialProjectCodeRef.current;
@@ -5185,6 +5580,273 @@ function App() {
     setDictionaryDrafts(dictionaryItemsToDrafts(config.dictionaryItems));
     setSystemSettings(config.systemSettings);
     setSystemSettingsDraft(systemSettingsToDraft(config.systemSettings));
+    setAdminHealth(config.health);
+    setBackupStatus(config.backupStatus);
+  }
+
+  async function reloadAdminIntegrations() {
+    if (currentUser?.role !== "ADMIN") return;
+    const integrations = await apiClient.get<AdminIntegrations>(
+      "/api/admin/integrations",
+      "Не удалось загрузить интеграции",
+    );
+    setAdminIntegrations(integrations);
+  }
+
+  function openSearchResult(result: SearchResult) {
+    setGlobalSearch("");
+    setSearchOpen(false);
+    if (result.projectId) {
+      setSelectedProjectId(result.projectId);
+      const section =
+        result.url.split("/").filter(Boolean).at(-1)?.toLowerCase() ?? "overview";
+      const nextView = projectPathViews[section] ?? "project-overview";
+      openView(nextView, { projectCode: result.projectCode });
+      return;
+    }
+    openView("portfolio");
+  }
+
+  function savedViewTypeForActiveView() {
+    if (activeView === "project-structure") return "structure";
+    if (activeView === "project-gantt") return "gantt";
+    if (activeView === "project-raid") return "risks";
+    return null;
+  }
+
+  function currentSavedViewConfig(): Record<string, unknown> {
+    if (activeView === "project-structure") {
+      return {
+        wbsColumnOrder,
+        wbsHiddenColumns,
+        wbsColumnWidths,
+        activeWbsHierarchyLevel,
+        showStructureCriticalPath,
+      };
+    }
+    if (activeView === "project-gantt") {
+      return {
+        ganttScale,
+        activeWbsHierarchyLevel,
+        showGanttDependencies,
+        showGanttCriticalPath,
+        showGanttBaseline,
+        showGanttForecast,
+        ganttWbsWidth,
+        ganttPanelHeight,
+        ganttPanelWidth,
+      };
+    }
+    if (activeView === "project-raid") {
+      return {
+        raidTypeFilter,
+        raidDecisionOnly,
+        raidOverdueOnly,
+        raidHighOnly,
+      };
+    }
+    return {};
+  }
+
+  function applySavedView(view: SavedView) {
+    const config = view.config ?? {};
+    if (Array.isArray(config.wbsColumnOrder)) {
+      setWbsColumnOrder(normalizeWbsColumnOrder(config.wbsColumnOrder as WbsTableColumnKey[]));
+    }
+    if (Array.isArray(config.wbsHiddenColumns)) {
+      setWbsHiddenColumns(normalizeWbsHiddenColumns(config.wbsHiddenColumns as WbsTableColumnKey[]));
+    }
+    if (config.wbsColumnWidths && typeof config.wbsColumnWidths === "object") {
+      setWbsColumnWidths((current) =>
+        normalizeWbsColumnWidths({
+          ...current,
+          ...(config.wbsColumnWidths as Partial<Record<WbsTableColumnKey, number>>),
+        }),
+      );
+    }
+    if (
+      typeof config.activeWbsHierarchyLevel === "number" &&
+      GANTT_HIERARCHY_LEVELS.includes(config.activeWbsHierarchyLevel as 1 | 2 | 3 | 4 | 5)
+    ) {
+      setWbsHierarchyLevel(config.activeWbsHierarchyLevel);
+    }
+    if (typeof config.showStructureCriticalPath === "boolean") {
+      setShowStructureCriticalPath(config.showStructureCriticalPath);
+    }
+    if (config.ganttScale === "month" || config.ganttScale === "quarter") {
+      setGanttScale(config.ganttScale);
+    }
+    if (typeof config.showGanttDependencies === "boolean") {
+      setShowGanttDependencies(config.showGanttDependencies);
+    }
+    if (typeof config.showGanttCriticalPath === "boolean") {
+      setShowGanttCriticalPath(config.showGanttCriticalPath);
+    }
+    if (typeof config.showGanttBaseline === "boolean") {
+      setShowGanttBaseline(config.showGanttBaseline);
+    }
+    if (typeof config.showGanttForecast === "boolean") {
+      setShowGanttForecast(config.showGanttForecast);
+    }
+    if (typeof config.ganttWbsWidth === "number") {
+      setGanttWbsWidth(clampNumber(config.ganttWbsWidth, 260, 640));
+    }
+    if (typeof config.ganttPanelHeight === "number") {
+      setGanttPanelHeight(clampNumber(config.ganttPanelHeight, 320, 900));
+    }
+    if (typeof config.ganttPanelWidth === "number") {
+      setGanttPanelWidth(config.ganttPanelWidth);
+    }
+    if (config.raidTypeFilter === "ALL" || config.raidTypeFilter === "RISK" || config.raidTypeFilter === "DEPENDENCY" || config.raidTypeFilter === "ASSUMPTION") {
+      setRaidTypeFilter(config.raidTypeFilter);
+    }
+    if (typeof config.raidDecisionOnly === "boolean") setRaidDecisionOnly(config.raidDecisionOnly);
+    if (typeof config.raidOverdueOnly === "boolean") setRaidOverdueOnly(config.raidOverdueOnly);
+    if (typeof config.raidHighOnly === "boolean") setRaidHighOnly(config.raidHighOnly);
+    void apiClient.post(`/api/saved-views/${view.id}/use`, undefined).catch(() => null);
+    setNotice(`Представление "${view.name}" применено`);
+  }
+
+  async function saveCurrentSavedView() {
+    const viewType = savedViewTypeForActiveView();
+    if (!viewType || !selectedProjectId) return;
+    setSavingSavedView(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const view = await apiClient.post<SavedView>(
+        "/api/saved-views",
+        {
+          projectId: selectedProjectId,
+          viewType,
+          name: savedViewName.trim() || `Вид ${new Date().toLocaleString("ru-RU")}`,
+          config: currentSavedViewConfig(),
+          isShared: currentUser?.role === "ADMIN",
+          sortOrder: 0,
+        },
+        "Не удалось сохранить представление",
+      );
+      setSavedViews((current) => [view, ...current.filter((item) => item.id !== view.id)]);
+      setSavedViewName("");
+      setNotice("Представление сохранено");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить представление",
+      );
+    } finally {
+      setSavingSavedView(false);
+    }
+  }
+
+  async function createApiToken(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingIntegration(true);
+    setCreatedApiToken(null);
+    setError(null);
+    setNotice(null);
+    try {
+      const token = await apiClient.post<ApiTokenInfo>(
+        "/api/admin/api-tokens",
+        {
+          name: apiTokenDraft.name.trim(),
+          scopes: apiTokenDraft.scopes
+            .split(",")
+            .map((scope) => scope.trim())
+            .filter(Boolean),
+          rateLimitPerMinute: Number(apiTokenDraft.rateLimitPerMinute) || 120,
+          expiresAt: apiTokenDraft.expiresAt || null,
+        },
+        "Не удалось создать API-токен",
+      );
+      setCreatedApiToken(token.token ?? null);
+      await reloadAdminIntegrations();
+      setNotice("API-токен создан. Скопируйте значение сейчас: оно больше не будет показано.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Не удалось создать API-токен");
+    } finally {
+      setSavingIntegration(false);
+    }
+  }
+
+  async function toggleApiToken(token: ApiTokenInfo) {
+    setSavingIntegration(true);
+    setError(null);
+    try {
+      await apiClient.patch<ApiTokenInfo>(
+        `/api/admin/api-tokens/${token.id}`,
+        { isActive: !token.isActive },
+        "Не удалось обновить API-токен",
+      );
+      await reloadAdminIntegrations();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Не удалось обновить API-токен");
+    } finally {
+      setSavingIntegration(false);
+    }
+  }
+
+  async function createWebhook(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingIntegration(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await apiClient.post<WebhookEndpointInfo>(
+        "/api/admin/webhooks",
+        {
+          name: webhookDraft.name.trim(),
+          url: webhookDraft.url.trim(),
+          events: webhookDraft.events
+            .split(",")
+            .map((eventName) => eventName.trim())
+            .filter(Boolean),
+          secret: webhookDraft.secret.trim() || null,
+          isActive: webhookDraft.isActive,
+        },
+        "Не удалось создать webhook",
+      );
+      setWebhookDraft({ name: "Webhook", url: "", events: "*", secret: "", isActive: true });
+      await reloadAdminIntegrations();
+      setNotice("Webhook сохранен");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Не удалось создать webhook");
+    } finally {
+      setSavingIntegration(false);
+    }
+  }
+
+  async function toggleWebhook(endpoint: WebhookEndpointInfo) {
+    setSavingIntegration(true);
+    setError(null);
+    try {
+      await apiClient.patch<WebhookEndpointInfo>(
+        `/api/admin/webhooks/${endpoint.id}`,
+        { isActive: !endpoint.isActive },
+        "Не удалось обновить webhook",
+      );
+      await reloadAdminIntegrations();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Не удалось обновить webhook");
+    } finally {
+      setSavingIntegration(false);
+    }
+  }
+
+  async function testWebhook(endpointId: string) {
+    setSavingIntegration(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await apiClient.post(`/api/admin/webhooks/${endpointId}/test`, undefined, "Не удалось отправить тест");
+      await reloadAdminIntegrations();
+      setNotice("Тестовое событие отправлено");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Не удалось отправить тест");
+    } finally {
+      setSavingIntegration(false);
+    }
   }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
@@ -5241,6 +5903,11 @@ function App() {
     setDictionaryDrafts({});
     setSystemSettings([]);
     setSystemSettingsDraft(emptySystemSettingsDraft);
+    setAdminHealth(null);
+    setBackupStatus(null);
+    setAdminIntegrations(null);
+    setCreatedApiToken(null);
+    setConfigTransferText("");
     setNotice("Включен режим только для просмотра");
   }
 
@@ -5529,12 +6196,70 @@ function App() {
             "jira.maxResults": {
               value: String(Number(systemSettingsDraft.jiraMaxResults) || 100),
             },
+            "gitlab.enabled": {
+              value: systemSettingsDraft.gitlabEnabled ? "true" : "false",
+            },
+            "gitlab.baseUrl": {
+              value: systemSettingsDraft.gitlabBaseUrl.trim(),
+            },
+            "gitlab.token": {
+              value: systemSettingsDraft.gitlabToken.trim(),
+              isSecret: true,
+            },
+            "github.enabled": {
+              value: systemSettingsDraft.githubEnabled ? "true" : "false",
+            },
+            "github.baseUrl": {
+              value: systemSettingsDraft.githubBaseUrl.trim(),
+            },
+            "github.token": {
+              value: systemSettingsDraft.githubToken.trim(),
+              isSecret: true,
+            },
+            "azureDevOps.enabled": {
+              value: systemSettingsDraft.azureDevOpsEnabled ? "true" : "false",
+            },
+            "azureDevOps.organizationUrl": {
+              value: systemSettingsDraft.azureDevOpsOrganizationUrl.trim(),
+            },
+            "azureDevOps.token": {
+              value: systemSettingsDraft.azureDevOpsToken.trim(),
+              isSecret: true,
+            },
+            "bi.enabled": {
+              value: systemSettingsDraft.biEnabled ? "true" : "false",
+            },
+            "bi.exportUrl": {
+              value: systemSettingsDraft.biExportUrl.trim(),
+            },
+            "rag.formula.green": {
+              value: systemSettingsDraft.ragGreenFormula.trim(),
+            },
+            "rag.formula.amber": {
+              value: systemSettingsDraft.ragAmberFormula.trim(),
+            },
+            "rag.formula.red": {
+              value: systemSettingsDraft.ragRedFormula.trim(),
+            },
+            "workflow.overview": {
+              value: systemSettingsDraft.overviewWorkflow.trim(),
+            },
+            "workflow.baseline": {
+              value: systemSettingsDraft.baselineWorkflow.trim(),
+            },
+            "workflow.projectClose": {
+              value: systemSettingsDraft.projectCloseWorkflow.trim(),
+            },
+            "wbs.templates": {
+              value: systemSettingsDraft.wbsTemplates.trim(),
+            },
           },
         },
         "Не удалось сохранить системные настройки",
       );
       setSystemSettings(updated);
       setSystemSettingsDraft(systemSettingsToDraft(updated));
+      await reloadAdminIntegrations();
       await reloadAuditEvents();
       setNotice("Системные настройки сохранены");
     } catch (saveError) {
@@ -5545,6 +6270,66 @@ function App() {
       );
     } finally {
       setSavingSystemSettings(false);
+    }
+  }
+
+  async function reloadAdminHealth() {
+    if (currentUser?.role !== "ADMIN") return;
+    const [health, backup] = await Promise.all([
+      apiClient.get<AdminHealth>(
+        "/api/admin/system-health",
+        "Не удалось загрузить состояние системы",
+      ),
+      apiClient.get<BackupStatus>(
+        "/api/admin/backup-status",
+        "Не удалось загрузить состояние backup",
+      ),
+    ]);
+    setAdminHealth(health);
+    setBackupStatus(backup);
+  }
+
+  async function exportAdminConfig() {
+    setError(null);
+    setNotice(null);
+    try {
+      const data = await apiClient.get<unknown>(
+        "/api/admin/config/export",
+        "Не удалось экспортировать конфигурацию",
+      );
+      setConfigTransferText(JSON.stringify(data, null, 2));
+      setNotice("Конфигурация экспортирована в поле ниже");
+    } catch (exportError) {
+      setError(
+        exportError instanceof Error
+          ? exportError.message
+          : "Не удалось экспортировать конфигурацию",
+      );
+    }
+  }
+
+  async function importAdminConfig() {
+    setImportingConfig(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const payload = JSON.parse(configTransferText);
+      await apiClient.post<{ ok: boolean }>(
+        "/api/admin/config/import",
+        payload,
+        "Не удалось импортировать конфигурацию",
+      );
+      await reloadAdminConfig();
+      await reloadAuditEvents();
+      setNotice("Конфигурация импортирована");
+    } catch (importError) {
+      setError(
+        importError instanceof Error
+          ? importError.message
+          : "Не удалось импортировать конфигурацию",
+      );
+    } finally {
+      setImportingConfig(false);
     }
   }
 
@@ -7926,7 +8711,14 @@ function App() {
     "admin-users": "Администрирование: пользователи",
     "admin-roles": "Администрирование: роли и права",
     "admin-dictionaries": "Администрирование: справочники",
+    "admin-templates": "Администрирование: шаблоны Структуры",
+    "admin-rag": "Администрирование: формулы RAG",
+    "admin-workflows": "Администрирование: workflow",
     "admin-jira": "Администрирование: Jira",
+    "admin-integrations": "Администрирование: интеграции и API",
+    "admin-health": "Администрирование: system health",
+    "admin-backups": "Администрирование: backup/restore",
+    "admin-config": "Администрирование: import/export",
     "admin-projects": "Администрирование: реестр проектов",
     "admin-audit": "Администрирование: журнал аудита",
   };
@@ -7983,6 +8775,89 @@ function App() {
   };
   const toggleWorkspaceFullscreen = (view: FullscreenWorkspaceView) => {
     setFullscreenWorkspaceView((current) => (current === view ? null : view));
+  };
+  const renderGlobalSearch = (className = "") => (
+    <div className={`global-search ${className}`.trim()}>
+      <label>
+        <Search size={16} />
+        <input
+          value={globalSearch}
+          onChange={(event) => setGlobalSearch(event.target.value)}
+          onFocus={() => setSearchOpen(globalSearch.trim().length >= 2)}
+          placeholder="Поиск по проектам, задачам, рискам, вопросам"
+        />
+      </label>
+      {searchOpen && globalSearch.trim().length >= 2 && (
+        <div className="global-search-popover">
+          {searchLoading && <span className="search-muted">Ищу...</span>}
+          {!searchLoading &&
+            searchResults.map((result) => (
+              <button
+                type="button"
+                key={`${result.type}:${result.id}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => openSearchResult(result)}
+              >
+                <b>{result.title}</b>
+                <small>{result.subtitle}</small>
+              </button>
+            ))}
+          {!searchLoading && searchResults.length === 0 && (
+            <span className="search-muted">Ничего не найдено</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+  const renderSavedViewControls = () => {
+    const viewType = savedViewTypeForActiveView();
+    if (!viewType) return null;
+    return (
+      <div className="saved-view-controls" aria-label="Сохраненные представления">
+        <label>
+          Представление
+          <select
+            value=""
+            onChange={(event) => {
+              const view = savedViews.find((item) => item.id === event.target.value);
+              if (view) applySavedView(view);
+              event.currentTarget.value = "";
+            }}
+          >
+            <option value="">
+              {savedViews.length > 0 ? "Выбрать сохраненное" : "Нет сохраненных"}
+            </option>
+            {savedViews.map((view) => (
+              <option key={view.id} value={view.id}>
+                {view.name}
+                {view.isShared ? " / общее" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Новое представление
+          <input
+            value={savedViewName}
+            onChange={(event) => setSavedViewName(event.target.value)}
+            placeholder="Название вида"
+            disabled={!isAuthenticated}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => void saveCurrentSavedView()}
+          disabled={savingSavedView || !isAuthenticated || !selectedProjectId}
+          title={
+            isAuthenticated
+              ? "Сохранить текущие фильтры и настройки колонок"
+              : "Для сохранения нужно войти"
+          }
+        >
+          {savingSavedView ? "Сохраняю..." : "Сохранить вид"}
+        </button>
+      </div>
+    );
   };
 
   if (loading) {
@@ -8409,6 +9284,42 @@ function App() {
                   <button
                     type="button"
                     className={
+                      activeView === "admin-templates"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-templates")}
+                    aria-label="Шаблоны Структуры"
+                  >
+                    {navLabel(<GanttChartSquare size={17} />, "Шаблоны Структуры")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-rag"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-rag")}
+                    aria-label="Формулы RAG"
+                  >
+                    {navLabel(<SlidersHorizontal size={17} />, "Формулы RAG")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-workflows"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-workflows")}
+                    aria-label="Workflow согласований"
+                  >
+                    {navLabel(<GitBranch size={17} />, "Workflow согласований")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
                       activeView === "admin-jira"
                         ? "active nested child"
                         : "nested child"
@@ -8417,6 +9328,54 @@ function App() {
                     aria-label="Jira"
                   >
                     {navLabel(<BriefcaseBusiness size={17} />, "Jira")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-integrations"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-integrations")}
+                    aria-label="Интеграции и API"
+                  >
+                    {navLabel(<GitBranch size={17} />, "Интеграции и API")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-health"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-health")}
+                    aria-label="System health"
+                  >
+                    {navLabel(<HeartPulse size={17} />, "System health")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-backups"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-backups")}
+                    aria-label="Backup/restore"
+                  >
+                    {navLabel(<HardDriveDownload size={17} />, "Backup/restore")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-config"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-config")}
+                    aria-label="Import/export"
+                  >
+                    {navLabel(<Import size={17} />, "Import/export")}
                   </button>
                   <button
                     type="button"
@@ -8454,6 +9413,9 @@ function App() {
             ) : (
               <h1>{viewTitle[activeView]}</h1>
             )}
+          </div>
+          <div className="topbar-search">
+            {renderGlobalSearch("global-search-topbar")}
           </div>
           {project && activeView !== "portfolio" && (
             <div className="topbar-project">
@@ -8523,12 +9485,16 @@ function App() {
           </div>
         )}
 
-        {(project ||
-          activeView === "portfolio" ||
-          activeView === "project-create" ||
-          activeView === "closed-projects" ||
-          isAdminSectionView) && (
-          <>
+        <PageBoundary
+          view={activeView}
+          isAdminSectionViewName={isAdminSectionViewName}
+        >
+          {(project ||
+            activeView === "portfolio" ||
+            activeView === "project-create" ||
+            activeView === "closed-projects" ||
+            isAdminSectionView) && (
+            <>
             {activeView === "portfolio" && (
               <section className="summary-grid">
                 <div className="metric">
@@ -9342,6 +10308,27 @@ function App() {
                           <p>Единые значения для типов, статусов и критичности</p>
                         </div>
                       </div>
+                      <div className="dictionary-filter">
+                        <label>
+                          Справочник
+                          <select
+                            value={selectedDictionary}
+                            onChange={(event) => {
+                              setSelectedDictionary(event.target.value);
+                              setNewDictionaryDraft((current) => ({
+                                ...current,
+                                dictionary: event.target.value,
+                              }));
+                            }}
+                          >
+                            {Object.keys(adminDictionaryLabels).map((dictionary) => (
+                              <option key={dictionary} value={dictionary}>
+                                {dictionaryLabel(dictionary)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
                       <form className="dictionary-create-form" onSubmit={createDictionaryItem}>
                         <label>
                           Справочник
@@ -9414,7 +10401,7 @@ function App() {
                           <span>Активен</span>
                           <span />
                         </div>
-                        {dictionaryItems.map((item) => {
+                        {filteredDictionaryItems.map((item) => {
                           const draft =
                             dictionaryDrafts[item.id] ?? dictionaryItemToDraft(item);
                           return (
@@ -9516,15 +10503,154 @@ function App() {
                             </div>
                           );
                         })}
-                        {dictionaryItems.length === 0 && (
-                          <div className="empty-state">Справочники пока пустые.</div>
+                        {filteredDictionaryItems.length === 0 && (
+                          <div className="empty-state">В выбранном справочнике пока нет записей.</div>
                         )}
                       </div>
-                    </article>
+	                    </article>
+	              )}
+
+              {activeView === "admin-templates" && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Администрирование: шаблоны Структуры</h2>
+                      <p>Базовые наборы работ для создания новых проектов</p>
+                    </div>
+                  </div>
+                  <form className="form-grid admin-settings-form" onSubmit={saveSystemSettings}>
+                    <label className="span-2">
+                      JSON шаблонов
+                      <textarea
+                        className="admin-config-textarea"
+                        value={systemSettingsDraft.wbsTemplates}
+                        onChange={(event) =>
+                          setSystemSettingsDraft({
+                            ...systemSettingsDraft,
+                            wbsTemplates: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <div className="form-actions span-2">
+                      <button type="submit" disabled={savingSystemSettings}>
+                        {savingSystemSettings ? "Сохраняю..." : "Сохранить шаблоны"}
+                      </button>
+                    </div>
+                  </form>
+                </article>
               )}
 
-              {activeView === "admin-jira" && (
-                    <article className="panel project-card">
+              {activeView === "admin-rag" && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Администрирование: формулы RAG</h2>
+                      <p>Правила расчета зеленого, желтого и красного статуса проекта</p>
+                    </div>
+                  </div>
+                  <form className="form-grid admin-settings-form" onSubmit={saveSystemSettings}>
+                    <label className="span-2">
+                      Зеленый
+                      <textarea
+                        value={systemSettingsDraft.ragGreenFormula}
+                        onChange={(event) =>
+                          setSystemSettingsDraft({
+                            ...systemSettingsDraft,
+                            ragGreenFormula: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="span-2">
+                      Желтый
+                      <textarea
+                        value={systemSettingsDraft.ragAmberFormula}
+                        onChange={(event) =>
+                          setSystemSettingsDraft({
+                            ...systemSettingsDraft,
+                            ragAmberFormula: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="span-2">
+                      Красный
+                      <textarea
+                        value={systemSettingsDraft.ragRedFormula}
+                        onChange={(event) =>
+                          setSystemSettingsDraft({
+                            ...systemSettingsDraft,
+                            ragRedFormula: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <div className="form-actions span-2">
+                      <button type="submit" disabled={savingSystemSettings}>
+                        {savingSystemSettings ? "Сохраняю..." : "Сохранить формулы"}
+                      </button>
+                    </div>
+                  </form>
+                </article>
+              )}
+
+              {activeView === "admin-workflows" && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Администрирование: workflow согласований</h2>
+                      <p>Маршруты согласования обзора, базового плана и закрытия проекта</p>
+                    </div>
+                  </div>
+                  <form className="form-grid admin-settings-form" onSubmit={saveSystemSettings}>
+                    <label className="span-2">
+                      Обзор для руководства
+                      <textarea
+                        value={systemSettingsDraft.overviewWorkflow}
+                        onChange={(event) =>
+                          setSystemSettingsDraft({
+                            ...systemSettingsDraft,
+                            overviewWorkflow: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="span-2">
+                      Базовый план
+                      <textarea
+                        value={systemSettingsDraft.baselineWorkflow}
+                        onChange={(event) =>
+                          setSystemSettingsDraft({
+                            ...systemSettingsDraft,
+                            baselineWorkflow: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="span-2">
+                      Закрытие проекта
+                      <textarea
+                        value={systemSettingsDraft.projectCloseWorkflow}
+                        onChange={(event) =>
+                          setSystemSettingsDraft({
+                            ...systemSettingsDraft,
+                            projectCloseWorkflow: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <div className="form-actions span-2">
+                      <button type="submit" disabled={savingSystemSettings}>
+                        {savingSystemSettings ? "Сохраняю..." : "Сохранить workflow"}
+                      </button>
+                    </div>
+                  </form>
+                </article>
+              )}
+
+	              {activeView === "admin-jira" && (
+	                    <article className="panel project-card">
                       <div className="panel-title">
                         <div>
                           <h2>Администрирование: системные настройки Jira</h2>
@@ -9611,10 +10737,561 @@ function App() {
                           </button>
                         </div>
                       </form>
-                    </article>
+	                    </article>
+	              )}
+
+              {activeView === "admin-integrations" && (
+                <article className="panel project-card admin-integrations-panel">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Администрирование: интеграции и API</h2>
+                      <p>
+                        API-токены, webhook API и настройки внешних контуров:
+                        GitLab, GitHub, Azure DevOps и BI.
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => void reloadAdminIntegrations()}>
+                      Обновить
+                    </button>
+                  </div>
+
+                  <div className="admin-integrations-grid">
+                    <section className="admin-integration-card">
+                      <div className="admin-integration-card-title">
+                        <h3>API-токены</h3>
+                        <span>{adminIntegrations?.apiTokens.length ?? 0}</span>
+                      </div>
+                      {createdApiToken && (
+                        <div className="token-once">
+                          <b>Токен показан один раз</b>
+                          <code>{createdApiToken}</code>
+                        </div>
+                      )}
+                      <form className="integration-form" onSubmit={createApiToken}>
+                        <label>
+                          Название
+                          <input
+                            value={apiTokenDraft.name}
+                            onChange={(event) =>
+                              setApiTokenDraft({
+                                ...apiTokenDraft,
+                                name: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Права через запятую
+                          <input
+                            value={apiTokenDraft.scopes}
+                            onChange={(event) =>
+                              setApiTokenDraft({
+                                ...apiTokenDraft,
+                                scopes: event.target.value,
+                              })
+                            }
+                            placeholder="project.read,wbs.read"
+                          />
+                        </label>
+                        <label>
+                          Лимит/мин.
+                          <input
+                            type="number"
+                            min="10"
+                            max="10000"
+                            value={apiTokenDraft.rateLimitPerMinute}
+                            onChange={(event) =>
+                              setApiTokenDraft({
+                                ...apiTokenDraft,
+                                rateLimitPerMinute: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Истекает
+                          <input
+                            type="date"
+                            value={apiTokenDraft.expiresAt}
+                            onChange={(event) =>
+                              setApiTokenDraft({
+                                ...apiTokenDraft,
+                                expiresAt: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <button type="submit" disabled={savingIntegration}>
+                          Создать токен
+                        </button>
+                      </form>
+                      <div className="integration-table">
+                        {(adminIntegrations?.apiTokens ?? []).map((token) => (
+                          <div className="integration-row" key={token.id}>
+                            <div>
+                              <b>{token.name}</b>
+                              <small>
+                                {token.tokenPrefix}... / лимит {token.rateLimitPerMinute}
+                                /мин.
+                              </small>
+                              <small>{token.scopes.join(", ") || "без прав"}</small>
+                            </div>
+                            <span
+                              className={`integration-status ${
+                                token.isActive ? "active" : "inactive"
+                              }`}
+                            >
+                              {token.isActive ? "Активен" : "Отключен"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => void toggleApiToken(token)}
+                              disabled={savingIntegration}
+                            >
+                              {token.isActive ? "Отключить" : "Включить"}
+                            </button>
+                          </div>
+                        ))}
+                        {(adminIntegrations?.apiTokens.length ?? 0) === 0 && (
+                          <div className="empty-state">API-токены еще не созданы.</div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="admin-integration-card">
+                      <div className="admin-integration-card-title">
+                        <h3>Webhook API</h3>
+                        <span>{adminIntegrations?.webhookEndpoints.length ?? 0}</span>
+                      </div>
+                      <form className="integration-form" onSubmit={createWebhook}>
+                        <label>
+                          Название
+                          <input
+                            value={webhookDraft.name}
+                            onChange={(event) =>
+                              setWebhookDraft({
+                                ...webhookDraft,
+                                name: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="span-2">
+                          URL
+                          <input
+                            value={webhookDraft.url}
+                            onChange={(event) =>
+                              setWebhookDraft({
+                                ...webhookDraft,
+                                url: event.target.value,
+                              })
+                            }
+                            placeholder="https://..."
+                          />
+                        </label>
+                        <label>
+                          События
+                          <input
+                            value={webhookDraft.events}
+                            onChange={(event) =>
+                              setWebhookDraft({
+                                ...webhookDraft,
+                                events: event.target.value,
+                              })
+                            }
+                            placeholder="* или project.updated"
+                          />
+                        </label>
+                        <label>
+                          Secret
+                          <input
+                            type="password"
+                            value={webhookDraft.secret}
+                            onChange={(event) =>
+                              setWebhookDraft({
+                                ...webhookDraft,
+                                secret: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="checkbox-line">
+                          <input
+                            type="checkbox"
+                            checked={webhookDraft.isActive}
+                            onChange={(event) =>
+                              setWebhookDraft({
+                                ...webhookDraft,
+                                isActive: event.target.checked,
+                              })
+                            }
+                          />
+                          Активен
+                        </label>
+                        <button type="submit" disabled={savingIntegration}>
+                          Добавить webhook
+                        </button>
+                      </form>
+                      <div className="integration-table">
+                        {(adminIntegrations?.webhookEndpoints ?? []).map((endpoint) => (
+                          <div className="integration-row" key={endpoint.id}>
+                            <div>
+                              <b>{endpoint.name}</b>
+                              <small>{endpoint.url}</small>
+                              <small>{endpoint.events.join(", ") || "*"}</small>
+                            </div>
+                            <span
+                              className={`integration-status ${
+                                endpoint.isActive ? "active" : "inactive"
+                              }`}
+                            >
+                              {endpoint.isActive ? "Активен" : "Отключен"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => void testWebhook(endpoint.id)}
+                              disabled={savingIntegration || !endpoint.isActive}
+                            >
+                              Тест
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void toggleWebhook(endpoint)}
+                              disabled={savingIntegration}
+                            >
+                              {endpoint.isActive ? "Отключить" : "Включить"}
+                            </button>
+                          </div>
+                        ))}
+                        {(adminIntegrations?.webhookEndpoints.length ?? 0) === 0 && (
+                          <div className="empty-state">Webhook endpoints еще не созданы.</div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="admin-integration-card">
+                      <div className="admin-integration-card-title">
+                        <h3>Последние доставки</h3>
+                        <span>{adminIntegrations?.webhookDeliveries.length ?? 0}</span>
+                      </div>
+                      <div className="integration-table compact">
+                        {(adminIntegrations?.webhookDeliveries ?? []).map((delivery) => (
+                          <div className="integration-row" key={delivery.id}>
+                            <div>
+                              <b>{delivery.eventType}</b>
+                              <small>{delivery.endpoint?.name ?? delivery.endpointId}</small>
+                              <small>{dateTime(delivery.attemptedAt ?? delivery.createdAt)}</small>
+                            </div>
+                            <span
+                              className={`integration-status ${
+                                delivery.status === "DELIVERED" ? "active" : "inactive"
+                              }`}
+                            >
+                              {delivery.status}
+                            </span>
+                            <small>{delivery.statusCode ?? delivery.error ?? ""}</small>
+                          </div>
+                        ))}
+                        {(adminIntegrations?.webhookDeliveries.length ?? 0) === 0 && (
+                          <div className="empty-state">Доставок пока нет.</div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="admin-integration-card">
+                      <div className="admin-integration-card-title">
+                        <h3>Enterprise-интеграции</h3>
+                      </div>
+                      <form className="integration-form" onSubmit={saveSystemSettings}>
+                        <label className="checkbox-line span-2">
+                          <input
+                            type="checkbox"
+                            checked={systemSettingsDraft.gitlabEnabled}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                gitlabEnabled: event.target.checked,
+                              })
+                            }
+                          />
+                          GitLab включен
+                        </label>
+                        <label className="span-2">
+                          GitLab URL
+                          <input
+                            value={systemSettingsDraft.gitlabBaseUrl}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                gitlabBaseUrl: event.target.value,
+                              })
+                            }
+                            placeholder="https://gitlab.company.ru"
+                          />
+                        </label>
+                        <label className="span-2">
+                          GitLab token
+                          <input
+                            type="password"
+                            value={systemSettingsDraft.gitlabToken}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                gitlabToken: event.target.value,
+                              })
+                            }
+                            placeholder={
+                              systemSettingHasValue(systemSettings, "gitlab.token")
+                                ? "задан, введите новый для замены"
+                                : "не задан"
+                            }
+                          />
+                        </label>
+                        <label className="checkbox-line span-2">
+                          <input
+                            type="checkbox"
+                            checked={systemSettingsDraft.githubEnabled}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                githubEnabled: event.target.checked,
+                              })
+                            }
+                          />
+                          GitHub включен
+                        </label>
+                        <label className="span-2">
+                          GitHub API URL
+                          <input
+                            value={systemSettingsDraft.githubBaseUrl}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                githubBaseUrl: event.target.value,
+                              })
+                            }
+                            placeholder="https://api.github.com"
+                          />
+                        </label>
+                        <label className="span-2">
+                          GitHub token
+                          <input
+                            type="password"
+                            value={systemSettingsDraft.githubToken}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                githubToken: event.target.value,
+                              })
+                            }
+                            placeholder={
+                              systemSettingHasValue(systemSettings, "github.token")
+                                ? "задан, введите новый для замены"
+                                : "не задан"
+                            }
+                          />
+                        </label>
+                        <label className="checkbox-line span-2">
+                          <input
+                            type="checkbox"
+                            checked={systemSettingsDraft.azureDevOpsEnabled}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                azureDevOpsEnabled: event.target.checked,
+                              })
+                            }
+                          />
+                          Azure DevOps включен
+                        </label>
+                        <label className="span-2">
+                          Azure DevOps organization URL
+                          <input
+                            value={systemSettingsDraft.azureDevOpsOrganizationUrl}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                azureDevOpsOrganizationUrl: event.target.value,
+                              })
+                            }
+                            placeholder="https://dev.azure.com/company"
+                          />
+                        </label>
+                        <label className="span-2">
+                          Azure DevOps token
+                          <input
+                            type="password"
+                            value={systemSettingsDraft.azureDevOpsToken}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                azureDevOpsToken: event.target.value,
+                              })
+                            }
+                            placeholder={
+                              systemSettingHasValue(systemSettings, "azureDevOps.token")
+                                ? "задан, введите новый для замены"
+                                : "не задан"
+                            }
+                          />
+                        </label>
+                        <label className="checkbox-line span-2">
+                          <input
+                            type="checkbox"
+                            checked={systemSettingsDraft.biEnabled}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                biEnabled: event.target.checked,
+                              })
+                            }
+                          />
+                          BI включен
+                        </label>
+                        <label className="span-2">
+                          BI export URL
+                          <input
+                            value={systemSettingsDraft.biExportUrl}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                biExportUrl: event.target.value,
+                              })
+                            }
+                            placeholder="https://bi.company.ru/api/pms"
+                          />
+                        </label>
+                        <button type="submit" disabled={savingSystemSettings}>
+                          {savingSystemSettings ? "Сохраняю..." : "Сохранить интеграции"}
+                        </button>
+                      </form>
+                      <div className="integration-settings-list">
+                        {(adminIntegrations?.integrationSettings ?? []).map((setting) => (
+                          <div key={setting.key}>
+                            <b>{setting.key}</b>
+                            <small>
+                              {setting.isSecret
+                                ? setting.hasValue
+                                  ? "задано"
+                                  : "не задано"
+                                : setting.value || "не задано"}
+                            </small>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                </article>
               )}
 
-              {activeView === "admin-projects" && (
+              {activeView === "admin-health" && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Администрирование: system health</h2>
+                      <p>Техническое состояние приложения и подключений</p>
+                    </div>
+                    <button type="button" onClick={() => void reloadAdminHealth()}>
+                      Обновить
+                    </button>
+                  </div>
+                  <div className="admin-status-grid">
+                    <div className="metric-card">
+                      <span>API</span>
+                      <b>{adminHealth?.ok ? "В норме" : "Ошибка"}</b>
+                      <small>Запущен: {dateTime(adminHealth?.startedAt ?? null)}</small>
+                    </div>
+                    <div className="metric-card">
+                      <span>База данных</span>
+                      <b>{adminHealth?.database ?? "неизвестно"}</b>
+                      <small>Latency: {adminHealth?.databaseLatencyMs ?? 0} мс</small>
+                    </div>
+                    <div className="metric-card">
+                      <span>Jira</span>
+                      <b>{adminHealth?.jiraConfigured ? "Настроена" : "Не настроена"}</b>
+                      <small>Интеграция зависит от системных настроек</small>
+                    </div>
+                    <div className="metric-card">
+                      <span>Окружение</span>
+                      <b>{adminHealth?.nodeEnv ?? "development"}</b>
+                      <small>Uptime: {adminHealth?.uptimeSeconds ?? 0} сек.</small>
+                    </div>
+                  </div>
+                </article>
+              )}
+
+              {activeView === "admin-backups" && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Администрирование: backup/restore status</h2>
+                      <p>Состояние каталога backup и последнего архивного файла</p>
+                    </div>
+                    <button type="button" onClick={() => void reloadAdminHealth()}>
+                      Обновить
+                    </button>
+                  </div>
+                  <div className="admin-status-grid">
+                    <div className="metric-card span-2">
+                      <span>Каталог backup</span>
+                      <b>{backupStatus?.backupDir ?? "не задан"}</b>
+                      <small>{backupStatus?.message ?? "Нет данных"}</small>
+                    </div>
+                    <div className="metric-card">
+                      <span>Файлы</span>
+                      <b>{backupStatus?.totalBackups ?? 0}</b>
+                      <small>Retention: {backupStatus?.retentionDays ?? 0} дн.</small>
+                    </div>
+                    <div className="metric-card">
+                      <span>Последний backup</span>
+                      <b>{backupStatus?.latestBackup?.file ?? "не найден"}</b>
+                      <small>
+                        {backupStatus?.latestBackup
+                          ? `${dateTime(backupStatus.latestBackup.updatedAt)} / ${fileSize(
+                              backupStatus.latestBackup.sizeBytes,
+                            )}`
+                          : "Файл отсутствует"}
+                      </small>
+                    </div>
+                    <div className="metric-card span-2">
+                      <span>Checksum</span>
+                      <b>{backupStatus?.latestChecksum ?? "не найден"}</b>
+                      <small>Restore выполняется ops-скриптом с RESTORE_CONFIRM=yes</small>
+                    </div>
+                  </div>
+                </article>
+              )}
+
+              {activeView === "admin-config" && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Администрирование: import/export конфигурации</h2>
+                      <p>Перенос ролей, справочников и системных настроек между средами</p>
+                    </div>
+                    <div className="panel-title-actions">
+                      <button type="button" onClick={() => void exportAdminConfig()}>
+                        Экспортировать
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void importAdminConfig()}
+                        disabled={importingConfig || !configTransferText.trim()}
+                      >
+                        {importingConfig ? "Импортирую..." : "Импортировать"}
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    className="admin-config-textarea"
+                    value={configTransferText}
+                    onChange={(event) => setConfigTransferText(event.target.value)}
+                    placeholder="JSON конфигурации"
+                  />
+                </article>
+              )}
+
+	              {activeView === "admin-projects" && (
                     <article className="panel project-card">
                       <div className="panel-title">
                         <div>
@@ -10145,6 +11822,7 @@ function App() {
                                 : "Сохранено"}
                             </span>
                           </div>
+                          {renderSavedViewControls()}
                           {selectedWbsIds.size > 0 && (
                             <div className="wbs-bulk-toolbar">
                           <span>Выбрано: {selectedWbsIds.size}</span>
@@ -10278,6 +11956,7 @@ function App() {
                             </span>
                           ))}
                         </div>
+                        {/* eslint-disable-next-line react-hooks/refs -- renderWbsCell only wires event handlers; refs are read after render in those handlers. */}
                         {visibleStructureWbsTree.map((item) => {
                           const draft = wbsDrafts[item.id];
                           if (!draft) return null;
@@ -10482,6 +12161,7 @@ function App() {
                                 ))}
                               </div>
                             </div>
+                            {renderSavedViewControls()}
                             <div className="status-legend gantt-status-legend" aria-label="Легенда статусов">
                               <span><i className="tone-b" />В работе</span>
                               <span><i className="tone-g" />Сделано</span>
@@ -11661,6 +13341,7 @@ function App() {
                             Высокий риск
                           </label>
                         </div>
+                        {renderSavedViewControls()}
                       </section>
                       {([
                         { key: "risks", title: "Риски", items: groupedRaidItems.risks },
@@ -12515,8 +14196,9 @@ function App() {
               )}
 
             </section>
-          </>
-        )}
+            </>
+          )}
+        </PageBoundary>
         {project && activeView === "project-issues" && issueDrawerMode && (
           <div
             className="drawer-backdrop"

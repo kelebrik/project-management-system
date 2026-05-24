@@ -162,6 +162,7 @@ model Project {
   changeRequests   ChangeRequest[]
   wbsCommands      WbsCommand[]
   wbsBaselines     WbsBaseline[]
+  savedViews       SavedView[]
 
   @@index([parentId])
   @@index([sortOrder])
@@ -181,6 +182,9 @@ model User {
   wbsCommands  WbsCommand[]
   wbsBaselines WbsBaseline[]
   auditEvents  AuditEvent[]
+  savedViews   SavedView[]
+  apiTokensCreated ApiToken[] @relation("ApiTokenCreatedBy")
+  webhookEndpointsCreated WebhookEndpoint[] @relation("WebhookEndpointCreatedBy")
 
   @@index([role, isActive])
 }
@@ -233,6 +237,82 @@ model UserSession {
 
   @@index([userId, expiresAt])
   @@index([expiresAt])
+}
+
+model SavedView {
+  id         String   @id @default(cuid())
+  ownerId    String?
+  projectId  String?
+  viewType   String
+  name       String
+  config     Json
+  isShared   Boolean  @default(false)
+  sortOrder  Int      @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  owner      User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, viewType])
+  @@index([projectId, viewType])
+  @@index([isShared, viewType])
+  @@index([updatedAt])
+}
+
+model ApiToken {
+  id                 String    @id @default(cuid())
+  name               String
+  tokenHash          String    @unique
+  tokenPrefix        String
+  scopes             Json
+  isActive           Boolean   @default(true)
+  rateLimitPerMinute Int       @default(120)
+  expiresAt          DateTime?
+  lastUsedAt         DateTime?
+  createdById        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          User?     @relation("ApiTokenCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdById])
+  @@index([isActive, expiresAt])
+  @@index([tokenPrefix])
+}
+
+model WebhookEndpoint {
+  id          String            @id @default(cuid())
+  name        String
+  url         String
+  secret      String?
+  events      Json
+  isActive    Boolean           @default(true)
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  createdBy   User?             @relation("WebhookEndpointCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries  WebhookDelivery[]
+
+  @@index([createdById])
+  @@index([isActive])
+}
+
+model WebhookDelivery {
+  id          String          @id @default(cuid())
+  endpointId  String
+  eventType   String
+  payload     Json
+  status      String          @default("PENDING")
+  statusCode  Int?
+  responseBody String?
+  error       String?
+  attemptedAt DateTime?
+  createdAt   DateTime        @default(now())
+  endpoint    WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([status, createdAt])
 }
 
 model Milestone {

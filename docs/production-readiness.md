@@ -86,6 +86,8 @@ npx playwright install chromium
 
 - `Dockerfile` - один контейнер приложения: API + собранный Web UI;
 - `docker-compose.yml` - приложение + PostgreSQL + ops-профиль backup.
+- `.github/workflows/ci.yml` - CI для GitHub;
+- `.gitlab-ci.yml` - CI для GitLab/Sber Git.
 
 Локальный запуск:
 
@@ -123,6 +125,22 @@ npm run restore -- backups/pms-YYYYMMDDTHHMMSSZ.dump
 - хранение не менее 14 дней;
 - еженедельная проверка restore на отдельной БД;
 - хранение production backup вне сервера приложения.
+
+Проверка восстановления на отдельной БД:
+
+```bash
+DATABASE_URL='postgresql://prod-user:password@prod-host:5432/project_management_system?schema=public' \
+RESTORE_DRILL_DATABASE_URL='postgresql://drill-user:password@drill-host:5432/project_management_system_restore?schema=public' \
+npm run restore:drill
+```
+
+Dry-run миграций перед выкладкой:
+
+```bash
+DATABASE_URL='postgresql://user:password@host:5432/project_management_system?schema=public' \
+MIGRATION_DRY_RUN_OUTPUT=./migration-dry-run.sql \
+npm run migration:dry-run
+```
 
 ## Monitoring/logging
 
@@ -166,6 +184,27 @@ curl http://localhost:3000/api/openapi.json
 - Jira;
 - Executive Overview;
 - Admin/Audit.
+- Search/Saved Views;
+- Enterprise Integrations: API tokens, webhook endpoints, webhook deliveries.
+
+## Smoke tests
+
+Security smoke:
+
+```bash
+APP_BASE_URL=http://localhost:3000 npm run smoke:security
+```
+
+Performance smoke:
+
+```bash
+APP_BASE_URL=http://localhost:3000 \
+PERF_REQUESTS=20 \
+PERF_MAX_AVG_MS=1000 \
+npm run smoke:performance
+```
+
+Smoke-тесты не заменяют нагрузочное тестирование. Они нужны как быстрый post-deploy контроль доступности, read-only режима, OpenAPI и базовой задержки readiness endpoint.
 
 ## Release Checklist
 
@@ -177,6 +216,7 @@ npm run prisma:generate
 npm run typecheck
 npm run test
 npm run build
+npm run migration:dry-run
 docker build -t project-management-system:release .
 ```
 
@@ -190,3 +230,6 @@ docker build -t project-management-system:release .
 - настроить healthcheck `/api/ready`;
 - подключить сбор JSON-логов;
 - настроить Jira через Admin Back Office или переменные окружения.
+- выпустить API token для интеграций, если нужен machine-to-machine доступ;
+- настроить webhook endpoints для корпоративных потребителей событий;
+- выполнить `npm run smoke:security` и `npm run smoke:performance` после деплоя.

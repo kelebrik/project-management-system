@@ -1,0 +1,60 @@
+stages:
+  - validate
+  - test
+  - build
+
+variables:
+  NODE_VERSION: "24"
+  DATABASE_URL: "postgresql://pms_user:pms_password@postgres:5432/project_management_system?schema=public"
+  AUTH_COOKIE_SECURE: "false"
+  WEB_ORIGIN: "*"
+
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - .npm/
+
+default:
+  image: node:24-bookworm-slim
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates curl && rm -rf /var/lib/apt/lists/*
+    - npm ci --include=dev --cache .npm --prefer-offline
+    - npm run prisma:generate
+
+services:
+  - name: postgres:16-alpine
+    alias: postgres
+    variables:
+      POSTGRES_DB: project_management_system
+      POSTGRES_USER: pms_user
+      POSTGRES_PASSWORD: pms_password
+
+typecheck:
+  stage: validate
+  script:
+    - npm run typecheck
+
+unit-tests:
+  stage: test
+  script:
+    - npm run test:unit
+
+build:
+  stage: build
+  script:
+    - npm run prisma:deploy
+    - npm run build
+    - npm run migration:dry-run
+
+docker-build:
+  stage: build
+  image: docker:28
+  services:
+    - docker:28-dind
+  before_script: []
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker build -t project-management-system:${CI_COMMIT_SHORT_SHA} .
