@@ -2019,6 +2019,28 @@ function projectHealthLabel(rag: RagStatus) {
   return labels.rag[rag];
 }
 
+function projectScheduleHealth(
+  rag: RagStatus,
+  scheduleVarianceDays: number,
+) {
+  if (scheduleVarianceDays > 10) {
+    return {
+      tone: "red" as const,
+      label: `Отставание +${scheduleVarianceDays} дн.`,
+    };
+  }
+  if (scheduleVarianceDays > 0) {
+    return {
+      tone: "amber" as const,
+      label: `Отставание +${scheduleVarianceDays} дн.`,
+    };
+  }
+  return {
+    tone: rag.toLowerCase() as Lowercase<RagStatus>,
+    label: projectHealthLabel(rag),
+  };
+}
+
 function ragOptionLabel(rag: RagStatus) {
   const labels: Record<RagStatus, string> = {
     GREEN: "Зеленый",
@@ -4501,6 +4523,9 @@ function App() {
     project?.wbsItems,
     structureMilestones,
   ]);
+  const topbarScheduleHealth = project
+    ? projectScheduleHealth(project.rag, overviewDashboard.scheduleVarianceFromStructure)
+    : null;
   const raidSummary = useMemo(() => {
     const raidItems = project?.raidItems ?? [];
     const activeRaid = raidItems.filter(
@@ -9432,8 +9457,8 @@ function App() {
               <span>Статус: {projectStatusLabel(project.status)}</span>
               <span>РП: {project.projectManager}</span>
               <span>Срок: {date(project.targetDate)}</span>
-              <b className={`rag ${project.rag.toLowerCase()}`}>
-                {projectHealthLabel(project.rag)}
+              <b className={`rag ${topbarScheduleHealth?.tone ?? project.rag.toLowerCase()}`}>
+                {topbarScheduleHealth?.label ?? projectHealthLabel(project.rag)}
               </b>
             </div>
           )}
