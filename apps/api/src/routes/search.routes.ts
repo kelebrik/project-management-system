@@ -15,6 +15,7 @@ type SearchResult = {
   id: string;
   projectId: string | null;
   projectCode: string | null;
+  projectName: string | null;
   title: string;
   subtitle: string;
   url: string;
@@ -75,6 +76,7 @@ export function createSearchRouter() {
           id: project.id,
           projectId: project.id,
           projectCode: project.code,
+          projectName: project.name,
           title: `${project.code} ${project.name}`,
           subtitle: `РП: ${project.projectManager} / статус: ${project.status}`,
           url: projectUrl(project.code, 'overview'),
@@ -96,7 +98,7 @@ export function createSearchRouter() {
             { description: contains(q) },
           ],
         },
-        include: { project: { select: { code: true } } },
+        include: { project: { select: { code: true, name: true } } },
         orderBy: { updatedAt: 'desc' },
         take: limit,
       });
@@ -106,6 +108,7 @@ export function createSearchRouter() {
           id: item.id,
           projectId: item.projectId,
           projectCode: item.project.code,
+          projectName: item.project.name,
           title: `${item.code} ${item.title}`,
           subtitle: `Структура / ${item.owner || 'исполнитель не задан'}`,
           url: projectUrl(item.project.code, 'wbs'),
@@ -128,7 +131,7 @@ export function createSearchRouter() {
             { jiraLinks: { some: { OR: [{ jiraKey: contains(q) }, { jiraUrl: contains(q) }] } } },
           ],
         },
-        include: { project: { select: { code: true } } },
+        include: { project: { select: { code: true, name: true } } },
         orderBy: { updatedAt: 'desc' },
         take: limit,
       });
@@ -138,6 +141,7 @@ export function createSearchRouter() {
           id: issue.id,
           projectId: issue.projectId,
           projectCode: issue.project.code,
+          projectName: issue.project.name,
           title: issue.title,
           subtitle: `Открытый вопрос / ${issue.owner || 'ответственный не задан'}`,
           url: projectUrl(issue.project.code, 'issues'),
@@ -160,7 +164,7 @@ export function createSearchRouter() {
             { jiraTicketUrl: contains(q) },
           ],
         },
-        include: { project: { select: { code: true } } },
+        include: { project: { select: { code: true, name: true } } },
         orderBy: { updatedAt: 'desc' },
         take: limit,
       });
@@ -170,6 +174,7 @@ export function createSearchRouter() {
           id: risk.id,
           projectId: risk.projectId,
           projectCode: risk.project.code,
+          projectName: risk.project.name,
           title: risk.title,
           subtitle: `Риски и проблемы / оценка ${risk.riskScore}`,
           url: projectUrl(risk.project.code, 'risks'),
@@ -191,7 +196,7 @@ export function createSearchRouter() {
             { description: contains(q) },
           ],
         },
-        include: { project: { select: { code: true } } },
+        include: { project: { select: { code: true, name: true } } },
         orderBy: { updatedAt: 'desc' },
         take: limit,
       });
@@ -201,6 +206,7 @@ export function createSearchRouter() {
           id: artifact.id,
           projectId: artifact.projectId,
           projectCode: artifact.project.code,
+          projectName: artifact.project.name,
           title: artifact.title,
           subtitle: `Артефакт / ${artifact.type}`,
           url: projectUrl(artifact.project.code, 'artifacts'),
@@ -215,7 +221,7 @@ export function createSearchRouter() {
           ...(projectId ? { projectId } : {}),
           executiveSummary: contains(q),
         },
-        include: { project: { select: { code: true } } },
+        include: { project: { select: { code: true, name: true } } },
         orderBy: { updatedAt: 'desc' },
         take: limit,
       });
@@ -225,6 +231,7 @@ export function createSearchRouter() {
           id: overview.id,
           projectId: overview.projectId,
           projectCode: overview.project.code,
+          projectName: overview.project.name,
           title: `Обзор v${overview.version}`,
           subtitle: overview.status,
           url: projectUrl(overview.project.code, 'overview'),

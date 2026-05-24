@@ -254,6 +254,7 @@ type SearchResult = {
   id: string;
   projectId: string | null;
   projectCode: string | null;
+  projectName: string | null;
   title: string;
   subtitle: string;
   url: string;
@@ -8800,6 +8801,11 @@ function App() {
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => openSearchResult(result)}
               >
+                <span className="search-result-project">
+                  {result.projectCode
+                    ? `${result.projectCode}${result.projectName ? ` - ${result.projectName}` : ""}`
+                    : "Без проекта"}
+                </span>
                 <b>{result.title}</b>
                 <small>{result.subtitle}</small>
               </button>
