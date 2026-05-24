@@ -3283,13 +3283,29 @@ code {
 }
 
 @media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  html,
+  body {
+    height: auto;
+    overflow: hidden;
+    width: 100%;
+  }
+
   body[data-print-target] {
     background: #fff;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   body[data-print-target] .app-shell {
-    display: block;
-    min-height: auto;
+    display: block !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
   }
 
   body[data-print-target] .sidebar,
@@ -3312,38 +3328,126 @@ code {
 
   body[data-print-target] .workspace,
   body[data-print-target] .content-grid,
+  body[data-print-target] .milestone-sections,
   body[data-print-target] .workspace-focus-milestones {
     display: block !important;
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    width: 100% !important;
   }
 
   body[data-print-target] .workspace-focus-milestones {
-    border: 0;
-    box-shadow: none;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body[data-print-target] .milestone-section {
+    break-inside: avoid;
+    gap: 3mm !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    padding: 3mm !important;
+    page-break-inside: avoid;
+    width: 100% !important;
+  }
+
+  body[data-print-target] .milestone-section-head {
+    display: block !important;
+  }
+
+  body[data-print-target] .milestone-section-head h3 {
+    font-size: 14pt;
+    margin: 0;
   }
 
   body[data-print-target] .milestone-timeline {
     border: 0;
-    overflow: visible;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    width: 100% !important;
   }
 
   body[data-print-target] .milestone-lanes {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-lanes {
+    gap: 3mm;
+    padding: 3mm 2mm 4mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-scale,
+  body[data-print-target="milestones-by-phase"] .milestone-lane {
+    gap: 4mm !important;
+    grid-template-columns: 30mm minmax(0, 1fr) !important;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-scale span {
+    left: calc(30mm + 4mm + 5mm) !important;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-scale span + span {
+    left: auto !important;
+    right: 11mm !important;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-lane-title {
+    padding-right: 3mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-lane-canvas {
     min-width: 0;
-    width: max-content;
+    padding: 0 11mm 0 5mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-axis {
+    left: 5mm;
+    right: 11mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-axis-arrow {
+    right: 3mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-range {
+    left: 7mm;
+    right: 12mm;
   }
 
   body[data-print-target] .milestone-snake-shell {
     border: 0;
-    overflow: visible;
+    overflow: hidden !important;
     padding: 0;
   }
 
   body[data-print-target] .milestone-snake-svg {
     border: 0;
     box-shadow: none;
-    max-height: none;
-    width: 100%;
+    max-width: 100% !important;
+  }
+
+  body[data-print-target="milestones-all"] .milestone-snake-layout {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  body[data-print-target="milestones-all"] .milestone-snake-shell {
+    height: 170mm !important;
+    max-height: 170mm !important;
+    min-height: 0 !important;
+    width: 100% !important;
+  }
+
+  body[data-print-target="milestones-all"] .milestone-snake-svg {
+    height: 168mm !important;
+    max-height: 168mm !important;
+    width: auto !important;
   }
 }
 
