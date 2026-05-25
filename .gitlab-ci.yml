@@ -41,6 +41,11 @@ unit-tests:
   script:
     - npm run test:unit
 
+integration-tests:
+  stage: test
+  script:
+    - npm run test:integration
+
 build:
   stage: build
   script:

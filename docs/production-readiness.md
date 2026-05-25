@@ -22,7 +22,22 @@ npm run test:unit
 - агрегация дат фаз и пакетов работ;
 - критический путь и upstream-chain из полей предшественников.
 
-### Integration tests
+### Integration / contract tests
+
+Базовый набор запускается без поднятого окружения:
+
+```bash
+npm run test:integration
+```
+
+Он проверяет статические production-контракты:
+
+- OpenAPI покрывает реальные Express routes;
+- mutating endpoint задекларированы как защищенные;
+- миграции не содержат опасных `DROP TABLE` / `TRUNCATE` / неразрешенных `DELETE FROM`;
+- исторические Excel-миграции сохраняют явные приведения типов;
+- Dockerfile/docker-compose содержат runtime, readiness, PostgreSQL, backup/restore;
+- backup/restore/security/performance smoke scripts синтаксически валидны и содержат обязательные safety checks.
 
 Команда против уже запущенного окружения:
 
@@ -58,7 +73,7 @@ npm run test:integration
 
 Jira-контракт покрыт unit-тестом с мокированным Jira API. Live Jira-тесты намеренно не запускаются без корпоративных credentials.
 
-Если `INTEGRATION_BASE_URL` не задан, integration tests пропускаются. Это сделано, чтобы локальный `npm test` не пытался сам менять production/staging БД.
+Если `INTEGRATION_BASE_URL` не задан, live-запросы пропускаются, но статические contract/migration/ops проверки продолжают выполняться. Это сделано, чтобы локальный `npm test` не пытался сам менять production/staging БД, но всё равно ловил регрессии промышленного контура.
 
 ### E2E tests
 
@@ -85,8 +100,7 @@ npx playwright install chromium
 Файлы:
 
 - `Dockerfile` - один контейнер приложения: API + собранный Web UI;
-- `docker-compose.yml` - приложение + PostgreSQL + ops-профиль backup.
-- `.github/workflows/ci.yml` - CI для GitHub;
+- `docker-compose.yml` - приложение + PostgreSQL + ops-профили backup/restore;
 - `.gitlab-ci.yml` - CI для GitLab/Sber Git.
 
 Локальный запуск:
