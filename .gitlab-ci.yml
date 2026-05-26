@@ -4,10 +4,13 @@ stages:
   - build
 
 variables:
-  NODE_VERSION: "24"
-  DATABASE_URL: "postgresql://pms_user:pms_password@postgres:5432/project_management_system?schema=public"
+  PMS_CI_NODE_IMAGE: "$CI_REGISTRY_IMAGE/ci/node:24-bookworm-slim"
+  PMS_CI_BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/ci/image-builder:latest"
+  PMS_CONTAINER_IMAGE: "$CI_REGISTRY_IMAGE/app:$CI_COMMIT_SHORT_SHA"
+  DATABASE_URL: "postgresql://pms_user:pms_password@localhost:5432/project_management_system?schema=public"
   AUTH_COOKIE_SECURE: "false"
   WEB_ORIGIN: "*"
+  NPM_CONFIG_CACHE: ".npm"
 
 cache:
   key:
@@ -17,19 +20,21 @@ cache:
     - .npm/
 
 default:
-  image: node:24-bookworm-slim
+  image:
+    name: "$PMS_CI_NODE_IMAGE"
+    pull_policy: if-not-present
+    # Requires GitLab 18.0+ and GitLab Runner 17.11+.
+    # If Sber Git uses an older version, move non-root securityContext to runner config.toml.
+    kubernetes:
+      user: "1000:1000"
   before_script:
-    - apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates curl && rm -rf /var/lib/apt/lists/*
     - npm ci --include=dev --cache .npm --prefer-offline
     - npm run prisma:generate
 
-services:
-  - name: postgres:16-alpine
-    alias: postgres
-    variables:
-      POSTGRES_DB: project_management_system
-      POSTGRES_USER: pms_user
-      POSTGRES_PASSWORD: pms_password
+static-policy-check:
+  stage: validate
+  script:
+    - npm run test:integration -- --test-name-pattern "Docker runtime|Operations shell|Backup and restore|Smoke scripts|Kubernetes|GitLab CI"
 
 typecheck:
   stage: validate
@@ -41,7 +46,7 @@ unit-tests:
   script:
     - npm run test:unit
 
-integration-tests:
+integration-contracts:
   stage: test
   script:
     - npm run test:integration
@@ -49,17 +54,40 @@ integration-tests:
 build:
   stage: build
   script:
-    - npm run prisma:deploy
     - npm run build
-    - npm run migration:dry-run
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - apps/api/dist/
+      - apps/web/dist/
+      - packages/shared/dist/
+      - prisma/
+      - prisma.config.ts
+      - package.json
+      - package-lock.json
+      - Dockerfile
+      - deploy/k8s/
 
-docker-build:
+container-build:
   stage: build
-  image: docker:28
-  services:
-    - docker:28-dind
+  image:
+    name: "$PMS_CI_BUILDER_IMAGE"
+    entrypoint: [""]
+    pull_policy: if-not-present
+    # Requires GitLab 18.0+ and GitLab Runner 17.11+.
+    # If Sber Git uses an older version, move non-root securityContext to runner config.toml.
+    kubernetes:
+      user: "1000:1000"
+  rules:
+    - if: '$ENABLE_CONTAINER_BUILD == "true"'
+  needs:
+    - build
   before_script: []
-  variables:
-    DOCKER_TLS_CERTDIR: ""
   script:
-    - docker build -t project-management-system:${CI_COMMIT_SHORT_SHA} .
+    - |
+      if [ -z "${CORPORATE_IMAGE_BUILD_COMMAND:-}" ]; then
+        echo "Set CORPORATE_IMAGE_BUILD_COMMAND in GitLab CI variables to the approved corporate image builder command."
+        echo "Example: /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --build-arg NODE_IMAGE=$PMS_CI_NODE_IMAGE --destination $PMS_CONTAINER_IMAGE"
+        exit 1
+      fi
+    - sh -lc "$CORPORATE_IMAGE_BUILD_COMMAND"

@@ -102,6 +102,8 @@ npx playwright install chromium
 - `Dockerfile` - один контейнер приложения: API + собранный Web UI;
 - `docker-compose.yml` - приложение + PostgreSQL + ops-профили backup/restore;
 - `.gitlab-ci.yml` - CI для GitLab/Sber Git.
+- `deploy/k8s/project-management-system.yaml` - restricted Kubernetes manifest для корпоративного контура.
+- `docs/sber-k8s-deployment.md` - checklist для DevOps по Sber Git/Kubernetes policies.
 
 Локальный запуск:
 
@@ -232,6 +234,15 @@ npm run test
 npm run build
 npm run migration:dry-run
 docker build -t project-management-system:release .
+```
+
+Для корпоративного registry:
+
+```bash
+docker build \
+  --build-arg NODE_IMAGE=<approved-registry>/platform/node-pms-ci:24 \
+  -t <approved-registry>/project-management-system/app:release \
+  .
 ```
 
 Перед промышленным запуском:

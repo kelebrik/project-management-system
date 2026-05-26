@@ -26,6 +26,18 @@ docker run -d \
 
 Для HTTPS за reverse proxy рекомендуется выставить `AUTH_COOKIE_SECURE=true`.
 
+В корпоративном Kubernetes вместо публичного Docker Hub образа можно подставить разрешенный базовый образ:
+
+```bash
+docker build \
+  --build-arg NODE_IMAGE=<approved-registry>/platform/node-pms-ci:24 \
+  -t <approved-registry>/project-management-system/app:latest \
+  .
+```
+
+Манифест для restricted Kubernetes лежит в `deploy/k8s/project-management-system.yaml`.
+Подробности для Sber Git/Kubernetes: `docs/sber-k8s-deployment.md`.
+
 ## Переменные окружения
 
 Обязательные:
