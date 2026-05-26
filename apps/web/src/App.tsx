@@ -1468,6 +1468,7 @@ function normalizeWbsColumnWidths(
 const GANTT_ROW_HEIGHT = 36;
 const GANTT_LINK_STUB_PERCENT = 1.15;
 const GANTT_LINK_DETOUR_PERCENT = 2.6;
+const GANTT_LINK_ENDPOINT_GAP_PERCENT = 0.12;
 const GANTT_LINK_RADIUS_X = 0.42;
 const GANTT_LINK_RADIUS_Y = 7;
 
@@ -1508,6 +1509,13 @@ function pushGanttPathPoint(
   points.push(next);
 }
 
+function ganttTargetRowBoundary(fromY: number, toY: number) {
+  const targetRow = Math.max(0, Math.floor(toY / GANTT_ROW_HEIGHT));
+  return toY > fromY
+    ? targetRow * GANTT_ROW_HEIGHT
+    : (targetRow + 1) * GANTT_ROW_HEIGHT;
+}
+
 function ganttDependencyPathPoints(line: GanttDependencyPathInput) {
   const sourceDirection = ganttPathDirection(line.fromSide);
   const targetDirection = ganttTargetDirection(line.toSide);
@@ -1527,6 +1535,9 @@ function ganttDependencyPathPoints(line: GanttDependencyPathInput) {
       GANTT_LINK_STUB_PERCENT * 0.7;
   const sameRow = Math.abs(line.toY - line.fromY) < 1;
   const points: GanttDependencyPathPoint[] = [];
+  const targetBoundaryY = sameRow
+    ? line.toY
+    : ganttTargetRowBoundary(line.fromY, line.toY);
 
   pushGanttPathPoint(points, line.fromX, line.fromY);
   pushGanttPathPoint(points, sourceStubX, line.fromY);
@@ -1534,7 +1545,8 @@ function ganttDependencyPathPoints(line: GanttDependencyPathInput) {
   if (hasForwardClearance && !sameRow) {
     const middleX = (sourceStubX + targetStubX) / 2;
     pushGanttPathPoint(points, middleX, line.fromY);
-    pushGanttPathPoint(points, middleX, line.toY);
+    pushGanttPathPoint(points, middleX, targetBoundaryY);
+    pushGanttPathPoint(points, targetStubX, targetBoundaryY);
   } else if (hasForwardClearance && sameRow) {
     const laneY =
       line.fromY < GANTT_ROW_HEIGHT
@@ -1572,7 +1584,8 @@ function ganttDependencyPathPoints(line: GanttDependencyPathInput) {
       99.6,
     );
     pushGanttPathPoint(points, detourX, line.fromY);
-    pushGanttPathPoint(points, detourX, line.toY);
+    pushGanttPathPoint(points, detourX, targetBoundaryY);
+    pushGanttPathPoint(points, targetStubX, targetBoundaryY);
   }
 
   pushGanttPathPoint(points, targetStubX, line.toY);
@@ -12564,15 +12577,19 @@ function App() {
                                       !showGanttCriticalPath || line.critical,
                                   )
                                   .map((line) => {
-                                    const endpointInset = line.fromMilestone ? 0 : 0.36;
-                                    const targetInset = line.toMilestone ? 0 : 0.36;
+                                    const endpointGap = line.fromMilestone
+                                      ? 0
+                                      : GANTT_LINK_ENDPOINT_GAP_PERCENT;
+                                    const targetGap = line.toMilestone
+                                      ? 0
+                                      : GANTT_LINK_ENDPOINT_GAP_PERCENT;
                                     const startX = clampNumber(
-                                      line.fromX - line.fromDirection * endpointInset,
+                                      line.fromX + line.fromDirection * endpointGap,
                                       0,
                                       100,
                                     );
                                     const endX = clampNumber(
-                                      line.toX + line.toDirection * targetInset,
+                                      line.toX - line.toDirection * targetGap,
                                       0,
                                       100,
                                     );
