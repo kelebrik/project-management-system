@@ -13121,10 +13121,10 @@ function App() {
                   </div>
                   <div className="issue-list">
                     <div className="issue-list-head" aria-hidden="true">
-                      <span>Наименование</span>
+                      <span>Запись</span>
                       <span>Ключ Jira</span>
+                      <span>Критичность</span>
                       <span>Срок</span>
-                      <span>Отставание</span>
                       <span>Ответственный</span>
                       <span />
                     </div>
@@ -13176,12 +13176,14 @@ function App() {
                                 )}
                               </span>
                             <span className="issue-summary-cell">
-                              {date(issue.dueDate)}
+                              <span
+                                className={`issue-severity-pill ${issue.severity.toLowerCase()}`}
+                              >
+                                {issueSeverityLabel(issue.severity)}
+                              </span>
                             </span>
-                            <span
-                              className={`issue-summary-cell ${delayDays > 0 ? "issue-delay" : ""}`}
-                            >
-                              {delayDays > 0 ? `+${delayDays} дн.` : "нет"}
+                            <span className="issue-summary-cell">
+                              {date(issue.dueDate)}
                             </span>
                             <span className="issue-summary-cell">
                               {issue.owner || "не назначен"}
