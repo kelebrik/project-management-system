@@ -1466,6 +1466,182 @@ function normalizeWbsColumnWidths(
 }
 
 const GANTT_ROW_HEIGHT = 36;
+const GANTT_LINK_STUB_PERCENT = 1.15;
+const GANTT_LINK_DETOUR_PERCENT = 2.6;
+const GANTT_LINK_RADIUS_X = 0.42;
+const GANTT_LINK_RADIUS_Y = 7;
+
+type GanttDependencyPathInput = {
+  fromSide: "start" | "end";
+  fromX: number;
+  fromY: number;
+  toSide: "start" | "end";
+  toX: number;
+  toY: number;
+};
+
+type GanttDependencyPathPoint = {
+  x: number;
+  y: number;
+};
+
+function ganttPathNumber(value: number) {
+  return Number(value.toFixed(2));
+}
+
+function ganttPathDirection(side: "start" | "end") {
+  return side === "end" ? 1 : -1;
+}
+
+function ganttTargetDirection(side: "start" | "end") {
+  return side === "start" ? 1 : -1;
+}
+
+function pushGanttPathPoint(
+  points: GanttDependencyPathPoint[],
+  x: number,
+  y: number,
+) {
+  const next = { x: ganttPathNumber(x), y: ganttPathNumber(y) };
+  const previous = points.at(-1);
+  if (previous && previous.x === next.x && previous.y === next.y) return;
+  points.push(next);
+}
+
+function ganttDependencyPathPoints(line: GanttDependencyPathInput) {
+  const sourceDirection = ganttPathDirection(line.fromSide);
+  const targetDirection = ganttTargetDirection(line.toSide);
+  const sourceStubX = clampNumber(
+    line.fromX + sourceDirection * GANTT_LINK_STUB_PERCENT,
+    0,
+    100,
+  );
+  const targetStubX = clampNumber(
+    line.toX - targetDirection * GANTT_LINK_STUB_PERCENT,
+    0,
+    100,
+  );
+  const hasForwardClearance =
+    sourceDirection === targetDirection &&
+    (targetStubX - sourceStubX) * sourceDirection >=
+      GANTT_LINK_STUB_PERCENT * 0.7;
+  const sameRow = Math.abs(line.toY - line.fromY) < 1;
+  const points: GanttDependencyPathPoint[] = [];
+
+  pushGanttPathPoint(points, line.fromX, line.fromY);
+  pushGanttPathPoint(points, sourceStubX, line.fromY);
+
+  if (hasForwardClearance && !sameRow) {
+    const middleX = (sourceStubX + targetStubX) / 2;
+    pushGanttPathPoint(points, middleX, line.fromY);
+    pushGanttPathPoint(points, middleX, line.toY);
+  } else if (hasForwardClearance && sameRow) {
+    const laneY =
+      line.fromY < GANTT_ROW_HEIGHT
+        ? line.fromY + GANTT_ROW_HEIGHT * 0.52
+        : line.fromY - GANTT_ROW_HEIGHT * 0.52;
+    const middleX = (sourceStubX + targetStubX) / 2;
+    pushGanttPathPoint(points, sourceStubX, laneY);
+    pushGanttPathPoint(points, middleX, laneY);
+    pushGanttPathPoint(points, targetStubX, laneY);
+  } else if (sameRow) {
+    const laneY =
+      line.fromY < GANTT_ROW_HEIGHT
+        ? line.fromY + GANTT_ROW_HEIGHT * 0.52
+        : line.fromY - GANTT_ROW_HEIGHT * 0.52;
+    const detourBase =
+      sourceDirection > 0
+        ? Math.max(line.fromX, line.toX)
+        : Math.min(line.fromX, line.toX);
+    const detourX = clampNumber(
+      detourBase + sourceDirection * GANTT_LINK_DETOUR_PERCENT,
+      0.4,
+      99.6,
+    );
+    pushGanttPathPoint(points, sourceStubX, laneY);
+    pushGanttPathPoint(points, detourX, laneY);
+    pushGanttPathPoint(points, targetStubX, laneY);
+  } else {
+    const detourBase =
+      sourceDirection > 0
+        ? Math.max(line.fromX, line.toX)
+        : Math.min(line.fromX, line.toX);
+    const detourX = clampNumber(
+      detourBase + sourceDirection * GANTT_LINK_DETOUR_PERCENT,
+      0.4,
+      99.6,
+    );
+    pushGanttPathPoint(points, detourX, line.fromY);
+    pushGanttPathPoint(points, detourX, line.toY);
+  }
+
+  pushGanttPathPoint(points, targetStubX, line.toY);
+  pushGanttPathPoint(points, line.toX, line.toY);
+
+  return points;
+}
+
+function ganttRoundedDependencyPath(points: GanttDependencyPathPoint[]) {
+  if (points.length < 2) return "";
+  const path = [`M ${points[0].x} ${points[0].y}`];
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const next = points[index + 1];
+    const previousHorizontal = previous.y === current.y;
+    const nextHorizontal = next.y === current.y;
+
+    if (previousHorizontal === nextHorizontal) {
+      path.push(`L ${current.x} ${current.y}`);
+      continue;
+    }
+
+    const previousDistance = previousHorizontal
+      ? Math.abs(current.x - previous.x)
+      : Math.abs(current.y - previous.y);
+    const nextDistance = nextHorizontal
+      ? Math.abs(next.x - current.x)
+      : Math.abs(next.y - current.y);
+    const beforeRadius = Math.min(
+      previousHorizontal ? GANTT_LINK_RADIUS_X : GANTT_LINK_RADIUS_Y,
+      previousDistance / 2,
+    );
+    const afterRadius = Math.min(
+      nextHorizontal ? GANTT_LINK_RADIUS_X : GANTT_LINK_RADIUS_Y,
+      nextDistance / 2,
+    );
+    const before = {
+      x: previousHorizontal
+        ? current.x - Math.sign(current.x - previous.x) * beforeRadius
+        : current.x,
+      y: previousHorizontal
+        ? current.y
+        : current.y - Math.sign(current.y - previous.y) * beforeRadius,
+    };
+    const after = {
+      x: nextHorizontal
+        ? current.x + Math.sign(next.x - current.x) * afterRadius
+        : current.x,
+      y: nextHorizontal
+        ? current.y
+        : current.y + Math.sign(next.y - current.y) * afterRadius,
+    };
+
+    path.push(`L ${ganttPathNumber(before.x)} ${ganttPathNumber(before.y)}`);
+    path.push(
+      `Q ${current.x} ${current.y} ${ganttPathNumber(after.x)} ${ganttPathNumber(after.y)}`,
+    );
+  }
+
+  const last = points.at(-1);
+  if (last) path.push(`L ${last.x} ${last.y}`);
+  return path.join(" ");
+}
+
+function ganttDependencyPath(line: GanttDependencyPathInput) {
+  return ganttRoundedDependencyPath(ganttDependencyPathPoints(line));
+}
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -4649,12 +4825,13 @@ function App() {
           fromX: number;
           fromY: number;
           fromSlotOffset: number;
+          fromDirection: number;
           toSide: "start" | "end";
           toMilestone: boolean;
           toX: number;
           toY: number;
           toSlotOffset: number;
-          direction: "forward" | "backward";
+          toDirection: number;
           styleSlot: number;
         }>,
         height: 0,
@@ -4848,7 +5025,7 @@ function App() {
       return index;
     };
     const slotOffset = (index: number, total: number) =>
-      total <= 1 ? 0 : (index - (total - 1) / 2) * 5;
+      total <= 1 ? 0 : (index - (total - 1) / 2) * 4;
     const dependencyLines = visibleDependencies
       .map((dependency) => {
         const predecessor = barById.get(dependency.predecessorId);
@@ -4883,7 +5060,6 @@ function App() {
         const toSlotOffset = slotOffset(toSlot, endpointCounts.get(toKey) ?? 1);
         const from = fromSide === "start" ? predecessorStart : predecessorEnd;
         const to = toSide === "start" ? successorStart : successorEnd;
-        const direction = to >= from ? ("forward" as const) : ("backward" as const);
         return {
           id: dependency.id,
           predecessorId: dependency.predecessorId,
@@ -4898,12 +5074,13 @@ function App() {
             GANTT_ROW_HEIGHT / 2 +
             fromSlotOffset,
           fromSlotOffset,
+          fromDirection: ganttPathDirection(fromSide),
           toSide,
           toMilestone: successor.milestone,
           toX: Math.max(0, Math.min(100, to)),
           toY: successorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2 + toSlotOffset,
           toSlotOffset,
-          direction,
+          toDirection: ganttTargetDirection(toSide),
           styleSlot: Math.max(fromSlot, toSlot) % 6,
         };
       })
@@ -4921,12 +5098,13 @@ function App() {
           fromX: number;
           fromY: number;
           fromSlotOffset: number;
+          fromDirection: number;
           toSide: "start" | "end";
           toMilestone: boolean;
           toX: number;
           toY: number;
           toSlotOffset: number;
-          direction: "forward" | "backward";
+          toDirection: number;
           styleSlot: number;
         } => item !== null,
       );
@@ -12367,48 +12545,37 @@ function App() {
                                 preserveAspectRatio="none"
                                 aria-hidden="true"
                               >
+                                <defs>
+                                  <marker
+                                    id="ganttDependencyArrow"
+                                    markerHeight="7"
+                                    markerWidth="8"
+                                    orient="auto"
+                                    refX="7"
+                                    refY="3.5"
+                                    viewBox="0 0 8 7"
+                                  >
+                                    <path d="M 0 0 L 8 3.5 L 0 7 z" />
+                                  </marker>
+                                </defs>
                                 {wbsGantt.dependencyLines
                                   .filter(
                                     (line) =>
                                       !showGanttCriticalPath || line.critical,
                                   )
                                   .map((line) => {
-                                    const endpointInset = 0.35;
-                                    const startX = line.fromMilestone
-                                      ? line.fromX
-                                      : Math.max(
-                                          0,
-                                          Math.min(
-                                            100,
-                                            line.fromX +
-                                              (line.fromSide === "start"
-                                                ? endpointInset
-                                                : -endpointInset),
-                                          ),
-                                        );
-                                    const endX = line.toMilestone
-                                      ? line.toX
-                                      : Math.max(
-                                          0,
-                                          Math.min(
-                                            100,
-                                            line.toX +
-                                              (line.toSide === "start"
-                                                ? endpointInset
-                                                : -endpointInset),
-                                          ),
-                                        );
-                                    const horizontalGap = Math.abs(endX - startX);
-                                    const connectorStub =
-                                      horizontalGap === 0
-                                        ? 0.8
-                                        : horizontalGap >= 2.2
-                                          ? 1.1
-                                          : Math.max(0.2, horizontalGap / 2);
-                                    const bendX =
-                                      line.direction === "forward"
-                                        ? Math.min(99, startX + connectorStub)
-                                        : Math.max(1, startX - connectorStub);
+                                    const endpointInset = line.fromMilestone ? 0 : 0.36;
+                                    const targetInset = line.toMilestone ? 0 : 0.36;
+                                    const startX = clampNumber(
+                                      line.fromX - line.fromDirection * endpointInset,
+                                      0,
+                                      100,
+                                    );
+                                    const endX = clampNumber(
+                                      line.toX + line.toDirection * targetInset,
+                                      0,
+                                      100,
+                                    );
                                     return (
                                       <path
                                         className={`slot-${line.styleSlot}${
@@ -12439,7 +12606,14 @@ function App() {
                                             line.id,
                                           )
                                         }
-                                        d={`M ${startX} ${line.fromY} L ${bendX} ${line.fromY} L ${bendX} ${line.toY} L ${endX} ${line.toY}`}
+                                        d={ganttDependencyPath({
+                                          fromSide: line.fromSide,
+                                          fromX: startX,
+                                          fromY: line.fromY,
+                                          toSide: line.toSide,
+                                          toX: endX,
+                                          toY: line.toY,
+                                        })}
                                         key={line.id}
                                         data-dependency-type={line.type}
                                         aria-label="Связь Гантта"
@@ -12465,7 +12639,20 @@ function App() {
                                     return (
                                       <path
                                         className="draft"
-                                        d={`M ${sourceX} ${sourceY} L ${ganttLinkDraft.pointerX} ${ganttLinkDraft.pointerY}`}
+                                        d={ganttRoundedDependencyPath([
+                                          { x: sourceX, y: sourceY },
+                                          {
+                                            x:
+                                              sourceX +
+                                              ganttPathDirection(ganttLinkDraft.side) *
+                                                GANTT_LINK_STUB_PERCENT,
+                                            y: sourceY,
+                                          },
+                                          {
+                                            x: ganttLinkDraft.pointerX,
+                                            y: ganttLinkDraft.pointerY,
+                                          },
+                                        ])}
                                       />
                                     );
                                   })()}

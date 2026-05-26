@@ -4063,12 +4063,13 @@ code {
 
 .gantt-links path {
   fill: none;
+  marker-end: url("#ganttDependencyArrow");
   opacity: 0.9;
   pointer-events: stroke;
   stroke: #f5a623;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.35;
+  stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
 
@@ -4076,27 +4077,23 @@ code {
   cursor: grab;
   opacity: 1;
   stroke: #d97706;
-  stroke-width: 2;
+  stroke-width: 2.1;
 }
 
 .gantt-links path.slot-1 {
   stroke: #f59e0b;
-  stroke-dasharray: 6 2;
 }
 
 .gantt-links path.slot-2 {
   stroke: #fb923c;
-  stroke-dasharray: 2 2;
 }
 
 .gantt-links path.slot-3 {
   stroke: #d97706;
-  stroke-dasharray: 8 3;
 }
 
 .gantt-links path.slot-4 {
   stroke: #f97316;
-  stroke-dasharray: 1.5 2.5;
 }
 
 .gantt-links path.slot-5 {
@@ -4107,7 +4104,7 @@ code {
   opacity: 1;
   stroke: #dc2626;
   stroke-dasharray: none;
-  stroke-width: 2.35;
+  stroke-width: 2.45;
 }
 
 .gantt-links path.non-critical-path {
@@ -4121,7 +4118,7 @@ code {
 .gantt-links path.active {
   opacity: 1;
   stroke: #d97706;
-  stroke-width: 2;
+  stroke-width: 2.15;
 }
 
 .gantt-links path.moving {
@@ -4129,6 +4126,7 @@ code {
 }
 
 .gantt-links path.draft {
+  marker-end: none;
   pointer-events: none;
   opacity: 0.9;
   stroke: #2563eb;
@@ -4138,6 +4136,8 @@ code {
 
 .gantt-links marker path {
   fill: #f5a623;
+  marker-end: none;
+  pointer-events: none;
   stroke: none;
 }
 
