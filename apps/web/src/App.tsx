@@ -9865,7 +9865,8 @@ function App() {
                             {item.code} {item.title}
                           </b>
                           <span>
-                            Отклонение +{delay} календарных дней
+                            Отклонение +{delay} календарных дней / исполнитель:{" "}
+                            {item.owner || "не назначен"}
                           </span>
                         </div>
                       ))}
