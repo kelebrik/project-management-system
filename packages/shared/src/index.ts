@@ -247,6 +247,11 @@ export const raidItemStatusUpdateSchema = z.object({
   text: z.string().trim().min(1),
 });
 
+export const issueStatusUpdateSchema = z.object({
+  statusAt: z.string().trim().min(1),
+  text: z.string().trim().min(1),
+});
+
 export const createIssueSchema = z.object({
   title: z.string().trim().min(1),
   severity: z.enum(issueSeverities).default("HIGH"),

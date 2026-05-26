@@ -1,4 +1,4 @@
-import { createIssueSchema, updateIssueSchema } from '@pms/shared';
+import { createIssueSchema, issueStatusUpdateSchema, updateIssueSchema } from '@pms/shared';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -31,6 +31,11 @@ function isClosedIssueStatus(status: string | undefined) {
   return status === 'Done' || status === 'Closed' || status === 'Resolved';
 }
 
+const issueInclude = {
+  jiraLinks: { orderBy: { createdAt: 'asc' as const } },
+  statusUpdates: { orderBy: [{ statusAt: 'desc' as const }, { createdAt: 'desc' as const }] },
+};
+
 router.get('/projects/:projectId/open-issues', async (req, res) => {
   const issues = await prisma.issue.findMany({
     where: {
@@ -38,7 +43,7 @@ router.get('/projects/:projectId/open-issues', async (req, res) => {
       status: { notIn: ['Done', 'Closed', 'Resolved'] },
     },
     orderBy: [{ decisionRequired: 'desc' }, { severity: 'desc' }, { updatedAt: 'desc' }],
-    include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
+    include: issueInclude,
   });
 
   res.json(issues);
@@ -155,7 +160,7 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
         })),
       },
     },
-    include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
+    include: issueInclude,
   });
 
   await emitWebhookEvent({
@@ -223,7 +228,7 @@ router.patch('/open-issues/:issueId', async (req, res) => {
           : parsed.data.jiraTicketKey?.trim() || null,
       jiraTicketUrl: nextJiraUrl,
     },
-    include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
+    include: issueInclude,
   });
 
   await emitWebhookEvent({
@@ -232,6 +237,45 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     payload: { before: issue, after: updated },
   }).catch(() => undefined);
   res.json(updated);
+});
+
+router.post('/open-issues/:issueId/status-updates', async (req, res) => {
+  const parsed = issueStatusUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const issue = await prisma.issue.findUnique({
+    where: { id: req.params.issueId },
+  });
+
+  if (!issue) {
+    res.status(404).json({ error: 'Открытый вопрос не найден' });
+    return;
+  }
+
+  const statusAt = new Date(parsed.data.statusAt);
+  if (Number.isNaN(statusAt.getTime())) {
+    res.status(400).json({ error: 'Некорректная дата статуса' });
+    return;
+  }
+
+  const statusUpdate = await prisma.issueStatusUpdate.create({
+    data: {
+      issueId: issue.id,
+      statusAt,
+      text: parsed.data.text,
+    },
+  });
+
+  await emitWebhookEvent({
+    eventType: 'issue.status_updated',
+    projectId: issue.projectId,
+    payload: { issueId: issue.id, statusUpdate },
+  }).catch(() => undefined);
+
+  res.status(201).json(statusUpdate);
 });
 
 const issueJiraLinkSchema = z.object({

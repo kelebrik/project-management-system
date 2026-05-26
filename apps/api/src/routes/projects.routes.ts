@@ -56,7 +56,10 @@ const projectDetailsInclude = {
   issues: {
     where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },
     orderBy: [{ severity: 'desc' }, { updatedAt: 'desc' }],
-    include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
+    include: {
+      jiraLinks: { orderBy: { createdAt: 'asc' } },
+      statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
+    },
   },
   jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
   overviews: { orderBy: { version: 'desc' }, take: 8 },
@@ -87,7 +90,10 @@ const createProjectSchema = projectSchema.extend({
 const closedIssuesInclude = {
   where: { status: { in: ['Done', 'Closed', 'Resolved'] } },
   orderBy: [{ updatedAt: 'desc' }],
-  include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
+  include: {
+    jiraLinks: { orderBy: { createdAt: 'asc' } },
+    statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
+  },
 } satisfies Prisma.IssueFindManyArgs;
 
 const defaultProjectWbsItems = [
@@ -215,6 +221,7 @@ async function deleteProjectCascade(projectId: string) {
       where: { projectId },
       data: { parentId: null },
     });
+    await tx.issueStatusUpdate.deleteMany({ where: { issue: { projectId } } });
     await tx.issueJiraLink.deleteMany({ where: { issue: { projectId } } });
     await tx.issue.deleteMany({ where: { projectId } });
     await tx.jiraIssueSnapshot.deleteMany({ where: { projectId } });

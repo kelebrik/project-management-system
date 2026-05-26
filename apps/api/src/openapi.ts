@@ -194,8 +194,24 @@ export const openApiDocument = {
           jiraTicketKey: { type: ["string", "null"] },
           jiraTicketUrl: { type: ["string", "null"], format: "uri" },
           decisionRequired: { type: "boolean" },
+          statusUpdates: {
+            type: "array",
+            items: { $ref: "#/components/schemas/IssueStatusUpdate" },
+          },
         },
         required: ["id", "projectId", "title", "severity", "status"],
+      },
+      IssueStatusUpdate: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          issueId: { type: "string" },
+          statusAt: { type: "string", format: "date-time" },
+          text: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+        required: ["id", "issueId", "statusAt", "text"],
       },
       RaidItem: {
         type: "object",
@@ -589,6 +605,14 @@ export const openApiDocument = {
       post: createOperation(["OpenIssues", "Jira"], "Attach Jira ticket to open issue", [
         issueIdParam,
       ]),
+    },
+    "/api/open-issues/{issueId}/status-updates": {
+      post: createOperation(
+        ["OpenIssues"],
+        "Add dated status update to open issue",
+        [issueIdParam],
+        "Status update created",
+      ),
     },
     "/api/open-issues/{issueId}/jira-links/{linkId}": {
       delete: deleteOperation(["OpenIssues", "Jira"], "Remove Jira ticket from open issue", [

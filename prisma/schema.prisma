@@ -538,6 +538,7 @@ model Issue {
   updatedAt        DateTime        @updatedAt
   project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   jiraLinks        IssueJiraLink[]
+  statusUpdates    IssueStatusUpdate[]
 }
 
 model IssueJiraLink {
@@ -550,6 +551,19 @@ model IssueJiraLink {
 
   @@unique([issueId, jiraKey])
   @@index([jiraKey])
+}
+
+model IssueStatusUpdate {
+  id        String   @id @default(cuid())
+  issueId   String
+  statusAt  DateTime
+  text      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([issueId, statusAt])
+  @@index([issueId, createdAt])
 }
 
 model JiraIssueSnapshot {
