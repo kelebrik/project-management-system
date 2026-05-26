@@ -20,7 +20,27 @@ PMS_CONTAINER_IMAGE=<approved-registry>/project-management-system/app:${CI_COMMI
 CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
 ```
 
-`PMS_CI_NODE_IMAGE` должен уже содержать Node.js 24, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
+По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:24-bookworm-slim`. Это работает только если GitLab Dependency Proxy включен и его registry разрешен cluster policy.
+
+Если dependency proxy выключен или registry не разрешен, DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 24, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
+
+Пример bootstrap CI-образа:
+
+```dockerfile
+FROM node:24-bookworm-slim
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+  && rm -rf /var/lib/apt/lists/*
+USER node
+```
+
+Его нужно опубликовать в существующий approved registry, например:
+
+```text
+PMS_CI_NODE_IMAGE=registry.sberdevices.ru/<approved-namespace>/node-pms-ci:24
+```
+
+Не нужно указывать несуществующий образ вида `registry.sberdevices.ru/<project>/ci/node:24-bookworm-slim`: Kubernetes упадет с `manifest unknown` до старта job.
 
 В `.gitlab-ci.yml` используется `image:kubernetes:user: "1000:1000"`. Эта настройка требует GitLab 18.0+ и GitLab Runner 17.11+. Если в Sber Git версия ниже, non-root user нужно задать в `config.toml` GitLab Runner Kubernetes executor.
 
