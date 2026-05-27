@@ -2948,6 +2948,58 @@ function buildSnakeMilestonePointLayouts(
   });
 }
 
+function milestoneTimelineTodayOffsetByCount(
+  milestones: StructureMilestone[],
+  today: Date,
+) {
+  if (milestones.length === 0) return null;
+  const todayTime = today.getTime();
+  const beforeOrToday = milestones.filter((entry) => {
+    const dueTime = entry.milestone.dueDate
+      ? startOfDay(new Date(entry.milestone.dueDate)).getTime()
+      : Number.NaN;
+    return Number.isFinite(dueTime) && dueTime <= todayTime;
+  }).length;
+  const afterToday = milestones.length - beforeOrToday;
+
+  if (beforeOrToday === 0) return 0;
+  if (afterToday === 0) return 1;
+  return beforeOrToday / milestones.length;
+}
+
+function compressMilestoneTimelineOffset(
+  dueTime: number,
+  minTime: number,
+  todayTime: number,
+  maxTime: number,
+  todayOffset: number | null,
+) {
+  const totalRange = maxTime - minTime;
+  const dateOffset = totalRange === 0 ? 0.5 : (dueTime - minTime) / totalRange;
+
+  if (
+    todayOffset === null ||
+    !Number.isFinite(todayOffset) ||
+    todayTime <= minTime ||
+    todayTime >= maxTime
+  ) {
+    return Math.max(0, Math.min(1, dateOffset));
+  }
+
+  if (dueTime <= todayTime) {
+    const beforeRange = todayTime - minTime;
+    const beforeProgress = beforeRange === 0 ? 1 : (dueTime - minTime) / beforeRange;
+    return Math.max(0, Math.min(1, beforeProgress * todayOffset));
+  }
+
+  const afterRange = maxTime - todayTime;
+  const afterProgress = afterRange === 0 ? 0 : (dueTime - todayTime) / afterRange;
+  return Math.max(
+    0,
+    Math.min(1, todayOffset + afterProgress * (1 - todayOffset)),
+  );
+}
+
 function createMilestoneTimelineModel({
   milestones,
   lanes,
@@ -2977,11 +3029,11 @@ function createMilestoneTimelineModel({
   const minTime = timelineStart.getTime();
   const maxTime = timelineEnd.getTime();
   const range = maxTime - minTime;
+  const todayTime = today.getTime();
   const todayOffset =
-    today.getTime() >= minTime && today.getTime() <= maxTime
-      ? range === 0
-        ? 0
-        : (today.getTime() - minTime) / range
+    todayTime >= minTime && todayTime <= maxTime
+      ? milestoneTimelineTodayOffsetByCount(visibleMilestones, today) ??
+        (range === 0 ? 0 : (todayTime - minTime) / range)
       : null;
 
   if (visibleMilestones.length === 0) {
@@ -3016,7 +3068,13 @@ function createMilestoneTimelineModel({
     const dueTime = startOfDay(
       new Date(entry.milestone.dueDate as string),
     ).getTime();
-    const offset = range === 0 ? 0.5 : (dueTime - minTime) / range;
+    const offset = compressMilestoneTimelineOffset(
+      dueTime,
+      minTime,
+      todayTime,
+      maxTime,
+      todayOffset,
+    );
     const targetLane =
       laneById.get(laneIdByMilestoneId?.get(entry.milestone.id) ?? "") ??
       fallbackLane;
