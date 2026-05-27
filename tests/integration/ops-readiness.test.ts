@@ -99,14 +99,20 @@ test("Kubernetes manifest follows corporate restricted-pod policies", () => {
 test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   const gitlabCi = read(".gitlab-ci.yml");
   const dockerfile = read("Dockerfile");
+  const ciInstall = read("scripts/ci-install.sh");
 
   assert.match(gitlabCi, /PMS_CI_NODE_IMAGE/, "CI must use a configurable corporate Node image");
   assert.match(gitlabCi, /PMS_CI_BUILDER_IMAGE/, "Container build must use a configurable corporate builder image");
   assert.match(gitlabCi, /kubernetes:\s*\n\s*user: "1000:1000"/, "CI jobs must request a non-root Kubernetes user");
   assert.match(gitlabCi, /CORPORATE_IMAGE_BUILD_COMMAND/, "Container build command must be supplied by corporate CI variables");
+  assert.match(gitlabCi, /scripts\/ci-install\.sh/, "CI must use the resilient npm install wrapper");
   assert.doesNotMatch(gitlabCi, /docker:dind|docker:\d+/, "CI must not require Docker-in-Docker or Docker Hub images");
   assert.doesNotMatch(gitlabCi, /^\s*services:/m, "CI must not create service pods in restricted clusters");
   assert.doesNotMatch(gitlabCi, /apt-get/, "CI job scripts must not require root package installation");
+  assert.doesNotMatch(gitlabCi, /prefer-offline/, "CI must not force npm prefer-offline in empty/unstable runner caches");
+  assert.match(ciInstall, /npm ci --include=dev/, "CI install wrapper must run npm ci with dev dependencies");
+  assert.match(ciInstall, /npm cache clean --force/, "CI install wrapper must retry after clearing npm cache");
+  assert.doesNotMatch(ciInstall, /prefer-offline/, "CI install wrapper must not force npm prefer-offline");
 
   assert.match(dockerfile, /ARG NODE_IMAGE/, "Docker build must allow replacing the base image with an approved registry image");
   assert.match(dockerfile, /FROM \$\{NODE_IMAGE\}/, "Docker stages must use the configurable base image");

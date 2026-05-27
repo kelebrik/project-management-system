@@ -26,6 +26,8 @@ CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
 
 DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 22 LTS, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
 
+Установка npm-зависимостей в CI идет через `scripts/ci-install.sh`: скрипт запускает `npm ci --include=dev` без `--prefer-offline`, отключает audit/fund/progress и один раз повторяет установку после `npm cache clean --force`. Это сделано из-за нестабильного падения npm `Exit handler never called!` на пустом или поврежденном cache runner-а. Если ошибка повторится, в логе job должны быть видны версии `node --version` и `npm --version`.
+
 Пример bootstrap CI-образа:
 
 ```dockerfile

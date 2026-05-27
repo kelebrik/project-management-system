@@ -30,7 +30,9 @@ default:
     kubernetes:
       user: "1000:1000"
   before_script:
-    - npm ci --include=dev --cache .npm --prefer-offline
+    - node --version
+    - npm --version
+    - scripts/ci-install.sh
     - npm run prisma:generate
 
 static-policy-check:
