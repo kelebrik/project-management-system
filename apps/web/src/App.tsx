@@ -978,6 +978,7 @@ type WbsTableCssProperties = CSSProperties & {
 
 type MilestonePointStyle = CSSProperties & {
   "--milestone-label-level": number;
+  "--milestone-label-shift": string;
 };
 
 type MilestoneTone = "green" | "blue" | "red" | "gray";
@@ -998,6 +999,7 @@ type MilestoneTimelineItem = StructureMilestone & {
   offset: number;
   side: "top" | "bottom";
   level: number;
+  labelShiftPx: number;
 };
 
 type MilestoneTimelineLane = {
@@ -3083,6 +3085,7 @@ function createMilestoneTimelineModel({
       offset,
       side: "top",
       level: 0,
+      labelShiftPx: 0,
     });
   });
 
@@ -3128,6 +3131,30 @@ function createMilestoneTimelineModel({
       item.level = level;
       maxLaneLevel = Math.max(maxLaneLevel, level);
     });
+
+    let clusterStart = 0;
+    const labelClusterGap = 0.055;
+    while (clusterStart < lane.items.length) {
+      let clusterEnd = clusterStart + 1;
+      while (
+        clusterEnd < lane.items.length &&
+        lane.items[clusterEnd].offset - lane.items[clusterEnd - 1].offset <
+          labelClusterGap
+      ) {
+        clusterEnd += 1;
+      }
+      const cluster = lane.items.slice(clusterStart, clusterEnd);
+      if (cluster.length > 1) {
+        const shiftDirection =
+          cluster[cluster.length - 1].offset > 0.82 ? -1 : 1;
+        cluster.forEach((item, clusterIndex) => {
+          item.labelShiftPx =
+            shiftDirection *
+            Math.min(132, 28 + clusterIndex * 32 + item.level * 34);
+        });
+      }
+      clusterStart = clusterEnd;
+    }
   });
 
   const maxLaneMilestones = Math.max(
@@ -3263,27 +3290,39 @@ function MilestoneTimelineSection({
                       }}
                     />
                   )}
-                  {lane.items.map(({ milestone, state, offset, side, level }) => (
-                    <button
-                      type="button"
-                      className={`milestone-point ${side} ${state.tone}`}
-                      key={milestone.id}
-                      onClick={onOpenStructure}
-                      style={
-                        {
-                          left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
-                          "--milestone-label-level": level,
-                        } as MilestonePointStyle
-                      }
-                      title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
-                    >
-                      <span className="milestone-marker" />
-                      <span className="milestone-label">{milestone.title}</span>
-                      <span className="milestone-date">
-                        {shortDate(milestone.dueDate)}
-                      </span>
-                    </button>
-                  ))}
+                  {lane.items.map(
+                    ({
+                      milestone,
+                      state,
+                      offset,
+                      side,
+                      level,
+                      labelShiftPx,
+                    }) => (
+                      <button
+                        type="button"
+                        className={`milestone-point ${side} ${state.tone}`}
+                        key={milestone.id}
+                        onClick={onOpenStructure}
+                        style={
+                          {
+                            left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
+                            "--milestone-label-level": level,
+                            "--milestone-label-shift": `${labelShiftPx}px`,
+                          } as MilestonePointStyle
+                        }
+                        title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
+                      >
+                        <span className="milestone-marker" />
+                        <span className="milestone-label">
+                          {milestone.title}
+                        </span>
+                        <span className="milestone-date">
+                          {shortDate(milestone.dueDate)}
+                        </span>
+                      </button>
+                    ),
+                  )}
                 </div>
               </div>
             ))}

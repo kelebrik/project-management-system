@@ -3313,6 +3313,7 @@ code {
   font-size: 12px;
   font-weight: 800;
   line-height: 1.16;
+  left: var(--milestone-label-shift, 0);
   max-width: 100%;
   overflow-wrap: anywhere;
   position: absolute;
@@ -3323,6 +3324,7 @@ code {
 .milestone-date {
   font-size: 11px;
   font-weight: 800;
+  left: var(--milestone-label-shift, 0);
   position: absolute;
   width: 100%;
   z-index: 3;
