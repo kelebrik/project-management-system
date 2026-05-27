@@ -47,6 +47,7 @@ const managedPermissions = [
   'admin.health',
   'admin.backup',
   'admin.config',
+  'admin.modules',
   'admin.audit',
   'admin.integrations',
 ];
@@ -149,6 +150,163 @@ const integrationSettings = [
   ['bi.exportUrl', '', false],
 ] as const;
 
+const projectModulesSettingKey = 'project.modules';
+type ProjectModuleConfig = {
+  key: string;
+  label: string;
+  description: string;
+  route: string;
+  enabled: boolean;
+};
+
+const projectModuleDefaults: ProjectModuleConfig[] = [
+  {
+    key: 'overview',
+    label: 'Обзор и вехи',
+    description: 'Executive Overview, ключевые риски, решения и вехи проекта',
+    route: 'overview',
+    enabled: true,
+  },
+  {
+    key: 'passport',
+    label: 'Паспорт проекта',
+    description: 'Редактируемые атрибуты паспорта проекта',
+    route: 'passport',
+    enabled: true,
+  },
+  {
+    key: 'structure',
+    label: 'Структура',
+    description: 'Иерархия работ проекта, сроки, исполнители и предшественники',
+    route: 'wbs',
+    enabled: true,
+  },
+  {
+    key: 'gantt',
+    label: 'Гантт',
+    description: 'Временная шкала, связи, базовый план и критический путь',
+    route: 'gantt',
+    enabled: true,
+  },
+  {
+    key: 'issues',
+    label: 'Открытые вопросы',
+    description: 'Открытые и закрытые вопросы проекта с Jira-связями',
+    route: 'issues',
+    enabled: true,
+  },
+  {
+    key: 'raid',
+    label: 'Риски и проблемы',
+    description: 'Риски, проблемы и допущения проекта',
+    route: 'risks',
+    enabled: true,
+  },
+  {
+    key: 'changes',
+    label: 'Управление изменениями',
+    description: 'Запросы на изменение scope, сроков и управленческих решений',
+    route: 'changes',
+    enabled: true,
+  },
+  {
+    key: 'resources',
+    label: 'Управление ресурсами',
+    description: 'Загрузка команды, исполнители и распределение работ',
+    route: 'resources',
+    enabled: true,
+  },
+  {
+    key: 'budget',
+    label: 'Управление бюджетом',
+    description: 'Контур план-факт-прогноз бюджета проекта',
+    route: 'budget',
+    enabled: true,
+  },
+  {
+    key: 'calendars',
+    label: 'Календари',
+    description: 'RU и CN производственные календари проекта',
+    route: 'calendars',
+    enabled: true,
+  },
+  {
+    key: 'artifacts',
+    label: 'Артефакты проекта',
+    description: 'Управленческие артефакты и ссылки на документы',
+    route: 'artifacts',
+    enabled: true,
+  },
+];
+
+function normalizeProjectModules(input?: unknown): ProjectModuleConfig[] {
+  const enabledByKey = new Map<string, boolean>();
+  const inputModules =
+    Array.isArray(input)
+      ? input
+      : input && typeof input === 'object' && Array.isArray((input as { modules?: unknown }).modules)
+        ? ((input as { modules: unknown[] }).modules)
+        : [];
+
+  for (const module of inputModules) {
+    if (
+      module &&
+      typeof module === 'object' &&
+      typeof (module as { key?: unknown }).key === 'string' &&
+      typeof (module as { enabled?: unknown }).enabled === 'boolean'
+    ) {
+      enabledByKey.set(
+        (module as { key: string }).key,
+        (module as { enabled: boolean }).enabled,
+      );
+    }
+  }
+
+  return projectModuleDefaults.map((module) => ({
+    ...module,
+    enabled: enabledByKey.get(module.key) ?? module.enabled,
+  }));
+}
+
+function parseProjectModulesSetting(value?: string | null) {
+  if (!value) return normalizeProjectModules();
+  try {
+    return normalizeProjectModules(JSON.parse(value));
+  } catch {
+    return normalizeProjectModules();
+  }
+}
+
+function projectModulesSettingValue(modules: ProjectModuleConfig[]) {
+  return JSON.stringify({
+    modules: modules.map(({ key, enabled }) => ({ key, enabled })),
+  });
+}
+
+async function projectModulesConfig() {
+  const setting = await prisma.systemSetting.findUnique({
+    where: { key: projectModulesSettingKey },
+  });
+  return parseProjectModulesSetting(setting?.value);
+}
+
+async function saveProjectModulesConfig(input: unknown) {
+  const modules = normalizeProjectModules(input);
+  await prisma.systemSetting.upsert({
+    where: { key: projectModulesSettingKey },
+    update: {
+      value: projectModulesSettingValue(modules),
+      isSecret: false,
+    },
+    create: {
+      key: projectModulesSettingKey,
+      value: projectModulesSettingValue(modules),
+      isSecret: false,
+    },
+  });
+  return modules;
+}
+
 
 type AdminRoutesContext = {
   requireAdmin: RequestHandler;
@@ -204,6 +362,15 @@ const systemSettingsSchema = z.object({
   ),
 });
 
+const projectModulesSchema = z.object({
+  modules: z.array(
+    z.object({
+      key: z.string().trim().min(1),
+      enabled: z.boolean(),
+    }),
+  ),
+});
+
 const adminConfigImportSchema = z.object({
   rolePermissions: z
     .array(
@@ -224,6 +391,7 @@ const adminConfigImportSchema = z.object({
       }),
     )
     .optional(),
+  projectModules: projectModulesSchema.shape.modules.optional(),
 });
 
 const apiTokenSchema = z.object({
@@ -377,7 +545,11 @@ async function ensureAdminConfigDefaults() {
   });
 
   await Promise.all(
-    [...defaultSystemSettings, ...integrationSettings].map(([key, value, isSecret]) =>
+    [
+      ...defaultSystemSettings,
+      ...integrationSettings,
+      [projectModulesSettingKey, projectModulesSettingValue(normalizeProjectModules()), false] as const,
+    ].map(([key, value, isSecret]) =>
       prisma.systemSetting.upsert({
         where: { key },
         update: { isSecret },
@@ -476,9 +648,14 @@ function adminSettingResponse(setting: {
   };
 }
 
+router.get('/project-modules', async (_req, res) => {
+  await ensureAdminConfigDefaults();
+  res.json(await projectModulesConfig());
+});
+
 router.get('/admin/config', requireAdmin, async (_req, res) => {
   await ensureAdminConfigDefaults();
-  const [rolePermissions, dictionaryItems, systemSettings, health, backupStatus] = await Promise.all([
+  const [rolePermissions, dictionaryItems, systemSettings, projectModules, health, backupStatus] = await Promise.all([
     prisma.rolePermission.findMany({
       orderBy: [{ role: 'asc' }, { permission: 'asc' }],
     }),
@@ -488,6 +665,7 @@ router.get('/admin/config', requireAdmin, async (_req, res) => {
     prisma.systemSetting.findMany({
       orderBy: { key: 'asc' },
     }),
+    projectModulesConfig(),
     adminSystemHealth(),
     adminBackupStatus(),
   ]);
@@ -495,6 +673,7 @@ router.get('/admin/config', requireAdmin, async (_req, res) => {
     rolePermissions,
     dictionaryItems,
     systemSettings: systemSettings.map(adminSettingResponse),
+    projectModules,
     managedPermissions,
     health,
     backupStatus,
@@ -778,7 +957,7 @@ router.post('/admin/webhooks/:endpointId/test', requireAdmin, async (req, res) =
 
 router.get('/admin/config/export', requireAdmin, async (_req, res) => {
   await ensureAdminConfigDefaults();
-  const [rolePermissions, dictionaryItems, systemSettings] = await Promise.all([
+  const [rolePermissions, dictionaryItems, systemSettings, projectModules] = await Promise.all([
     prisma.rolePermission.findMany({
       orderBy: [{ role: 'asc' }, { permission: 'asc' }],
     }),
@@ -788,6 +967,7 @@ router.get('/admin/config/export', requireAdmin, async (_req, res) => {
     prisma.systemSetting.findMany({
       orderBy: { key: 'asc' },
     }),
+    projectModulesConfig(),
   ]);
   res.json({
     exportedAt: new Date().toISOString(),
@@ -812,6 +992,7 @@ router.get('/admin/config/export', requireAdmin, async (_req, res) => {
       isSecret,
       hasValue: value.length > 0,
     })),
+    projectModules: projectModules.map(({ key, enabled }) => ({ key, enabled })),
   });
 });
 
@@ -824,6 +1005,7 @@ router.post('/admin/config/import', requireAdmin, async (req, res) => {
   const rolePermissions = parsed.data.rolePermissions ?? [];
   const dictionaryItems = parsed.data.dictionaryItems ?? [];
   const systemSettings = parsed.data.systemSettings ?? [];
+  const projectModules = parsed.data.projectModules ?? [];
 
   await prisma.$transaction([
     ...rolePermissions.map((permission) =>
@@ -879,6 +1061,9 @@ router.post('/admin/config/import', requireAdmin, async (req, res) => {
         }),
       ),
   ]);
+  if (projectModules.length > 0) {
+    await saveProjectModulesConfig(projectModules);
+  }
   await recordAuditEvent({
     req,
     actor: currentUser(req),
@@ -888,6 +1073,7 @@ router.post('/admin/config/import', requireAdmin, async (req, res) => {
       rolePermissions: rolePermissions.length,
       dictionaryItems: dictionaryItems.length,
       systemSettings: systemSettings.length,
+      projectModules: projectModules.length,
     },
   });
   res.json({ ok: true });
@@ -1090,6 +1276,30 @@ router.put('/admin/system-settings', requireAdmin, async (req, res) => {
     },
   });
   res.json(updated.map(adminSettingResponse));
+});
+
+router.put('/admin/project-modules', requireAdmin, async (req, res) => {
+  const parsed = projectModulesSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const before = await projectModulesConfig();
+  const updated = await saveProjectModulesConfig(parsed.data.modules);
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'admin.project_modules.update',
+    objectType: 'SystemSetting',
+    objectId: projectModulesSettingKey,
+    beforeValue: before,
+    afterValue: updated,
+    metadata: {
+      enabled: updated.filter((module) => module.enabled).map((module) => module.key),
+      disabled: updated.filter((module) => !module.enabled).map((module) => module.key),
+    },
+  });
+  res.json(updated);
 });
 
 router.get('/users', requireAdmin, async (_req, res) => {

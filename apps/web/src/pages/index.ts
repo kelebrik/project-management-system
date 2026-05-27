@@ -5,6 +5,7 @@ export {
   AdminDictionariesPage,
   AdminHealthPage,
   AdminJiraPage,
+  AdminModulesPage,
   AdminPage,
   AdminProjectsPage,
   AdminRagPage,

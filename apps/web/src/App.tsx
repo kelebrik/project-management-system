@@ -76,6 +76,9 @@ type AppView =
   | "project-gantt"
   | "project-issues"
   | "project-raid"
+  | "project-changes"
+  | "project-resources"
+  | "project-budget"
   | "project-calendars"
   | "project-artifacts"
   | "closed-projects"
@@ -92,6 +95,7 @@ type AppView =
   | "admin-backups"
   | "admin-config"
   | "admin-projects"
+  | "admin-modules"
   | "admin-audit";
 type ProjectSectionView = Extract<
   AppView,
@@ -101,6 +105,9 @@ type ProjectSectionView = Extract<
   | "project-gantt"
   | "project-issues"
   | "project-raid"
+  | "project-changes"
+  | "project-resources"
+  | "project-budget"
   | "project-calendars"
   | "project-artifacts"
 >;
@@ -119,6 +126,7 @@ type AdminSectionView = Extract<
   | "admin-backups"
   | "admin-config"
   | "admin-projects"
+  | "admin-modules"
   | "admin-audit"
 >;
 type FullscreenWorkspaceView = Extract<
@@ -141,6 +149,7 @@ const adminSectionViews: AdminSectionView[] = [
   "admin-backups",
   "admin-config",
   "admin-projects",
+  "admin-modules",
   "admin-audit",
 ];
 const writeProtectedViews = new Set<AppView>([
@@ -244,9 +253,31 @@ type AdminConfig = {
   rolePermissions: RolePermission[];
   dictionaryItems: DictionaryItem[];
   systemSettings: SystemSetting[];
+  projectModules: ProjectModule[];
   managedPermissions: string[];
   health: AdminHealth;
   backupStatus: BackupStatus;
+};
+
+type ProjectModuleKey =
+  | "overview"
+  | "passport"
+  | "structure"
+  | "gantt"
+  | "issues"
+  | "raid"
+  | "changes"
+  | "resources"
+  | "budget"
+  | "calendars"
+  | "artifacts";
+
+type ProjectModule = {
+  key: ProjectModuleKey;
+  label: string;
+  description: string;
+  route: string;
+  enabled: boolean;
 };
 
 type SearchResult = {
@@ -1026,6 +1057,140 @@ const GANTT_HIERARCHY_LEVELS = [1, 2, 3, 4, 5] as const;
 const GANTT_PANEL_WIDTH_MIN = 760;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
+const defaultProjectModules: ProjectModule[] = [
+  {
+    key: "overview",
+    label: "Обзор и вехи",
+    description: "Executive Overview, ключевые риски, решения и вехи проекта",
+    route: "overview",
+    enabled: true,
+  },
+  {
+    key: "passport",
+    label: "Паспорт проекта",
+    description: "Редактируемые атрибуты паспорта проекта",
+    route: "passport",
+    enabled: true,
+  },
+  {
+    key: "structure",
+    label: "Структура",
+    description: "Иерархия работ проекта, сроки, исполнители и предшественники",
+    route: "wbs",
+    enabled: true,
+  },
+  {
+    key: "gantt",
+    label: "Гантт",
+    description: "Временная шкала, связи, базовый план и критический путь",
+    route: "gantt",
+    enabled: true,
+  },
+  {
+    key: "issues",
+    label: "Открытые вопросы",
+    description: "Открытые и закрытые вопросы проекта с Jira-связями",
+    route: "issues",
+    enabled: true,
+  },
+  {
+    key: "raid",
+    label: "Риски и проблемы",
+    description: "Риски, проблемы и допущения проекта",
+    route: "risks",
+    enabled: true,
+  },
+  {
+    key: "changes",
+    label: "Управление изменениями",
+    description: "Запросы на изменение scope, сроков и управленческих решений",
+    route: "changes",
+    enabled: true,
+  },
+  {
+    key: "resources",
+    label: "Управление ресурсами",
+    description: "Загрузка команды, исполнители и распределение работ",
+    route: "resources",
+    enabled: true,
+  },
+  {
+    key: "budget",
+    label: "Управление бюджетом",
+    description: "Контур план-факт-прогноз бюджета проекта",
+    route: "budget",
+    enabled: true,
+  },
+  {
+    key: "calendars",
+    label: "Календари",
+    description: "RU и CN производственные календари проекта",
+    route: "calendars",
+    enabled: true,
+  },
+  {
+    key: "artifacts",
+    label: "Артефакты проекта",
+    description: "Управленческие артефакты и ссылки на документы",
+    route: "artifacts",
+    enabled: true,
+  },
+];
+
+const projectModuleKeyByView: Record<ProjectSectionView, ProjectModuleKey> = {
+  "project-overview": "overview",
+  "project-passport": "passport",
+  "project-structure": "structure",
+  "project-gantt": "gantt",
+  "project-issues": "issues",
+  "project-raid": "raid",
+  "project-changes": "changes",
+  "project-resources": "resources",
+  "project-budget": "budget",
+  "project-calendars": "calendars",
+  "project-artifacts": "artifacts",
+};
+
+const projectModuleViewByKey: Record<ProjectModuleKey, ProjectSectionView> = {
+  overview: "project-overview",
+  passport: "project-passport",
+  structure: "project-structure",
+  gantt: "project-gantt",
+  issues: "project-issues",
+  raid: "project-raid",
+  changes: "project-changes",
+  resources: "project-resources",
+  budget: "project-budget",
+  calendars: "project-calendars",
+  artifacts: "project-artifacts",
+};
+
+function normalizeProjectModulesForUi(modules: ProjectModule[] = defaultProjectModules) {
+  const byKey = new Map(modules.map((module) => [module.key, module]));
+  return defaultProjectModules.map((module) => {
+    const current = byKey.get(module.key);
+    return {
+      ...module,
+      ...current,
+      key: module.key,
+      label: current?.label || module.label,
+      description: current?.description || module.description,
+      route: current?.route || module.route,
+      enabled: current?.enabled ?? module.enabled,
+    };
+  });
+}
+
+function projectModulesToDraft(modules: ProjectModule[]) {
+  return normalizeProjectModulesForUi(modules).reduce(
+    (draft, module) => {
+      draft[module.key] = module.enabled;
+      return draft;
+    },
+    {} as Record<ProjectModuleKey, boolean>,
+  );
+}
+
 const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-overview": "overview",
   "project-passport": "passport",
@@ -1033,6 +1198,9 @@ const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-gantt": "gantt",
   "project-issues": "issues",
   "project-raid": "risks",
+  "project-changes": "changes",
+  "project-resources": "resources",
+  "project-budget": "budget",
   "project-calendars": "calendars",
   "project-artifacts": "artifacts",
 };
@@ -1046,6 +1214,9 @@ const appViewPaths: Record<AppView, string> = {
   "project-gantt": "/gantt",
   "project-issues": "/issues",
   "project-raid": "/risks",
+  "project-changes": "/changes",
+  "project-resources": "/resources",
+  "project-budget": "/budget",
   "project-calendars": "/calendars",
   "project-artifacts": "/artifacts",
   "closed-projects": "/closed-projects",
@@ -1062,6 +1233,7 @@ const appViewPaths: Record<AppView, string> = {
   "admin-backups": "/admin/backups",
   "admin-config": "/admin/config",
   "admin-projects": "/admin/projects",
+  "admin-modules": "/admin/modules",
   "admin-audit": "/admin/audit",
 };
 
@@ -1075,6 +1247,9 @@ const projectPathViews: Record<string, ProjectSectionView> = {
   "open-issues": "project-issues",
   risks: "project-raid",
   raid: "project-raid",
+  changes: "project-changes",
+  resources: "project-resources",
+  budget: "project-budget",
   calendars: "project-calendars",
   calendar: "project-calendars",
   artifacts: "project-artifacts",
@@ -1095,6 +1270,9 @@ const appPathViews: Record<string, AppView> = {
   "/open-issues": "project-issues",
   "/risks": "project-raid",
   "/raid": "project-raid",
+  "/changes": "project-changes",
+  "/resources": "project-resources",
+  "/budget": "project-budget",
   "/calendars": "project-calendars",
   "/calendar": "project-calendars",
   "/artifacts": "project-artifacts",
@@ -1113,6 +1291,7 @@ const appPathViews: Record<string, AppView> = {
   "/admin/backups": "admin-backups",
   "/admin/config": "admin-config",
   "/admin/projects": "admin-projects",
+  "/admin/modules": "admin-modules",
   "/admin/audit": "admin-audit",
 };
 
@@ -3726,6 +3905,13 @@ function App() {
   const [systemSettingsDraft, setSystemSettingsDraft] =
     useState<SystemSettingsDraft>(emptySystemSettingsDraft);
   const [savingSystemSettings, setSavingSystemSettings] = useState(false);
+  const [projectModules, setProjectModules] = useState<ProjectModule[]>(
+    () => defaultProjectModules,
+  );
+  const [projectModuleDrafts, setProjectModuleDrafts] = useState<
+    Record<ProjectModuleKey, boolean>
+  >(() => projectModulesToDraft(defaultProjectModules));
+  const [savingProjectModules, setSavingProjectModules] = useState(false);
   const [adminHealth, setAdminHealth] = useState<AdminHealth | null>(null);
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
   const [adminIntegrations, setAdminIntegrations] =
@@ -3993,7 +4179,13 @@ function App() {
       (isAuthenticated && isAdminSectionViewName(activeView) && !isAdminUser);
     if (!shouldRedirect) return;
 
-    const fallbackView = selectedProjectId ? "project-overview" : "portfolio";
+    const fallbackProjectModule = normalizeProjectModulesForUi(projectModules).find(
+      (module) => module.enabled,
+    );
+    const fallbackProjectView = fallbackProjectModule
+      ? projectModuleViewByKey[fallbackProjectModule.key]
+      : "project-overview";
+    const fallbackView = selectedProjectId ? fallbackProjectView : "portfolio";
     const redirectId = window.setTimeout(() => {
       setError(null);
       setNotice(null);
@@ -4008,7 +4200,15 @@ function App() {
       }
     }, 0);
     return () => window.clearTimeout(redirectId);
-  }, [activeView, authMode, isAdminUser, isAuthenticated, project?.code, selectedProjectId]);
+  }, [
+    activeView,
+    authMode,
+    isAdminUser,
+    isAuthenticated,
+    project?.code,
+    projectModules,
+    selectedProjectId,
+  ]);
 
   useEffect(() => {
     if (authMode !== "ready") return;
@@ -4097,6 +4297,28 @@ function App() {
   }, [globalSearch]);
 
   useEffect(() => {
+    if (authMode !== "ready") return;
+    let cancelled = false;
+    apiClient
+      .get<ProjectModule[]>("/api/project-modules", "Не удалось загрузить настройки модулей")
+      .then((modules) => {
+        if (cancelled) return;
+        const normalized = normalizeProjectModulesForUi(modules);
+        setProjectModules(normalized);
+        setProjectModuleDrafts(projectModulesToDraft(normalized));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectModules(defaultProjectModules);
+          setProjectModuleDrafts(projectModulesToDraft(defaultProjectModules));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authMode]);
+
+  useEffect(() => {
     if (
       authMode !== "ready" ||
       !isAdminSectionViewName(activeView) ||
@@ -4130,6 +4352,9 @@ function App() {
         setDictionaryDrafts(dictionaryItemsToDrafts(config.dictionaryItems));
         setSystemSettings(config.systemSettings);
         setSystemSettingsDraft(systemSettingsToDraft(config.systemSettings));
+        const normalizedModules = normalizeProjectModulesForUi(config.projectModules);
+        setProjectModules(normalizedModules);
+        setProjectModuleDrafts(projectModulesToDraft(normalizedModules));
         setAdminHealth(config.health);
         setBackupStatus(config.backupStatus);
         setAdminIntegrations(integrations);
@@ -4215,6 +4440,44 @@ function App() {
       dictionaryItems.filter((item) => item.dictionary === selectedDictionary),
     [dictionaryItems, selectedDictionary],
   );
+  const normalizedProjectModules = useMemo(
+    () => normalizeProjectModulesForUi(projectModules),
+    [projectModules],
+  );
+  const projectModuleEnabledByKey = useMemo(
+    () =>
+      new Map(normalizedProjectModules.map((module) => [module.key, module.enabled])),
+    [normalizedProjectModules],
+  );
+  const isProjectModuleEnabled = useCallback(
+    (key: ProjectModuleKey) => projectModuleEnabledByKey.get(key) !== false,
+    [projectModuleEnabledByKey],
+  );
+  const firstEnabledProjectView = useMemo<ProjectSectionView>(() => {
+    const enabledModule = normalizedProjectModules.find((module) => module.enabled);
+    return enabledModule ? projectModuleViewByKey[enabledModule.key] : "project-overview";
+  }, [normalizedProjectModules]);
+  const resourceSummaryRows = useMemo(() => {
+    const byOwner = new Map<
+      string,
+      { owner: string; total: number; done: number; inProgress: number; overdue: number }
+    >();
+    for (const item of project?.wbsItems ?? []) {
+      if (item.type !== "TASK" && item.type !== "DELIVERABLE") continue;
+      const owner = item.owner?.trim() || "Не назначен";
+      const row =
+        byOwner.get(owner) ??
+        { owner, total: 0, done: 0, inProgress: 0, overdue: 0 };
+      row.total += 1;
+      if (item.status === "DONE") row.done += 1;
+      if (item.status === "IN_PROGRESS") row.inProgress += 1;
+      if (item.dueDate && new Date(item.dueDate) < new Date() && item.status !== "DONE") {
+        row.overdue += 1;
+      }
+      byOwner.set(owner, row);
+    }
+    return [...byOwner.values()].sort((left, right) => right.total - left.total);
+  }, [project?.wbsItems]);
   useEffect(() => {
     const routeProjectCode = initialProjectCodeRef.current;
     if (!routeProjectCode || projects.length === 0) return;
@@ -4246,6 +4509,11 @@ function App() {
       );
     }
   }, [activeView, selectedProjectListItem]);
+  useEffect(() => {
+    if (!isProjectSectionViewName(activeView)) return;
+    if (isProjectModuleEnabled(projectModuleKeyByView[activeView])) return;
+    openView(firstEnabledProjectView, { replace: true });
+  }, [activeView, firstEnabledProjectView, isProjectModuleEnabled]);
   const recentProjects = useMemo(
     () =>
       recentProjectIds
@@ -5815,6 +6083,9 @@ function App() {
     setDictionaryDrafts(dictionaryItemsToDrafts(config.dictionaryItems));
     setSystemSettings(config.systemSettings);
     setSystemSettingsDraft(systemSettingsToDraft(config.systemSettings));
+    const normalizedModules = normalizeProjectModulesForUi(config.projectModules);
+    setProjectModules(normalizedModules);
+    setProjectModuleDrafts(projectModulesToDraft(normalizedModules));
     setAdminHealth(config.health);
     setBackupStatus(config.backupStatus);
   }
@@ -6127,7 +6398,7 @@ function App() {
     setCurrentUser(null);
     setAuthMode("ready");
     if (writeProtectedViews.has(activeView)) {
-      openView(selectedProjectId ? "project-overview" : "portfolio", {
+      openView(selectedProjectId ? firstEnabledProjectView : "portfolio", {
         replace: true,
       });
     }
@@ -6289,6 +6560,46 @@ function App() {
         },
       };
     });
+  }
+
+  function updateProjectModuleDraft(key: ProjectModuleKey, enabled: boolean) {
+    setProjectModuleDrafts((current) => ({
+      ...current,
+      [key]: enabled,
+    }));
+  }
+
+  async function saveProjectModules(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingProjectModules(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const payload = {
+        modules: normalizedProjectModules.map((module) => ({
+          key: module.key,
+          enabled: projectModuleDrafts[module.key] ?? module.enabled,
+        })),
+      };
+      const updated = await apiClient.put<ProjectModule[]>(
+        "/api/admin/project-modules",
+        payload,
+        "Не удалось сохранить управление модулями",
+      );
+      const normalized = normalizeProjectModulesForUi(updated);
+      setProjectModules(normalized);
+      setProjectModuleDrafts(projectModulesToDraft(normalized));
+      await reloadAuditEvents();
+      setNotice("Настройки модулей сохранены");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить управление модулями",
+      );
+    } finally {
+      setSavingProjectModules(false);
+    }
   }
 
   async function toggleRolePermission(permission: RolePermission) {
@@ -6806,7 +7117,7 @@ function App() {
       await reloadProjects(nextSelectedProjectId);
       if (selectedProjectId === projectId) {
         setProject(null);
-        openView(nextSelectedProjectId ? "project-overview" : "portfolio");
+        openView(nextSelectedProjectId ? firstEnabledProjectView : "portfolio");
       }
       await reloadAuditEvents();
       setNotice(`Проект ${sourceProject.code} удален`);
@@ -8921,6 +9232,13 @@ function App() {
       setError("Раздел администрирования доступен только администратору");
       return;
     }
+    if (
+      isProjectSectionViewName(nextView) &&
+      !isProjectModuleEnabled(projectModuleKeyByView[nextView])
+    ) {
+      setError("Страница проекта отключена администратором");
+      return;
+    }
     setActiveView(nextView);
     const routeProjectCode =
       options?.projectCode ??
@@ -8963,12 +9281,16 @@ function App() {
       projectId,
       ...current.filter((item) => item !== projectId),
     ].slice(0, 6));
-    openView(
+    const requestedView =
       nextView === "portfolio" || nextView === "project-create"
-        ? "project-overview"
-        : nextView,
-      { projectCode: nextProject?.code ?? null },
-    );
+        ? firstEnabledProjectView
+        : nextView;
+    const safeView =
+      isProjectSectionViewName(requestedView) &&
+      !isProjectModuleEnabled(projectModuleKeyByView[requestedView])
+        ? firstEnabledProjectView
+        : requestedView;
+    openView(safeView, { projectCode: nextProject?.code ?? null });
   }
 
   const viewTitle: Record<AppView, string> = {
@@ -8988,6 +9310,15 @@ function App() {
     "project-raid": project
       ? `${project.code} - Риски и проблемы`
       : "Риски и проблемы",
+    "project-changes": project
+      ? `${project.code} - Управление изменениями`
+      : "Управление изменениями",
+    "project-resources": project
+      ? `${project.code} - Управление ресурсами`
+      : "Управление ресурсами",
+    "project-budget": project
+      ? `${project.code} - Управление бюджетом`
+      : "Управление бюджетом",
     "project-calendars": project
       ? `${project.code} - Календари`
       : "Календари",
@@ -9008,6 +9339,7 @@ function App() {
     "admin-backups": "Администрирование: backup/restore",
     "admin-config": "Администрирование: import/export",
     "admin-projects": "Администрирование: реестр проектов",
+    "admin-modules": "Администрирование: управление модулями",
     "admin-audit": "Администрирование: журнал аудита",
   };
   const projectViews: AppView[] = [
@@ -9018,6 +9350,9 @@ function App() {
     "project-gantt",
     "project-issues",
     "project-raid",
+    "project-changes",
+    "project-resources",
+    "project-budget",
     "project-calendars",
     "project-artifacts",
   ];
@@ -9026,6 +9361,79 @@ function App() {
   const isAdminSectionView = isAdminSectionViewName(activeView);
   const shouldShowProjectMenu = Boolean(selectedProjectListItem && isProjectSectionView);
   const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
+  const projectNavItems: Array<{
+    key: ProjectModuleKey;
+    view: ProjectSectionView;
+    label: string;
+    icon: ReactNode;
+  }> = [
+    {
+      key: "overview",
+      view: "project-overview",
+      label: "Обзор и вехи",
+      icon: <LayoutDashboard size={17} />,
+    },
+    {
+      key: "passport",
+      view: "project-passport",
+      label: "Паспорт проекта",
+      icon: <FileText size={17} />,
+    },
+    {
+      key: "structure",
+      view: "project-structure",
+      label: "Структура",
+      icon: <ListChecks size={17} />,
+    },
+    {
+      key: "gantt",
+      view: "project-gantt",
+      label: "Гантт",
+      icon: <GanttChartSquare size={17} />,
+    },
+    {
+      key: "issues",
+      view: "project-issues",
+      label: "Открытые вопросы",
+      icon: <ShieldAlert size={17} />,
+    },
+    {
+      key: "raid",
+      view: "project-raid",
+      label: "Риски и проблемы",
+      icon: <BarChart3 size={17} />,
+    },
+    {
+      key: "changes",
+      view: "project-changes",
+      label: "Управление изменениями",
+      icon: <GitBranch size={17} />,
+    },
+    {
+      key: "resources",
+      view: "project-resources",
+      label: "Управление ресурсами",
+      icon: <Users size={17} />,
+    },
+    {
+      key: "budget",
+      view: "project-budget",
+      label: "Управление бюджетом",
+      icon: <BriefcaseBusiness size={17} />,
+    },
+    {
+      key: "calendars",
+      view: "project-calendars",
+      label: "Календари",
+      icon: <CalendarDays size={17} />,
+    },
+    {
+      key: "artifacts",
+      view: "project-artifacts",
+      label: "Артефакты проекта",
+      icon: <FileArchive size={17} />,
+    },
+  ];
   const navLabel = (icon: ReactNode, label: string) => (
     <>
       <span className="nav-icon" aria-hidden="true">
@@ -9366,7 +9774,7 @@ function App() {
                       <button
                         type="button"
                         key={item.id}
-                        onClick={() => selectProject(item.id, "project-overview")}
+                        onClick={() => selectProject(item.id, firstEnabledProjectView)}
                       >
                         <b>{item.code}</b>
                         <small>{item.name}</small>
@@ -9381,7 +9789,7 @@ function App() {
                       type="button"
                       className={item.id === selectedProjectId ? "selected" : ""}
                       key={item.id}
-                      onClick={() => selectProject(item.id, "project-overview")}
+                      onClick={() => selectProject(item.id, firstEnabledProjectView)}
                     >
                       <b>{item.code}</b>
                       <small>{item.name}</small>
@@ -9399,7 +9807,7 @@ function App() {
             className={isProjectSectionView ? "active" : ""}
             onClick={() =>
               openView(
-                selectedProjectId ? "project-overview" : "project-create",
+                selectedProjectId ? firstEnabledProjectView : "project-create",
               )
             }
             aria-label="Проекты"
@@ -9409,102 +9817,23 @@ function App() {
           {shouldShowProjectMenu && (
             <div className="sidebar-group">
               <div className="project-menu">
-                <button
-                  type="button"
-                  className={
-                    activeView === "project-overview"
-                      ? "active nested child"
-                      : "nested child"
-                  }
-                  onClick={() => openView("project-overview")}
-                  aria-label="Обзор и вехи"
-                >
-                  {navLabel(<LayoutDashboard size={17} />, "Обзор и вехи")}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    activeView === "project-passport"
-                      ? "active nested child"
-                      : "nested child"
-                  }
-                  onClick={() => openView("project-passport")}
-                  aria-label="Паспорт проекта"
-                >
-                  {navLabel(<FileText size={17} />, "Паспорт проекта")}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    activeView === "project-structure"
-                      ? "active nested child"
-                      : "nested child"
-                  }
-                  onClick={() => openView("project-structure")}
-                  aria-label="Структура"
-                >
-                  {navLabel(<ListChecks size={17} />, "Структура")}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    activeView === "project-gantt"
-                      ? "active nested child"
-                      : "nested child"
-                  }
-                  onClick={() => openView("project-gantt")}
-                  aria-label="Гантт"
-                >
-                  {navLabel(<GanttChartSquare size={17} />, "Гантт")}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    activeView === "project-issues"
-                      ? "active nested child"
-                      : "nested child"
-                  }
-                  onClick={() => openView("project-issues")}
-                  aria-label="Открытые вопросы"
-                >
-                  {navLabel(<ShieldAlert size={17} />, "Открытые вопросы")}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    activeView === "project-raid"
-                      ? "active nested child"
-                      : "nested child"
-                  }
-                  onClick={() => openView("project-raid")}
-                  aria-label="Риски и проблемы"
-                >
-                  {navLabel(<BarChart3 size={17} />, "Риски и проблемы")}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    activeView === "project-calendars"
-                      ? "active nested child"
-                      : "nested child"
-                  }
-                  onClick={() => openView("project-calendars")}
-                  aria-label="Календари"
-                >
-                  {navLabel(<CalendarDays size={17} />, "Календари")}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    activeView === "project-artifacts"
-                      ? "active nested child"
-                      : "nested child"
-                  }
-                  onClick={() => openView("project-artifacts")}
-                  aria-label="Артефакты проекта"
-                >
-                  {navLabel(<FileArchive size={17} />, "Артефакты проекта")}
-                </button>
+                {projectNavItems
+                  .filter((item) => isProjectModuleEnabled(item.key))
+                  .map((item) => (
+                    <button
+                      type="button"
+                      key={item.key}
+                      className={
+                        activeView === item.view
+                          ? "active nested child"
+                          : "nested child"
+                      }
+                      onClick={() => openView(item.view)}
+                      aria-label={item.label}
+                    >
+                      {navLabel(item.icon, item.label)}
+                    </button>
+                  ))}
               </div>
             </div>
           )}
@@ -9540,6 +9869,18 @@ function App() {
                     aria-label="Реестр проектов"
                   >
                     {navLabel(<FolderTree size={17} />, "Реестр проектов")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activeView === "admin-modules"
+                        ? "active nested child"
+                        : "nested child"
+                    }
+                    onClick={() => openView("admin-modules")}
+                    aria-label="Управление модулями"
+                  >
+                    {navLabel(<SlidersHorizontal size={17} />, "Управление модулями")}
                   </button>
                   <button
                     type="button"
@@ -10033,7 +10374,7 @@ function App() {
                             type="button"
                             className="project-tree-open"
                             onClick={() =>
-                              selectProject(item.id, "project-overview")
+                              selectProject(item.id, firstEnabledProjectView)
                             }
                           >
                             Открыть
@@ -10092,7 +10433,7 @@ function App() {
                         <button
                           type="button"
                           className="project-tree-open"
-                          onClick={() => selectProject(item.id, "project-overview")}
+                          onClick={() => selectProject(item.id, firstEnabledProjectView)}
                         >
                           Посмотреть
                         </button>
@@ -10535,6 +10876,67 @@ function App() {
                       </div>
                     )}
                   </article>
+              )}
+
+              {activeView === "admin-modules" && (
+                <article className="panel project-card">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Администрирование: управление модулями</h2>
+                      <p>
+                        Включение и скрытие страниц раздела Проекты для всех
+                        пользователей.
+                      </p>
+                    </div>
+                  </div>
+                  <form
+                    className="project-module-admin"
+                    onSubmit={saveProjectModules}
+                  >
+                    <div className="project-module-table">
+                      <div className="project-module-head">
+                        <span>Страница</span>
+                        <span>Адрес</span>
+                        <span>Назначение</span>
+                        <span>Показывать</span>
+                      </div>
+                      {normalizedProjectModules.map((module) => {
+                        const enabled =
+                          projectModuleDrafts[module.key] ?? module.enabled;
+                        return (
+                          <div className="project-module-row" key={module.key}>
+                            <div>
+                              <b>{module.label}</b>
+                              <small>{module.key}</small>
+                            </div>
+                            <code>/{module.route}</code>
+                            <span>{module.description}</span>
+                            <label className="module-switch">
+                              <input
+                                type="checkbox"
+                                checked={enabled}
+                                onChange={(event) =>
+                                  updateProjectModuleDraft(
+                                    module.key,
+                                    event.target.checked,
+                                  )
+                                }
+                              />
+                              <span>{enabled ? "Включена" : "Скрыта"}</span>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="form-actions">
+                      <button type="submit" disabled={savingProjectModules}>
+                        {savingProjectModules
+                          ? "Сохраняю..."
+                          : "Сохранить настройки"}
+                      </button>
+                    </div>
+                  </form>
+                </article>
               )}
 
               {activeView === "admin-roles" && (
@@ -11714,7 +12116,7 @@ function App() {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  selectProject(item.id, "project-overview")
+                                  selectProject(item.id, firstEnabledProjectView)
                                 }
                               >
                                 Открыть
@@ -11952,6 +12354,158 @@ function App() {
                     >
                       {savingPassportRows ? "Сохраняю..." : "Сохранить паспорт"}
                     </button>
+                  </div>
+                </article>
+              )}
+
+              {project && activeView === "project-changes" && (
+                <article className="panel project-card project-module-page">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Управление изменениями</h2>
+                      <p>
+                        Запросы на изменение состава работ, сроков и
+                        управленческих решений проекта.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="module-summary-grid">
+                    <div className="metric-card">
+                      <span>Запросы на изменение</span>
+                      <b>{project.changeRequests.length}</b>
+                      <small>Подготовлено для будущего workflow согласований</small>
+                    </div>
+                    <div className="metric-card">
+                      <span>Открытые решения</span>
+                      <b>
+                        {
+                          project.issues.filter(
+                            (issue) =>
+                              issue.decisionRequired && issue.status !== "Closed",
+                          ).length
+                        }
+                      </b>
+                      <small>Открытые вопросы, влияющие на изменения</small>
+                    </div>
+                    <div className="metric-card">
+                      <span>Отклонения от базового плана</span>
+                      <b>{overviewDashboard.scheduleDeltaItems.length}</b>
+                      <small>Первичные источники сдвига сроков</small>
+                    </div>
+                  </div>
+                  <div className="module-table">
+                    <div className="module-table-head">
+                      <span>Объект</span>
+                      <span>Тип изменения</span>
+                      <span>Влияние</span>
+                      <span>Ответственный</span>
+                    </div>
+                    {overviewDashboard.scheduleDeltaItems.map(({ item, delay }) => (
+                      <div className="module-table-row" key={item.id}>
+                        <b>
+                          {item.code} {item.title}
+                        </b>
+                        <span>Сдвиг срока</span>
+                        <span>+{delay} кал. дн.</span>
+                        <span>{item.owner || "не назначен"}</span>
+                      </div>
+                    ))}
+                    {overviewDashboard.scheduleDeltaItems.length === 0 && (
+                      <div className="empty-state">
+                        Изменения сроков относительно базового плана не найдены.
+                      </div>
+                    )}
+                  </div>
+                </article>
+              )}
+
+              {project && activeView === "project-resources" && (
+                <article className="panel project-card project-module-page">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Управление ресурсами</h2>
+                      <p>
+                        Сводка по исполнителям, назначенным работам и просроченным
+                        задачам.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="module-summary-grid">
+                    <div className="metric-card">
+                      <span>Исполнители</span>
+                      <b>{resourceSummaryRows.length}</b>
+                      <small>По полю Исполнитель в Структуре</small>
+                    </div>
+                    <div className="metric-card">
+                      <span>Работы в процессе</span>
+                      <b>
+                        {resourceSummaryRows.reduce(
+                          (sum, row) => sum + row.inProgress,
+                          0,
+                        )}
+                      </b>
+                      <small>Задачи и результаты со статусом В работе</small>
+                    </div>
+                    <div className="metric-card">
+                      <span>Просроченные</span>
+                      <b>
+                        {resourceSummaryRows.reduce(
+                          (sum, row) => sum + row.overdue,
+                          0,
+                        )}
+                      </b>
+                      <small>Не завершены и срок уже прошел</small>
+                    </div>
+                  </div>
+                  <div className="module-table resources-table">
+                    <div className="module-table-head">
+                      <span>Исполнитель</span>
+                      <span>Всего</span>
+                      <span>В работе</span>
+                      <span>Сделано</span>
+                      <span>Просрочено</span>
+                    </div>
+                    {resourceSummaryRows.map((row) => (
+                      <div className="module-table-row" key={row.owner}>
+                        <b>{row.owner}</b>
+                        <span>{row.total}</span>
+                        <span>{row.inProgress}</span>
+                        <span>{row.done}</span>
+                        <span>{row.overdue}</span>
+                      </div>
+                    ))}
+                    {resourceSummaryRows.length === 0 && (
+                      <div className="empty-state">
+                        В Структуре пока нет задач с назначенными исполнителями.
+                      </div>
+                    )}
+                  </div>
+                </article>
+              )}
+
+              {project && activeView === "project-budget" && (
+                <article className="panel project-card project-module-page">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Управление бюджетом</h2>
+                      <p>
+                        Контур бюджетного планирования выделен в отдельную
+                        страницу и будет наполнен после согласования модели
+                        финансовых данных.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="budget-placeholder">
+                    <BriefcaseBusiness size={34} />
+                    <div>
+                      <b>Бюджетный модуль подготовлен</b>
+                      <span>
+                        Сейчас страница не считает финансы и не влияет на
+                        проектные показатели. После согласования состава полей
+                        сюда можно вынести план, факт, прогноз, лимиты и
+                        отклонения.
+                      </span>
+                    </div>
                   </div>
                 </article>
               )}

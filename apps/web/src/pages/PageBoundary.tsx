@@ -10,6 +10,7 @@ import {
   AdminDictionariesPage,
   AdminHealthPage,
   AdminJiraPage,
+  AdminModulesPage,
   AdminPage,
   AdminProjectsPage,
   AdminRagPage,
@@ -44,6 +45,9 @@ export function PageBoundary({
   }
   if (view === "admin-projects" || view === "admin") {
     return <AdminProjectsPage>{children}</AdminProjectsPage>;
+  }
+  if (view === "admin-modules") {
+    return <AdminModulesPage>{children}</AdminModulesPage>;
   }
   if (view === "admin-users") {
     return <AdminUsersPage>{children}</AdminUsersPage>;

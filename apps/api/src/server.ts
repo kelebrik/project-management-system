@@ -93,6 +93,7 @@ const legacyPermissionFallbacks: Record<string, string[]> = {
   'admin.backup': ['admin.manage'],
   'admin.config': ['admin.manage'],
   'admin.audit': ['admin.manage'],
+  'admin.modules': ['admin.manage', 'admin.config'],
   'admin.integrations': ['admin.manage', 'admin.config'],
 };
 
@@ -764,6 +765,9 @@ function writePermissionForPath(pathname: string, method: string): PermissionNam
   }
   if (pathname.startsWith('/admin/system-settings')) {
     return 'admin.jira';
+  }
+  if (pathname.startsWith('/admin/project-modules')) {
+    return 'admin.modules';
   }
   if (pathname.startsWith('/admin/config/import')) {
     return 'admin.config';

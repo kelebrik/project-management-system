@@ -726,6 +726,15 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/project-modules": {
+      get: {
+        tags: ["Admin"],
+        summary: "Visible project module configuration",
+        responses: {
+          "200": { description: "Project module visibility settings" },
+        },
+      },
+    },
     "/api/users": {
       get: securedOperation(["Admin"], "List users for administration"),
       post: createOperation(["Admin"], "Create user"),
@@ -795,6 +804,9 @@ export const openApiDocument = {
     },
     "/api/admin/config/import": {
       post: securedOperation(["Admin"], "Import admin configuration"),
+    },
+    "/api/admin/project-modules": {
+      put: securedOperation(["Admin"], "Update project module visibility settings"),
     },
     "/api/admin/role-permissions/{permissionId}": {
       patch: securedOperation(["Admin"], "Enable or disable role permission", [
