@@ -6,7 +6,7 @@ stages:
 variables:
   # Override PMS_CI_NODE_IMAGE in GitLab CI variables with an approved internal
   # registry image if the cluster blocks direct Docker Hub pulls.
-  PMS_CI_NODE_IMAGE: "node:24-bookworm-slim"
+  PMS_CI_NODE_IMAGE: "node:22-bookworm-slim"
   PMS_CI_BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/ci/image-builder:latest"
   PMS_CONTAINER_IMAGE: "$CI_REGISTRY_IMAGE/app:$CI_COMMIT_SHORT_SHA"
   DATABASE_URL: "postgresql://pms_user:pms_password@localhost:5432/project_management_system?schema=public"

@@ -14,22 +14,22 @@
 DevOps должен задать в настройках проекта или группы:
 
 ```text
-PMS_CI_NODE_IMAGE=<approved-registry>/platform/node-pms-ci:24
+PMS_CI_NODE_IMAGE=<approved-registry>/platform/node-pms-ci:22
 PMS_CI_BUILDER_IMAGE=<approved-registry>/platform/kaniko-or-buildkit-rootless:latest
 PMS_CONTAINER_IMAGE=<approved-registry>/project-management-system/app:${CI_COMMIT_SHORT_SHA}
 CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
 ```
 
-По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=node:24-bookworm-slim`. В корпоративном кластере это почти наверняка нужно переопределить на образ из разрешенного registry.
+По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=node:22-bookworm-slim`. В корпоративном кластере это почти наверняка нужно переопределить на образ из разрешенного registry.
 
-Не используйте путь вида `$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:24-bookworm-slim`, пока DevOps не подтвердит, что GitLab Dependency Proxy включен именно для этого проекта/группы и его registry разрешен cluster policy. В текущем Sber Git такой путь может возвращать HTML 404 вместо OCI manifest, и job упадет до запуска скриптов.
+Не используйте путь вида `$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:22-bookworm-slim`, пока DevOps не подтвердит, что GitLab Dependency Proxy включен именно для этого проекта/группы и его registry разрешен cluster policy. В текущем Sber Git такой путь может возвращать HTML 404 вместо OCI manifest, и job упадет до запуска скриптов.
 
-DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 24, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
+DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 22 LTS, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
 
 Пример bootstrap CI-образа:
 
 ```dockerfile
-FROM node:24-bookworm-slim
+FROM node:22-bookworm-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
@@ -39,10 +39,10 @@ USER node
 Его нужно опубликовать в существующий approved registry, например:
 
 ```text
-PMS_CI_NODE_IMAGE=registry.sberdevices.ru/<approved-namespace>/node-pms-ci:24
+PMS_CI_NODE_IMAGE=registry.sberdevices.ru/<approved-namespace>/node-pms-ci:22
 ```
 
-Не нужно указывать несуществующий образ вида `registry.sberdevices.ru/<project>/ci/node:24-bookworm-slim`: Kubernetes упадет с `manifest unknown` до старта job.
+Не нужно указывать несуществующий образ вида `registry.sberdevices.ru/<project>/ci/node:22-bookworm-slim`: Kubernetes упадет с `manifest unknown` до старта job.
 
 В `.gitlab-ci.yml` используется `image:kubernetes:user: "1000:1000"`. Эта настройка требует GitLab 18.0+ и GitLab Runner 17.11+. Если в Sber Git версия ниже, non-root user нужно задать в `config.toml` GitLab Runner Kubernetes executor.
 

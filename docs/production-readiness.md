@@ -240,7 +240,7 @@ docker build -t project-management-system:release .
 
 ```bash
 docker build \
-  --build-arg NODE_IMAGE=<approved-registry>/platform/node-pms-ci:24 \
+  --build-arg NODE_IMAGE=<approved-registry>/platform/node-pms-ci:22 \
   -t <approved-registry>/project-management-system/app:release \
   .
 ```
