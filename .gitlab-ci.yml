@@ -6,13 +6,14 @@ stages:
 variables:
   # Override PMS_CI_NODE_IMAGE in GitLab CI variables with an approved internal
   # registry image if the cluster blocks direct Docker Hub pulls.
-  PMS_CI_NODE_IMAGE: "node:22-bookworm-slim"
+  PMS_CI_NODE_IMAGE: "node:22.18.0-bookworm-slim"
+  PMS_CI_NPM_VERSION: "10.8.2"
   PMS_CI_BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/ci/image-builder:latest"
   PMS_CONTAINER_IMAGE: "$CI_REGISTRY_IMAGE/app:$CI_COMMIT_SHORT_SHA"
   DATABASE_URL: "postgresql://pms_user:pms_password@localhost:5432/project_management_system?schema=public"
   AUTH_COOKIE_SECURE: "false"
   WEB_ORIGIN: "*"
-  NPM_CONFIG_CACHE: ".npm"
+  NPM_CONFIG_CACHE: "/tmp/pms-npm-cache"
 
 cache:
   key:
@@ -31,34 +32,34 @@ default:
       user: "1000:1000"
   before_script:
     - node --version
-    - npm --version
+    - scripts/ci-npm.sh --version
     - scripts/ci-install.sh
-    - npm run prisma:generate
+    - scripts/ci-npm.sh run prisma:generate
 
 static-policy-check:
   stage: validate
   script:
-    - npm run test:integration -- --test-name-pattern "Docker runtime|Operations shell|Backup and restore|Smoke scripts|Kubernetes|GitLab CI"
+    - scripts/ci-npm.sh run test:integration -- --test-name-pattern "Docker runtime|Operations shell|Backup and restore|Smoke scripts|Kubernetes|GitLab CI"
 
 typecheck:
   stage: validate
   script:
-    - npm run typecheck
+    - scripts/ci-npm.sh run typecheck
 
 unit-tests:
   stage: test
   script:
-    - npm run test:unit
+    - scripts/ci-npm.sh run test:unit
 
 integration-contracts:
   stage: test
   script:
-    - npm run test:integration
+    - scripts/ci-npm.sh run test:integration
 
 build:
   stage: build
   script:
-    - npm run build
+    - scripts/ci-npm.sh run build
   artifacts:
     expire_in: 1 week
     paths:

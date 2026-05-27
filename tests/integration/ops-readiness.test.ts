@@ -99,20 +99,31 @@ test("Kubernetes manifest follows corporate restricted-pod policies", () => {
 test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   const gitlabCi = read(".gitlab-ci.yml");
   const dockerfile = read("Dockerfile");
+  const gitignore = read(".gitignore");
   const ciInstall = read("scripts/ci-install.sh");
+  const ciNpm = read("scripts/ci-npm.sh");
 
   assert.match(gitlabCi, /PMS_CI_NODE_IMAGE/, "CI must use a configurable corporate Node image");
+  assert.match(gitlabCi, /node:22\.18\.0-bookworm-slim/, "CI must pin the Node image tag instead of using a floating Node 22 tag");
+  assert.match(gitlabCi, /PMS_CI_NPM_VERSION:\s*"10\.8\.2"/, "CI must pin a known-good npm version");
+  assert.match(gitlabCi, /NPM_CONFIG_CACHE:\s*"\/tmp\/pms-npm-cache"/, "CI must use an isolated npm cache outside the workspace");
   assert.match(gitlabCi, /PMS_CI_BUILDER_IMAGE/, "Container build must use a configurable corporate builder image");
   assert.match(gitlabCi, /kubernetes:\s*\n\s*user: "1000:1000"/, "CI jobs must request a non-root Kubernetes user");
   assert.match(gitlabCi, /CORPORATE_IMAGE_BUILD_COMMAND/, "Container build command must be supplied by corporate CI variables");
   assert.match(gitlabCi, /scripts\/ci-install\.sh/, "CI must use the resilient npm install wrapper");
+  assert.match(gitlabCi, /scripts\/ci-npm\.sh --version/, "CI must report the pinned npm version");
+  assert.match(gitlabCi, /scripts\/ci-npm\.sh run/, "CI must run package scripts through the pinned npm wrapper");
   assert.doesNotMatch(gitlabCi, /docker:dind|docker:\d+/, "CI must not require Docker-in-Docker or Docker Hub images");
   assert.doesNotMatch(gitlabCi, /^\s*services:/m, "CI must not create service pods in restricted clusters");
   assert.doesNotMatch(gitlabCi, /apt-get/, "CI job scripts must not require root package installation");
   assert.doesNotMatch(gitlabCi, /prefer-offline/, "CI must not force npm prefer-offline in empty/unstable runner caches");
-  assert.match(ciInstall, /npm ci --include=dev/, "CI install wrapper must run npm ci with dev dependencies");
-  assert.match(ciInstall, /npm cache clean --force/, "CI install wrapper must retry after clearing npm cache");
+  assert.match(ciInstall, /scripts\/ci-npm\.sh ci --include=dev/, "CI install wrapper must run npm ci with dev dependencies through pinned npm");
+  assert.match(ciInstall, /scripts\/ci-npm\.sh cache clean --force/, "CI install wrapper must retry after clearing npm cache");
   assert.doesNotMatch(ciInstall, /prefer-offline/, "CI install wrapper must not force npm prefer-offline");
+  assert.match(ciNpm, /PMS_CI_NPM_VERSION:-10\.8\.2/, "CI npm wrapper must default to the known-good npm version");
+  assert.match(ciNpm, /npm-\$VERSION\.tgz/, "CI npm wrapper must bootstrap npm from a tarball");
+  assert.match(ciNpm, /require\("node:https"\)/, "CI npm wrapper must have a Node.js download fallback when curl/wget are unavailable");
+  assert.match(gitignore, /^\.npm$/m, "Local npm cache must not be committed");
 
   assert.match(dockerfile, /ARG NODE_IMAGE/, "Docker build must allow replacing the base image with an approved registry image");
   assert.match(dockerfile, /FROM \$\{NODE_IMAGE\}/, "Docker stages must use the configurable base image");

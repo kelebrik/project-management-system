@@ -15,23 +15,24 @@ DevOps должен задать в настройках проекта или �
 
 ```text
 PMS_CI_NODE_IMAGE=<approved-registry>/platform/node-pms-ci:22
+PMS_CI_NPM_VERSION=10.8.2
 PMS_CI_BUILDER_IMAGE=<approved-registry>/platform/kaniko-or-buildkit-rootless:latest
 PMS_CONTAINER_IMAGE=<approved-registry>/project-management-system/app:${CI_COMMIT_SHORT_SHA}
 CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
 ```
 
-По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=node:22-bookworm-slim`. В корпоративном кластере это почти наверняка нужно переопределить на образ из разрешенного registry.
+По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=node:22.18.0-bookworm-slim`. В корпоративном кластере это почти наверняка нужно переопределить на образ из разрешенного registry.
 
-Не используйте путь вида `$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:22-bookworm-slim`, пока DevOps не подтвердит, что GitLab Dependency Proxy включен именно для этого проекта/группы и его registry разрешен cluster policy. В текущем Sber Git такой путь может возвращать HTML 404 вместо OCI manifest, и job упадет до запуска скриптов.
+Не используйте путь вида `$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:22.18.0-bookworm-slim`, пока DevOps не подтвердит, что GitLab Dependency Proxy включен именно для этого проекта/группы и его registry разрешен cluster policy. В текущем Sber Git такой путь может возвращать HTML 404 вместо OCI manifest, и job упадет до запуска скриптов.
 
 DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 22 LTS, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
 
-Установка npm-зависимостей в CI идет через `scripts/ci-install.sh`: скрипт запускает `npm ci --include=dev` без `--prefer-offline`, отключает audit/fund/progress и один раз повторяет установку после `npm cache clean --force`. Это сделано из-за нестабильного падения npm `Exit handler never called!` на пустом или поврежденном cache runner-а. Если ошибка повторится, в логе job должны быть видны версии `node --version` и `npm --version`.
+Установка npm-зависимостей в CI идет через `scripts/ci-install.sh`: скрипт запускает `npm ci --include=dev` через `scripts/ci-npm.sh`, без `--prefer-offline`, отключает audit/fund/progress и один раз повторяет установку после `npm cache clean --force`. `scripts/ci-npm.sh` закрепляет npm на `PMS_CI_NPM_VERSION=10.8.2`, потому что bundled `npm 10.9.8` в `node:22.22.3` падает на runner-е с внутренней ошибкой `Exit handler never called!`. Если корпоративный образ уже содержит стабильный npm, переменную можно оставить как есть или согласованно заменить после проверки pipeline.
 
 Пример bootstrap CI-образа:
 
 ```dockerfile
-FROM node:22-bookworm-slim
+FROM node:22.18.0-bookworm-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
@@ -41,7 +42,7 @@ USER node
 Его нужно опубликовать в существующий approved registry, например:
 
 ```text
-PMS_CI_NODE_IMAGE=registry.sberdevices.ru/<approved-namespace>/node-pms-ci:22
+PMS_CI_NODE_IMAGE=registry.sberdevices.ru/<approved-namespace>/node-pms-ci:22.18
 ```
 
 Не нужно указывать несуществующий образ вида `registry.sberdevices.ru/<project>/ci/node:22-bookworm-slim`: Kubernetes упадет с `manifest unknown` до старта job.

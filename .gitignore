@@ -9,6 +9,7 @@ build
 coverage
 .vite
 .render
+.npm
 backups
 playwright-report
 test-results
