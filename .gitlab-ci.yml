@@ -4,9 +4,9 @@ stages:
   - build
 
 variables:
-  # Prefer GitLab Dependency Proxy so the runner pulls from the internal GitLab registry.
-  # If dependency proxy is disabled, override PMS_CI_NODE_IMAGE with an existing approved Node image.
-  PMS_CI_NODE_IMAGE: "$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:24-bookworm-slim"
+  # Override PMS_CI_NODE_IMAGE in GitLab CI variables with an approved internal
+  # registry image if the cluster blocks direct Docker Hub pulls.
+  PMS_CI_NODE_IMAGE: "node:24-bookworm-slim"
   PMS_CI_BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/ci/image-builder:latest"
   PMS_CONTAINER_IMAGE: "$CI_REGISTRY_IMAGE/app:$CI_COMMIT_SHORT_SHA"
   DATABASE_URL: "postgresql://pms_user:pms_password@localhost:5432/project_management_system?schema=public"

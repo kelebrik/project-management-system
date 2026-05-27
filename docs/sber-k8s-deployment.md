@@ -20,9 +20,11 @@ PMS_CONTAINER_IMAGE=<approved-registry>/project-management-system/app:${CI_COMMI
 CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
 ```
 
-По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:24-bookworm-slim`. Это работает только если GitLab Dependency Proxy включен и его registry разрешен cluster policy.
+По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=node:24-bookworm-slim`. В корпоративном кластере это почти наверняка нужно переопределить на образ из разрешенного registry.
 
-Если dependency proxy выключен или registry не разрешен, DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 24, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
+Не используйте путь вида `$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:24-bookworm-slim`, пока DevOps не подтвердит, что GitLab Dependency Proxy включен именно для этого проекта/группы и его registry разрешен cluster policy. В текущем Sber Git такой путь может возвращать HTML 404 вместо OCI manifest, и job упадет до запуска скриптов.
+
+DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 24, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
 
 Пример bootstrap CI-образа:
 
