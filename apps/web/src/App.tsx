@@ -3114,38 +3114,17 @@ function createMilestoneTimelineModel({
         item.offset = Math.min(0.985, previous.offset + 0.018);
       }
       const preferredSide = index % 2 === 0 ? "top" : "bottom";
-      const sides: Array<"top" | "bottom"> = [
-        preferredSide,
-        preferredSide === "top" ? "bottom" : "top",
-      ];
-      const sideCandidates = sides
-        .map((side) => {
-          const lastOffsets = sideLevels[side];
-          const reusableLevel = lastOffsets.findIndex(
-            (lastOffset) => item.offset - lastOffset >= labelMinGap,
-          );
-          return {
-            side,
-            level: reusableLevel === -1 ? lastOffsets.length : reusableLevel,
-            reusesLevel: reusableLevel !== -1,
-          };
-        })
-        .sort((left, right) => {
-          if (left.level !== right.level) return left.level - right.level;
-          if (left.reusesLevel !== right.reusesLevel) {
-            return left.reusesLevel ? -1 : 1;
-          }
-          return left.side === preferredSide ? -1 : 1;
-        });
-      const best = sideCandidates[0];
-      const lastOffsets = sideLevels[best.side];
-      const level = best.level;
+      const lastOffsets = sideLevels[preferredSide];
+      const reusableLevel = lastOffsets.findIndex(
+        (lastOffset) => item.offset - lastOffset >= labelMinGap,
+      );
+      const level = reusableLevel === -1 ? lastOffsets.length : reusableLevel;
       if (level >= lastOffsets.length) {
         lastOffsets.push(item.offset);
       } else {
         lastOffsets[level] = item.offset;
       }
-      item.side = best.side;
+      item.side = preferredSide;
       item.level = level;
       maxLaneLevel = Math.max(maxLaneLevel, level);
     });
