@@ -21,9 +21,9 @@ PMS_CONTAINER_IMAGE=<approved-registry>/project-management-system/app:${CI_COMMI
 CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
 ```
 
-По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=node:22.18.0-bookworm-slim`. В корпоративном кластере это почти наверняка нужно переопределить на образ из разрешенного registry.
+По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=node:22-bookworm-slim`, потому что этот тег уже подтягивался runner-ом через корпоративный registry proxy. В корпоративном кластере все равно лучше переопределить его на образ из разрешенного registry.
 
-Не используйте путь вида `$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:22.18.0-bookworm-slim`, пока DevOps не подтвердит, что GitLab Dependency Proxy включен именно для этого проекта/группы и его registry разрешен cluster policy. В текущем Sber Git такой путь может возвращать HTML 404 вместо OCI manifest, и job упадет до запуска скриптов.
+Не используйте путь вида `$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:22-bookworm-slim`, пока DevOps не подтвердит, что GitLab Dependency Proxy включен именно для этого проекта/группы и его registry разрешен cluster policy. В текущем Sber Git такой путь может возвращать HTML 404 вместо OCI manifest, и job упадет до запуска скриптов.
 
 DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 22 LTS, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
 
@@ -32,7 +32,7 @@ DevOps должен один раз собрать/загрузить CI-обр�
 Пример bootstrap CI-образа:
 
 ```dockerfile
-FROM node:22.18.0-bookworm-slim
+FROM node:22-bookworm-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
@@ -42,7 +42,7 @@ USER node
 Его нужно опубликовать в существующий approved registry, например:
 
 ```text
-PMS_CI_NODE_IMAGE=registry.sberdevices.ru/<approved-namespace>/node-pms-ci:22.18
+PMS_CI_NODE_IMAGE=registry.sberdevices.ru/<approved-namespace>/node-pms-ci:22
 ```
 
 Не нужно указывать несуществующий образ вида `registry.sberdevices.ru/<project>/ci/node:22-bookworm-slim`: Kubernetes упадет с `manifest unknown` до старта job.
