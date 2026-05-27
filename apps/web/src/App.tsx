@@ -3145,12 +3145,11 @@ function createMilestoneTimelineModel({
       }
       const cluster = lane.items.slice(clusterStart, clusterEnd);
       if (cluster.length > 1) {
-        const shiftDirection =
-          cluster[cluster.length - 1].offset > 0.82 ? -1 : 1;
-        cluster.forEach((item, clusterIndex) => {
+        cluster.forEach((item) => {
+          const shiftDirection = item.side === "top" ? 1 : -1;
           item.labelShiftPx =
             shiftDirection *
-            Math.min(132, 28 + clusterIndex * 32 + item.level * 34);
+            Math.min(154, 96 + item.level * 34);
         });
       }
       clusterStart = clusterEnd;
