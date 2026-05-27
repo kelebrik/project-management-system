@@ -122,6 +122,7 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   assert.doesNotMatch(ciInstall, /prefer-offline/, "CI install wrapper must not force npm prefer-offline");
   assert.match(ciNpm, /PMS_CI_NPM_VERSION:-10\.8\.2/, "CI npm wrapper must default to the known-good npm version");
   assert.match(ciNpm, /npm-\$VERSION\.tgz/, "CI npm wrapper must bootstrap npm from a tarball");
+  assert.match(ciNpm, /falling back to bundled npm/, "CI npm wrapper must not fail before npm ci when the npm tarball mirror is unavailable");
   assert.match(ciNpm, /require\("node:https"\)/, "CI npm wrapper must have a Node.js download fallback when curl/wget are unavailable");
   assert.match(gitignore, /^\.npm$/m, "Local npm cache must not be committed");
 

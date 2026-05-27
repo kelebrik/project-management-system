@@ -16,6 +16,8 @@ DevOps должен задать в настройках проекта или �
 ```text
 PMS_CI_NODE_IMAGE=<approved-registry>/platform/node-pms-ci:24
 PMS_CI_NPM_VERSION=10.8.2
+NPM_CONFIG_REGISTRY=<approved-internal-npm-registry>
+PMS_CI_NPM_TARBALL_URL=<approved-internal-npm-registry>/npm/-/npm-10.8.2.tgz
 PMS_CI_BUILDER_IMAGE=<approved-registry>/platform/kaniko-or-buildkit-rootless:latest
 PMS_CONTAINER_IMAGE=<approved-registry>/project-management-system/app:${CI_COMMIT_SHORT_SHA}
 CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
@@ -27,7 +29,7 @@ CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
 
 DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 24 LTS, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
 
-Установка npm-зависимостей в CI идет через `scripts/ci-install.sh`: скрипт запускает `npm ci --include=dev` через `scripts/ci-npm.sh`, без `--prefer-offline`, отключает audit/fund/progress и один раз повторяет установку после `npm cache clean --force`. `scripts/ci-npm.sh` закрепляет npm на `PMS_CI_NPM_VERSION=10.8.2`, потому что bundled `npm 10.9.8` в `node:22.22.3` падает на runner-е с внутренней ошибкой `Exit handler never called!`. Если корпоративный образ уже содержит стабильный npm, переменную можно оставить как есть или согласованно заменить после проверки pipeline.
+Установка npm-зависимостей в CI идет через `scripts/ci-install.sh`: скрипт запускает `npm ci --include=dev` через `scripts/ci-npm.sh`, без `--prefer-offline`, отключает audit/fund/progress и один раз повторяет установку после `npm cache clean --force`. `scripts/ci-npm.sh` закрепляет npm на `PMS_CI_NPM_VERSION=10.8.2`, потому что bundled `npm 10.9.8` в `node:22.22.3` падал на runner-е с внутренней ошибкой `Exit handler never called!`. Если tarball `npm-10.8.2.tgz` недоступен из runner-а, wrapper пишет предупреждение и падает обратно на bundled npm из образа. Для стабильного CI DevOps должен задать `PMS_CI_NPM_TARBALL_URL` или `NPM_CONFIG_REGISTRY` на внутренний npm mirror. Иначе следующий шаг `npm ci` тоже может упасть при попытке скачать зависимости с публичного `registry.npmjs.org`.
 
 Пример bootstrap CI-образа:
 

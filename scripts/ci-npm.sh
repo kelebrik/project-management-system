@@ -54,8 +54,18 @@ if [ ! -f "$NPM_CLI" ]; then
 
   mkdir -p "$CACHE_DIR" "$NPM_HOME"
   echo "Bootstrapping npm $VERSION from $TARBALL_URL" >&2
-  download "$TARBALL_URL" "$TARBALL"
-  tar -xzf "$TARBALL" -C "$NPM_HOME"
+  if download "$TARBALL_URL" "$TARBALL" && tar -xzf "$TARBALL" -C "$NPM_HOME"; then
+    :
+  else
+    rm -rf "$NPM_HOME" "$TARBALL"
+    if command -v npm >/dev/null 2>&1; then
+      echo "Could not bootstrap npm $VERSION; falling back to bundled npm $(npm --version)." >&2
+      echo "Set PMS_CI_NPM_TARBALL_URL or NPM_CONFIG_REGISTRY to an internal mirror for deterministic CI." >&2
+      exec npm "$@"
+    fi
+    echo "Could not bootstrap npm $VERSION and bundled npm is unavailable." >&2
+    exit 1
+  fi
 fi
 
 exec node "$NPM_CLI" "$@"
