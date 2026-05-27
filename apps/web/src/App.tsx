@@ -5260,6 +5260,7 @@ function App() {
         item.children.length > 0 ||
         item.type === "PHASE" ||
         item.type === "WORK_PACKAGE";
+      const bracket = item.type === "PHASE" || item.type === "WORK_PACKAGE";
       const milestone = item.type === "MILESTONE";
       return {
         item,
@@ -5276,6 +5277,7 @@ function App() {
         totalFloatWorkDays:
           criticalItemsById.get(item.id)?.totalFloatWorkDays ?? null,
         summary,
+        bracket,
         baselineRange: range(baselineStart, baselineEnd),
         forecastRange: range(forecastStart, forecastEnd),
         scheduleVarianceDays:
@@ -13308,6 +13310,7 @@ function App() {
                                 milestone,
                                 critical,
                                 summary,
+                                bracket,
                                 baselineRange,
                                   forecastRange,
                                   scheduleVarianceDays,
@@ -13356,7 +13359,7 @@ function App() {
                                     />
                                   )}
                                     <i
-                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${summary ? "summary" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
+                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${summary ? "summary" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
                                       style={{
                                         left: `${offset}%`,
                                         width: milestone ? undefined : `${width}%`,
