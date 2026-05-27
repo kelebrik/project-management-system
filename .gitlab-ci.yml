@@ -3,10 +3,17 @@ stages:
   - test
   - build
 
+workflow:
+  rules:
+    - if: '$PMS_CI_NODE_IMAGE'
+      when: always
+    - when: never
+
 variables:
-  # Override PMS_CI_NODE_IMAGE in GitLab CI variables with an approved internal
-  # registry image if the cluster blocks direct Docker Hub pulls.
-  PMS_CI_NODE_IMAGE: "node:24-bookworm-slim"
+  # PMS_CI_NODE_IMAGE must be configured in GitLab CI variables and must point
+  # to an approved internal registry image. Public node:* images are not
+  # reliable in Sber Kubernetes runners because Docker Hub is blocked and the
+  # corporate proxy may not contain the requested tag.
   PMS_CI_NPM_VERSION: "10.8.2"
   PMS_CI_BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/ci/image-builder:latest"
   PMS_CONTAINER_IMAGE: "$CI_REGISTRY_IMAGE/app:$CI_COMMIT_SHORT_SHA"

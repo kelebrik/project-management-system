@@ -104,7 +104,8 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   const ciNpm = read("scripts/ci-npm.sh");
 
   assert.match(gitlabCi, /PMS_CI_NODE_IMAGE/, "CI must use a configurable corporate Node image");
-  assert.match(gitlabCi, /node:24-bookworm-slim/, "CI default image must match the Node tag available in Sber registry proxy");
+  assert.match(gitlabCi, /workflow:\s*\n\s*rules:[\s\S]*\$PMS_CI_NODE_IMAGE[\s\S]*when: never/, "CI must not create jobs until an approved internal Node image is configured");
+  assert.doesNotMatch(gitlabCi, /PMS_CI_NODE_IMAGE:\s*"node:/, "CI must not default to public Docker Hub Node images");
   assert.match(gitlabCi, /PMS_CI_NPM_VERSION:\s*"10\.8\.2"/, "CI must pin a known-good npm version");
   assert.match(gitlabCi, /NPM_CONFIG_CACHE:\s*"\/tmp\/pms-npm-cache"/, "CI must use an isolated npm cache outside the workspace");
   assert.match(gitlabCi, /PMS_CI_BUILDER_IMAGE/, "Container build must use a configurable corporate builder image");

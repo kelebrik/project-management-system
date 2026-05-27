@@ -23,7 +23,9 @@ PMS_CONTAINER_IMAGE=<approved-registry>/project-management-system/app:${CI_COMMI
 CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
 ```
 
-По умолчанию `.gitlab-ci.yml` использует `PMS_CI_NODE_IMAGE=node:24-bookworm-slim`, потому что этот тег уже доходил до выполнения job на текущем runner-е. Теги `node:22-bookworm-slim` и `node:22.18.0-bookworm-slim` в текущем Sber registry proxy не найдены, а прямой доступ runner-а к Docker Hub нестабилен или закрыт. В корпоративном кластере все равно лучше переопределить `PMS_CI_NODE_IMAGE` на образ из разрешенного registry.
+В `.gitlab-ci.yml` нет fallback на публичный `node:*`. Pipeline содержит `workflow`-guard и не создает jobs, пока `PMS_CI_NODE_IMAGE` не задан в GitLab CI variables. Это сделано намеренно: Kubernetes executor скачивает job image до checkout репозитория и до запуска любых скриптов, поэтому отсутствие pullable image нельзя исправить shell-логикой внутри проекта.
+
+Теги `node:24-bookworm-slim`, `node:22-bookworm-slim` и `node:22.18.0-bookworm-slim` нельзя использовать как стабильную настройку в Sber CI: в текущем Sber registry proxy они могут отсутствовать, а прямой доступ runner-а к Docker Hub нестабилен или закрыт. DevOps должен загрузить Node image во внутренний allowlisted registry и указать его через `PMS_CI_NODE_IMAGE`.
 
 Не используйте путь вида `$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:24-bookworm-slim`, пока DevOps не подтвердит, что GitLab Dependency Proxy включен именно для этого проекта/группы и его registry разрешен cluster policy. В текущем Sber Git такой путь может возвращать HTML 404 вместо OCI manifest, и job упадет до запуска скриптов.
 
