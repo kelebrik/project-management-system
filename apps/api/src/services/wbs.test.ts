@@ -664,15 +664,15 @@ test("calculateWbsScheduleUpdates aggregates phase and work package dates from c
   assert.equal(taskA?.workDays, 3);
   assert.equal(workPackage?.startDate?.toISOString().slice(0, 10), "2026-05-18");
   assert.equal(workPackage?.dueDate?.toISOString().slice(0, 10), "2026-05-29");
-  assert.equal(workPackage?.workDays, 8);
+  assert.equal(workPackage?.workDays, 10);
   assert.equal(workPackage?.calendarDays, 12);
   assert.equal(phase?.startDate?.toISOString().slice(0, 10), "2026-05-18");
   assert.equal(phase?.dueDate?.toISOString().slice(0, 10), "2026-05-29");
-  assert.equal(phase?.workDays, 8);
+  assert.equal(phase?.workDays, 10);
   assert.equal(phase?.calendarDays, 12);
 });
 
-test("calculateWbsScheduleUpdates sums only leaf work days for hierarchy items", () => {
+test("calculateWbsScheduleUpdates derives hierarchy work days from aggregated dates", () => {
   const items = [
     {
       id: "phase",
@@ -764,8 +764,12 @@ test("calculateWbsScheduleUpdates sums only leaf work days for hierarchy items",
   const phase = updates.find((item) => item.id === "phase");
   const workPackage = updates.find((item) => item.id === "package");
 
-  assert.equal(workPackage?.workDays, 4);
-  assert.equal(phase?.workDays, 6);
+  assert.equal(workPackage?.startDate?.toISOString().slice(0, 10), "2026-05-18");
+  assert.equal(workPackage?.dueDate?.toISOString().slice(0, 10), "2026-05-22");
+  assert.equal(workPackage?.workDays, 5);
+  assert.equal(phase?.startDate?.toISOString().slice(0, 10), "2026-05-18");
+  assert.equal(phase?.dueDate?.toISOString().slice(0, 10), "2026-05-26");
+  assert.equal(phase?.workDays, 7);
 });
 
 test("calculateWbsBaselineVariance reports only root schedule deviations", () => {
