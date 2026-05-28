@@ -3239,7 +3239,7 @@ code {
 .milestone-point::before {
   background: #94a3b8;
   content: "";
-  height: calc(34px + var(--milestone-label-level, 0) * 56px);
+  height: calc(34px + var(--milestone-label-level, 0) * 50px);
   left: 50%;
   position: absolute;
   width: 3px;
@@ -3248,13 +3248,13 @@ code {
 
 .milestone-point.top::before {
   bottom: 0;
-  transform: rotate(-15deg);
+  transform: rotate(var(--milestone-connector-angle, -13deg));
   transform-origin: bottom center;
 }
 
 .milestone-point.bottom::before {
   top: 0;
-  transform: rotate(-15deg);
+  transform: rotate(var(--milestone-connector-angle, 13deg));
   transform-origin: top center;
 }
 
@@ -3309,51 +3309,58 @@ code {
   background: #94a3b8;
 }
 
-.milestone-label {
+.milestone-caption {
+  align-items: flex-start;
   background: rgba(255, 255, 255, 0.94);
   border-radius: 4px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  left: 50%;
+  max-width: 146px;
+  min-width: 96px;
+  overflow-wrap: anywhere;
+  padding: 2px 3px;
+  position: absolute;
+  transform: translateX(calc(-50% + var(--milestone-label-shift, 0px)));
+  width: max-content;
+  z-index: 3;
+}
+
+.milestone-label {
   font-size: 12px;
   font-weight: 800;
   line-height: 1.16;
-  left: var(--milestone-label-shift, 0);
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  padding: 1px 3px;
-  position: absolute;
-  width: 100%;
-  z-index: 3;
 }
 
 .milestone-date {
-  background: rgba(255, 255, 255, 0.94);
-  border-radius: 4px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
   font-size: 11px;
   font-weight: 800;
-  left: var(--milestone-label-shift, 0);
-  padding: 1px 3px;
-  position: absolute;
-  width: 100%;
-  z-index: 3;
+  line-height: 1.1;
 }
 
-.milestone-point.top .milestone-date {
-  top: calc(-56px - var(--milestone-label-level, 0) * 56px);
+.milestone-point.top .milestone-caption {
+  bottom: calc(48px + var(--milestone-label-level, 0) * 50px);
 }
 
-.milestone-point.bottom .milestone-date {
-  top: calc(42px + var(--milestone-label-level, 0) * 56px);
+.milestone-point.bottom .milestone-caption {
+  top: calc(48px + var(--milestone-label-level, 0) * 50px);
 }
 
 .milestone-point.top .milestone-label {
-  bottom: calc(56px + var(--milestone-label-level, 0) * 56px);
+  order: 1;
+}
+
+.milestone-point.top .milestone-date {
+  order: 2;
+}
+
+.milestone-point.bottom .milestone-date {
+  order: 1;
 }
 
 .milestone-point.bottom .milestone-label {
-  top: calc(56px + var(--milestone-label-level, 0) * 56px);
+  order: 2;
 }
 
 .milestone-range {

@@ -980,6 +980,7 @@ type WbsTableCssProperties = CSSProperties & {
 type MilestonePointStyle = CSSProperties & {
   "--milestone-label-level": number;
   "--milestone-label-shift": string;
+  "--milestone-connector-angle": string;
 };
 
 type MilestoneTone = "green" | "blue" | "red" | "gray";
@@ -3297,7 +3298,7 @@ function createMilestoneTimelineModel({
     });
 
     let clusterStart = 0;
-    const labelClusterGap = 0.055;
+    const labelClusterGap = 0.062;
     while (clusterStart < lane.items.length) {
       let clusterEnd = clusterStart + 1;
       while (
@@ -3308,7 +3309,9 @@ function createMilestoneTimelineModel({
         clusterEnd += 1;
       }
       const cluster = lane.items.slice(clusterStart, clusterEnd);
-      cluster.forEach((item) => {
+      const clusterCenter =
+        cluster.reduce((sum, item) => sum + item.offset, 0) / cluster.length;
+      cluster.forEach((item, clusterIndex) => {
         const isClustered = cluster.length > 1;
         const isNearLeftEdge = item.offset < labelHalfWidthOffset + 0.025;
         const isNearRightEdge = item.offset > 1 - labelHalfWidthOffset - 0.025;
@@ -3323,7 +3326,14 @@ function createMilestoneTimelineModel({
           return;
         }
 
-        let shiftDirection = item.side === "top" ? 1 : -1;
+        let shiftDirection =
+          item.offset < clusterCenter
+            ? -1
+            : item.offset > clusterCenter
+              ? 1
+              : item.side === "top"
+                ? 1
+                : -1;
         if (isNearLeftEdge) {
           shiftDirection = 1;
         } else if (isNearRightEdge) {
@@ -3332,9 +3342,10 @@ function createMilestoneTimelineModel({
           shiftDirection = item.offset >= todayOffset ? 1 : -1;
         }
 
+        const clusterDistance = Math.abs(clusterIndex - (cluster.length - 1) / 2);
         const shiftAmount = Math.min(
-          isClustered ? 76 : 62,
-          (isClustered ? 42 : 52) + item.level * 18,
+          isClustered ? 92 : 58,
+          (isClustered ? 42 + clusterDistance * 28 : 48) + item.level * 14,
         );
         item.labelShiftPx = shiftDirection * shiftAmount;
       });
@@ -3489,16 +3500,30 @@ function MilestoneTimelineSection({
                             left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
                             "--milestone-label-level": level,
                             "--milestone-label-shift": `${labelShiftPx}px`,
+                            "--milestone-connector-angle":
+                              labelShiftPx > 8
+                                ? side === "top"
+                                  ? "13deg"
+                                  : "-13deg"
+                                : labelShiftPx < -8
+                                  ? side === "top"
+                                    ? "-13deg"
+                                    : "13deg"
+                                  : side === "top"
+                                    ? "-13deg"
+                                    : "13deg",
                           } as MilestonePointStyle
                         }
                         title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
                       >
                         <span className="milestone-marker" />
-                        <span className="milestone-label">
-                          {milestone.title}
-                        </span>
-                        <span className="milestone-date">
-                          {shortDate(milestone.dueDate)}
+                        <span className="milestone-caption">
+                          <span className="milestone-date">
+                            {shortDate(milestone.dueDate)}
+                          </span>
+                          <span className="milestone-label">
+                            {milestone.title}
+                          </span>
                         </span>
                       </button>
                     ),
