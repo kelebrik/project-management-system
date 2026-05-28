@@ -4822,11 +4822,41 @@ code {
   z-index: 4;
 }
 
+.wbs-column-sort {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  font: inherit;
+  gap: 6px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  text-transform: inherit;
+}
+
 .wbs-column-title {
   display: block;
   line-height: 1.2;
+  min-width: 0;
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+.wbs-sort-indicator {
+  color: #94a3b8;
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.wbs-column-sort:hover .wbs-sort-indicator,
+.wbs-column-sort.active .wbs-sort-indicator {
+  color: #2563eb;
 }
 
 .wbs-column-header[draggable="true"] {

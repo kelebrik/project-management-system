@@ -494,6 +494,7 @@ type ProjectUiState = {
   wbsColumnOrder?: WbsTableColumnKey[];
   wbsHiddenColumns?: WbsTableColumnKey[];
   wbsColumnWidths?: Partial<Record<WbsTableColumnKey, number>>;
+  wbsSort?: WbsSortState | null;
   ganttPanelHeight?: number;
   ganttPanelWidth?: number;
   ganttWbsWidth?: number;
@@ -1607,6 +1608,33 @@ const JIRA_BLOCKING_TICKET_PLACEHOLDER = [
 
 type WbsTableColumnKey = (typeof WBS_TABLE_COLUMNS)[number]["key"];
 type WbsTableColumn = (typeof WBS_TABLE_COLUMNS)[number];
+type WbsSortDirection = "asc" | "desc";
+type WbsSortState = {
+  columnKey: WbsTableColumnKey;
+  direction: WbsSortDirection;
+};
+
+const WBS_SORT_COLLATOR = new Intl.Collator("ru", {
+  numeric: true,
+  sensitivity: "base",
+});
+
+function normalizeWbsSort(sort?: unknown): WbsSortState | null {
+  if (!sort || typeof sort !== "object") return null;
+  const candidate = sort as Partial<WbsSortState>;
+  const knownKeys = new Set(WBS_TABLE_COLUMNS.map((column) => column.key));
+  if (
+    !candidate.columnKey ||
+    !knownKeys.has(candidate.columnKey) ||
+    (candidate.direction !== "asc" && candidate.direction !== "desc")
+  ) {
+    return null;
+  }
+  return {
+    columnKey: candidate.columnKey,
+    direction: candidate.direction,
+  };
+}
 
 function normalizeWbsColumnOrder(order?: WbsTableColumnKey[]) {
   const knownKeys = new Set(WBS_TABLE_COLUMNS.map((column) => column.key));
@@ -1654,6 +1682,136 @@ function normalizeWbsColumnWidths(
       widths?.level ?? defaultWidths.level,
     ),
   };
+}
+
+function sortableNumberValue(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sortableDateValue(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sortableTextValue(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function compareWbsSortValues(
+  left: string | number | null,
+  right: string | number | null,
+) {
+  const leftEmpty = left === null || left === "";
+  const rightEmpty = right === null || right === "";
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+  return WBS_SORT_COLLATOR.compare(String(left), String(right));
+}
+
+function wbsSortValue(
+  columnKey: WbsTableColumnKey,
+  item: WbsTreeItem,
+  draft?: WbsFormState,
+): string | number | null {
+  switch (columnKey) {
+    case "level":
+      return sortableNumberValue(draft?.wbsLevel ?? item.wbsLevel ?? item.level + 1);
+    case "structure":
+      return sortableTextValue(draft?.title ?? item.title);
+    case "type":
+      return sortableTextValue(wbsTypeLabel((draft?.type ?? item.type) as WbsItemType));
+    case "status":
+      return sortableTextValue(wbsStatusLabel((draft?.status ?? item.status) as WbsItemStatus));
+    case "owner":
+      return sortableTextValue(draft?.owner ?? item.owner);
+    case "start":
+      return sortableDateValue(draft?.startDate ?? item.startDate);
+    case "due":
+      return sortableDateValue(draft?.dueDate ?? item.dueDate);
+    case "workDays":
+      return sortableNumberValue(draft?.workDays ?? item.workDays);
+    case "calendarDays":
+      return sortableNumberValue(draft?.calendarDays ?? item.calendarDays);
+    case "calendar":
+      return sortableTextValue(draft?.calendarCode ?? item.calendarCode);
+    case "progress":
+      return sortableNumberValue(draft?.progress ?? item.progress);
+    case "jiraTicketUrl":
+      return sortableTextValue(draft?.jiraTicketUrl ?? item.jiraTicketUrl ?? item.jiraTicketKey);
+    case "predecessor1":
+      return sortableTextValue(draft?.predecessor1 ?? item.predecessor1);
+    case "predecessor2":
+      return sortableTextValue(draft?.predecessor2 ?? item.predecessor2);
+    case "predecessor3":
+      return sortableTextValue(draft?.predecessor3 ?? item.predecessor3);
+    case "predecessor4":
+      return sortableTextValue(draft?.predecessor4 ?? item.predecessor4);
+    case "predecessor5":
+      return sortableTextValue(draft?.predecessor5 ?? item.predecessor5);
+    case "predecessor6":
+      return sortableTextValue(draft?.predecessor6 ?? item.predecessor6);
+    case "leadLag":
+      return sortableNumberValue(draft?.leadLagDays ?? item.leadLagDays);
+    default:
+      return null;
+  }
+}
+
+function compareWbsItemsForSort(
+  left: WbsTreeItem,
+  right: WbsTreeItem,
+  drafts: Record<string, WbsFormState>,
+  sort: WbsSortState,
+) {
+  const sorted =
+    compareWbsSortValues(
+      wbsSortValue(sort.columnKey, left, drafts[left.id]),
+      wbsSortValue(sort.columnKey, right, drafts[right.id]),
+    ) * (sort.direction === "asc" ? 1 : -1);
+  if (sorted !== 0) return sorted;
+  const orderDiff = left.sortOrder - right.sortOrder;
+  if (orderDiff !== 0) return orderDiff;
+  return WBS_SORT_COLLATOR.compare(left.code, right.code);
+}
+
+function sortWbsTreeForDisplay(
+  items: WbsTreeItem[],
+  drafts: Record<string, WbsFormState>,
+  sort: WbsSortState | null,
+) {
+  if (!sort) return items;
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const roots = items.filter(
+    (item) => !item.parentId || !byId.has(item.parentId),
+  );
+
+  const flattenSorted = (nodes: WbsTreeItem[], level = 0): WbsTreeItem[] =>
+    [...nodes]
+      .sort((left, right) => compareWbsItemsForSort(left, right, drafts, sort))
+      .flatMap((node) => {
+        const sortedChildren = flattenSorted(node.children, level + 1);
+        const directChildren = sortedChildren.filter(
+          (child) => child.parentId === node.id,
+        );
+        return [
+          {
+            ...node,
+            level,
+            children: directChildren,
+          },
+          ...sortedChildren,
+        ];
+      });
+
+  return flattenSorted(roots);
 }
 
 const GANTT_ROW_HEIGHT = 36;
@@ -4075,6 +4233,7 @@ function App() {
   const [wbsHiddenColumns, setWbsHiddenColumns] = useState<WbsTableColumnKey[]>(
     () => normalizeWbsHiddenColumns(),
   );
+  const [wbsSort, setWbsSort] = useState<WbsSortState | null>(null);
   const [draggedWbsColumn, setDraggedWbsColumn] =
     useState<WbsTableColumnKey | null>(null);
   const [draggedWbsItemId, setDraggedWbsItemId] = useState<string | null>(null);
@@ -4654,14 +4813,40 @@ function App() {
       return true;
     });
   }, [collapsedWbsIds, wbsTree]);
+  const sortedStructureWbsTree = useMemo(
+    () => sortWbsTreeForDisplay(wbsTree, wbsDrafts, wbsSort),
+    [wbsDrafts, wbsSort, wbsTree],
+  );
+  const visibleStructureBaseWbsTree = useMemo(() => {
+    const hiddenLevels: number[] = [];
+    return sortedStructureWbsTree.filter((item) => {
+      while (
+        hiddenLevels.length > 0 &&
+        item.level <= hiddenLevels[hiddenLevels.length - 1]
+      ) {
+        hiddenLevels.pop();
+      }
+      if (hiddenLevels.length > 0) return false;
+      if (collapsedWbsIds.has(item.id)) {
+        hiddenLevels.push(item.level);
+      }
+      return true;
+    });
+  }, [collapsedWbsIds, sortedStructureWbsTree]);
   const structureCriticalPathIds = useMemo(
     () => new Set(project?.criticalPath?.criticalItemIds ?? []),
     [project?.criticalPath?.criticalItemIds],
   );
   const visibleStructureWbsTree = useMemo(() => {
-    if (!showStructureCriticalPath) return visibleWbsTree;
-    return visibleWbsTree.filter((item) => structureCriticalPathIds.has(item.id));
-  }, [showStructureCriticalPath, structureCriticalPathIds, visibleWbsTree]);
+    if (!showStructureCriticalPath) return visibleStructureBaseWbsTree;
+    return visibleStructureBaseWbsTree.filter((item) =>
+      structureCriticalPathIds.has(item.id),
+    );
+  }, [
+    showStructureCriticalPath,
+    structureCriticalPathIds,
+    visibleStructureBaseWbsTree,
+  ]);
   const activeWbsHierarchyLevel = useMemo(() => {
     if (collapsedWbsIds.size === 0) return null;
     for (const level of GANTT_HIERARCHY_LEVELS) {
@@ -5641,6 +5826,7 @@ function App() {
           ...(nextProject.uiState?.wbsColumnWidths ?? {}),
         }),
       );
+      setWbsSort(normalizeWbsSort(nextProject.uiState?.wbsSort));
       setGanttWbsWidth(
         clampNumber(nextProject.uiState?.ganttWbsWidth ?? 360, 260, 640),
       );
@@ -6203,6 +6389,7 @@ function App() {
         wbsColumnOrder,
         wbsHiddenColumns,
         wbsColumnWidths,
+        wbsSort,
         activeWbsHierarchyLevel,
         showStructureCriticalPath,
       };
@@ -6246,6 +6433,9 @@ function App() {
           ...(config.wbsColumnWidths as Partial<Record<WbsTableColumnKey, number>>),
         }),
       );
+    }
+    if (Object.prototype.hasOwnProperty.call(config, "wbsSort")) {
+      setWbsSort(normalizeWbsSort(config.wbsSort));
     }
     if (
       typeof config.activeWbsHierarchyLevel === "number" &&
@@ -6501,6 +6691,7 @@ function App() {
       wbsColumnOrder?: WbsTableColumnKey[];
       wbsHiddenColumns?: WbsTableColumnKey[];
       wbsColumnWidths?: Record<WbsTableColumnKey, number>;
+      wbsSort?: WbsSortState | null;
       ganttPanelHeight?: number;
       ganttPanelWidth?: number;
       ganttWbsWidth?: number;
@@ -6513,6 +6704,7 @@ function App() {
       wbsColumnOrder: options?.wbsColumnOrder ?? wbsColumnOrder,
       wbsHiddenColumns: options?.wbsHiddenColumns ?? wbsHiddenColumns,
       wbsColumnWidths: options?.wbsColumnWidths ?? wbsColumnWidths,
+      wbsSort: options?.wbsSort ?? wbsSort,
       ganttPanelHeight: options?.ganttPanelHeight ?? ganttPanelHeight,
       ganttPanelWidth: options?.ganttPanelWidth ?? ganttPanelWidth,
       ganttWbsWidth: options?.ganttWbsWidth ?? ganttWbsWidth,
@@ -7794,9 +7986,7 @@ function App() {
     if (!activeWbsItemId || !clipboardText || !/[\t\n\r]/.test(clipboardText)) {
       return;
     }
-    const tableRows = showStructureCriticalPath
-      ? visibleStructureWbsTree
-      : visibleWbsTree;
+    const tableRows = visibleStructureWbsTree;
     const startIndex = tableRows.findIndex(
       (item) => item.id === activeWbsItemId,
     );
@@ -8049,6 +8239,21 @@ function App() {
     });
   }
 
+  function toggleWbsSort(columnKey: WbsTableColumnKey) {
+    setWbsSort((current) => {
+      const next =
+        current?.columnKey !== columnKey
+          ? { columnKey, direction: "asc" as const }
+          : current.direction === "asc"
+          ? { columnKey, direction: "desc" as const }
+          : null;
+      if (project && isAuthenticated && !isClosedProject) {
+        void saveProjectUiState({ wbsSort: next }, { wbsSort: next });
+      }
+      return next;
+    });
+  }
+
   function startWbsColumnDrag(
     columnKey: WbsTableColumnKey,
     event: ReactDragEvent<HTMLSpanElement>,
@@ -8191,8 +8396,12 @@ function App() {
               <button
                 type="button"
                 className="wbs-row-drag-handle"
-                draggable
+                draggable={!wbsSort}
                 onDragStart={(event) => {
+                  if (wbsSort) {
+                    event.preventDefault();
+                    return;
+                  }
                   setDraggedWbsItemId(item.id);
                   event.dataTransfer.effectAllowed = "move";
                   event.dataTransfer.setData("application/x-wbs-item", item.id);
@@ -8201,7 +8410,16 @@ function App() {
                   setDraggedWbsItemId(null);
                   setWbsDropTargetId(null);
                 }}
-                aria-label="Перетащить строку Структуры"
+                aria-label={
+                  wbsSort
+                    ? "Перемещение строк доступно после отключения сортировки"
+                    : "Перетащить строку Структуры"
+                }
+                title={
+                  wbsSort
+                    ? "Перемещение строк доступно после отключения сортировки"
+                    : "Перетащить строку Структуры"
+                }
               >
                 ::
               </button>
@@ -8218,10 +8436,12 @@ function App() {
               type="button"
               className="wbs-inline-insert-button"
               onClick={() => {
-                const afterIndex = visibleWbsTree.findIndex(
+                const afterIndex = visibleStructureWbsTree.findIndex(
                   (visibleItem) => visibleItem.id === item.id,
                 );
-                if (afterIndex >= 0) void insertWbsRow(afterIndex);
+                if (afterIndex >= 0) {
+                  void insertWbsRow(afterIndex, visibleStructureWbsTree);
+                }
               }}
               aria-label="Добавить строку Структуры ниже"
             >
@@ -8514,13 +8734,16 @@ function App() {
     }
   }
 
-  async function insertWbsRow(afterIndex: number) {
+  async function insertWbsRow(
+    afterIndex: number,
+    sourceRows: WbsTreeItem[] = visibleWbsTree,
+  ) {
     if (!project) return;
     setError(null);
     setNotice(null);
-    const previousItem = visibleWbsTree[afterIndex];
+    const previousItem = sourceRows[afterIndex];
     if (!previousItem) return;
-    const nextItem = visibleWbsTree[afterIndex + 1] ?? null;
+    const nextItem = sourceRows[afterIndex + 1] ?? null;
 
     rememberWbsSnapshot();
     try {
@@ -12849,6 +13072,14 @@ function App() {
                           {orderedWbsColumns.map((column) => (
                             <span
                               key={column.key}
+                              role="columnheader"
+                              aria-sort={
+                                wbsSort?.columnKey === column.key
+                                  ? wbsSort.direction === "asc"
+                                    ? "ascending"
+                                    : "descending"
+                                  : "none"
+                              }
                               draggable={
                                 column.key !== "level" &&
                                 column.key !== "structure"
@@ -12873,7 +13104,24 @@ function App() {
                               onDrop={(event) => dropWbsColumn(column.key, event)}
                               onDragEnd={() => setDraggedWbsColumn(null)}
                             >
-                              <span className="wbs-column-title">{column.label}</span>
+                              <button
+                                type="button"
+                                className={`wbs-column-sort ${wbsSort?.columnKey === column.key ? "active" : ""}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  toggleWbsSort(column.key);
+                                }}
+                                title={`Сортировать по полю «${column.label}»`}
+                              >
+                                <span className="wbs-column-title">{column.label}</span>
+                                <span className="wbs-sort-indicator" aria-hidden="true">
+                                  {wbsSort?.columnKey === column.key
+                                    ? wbsSort.direction === "asc"
+                                      ? "↑"
+                                      : "↓"
+                                    : "↕"}
+                                </span>
+                              </button>
                               <button
                                 type="button"
                                 className="wbs-column-resizer"
@@ -12895,6 +13143,7 @@ function App() {
                               className={`wbs-row-stack ${draggedWbsItemId === item.id ? "dragging" : ""} ${wbsDropTargetId === item.id ? "drop-target" : ""}`}
                               onDragOver={(event) => {
                                 if (
+                                  wbsSort ||
                                   !draggedWbsItemId ||
                                   draggedWbsItemId === item.id
                                 ) {
@@ -12905,6 +13154,7 @@ function App() {
                               }}
                               onDrop={(event) => {
                                 event.preventDefault();
+                                if (wbsSort) return;
                                 const sourceId =
                                   event.dataTransfer.getData("application/x-wbs-item") ||
                                   draggedWbsItemId;
