@@ -51,6 +51,11 @@ export type WbsScheduleUpdate = {
   calendarDays: number | null;
 };
 
+export type WbsScheduleCalculationOptions = {
+  changedItemId?: string;
+  changedFields?: Iterable<string>;
+};
+
 export type WbsBaselineVarianceItem = {
   id: string;
   parentId?: string | null;
@@ -167,6 +172,32 @@ function calendarDaysInclusive(startDate: Date, dueDate: Date) {
   return Math.max(0, diff + 1);
 }
 
+function workingDaysInclusive(
+  startDate: Date,
+  dueDate: Date,
+  calendarCode: ProjectCalendarCode,
+  overridesByKey: Map<string, boolean>,
+) {
+  const start = startOfUtcDay(startDate);
+  const due = startOfUtcDay(dueDate);
+  if (due.getTime() < start.getTime()) return 0;
+
+  let current = new Date(start);
+  let workingDays = 0;
+  let guard = 0;
+  while (current.getTime() <= due.getTime()) {
+    if (isWorkingDay(current, calendarCode, overridesByKey)) {
+      workingDays += 1;
+    }
+    current.setUTCDate(current.getUTCDate() + 1);
+    guard += 1;
+    if (guard > 20_000) {
+      throw new Error("Не удалось рассчитать рабочие дни Структуры");
+    }
+  }
+  return workingDays;
+}
+
 function signedCalendarDays(startDate: Date, dueDate: Date) {
   const start = startOfUtcDay(startDate);
   const due = startOfUtcDay(dueDate);
@@ -267,8 +298,10 @@ export function calculateWbsScheduleUpdates(
   items: WbsScheduleItem[],
   dependencies: WbsScheduleDependency[],
   calendarOverrides: WbsScheduleCalendarOverride[],
+  options: WbsScheduleCalculationOptions = {},
 ) {
   const overridesByKey = buildCalendarOverrides(calendarOverrides);
+  const changedFields = new Set(options.changedFields ?? []);
   const itemsById = new Map(items.map((item) => [item.id, item]));
   const itemsByCode = new Map(items.map((item) => [item.code, item]));
   const childrenByParent = buildChildrenByParent(items, itemsById, itemsByCode);
@@ -384,7 +417,19 @@ export function calculateWbsScheduleUpdates(
     const predecessorRefs = predecessorRefsByItem.get(item.id) ?? [];
     let nextStartDate = normalizedDate(item.startDate);
     let nextDueDate = normalizedDate(item.dueDate);
-    const durationWorkDays = resolveDurationWorkDays(item);
+    let durationWorkDays = resolveDurationWorkDays(item);
+    const isChangedItem = item.id === options.changedItemId;
+    const isWorkDaysDrivenChange =
+      isChangedItem && changedFields.has("workDays");
+    const isDateDrivenChange =
+      isChangedItem &&
+      !isWorkDaysDrivenChange &&
+      [
+        "startDate",
+        "dueDate",
+        "forecastStartDate",
+        "forecastDueDate",
+      ].some((field) => changedFields.has(field));
 
     const startConstraints: Date[] = [];
     const finishConstraints: Date[] = [];
@@ -437,13 +482,14 @@ export function calculateWbsScheduleUpdates(
       }
     }
 
-    if (durationWorkDays !== null) {
+    if (durationWorkDays !== null && !isDateDrivenChange) {
+      const constrainedDurationWorkDays = durationWorkDays;
       const requiredStartDates = [
         ...startConstraints,
         ...finishConstraints.map((finishConstraint) =>
           startFromFinish(
             finishConstraint,
-            durationWorkDays,
+            constrainedDurationWorkDays,
             item.calendarCode,
             overridesByKey,
           ),
@@ -460,13 +506,35 @@ export function calculateWbsScheduleUpdates(
       if (constrainedFinishDate) nextDueDate = constrainedFinishDate;
     }
 
-    if (nextStartDate && durationWorkDays !== null) {
+    if (isDateDrivenChange) {
+      durationWorkDays =
+        item.type === "MILESTONE"
+          ? 0
+          : nextStartDate && nextDueDate
+            ? workingDaysInclusive(
+                nextStartDate,
+                nextDueDate,
+                item.calendarCode,
+                overridesByKey,
+              )
+            : null;
+    } else if (nextStartDate && durationWorkDays !== null) {
       nextDueDate =
         durationWorkDays <= 1
           ? nextStartDate
           : addWorkingDays(
               nextStartDate,
               durationWorkDays - 1,
+              item.calendarCode,
+              overridesByKey,
+            );
+    } else if (nextStartDate && nextDueDate) {
+      durationWorkDays =
+        item.type === "MILESTONE"
+          ? 0
+          : workingDaysInclusive(
+              nextStartDate,
+              nextDueDate,
               item.calendarCode,
               overridesByKey,
             );
@@ -502,7 +570,7 @@ export function calculateWbsScheduleUpdates(
 
   const hierarchyOrder = [...items].sort(
     (left, right) =>
-      wbsLevelFromCode(right.code) - wbsLevelFromCode(left.code) ||
+      wbsLevelFromItem(right) - wbsLevelFromItem(left) ||
       right.sortOrder - left.sortOrder,
   );
   for (const item of hierarchyOrder) {
@@ -526,13 +594,20 @@ export function calculateWbsScheduleUpdates(
       nextStartDate && nextDueDate
         ? calendarDaysInclusive(nextStartDate, nextDueDate)
         : null;
+    const childWorkDays = childSchedules
+      .map((schedule) => schedule.workDays)
+      .filter((value): value is number => value !== null);
+    const nextWorkDays =
+      childWorkDays.length > 0
+        ? childWorkDays.reduce((sum, workDays) => sum + workDays, 0)
+        : null;
     const update: WbsScheduleUpdate = {
       id: item.id,
       startDate: nextStartDate,
       dueDate: nextDueDate,
       forecastStartDate: nextStartDate,
       forecastDueDate: nextDueDate,
-      workDays: item.workDays,
+      workDays: nextWorkDays,
       calendarDays: nextCalendarDays,
     };
     computedById.set(item.id, update);
@@ -695,7 +770,10 @@ export function calculateWbsBaselineVariance(
   };
 }
 
-export async function recalculateProjectWbsSchedule(projectId: string) {
+export async function recalculateProjectWbsSchedule(
+  projectId: string,
+  options: WbsScheduleCalculationOptions = {},
+) {
   const [items, dependencies, calendarOverrides] = await Promise.all([
     prisma.wbsItem.findMany({
       where: { projectId },
@@ -721,7 +799,12 @@ export async function recalculateProjectWbsSchedule(projectId: string) {
     }),
   ]);
 
-  const updates = calculateWbsScheduleUpdates(items, dependencies, calendarOverrides);
+  const updates = calculateWbsScheduleUpdates(
+    items,
+    dependencies,
+    calendarOverrides,
+    options,
+  );
   if (updates.length === 0) return 0;
 
   await prisma.$transaction(

@@ -1,4 +1,5 @@
 import { wbsItemSchema } from '@pms/shared';
+import type { WbsItem } from '@prisma/client';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -153,6 +154,61 @@ async function wouldCreateWbsCycle(itemId: string, nextParentId: string | null |
     cursor = parent?.parentId ?? null;
   }
   return false;
+}
+
+const WBS_SCHEDULE_DATE_FIELDS = [
+  'startDate',
+  'dueDate',
+  'forecastStartDate',
+  'forecastDueDate',
+] as const;
+
+const WBS_SCHEDULE_PREDECESSOR_FIELDS = [
+  'predecessor1',
+  'predecessor2',
+  'predecessor3',
+  'predecessor4',
+  'predecessor5',
+  'predecessor6',
+] as const;
+
+function dateOnly(value: Date | string | null | undefined) {
+  if (value === null || value === undefined || value === '') return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function changedWbsScheduleFields(
+  patch: Partial<z.infer<typeof wbsItemSchema>>,
+  existing: WbsItem,
+) {
+  const fields = new Set<string>();
+
+  for (const field of WBS_SCHEDULE_DATE_FIELDS) {
+    if (patch[field] !== undefined && dateOnly(patch[field]) !== dateOnly(existing[field])) {
+      fields.add(field);
+    }
+  }
+
+  if (patch.workDays !== undefined && (patch.workDays ?? null) !== existing.workDays) {
+    fields.add('workDays');
+  }
+  if (patch.calendarCode !== undefined && patch.calendarCode !== existing.calendarCode) {
+    fields.add('calendarCode');
+  }
+  if (patch.leadLagDays !== undefined && patch.leadLagDays !== existing.leadLagDays) {
+    fields.add('leadLagDays');
+  }
+
+  for (const field of WBS_SCHEDULE_PREDECESSOR_FIELDS) {
+    if (patch[field] !== undefined && (patch[field] || null) !== existing[field]) {
+      fields.add(field);
+      fields.add('predecessors');
+    }
+  }
+
+  return [...fields];
 }
 
 router.post('/projects/:projectId/wbs-items/insert-after', async (req, res) => {
@@ -499,6 +555,8 @@ router.patch('/wbs-items/:itemId', async (req, res) => {
     return;
   }
 
+  const scheduleChangedFields = changedWbsScheduleFields(parsed.data, existing);
+
   const updated = await prisma.wbsItem.update({
     where: { id: existing.id },
     data: {
@@ -586,7 +644,10 @@ router.patch('/wbs-items/:itemId', async (req, res) => {
     afterSnapshot: updated,
   });
 
-  await recalculateProjectWbsSchedule(existing.projectId);
+  await recalculateProjectWbsSchedule(existing.projectId, {
+    changedItemId: existing.id,
+    changedFields: scheduleChangedFields,
+  });
   const snapshot = await getProjectWbsSnapshot(existing.projectId);
   await emitWebhookEvent({
     eventType: 'wbs.item.updated',

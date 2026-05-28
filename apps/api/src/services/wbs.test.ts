@@ -141,7 +141,7 @@ test("calculateWbsScheduleUpdates starts successor from latest predecessor plus 
   assert.equal(taskC?.calendarDays, 5);
 });
 
-test("calculateWbsScheduleUpdates keeps empty work days empty and does not derive duration from dates", () => {
+test("calculateWbsScheduleUpdates derives empty work days from dates", () => {
   const items = [
     {
       id: "task-a",
@@ -161,8 +161,11 @@ test("calculateWbsScheduleUpdates keeps empty work days empty and does not deriv
   ];
 
   const updates = calculateWbsScheduleUpdates(items, [], []);
+  const taskA = updates.find((item) => item.id === "task-a");
 
-  assert.deepEqual(updates, []);
+  assert.equal(taskA?.workDays, 5);
+  assert.equal(taskA?.dueDate?.toISOString().slice(0, 10), "2026-05-22");
+  assert.equal(taskA?.calendarDays, 5);
 });
 
 test("calculateWbsScheduleUpdates uses work days to calculate due date", () => {
@@ -190,6 +193,35 @@ test("calculateWbsScheduleUpdates uses work days to calculate due date", () => {
   assert.equal(taskA?.dueDate?.toISOString().slice(0, 10), "2026-05-22");
   assert.equal(taskA?.workDays, 5);
   assert.equal(taskA?.calendarDays, 5);
+});
+
+test("calculateWbsScheduleUpdates recalculates work days when dates are edited", () => {
+  const items = [
+    {
+      id: "task-a",
+      code: "1.1",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      dueDate: new Date("2026-05-22T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-18T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-22T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 2,
+      calendarDays: 5,
+      calendarCode: "RU" as const,
+      sortOrder: 10,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], [], {
+    changedItemId: "task-a",
+    changedFields: ["dueDate"],
+  });
+  const taskA = updates.find((item) => item.id === "task-a");
+
+  assert.equal(taskA?.workDays, 5);
+  assert.equal(taskA?.dueDate?.toISOString().slice(0, 10), "2026-05-22");
 });
 
 test("calculateWbsScheduleUpdates starts from latest predecessor when several predecessor fields are filled", () => {
@@ -627,12 +659,16 @@ test("calculateWbsScheduleUpdates aggregates phase and work package dates from c
   const updates = calculateWbsScheduleUpdates(items, [], []);
   const phase = updates.find((item) => item.id === "phase");
   const workPackage = updates.find((item) => item.id === "package");
+  const taskA = updates.find((item) => item.id === "task-a");
 
+  assert.equal(taskA?.workDays, 3);
   assert.equal(workPackage?.startDate?.toISOString().slice(0, 10), "2026-05-18");
   assert.equal(workPackage?.dueDate?.toISOString().slice(0, 10), "2026-05-29");
+  assert.equal(workPackage?.workDays, 8);
   assert.equal(workPackage?.calendarDays, 12);
   assert.equal(phase?.startDate?.toISOString().slice(0, 10), "2026-05-18");
   assert.equal(phase?.dueDate?.toISOString().slice(0, 10), "2026-05-29");
+  assert.equal(phase?.workDays, 8);
   assert.equal(phase?.calendarDays, 12);
 });
 
