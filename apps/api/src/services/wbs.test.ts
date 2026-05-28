@@ -672,6 +672,102 @@ test("calculateWbsScheduleUpdates aggregates phase and work package dates from c
   assert.equal(phase?.calendarDays, 12);
 });
 
+test("calculateWbsScheduleUpdates sums only leaf work days for hierarchy items", () => {
+  const items = [
+    {
+      id: "phase",
+      code: "1",
+      type: "PHASE" as const,
+      startDate: null,
+      dueDate: null,
+      forecastStartDate: null,
+      forecastDueDate: null,
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: null,
+      calendarDays: null,
+      calendarCode: "RU" as const,
+      wbsLevel: 1,
+      sortOrder: 10,
+    },
+    {
+      id: "package",
+      parentId: "phase",
+      code: "1.1",
+      type: "WORK_PACKAGE" as const,
+      startDate: null,
+      dueDate: null,
+      forecastStartDate: null,
+      forecastDueDate: null,
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 99,
+      calendarDays: null,
+      calendarCode: "RU" as const,
+      wbsLevel: 2,
+      sortOrder: 20,
+    },
+    {
+      id: "task-a",
+      parentId: "package",
+      code: "1.1.1",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      dueDate: new Date("2026-05-20T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-18T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-20T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 3,
+      calendarDays: 3,
+      calendarCode: "RU" as const,
+      wbsLevel: 3,
+      sortOrder: 30,
+    },
+    {
+      id: "task-b",
+      parentId: "package",
+      code: "1.1.2",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-22T00:00:00.000Z"),
+      dueDate: new Date("2026-05-22T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-22T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-22T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 1,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      wbsLevel: 3,
+      sortOrder: 40,
+    },
+    {
+      id: "standalone-task",
+      parentId: "phase",
+      code: "1.2",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-25T00:00:00.000Z"),
+      dueDate: new Date("2026-05-26T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-25T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-26T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 2,
+      calendarDays: 2,
+      calendarCode: "RU" as const,
+      wbsLevel: 2,
+      sortOrder: 50,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], []);
+  const phase = updates.find((item) => item.id === "phase");
+  const workPackage = updates.find((item) => item.id === "package");
+
+  assert.equal(workPackage?.workDays, 4);
+  assert.equal(phase?.workDays, 6);
+});
+
 test("calculateWbsBaselineVariance reports only root schedule deviations", () => {
   const variance = calculateWbsBaselineVariance(
     [

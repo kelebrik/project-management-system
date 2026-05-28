@@ -573,6 +573,34 @@ export function calculateWbsScheduleUpdates(
       wbsLevelFromItem(right) - wbsLevelFromItem(left) ||
       right.sortOrder - left.sortOrder,
   );
+  const leafWorkDaysByParentId = new Map<string, number[]>();
+  const descendantLeafWorkDays = (
+    parentId: string,
+    visited = new Set<string>(),
+  ): number[] => {
+    const cached = leafWorkDaysByParentId.get(parentId);
+    if (cached) return cached;
+    if (visited.has(parentId)) return [];
+    visited.add(parentId);
+
+    const values: number[] = [];
+    for (const child of childrenByParent.get(parentId) ?? []) {
+      const grandchildren = childrenByParent.get(child.id) ?? [];
+      if (grandchildren.length > 0) {
+        values.push(...descendantLeafWorkDays(child.id, new Set(visited)));
+        continue;
+      }
+
+      const childWorkDays = computedById.get(child.id)?.workDays;
+      if (childWorkDays !== null && childWorkDays !== undefined) {
+        values.push(childWorkDays);
+      }
+    }
+
+    leafWorkDaysByParentId.set(parentId, values);
+    return values;
+  };
+
   for (const item of hierarchyOrder) {
     const children = childrenByParent.get(item.id) ?? [];
     if (children.length === 0) continue;
@@ -586,7 +614,14 @@ export function calculateWbsScheduleUpdates(
     const childDueDates = childSchedules
       .map((schedule) => schedule.dueDate)
       .filter((date): date is Date => date !== null);
-    if (childStartDates.length === 0 && childDueDates.length === 0) continue;
+    const childWorkDays = descendantLeafWorkDays(item.id);
+    if (
+      childStartDates.length === 0 &&
+      childDueDates.length === 0 &&
+      childWorkDays.length === 0
+    ) {
+      continue;
+    }
 
     const nextStartDate = minDate(childStartDates);
     const nextDueDate = maxDate(childDueDates);
@@ -594,9 +629,6 @@ export function calculateWbsScheduleUpdates(
       nextStartDate && nextDueDate
         ? calendarDaysInclusive(nextStartDate, nextDueDate)
         : null;
-    const childWorkDays = childSchedules
-      .map((schedule) => schedule.workDays)
-      .filter((value): value is number => value !== null);
     const nextWorkDays =
       childWorkDays.length > 0
         ? childWorkDays.reduce((sum, workDays) => sum + workDays, 0)
