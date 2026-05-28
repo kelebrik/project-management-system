@@ -3239,7 +3239,7 @@ code {
 .milestone-point::before {
   background: #94a3b8;
   content: "";
-  height: calc(42px + var(--milestone-label-level, 0) * 56px);
+  height: calc(34px + var(--milestone-label-level, 0) * 56px);
   left: 50%;
   position: absolute;
   width: 3px;
@@ -3341,19 +3341,19 @@ code {
 }
 
 .milestone-point.top .milestone-date {
-  top: calc(-42px - var(--milestone-label-level, 0) * 56px);
+  top: calc(-56px - var(--milestone-label-level, 0) * 56px);
 }
 
 .milestone-point.bottom .milestone-date {
-  top: calc(30px + var(--milestone-label-level, 0) * 56px);
+  top: calc(42px + var(--milestone-label-level, 0) * 56px);
 }
 
 .milestone-point.top .milestone-label {
-  bottom: calc(42px + var(--milestone-label-level, 0) * 56px);
+  bottom: calc(56px + var(--milestone-label-level, 0) * 56px);
 }
 
 .milestone-point.bottom .milestone-label {
-  top: calc(44px + var(--milestone-label-level, 0) * 56px);
+  top: calc(56px + var(--milestone-label-level, 0) * 56px);
 }
 
 .milestone-range {

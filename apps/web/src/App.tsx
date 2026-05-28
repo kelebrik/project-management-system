@@ -3256,6 +3256,12 @@ function createMilestoneTimelineModel({
   const modelLanes = Array.from(laneById.values()).filter(
     (lane) => lane.items.length > 0 || lane.id !== "unassigned",
   );
+  const maxLaneMilestones = Math.max(
+    1,
+    ...modelLanes.map((lane) => lane.items.length),
+  );
+  const trackWidth = Math.max(minTrackWidth, maxLaneMilestones * 150);
+  const labelHalfWidthOffset = 74 / trackWidth;
 
   modelLanes.forEach((lane) => {
     const sideLevels: Record<"top" | "bottom", number[]> = {
@@ -3302,28 +3308,45 @@ function createMilestoneTimelineModel({
         clusterEnd += 1;
       }
       const cluster = lane.items.slice(clusterStart, clusterEnd);
-      if (cluster.length > 1) {
-        cluster.forEach((item) => {
-          const shiftDirection = item.side === "top" ? 1 : -1;
-          item.labelShiftPx =
-            shiftDirection *
-            Math.min(154, 96 + item.level * 34);
-        });
-      }
+      cluster.forEach((item) => {
+        const isClustered = cluster.length > 1;
+        const isNearLeftEdge = item.offset < labelHalfWidthOffset + 0.025;
+        const isNearRightEdge = item.offset > 1 - labelHalfWidthOffset - 0.025;
+        const isNearToday =
+          timelineStart <= today &&
+          today <= timelineEnd &&
+          todayOffset !== null &&
+          Math.abs(item.offset - todayOffset) < labelHalfWidthOffset * 0.85;
+        const needsShift = isClustered || isNearLeftEdge || isNearRightEdge || isNearToday;
+        if (!needsShift) {
+          item.labelShiftPx = 0;
+          return;
+        }
+
+        let shiftDirection = item.side === "top" ? 1 : -1;
+        if (isNearLeftEdge) {
+          shiftDirection = 1;
+        } else if (isNearRightEdge) {
+          shiftDirection = -1;
+        } else if (isNearToday && todayOffset !== null) {
+          shiftDirection = item.offset >= todayOffset ? 1 : -1;
+        }
+
+        const shiftAmount = Math.min(
+          isClustered ? 76 : 62,
+          (isClustered ? 42 : 52) + item.level * 18,
+        );
+        item.labelShiftPx = shiftDirection * shiftAmount;
+      });
       clusterStart = clusterEnd;
     }
   });
-
-  const maxLaneMilestones = Math.max(
-    1,
-    ...modelLanes.map((lane) => lane.items.length),
-  );
 
   return {
     lanes: modelLanes,
     startDate: new Date(minTime).toISOString(),
     endDate: new Date(maxTime).toISOString(),
-    trackWidth: Math.max(minTrackWidth, maxLaneMilestones * 150),
+    trackWidth,
     laneHeight: 146 + maxLaneLevel * 52,
     todayOffset,
     hasMilestonesOutsideRange: datedMilestones.length > visibleMilestones.length,
