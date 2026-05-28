@@ -20,6 +20,7 @@ import { createSavedViewsRouter } from './routes/saved-views.routes.js';
 import { createSearchRouter } from './routes/search.routes.js';
 import { createWbsRouter } from './routes/wbs.routes.js';
 import { recordAuditEvent } from './services/audit.js';
+import { recalculateProjectWbsSchedule } from './services/wbs-schedule.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -1118,6 +1119,33 @@ app.get(/.*/, (_req, res) => {
   res.sendFile(path.join(webDist, 'index.html'));
 });
 
+async function recalculateActiveProjectSchedulesOnStartup() {
+  const projects = await prisma.project.findMany({
+    where: { status: { not: 'CLOSED' } },
+    select: { id: true, code: true },
+    orderBy: [{ updatedAt: 'desc' }],
+  });
+
+  let updatedItems = 0;
+  for (const project of projects) {
+    try {
+      updatedItems += await recalculateProjectWbsSchedule(project.id);
+    } catch (error) {
+      logEvent('error', 'wbs.schedule.startup_recalculate_failed', {
+        projectId: project.id,
+        projectCode: project.code,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  logEvent('info', 'wbs.schedule.startup_recalculated', {
+    projectCount: projects.length,
+    updatedItems,
+  });
+}
+
 app.listen(port, () => {
   logEvent('info', 'api.listen', { port });
+  void recalculateActiveProjectSchedulesOnStartup();
 });
