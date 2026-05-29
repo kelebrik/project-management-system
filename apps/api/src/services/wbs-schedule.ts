@@ -294,7 +294,7 @@ function sortByPlanOrder(left: WbsScheduleItem, right: WbsScheduleItem) {
   return left.sortOrder - right.sortOrder || left.code.localeCompare(right.code, "ru");
 }
 
-export function calculateWbsScheduleUpdates(
+function calculateWbsSchedulePass(
   items: WbsScheduleItem[],
   dependencies: WbsScheduleDependency[],
   calendarOverrides: WbsScheduleCalendarOverride[],
@@ -634,6 +634,81 @@ export function calculateWbsScheduleUpdates(
   }
 
   return [...updatesById.values()];
+}
+
+function applyScheduleUpdates(
+  items: WbsScheduleItem[],
+  updates: WbsScheduleUpdate[],
+): WbsScheduleItem[] {
+  const updatesById = new Map(updates.map((update) => [update.id, update]));
+  return items.map((item) => {
+    const update = updatesById.get(item.id);
+    if (!update) return item;
+    return {
+      ...item,
+      startDate: update.startDate,
+      dueDate: update.dueDate,
+      forecastStartDate: update.forecastStartDate,
+      forecastDueDate: update.forecastDueDate,
+      workDays: update.workDays,
+      calendarDays: update.calendarDays,
+    };
+  });
+}
+
+export function calculateWbsScheduleUpdates(
+  items: WbsScheduleItem[],
+  dependencies: WbsScheduleDependency[],
+  calendarOverrides: WbsScheduleCalendarOverride[],
+  options: WbsScheduleCalculationOptions = {},
+) {
+  let currentItems = items;
+  let previousUpdates: WbsScheduleUpdate[] = [];
+
+  for (let iteration = 0; iteration < 20; iteration += 1) {
+    const updates = calculateWbsSchedulePass(
+      currentItems,
+      dependencies,
+      calendarOverrides,
+      options,
+    );
+    if (updates.length === 0) break;
+    previousUpdates = updates;
+    currentItems = applyScheduleUpdates(currentItems, updates);
+  }
+
+  if (previousUpdates.length === 0) return [];
+
+  const finalUpdates: WbsScheduleUpdate[] = [];
+  const finalItemsById = new Map(currentItems.map((item) => [item.id, item]));
+
+  for (const originalItem of items) {
+    const finalItem = finalItemsById.get(originalItem.id);
+    if (!finalItem) continue;
+
+    const update: WbsScheduleUpdate = {
+      id: originalItem.id,
+      startDate: normalizedDate(finalItem.startDate),
+      dueDate: normalizedDate(finalItem.dueDate),
+      forecastStartDate: normalizedDate(finalItem.forecastStartDate ?? null),
+      forecastDueDate: normalizedDate(finalItem.forecastDueDate ?? null),
+      workDays: finalItem.workDays ?? null,
+      calendarDays: finalItem.calendarDays ?? null,
+    };
+
+    if (
+      !sameDate(originalItem.startDate, update.startDate) ||
+      !sameDate(originalItem.dueDate, update.dueDate) ||
+      !sameDate(originalItem.forecastStartDate ?? null, update.forecastStartDate) ||
+      !sameDate(originalItem.forecastDueDate ?? null, update.forecastDueDate) ||
+      !sameNumber(originalItem.workDays, update.workDays) ||
+      !sameNumber(originalItem.calendarDays, update.calendarDays)
+    ) {
+      finalUpdates.push(update);
+    }
+  }
+
+  return finalUpdates;
 }
 
 export function calculateWbsBaselineVariance(

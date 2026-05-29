@@ -772,6 +772,75 @@ test("calculateWbsScheduleUpdates derives hierarchy work days from aggregated da
   assert.equal(phase?.workDays, 7);
 });
 
+test("calculateWbsScheduleUpdates propagates aggregated package dates to successors", () => {
+  const items = [
+    {
+      id: "package",
+      parentId: null,
+      code: "1.1",
+      type: "WORK_PACKAGE" as const,
+      startDate: new Date("2026-05-01T00:00:00.000Z"),
+      dueDate: new Date("2026-05-01T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-01T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-01T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 1,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      wbsLevel: 2,
+      sortOrder: 10,
+    },
+    {
+      id: "child",
+      parentId: "package",
+      code: "1.1.1",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-25T00:00:00.000Z"),
+      dueDate: new Date("2026-05-29T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-25T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-29T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 5,
+      calendarDays: 5,
+      calendarCode: "RU" as const,
+      wbsLevel: 3,
+      sortOrder: 20,
+    },
+    {
+      id: "successor",
+      parentId: null,
+      code: "1.2",
+      type: "TASK" as const,
+      startDate: new Date("2026-05-04T00:00:00.000Z"),
+      dueDate: new Date("2026-05-04T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-04T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-04T00:00:00.000Z"),
+      predecessor1: "1.1",
+      predecessor2: null,
+      predecessor3: null,
+      predecessor4: null,
+      predecessor5: null,
+      predecessor6: null,
+      leadLagDays: 0,
+      workDays: 1,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      wbsLevel: 2,
+      sortOrder: 30,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], []);
+  const workPackage = updates.find((item) => item.id === "package");
+  const successor = updates.find((item) => item.id === "successor");
+
+  assert.equal(workPackage?.dueDate?.toISOString().slice(0, 10), "2026-05-29");
+  assert.equal(successor?.startDate?.toISOString().slice(0, 10), "2026-06-01");
+  assert.equal(successor?.dueDate?.toISOString().slice(0, 10), "2026-06-01");
+});
+
 test("calculateWbsBaselineVariance reports only root schedule deviations", () => {
   const variance = calculateWbsBaselineVariance(
     [
