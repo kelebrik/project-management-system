@@ -8788,38 +8788,39 @@ function App() {
     setError(null);
     if (!options.silent) setNotice(null);
     try {
-      await apiClient.patch<WbsSnapshotResponse>(
+      const patchResult = await apiClient.patch<WbsSnapshotResponse>(
         `/api/wbs-items/${itemId}`,
         nextPayload,
         "Не удалось сохранить элемент Структуры",
       );
-      const predecessorResult = await saveWbsPredecessors(itemId, {
-        remember: !predecessorsChanged,
-      });
-      if (predecessorResult?.wbsItems) {
-        if (!requiresRenumber) {
-          applyWbsSnapshotResult(
-            predecessorResult.wbsItems,
-            predecessorResult.wbsDependencies,
-            predecessorResult.criticalPath,
-          );
-          if (!options.silent) setNotice("Элемент Структуры обновлен");
-          return;
-        }
-      }
-      const renumberResult = await apiClient.post<WbsSnapshotResponse>(
-        `/api/projects/${project.id}/wbs-items/renumber`,
-        undefined,
-        "Не удалось перенумеровать Структуру",
-      );
-      if (renumberResult.wbsItems) {
-        applyWbsSnapshotResult(
-          renumberResult.wbsItems,
-          renumberResult.wbsDependencies,
-          renumberResult.criticalPath,
+      const predecessorResult = predecessorsChanged
+        ? await saveWbsPredecessors(itemId, { remember: false })
+        : null;
+
+      if (requiresRenumber) {
+        const renumberResult = await apiClient.post<WbsSnapshotResponse>(
+          `/api/projects/${project.id}/wbs-items/renumber`,
+          undefined,
+          "Не удалось перенумеровать Структуру",
         );
+        if (renumberResult.wbsItems) {
+          applyWbsSnapshotResult(
+            renumberResult.wbsItems,
+            renumberResult.wbsDependencies,
+            renumberResult.criticalPath,
+          );
+        } else {
+          await refreshProject();
+        }
       } else {
-        await refreshProject();
+        const snapshotResult = predecessorResult?.wbsItems
+          ? predecessorResult
+          : patchResult;
+        applyWbsSnapshotResult(
+          snapshotResult.wbsItems,
+          snapshotResult.wbsDependencies,
+          snapshotResult.criticalPath,
+        );
       }
       if (!options.silent) setNotice("Элемент Структуры обновлен");
     } catch (saveError) {
