@@ -3356,11 +3356,11 @@ function createMilestoneTimelineModel({
         const clusterDistance = Math.abs(clusterIndex - (cluster.length - 1) / 2);
         const rightSideTopBoost = isRightSideTopLabel
           ? item.offset >= clusterCenter
-            ? 92
-            : 58
+            ? 74
+            : 46
           : 0;
         const shiftAmount = Math.min(
-          isClustered ? 190 : 124,
+          isClustered ? 176 : 112,
           (isClustered ? 42 + clusterDistance * 28 : 48) +
             item.level * 18 +
             rightSideTopBoost,
@@ -3384,7 +3384,7 @@ function createMilestoneTimelineModel({
         const labelWidth = item.milestone.title.length > 12 ? 146 : 96;
         const center = item.offset * trackWidth + item.labelShiftPx;
         const left = center - labelWidth / 2;
-        const minLeft = previousRight + 18;
+        const minLeft = previousRight + (side === "top" ? 8 : 14);
         if (left < minLeft) {
           item.labelShiftPx += minLeft - left;
         }
