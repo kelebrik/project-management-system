@@ -3319,6 +3319,8 @@ function createMilestoneTimelineModel({
           item.side === "top" &&
           item.offset > 0.62 &&
           item.offset < 1 - labelHalfWidthOffset - 0.015;
+        const shouldNudgeRightSideTopLabel =
+          isRightSideTopLabel && !isClustered;
         const isNearToday =
           timelineStart <= today &&
           today <= timelineEnd &&
@@ -3329,7 +3331,7 @@ function createMilestoneTimelineModel({
           isNearLeftEdge ||
           isNearRightEdge ||
           isNearToday ||
-          isRightSideTopLabel;
+          shouldNudgeRightSideTopLabel;
         if (!needsShift) {
           item.labelShiftPx = 0;
           return;
@@ -3349,15 +3351,15 @@ function createMilestoneTimelineModel({
           shiftDirection = -1;
         } else if (isNearToday && todayOffset !== null) {
           shiftDirection = item.offset >= todayOffset ? 1 : -1;
-        } else if (isRightSideTopLabel) {
+        } else if (shouldNudgeRightSideTopLabel) {
           shiftDirection = 1;
         }
 
         const clusterDistance = Math.abs(clusterIndex - (cluster.length - 1) / 2);
-        const rightSideTopBoost = isRightSideTopLabel
+        const rightSideTopBoost = shouldNudgeRightSideTopLabel
           ? item.offset >= clusterCenter
-            ? 74
-            : 46
+            ? 42
+            : 28
           : 0;
         const shiftAmount = Math.min(
           isClustered ? 176 : 112,
@@ -3369,6 +3371,12 @@ function createMilestoneTimelineModel({
       });
       clusterStart = clusterEnd;
     }
+
+    lane.items.forEach((item) => {
+      if (item.side === "top" && item.offset > 0.68 && item.offset < 0.96) {
+        item.labelShiftPx -= item.offset > 0.82 ? 54 : 42;
+      }
+    });
 
     (["top", "bottom"] as const).forEach((side) => {
       const sideItems = lane.items
