@@ -3354,17 +3354,44 @@ function createMilestoneTimelineModel({
         }
 
         const clusterDistance = Math.abs(clusterIndex - (cluster.length - 1) / 2);
-        const rightSideTopBoost = isRightSideTopLabel ? 48 : 0;
+        const rightSideTopBoost = isRightSideTopLabel
+          ? item.offset >= clusterCenter
+            ? 92
+            : 58
+          : 0;
         const shiftAmount = Math.min(
-          isClustered ? 132 : 96,
+          isClustered ? 190 : 124,
           (isClustered ? 42 + clusterDistance * 28 : 48) +
-            item.level * 14 +
+            item.level * 18 +
             rightSideTopBoost,
         );
         item.labelShiftPx = shiftDirection * shiftAmount;
       });
       clusterStart = clusterEnd;
     }
+
+    (["top", "bottom"] as const).forEach((side) => {
+      const sideItems = lane.items
+        .filter((item) => item.side === side)
+        .sort(
+          (left, right) =>
+            left.offset * trackWidth +
+            left.labelShiftPx -
+            (right.offset * trackWidth + right.labelShiftPx),
+        );
+      let previousRight = Number.NEGATIVE_INFINITY;
+      sideItems.forEach((item) => {
+        const labelWidth = item.milestone.title.length > 12 ? 146 : 96;
+        const center = item.offset * trackWidth + item.labelShiftPx;
+        const left = center - labelWidth / 2;
+        const minLeft = previousRight + 18;
+        if (left < minLeft) {
+          item.labelShiftPx += minLeft - left;
+        }
+        previousRight =
+          item.offset * trackWidth + item.labelShiftPx + labelWidth / 2;
+      });
+    });
   });
 
   return {
