@@ -3315,12 +3315,21 @@ function createMilestoneTimelineModel({
         const isClustered = cluster.length > 1;
         const isNearLeftEdge = item.offset < labelHalfWidthOffset + 0.025;
         const isNearRightEdge = item.offset > 1 - labelHalfWidthOffset - 0.025;
+        const isRightSideTopLabel =
+          item.side === "top" &&
+          item.offset > 0.62 &&
+          item.offset < 1 - labelHalfWidthOffset - 0.015;
         const isNearToday =
           timelineStart <= today &&
           today <= timelineEnd &&
           todayOffset !== null &&
           Math.abs(item.offset - todayOffset) < labelHalfWidthOffset * 0.85;
-        const needsShift = isClustered || isNearLeftEdge || isNearRightEdge || isNearToday;
+        const needsShift =
+          isClustered ||
+          isNearLeftEdge ||
+          isNearRightEdge ||
+          isNearToday ||
+          isRightSideTopLabel;
         if (!needsShift) {
           item.labelShiftPx = 0;
           return;
@@ -3340,12 +3349,17 @@ function createMilestoneTimelineModel({
           shiftDirection = -1;
         } else if (isNearToday && todayOffset !== null) {
           shiftDirection = item.offset >= todayOffset ? 1 : -1;
+        } else if (isRightSideTopLabel) {
+          shiftDirection = 1;
         }
 
         const clusterDistance = Math.abs(clusterIndex - (cluster.length - 1) / 2);
+        const rightSideTopBoost = isRightSideTopLabel ? 48 : 0;
         const shiftAmount = Math.min(
-          isClustered ? 92 : 58,
-          (isClustered ? 42 + clusterDistance * 28 : 48) + item.level * 14,
+          isClustered ? 132 : 96,
+          (isClustered ? 42 + clusterDistance * 28 : 48) +
+            item.level * 14 +
+            rightSideTopBoost,
         );
         item.labelShiftPx = shiftDirection * shiftAmount;
       });
