@@ -3374,7 +3374,7 @@ function createMilestoneTimelineModel({
 
     lane.items.forEach((item) => {
       if (item.side === "top" && item.offset > 0.68 && item.offset < 0.96) {
-        item.labelShiftPx -= item.offset > 0.82 ? 54 : 42;
+        item.labelShiftPx -= item.offset > 0.82 ? 22 : 14;
       }
     });
 
