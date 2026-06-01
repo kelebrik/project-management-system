@@ -1,0 +1,420 @@
+
+.wbs-row-select {
+  accent-color: #2563eb;
+  height: 14px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  width: 14px !important;
+}
+
+.wbs-level-cell {
+  align-items: center;
+  box-sizing: border-box;
+  column-gap: 6px;
+  display: grid;
+  grid-template-columns: 24px minmax(24px, 1fr) 48px;
+  padding: 0 6px;
+  position: relative;
+}
+
+.wbs-level-stepper {
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+}
+
+.wbs-level-stepper button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  color: #475569;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 900;
+  height: 17px;
+  justify-content: center;
+  line-height: 1;
+  min-height: 0;
+  padding: 0;
+  width: 20px;
+}
+
+.wbs-level-stepper button:hover,
+.wbs-level-stepper button:focus-visible {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.wbs-level-input {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  text-align: center;
+}
+
+.wbs-level-input::-webkit-inner-spin-button,
+.wbs-level-input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.wbs-level-input[type="number"] {
+  appearance: textfield;
+}
+
+.wbs-inline-insert-button {
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  color: #1d4ed8;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 900;
+  height: 22px;
+  justify-content: center;
+  right: 19px;
+  opacity: 0;
+  padding: 0;
+  pointer-events: none;
+  position: absolute;
+  top: calc(100% - 6px);
+  transition: opacity 120ms ease;
+  width: 22px;
+  z-index: 12;
+}
+
+.wbs-row-drag-handle,
+.wbs-row-delete-button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #64748b;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  height: 20px;
+  justify-content: center;
+  padding: 0;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+  width: 20px;
+  z-index: 12;
+}
+
+.wbs-row-drag-handle {
+  cursor: grab;
+}
+
+.wbs-row-drag-handle:active {
+  cursor: grabbing;
+}
+
+.wbs-row-drag-handle:hover,
+.wbs-row-drag-handle:focus-visible,
+.wbs-row-delete-button:hover,
+.wbs-row-delete-button:focus-visible {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.wbs-cell-structure {
+  background: inherit;
+  overflow: visible;
+  position: sticky;
+  z-index: 3;
+}
+
+.wbs-row-controls {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  width: 44px;
+  z-index: 5;
+}
+
+.wbs-row-stack:hover .wbs-row-controls,
+.wbs-row-stack:has(.wbs-row-controls :focus-visible) .wbs-row-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wbs-row-stack:hover .wbs-inline-insert-button,
+.wbs-inline-insert-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wbs-cell {
+  min-width: 0;
+}
+
+.wbs-cell {
+  overflow: hidden;
+}
+
+.wbs-cell-structure .wbs-code-input {
+  min-width: 72px;
+}
+
+.wbs-column-resizer {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  bottom: 0;
+  cursor: col-resize;
+  min-height: 0;
+  padding: 0;
+  position: absolute;
+  right: -4px;
+  top: 0;
+  width: 8px;
+  z-index: 4;
+}
+
+.wbs-column-resizer:hover,
+.wbs-column-resizer:focus-visible {
+  background: rgba(37, 99, 235, 0.16);
+}
+
+.wbs-code-input {
+  color: #075985 !important;
+  font-weight: 900;
+}
+
+.wbs-title-input {
+  font-weight: 800;
+}
+
+.wbs-variance {
+  align-items: center;
+  color: #64748b;
+  display: flex;
+  font-size: 12px;
+  font-weight: 900;
+  justify-content: center;
+  padding: 0 8px;
+}
+
+.wbs-variance.slipped {
+  color: #b91c1c;
+}
+
+.tree-toggle {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #334155;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 900;
+  height: 20px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 20px;
+}
+
+.tree-spacer {
+  flex: 0 0 auto;
+  width: 20px;
+}
+
+.wbs-color-dot,
+.milestone-dot {
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 9px;
+  width: 9px;
+}
+
+.milestone-dot {
+  border-radius: 2px;
+  height: 10px;
+  transform: rotate(45deg);
+  width: 10px;
+}
+
+.wbs-color-dot.tone-b,
+.milestone-dot.tone-b {
+  background: #2563eb;
+}
+
+.wbs-color-dot.tone-g,
+.milestone-dot.tone-g {
+  background: #16a34a;
+}
+
+.wbs-color-dot.tone-r,
+.milestone-dot.tone-r {
+  background: #dc2626;
+}
+
+.wbs-color-dot.tone-p,
+.milestone-dot.tone-p {
+  background: #f472b6;
+}
+
+.wbs-color-dot.tone-o,
+.milestone-dot.tone-o {
+  background: #d97706;
+}
+
+.wbs-color-dot.tone-x,
+.milestone-dot.tone-x {
+  background: #94a3b8;
+}
+
+.danger-button {
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.artifact-list {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.artifact-head,
+.artifact-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 150px minmax(220px, 1fr) 150px 160px 130px 140px 28px;
+}
+
+.artifact-head {
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 9px 12px;
+  text-transform: uppercase;
+}
+
+.artifact-row {
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  min-width: 0;
+  padding: 11px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.artifact-row + .artifact-row {
+  border-top: 1px solid #e2e8f0;
+}
+
+.artifact-row:hover,
+.artifact-row:focus-visible {
+  background: #f8fafc;
+}
+
+.artifact-row span {
+  color: #475569;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-row span:first-child {
+  color: #475569;
+  font-weight: 700;
+}
+
+.artifact-row span:nth-child(2) {
+  color: #1f2937;
+  font-weight: 800;
+}
+
+.artifact-row-controls {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.artifact-row-controls .wbs-inline-insert-button,
+.artifact-row-controls .wbs-row-drag-handle,
+.artifact-row-controls .wbs-row-delete-button {
+  opacity: 1;
+  pointer-events: auto;
+  position: static;
+}
+
+.artifact-item + .artifact-item {
+  border-top: 1px solid #e2e8f0;
+}
+
+.artifact-details {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.artifact-details a {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.artifact-details p {
+  color: #475569;
+  font-size: 12px;
+  margin: 0;
+}
+
+.artifact-edit-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.artifact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.raid-board {
+  align-items: stretch;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.raid-main-column {
+  display: contents;
+}
+
+.raid-main-column > .raid-kpis {
+  grid-column: 1 / span 2;
+  grid-row: 1;
+}
+
+.raid-main-column > .raid-register {
+  grid-column: 1 / span 3;
+  grid-row: 2;
+}
+
+.raid-side-column {
+  display: contents;
+}

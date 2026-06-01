@@ -1,0 +1,424 @@
+
+.passport-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.passport-head,
+.passport-row {
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(220px, 0.38fr) minmax(0, 1fr) 100px;
+}
+
+.passport-head {
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  min-height: 42px;
+  text-transform: uppercase;
+}
+
+.passport-head span,
+.passport-row input,
+.passport-row textarea,
+.passport-row-controls {
+  border-right: 1px solid #e2e8f0;
+  min-width: 0;
+  padding: 10px;
+}
+
+.passport-row {
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+}
+
+.passport-row input,
+.passport-row textarea {
+  border: 0;
+  border-radius: 0;
+  min-height: 44px;
+}
+
+.passport-row-controls {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.passport-row-controls .wbs-inline-insert-button,
+.passport-row-controls .wbs-row-delete-button {
+  opacity: 1;
+  pointer-events: auto;
+  position: static;
+}
+
+.passport-actions {
+  margin-top: 12px;
+}
+
+.project-admin-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.project-admin-head,
+.project-admin-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns:
+    132px minmax(260px, 1.35fr) minmax(220px, 0.9fr) 160px 132px 108px
+    104px 360px;
+  min-width: 1490px;
+}
+
+.project-admin-head {
+  background: #eaf0f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  min-height: 42px;
+  text-transform: uppercase;
+}
+
+.project-admin-head span,
+.project-admin-row label,
+.project-admin-readonly,
+.project-admin-actions {
+  min-width: 0;
+  padding: 10px;
+}
+
+.project-admin-row {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+}
+
+.project-admin-row label,
+.project-admin-readonly {
+  border-right: 1px solid #e5edf6;
+  display: grid;
+  gap: 4px;
+}
+
+.project-admin-row label > span,
+.project-admin-readonly > span {
+  color: #64748b;
+  display: none;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.project-admin-readonly b {
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 38px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-admin-row input,
+.project-admin-row select {
+  font-size: 13px;
+  min-height: 38px;
+  padding-bottom: 7px;
+  padding-top: 7px;
+}
+
+.project-admin-name {
+  position: relative;
+}
+
+.project-admin-name::before {
+  background: #cbd5e1;
+  content: "";
+  display: block;
+  height: 1px;
+  left: 10px;
+  position: absolute;
+  top: 50%;
+  width: 12px;
+}
+
+.project-admin-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.project-admin-actions button {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+  justify-content: center;
+  min-height: 38px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.closed-project-banner {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.user-create-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns:
+    minmax(180px, 1fr) minmax(220px, 1fr) minmax(190px, 0.8fr)
+    minmax(190px, 0.8fr) auto;
+  margin-bottom: 16px;
+}
+
+.user-create-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.user-create-form button {
+  min-height: 38px;
+}
+
+.user-admin-head,
+.user-admin-row {
+  grid-template-columns:
+    minmax(190px, 1fr) minmax(240px, 1fr) 200px 110px 150px
+    minmax(190px, 0.9fr) 132px;
+  min-width: 1220px;
+}
+
+.permission-table,
+.dictionary-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.permission-head,
+.permission-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(260px, 1fr) repeat(4, minmax(160px, 0.6fr));
+  min-width: 920px;
+}
+
+.permission-head,
+.dictionary-head {
+  background: #eaf0f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  min-height: 42px;
+  text-transform: uppercase;
+}
+
+.permission-head span,
+.permission-row strong,
+.permission-toggle {
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.permission-row {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+}
+
+.permission-row strong {
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.permission-toggle {
+  align-items: center;
+  border-left: 1px solid #e5edf6;
+  display: flex;
+  justify-content: center;
+}
+
+.permission-toggle input {
+  height: 18px;
+  min-height: 18px;
+  width: 18px;
+}
+
+.dictionary-create-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns:
+    minmax(220px, 1fr) minmax(160px, 0.65fr) minmax(260px, 1.2fr)
+    116px auto;
+  margin-bottom: 14px;
+}
+
+.dictionary-filter {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(260px, 380px);
+  margin-bottom: 14px;
+}
+
+.dictionary-filter label {
+  color: #64748b;
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.dictionary-create-form label {
+  color: #64748b;
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.dictionary-create-form button {
+  min-height: 38px;
+}
+
+.dictionary-head,
+.dictionary-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns:
+    minmax(210px, 0.9fr) minmax(150px, 0.7fr) minmax(240px, 1fr)
+    minmax(260px, 1.2fr) 96px 104px 218px;
+  min-width: 1280px;
+}
+
+.dictionary-head span,
+.dictionary-row label,
+.dictionary-actions {
+  min-width: 0;
+  padding: 10px;
+}
+
+.dictionary-row {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+}
+
+.dictionary-row label {
+  border-right: 1px solid #e5edf6;
+  display: grid;
+  gap: 4px;
+}
+
+.dictionary-row label > span {
+  color: #64748b;
+  display: none;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.dictionary-row input,
+.dictionary-row select {
+  font-size: 13px;
+  min-height: 38px;
+  padding-bottom: 7px;
+  padding-top: 7px;
+}
+
+.dictionary-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.dictionary-actions button {
+  min-height: 38px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.admin-settings-form textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  min-height: 132px;
+}
+
+.admin-settings-form .admin-config-textarea {
+  min-height: 360px;
+}
+
+.admin-status-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.metric-card {
+  align-content: start;
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  min-height: 118px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.metric-card span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.metric-card b {
+  color: #1f2937;
+  font-size: 17px;
+  line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.metric-card small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.project-module-admin {
+  display: grid;
+  gap: 14px;
+}
+
+.project-module-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.project-module-head,
+.project-module-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(220px, 0.9fr) 140px minmax(280px, 1.4fr) 150px;
+}

@@ -1,0 +1,435 @@
+.milestone-date {
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.milestone-point.top .milestone-caption {
+  bottom: calc(48px + var(--milestone-label-level, 0) * 50px);
+}
+
+.milestone-point.bottom .milestone-caption {
+  top: calc(48px + var(--milestone-label-level, 0) * 50px);
+}
+
+.milestone-point.top .milestone-label {
+  order: 1;
+}
+
+.milestone-point.top .milestone-date {
+  order: 2;
+}
+
+.milestone-point.bottom .milestone-date {
+  order: 1;
+}
+
+.milestone-point.bottom .milestone-label {
+  order: 2;
+}
+
+.milestone-range {
+  bottom: 12px;
+  color: #64748b;
+  display: flex;
+  font-size: 12px;
+  font-weight: 800;
+  justify-content: space-between;
+  left: 24px;
+  position: absolute;
+  right: 24px;
+}
+
+.milestone-snake-layout {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.milestone-snake-shell {
+  align-items: stretch;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.milestone-snake-svg {
+  aspect-ratio: 1.414 / 1;
+  background: #fff;
+  border: 1px solid #d8e0eb;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  display: block;
+  height: auto;
+  max-height: min(78vh, 760px);
+  max-width: 100%;
+  width: 100%;
+}
+
+.milestone-snake-axis {
+  fill: none;
+  marker-end: url("#milestoneSnakeArrow");
+  stroke: #64748b;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 6;
+}
+
+.milestone-snake-tick {
+  stroke: #cbd5e1;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.milestone-snake-month {
+  fill: #1e293b;
+  font-size: 12px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-linejoin: round;
+  stroke-width: 4;
+  text-transform: uppercase;
+}
+
+.milestone-snake-today {
+  stroke: #ef4444;
+  stroke-dasharray: 6 5;
+  stroke-linecap: round;
+  stroke-width: 3;
+}
+
+.milestone-snake-today-label {
+  fill: #b91c1c;
+  font-size: 11px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.milestone-snake-today-connector {
+  stroke: #ef4444;
+  stroke-dasharray: 6 5;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.milestone-snake-today-draggable {
+  cursor: grab;
+  pointer-events: all;
+  touch-action: none;
+  user-select: none;
+}
+
+.milestone-snake-today-draggable:active {
+  cursor: grabbing;
+}
+
+.milestone-snake-today-hitbox {
+  cursor: grab;
+  fill: rgba(254, 226, 226, 0.01);
+  pointer-events: all;
+}
+
+.milestone-snake-item {
+  cursor: pointer;
+}
+
+.milestone-snake-label-draggable {
+  cursor: grab;
+  pointer-events: all;
+  touch-action: none;
+  user-select: none;
+}
+
+.milestone-snake-label-draggable:active {
+  cursor: grabbing;
+}
+
+.milestone-snake-label-layer {
+  opacity: 0.98;
+}
+
+.milestone-snake-connector {
+  stroke: #94a3b8;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.milestone-snake-marker {
+  fill: #94a3b8;
+  stroke: #fff;
+  stroke-width: 4;
+  filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.24));
+}
+
+.milestone-snake-marker-number {
+  fill: #fff;
+  font-size: 8px;
+  font-weight: 900;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
+.milestone-snake-item.green .milestone-snake-marker,
+.milestone-snake-item.green .milestone-snake-connector {
+  fill: #00b050;
+  stroke: #00b050;
+}
+
+.milestone-snake-item.blue .milestone-snake-marker,
+.milestone-snake-item.blue .milestone-snake-connector {
+  fill: #1d4ed8;
+  stroke: #1d4ed8;
+}
+
+.milestone-snake-item.red .milestone-snake-marker,
+.milestone-snake-item.red .milestone-snake-connector {
+  fill: #ef1f1f;
+  stroke: #ef1f1f;
+}
+
+.milestone-snake-item.gray .milestone-snake-marker,
+.milestone-snake-item.gray .milestone-snake-connector {
+  fill: #7c8da3;
+  stroke: #7c8da3;
+}
+
+.milestone-snake-item.green .milestone-snake-marker,
+.milestone-snake-item.blue .milestone-snake-marker,
+.milestone-snake-item.red .milestone-snake-marker,
+.milestone-snake-item.gray .milestone-snake-marker {
+  stroke: #fff;
+}
+
+.milestone-snake-label-box {
+  fill: #f8fafc;
+  stroke: #cbd5e1;
+  stroke-width: 1.5;
+}
+
+.milestone-snake-item:hover .milestone-snake-label-box,
+.milestone-snake-item:focus .milestone-snake-label-box {
+  stroke: #60a5fa;
+  stroke-width: 2;
+}
+
+.milestone-snake-label-draggable .milestone-snake-label-box {
+  filter: drop-shadow(0 7px 14px rgba(15, 23, 42, 0.12));
+}
+
+.milestone-snake-label-grip {
+  fill: #e2e8f0;
+  stroke: #cbd5e1;
+  stroke-width: 1;
+}
+
+.milestone-snake-label-draggable:hover .milestone-snake-label-grip {
+  fill: #dbeafe;
+  stroke: #60a5fa;
+}
+
+.milestone-snake-drag-dot {
+  fill: #94a3b8;
+}
+
+.milestone-snake-label-draggable:hover .milestone-snake-drag-dot {
+  fill: #2563eb;
+}
+
+.milestone-snake-title {
+  fill: #111827;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.milestone-snake-date {
+  fill: #475569;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.milestone-snake-label-hitbox {
+  cursor: grab;
+  fill: transparent;
+  pointer-events: all;
+}
+
+body.milestone-label-dragging,
+body.milestone-label-dragging * {
+  cursor: grabbing !important;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  html,
+  body {
+    height: auto;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  body[data-print-target] {
+    background: #fff;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  body[data-print-target] .app-shell {
+    display: block !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  body[data-print-target] .sidebar,
+  body[data-print-target] .sidebar-toggle,
+  body[data-print-target] .topbar,
+  body[data-print-target] .toast-stack,
+  body[data-print-target] .panel-title,
+  body[data-print-target] .milestone-section,
+  body[data-print-target] .milestone-section-actions,
+  body[data-print-target] .workspace > :not(.content-grid),
+  body[data-print-target] .content-grid > :not(.workspace-focus-milestones) {
+    display: none !important;
+  }
+
+  body[data-print-target="milestones-by-phase"]
+    [data-print-section="milestones-by-phase"],
+  body[data-print-target="milestones-all"] [data-print-section="milestones-all"] {
+    display: grid !important;
+  }
+
+  body[data-print-target] .workspace,
+  body[data-print-target] .content-grid,
+  body[data-print-target] .milestone-sections,
+  body[data-print-target] .workspace-focus-milestones {
+    display: block !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  body[data-print-target] .workspace-focus-milestones {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body[data-print-target] .milestone-section {
+    break-inside: avoid;
+    gap: 3mm !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    padding: 3mm !important;
+    page-break-inside: avoid;
+    width: 100% !important;
+  }
+
+  body[data-print-target] .milestone-section-head {
+    display: block !important;
+  }
+
+  body[data-print-target] .milestone-section-head h3 {
+    font-size: 14pt;
+    margin: 0;
+  }
+
+  body[data-print-target] .milestone-timeline {
+    border: 0;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    width: 100% !important;
+  }
+
+  body[data-print-target] .milestone-lanes {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-lanes {
+    gap: 3mm;
+    padding: 3mm 2mm 4mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-scale,
+  body[data-print-target="milestones-by-phase"] .milestone-lane {
+    gap: 4mm !important;
+    grid-template-columns: 30mm minmax(0, 1fr) !important;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-scale span {
+    left: calc(30mm + 4mm + 5mm) !important;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-scale span + span {
+    left: auto !important;
+    right: 11mm !important;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-lane-title {
+    padding-right: 3mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-lane-canvas {
+    min-width: 0;
+    padding: 0 11mm 0 5mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-axis {
+    left: 5mm;
+    right: 11mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-axis-arrow {
+    right: 3mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-range {
+    left: 7mm;
+    right: 12mm;
+  }
+
+  body[data-print-target] .milestone-snake-shell {
+    border: 0;
+    overflow: hidden !important;
+    padding: 0;
+  }
+
+  body[data-print-target] .milestone-snake-svg {
+    border: 0;
+    box-shadow: none;
+    max-width: 100% !important;
+  }
+
+  body[data-print-target="milestones-all"] .milestone-snake-layout {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  body[data-print-target="milestones-all"] .milestone-snake-shell {
+    height: 170mm !important;
+    max-height: 170mm !important;
+    min-height: 0 !important;
+    width: 100% !important;
+  }
+
+  body[data-print-target="milestones-all"] .milestone-snake-svg {
+    height: 168mm !important;
+    max-height: 168mm !important;
+    width: auto !important;
+  }
+}
