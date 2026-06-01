@@ -1000,6 +1000,7 @@ type MilestoneLabelOffset = {
 type MilestoneLabelOffsets = Record<string, MilestoneLabelOffset>;
 
 const zeroMilestoneLabelOffset: MilestoneLabelOffset = { x: 0, y: 0 };
+const MILESTONE_TODAY_LABEL_ID = "__today__";
 
 function milestoneLabelOffsetKey(scope: MilestoneLabelScope, milestoneId: string) {
   return `${scope}:${milestoneId}`;
@@ -1085,6 +1086,8 @@ type MilestoneSnakePointLayout = {
   entry: MilestoneTimelineItem;
   point: MilestoneSnakePoint;
 };
+
+type SvgTextAnchor = "start" | "middle" | "end";
 
 const WBS_LEVEL_MIN_WIDTH = 128;
 const GANTT_PANEL_HEIGHT_DEFAULT = 456;
@@ -2740,7 +2743,21 @@ function splitPhaseTitle(value: string) {
 }
 
 function wrapText(value: string, maxLineLength: number, maxLines: number) {
-  const words = value.trim().split(/\s+/).filter(Boolean);
+  const words = value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((word) => {
+      if (word.length <= maxLineLength) return [word];
+      const chunks: string[] = [];
+      let cursor = word;
+      while (cursor.length > maxLineLength) {
+        chunks.push(`${cursor.slice(0, Math.max(1, maxLineLength - 1))}-`);
+        cursor = cursor.slice(Math.max(1, maxLineLength - 1));
+      }
+      if (cursor) chunks.push(cursor);
+      return chunks;
+    });
   const lines: string[] = [];
   words.forEach((word) => {
     const current = lines[lines.length - 1] ?? "";
@@ -2893,6 +2910,7 @@ function snakeConnectorPoint(
 }
 
 function snakeLabelCandidates(point: MilestoneSnakePoint, title: string) {
+  const gripReservedWidth = 34;
   const compactTitle = title.length > 34;
   const sizes = compactTitle
     ? [
@@ -2909,7 +2927,10 @@ function snakeLabelCandidates(point: MilestoneSnakePoint, title: string) {
   const angles = [-165, -135, -105, -75, -45, -15, 15, 45, 75, 105, 135, 165, 0, 180];
 
   return sizes.flatMap((size) => {
-    const maxLineLength = Math.max(10, Math.floor(size.width / 7.1));
+    const maxLineLength = Math.max(
+      7,
+      Math.floor((size.width - gripReservedWidth) / 7.4),
+    );
     const lines = wrapText(title, maxLineLength, size.maxLines);
     const boxHeight = 32 + lines.length * 13;
     const makeCandidate = (
@@ -2999,6 +3020,61 @@ function snakeLabelCandidates(point: MilestoneSnakePoint, title: string) {
 
     return [...radialCandidates, ...gridCandidates];
   });
+}
+
+function snakeLabelNormalPosition(
+  point: MilestoneSnakePoint,
+  distance: number,
+  along = 0,
+) {
+  const normalX = -point.tangentY;
+  const normalY = point.tangentX;
+  const preferBelow = point.tangentY < 0;
+  const direction = preferBelow ? 1 : -1;
+  return {
+    x: point.x + normalX * distance * direction + point.tangentX * along,
+    y: point.y + normalY * distance * direction + point.tangentY * along,
+  };
+}
+
+function snakeMonthLabelPosition(point: MilestoneSnakePoint) {
+  const labelWidth = 92;
+  const distance = 48;
+  const candidates = [1, -1].map((direction) => {
+    const normalX = -point.tangentY * direction;
+    const normalY = point.tangentX * direction;
+    const x = point.x + normalX * distance;
+    const y = point.y + normalY * distance + 4;
+    const anchor: SvgTextAnchor =
+      Math.abs(normalX) < 0.24
+        ? "middle"
+        : normalX > 0
+          ? "start"
+          : "end";
+    const left =
+      anchor === "middle"
+        ? x - labelWidth / 2
+        : anchor === "end"
+          ? x - labelWidth
+          : x;
+    const right =
+      anchor === "middle"
+        ? x + labelWidth / 2
+        : anchor === "end"
+          ? x
+          : x + labelWidth;
+    const top = y - 14;
+    const bottom = y + 4;
+    const overflow =
+      Math.max(0, 18 - left) +
+      Math.max(0, right - (MILESTONE_SNAKE_WIDTH - 18)) +
+      Math.max(0, 18 - top) +
+      Math.max(0, bottom - (MILESTONE_SNAKE_HEIGHT - 18));
+    const preferred = snakeLabelNormalPosition(point, distance);
+    const preference = Math.hypot(x - preferred.x, y - preferred.y) * 0.2;
+    return { x, y, anchor, score: overflow * 120 + preference };
+  });
+  return candidates.sort((left, right) => left.score - right.score)[0];
 }
 
 function snakeAxisPenalty(label: MilestoneSnakeLabel, point: MilestoneSnakePoint) {
@@ -3723,16 +3799,27 @@ function MilestoneSnakeTimelineSection({
   const monthTicks = (() => {
     const start = startOfMonth(new Date(timeline.startDate));
     const end = startOfMonth(new Date(timeline.endDate));
-    const ticks: Array<{ label: string; point: MilestoneSnakePoint }> = [];
+    const ticks: Array<{
+      label: string;
+      point: MilestoneSnakePoint;
+      labelX: number;
+      labelY: number;
+      labelAnchor: SvgTextAnchor;
+    }> = [];
     const cursor = new Date(start);
     while (cursor <= end) {
       const rawProgress =
         range === 0 ? 0 : (cursor.getTime() - startTime) / range;
+      const point = interpolateSnakePoint(
+        compressSnakeTimelineOffset(rawProgress, timeline.todayOffset),
+      );
+      const labelPosition = snakeMonthLabelPosition(point);
       ticks.push({
         label: monthLabel(cursor).replace(".", ""),
-        point: interpolateSnakePoint(
-          compressSnakeTimelineOffset(rawProgress, timeline.todayOffset),
-        ),
+        point,
+        labelX: labelPosition.x,
+        labelY: labelPosition.y,
+        labelAnchor: labelPosition.anchor,
       });
       cursor.setMonth(cursor.getMonth() + 1);
     }
@@ -3813,8 +3900,9 @@ function MilestoneSnakeTimelineSection({
                 />
                 <text
                   className="milestone-snake-month"
-                  x={tick.point.x}
-                  y={tick.point.y + 34}
+                  x={tick.labelX}
+                  y={tick.labelY}
+                  textAnchor={tick.labelAnchor}
                 >
                   {tick.label}
                 </text>
@@ -3827,6 +3915,17 @@ function MilestoneSnakeTimelineSection({
                   timeline.todayOffset,
                 ),
               );
+              const todayManualOffset =
+                labelOffsets[
+                  milestoneLabelOffsetKey("all", MILESTONE_TODAY_LABEL_ID)
+                ] ?? zeroMilestoneLabelOffset;
+              const todayLabelPosition = snakeLabelNormalPosition(
+                todayPoint,
+                58,
+                18,
+              );
+              const todayLabelX = todayLabelPosition.x + todayManualOffset.x;
+              const todayLabelY = todayLabelPosition.y + todayManualOffset.y;
               return (
                 <g>
                   <line
@@ -3836,13 +3935,40 @@ function MilestoneSnakeTimelineSection({
                     y1={todayPoint.y + todayPoint.tangentX * 42}
                     y2={todayPoint.y - todayPoint.tangentX * 42}
                   />
-                  <text
-                    className="milestone-snake-today-label"
-                    x={todayPoint.x + 8}
-                    y={todayPoint.y - 48}
+                  <line
+                    className="milestone-snake-today-connector"
+                    x1={todayPoint.x}
+                    x2={todayLabelX - 8}
+                    y1={todayPoint.y}
+                    y2={todayLabelY - 4}
+                  />
+                  <g
+                    className="milestone-snake-today-draggable"
+                    onPointerDown={(event) =>
+                      onLabelPointerDown(
+                        "all",
+                        MILESTONE_TODAY_LABEL_ID,
+                        todayManualOffset,
+                        event,
+                      )
+                    }
                   >
-                    сегодня
-                  </text>
+                    <text
+                      className="milestone-snake-today-label"
+                      x={todayLabelX}
+                      y={todayLabelY}
+                    >
+                      сегодня
+                    </text>
+                    <rect
+                      className="milestone-snake-today-hitbox"
+                      x={todayLabelX - 4}
+                      y={todayLabelY - 18}
+                      width="58"
+                      height="24"
+                      rx="5"
+                    />
+                  </g>
                 </g>
               );
             })()}
