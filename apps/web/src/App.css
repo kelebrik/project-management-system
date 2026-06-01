@@ -3207,15 +3207,20 @@ code {
   background: transparent;
   border: 0;
   color: #111827;
-  cursor: pointer;
   display: block;
   height: 1px;
   padding: 0;
+  pointer-events: auto;
   position: absolute;
   text-align: left;
   top: var(--milestone-axis-center);
   transform: translateX(-50%);
   width: 148px;
+}
+
+.milestone-point::before,
+.milestone-marker {
+  pointer-events: none;
 }
 
 .milestone-point:hover .milestone-label,
@@ -3278,19 +3283,27 @@ code {
   border-radius: 999px;
   box-shadow: 0 0 0 3px #fff;
   height: 13px;
-  left: calc(50% - 6.5px);
+  left: 50%;
   position: absolute;
-  top: -6.5px;
+  top: 50%;
+  transform: translate(-50%, -50%);
   width: 12px;
   z-index: 4;
 }
 
-.milestone-point.top .milestone-marker {
-  top: -6.5px;
-}
-
-.milestone-point.bottom .milestone-marker {
-  top: -6.5px;
+.milestone-marker-button {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  height: 26px;
+  left: 50%;
+  padding: 0;
+  pointer-events: auto;
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -50%);
+  width: 26px;
+  z-index: 6;
 }
 
 .milestone-point.green .milestone-marker {
@@ -3312,7 +3325,10 @@ code {
 .milestone-caption {
   align-items: flex-start;
   background: rgba(255, 255, 255, 0.94);
-  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -3320,11 +3336,46 @@ code {
   max-width: 146px;
   min-width: 96px;
   overflow-wrap: anywhere;
-  padding: 2px 3px;
+  padding: 6px 22px 6px 8px;
+  pointer-events: auto;
   position: absolute;
-  transform: translateX(calc(-50% + var(--milestone-label-shift, 0px)));
+  transform: translate(
+    calc(-50% + var(--milestone-label-shift, 0px) + var(--milestone-drag-x, 0px)),
+    var(--milestone-drag-y, 0px)
+  );
   width: max-content;
   z-index: 3;
+}
+
+.draggable-milestone-label {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.draggable-milestone-label:hover {
+  border-color: #60a5fa;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
+}
+
+.draggable-milestone-label:active {
+  cursor: grabbing;
+}
+
+.milestone-label-grip {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: -2px;
+  line-height: 1;
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.draggable-milestone-label:hover .milestone-label-grip {
+  color: #2563eb;
 }
 
 .milestone-label {
@@ -3447,6 +3498,17 @@ code {
   cursor: pointer;
 }
 
+.milestone-snake-label-draggable {
+  cursor: grab;
+  pointer-events: all;
+  touch-action: none;
+  user-select: none;
+}
+
+.milestone-snake-label-draggable:active {
+  cursor: grabbing;
+}
+
 .milestone-snake-label-layer {
   opacity: 0.98;
 }
@@ -3515,6 +3577,29 @@ code {
   stroke-width: 2;
 }
 
+.milestone-snake-label-draggable .milestone-snake-label-box {
+  filter: drop-shadow(0 7px 14px rgba(15, 23, 42, 0.12));
+}
+
+.milestone-snake-label-grip {
+  fill: #e2e8f0;
+  stroke: #cbd5e1;
+  stroke-width: 1;
+}
+
+.milestone-snake-label-draggable:hover .milestone-snake-label-grip {
+  fill: #dbeafe;
+  stroke: #60a5fa;
+}
+
+.milestone-snake-drag-dot {
+  fill: #94a3b8;
+}
+
+.milestone-snake-label-draggable:hover .milestone-snake-drag-dot {
+  fill: #2563eb;
+}
+
 .milestone-snake-title {
   fill: #111827;
   font-size: 11px;
@@ -3525,6 +3610,17 @@ code {
   fill: #475569;
   font-size: 11px;
   font-weight: 900;
+}
+
+.milestone-snake-label-hitbox {
+  cursor: grab;
+  fill: transparent;
+  pointer-events: all;
+}
+
+body.milestone-label-dragging,
+body.milestone-label-dragging * {
+  cursor: grabbing !important;
 }
 
 @media print {

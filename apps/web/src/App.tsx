@@ -986,7 +986,38 @@ type MilestonePointStyle = CSSProperties & {
   "--milestone-label-level": number;
   "--milestone-label-shift": string;
   "--milestone-connector-angle": string;
+  "--milestone-drag-x"?: string;
+  "--milestone-drag-y"?: string;
 };
+
+type MilestoneLabelScope = "phase" | "all";
+
+type MilestoneLabelOffset = {
+  x: number;
+  y: number;
+};
+
+type MilestoneLabelOffsets = Record<string, MilestoneLabelOffset>;
+
+const zeroMilestoneLabelOffset: MilestoneLabelOffset = { x: 0, y: 0 };
+
+function milestoneLabelOffsetKey(scope: MilestoneLabelScope, milestoneId: string) {
+  return `${scope}:${milestoneId}`;
+}
+
+function normalizeMilestoneLabelOffsets(value: unknown): MilestoneLabelOffsets {
+  if (!value || typeof value !== "object") return {};
+  const normalized: MilestoneLabelOffsets = {};
+  Object.entries(value as Record<string, unknown>).forEach(([key, offset]) => {
+    if (!offset || typeof offset !== "object") return;
+    const x = Number((offset as { x?: unknown }).x);
+    const y = Number((offset as { y?: unknown }).y);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      normalized[key] = { x: Math.round(x), y: Math.round(y) };
+    }
+  });
+  return normalized;
+}
 
 type MilestoneTone = "green" | "blue" | "red" | "gray";
 
@@ -3469,17 +3500,26 @@ function MilestoneTimelineSection({
   sectionId,
   title,
   timeline,
+  labelOffsets,
   isFullscreen = false,
   onToggleFullscreen,
   onOpenStructure,
+  onLabelPointerDown,
   onPrint,
 }: {
   sectionId: string;
   title: string;
   timeline: MilestoneTimelineModel;
+  labelOffsets: MilestoneLabelOffsets;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   onOpenStructure: () => void;
+  onLabelPointerDown: (
+    scope: MilestoneLabelScope,
+    milestoneId: string,
+    offset: MilestoneLabelOffset,
+    event: ReactPointerEvent<Element>,
+  ) => void;
   onPrint: () => void;
 }) {
   return (
@@ -3554,44 +3594,72 @@ function MilestoneTimelineSection({
                       side,
                       level,
                       labelShiftPx,
-                    }) => (
-                      <button
-                        type="button"
-                        className={`milestone-point ${side} ${state.tone}`}
-                        key={milestone.id}
-                        onClick={onOpenStructure}
-                        style={
-                          {
-                            left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
-                            "--milestone-label-level": level,
-                            "--milestone-label-shift": `${labelShiftPx}px`,
-                            "--milestone-connector-angle":
-                              labelShiftPx > 8
-                                ? side === "top"
-                                  ? "13deg"
-                                  : "-13deg"
-                                : labelShiftPx < -8
+                    }) => {
+                      const manualOffset =
+                        labelOffsets[
+                          milestoneLabelOffsetKey("phase", milestone.id)
+                        ] ?? zeroMilestoneLabelOffset;
+                      return (
+                        <span
+                          className={`milestone-point ${side} ${state.tone}`}
+                          key={milestone.id}
+                          style={
+                            {
+                              left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
+                              "--milestone-label-level": level,
+                              "--milestone-label-shift": `${labelShiftPx}px`,
+                              "--milestone-drag-x": `${manualOffset.x}px`,
+                              "--milestone-drag-y": `${manualOffset.y}px`,
+                              "--milestone-connector-angle":
+                                labelShiftPx > 8
                                   ? side === "top"
-                                    ? "-13deg"
-                                    : "13deg"
-                                  : side === "top"
-                                    ? "-13deg"
-                                    : "13deg",
-                          } as MilestonePointStyle
-                        }
-                        title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
-                      >
-                        <span className="milestone-marker" />
-                        <span className="milestone-caption">
-                          <span className="milestone-date">
-                            {shortDate(milestone.dueDate)}
-                          </span>
-                          <span className="milestone-label">
-                            {milestone.title}
+                                    ? "13deg"
+                                    : "-13deg"
+                                  : labelShiftPx < -8
+                                    ? side === "top"
+                                      ? "-13deg"
+                                      : "13deg"
+                                    : side === "top"
+                                      ? "-13deg"
+                                      : "13deg",
+                            } as MilestonePointStyle
+                          }
+                          title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
+                        >
+                          <button
+                            type="button"
+                            className="milestone-marker-button"
+                            onClick={onOpenStructure}
+                            title={`${milestone.code} ${milestone.title}: ${date(milestone.dueDate)}. ${state.label}.`}
+                          >
+                            <span className="milestone-marker" />
+                          </button>
+                          <span
+                            className="milestone-caption draggable-milestone-label"
+                            onClick={(event) => event.stopPropagation()}
+                            onPointerDown={(event) =>
+                              onLabelPointerDown(
+                                "phase",
+                                milestone.id,
+                                manualOffset,
+                                event,
+                              )
+                            }
+                            title="Перетащить подпись вехи"
+                          >
+                            <span className="milestone-label-grip" aria-hidden="true">
+                              ⋮⋮
+                            </span>
+                            <span className="milestone-date">
+                              {shortDate(milestone.dueDate)}
+                            </span>
+                            <span className="milestone-label">
+                              {milestone.title}
+                            </span>
                           </span>
                         </span>
-                      </button>
-                    ),
+                      );
+                    },
                   )}
                 </div>
               </div>
@@ -3613,17 +3681,26 @@ function MilestoneSnakeTimelineSection({
   sectionId,
   title,
   timeline,
+  labelOffsets,
   isFullscreen,
   onToggleFullscreen,
   onOpenStructure,
+  onLabelPointerDown,
   onPrint,
 }: {
   sectionId: string;
   title: string;
   timeline: MilestoneTimelineModel;
+  labelOffsets: MilestoneLabelOffsets;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   onOpenStructure: () => void;
+  onLabelPointerDown: (
+    scope: MilestoneLabelScope,
+    milestoneId: string,
+    offset: MilestoneLabelOffset,
+    event: ReactPointerEvent<Element>,
+  ) => void;
   onPrint: () => void;
 }) {
   const milestones = timeline.lanes.flatMap((lane) => lane.items);
@@ -3770,50 +3847,103 @@ function MilestoneSnakeTimelineSection({
               );
             })()}
             <g className="milestone-snake-label-layer">
-              {milestoneLayouts.map(({ entry, point, label, lines }) => (
-                <g
-                  key={`label-${entry.milestone.id}`}
-                  className={`milestone-snake-item ${entry.state.tone}`}
-                  onClick={onOpenStructure}
-                  tabIndex={0}
-                >
-                  <line
-                    className="milestone-snake-connector"
-                    x1={point.x}
-                    x2={label.connectorX}
-                    y1={point.y}
-                    y2={label.connectorY}
-                  />
-                  <rect
-                    className="milestone-snake-label-box"
-                    x={label.boxX}
-                    y={label.boxY}
-                    width={label.boxWidth}
-                    height={label.boxHeight}
-                    rx="7"
-                  />
-                  {lines.map((line, lineIndex) => (
-                    <text
-                      className="milestone-snake-title"
-                      key={`${entry.milestone.id}-${line}`}
-                      x={label.boxX + 10}
-                      y={label.boxY + 19 + lineIndex * 13}
-                    >
-                      {line}
-                    </text>
-                  ))}
-                  <text
-                    className="milestone-snake-date"
-                    x={label.boxX + 10}
-                    y={label.dateY}
+              {milestoneLayouts.map(({ entry, point, label, lines }) => {
+                const manualOffset =
+                  labelOffsets[
+                    milestoneLabelOffsetKey("all", entry.milestone.id)
+                  ] ?? zeroMilestoneLabelOffset;
+                const boxX = label.boxX + manualOffset.x;
+                const boxY = label.boxY + manualOffset.y;
+                const connectorX = label.connectorX + manualOffset.x;
+                const connectorY = label.connectorY + manualOffset.y;
+                const dateY = label.dateY + manualOffset.y;
+                return (
+                  <g
+                    key={`label-${entry.milestone.id}`}
+                    className={`milestone-snake-item milestone-snake-label-draggable ${entry.state.tone}`}
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) =>
+                      onLabelPointerDown(
+                        "all",
+                        entry.milestone.id,
+                        manualOffset,
+                        event,
+                      )
+                    }
+                    tabIndex={0}
                   >
-                    {shortDate(entry.milestone.dueDate)}
-                  </text>
-                  <title>
-                    {`${entry.milestone.code} ${entry.milestone.title}: ${date(entry.milestone.dueDate)}. ${entry.state.label}.`}
-                  </title>
-                </g>
-              ))}
+                    <line
+                      className="milestone-snake-connector"
+                      x1={point.x}
+                      x2={connectorX}
+                      y1={point.y}
+                      y2={connectorY}
+                    />
+                    <rect
+                      className="milestone-snake-label-box"
+                      x={boxX}
+                      y={boxY}
+                      width={label.boxWidth}
+                      height={label.boxHeight}
+                      rx="7"
+                    />
+                    <rect
+                      className="milestone-snake-label-grip"
+                      x={boxX + label.boxWidth - 17}
+                      y={boxY + 7}
+                      width="9"
+                      height={label.boxHeight - 14}
+                      rx="3"
+                    />
+                    <circle
+                      className="milestone-snake-drag-dot"
+                      cx={boxX + label.boxWidth - 12.5}
+                      cy={boxY + 15}
+                      r="1.4"
+                    />
+                    <circle
+                      className="milestone-snake-drag-dot"
+                      cx={boxX + label.boxWidth - 12.5}
+                      cy={boxY + 22}
+                      r="1.4"
+                    />
+                    <circle
+                      className="milestone-snake-drag-dot"
+                      cx={boxX + label.boxWidth - 12.5}
+                      cy={boxY + 29}
+                      r="1.4"
+                    />
+                    {lines.map((line, lineIndex) => (
+                      <text
+                        className="milestone-snake-title"
+                        key={`${entry.milestone.id}-${line}`}
+                        x={boxX + 10}
+                        y={boxY + 19 + lineIndex * 13}
+                      >
+                        {line}
+                      </text>
+                    ))}
+                    <text
+                      className="milestone-snake-date"
+                      x={boxX + 10}
+                      y={dateY}
+                    >
+                      {shortDate(entry.milestone.dueDate)}
+                    </text>
+                    <rect
+                      className="milestone-snake-label-hitbox"
+                      x={boxX}
+                      y={boxY}
+                      width={label.boxWidth}
+                      height={label.boxHeight}
+                      rx="7"
+                    />
+                    <title>
+                      {`${entry.milestone.code} ${entry.milestone.title}: ${date(entry.milestone.dueDate)}. ${entry.state.label}.`}
+                    </title>
+                  </g>
+                );
+              })}
             </g>
             {milestonePointLayouts.map(({ entry, point }, index) => {
               return (
@@ -4330,6 +4460,17 @@ function App() {
     useState(false);
   const [fullscreenWorkspaceView, setFullscreenWorkspaceView] =
     useState<FullscreenWorkspaceView | null>(null);
+  const [milestoneLabelOffsets, setMilestoneLabelOffsets] =
+    useState<MilestoneLabelOffsets>({});
+  const milestoneLabelDragRef = useRef<{
+    scope: MilestoneLabelScope;
+    milestoneId: string;
+    startClientX: number;
+    startClientY: number;
+    startOffset: MilestoneLabelOffset;
+    deltaScaleX: number;
+    deltaScaleY: number;
+  } | null>(null);
   const isAuthenticated = Boolean(currentUser);
   const isAdminUser = currentUser?.role === "ADMIN";
   const isClosedProject = project?.status === "CLOSED";
@@ -6175,6 +6316,141 @@ function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [fullscreenWorkspaceView]);
+
+  const milestoneLabelStorageKey = useMemo(
+    () =>
+      project?.id
+        ? `pms:milestone-label-offsets:${project.id}`
+        : null,
+    [project?.id],
+  );
+
+  useEffect(() => {
+    if (!milestoneLabelStorageKey) {
+      setMilestoneLabelOffsets({});
+      return;
+    }
+
+    try {
+      const rawValue = window.localStorage.getItem(milestoneLabelStorageKey);
+      setMilestoneLabelOffsets(
+        rawValue
+          ? normalizeMilestoneLabelOffsets(JSON.parse(rawValue))
+          : {},
+      );
+    } catch {
+      setMilestoneLabelOffsets({});
+    }
+  }, [milestoneLabelStorageKey]);
+
+  const setMilestoneLabelOffsetsAndPersist = useCallback(
+    (
+      updater: (
+        currentOffsets: MilestoneLabelOffsets,
+      ) => MilestoneLabelOffsets,
+    ) => {
+      setMilestoneLabelOffsets((currentOffsets) => {
+        const nextOffsets = updater(currentOffsets);
+        if (milestoneLabelStorageKey) {
+          try {
+            window.localStorage.setItem(
+              milestoneLabelStorageKey,
+              JSON.stringify(nextOffsets),
+            );
+          } catch {
+            // Browser storage is a convenience only; dragging should still work.
+          }
+        }
+        return nextOffsets;
+      });
+    },
+    [milestoneLabelStorageKey],
+  );
+
+  const startMilestoneLabelDrag = useCallback(
+    (
+      scope: MilestoneLabelScope,
+      milestoneId: string,
+      offset: MilestoneLabelOffset,
+      event: ReactPointerEvent<Element>,
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const ownerSvg =
+        event.currentTarget instanceof SVGElement
+          ? event.currentTarget.ownerSVGElement
+          : null;
+      const ownerSvgRect = ownerSvg?.getBoundingClientRect();
+      const deltaScaleX =
+        ownerSvg && ownerSvgRect?.width
+          ? ownerSvg.viewBox.baseVal.width / ownerSvgRect.width
+          : 1;
+      const deltaScaleY =
+        ownerSvg && ownerSvgRect?.height
+          ? ownerSvg.viewBox.baseVal.height / ownerSvgRect.height
+          : 1;
+      if ("setPointerCapture" in event.currentTarget) {
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // Capturing can fail if the pointer is already released.
+        }
+      }
+      document.body.classList.add("milestone-label-dragging");
+      milestoneLabelDragRef.current = {
+        scope,
+        milestoneId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startOffset: offset,
+        deltaScaleX,
+        deltaScaleY,
+      };
+    },
+    [],
+  );
+
+  const handleMilestoneLabelPointerMove = useCallback(
+    (event: PointerEvent) => {
+      const drag = milestoneLabelDragRef.current;
+      if (!drag) return;
+      event.preventDefault();
+
+      const nextOffset = {
+        x:
+          drag.startOffset.x +
+          (event.clientX - drag.startClientX) * drag.deltaScaleX,
+        y:
+          drag.startOffset.y +
+          (event.clientY - drag.startClientY) * drag.deltaScaleY,
+      };
+      const offsetKey = milestoneLabelOffsetKey(drag.scope, drag.milestoneId);
+      setMilestoneLabelOffsetsAndPersist((currentOffsets) => ({
+        ...currentOffsets,
+        [offsetKey]: {
+          x: Math.round(nextOffset.x),
+          y: Math.round(nextOffset.y),
+        },
+      }));
+    },
+    [setMilestoneLabelOffsetsAndPersist],
+  );
+
+  const stopMilestoneLabelDrag = useCallback(() => {
+    milestoneLabelDragRef.current = null;
+    document.body.classList.remove("milestone-label-dragging");
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("pointermove", handleMilestoneLabelPointerMove);
+    window.addEventListener("pointerup", stopMilestoneLabelDrag);
+    window.addEventListener("pointercancel", stopMilestoneLabelDrag);
+    return () => {
+      window.removeEventListener("pointermove", handleMilestoneLabelPointerMove);
+      window.removeEventListener("pointerup", stopMilestoneLabelDrag);
+      window.removeEventListener("pointercancel", stopMilestoneLabelDrag);
+    };
+  }, [handleMilestoneLabelPointerMove, stopMilestoneLabelDrag]);
 
   function applyWbsSnapshotResult(
     nextItems: WbsItem[],
@@ -12791,6 +13067,7 @@ function App() {
                         sectionId="milestones-by-phase"
                         title="Вехи по фазам"
                         timeline={milestoneTimeline.byPhase}
+                        labelOffsets={milestoneLabelOffsets}
                         isFullscreen={
                           fullscreenWorkspaceView ===
                           "overview-milestones-by-phase"
@@ -12801,6 +13078,7 @@ function App() {
                           )
                         }
                         onOpenStructure={() => openView("project-structure")}
+                        onLabelPointerDown={startMilestoneLabelDrag}
                         onPrint={() =>
                           printSectionAsPdf(
                             "milestones-by-phase",
@@ -12815,6 +13093,7 @@ function App() {
                         sectionId="milestones-all"
                         title="Все вехи"
                         timeline={milestoneTimeline.all}
+                        labelOffsets={milestoneLabelOffsets}
                         isFullscreen={
                           fullscreenWorkspaceView === "overview-milestones-all"
                         }
@@ -12822,6 +13101,7 @@ function App() {
                           toggleWorkspaceFullscreen("overview-milestones-all")
                         }
                         onOpenStructure={() => openView("project-structure")}
+                        onLabelPointerDown={startMilestoneLabelDrag}
                         onPrint={() =>
                           printSectionAsPdf(
                             "milestones-all",
