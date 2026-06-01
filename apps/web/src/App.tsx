@@ -504,6 +504,11 @@ type ProjectUiState = {
   ganttPanelWidth?: number;
   ganttWbsWidth?: number;
   passportRows?: PassportRow[];
+  milestoneLabelLayout?: {
+    fingerprint: string;
+    offsets: Record<string, { x: number; y: number }>;
+    updatedAt?: string;
+  } | null;
 };
 
 type EditableElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
@@ -1018,6 +1023,75 @@ function normalizeMilestoneLabelOffsets(value: unknown): MilestoneLabelOffsets {
     }
   });
   return normalized;
+}
+
+function roundFingerprintNumber(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.round(value * 10000) / 10000
+    : null;
+}
+
+function monthFingerprintKey(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthFingerprintRange(startIso: string, endIso: string) {
+  const start = startOfMonth(startOfDay(new Date(startIso)));
+  const end = startOfMonth(startOfDay(new Date(endIso)));
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+
+  const months: string[] = [];
+  let cursor = start;
+  while (cursor <= end && months.length < 240) {
+    months.push(monthFingerprintKey(cursor));
+    cursor = addMonths(cursor, 1);
+  }
+  return months;
+}
+
+function createMilestoneTimelineFingerprint(model: MilestoneTimelineModel) {
+  return {
+    startDate: isoDate(startOfDay(new Date(model.startDate))),
+    endDate: isoDate(startOfDay(new Date(model.endDate))),
+    months: monthFingerprintRange(model.startDate, model.endDate),
+    todayOffset: roundFingerprintNumber(model.todayOffset),
+    lanes: model.lanes.map((lane) => ({
+      id: lane.id,
+      code: lane.code,
+      title: lane.title,
+      items: lane.items.map((item) => ({
+        id: item.milestone.id,
+        code: item.milestone.code,
+        title: item.milestone.title,
+        dueDate: item.milestone.dueDate
+          ? isoDate(startOfDay(new Date(item.milestone.dueDate)))
+          : null,
+        offset: roundFingerprintNumber(item.offset),
+        side: item.side,
+        level: item.level,
+      })),
+    })),
+  };
+}
+
+function createMilestoneLabelLayoutFingerprint(timeline: {
+  byPhase: MilestoneTimelineModel;
+  all: MilestoneTimelineModel;
+}) {
+  return JSON.stringify({
+    byPhase: createMilestoneTimelineFingerprint(timeline.byPhase),
+    all: createMilestoneTimelineFingerprint(timeline.all),
+  });
+}
+
+function normalizeMilestoneLabelLayoutOffsets(
+  value: unknown,
+  expectedFingerprint: string,
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const layout = value as { fingerprint?: unknown; offsets?: unknown };
+  if (layout.fingerprint !== expectedFingerprint) return {};
+  return normalizeMilestoneLabelOffsets(layout.offsets);
 }
 
 type MilestoneTone = "green" | "blue" | "red" | "gray";
@@ -4588,6 +4662,8 @@ function App() {
     useState<FullscreenWorkspaceView | null>(null);
   const [milestoneLabelOffsets, setMilestoneLabelOffsets] =
     useState<MilestoneLabelOffsets>({});
+  const milestoneLabelOffsetsRef = useRef<MilestoneLabelOffsets>({});
+  const milestoneLabelLayoutSaveSequenceRef = useRef(0);
   const milestoneLabelDragRef = useRef<{
     scope: MilestoneLabelScope;
     milestoneId: string;
@@ -4596,6 +4672,7 @@ function App() {
     startOffset: MilestoneLabelOffset;
     deltaScaleX: number;
     deltaScaleY: number;
+    hasMoved: boolean;
   } | null>(null);
   const isAuthenticated = Boolean(currentUser);
   const isAdminUser = currentUser?.role === "ADMIN";
@@ -5378,6 +5455,10 @@ function App() {
 
     return { byPhase, all };
   }, [project?.wbsItems, structureMilestones]);
+  const milestoneLabelLayoutFingerprint = useMemo(
+    () => createMilestoneLabelLayoutFingerprint(milestoneTimeline),
+    [milestoneTimeline],
+  );
   const overviewDashboard = useMemo(() => {
     const today = startOfDay(new Date());
     const wbsItems = project?.wbsItems ?? [];
@@ -6443,33 +6524,80 @@ function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [fullscreenWorkspaceView]);
 
-  const milestoneLabelStorageKey = useMemo(
-    () =>
-      project?.id
-        ? `pms:milestone-label-offsets:${project.id}`
-        : null,
-    [project?.id],
-  );
+  useEffect(() => {
+    milestoneLabelOffsetsRef.current = milestoneLabelOffsets;
+  }, [milestoneLabelOffsets]);
 
   useEffect(() => {
-    if (!milestoneLabelStorageKey) {
+    if (!project?.id) {
+      milestoneLabelOffsetsRef.current = {};
       setMilestoneLabelOffsets({});
       return;
     }
+    if (milestoneLabelDragRef.current) return;
 
-    try {
-      const rawValue = window.localStorage.getItem(milestoneLabelStorageKey);
-      setMilestoneLabelOffsets(
-        rawValue
-          ? normalizeMilestoneLabelOffsets(JSON.parse(rawValue))
-          : {},
-      );
-    } catch {
-      setMilestoneLabelOffsets({});
-    }
-  }, [milestoneLabelStorageKey]);
+    const nextOffsets = normalizeMilestoneLabelLayoutOffsets(
+      project.uiState?.milestoneLabelLayout,
+      milestoneLabelLayoutFingerprint,
+    );
+    milestoneLabelOffsetsRef.current = nextOffsets;
+    setMilestoneLabelOffsets(nextOffsets);
+  }, [
+    project?.id,
+    project?.uiState?.milestoneLabelLayout,
+    milestoneLabelLayoutFingerprint,
+  ]);
 
-  const setMilestoneLabelOffsetsAndPersist = useCallback(
+  const persistMilestoneLabelLayout = useCallback(
+    async (offsets: MilestoneLabelOffsets) => {
+      const currentProject = projectRef.current;
+      if (!currentProject?.id || isReadOnly) return;
+
+      const nextLayout = {
+        fingerprint: milestoneLabelLayoutFingerprint,
+        offsets,
+        updatedAt: new Date().toISOString(),
+      };
+      const saveSequence = ++milestoneLabelLayoutSaveSequenceRef.current;
+
+      try {
+        const response = await authenticatedFetch(
+          `${apiBase}/api/projects/${currentProject.id}/ui-state`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ milestoneLabelLayout: nextLayout }),
+          },
+        );
+        const result = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(
+            result?.error ?? "Не удалось сохранить расположение подписей вех",
+          );
+        }
+        if (saveSequence !== milestoneLabelLayoutSaveSequenceRef.current) return;
+
+        const latestProject = projectRef.current;
+        if (latestProject?.id === currentProject.id) {
+          const nextProject = {
+            ...latestProject,
+            uiState: (result?.uiState ?? latestProject.uiState ?? {}) as ProjectUiState,
+          };
+          projectRef.current = nextProject;
+          setProject(nextProject);
+        }
+      } catch (error) {
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Не удалось сохранить расположение подписей вех",
+        );
+      }
+    },
+    [isReadOnly, milestoneLabelLayoutFingerprint],
+  );
+
+  const setMilestoneLabelOffsetsForDrag = useCallback(
     (
       updater: (
         currentOffsets: MilestoneLabelOffsets,
@@ -6477,20 +6605,11 @@ function App() {
     ) => {
       setMilestoneLabelOffsets((currentOffsets) => {
         const nextOffsets = updater(currentOffsets);
-        if (milestoneLabelStorageKey) {
-          try {
-            window.localStorage.setItem(
-              milestoneLabelStorageKey,
-              JSON.stringify(nextOffsets),
-            );
-          } catch {
-            // Browser storage is a convenience only; dragging should still work.
-          }
-        }
+        milestoneLabelOffsetsRef.current = nextOffsets;
         return nextOffsets;
       });
     },
-    [milestoneLabelStorageKey],
+    [],
   );
 
   const startMilestoneLabelDrag = useCallback(
@@ -6531,6 +6650,7 @@ function App() {
         startOffset: offset,
         deltaScaleX,
         deltaScaleY,
+        hasMoved: false,
       };
     },
     [],
@@ -6551,7 +6671,8 @@ function App() {
           (event.clientY - drag.startClientY) * drag.deltaScaleY,
       };
       const offsetKey = milestoneLabelOffsetKey(drag.scope, drag.milestoneId);
-      setMilestoneLabelOffsetsAndPersist((currentOffsets) => ({
+      drag.hasMoved = true;
+      setMilestoneLabelOffsetsForDrag((currentOffsets) => ({
         ...currentOffsets,
         [offsetKey]: {
           x: Math.round(nextOffset.x),
@@ -6559,13 +6680,17 @@ function App() {
         },
       }));
     },
-    [setMilestoneLabelOffsetsAndPersist],
+    [setMilestoneLabelOffsetsForDrag],
   );
 
   const stopMilestoneLabelDrag = useCallback(() => {
+    const drag = milestoneLabelDragRef.current;
     milestoneLabelDragRef.current = null;
     document.body.classList.remove("milestone-label-dragging");
-  }, []);
+    if (drag?.hasMoved) {
+      void persistMilestoneLabelLayout(milestoneLabelOffsetsRef.current);
+    }
+  }, [persistMilestoneLabelLayout]);
 
   useEffect(() => {
     window.addEventListener("pointermove", handleMilestoneLabelPointerMove);

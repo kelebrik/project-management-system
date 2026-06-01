@@ -181,6 +181,21 @@ function sanitizeProjectUiState(value: unknown) {
   return value;
 }
 
+const milestoneLabelOffsetSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+});
+
+const milestoneLabelLayoutSchema = z.object({
+  fingerprint: z.string().min(1).max(100000),
+  offsets: z.record(z.string(), milestoneLabelOffsetSchema),
+  updatedAt: z.string().trim().optional().nullable(),
+});
+
+const projectUiStatePatchSchema = z.object({
+  milestoneLabelLayout: milestoneLabelLayoutSchema.nullable().optional(),
+});
+
 async function wouldCreateProjectCycle(projectId: string, nextParentId: string | null | undefined) {
   let cursor = nextParentId;
   while (cursor) {
@@ -389,6 +404,66 @@ router.post('/projects', async (req, res) => {
     }
     throw error;
   }
+});
+
+router.patch('/projects/:projectId/ui-state', async (req, res) => {
+  const parsed = projectUiStatePatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true, status: true, uiState: true },
+  });
+
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
+    return;
+  }
+
+  if (project.status === 'CLOSED') {
+    res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
+    return;
+  }
+
+  const beforeUiState = sanitizeProjectUiState(project.uiState) as Record<string, unknown>;
+  const nextUiState: Record<string, unknown> = { ...beforeUiState };
+
+  if (Object.prototype.hasOwnProperty.call(parsed.data, 'milestoneLabelLayout')) {
+    if (parsed.data.milestoneLabelLayout === null) {
+      delete nextUiState.milestoneLabelLayout;
+    } else {
+      nextUiState.milestoneLabelLayout = parsed.data.milestoneLabelLayout;
+    }
+  }
+
+  const updated = await prisma.project.update({
+    where: { id: project.id },
+    data: { uiState: nextUiState as Prisma.InputJsonObject },
+    select: { id: true, uiState: true },
+  });
+
+  const changedFields = Object.keys(parsed.data);
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'project.ui_state.update',
+    objectType: 'Project',
+    objectId: project.id,
+    projectId: project.id,
+    beforeValue: { uiState: beforeUiState },
+    afterValue: { uiState: updated.uiState },
+    metadata: { changedFields },
+  });
+  await emitWebhookEvent({
+    eventType: 'project.ui_state.updated',
+    projectId: project.id,
+    payload: { uiState: updated.uiState, changedFields },
+  }).catch(() => undefined);
+
+  res.json({ uiState: updated.uiState });
 });
 
 router.patch('/projects/:projectId', async (req, res) => {
