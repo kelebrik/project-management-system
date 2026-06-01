@@ -194,6 +194,7 @@ export const wbsItemSchema = z.object({
   leadLagDays: z.coerce.number().int().default(0),
   workDays: z.coerce.number().int().optional().nullable(),
   calendarDays: z.coerce.number().int().optional().nullable(),
+  scheduleDriver: z.enum(["dates", "workDays"]).optional(),
   excelStartDate: z.string().trim().optional().nullable(),
   excelEndDate: z.string().trim().optional().nullable(),
   planWorkDays: z.coerce.number().int().optional().nullable(),

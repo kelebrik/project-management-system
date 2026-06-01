@@ -16,7 +16,7 @@
     "typecheck": "npm run build --workspace @pms/shared && npm run typecheck:workspaces",
     "typecheck:workspaces": "npm run typecheck --workspaces --if-present",
     "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "npm run test:unit --workspace @pms/api",
+    "test:unit": "npm run test:unit --workspace @pms/api && npm run test:unit --workspace @pms/web",
     "test:integration": "tsx --test \"tests/integration/**/*.test.ts\"",
     "test:e2e": "playwright test",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",

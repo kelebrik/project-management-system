@@ -664,13 +664,17 @@ export function calculateWbsScheduleUpdates(
 ) {
   let currentItems = items;
   let previousUpdates: WbsScheduleUpdate[] = [];
+  const initialChangedFields = [...(options.changedFields ?? [])];
 
   for (let iteration = 0; iteration < 20; iteration += 1) {
     const updates = calculateWbsSchedulePass(
       currentItems,
       dependencies,
       calendarOverrides,
-      options,
+      {
+        ...options,
+        changedFields: iteration === 0 ? initialChangedFields : [],
+      },
     );
     if (updates.length === 0) break;
     previousUpdates = updates;

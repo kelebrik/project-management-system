@@ -13,6 +13,7 @@ import {
 } from '../services/wbs.js';
 import { recordWbsCommand } from '../services/wbs-audit.js';
 import { createWbsBaselineFromCurrentPlan } from '../services/wbs-baseline.js';
+import { resolveWbsScheduleDateWrites, resolveWbsSchedulePatch } from '../services/wbs-schedule-patch.js';
 import { recalculateProjectWbsSchedule } from '../services/wbs-schedule.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 
@@ -154,61 +155,6 @@ async function wouldCreateWbsCycle(itemId: string, nextParentId: string | null |
     cursor = parent?.parentId ?? null;
   }
   return false;
-}
-
-const WBS_SCHEDULE_DATE_FIELDS = [
-  'startDate',
-  'dueDate',
-  'forecastStartDate',
-  'forecastDueDate',
-] as const;
-
-const WBS_SCHEDULE_PREDECESSOR_FIELDS = [
-  'predecessor1',
-  'predecessor2',
-  'predecessor3',
-  'predecessor4',
-  'predecessor5',
-  'predecessor6',
-] as const;
-
-function dateOnly(value: Date | string | null | undefined) {
-  if (value === null || value === undefined || value === '') return null;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString().slice(0, 10);
-}
-
-function changedWbsScheduleFields(
-  patch: Partial<z.infer<typeof wbsItemSchema>>,
-  existing: WbsItem,
-) {
-  const fields = new Set<string>();
-
-  for (const field of WBS_SCHEDULE_DATE_FIELDS) {
-    if (patch[field] !== undefined && dateOnly(patch[field]) !== dateOnly(existing[field])) {
-      fields.add(field);
-    }
-  }
-
-  if (patch.workDays !== undefined && (patch.workDays ?? null) !== existing.workDays) {
-    fields.add('workDays');
-  }
-  if (patch.calendarCode !== undefined && patch.calendarCode !== existing.calendarCode) {
-    fields.add('calendarCode');
-  }
-  if (patch.leadLagDays !== undefined && patch.leadLagDays !== existing.leadLagDays) {
-    fields.add('leadLagDays');
-  }
-
-  for (const field of WBS_SCHEDULE_PREDECESSOR_FIELDS) {
-    if (patch[field] !== undefined && (patch[field] || null) !== existing[field]) {
-      fields.add(field);
-      fields.add('predecessors');
-    }
-  }
-
-  return [...fields];
 }
 
 router.post('/projects/:projectId/wbs-items/insert-after', async (req, res) => {
@@ -555,7 +501,12 @@ router.patch('/wbs-items/:itemId', async (req, res) => {
     return;
   }
 
-  const scheduleChangedFields = changedWbsScheduleFields(parsed.data, existing);
+  const schedulePatch = resolveWbsSchedulePatch(parsed.data, existing);
+  const scheduleChangedFields = schedulePatch.changedFields;
+  const shouldWriteScheduleDates = schedulePatch.writeScheduleDates;
+  const shouldWriteWorkDays = schedulePatch.writeWorkDays;
+  const shouldWriteCalendarDays = schedulePatch.writeCalendarDays;
+  const scheduleDateWrites = resolveWbsScheduleDateWrites(parsed.data, schedulePatch);
 
   const updated = await prisma.wbsItem.update({
     where: { id: existing.id },
@@ -567,13 +518,17 @@ router.patch('/wbs-items/:itemId', async (req, res) => {
       status: parsed.data.status,
       owner: parsed.data.owner,
       startDate:
-        parsed.data.startDate === undefined
+        scheduleDateWrites.startDate === undefined
           ? undefined
-          : parsed.data.startDate
-            ? new Date(parsed.data.startDate)
+          : scheduleDateWrites.startDate
+            ? new Date(scheduleDateWrites.startDate)
             : null,
       dueDate:
-        parsed.data.dueDate === undefined ? undefined : parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+        scheduleDateWrites.dueDate === undefined
+          ? undefined
+          : scheduleDateWrites.dueDate
+            ? new Date(scheduleDateWrites.dueDate)
+            : null,
       baselineStartDate:
         parsed.data.baselineStartDate === undefined
           ? undefined
@@ -587,16 +542,16 @@ router.patch('/wbs-items/:itemId', async (req, res) => {
             ? new Date(parsed.data.baselineDueDate)
             : null,
       forecastStartDate:
-        parsed.data.forecastStartDate === undefined
+        scheduleDateWrites.forecastStartDate === undefined
           ? undefined
-          : parsed.data.forecastStartDate
-            ? new Date(parsed.data.forecastStartDate)
+          : scheduleDateWrites.forecastStartDate
+            ? new Date(scheduleDateWrites.forecastStartDate)
             : null,
       forecastDueDate:
-        parsed.data.forecastDueDate === undefined
+        scheduleDateWrites.forecastDueDate === undefined
           ? undefined
-          : parsed.data.forecastDueDate
-            ? new Date(parsed.data.forecastDueDate)
+          : scheduleDateWrites.forecastDueDate
+            ? new Date(scheduleDateWrites.forecastDueDate)
             : null,
       wbsLevel: parsed.data.wbsLevel === undefined ? undefined : parsed.data.wbsLevel ?? null,
       predecessor1: parsed.data.predecessor1 === undefined ? undefined : parsed.data.predecessor1 || null,
@@ -606,8 +561,14 @@ router.patch('/wbs-items/:itemId', async (req, res) => {
       predecessor5: parsed.data.predecessor5 === undefined ? undefined : parsed.data.predecessor5 || null,
       predecessor6: parsed.data.predecessor6 === undefined ? undefined : parsed.data.predecessor6 || null,
       leadLagDays: parsed.data.leadLagDays,
-      workDays: parsed.data.workDays === undefined ? undefined : parsed.data.workDays ?? null,
-      calendarDays: parsed.data.calendarDays === undefined ? undefined : parsed.data.calendarDays ?? null,
+      workDays:
+        !shouldWriteWorkDays || parsed.data.workDays === undefined
+          ? undefined
+          : parsed.data.workDays ?? null,
+      calendarDays:
+        !shouldWriteCalendarDays || parsed.data.calendarDays === undefined
+          ? undefined
+          : parsed.data.calendarDays ?? null,
       excelStartDate:
         parsed.data.excelStartDate === undefined
           ? undefined
@@ -649,12 +610,14 @@ router.patch('/wbs-items/:itemId', async (req, res) => {
     changedFields: scheduleChangedFields,
   });
   const snapshot = await getProjectWbsSnapshot(existing.projectId);
+  const recalculatedItem =
+    snapshot.wbsItems.find((item) => item.id === existing.id) ?? updated;
   await emitWebhookEvent({
     eventType: 'wbs.item.updated',
     projectId: existing.projectId,
-    payload: { before: existing, after: updated, snapshot },
+    payload: { before: existing, after: recalculatedItem, snapshot },
   }).catch(() => undefined);
-  res.json({ item: updated, ...snapshot });
+  res.json({ item: recalculatedItem, ...snapshot });
 });
 
 router.post('/projects/:projectId/wbs-items/renumber', async (req, res) => {

@@ -51,6 +51,11 @@ import {
   sampleMilestoneSnakePath,
 } from "./milestoneSnakePath";
 import { PageBoundary } from "./pages";
+import {
+  inferWbsScheduleDriver,
+  type WbsScheduleDriver,
+} from "./wbsScheduleDriver";
+import { shouldApplyProjectSnapshotAfterWbsSave } from "./wbsProjectLoadGuard";
 import "./App.css";
 
 type RagStatus = "GREEN" | "AMBER" | "RED";
@@ -3374,7 +3379,18 @@ function createMilestoneTimelineModel({
 
     lane.items.forEach((item) => {
       if (item.side === "top" && item.offset > 0.68 && item.offset < 0.96) {
-        item.labelShiftPx -= item.offset > 0.82 ? 22 : 14;
+        item.labelShiftPx -= item.offset > 0.82 ? 10 : 6;
+      }
+
+      const isCrowdedRightClusterLabel =
+        item.offset > 0.62 && item.offset < 0.92 && item.labelShiftPx < 0;
+      if (isCrowdedRightClusterLabel) {
+        const labelWidth = item.milestone.title.length > 12 ? 146 : 96;
+        const maxLeftShift =
+          item.side === "top"
+            ? -Math.round(labelWidth * 0.42)
+            : -Math.round(labelWidth * 0.52);
+        item.labelShiftPx = Math.max(item.labelShiftPx, maxLeftShift);
       }
     });
 
@@ -4297,6 +4313,12 @@ function App() {
   >({});
   const [expandedRaidId, setExpandedRaidId] = useState<string | null>(null);
   const [wbsDrafts, setWbsDrafts] = useState<Record<string, WbsFormState>>({});
+  const projectRef = useRef<ProjectDetails | null>(null);
+  const wbsDraftsRef = useRef<Record<string, WbsFormState>>({});
+  const wbsSaveSequenceRef = useRef(0);
+  const pendingWbsSaveCountRef = useRef(0);
+  const latestWbsSaveSequenceByItemRef = useRef<Record<string, number>>({});
+  const projectLoadSequenceRef = useRef(0);
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -5907,6 +5929,11 @@ function App() {
 
   const applyProject = useCallback(
     (nextProject: ProjectDetails) => {
+      projectRef.current = nextProject;
+      const nextWbsDrafts = Object.fromEntries(
+        nextProject.wbsItems.map((item) => [item.id, wbsToForm(item)]),
+      );
+      wbsDraftsRef.current = nextWbsDrafts;
       setProject(nextProject);
       setWbsUndoHistory([]);
       setWbsRedoHistory([]);
@@ -5988,11 +6015,7 @@ function App() {
           ? currentIssueId
           : null,
       );
-      setWbsDrafts(
-        Object.fromEntries(
-          nextProject.wbsItems.map((item) => [item.id, wbsToForm(item)]),
-        ),
-      );
+      setWbsDrafts(nextWbsDrafts);
       setActiveWbsItemId((currentItemId) =>
         nextProject.wbsItems.some((item) => item.id === currentItemId)
           ? currentItemId
@@ -6049,13 +6072,27 @@ function App() {
   useEffect(() => {
     if (authMode !== "ready" || !selectedProjectId) return;
     let cancelled = false;
+    const loadSequence = projectLoadSequenceRef.current + 1;
+    projectLoadSequenceRef.current = loadSequence;
+    const wbsSaveSequenceAtStart = wbsSaveSequenceRef.current;
+    const pendingWbsSavesAtStart = pendingWbsSaveCountRef.current;
     apiClient
       .get<ProjectDetails>(
         `/api/projects/${selectedProjectId}/overview`,
         "Не удалось загрузить проект",
       )
       .then((data: ProjectDetails) => {
-        if (!cancelled) {
+        if (
+          !cancelled &&
+          shouldApplyProjectSnapshotAfterWbsSave({
+            loadSequenceAtStart: loadSequence,
+            currentLoadSequence: projectLoadSequenceRef.current,
+            wbsSaveSequenceAtStart,
+            currentWbsSaveSequence: wbsSaveSequenceRef.current,
+            pendingWbsSavesAtStart,
+            currentPendingWbsSaves: pendingWbsSaveCountRef.current,
+          })
+        ) {
           applyProject(data);
         }
       })
@@ -6070,13 +6107,27 @@ function App() {
       return;
     }
     let cancelled = false;
+    const loadSequence = projectLoadSequenceRef.current + 1;
+    projectLoadSequenceRef.current = loadSequence;
+    const wbsSaveSequenceAtStart = wbsSaveSequenceRef.current;
+    const pendingWbsSavesAtStart = pendingWbsSaveCountRef.current;
     apiClient
       .get<ProjectDetails>(
         `/api/projects/${selectedProjectId}/overview`,
         "Не удалось обновить обзор проекта",
       )
       .then((data) => {
-        if (!cancelled) {
+        if (
+          !cancelled &&
+          shouldApplyProjectSnapshotAfterWbsSave({
+            loadSequenceAtStart: loadSequence,
+            currentLoadSequence: projectLoadSequenceRef.current,
+            wbsSaveSequenceAtStart,
+            currentWbsSaveSequence: wbsSaveSequenceRef.current,
+            pendingWbsSavesAtStart,
+            currentPendingWbsSaves: pendingWbsSaveCountRef.current,
+          })
+        ) {
           applyProject(data);
         }
       })
@@ -6130,22 +6181,25 @@ function App() {
     nextDependencies?: WbsDependency[],
     nextCriticalPath?: WbsCriticalPath | null,
   ) {
-    setProject((current) =>
-      current
-        ? {
-            ...current,
-            wbsItems: nextItems,
-            wbsDependencies: nextDependencies ?? current.wbsDependencies,
-            criticalPath:
-              nextCriticalPath === undefined
-                ? current.criticalPath
-                : nextCriticalPath,
-          }
-        : current,
+    const currentProject = projectRef.current;
+    const nextProject = currentProject
+      ? {
+          ...currentProject,
+          wbsItems: nextItems,
+          wbsDependencies: nextDependencies ?? currentProject.wbsDependencies,
+          criticalPath:
+            nextCriticalPath === undefined
+              ? currentProject.criticalPath
+              : nextCriticalPath,
+        }
+      : currentProject;
+    projectRef.current = nextProject;
+    setProject(nextProject);
+    const nextWbsDrafts = Object.fromEntries(
+      nextItems.map((item) => [item.id, wbsToForm(item)]),
     );
-    setWbsDrafts(
-      Object.fromEntries(nextItems.map((item) => [item.id, wbsToForm(item)])),
-    );
+    wbsDraftsRef.current = nextWbsDrafts;
+    setWbsDrafts(nextWbsDrafts);
     setCollapsedWbsIds(
       (currentIds) =>
         new Set(
@@ -6351,10 +6405,26 @@ function App() {
 
   async function refreshProject(projectId = project?.id) {
     if (!projectId) return;
+    const loadSequence = projectLoadSequenceRef.current + 1;
+    projectLoadSequenceRef.current = loadSequence;
+    const wbsSaveSequenceAtStart = wbsSaveSequenceRef.current;
+    const pendingWbsSavesAtStart = pendingWbsSaveCountRef.current;
     const refreshed = await apiClient.get<ProjectDetails>(
       `/api/projects/${projectId}/overview`,
       "Не удалось загрузить проект",
     );
+    if (
+      !shouldApplyProjectSnapshotAfterWbsSave({
+        loadSequenceAtStart: loadSequence,
+        currentLoadSequence: projectLoadSequenceRef.current,
+        wbsSaveSequenceAtStart,
+        currentWbsSaveSequence: wbsSaveSequenceRef.current,
+        pendingWbsSavesAtStart,
+        currentPendingWbsSaves: pendingWbsSaveCountRef.current,
+      })
+    ) {
+      return;
+    }
     applyProject(refreshed);
   }
 
@@ -7911,16 +7981,25 @@ function App() {
     }
   }
 
-  function wbsPayload(itemId: string, form: WbsFormState) {
+  function wbsPayload(
+    itemId: string,
+    form: WbsFormState,
+    options: { scheduleDriver?: WbsScheduleDriver } = {},
+  ) {
     const nextLevel = form.wbsLevel ? Number(form.wbsLevel) : null;
     const workDays = form.workDays.trim();
     const calendarDays = form.calendarDays.trim();
     const leadLagDays = form.leadLagDays.trim();
     const planWorkDays = form.planWorkDays.trim();
     const planCalendarDays = form.planCalendarDays.trim();
-    return {
+    const payload = {
       ...form,
-      parentId: parentIdFromWbsLevel(itemId, nextLevel, wbsTree, wbsDrafts),
+      parentId: parentIdFromWbsLevel(
+        itemId,
+        nextLevel,
+        wbsTree,
+        wbsDraftsRef.current,
+      ),
       startDate: form.startDate || null,
       dueDate: form.dueDate || null,
       baselineStartDate: form.baselineStartDate || null,
@@ -7952,36 +8031,55 @@ function App() {
       description: form.description || null,
       sortOrder: Number(form.sortOrder),
     };
+    return options.scheduleDriver
+      ? { ...payload, scheduleDriver: options.scheduleDriver }
+      : payload;
+  }
+
+  function isLatestWbsSave(itemId: string, saveSequence: number) {
+    return (
+      wbsSaveSequenceRef.current === saveSequence &&
+      latestWbsSaveSequenceByItemRef.current[itemId] === saveSequence
+    );
   }
 
   function updateWbsDraft(itemId: string, patch: Partial<WbsFormState>) {
-    const current = wbsDrafts[itemId];
+    const current = wbsDraftsRef.current[itemId] ?? wbsDrafts[itemId];
     if (!current) return;
-    setWbsDrafts({
-      ...wbsDrafts,
+    const nextDrafts = {
+      ...wbsDraftsRef.current,
       [itemId]: { ...current, ...patch },
-    });
+    };
+    wbsDraftsRef.current = nextDrafts;
+    setWbsDrafts(nextDrafts);
   }
 
   function resetWbsDraft(itemId: string) {
-    const currentItem = project?.wbsItems.find((item) => item.id === itemId);
+    const currentItem = projectRef.current?.wbsItems.find(
+      (item) => item.id === itemId,
+    );
     if (!currentItem) return;
-    setWbsDrafts((current) => {
+    setWbsDrafts(() => {
       const source = wbsToForm(currentItem);
-      return {
-        ...current,
+      const nextDrafts = {
+        ...wbsDraftsRef.current,
         [itemId]: {
           ...source,
           code: draftWbsCodes.get(itemId) ?? source.code,
         },
       };
+      wbsDraftsRef.current = nextDrafts;
+      return nextDrafts;
     });
   }
 
-  function wbsEditKeyHandler(itemId: string) {
+  function wbsEditKeyHandler(
+    itemId: string,
+    scheduleDriver?: WbsScheduleDriver,
+  ) {
     return editableKeyHandler({
       onEnter: () => {
-        void saveWbsItem(itemId, { silent: true });
+        void saveWbsItem(itemId, { silent: true, scheduleDriver });
       },
       onEscape: () => resetWbsDraft(itemId),
     });
@@ -8021,6 +8119,7 @@ function App() {
         if (!next[itemId]) continue;
         next[itemId] = { ...next[itemId], ...patch };
       }
+      wbsDraftsRef.current = next;
       return next;
     });
   }
@@ -8115,6 +8214,7 @@ function App() {
         });
         next[item.id] = draft;
       });
+      wbsDraftsRef.current = next;
       return next;
     });
     setNotice(`Вставлено строк из Excel: ${pastedRows.length}`);
@@ -8123,15 +8223,17 @@ function App() {
   function saveWbsDraftPatch(
     itemId: string,
     patch: Partial<WbsFormState>,
-    options: { silent?: boolean } = {},
+    options: { silent?: boolean; scheduleDriver?: WbsScheduleDriver } = {},
   ) {
-    const current = wbsDrafts[itemId];
+    const current = wbsDraftsRef.current[itemId] ?? wbsDrafts[itemId];
     if (!current) return;
     const nextDraft = { ...current, ...patch };
-    setWbsDrafts({
-      ...wbsDrafts,
+    const nextDrafts = {
+      ...wbsDraftsRef.current,
       [itemId]: nextDraft,
-    });
+    };
+    wbsDraftsRef.current = nextDrafts;
+    setWbsDrafts(nextDrafts);
     void saveWbsItem(itemId, { ...options, draftOverride: nextDraft });
   }
 
@@ -8604,15 +8706,22 @@ function App() {
           <input
             type="date"
             value={draft.startDate}
-            onChange={(event) =>
+            onChange={(event) => {
+              const nextDate = event.target.value;
               updateWbsDraft(item.id, {
-                startDate: event.target.value,
-                excelStartDate: event.target.value,
+                startDate: nextDate,
+                forecastStartDate: nextDate,
+                excelStartDate: nextDate,
+              });
+            }}
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id, "dates")}
+            onBlur={() =>
+              void saveWbsItem(item.id, {
+                silent: true,
+                scheduleDriver: "dates",
               })
             }
-            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
       case "due":
@@ -8620,15 +8729,22 @@ function App() {
           <input
             type="date"
             value={draft.dueDate}
-            onChange={(event) =>
+            onChange={(event) => {
+              const nextDate = event.target.value;
               updateWbsDraft(item.id, {
-                dueDate: event.target.value,
-                excelEndDate: event.target.value,
+                dueDate: nextDate,
+                forecastDueDate: nextDate,
+                excelEndDate: nextDate,
+              });
+            }}
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id, "dates")}
+            onBlur={() =>
+              void saveWbsItem(item.id, {
+                silent: true,
+                scheduleDriver: "dates",
               })
             }
-            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           />
         );
       case "workDays":
@@ -8640,8 +8756,13 @@ function App() {
               updateWbsDraft(item.id, { workDays: event.target.value })
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            onKeyDown={wbsEditKeyHandler(item.id, "workDays")}
+            onBlur={() =>
+              void saveWbsItem(item.id, {
+                silent: true,
+                scheduleDriver: "workDays",
+              })
+            }
           />
         );
       case "calendarDays":
@@ -8750,13 +8871,23 @@ function App() {
 
   async function saveWbsItem(
     itemId: string,
-    options: { silent?: boolean; draftOverride?: WbsFormState } = {},
+    options: {
+      silent?: boolean;
+      draftOverride?: WbsFormState;
+      scheduleDriver?: WbsScheduleDriver;
+    } = {},
   ) {
-    if (!project) return;
-    const draft = options.draftOverride ?? wbsDrafts[itemId];
+    const activeProject = projectRef.current ?? project;
+    if (!activeProject) return;
+    const draft =
+      options.draftOverride ??
+      wbsDraftsRef.current[itemId] ??
+      wbsDrafts[itemId];
     if (!draft) return;
-    const currentItem = project.wbsItems.find((item) => item.id === itemId);
-    const nextPayload = wbsPayload(itemId, draft);
+    const currentItem = activeProject.wbsItems.find(
+      (item) => item.id === itemId,
+    );
+    const comparablePayload = wbsPayload(itemId, draft);
     if (!isHttpsUrl(draft.jiraTicketUrl)) {
       setError("Ссылка Jira должна начинаться с https://");
       return;
@@ -8764,19 +8895,23 @@ function App() {
     const currentPayload = currentItem
       ? wbsPayload(itemId, wbsToForm(currentItem))
       : null;
+    const scheduleDriver =
+      options.scheduleDriver ??
+      inferWbsScheduleDriver(currentPayload, comparablePayload);
+    const nextPayload = wbsPayload(itemId, draft, { scheduleDriver });
     const rowChanged =
       currentPayload !== null &&
-      JSON.stringify(nextPayload) !== JSON.stringify(currentPayload);
+      JSON.stringify(comparablePayload) !== JSON.stringify(currentPayload);
     const predecessorsChanged =
       currentItem !== undefined &&
       (WBS_PREDECESSOR_KEYS.some(
-        (key) => nextPayload[key] !== currentItem[key],
+        (key) => comparablePayload[key] !== currentItem[key],
       ) ||
-        nextPayload.leadLagDays !== currentItem.leadLagDays);
+        comparablePayload.leadLagDays !== currentItem.leadLagDays);
     const requiresRenumber =
       currentItem !== undefined &&
-      (nextPayload.wbsLevel !== currentItem.wbsLevel ||
-        nextPayload.parentId !== currentItem.parentId ||
+      (comparablePayload.wbsLevel !== currentItem.wbsLevel ||
+        comparablePayload.parentId !== currentItem.parentId ||
         draftWbsCodes.get(itemId) !== currentItem.code);
     if (
       currentItem &&
@@ -8787,6 +8922,10 @@ function App() {
     if (rowChanged) rememberWbsSnapshot();
     setError(null);
     if (!options.silent) setNotice(null);
+    const saveSequence = wbsSaveSequenceRef.current + 1;
+    wbsSaveSequenceRef.current = saveSequence;
+    latestWbsSaveSequenceByItemRef.current[itemId] = saveSequence;
+    pendingWbsSaveCountRef.current += 1;
     try {
       const patchResult = await apiClient.patch<WbsSnapshotResponse>(
         `/api/wbs-items/${itemId}`,
@@ -8797,12 +8936,19 @@ function App() {
         ? await saveWbsPredecessors(itemId, { remember: false })
         : null;
 
+      if (!isLatestWbsSave(itemId, saveSequence)) {
+        return;
+      }
+
       if (requiresRenumber) {
         const renumberResult = await apiClient.post<WbsSnapshotResponse>(
-          `/api/projects/${project.id}/wbs-items/renumber`,
+          `/api/projects/${activeProject.id}/wbs-items/renumber`,
           undefined,
           "Не удалось перенумеровать Структуру",
         );
+        if (!isLatestWbsSave(itemId, saveSequence)) {
+          return;
+        }
         if (renumberResult.wbsItems) {
           applyWbsSnapshotResult(
             renumberResult.wbsItems,
@@ -8824,10 +8970,18 @@ function App() {
       }
       if (!options.silent) setNotice("Элемент Структуры обновлен");
     } catch (saveError) {
+      if (!isLatestWbsSave(itemId, saveSequence)) {
+        return;
+      }
       setError(
         saveError instanceof Error
           ? saveError.message
           : "Не удалось сохранить элемент Структуры",
+      );
+    } finally {
+      pendingWbsSaveCountRef.current = Math.max(
+        0,
+        pendingWbsSaveCountRef.current - 1,
       );
     }
   }
