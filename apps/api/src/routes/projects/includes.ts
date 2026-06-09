@@ -2,6 +2,12 @@ import type { Prisma } from '@prisma/client';
 
 export const projectInclude = {
   jiraIntegration: true,
+  targetDateChanges: {
+    orderBy: { createdAt: 'desc' },
+    include: {
+      createdBy: { select: { id: true, name: true, email: true } },
+    },
+  },
   _count: {
     select: { tasks: true, issues: true, jiraSnapshots: true },
   },
@@ -9,6 +15,12 @@ export const projectInclude = {
 
 export const projectDetailsInclude = {
   jiraIntegration: true,
+  targetDateChanges: {
+    orderBy: { createdAt: 'desc' },
+    include: {
+      createdBy: { select: { id: true, name: true, email: true } },
+    },
+  },
   jiraWorkSections: {
     orderBy: { sortOrder: 'asc' },
     include: {

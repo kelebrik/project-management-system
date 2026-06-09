@@ -15,7 +15,7 @@ export const MONTH_LABELS = [
   "Декабрь",
 ];
 
-export function date(value: string | null) {
+export function date(value: string | Date | null) {
   if (!value) return "не задано";
   return new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",

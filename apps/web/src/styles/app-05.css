@@ -1,4 +1,122 @@
 
+.passport-targets {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 14px;
+}
+
+.passport-targets-head {
+  align-items: start;
+  display: flex;
+  justify-content: space-between;
+}
+
+.passport-targets-head h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.passport-targets-head p {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 3px 0 0;
+}
+
+.passport-target-metrics {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.passport-target-metrics > div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.passport-target-metrics span,
+.passport-target-metrics small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.passport-target-metrics b {
+  color: #1f2937;
+  font-size: 15px;
+}
+
+.passport-target-edit {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 170px minmax(220px, 1fr) minmax(180px, 0.8fr) auto;
+}
+
+.passport-target-edit label {
+  color: #475569;
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.passport-target-edit input {
+  min-height: 42px;
+}
+
+.passport-target-history {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.passport-target-history-head,
+.passport-target-history-row {
+  display: grid;
+  grid-template-columns: 120px 120px 120px 110px minmax(220px, 1fr) minmax(160px, 0.7fr);
+  min-width: 860px;
+}
+
+.passport-target-history-head {
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.passport-target-history-row {
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.passport-target-history-head span,
+.passport-target-history-row span {
+  border-right: 1px solid #e2e8f0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 9px 10px;
+}
+
+.passport-target-history-empty {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 12px;
+}
+
 .passport-table {
   border: 1px solid #dbe4ef;
   border-radius: 8px;

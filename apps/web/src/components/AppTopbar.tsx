@@ -9,12 +9,21 @@ type ScheduleHealth = {
   label: string;
 } | null;
 
+type ProjectTargetSummary = {
+  currentTargetDate: Date | null;
+  forecastFinishDate: Date | null;
+  targetChangeDays: number | null;
+  effectiveDelayDays: number | null;
+} | null;
+
 type AppTopbarProps = {
   activeView: AppView;
   isProjectView: boolean;
   project: ProjectDetails | null;
+  projectTargetSummary: ProjectTargetSummary;
   search: ReactNode;
   scheduleHealth: ScheduleHealth;
+  signedDaysLabel: (value: number | null) => string;
   viewTitle: Record<AppView, string>;
 };
 
@@ -22,8 +31,10 @@ export function AppTopbar({
   activeView,
   isProjectView,
   project,
+  projectTargetSummary,
   search,
   scheduleHealth,
+  signedDaysLabel,
   viewTitle,
 }: AppTopbarProps) {
   const showProjectTitle = project && isProjectView && activeView !== "project-create";
@@ -45,7 +56,14 @@ export function AppTopbar({
         <div className="topbar-project">
           <span>Статус: {projectStatusLabel(project.status)}</span>
           <span>РП: {project.projectManager}</span>
-          <span>Срок: {date(project.targetDate)}</span>
+          <span>
+            Цель: {date(projectTargetSummary?.currentTargetDate ?? project.targetDate)} (
+            {signedDaysLabel(projectTargetSummary?.targetChangeDays ?? null)})
+          </span>
+          <span>
+            Прогноз: {date(projectTargetSummary?.forecastFinishDate ?? null)} (
+            {signedDaysLabel(projectTargetSummary?.effectiveDelayDays ?? null)})
+          </span>
           <b className={`rag ${scheduleHealth?.tone ?? project.rag.toLowerCase()}`}>
             {scheduleHealth?.label ?? projectHealthLabel(project.rag)}
           </b>

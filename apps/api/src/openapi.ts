@@ -133,6 +133,7 @@ export const openApiDocument = {
           rag: { type: "string", enum: ["GREEN", "AMBER", "RED"] },
           projectManager: { type: "string" },
           startDate: { type: "string", format: "date-time" },
+          initialTargetDate: { type: ["string", "null"], format: "date-time" },
           targetDate: { type: "string", format: "date-time" },
           progress: { type: "integer", minimum: 0, maximum: 100 },
           scheduleVariance: { type: "integer" },
@@ -415,6 +416,14 @@ export const openApiDocument = {
         "Close project and make it read-only for all roles",
         [projectIdParam],
         "Project closed",
+      ),
+    },
+    "/api/projects/{projectId}/target-date": {
+      patch: securedOperation(
+        ["Projects"],
+        "Update approved project target date with change history",
+        [projectIdParam],
+        "Project target date updated",
       ),
     },
     "/api/projects/{projectId}/overview": {

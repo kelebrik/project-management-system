@@ -78,6 +78,12 @@ type AppShellProps = {
   openView: OpenView;
   pageContext: PageContextValue;
   project: ProjectDetails | null;
+  projectTargetSummary: {
+    currentTargetDate: Date | null;
+    forecastFinishDate: Date | null;
+    targetChangeDays: number | null;
+    effectiveDelayDays: number | null;
+  } | null;
   projectSearch: string;
   recentProjects: ProjectListItem[];
   renderGlobalSearch: (className?: string) => ReactNode;
@@ -91,6 +97,7 @@ type AppShellProps = {
   shouldShowProjectMenu: boolean;
   showProjectPicker: boolean;
   sidebarCollapsed: boolean;
+  signedDaysLabel: (value: number | null) => string;
   toggleSidebar: () => void;
   viewTitle: Record<AppView, string>;
 };
@@ -273,6 +280,7 @@ export function AppShell({
   openView,
   pageContext,
   project,
+  projectTargetSummary,
   projectSearch,
   recentProjects,
   renderGlobalSearch,
@@ -286,6 +294,7 @@ export function AppShell({
   shouldShowProjectMenu,
   showProjectPicker,
   sidebarCollapsed,
+  signedDaysLabel,
   toggleSidebar,
   viewTitle,
 }: AppShellProps) {
@@ -417,8 +426,10 @@ export function AppShell({
           activeView={activeView}
           isProjectView={isProjectView}
           project={project}
+          projectTargetSummary={projectTargetSummary}
           scheduleHealth={scheduleHealth}
           search={renderGlobalSearch("global-search-topbar")}
+          signedDaysLabel={signedDaysLabel}
           viewTitle={viewTitle}
         />
         <SystemBanners

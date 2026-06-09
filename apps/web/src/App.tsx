@@ -105,6 +105,11 @@ import {
 import { createOverviewDashboard } from "./app/overviewDashboardModel";
 import { printSectionAsPdf } from "./app/pdfPrint";
 import {
+  createProjectTargetSummary,
+  signedDateDeltaDays,
+  signedDaysLabel,
+} from "./app/projectTargetModel";
+import {
   createPortfolioStats,
   filterProjectOptions,
   getActiveProjects,
@@ -258,6 +263,14 @@ function App() {
     setNewProjectForm,
     projectRegistryDrafts,
     setProjectRegistryDrafts,
+    projectTargetDateDraft,
+    setProjectTargetDateDraft,
+    projectTargetChangeReason,
+    setProjectTargetChangeReason,
+    projectTargetApprovedBy,
+    setProjectTargetApprovedBy,
+    savingProjectTargetDate,
+    setSavingProjectTargetDate,
     passportRows,
     setPassportRows,
     savingPassportRows,
@@ -853,6 +866,10 @@ function App() {
     () => createOverviewDashboard(project, structureMilestones),
     [project, structureMilestones],
   );
+  const projectTargetSummary = useMemo(
+    () => createProjectTargetSummary(project),
+    [project],
+  );
   const topbarScheduleHealth = project
     ? projectScheduleHealth(project.rag, overviewDashboard.scheduleVarianceFromStructure)
     : null;
@@ -1019,6 +1036,9 @@ function App() {
       );
       wbsDraftsRef.current = nextWbsDrafts;
       setProject(nextProject);
+      setProjectTargetDateDraft(isoDate(new Date(nextProject.targetDate)));
+      setProjectTargetChangeReason("");
+      setProjectTargetApprovedBy("");
       setWbsUndoHistory([]);
       setWbsRedoHistory([]);
       setSidebarCollapsed(nextProject.uiState?.sidebarCollapsed ?? false);
@@ -1631,6 +1651,55 @@ function App() {
     setError,
     setNotice,
   });
+
+  async function saveProjectTargetDate() {
+    if (!project) return;
+    const targetDate = projectTargetDateDraft.trim();
+    const reason = projectTargetChangeReason.trim();
+    if (!targetDate) {
+      setError("Укажите текущую утвержденную цель");
+      return;
+    }
+    if (targetDate === isoDate(new Date(project.targetDate))) {
+      setNotice("Цель проекта не изменилась");
+      return;
+    }
+    if (!reason) {
+      setError("Укажите причину изменения цели");
+      return;
+    }
+    setSavingProjectTargetDate(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const updated = await apiClient.patch<ProjectDetails>(
+        `/api/projects/${project.id}/target-date`,
+        {
+          targetDate,
+          reason,
+          approvedBy: projectTargetApprovedBy.trim() || null,
+        },
+        "Не удалось сохранить цель проекта",
+      );
+      applyProject(updated);
+      setProjects((currentProjects) =>
+        currentProjects.map((item) =>
+          item.id === updated.id ? { ...item, ...updated } : item,
+        ),
+      );
+      await reloadAuditEvents();
+      setNotice("Цель проекта сохранена");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить цель проекта",
+      );
+    } finally {
+      setSavingProjectTargetDate(false);
+    }
+  }
+
   const {
     updateArtifactDraft,
     saveArtifact,
@@ -2997,6 +3066,10 @@ function App() {
     portfolioStats,
     printSectionAsPdf,
     project,
+    projectTargetApprovedBy,
+    projectTargetChangeReason,
+    projectTargetDateDraft,
+    projectTargetSummary,
     PROJECT_CALENDAR_LABELS,
     projectCalendarYears,
     projectModuleDrafts,
@@ -3041,6 +3114,7 @@ function App() {
     saveOpenIssueWithPayload,
     savePassportRows,
     savePortfolioProjectIdentity,
+    saveProjectTargetDate,
     saveProjectModules,
     saveProjectRegistryItem,
     saveRaidItem,
@@ -3055,6 +3129,7 @@ function App() {
     savingJira,
     savingJiraWorkSections,
     savingPassportRows,
+    savingProjectTargetDate,
     savingProjectModules,
     savingProjectRegistryId,
     savingRolePermissionId,
@@ -3082,6 +3157,9 @@ function App() {
     setNewDictionaryDraft,
     setNewProjectForm,
     setNewUserForm,
+    setProjectTargetApprovedBy,
+    setProjectTargetChangeReason,
+    setProjectTargetDateDraft,
     setRaidDecisionOnly,
     setRaidForm,
     setRaidHighOnly,
@@ -3113,6 +3191,8 @@ function App() {
     startWbsColumnResize,
     syncing,
     syncJira,
+    signedDateDeltaDays,
+    signedDaysLabel,
     systemSettingHasValue,
     systemSettings,
     systemSettingsDraft,
@@ -3207,6 +3287,7 @@ function App() {
       openView={openView}
       pageContext={pageContext}
       project={project}
+      projectTargetSummary={projectTargetSummary}
       projectSearch={projectSearch}
       recentProjects={recentProjects}
       renderGlobalSearch={renderGlobalSearch}
@@ -3220,6 +3301,7 @@ function App() {
       shouldShowProjectMenu={shouldShowProjectMenu}
       showProjectPicker={showProjectPicker}
       sidebarCollapsed={sidebarCollapsed}
+      signedDaysLabel={signedDaysLabel}
       toggleSidebar={toggleSidebar}
       viewTitle={viewTitle}
     />

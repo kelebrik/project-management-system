@@ -136,6 +136,7 @@ model Project {
   status           ProjectStatus       @default(ACTIVE)
   rag              RagStatus           @default(GREEN)
   startDate        DateTime
+  initialTargetDate DateTime?
   targetDate       DateTime
   budgetPlanned    Decimal             @db.Decimal(14, 2)
   budgetForecast   Decimal             @db.Decimal(14, 2)
@@ -161,12 +162,29 @@ model Project {
   artifacts        ProjectArtifact[]
   raidItems        RaidItem[]
   changeRequests   ChangeRequest[]
+  targetDateChanges ProjectTargetDateChange[]
   wbsCommands      WbsCommand[]
   wbsBaselines     WbsBaseline[]
   savedViews       SavedView[]
 
   @@index([parentId])
   @@index([sortOrder])
+}
+
+model ProjectTargetDateChange {
+  id           String   @id @default(cuid())
+  projectId    String
+  previousDate DateTime
+  newDate      DateTime
+  reason       String
+  approvedBy   String?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy    User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([createdById])
 }
 
 model User {
@@ -186,6 +204,7 @@ model User {
   savedViews   SavedView[]
   apiTokensCreated ApiToken[] @relation("ApiTokenCreatedBy")
   webhookEndpointsCreated WebhookEndpoint[] @relation("WebhookEndpointCreatedBy")
+  targetDateChanges ProjectTargetDateChange[]
 
   @@index([role, isActive])
 }

@@ -11,8 +11,13 @@ import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
 import { createDefaultProjectStructure } from './default-structure.js';
 import { sanitizeProjectUiState, wouldCreateProjectCycle } from './helpers.js';
-import { projectInclude } from './includes.js';
-import { createProjectSchema, projectUiStatePatchSchema, updateProjectSchema } from './schemas.js';
+import { projectDetailsInclude, projectInclude } from './includes.js';
+import {
+  createProjectSchema,
+  projectTargetDateChangeSchema,
+  projectUiStatePatchSchema,
+  updateProjectSchema,
+} from './schemas.js';
 import type { ProjectsRoutesContext } from './types.js';
 
 export function registerProjectCrudRoutes(
@@ -75,6 +80,7 @@ export function registerProjectCrudRoutes(
           ...projectData,
           parentId: projectData.parentId || null,
           startDate: new Date(projectData.startDate),
+          initialTargetDate: new Date(projectData.targetDate),
           targetDate: new Date(projectData.targetDate),
           budgetPlanned: projectData.budgetPlanned,
           budgetForecast: projectData.budgetForecast,
@@ -305,6 +311,103 @@ export function registerProjectCrudRoutes(
       }
       throw error;
     }
+  });
+
+  router.patch('/projects/:projectId/target-date', async (req, res) => {
+    const parsed = projectTargetDateChangeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.projectId },
+    });
+
+    if (!project) {
+      res.status(404).json({ error: 'Проект не найден' });
+      return;
+    }
+
+    if (project.status === 'CLOSED') {
+      res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
+      return;
+    }
+
+    const nextTargetDate = new Date(parsed.data.targetDate);
+    if (Number.isNaN(nextTargetDate.getTime())) {
+      res.status(400).json({ error: 'Некорректная дата цели проекта' });
+      return;
+    }
+
+    const previousTargetDate = project.targetDate;
+    const changed =
+      previousTargetDate.toISOString().slice(0, 10) !==
+      nextTargetDate.toISOString().slice(0, 10);
+
+    if (!changed) {
+      const unchanged = await prisma.project.findUnique({
+        where: { id: project.id },
+        include: projectDetailsInclude,
+      });
+      res.json(unchanged);
+      return;
+    }
+
+    const beforeSnapshot = await projectAuditSnapshot(project.id);
+    await prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: project.id },
+        data: {
+          initialTargetDate: project.initialTargetDate ?? previousTargetDate,
+          targetDate: nextTargetDate,
+        },
+      });
+      await tx.projectTargetDateChange.create({
+        data: {
+          projectId: project.id,
+          previousDate: previousTargetDate,
+          newDate: nextTargetDate,
+          reason: parsed.data.reason,
+          approvedBy: parsed.data.approvedBy || null,
+          createdById: currentUser(req)?.id ?? null,
+        },
+      });
+    });
+
+    const updated = await prisma.project.findUnique({
+      where: { id: project.id },
+      include: projectDetailsInclude,
+    });
+    const afterSnapshot = await projectAuditSnapshot(project.id);
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'project.target_date.update',
+      objectType: 'Project',
+      objectId: project.id,
+      projectId: project.id,
+      beforeValue: beforeSnapshot ?? project,
+      afterValue: afterSnapshot ?? updated,
+      metadata: {
+        previousDate: previousTargetDate.toISOString(),
+        newDate: nextTargetDate.toISOString(),
+        reason: parsed.data.reason,
+        approvedBy: parsed.data.approvedBy || null,
+      },
+    });
+    await emitWebhookEvent({
+      eventType: 'project.target_date.updated',
+      projectId: project.id,
+      payload: {
+        before: beforeSnapshot ?? project,
+        after: afterSnapshot ?? updated,
+        previousDate: previousTargetDate.toISOString(),
+        newDate: nextTargetDate.toISOString(),
+      },
+    }).catch(() => undefined);
+
+    res.json(updated);
   });
 
   router.post('/projects/:projectId/close', requireAdmin, async (req, res) => {

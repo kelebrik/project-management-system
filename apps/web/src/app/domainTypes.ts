@@ -58,6 +58,7 @@ export type ProjectListItem = {
   status: "DRAFT" | "ACTIVE" | "ON_HOLD" | "CLOSED";
   rag: RagStatus;
   startDate: string;
+  initialTargetDate: string | null;
   targetDate: string;
   progress: number;
   scheduleVariance: number;
@@ -67,11 +68,28 @@ export type ProjectListItem = {
   sortOrder: number;
   uiState: ProjectUiState | null;
   jiraIntegration: JiraIntegration | null;
+  targetDateChanges: ProjectTargetDateChange[];
   _count: {
     tasks: number;
     issues: number;
     jiraSnapshots: number;
   };
+};
+
+export type ProjectTargetDateChange = {
+  id: string;
+  projectId: string;
+  previousDate: string;
+  newDate: string;
+  reason: string;
+  approvedBy: string | null;
+  createdById: string | null;
+  createdAt: string;
+  createdBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
 };
 
 export type ProjectTreeItem = ProjectListItem & {
