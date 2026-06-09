@@ -333,7 +333,6 @@ function defaultPassportRows(project: ProjectDetails): PassportRow[] {
     { id: "status", field: "Статус", description: projectStatusLabel(project.status) },
     { id: "rag", field: "Индикатор", description: projectHealthLabel(project.rag) },
     { id: "startDate", field: "Старт", description: date(project.startDate) },
-    { id: "targetDate", field: "Целевая дата", description: date(project.targetDate) },
   ];
 }
 
@@ -343,11 +342,13 @@ export function normalizePassportRows(project: ProjectDetails | null): PassportR
   if (!Array.isArray(rows) || rows.length === 0) {
     return defaultPassportRows(project);
   }
-  return rows.map((row, index) => ({
-    id: row.id || `passport-row-${index + 1}`,
-    field: row.field ?? "",
-    description: row.description ?? "",
-  }));
+  return rows
+    .filter((row) => row.id !== "targetDate")
+    .map((row, index) => ({
+      id: row.id || `passport-row-${index + 1}`,
+      field: row.field ?? "",
+      description: row.description ?? "",
+    }));
 }
 
 export function raidToForm(item: RaidItem): RaidFormState {

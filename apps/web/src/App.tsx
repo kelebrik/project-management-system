@@ -258,10 +258,14 @@ function App() {
     setNewProjectForm,
     projectRegistryDrafts,
     setProjectRegistryDrafts,
+    passportTargetDateDraft,
+    setPassportTargetDateDraft,
     passportRows,
     setPassportRows,
     savingPassportRows,
     setSavingPassportRows,
+    savingPassportTargetDate,
+    setSavingPassportTargetDate,
     sidebarCollapsed,
     setSidebarCollapsed,
     projectSearch,
@@ -1019,6 +1023,7 @@ function App() {
       );
       wbsDraftsRef.current = nextWbsDrafts;
       setProject(nextProject);
+      setPassportTargetDateDraft(isoDate(new Date(nextProject.targetDate)));
       setWbsUndoHistory([]);
       setWbsRedoHistory([]);
       setSidebarCollapsed(nextProject.uiState?.sidebarCollapsed ?? false);
@@ -1631,6 +1636,44 @@ function App() {
     setError,
     setNotice,
   });
+
+  async function savePassportTargetDate() {
+    if (!project) return;
+    if (!passportTargetDateDraft) {
+      setError("Укажите срок проекта");
+      return;
+    }
+    if (passportTargetDateDraft === isoDate(new Date(project.targetDate))) {
+      return;
+    }
+    setSavingPassportTargetDate(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const updated = await apiClient.patch<ProjectDetails>(
+        `/api/projects/${project.id}`,
+        { targetDate: passportTargetDateDraft },
+        "Не удалось сохранить срок проекта",
+      );
+      applyProject(updated);
+      setProjects((currentProjects) =>
+        currentProjects.map((item) =>
+          item.id === updated.id ? { ...item, ...updated } : item,
+        ),
+      );
+      await reloadAuditEvents();
+      setNotice("Срок проекта сохранен");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить срок проекта",
+      );
+    } finally {
+      setSavingPassportTargetDate(false);
+    }
+  }
+
   const {
     updateArtifactDraft,
     saveArtifact,
@@ -2993,6 +3036,7 @@ function App() {
     openView,
     orderedWbsColumns,
     overviewDashboard,
+    passportTargetDateDraft,
     passportRows,
     portfolioStats,
     printSectionAsPdf,
@@ -3039,6 +3083,7 @@ function App() {
     saveJiraWorkSections,
     saveOpenIssue,
     saveOpenIssueWithPayload,
+    savePassportTargetDate,
     savePassportRows,
     savePortfolioProjectIdentity,
     saveProjectModules,
@@ -3054,6 +3099,7 @@ function App() {
     savingIntegration,
     savingJira,
     savingJiraWorkSections,
+    savingPassportTargetDate,
     savingPassportRows,
     savingProjectModules,
     savingProjectRegistryId,
@@ -3082,6 +3128,7 @@ function App() {
     setNewDictionaryDraft,
     setNewProjectForm,
     setNewUserForm,
+    setPassportTargetDateDraft,
     setRaidDecisionOnly,
     setRaidForm,
     setRaidHighOnly,
