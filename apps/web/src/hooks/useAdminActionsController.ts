@@ -166,19 +166,11 @@ export function useAdminActionsController({
     [dictionaryItems, setDictionaryDrafts],
   );
 
-  const updateProjectModuleDraft = useCallback(
-    (key: ProjectModuleKey, enabled: boolean) => {
-      setProjectModuleDrafts((current) => ({
-        ...current,
-        [key]: enabled,
-      }));
-    },
-    [setProjectModuleDrafts],
-  );
-
-  const saveProjectModules = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
+  const persistProjectModules = useCallback(
+    async (
+      drafts: Record<ProjectModuleKey, boolean>,
+      successMessage: string,
+    ) => {
       setSavingProjectModules(true);
       setError(null);
       setNotice(null);
@@ -186,7 +178,7 @@ export function useAdminActionsController({
         const payload = {
           modules: normalizedProjectModules.map((module) => ({
             key: module.key,
-            enabled: projectModuleDrafts[module.key] ?? module.enabled,
+            enabled: drafts[module.key] ?? module.enabled,
           })),
         };
         const updated = await apiClient.put<ProjectModule[]>(
@@ -198,20 +190,20 @@ export function useAdminActionsController({
         setProjectModules(normalized);
         setProjectModuleDrafts(projectModulesToDraft(normalized));
         await reloadAuditEvents();
-        setNotice("Настройки модулей сохранены");
+        setNotice(successMessage);
       } catch (saveError) {
         setError(
           saveError instanceof Error
             ? saveError.message
             : "Не удалось сохранить управление модулями",
         );
+        throw saveError;
       } finally {
         setSavingProjectModules(false);
       }
     },
     [
       normalizedProjectModules,
-      projectModuleDrafts,
       reloadAuditEvents,
       setError,
       setNotice,
@@ -219,6 +211,38 @@ export function useAdminActionsController({
       setProjectModules,
       setSavingProjectModules,
     ],
+  );
+
+  const updateProjectModuleDraft = useCallback(
+    async (key: ProjectModuleKey, enabled: boolean) => {
+      const previousDrafts = projectModuleDrafts;
+      const nextDrafts = {
+        ...previousDrafts,
+        [key]: enabled,
+      };
+      setProjectModuleDrafts(nextDrafts);
+      try {
+        await persistProjectModules(nextDrafts, "Настройки модулей сохранены");
+      } catch {
+        setProjectModuleDrafts(previousDrafts);
+      }
+    },
+    [persistProjectModules, projectModuleDrafts, setProjectModuleDrafts],
+  );
+
+  const saveProjectModules = useCallback(
+    async (event?: FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+      try {
+        await persistProjectModules(
+          projectModuleDrafts,
+          "Настройки модулей сохранены",
+        );
+      } catch {
+        // Error state is already set by persistProjectModules.
+      }
+    },
+    [persistProjectModules, projectModuleDrafts],
   );
 
   const toggleRolePermission = useCallback(
