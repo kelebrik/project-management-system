@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
+import { defaultJiraWorkSectionTitle } from "../app/jiraWorkSections";
 import { usePageContext } from "./PageContext";
 
 export function ProjectJiraWorkPage() {
@@ -28,22 +29,41 @@ export function ProjectJiraWorkPage() {
       return next;
     });
   };
+  const addSection = () => {
+    const nextSortOrder =
+      Math.max(-1, ...jiraWorkSectionDrafts.map((section) => section.sortOrder)) +
+      1;
+    setJiraWorkSectionDrafts([
+      ...jiraWorkSectionDrafts,
+      {
+        id: null,
+        sortOrder: nextSortOrder,
+        title: defaultJiraWorkSectionTitle(nextSortOrder),
+        jql: "",
+      },
+    ]);
+  };
 
   return (
     <article className="panel jira-work-page">
       <div className="panel-title">
         <div>
           <h2>Работы в Jira</h2>
-          <p>Пять JQL-разделов проекта для отчетности и обзора</p>
+          <p>Jira-фильтры проекта для отчетности и обзора</p>
         </div>
-        <button
-          className="button"
-          type="button"
-          onClick={syncJira}
-          disabled={syncing}
-        >
-          {syncing ? "Синхронизирую..." : "Синхронизировать"}
-        </button>
+        <div className="panel-title-actions">
+          <button className="button" type="button" onClick={addSection}>
+            Создать раздел
+          </button>
+          <button
+            className="button"
+            type="button"
+            onClick={syncJira}
+            disabled={syncing}
+          >
+            {syncing ? "Синхронизирую..." : "Синхронизировать"}
+          </button>
+        </div>
       </div>
 
       <form className="jira-work-sections" onSubmit={saveJiraWorkSections}>
@@ -94,9 +114,9 @@ export function ProjectJiraWorkPage() {
 
               {!isCollapsed && (
                 <div className="jira-work-section-body">
-                  <label className="jira-work-jql-field">
-                    <span>JQL фильтр</span>
-                    <textarea
+                  <label className="jira-work-filter-field">
+                    <span>Jira filter</span>
+                    <input
                       value={section.jql}
                       onChange={(event) =>
                         setJiraWorkSectionDrafts(
@@ -107,8 +127,7 @@ export function ProjectJiraWorkPage() {
                           ),
                         )
                       }
-                      rows={3}
-                      placeholder="project = KEY AND statusCategory != Done ORDER BY updated DESC"
+                      placeholder="https://jira.example/issues/?filter=12345"
                     />
                   </label>
 

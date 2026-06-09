@@ -1533,11 +1533,10 @@ function App() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            sections: jiraWorkSectionDrafts.map((section) => ({
+            sections: jiraWorkSectionDrafts.map((section, index) => ({
               id: section.id ?? undefined,
-              sortOrder: section.sortOrder,
-              title:
-                section.title.trim() || `Раздел ${section.sortOrder + 1}`,
+              sortOrder: index,
+              title: section.title.trim() || `Раздел ${index + 1}`,
               jql: section.jql.trim(),
             })),
           }),

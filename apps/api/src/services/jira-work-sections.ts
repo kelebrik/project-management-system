@@ -1,9 +1,35 @@
 import { prisma } from '../db.js';
 
-const JIRA_WORK_SECTION_COUNT = 5;
+const DEFAULT_JIRA_WORK_SECTION_COUNT = 3;
 
 export function defaultJiraWorkSectionTitle(sortOrder: number) {
   return `Раздел ${sortOrder + 1}`;
+}
+
+export function jiraWorkSectionFilterToJql(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  try {
+    const url = new URL(trimmed, 'https://jira.local');
+    const filterId = url.searchParams.get('filter')?.trim();
+    if (filterId && /^\d+$/.test(filterId)) {
+      return `filter = ${filterId}`;
+    }
+
+    const jql = url.searchParams.get('jql')?.trim();
+    if (jql) {
+      return jql;
+    }
+  } catch {
+    // Non-URL input is treated as a direct Jira search expression below.
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return `filter = ${trimmed}`;
+  }
+
+  return trimmed;
 }
 
 export async function ensureDefaultJiraWorkSections(projectId: string) {
@@ -18,7 +44,10 @@ export async function ensureDefaultJiraWorkSections(projectId: string) {
     select: { sortOrder: true },
   });
   const existingOrders = new Set(existing.map((section) => section.sortOrder));
-  const missingSections = Array.from({ length: JIRA_WORK_SECTION_COUNT }, (_, index) => index)
+  const missingSections = Array.from(
+    { length: DEFAULT_JIRA_WORK_SECTION_COUNT },
+    (_, index) => index,
+  )
     .filter((sortOrder) => !existingOrders.has(sortOrder))
     .map((sortOrder) => ({
       projectId,

@@ -54,7 +54,7 @@ export const defaultProjectModules: ProjectModule[] = [
   {
     key: "jiraWork",
     label: "Работы в Jira",
-    description: "JQL-разделы проекта и синхронизированные тикеты Jira",
+    description: "Jira-фильтры проекта и синхронизированные тикеты Jira",
     route: "jira-work",
     enabled: true,
   },

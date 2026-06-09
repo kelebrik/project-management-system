@@ -578,7 +578,7 @@ export const openApiDocument = {
     "/api/projects/{projectId}/jira-work-sections": {
       put: securedOperation(
         ["Jira"],
-        "Create or update the five project Jira work JQL sections",
+        "Create or update project Jira work filter sections",
         [projectIdParam],
         "Jira work sections saved",
       ),
@@ -677,7 +677,7 @@ export const openApiDocument = {
     "/api/projects/{projectId}/jira/sync": {
       post: {
         tags: ["Jira"],
-        summary: "Synchronize configured Jira work section JQL into snapshots",
+        summary: "Synchronize configured Jira work section filters into snapshots",
         security: [{ sessionCookie: [] }],
         parameters: [
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },

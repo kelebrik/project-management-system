@@ -3,7 +3,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { fetchJiraIssues } from '../jira.js';
-import { ensureDefaultJiraWorkSections } from '../services/jira-work-sections.js';
+import {
+  ensureDefaultJiraWorkSections,
+  jiraWorkSectionFilterToJql,
+} from '../services/jira-work-sections.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 
 export function createIssuesRouter() {
@@ -65,10 +68,10 @@ const jiraWorkSectionsSchema = z.object({
         id: z.string().trim().optional(),
         title: z.string().trim().min(1).max(80),
         jql: z.string().trim().max(4000),
-        sortOrder: z.number().int().min(0).max(4),
+        sortOrder: z.number().int().min(0),
       }),
     )
-    .length(5),
+    .min(3),
 });
 
 router.put('/projects/:projectId/jira-integration', async (req, res) => {
@@ -489,7 +492,6 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     where: { id: req.params.projectId },
     include: {
       jiraIntegration: true,
-      jiraWorkSections: { orderBy: { sortOrder: 'asc' } },
     },
   });
 
@@ -499,11 +501,13 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
   }
 
   try {
-    const workSections =
-      project.jiraWorkSections.length >= 5
-        ? project.jiraWorkSections
-        : await ensureDefaultJiraWorkSections(project.id);
-    const sectionsWithJql = workSections.filter((section) => section.jql.trim());
+    const workSections = await ensureDefaultJiraWorkSections(project.id);
+    const sectionsWithFilter = workSections
+      .map((section) => ({
+        ...section,
+        jiraQuery: jiraWorkSectionFilterToJql(section.jql),
+      }))
+      .filter((section) => section.jiraQuery);
     const syncedAt = new Date();
     let syncedIssues = 0;
 
@@ -513,8 +517,8 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       });
     }
 
-    for (const section of sectionsWithJql) {
-      const issues = await fetchJiraIssues(section.jql);
+    for (const section of sectionsWithFilter) {
+      const issues = await fetchJiraIssues(section.jiraQuery);
       syncedIssues += issues.length;
       const snapshots = await Promise.all(
         issues.map((issue) =>
