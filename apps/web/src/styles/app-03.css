@@ -299,7 +299,7 @@
   background: transparent;
   border: 0;
   color: #1f2937;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 400;
   padding: 6px 4px;
   width: 100%;
@@ -328,7 +328,7 @@
 .jira-work-filter-field span {
   color: #1f2937;
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 400;
   padding-top: 9px;
 }
 

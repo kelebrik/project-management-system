@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 
 import { defaultJiraWorkSectionTitle } from "../app/jiraWorkSections";
 import { usePageContext } from "./PageContext";
@@ -43,6 +43,13 @@ export function ProjectJiraWorkPage() {
       },
     ]);
   };
+  const saveOnEnter = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (!savingJiraWorkSections) {
+      event.currentTarget.requestSubmit();
+    }
+  };
 
   return (
     <article className="panel jira-work-page">
@@ -66,7 +73,12 @@ export function ProjectJiraWorkPage() {
         </div>
       </div>
 
-      <form className="jira-work-sections" onSubmit={saveJiraWorkSections}>
+      <form
+        className="jira-work-sections"
+        onKeyDown={saveOnEnter}
+        onSubmit={saveJiraWorkSections}
+        aria-busy={savingJiraWorkSections}
+      >
         {jiraWorkSectionDrafts.map((section) => {
           const syncedSection = project.jiraWorkSections.find(
             (entry) => entry.sortOrder === section.sortOrder,
@@ -159,11 +171,6 @@ export function ProjectJiraWorkPage() {
           );
         })}
 
-        <div className="form-actions">
-          <button type="submit" disabled={savingJiraWorkSections}>
-            {savingJiraWorkSections ? "Сохраняю..." : "Сохранить разделы"}
-          </button>
-        </div>
       </form>
     </article>
   );
