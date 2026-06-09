@@ -4,6 +4,7 @@ services:
     runtime: node
     plan: free
     branch: main
+    autoDeployTrigger: commit
     buildCommand: npm run render-build
     startCommand: npm run start
     healthCheckPath: /api/health
