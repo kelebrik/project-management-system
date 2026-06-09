@@ -19,3 +19,6 @@ export { OverviewPage } from "./OverviewPage";
 export { PageBoundary } from "./PageBoundary";
 export { RisksPage } from "./RisksPage";
 export { StructurePage } from "./StructurePage";
+
+export { AppPages } from "./AppPages";
+export { IssueDrawer } from "./IssueDrawer";
