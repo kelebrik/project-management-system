@@ -2,6 +2,7 @@ import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import {
   getProjectWbsSnapshot,
+  recalculateProjectWbsHierarchyStatuses,
   renumberProjectWbs,
   wbsItemSnapshotData,
 } from '../../services/wbs.js';
@@ -99,6 +100,7 @@ export function registerWbsSnapshotRoutes(router: Router) {
 
     await renumberProjectWbs(project.id);
     await recalculateProjectWbsSchedule(project.id);
+    await recalculateProjectWbsHierarchyStatuses(project.id);
     const snapshot = await getProjectWbsSnapshot(project.id);
     await recordWbsCommand({
       projectId: project.id,

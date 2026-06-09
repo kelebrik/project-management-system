@@ -3,6 +3,7 @@ import { prisma } from '../../db.js';
 import {
   getProjectWbsSnapshot,
   levelFromWbsItem,
+  recalculateProjectWbsHierarchyStatuses,
   renumberProjectWbs,
 } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
@@ -91,6 +92,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
 
       await renumberProjectWbs(project.id);
       await recalculateProjectWbsSchedule(project.id);
+      await recalculateProjectWbsHierarchyStatuses(project.id);
       const snapshot = await getProjectWbsSnapshot(project.id);
       await recordWbsCommand({
         projectId: project.id,
@@ -132,6 +134,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
 
     const updatedCount = await renumberProjectWbs(project.id);
     await recalculateProjectWbsSchedule(project.id);
+    await recalculateProjectWbsHierarchyStatuses(project.id);
     const snapshot = await getProjectWbsSnapshot(project.id);
     await recordWbsCommand({
       projectId: project.id,
@@ -210,6 +213,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
 
     await renumberProjectWbs(project.id);
     await recalculateProjectWbsSchedule(project.id);
+    await recalculateProjectWbsHierarchyStatuses(project.id);
     const snapshot = await getProjectWbsSnapshot(project.id);
     await recordWbsCommand({
       projectId: project.id,

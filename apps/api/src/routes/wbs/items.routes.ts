@@ -3,6 +3,7 @@ import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import {
   getProjectWbsSnapshot,
+  recalculateProjectWbsHierarchyStatuses,
   renumberProjectWbs,
 } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
@@ -107,6 +108,7 @@ export function registerWbsItemRoutes(router: Router) {
     });
 
     await recalculateProjectWbsSchedule(validation.project.id);
+    await recalculateProjectWbsHierarchyStatuses(validation.project.id);
     const snapshot = await getProjectWbsSnapshot(validation.project.id);
     await emitWebhookEvent({
       eventType: 'wbs.item.created',
@@ -254,6 +256,7 @@ export function registerWbsItemRoutes(router: Router) {
       changedItemId: existing.id,
       changedFields: schedulePatch.changedFields,
     });
+    await recalculateProjectWbsHierarchyStatuses(existing.projectId);
     const snapshot = await getProjectWbsSnapshot(existing.projectId);
     const recalculatedItem =
       snapshot.wbsItems.find((item) => item.id === existing.id) ?? updated;
@@ -302,6 +305,7 @@ export function registerWbsItemRoutes(router: Router) {
 
     await renumberProjectWbs(existing.projectId);
     await recalculateProjectWbsSchedule(existing.projectId);
+    await recalculateProjectWbsHierarchyStatuses(existing.projectId);
     const snapshot = await getProjectWbsSnapshot(existing.projectId);
     await recordWbsCommand({
       projectId: existing.projectId,
