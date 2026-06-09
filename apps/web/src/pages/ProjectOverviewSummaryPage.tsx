@@ -4,7 +4,6 @@ export function ProjectOverviewSummaryPage() {
   const ctx = usePageContext();
   const {
     date,
-    JIRA_BLOCKING_TICKET_PLACEHOLDER,
     latestRaidStatusUpdate,
     openRaidItemFromOverview,
     overviewDashboard,
@@ -47,35 +46,42 @@ export function ProjectOverviewSummaryPage() {
                   <article className="executive-overview-card">
                     <div className="executive-overview-card-title">
                       <span>Тикеты под риском</span>
-                      <strong>{JIRA_BLOCKING_TICKET_PLACEHOLDER.length}</strong>
+                      <strong>{overviewDashboard.blockingTickets.length}</strong>
                     </div>
-                    <div
-                      className="jira-placeholder-table"
-                      aria-label="Временный снимок блокирующих тикетов Jira"
-                    >
-                      <div className="jira-placeholder-head">
-                        <span>T</span>
-                        <span>Key</span>
-                        <span>Summary</span>
-                        <span>Assignee</span>
-                      </div>
-                      {JIRA_BLOCKING_TICKET_PLACEHOLDER.map((ticket) => (
-                        <div className="jira-placeholder-row" key={ticket.key}>
-                          <span
-                            className={`jira-placeholder-type ${
-                              ticket.checked ? "checked" : "open"
-                            }`}
-                            aria-hidden="true"
-                          >
-                            {ticket.checked ? "✓" : ""}
+                    <div className="executive-overview-list">
+                      {overviewDashboard.blockingTickets.map((ticket) => (
+                        <div
+                          className="executive-overview-row"
+                          key={`${ticket.source}-${ticket.id}`}
+                        >
+                          <b>
+                            {ticket.jiraTicketKey
+                              ? `${ticket.jiraTicketKey} / `
+                              : ticket.code
+                                ? `${ticket.code} / `
+                                : ""}
+                            {ticket.title}
+                          </b>
+                          <span>
+                            {ticket.source === "issue"
+                              ? "Открытый вопрос"
+                              : "Задача WBS"}
+                            {ticket.dueDate ? ` / срок ${date(ticket.dueDate)}` : ""}
                           </span>
-                          <span className="jira-placeholder-key">
-                            {ticket.key}
-                          </span>
-                          <b>{ticket.summary}</b>
-                          <span>{ticket.assignee}</span>
+                          {ticket.jiraTicketUrl && (
+                            <a
+                              href={ticket.jiraTicketUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Открыть Jira
+                            </a>
+                          )}
                         </div>
                       ))}
+                      {overviewDashboard.blockingTickets.length === 0 && (
+                        <p>Тикетов под риском нет.</p>
+                      )}
                     </div>
                   </article>
 

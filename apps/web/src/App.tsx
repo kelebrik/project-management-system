@@ -101,7 +101,6 @@ import {
   clampNumber,
   ganttPanelWidthBounds,
 } from "./app/ganttConfig";
-import { JIRA_BLOCKING_TICKET_PLACEHOLDER } from "./app/jiraPlaceholders";
 import { createOverviewDashboard } from "./app/overviewDashboardModel";
 import { printSectionAsPdf } from "./app/pdfPrint";
 import {
@@ -2955,7 +2954,6 @@ function App() {
     issueSeverityLabel,
     issueStatusDrafts,
     issueStatusLabel,
-    JIRA_BLOCKING_TICKET_PLACEHOLDER,
     jiraForm,
     latestIssueStatusUpdate,
     latestRaidStatusUpdate,
