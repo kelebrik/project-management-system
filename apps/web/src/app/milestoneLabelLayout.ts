@@ -9,7 +9,7 @@ export type MilestoneLabelOffset = {
 
 export type MilestoneLabelOffsets = Record<string, MilestoneLabelOffset>;
 
-const MILESTONE_LABEL_LAYOUT_VERSION = 2;
+const MILESTONE_LABEL_LAYOUT_VERSION = 3;
 
 type MilestoneFingerprintModel = {
   startDate: string;
