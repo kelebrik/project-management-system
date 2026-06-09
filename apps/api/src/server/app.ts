@@ -20,6 +20,20 @@ import { ensureEntityProjectWritable, ensureProjectWritable, registerClosedProje
 import { httpMetricsMiddleware, metricsHandler, rateLimitMiddleware } from './telemetry.js';
 
 const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
+const isProduction = process.env.NODE_ENV === 'production';
+
+function corsOrigin() {
+  const origins = webOrigin
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (webOrigin === '*') {
+    return isProduction ? false : true;
+  }
+
+  return origins;
+}
 
 export const startedAt = new Date();
 
@@ -29,7 +43,7 @@ export function createApp() {
   app.use(express.json({ limit: '5mb' }));
   app.use(
     cors({
-      origin: webOrigin === '*' ? true : webOrigin.split(',').map((origin) => origin.trim()),
+      origin: corsOrigin(),
       credentials: true,
     }),
   );

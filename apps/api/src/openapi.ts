@@ -261,6 +261,7 @@ export const openApiDocument = {
         responses: {
           "200": { description: "Prometheus text exposition" },
           "401": { description: "METRICS_TOKEN is configured and token is invalid" },
+          "503": { description: "Production metrics token is not configured" },
         },
       },
     },

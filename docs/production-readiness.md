@@ -100,9 +100,10 @@ npx playwright install chromium
 Файлы:
 
 - `Dockerfile` - один контейнер приложения: API + собранный Web UI;
-- `docker-compose.yml` - приложение + PostgreSQL + ops-профили backup/restore;
+- `docker-compose.yml` - приложение + PostgreSQL + отдельный `migrate` job + ops-профили backup/restore;
 - `.gitlab-ci.yml` - CI для GitLab/Sber Git.
 - `deploy/k8s/project-management-system.yaml` - restricted Kubernetes manifest для корпоративного контура.
+- `deploy/k8s/project-management-system-migrate-job.yaml` - one-shot Job для `prisma migrate deploy` перед rollout приложения.
 - `docs/sber-k8s-deployment.md` - checklist для DevOps по Sber Git/Kubernetes policies.
 
 Локальный запуск:
@@ -174,7 +175,7 @@ Endpoints:
 - `pms_jira_configured`;
 - `pms_http_requests_by_route_total`.
 
-Если задан `METRICS_TOKEN`, endpoint `/api/metrics` требует:
+В `NODE_ENV=production` endpoint `/api/metrics` требует `METRICS_TOKEN`:
 
 ```bash
 curl -H 'Authorization: Bearer <token>' http://localhost:3000/api/metrics
@@ -257,4 +258,5 @@ docker build \
 - настроить Jira через Admin Back Office или переменные окружения.
 - выпустить API token для интеграций, если нужен machine-to-machine доступ;
 - настроить webhook endpoints для корпоративных потребителей событий;
+- выполнить migration job отдельно от старта приложения: `npm run prisma:deploy`, compose `migrate` service или Kubernetes Job;
 - выполнить `npm run smoke:security` и `npm run smoke:performance` после деплоя.

@@ -118,4 +118,4 @@ DevOps должен подключить:
 - `/api/metrics` в Prometheus;
 - stdout/stderr контейнера в корпоративный сборщик логов.
 
-Если используется закрытый endpoint метрик, нужно задать `METRICS_TOKEN`.
+В `NODE_ENV=production` endpoint метрик требует `METRICS_TOKEN`.

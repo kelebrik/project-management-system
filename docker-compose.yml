@@ -6,16 +6,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 3000
-      WEB_ORIGIN: "*"
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       AUTH_COOKIE_SECURE: "false"
       DATABASE_URL: postgresql://pms_user:pms_password@postgres:5432/project_management_system?schema=public
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
+      WEBHOOK_TIMEOUT_MS: ${WEBHOOK_TIMEOUT_MS:-5000}
+      WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS:-3}
+      WEBHOOK_RETRY_BASE_MS: ${WEBHOOK_RETRY_BASE_MS:-500}
     ports:
       - "3000:3000"
     healthcheck:
@@ -25,6 +30,17 @@ services:
       retries: 12
       start_period: 30s
     restart: unless-stopped
+
+  migrate:
+    image: project-management-system:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://pms_user:pms_password@postgres:5432/project_management_system?schema=public
+    command: ["npm", "run", "prisma:deploy"]
+    restart: "no"
 
   postgres:
     image: postgres:16-alpine

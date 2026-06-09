@@ -57,8 +57,9 @@ Render service settings if creating manually:
 - Environment:
   - `NODE_ENV=production`
   - `NPM_CONFIG_PRODUCTION=false`
-  - `WEB_ORIGIN=*`
-  - `SEED_DEMO_DATA=true`
+  - `WEB_ORIGIN=https://<your-render-service>.onrender.com`
+  - `SEED_DEMO_DATA=false`
+  - `METRICS_TOKEN=<random secret>`
   - `DATABASE_URL=<Render PostgreSQL internal connection string>`
   - `JIRA_BASE_URL=<your Jira base URL>`
   - `JIRA_EMAIL=<integration user email>`

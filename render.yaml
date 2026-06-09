@@ -13,7 +13,15 @@ services:
       - key: NPM_CONFIG_PRODUCTION
         value: "false"
       - key: WEB_ORIGIN
-        value: "*"
+        value: "https://project-management-system.onrender.com"
+      - key: METRICS_TOKEN
+        sync: false
+      - key: WEBHOOK_TIMEOUT_MS
+        value: "5000"
+      - key: WEBHOOK_MAX_ATTEMPTS
+        value: "3"
+      - key: WEBHOOK_RETRY_BASE_MS
+        value: "500"
       - key: SEED_DEMO_DATA
         value: "false"
       - key: DATABASE_URL
