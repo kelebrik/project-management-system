@@ -38,6 +38,7 @@ export type MilestoneTimelineModel = {
   lanes: MilestoneTimelineLane[];
   startDate: string;
   endDate: string;
+  todayDate: string;
   trackWidth: number;
   laneHeight: number;
   todayOffset: number | null;
@@ -74,6 +75,7 @@ export type MilestoneSnakePointLayout = {
 };
 
 export type SvgTextAnchor = "start" | "middle" | "end";
+export type MilestoneTimelineTodayOffsetMode = "calendar" | "milestone-count";
 
 export function milestoneStateLabel(
   milestone: WbsItem,
@@ -458,15 +460,9 @@ export function snakeAxisPenalty(label: MilestoneSnakeLabel, point: MilestoneSna
 
 export function buildSnakeMilestoneLayouts(
   milestones: MilestoneTimelineItem[],
-  startTime: number,
-  range: number,
 ): MilestoneSnakeLayout[] {
   const entries = milestones.map((entry, originalIndex) => {
-    const dueTime = entry.milestone.dueDate
-      ? new Date(entry.milestone.dueDate).getTime()
-      : startTime;
-    const rawProgress = range === 0 ? 0.5 : (dueTime - startTime) / range;
-    const progress = mapSnakeTimelineOffset(rawProgress);
+    const progress = mapSnakeTimelineOffset(entry.offset);
     return {
       entry,
       originalIndex,
@@ -553,20 +549,30 @@ export function buildSnakeMilestoneLayouts(
 
 export function buildSnakeMilestonePointLayouts(
   milestones: MilestoneTimelineItem[],
-  startTime: number,
-  range: number,
 ): MilestoneSnakePointLayout[] {
   return milestones.map((entry) => {
-    const dueTime = entry.milestone.dueDate
-      ? new Date(entry.milestone.dueDate).getTime()
-      : startTime;
-    const rawProgress = range === 0 ? 0.5 : (dueTime - startTime) / range;
-    const progress = mapSnakeTimelineOffset(rawProgress);
+    const progress = mapSnakeTimelineOffset(entry.offset);
     return {
       entry,
       point: interpolateSnakePoint(progress),
     };
   });
+}
+
+export function milestoneTimelineTodayOffsetByCount(
+  milestones: StructureMilestone[],
+  today: Date,
+) {
+  if (milestones.length === 0) return null;
+  const todayTime = today.getTime();
+  const beforeToday = milestones.filter((entry) => {
+    const dueTime = entry.milestone.dueDate
+      ? startOfDay(new Date(entry.milestone.dueDate)).getTime()
+      : Number.NaN;
+    return Number.isFinite(dueTime) && dueTime < todayTime;
+  }).length;
+
+  return beforeToday / milestones.length;
 }
 
 export function compressMilestoneTimelineOffset(
@@ -610,6 +616,7 @@ export function createMilestoneTimelineModel({
   timelineEnd,
   laneIdByMilestoneId,
   minTrackWidth = 1040,
+  todayOffsetMode = "calendar",
 }: {
   milestones: StructureMilestone[];
   lanes: MilestoneTimelineLane[];
@@ -618,6 +625,7 @@ export function createMilestoneTimelineModel({
   timelineEnd: Date;
   laneIdByMilestoneId?: Map<string, string>;
   minTrackWidth?: number;
+  todayOffsetMode?: MilestoneTimelineTodayOffsetMode;
 }): MilestoneTimelineModel {
   const datedMilestones = milestones.filter(
     (entry) =>
@@ -634,9 +642,11 @@ export function createMilestoneTimelineModel({
   const todayTime = today.getTime();
   const todayOffset =
     todayTime >= minTime && todayTime <= maxTime
-      ? range === 0
-        ? 0
-        : (todayTime - minTime) / range
+      ? todayOffsetMode === "milestone-count"
+        ? milestoneTimelineTodayOffsetByCount(visibleMilestones, today)
+        : range === 0
+          ? 0
+          : (todayTime - minTime) / range
       : null;
 
   if (visibleMilestones.length === 0) {
@@ -644,6 +654,7 @@ export function createMilestoneTimelineModel({
       lanes: [],
       startDate: timelineStart.toISOString(),
       endDate: timelineEnd.toISOString(),
+      todayDate: today.toISOString(),
       trackWidth: minTrackWidth,
       laneHeight: 154,
       todayOffset,
@@ -859,6 +870,7 @@ export function createMilestoneTimelineModel({
     lanes: modelLanes,
     startDate: new Date(minTime).toISOString(),
     endDate: new Date(maxTime).toISOString(),
+    todayDate: today.toISOString(),
     trackWidth,
     laneHeight: 146 + maxLaneLevel * 52,
     todayOffset,

@@ -141,6 +141,7 @@ export function createMilestoneTimeline(
       structureMilestones.map((entry) => [entry.milestone.id, "all"]),
     ),
     minTrackWidth: byPhase.trackWidth,
+    todayOffsetMode: "milestone-count",
   });
 
   return { byPhase, all };
