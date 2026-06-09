@@ -13,8 +13,8 @@ import {
   MILESTONE_SNAKE_PATH_D,
   buildSnakeMilestoneLayouts,
   buildSnakeMilestonePointLayouts,
-  compressSnakeTimelineOffset,
   interpolateSnakePoint,
+  mapSnakeTimelineOffset,
   snakeLabelNormalPosition,
   snakeMonthLabelPosition,
   splitPhaseTitle,
@@ -270,13 +270,11 @@ export function MilestoneSnakeTimelineSection({
     inlineMilestones,
     startTime,
     range,
-    timeline.todayOffset,
   );
   const milestonePointLayouts = buildSnakeMilestonePointLayouts(
     milestones,
     startTime,
     range,
-    timeline.todayOffset,
   );
   const monthTicks = (() => {
     const start = startOfMonth(new Date(timeline.startDate));
@@ -293,7 +291,7 @@ export function MilestoneSnakeTimelineSection({
       const rawProgress =
         range === 0 ? 0 : (cursor.getTime() - startTime) / range;
       const point = interpolateSnakePoint(
-        compressSnakeTimelineOffset(rawProgress, timeline.todayOffset),
+        mapSnakeTimelineOffset(rawProgress),
       );
       const labelPosition = snakeMonthLabelPosition(point);
       ticks.push({
@@ -392,10 +390,7 @@ export function MilestoneSnakeTimelineSection({
             ))}
             {timeline.todayOffset !== null && (() => {
               const todayPoint = interpolateSnakePoint(
-                compressSnakeTimelineOffset(
-                  timeline.todayOffset,
-                  timeline.todayOffset,
-                ),
+                mapSnakeTimelineOffset(timeline.todayOffset),
               );
               const todayManualOffset =
                 labelOffsets[

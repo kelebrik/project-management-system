@@ -9,6 +9,8 @@ export type MilestoneLabelOffset = {
 
 export type MilestoneLabelOffsets = Record<string, MilestoneLabelOffset>;
 
+const MILESTONE_LABEL_LAYOUT_VERSION = 2;
+
 type MilestoneFingerprintModel = {
   startDate: string;
   endDate: string;
@@ -111,6 +113,7 @@ export function createMilestoneLabelLayoutFingerprint(timeline: {
   all: MilestoneFingerprintModel;
 }) {
   return JSON.stringify({
+    version: MILESTONE_LABEL_LAYOUT_VERSION,
     byPhase: createMilestoneTimelineFingerprint(timeline.byPhase),
     all: createMilestoneTimelineFingerprint(timeline.all),
   });
