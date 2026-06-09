@@ -35,10 +35,7 @@ export function AppTopbar({
     >
       <div className="topbar-main">
         {showProjectTitle ? (
-          <h1>
-            <span>{project.code}</span>
-            {project.name}
-          </h1>
+          <h1>{project.name}</h1>
         ) : (
           <h1>{viewTitle[activeView]}</h1>
         )}

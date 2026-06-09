@@ -2778,38 +2778,18 @@ function App() {
   const viewTitle: Record<AppView, string> = {
     portfolio: "Портфель проектов",
     "project-create": "Создать новый проект",
-    "project-overview": project
-      ? `${project.code} - Обзор и вехи`
-      : "Обзор и вехи",
-    "project-passport": project
-      ? `${project.code} - Паспорт проекта`
-      : "Паспорт проекта",
-    "project-structure": project ? `${project.code} - Структура` : "Структура",
-    "project-gantt": project ? `${project.code} - Гантт` : "Гантт",
-    "project-jira-work": project
-      ? `${project.code} - Работы в Jira`
-      : "Работы в Jira",
-    "project-issues": project
-      ? `${project.code} - Открытые вопросы`
-      : "Открытые вопросы",
-    "project-raid": project
-      ? `${project.code} - Риски и проблемы`
-      : "Риски и проблемы",
-    "project-changes": project
-      ? `${project.code} - Управление изменениями`
-      : "Управление изменениями",
-    "project-resources": project
-      ? `${project.code} - Управление ресурсами`
-      : "Управление ресурсами",
-    "project-budget": project
-      ? `${project.code} - Управление бюджетом`
-      : "Управление бюджетом",
-    "project-calendars": project
-      ? `${project.code} - Календари`
-      : "Календари",
-    "project-artifacts": project
-      ? `${project.code} - Артефакты проекта`
-      : "Артефакты проекта",
+    "project-overview": project?.name ?? "Обзор и вехи",
+    "project-passport": project?.name ?? "Паспорт проекта",
+    "project-structure": project?.name ?? "Структура",
+    "project-gantt": project?.name ?? "Гантт",
+    "project-jira-work": project?.name ?? "Работы в Jira",
+    "project-issues": project?.name ?? "Открытые вопросы",
+    "project-raid": project?.name ?? "Риски и проблемы",
+    "project-changes": project?.name ?? "Управление изменениями",
+    "project-resources": project?.name ?? "Управление ресурсами",
+    "project-budget": project?.name ?? "Управление бюджетом",
+    "project-calendars": project?.name ?? "Календари",
+    "project-artifacts": project?.name ?? "Артефакты проекта",
     "closed-projects": "Закрытые проекты",
     admin: "Администрирование",
     "admin-users": "Администрирование: пользователи",
