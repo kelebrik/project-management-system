@@ -254,6 +254,72 @@
   min-height: 0;
 }
 
+.jira-work-page {
+  display: grid;
+  gap: 16px;
+}
+
+.jira-work-sections {
+  display: grid;
+  gap: 14px;
+}
+
+.jira-work-section {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.jira-work-section-fields {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 0.42fr) minmax(260px, 1fr);
+}
+
+.jira-work-section-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.jira-work-section-fields textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.jira-work-ticket-list {
+  display: grid;
+  gap: 8px;
+}
+
+.jira-work-ticket {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: inherit;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.jira-work-ticket:hover,
+.jira-work-ticket:focus-visible {
+  border-color: #93c5fd;
+}
+
+.jira-work-ticket b {
+  color: #1f2937;
+}
+
+.jira-work-ticket span,
+.jira-work-ticket-list p {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+}
+
 .executive-publish-layout {
   display: grid;
   gap: 14px;

@@ -1,6 +1,5 @@
 import { signedDaysBetween, startOfDay } from "./dateUtils";
 import type { ProjectDetails, WbsItem, WbsItemStatus } from "./domainTypes";
-import { issuePrimaryJiraLink } from "./labels";
 import type { StructureMilestone } from "./milestoneTimeline";
 import { WBS_PREDECESSOR_KEYS } from "./wbsTable";
 
@@ -40,48 +39,23 @@ export function createOverviewDashboard(
     .filter((item) => item.type === "RISK" && item.riskScore >= 15)
     .sort((left, right) => right.riskScore - left.riskScore)
     .slice(0, 5);
-  const blockerIssues = openIssues
-    .filter(
-      (issue) =>
-        issue.severity === "CRITICAL" || issue.status === "Blocked",
-    )
-    .sort((left, right) =>
-      String(left.dueDate ?? "9999").localeCompare(
-        String(right.dueDate ?? "9999"),
-      ),
-    );
-  const blockedWbsItems = wbsItems
-    .filter((item) => item.status === "BLOCKED")
-    .map((item) => ({
-      id: item.id,
-      title: item.title,
-      code: item.code,
-      dueDate: item.dueDate,
-      jiraTicketKey: item.jiraTicketKey,
-      jiraTicketUrl: item.jiraTicketUrl,
-      source: "structure" as const,
-    }));
-  const blockingTickets = [
-    ...blockerIssues.map((issue) => {
-      const jiraLink = issuePrimaryJiraLink(issue);
-      return {
-        id: issue.id,
-        title: issue.title,
-        code: jiraLink.key || issue.severity,
-        dueDate: issue.dueDate,
-        jiraTicketKey: jiraLink.key,
-        jiraTicketUrl: jiraLink.url,
-        source: "issue" as const,
-      };
-    }),
-    ...blockedWbsItems,
-  ]
-    .sort((left, right) =>
-      String(left.dueDate ?? "9999").localeCompare(
-        String(right.dueDate ?? "9999"),
-      ),
-    )
-    .slice(0, 6);
+  const blockingTickets =
+    project?.jiraWorkSections
+      .find((section) => section.sortOrder === 0)
+      ?.issues.map(({ snapshot, syncedAt }) => ({
+        id: snapshot.id,
+        title: snapshot.summary,
+        code: snapshot.issueKey,
+        jiraTicketKey: snapshot.issueKey,
+        jiraTicketUrl: snapshot.issueUrl,
+        status: snapshot.status,
+        priority: snapshot.priority,
+        assignee: snapshot.assignee,
+        issueType: snapshot.issueType,
+        updatedAt: snapshot.updatedAt,
+        syncedAt,
+        source: "jira-work-section" as const,
+      })) ?? [];
   const openDecisionItems = decisionItems
     .sort((left, right) =>
       String(left.dueDate ?? "9999").localeCompare(

@@ -66,6 +66,7 @@ import {
   riskTone,
   wbsStatusLabel,
 } from "./app/labels";
+import { normalizeJiraWorkSectionDrafts } from "./app/jiraWorkSections";
 import {
   appPathForView,
   appRouteFromPath,
@@ -239,6 +240,8 @@ function App() {
     setSyncing,
     savingJira,
     setSavingJira,
+    savingJiraWorkSections,
+    setSavingJiraWorkSections,
     savingBaseline,
     setSavingBaseline,
     savingCalendar,
@@ -249,6 +252,8 @@ function App() {
     setSavingProjectRegistryId,
     jiraForm,
     setJiraForm,
+    jiraWorkSectionDrafts,
+    setJiraWorkSectionDrafts,
     newProjectForm,
     setNewProjectForm,
     projectRegistryDrafts,
@@ -1061,6 +1066,9 @@ function App() {
         issuesJql: nextProject.jiraIntegration?.issuesJql ?? "",
         openIssuesJql: nextProject.jiraIntegration?.openIssuesJql ?? "",
       });
+      setJiraWorkSectionDrafts(
+        normalizeJiraWorkSectionDrafts(nextProject.jiraWorkSections),
+      );
       setTaskDrafts(
         Object.fromEntries(
           nextProject.tasks.map((task) => [
@@ -1509,6 +1517,50 @@ function App() {
       );
     } finally {
       setSavingJira(false);
+    }
+  }
+
+  async function saveJiraWorkSections(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    setSavingJiraWorkSections(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await authenticatedFetch(
+        `${apiBase}/api/projects/${project.id}/jira-work-sections`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sections: jiraWorkSectionDrafts.map((section) => ({
+              id: section.id ?? undefined,
+              sortOrder: section.sortOrder,
+              title:
+                section.title.trim() || `Раздел ${section.sortOrder + 1}`,
+              jql: section.jql.trim(),
+            })),
+          }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result.error?.formErrors?.join(", ") ||
+            result.error ||
+            "Не удалось сохранить разделы Jira",
+        );
+      }
+      await refreshProject(project.id);
+      setNotice("Разделы Jira сохранены");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить разделы Jira",
+      );
+    } finally {
+      setSavingJiraWorkSections(false);
     }
   }
 
@@ -2735,6 +2787,9 @@ function App() {
       : "Паспорт проекта",
     "project-structure": project ? `${project.code} - Структура` : "Структура",
     "project-gantt": project ? `${project.code} - Гантт` : "Гантт",
+    "project-jira-work": project
+      ? `${project.code} - Работы в Jira`
+      : "Работы в Jira",
     "project-issues": project
       ? `${project.code} - Открытые вопросы`
       : "Открытые вопросы",
@@ -2955,6 +3010,7 @@ function App() {
     issueStatusDrafts,
     issueStatusLabel,
     jiraForm,
+    jiraWorkSectionDrafts,
     latestIssueStatusUpdate,
     latestRaidStatusUpdate,
     MilestoneSnakeTimelineSection,
@@ -3014,6 +3070,7 @@ function App() {
     saveDirtyWbsItems,
     saveDictionaryItem,
     saveJiraIntegration,
+    saveJiraWorkSections,
     saveOpenIssue,
     savePassportRows,
     savePortfolioProjectIdentity,
@@ -3029,6 +3086,7 @@ function App() {
     savingDictionaryItemId,
     savingIntegration,
     savingJira,
+    savingJiraWorkSections,
     savingPassportRows,
     savingProjectModules,
     savingProjectRegistryId,
@@ -3053,6 +3111,7 @@ function App() {
     setIssueFormErrors,
     setIssueLinkDrafts,
     setJiraForm,
+    setJiraWorkSectionDrafts,
     setNewDictionaryDraft,
     setNewProjectForm,
     setNewUserForm,

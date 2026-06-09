@@ -9,6 +9,15 @@ export const projectInclude = {
 
 export const projectDetailsInclude = {
   jiraIntegration: true,
+  jiraWorkSections: {
+    orderBy: { sortOrder: 'asc' },
+    include: {
+      issues: {
+        orderBy: { syncedAt: 'desc' },
+        include: { snapshot: true },
+      },
+    },
+  },
   tasks: { orderBy: { updatedAt: 'desc' } },
   issues: {
     where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },

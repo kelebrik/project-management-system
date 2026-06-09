@@ -9,6 +9,7 @@ import { initialAppView, type AppView } from "../app/routes";
 import {
   newProjectFormDefaults,
   type JiraFormState,
+  type JiraWorkSectionDraft,
   type ProjectFormState,
   type ProjectRegistryDraft,
 } from "../app/formState";
@@ -22,6 +23,7 @@ export function useProjectCoreState() {
   const [activeView, setActiveView] = useState<AppView>(() => initialAppView());
   const [syncing, setSyncing] = useState(false);
   const [savingJira, setSavingJira] = useState(false);
+  const [savingJiraWorkSections, setSavingJiraWorkSections] = useState(false);
   const [savingBaseline, setSavingBaseline] = useState(false);
   const [savingCalendar, setSavingCalendar] = useState<string | null>(null);
   const [selectedCalendarYear, setSelectedCalendarYear] = useState<number | null>(
@@ -36,6 +38,9 @@ export function useProjectCoreState() {
     issuesJql: "",
     openIssuesJql: "",
   });
+  const [jiraWorkSectionDrafts, setJiraWorkSectionDrafts] = useState<
+    JiraWorkSectionDraft[]
+  >([]);
   const [newProjectForm, setNewProjectForm] =
     useState<ProjectFormState>(() => newProjectFormDefaults());
   const [projectRegistryDrafts, setProjectRegistryDrafts] = useState<
@@ -63,6 +68,8 @@ export function useProjectCoreState() {
     setSyncing,
     savingJira,
     setSavingJira,
+    savingJiraWorkSections,
+    setSavingJiraWorkSections,
     savingBaseline,
     setSavingBaseline,
     savingCalendar,
@@ -73,6 +80,8 @@ export function useProjectCoreState() {
     setSavingProjectRegistryId,
     jiraForm,
     setJiraForm,
+    jiraWorkSectionDrafts,
+    setJiraWorkSectionDrafts,
     newProjectForm,
     setNewProjectForm,
     projectRegistryDrafts,

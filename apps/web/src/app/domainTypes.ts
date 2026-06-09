@@ -93,6 +93,7 @@ export type ProjectDetails = ProjectListItem & {
   tasks: Task[];
   issues: Issue[];
   closedIssues?: Issue[];
+  jiraWorkSections: JiraWorkSection[];
   jiraSnapshots: JiraIssueSnapshot[];
   overviews: ExecutiveOverview[];
   milestones: Milestone[];
@@ -361,6 +362,7 @@ export type Issue = {
 
 export type JiraIssueSnapshot = {
   id: string;
+  projectId: string;
   issueKey: string;
   issueUrl: string;
   summary: string;
@@ -368,8 +370,27 @@ export type JiraIssueSnapshot = {
   priority: string;
   assignee: string | null;
   issueType: string;
+  sprint: string | null;
   updatedAt: string;
   syncedAt: string;
+};
+
+export type JiraWorkSectionIssue = {
+  sectionId: string;
+  snapshotId: string;
+  syncedAt: string;
+  snapshot: JiraIssueSnapshot;
+};
+
+export type JiraWorkSection = {
+  id: string;
+  projectId: string;
+  sortOrder: number;
+  title: string;
+  jql: string;
+  createdAt: string;
+  updatedAt: string;
+  issues: JiraWorkSectionIssue[];
 };
 
 export type ExecutiveOverview = {

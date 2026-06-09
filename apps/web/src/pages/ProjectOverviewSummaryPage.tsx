@@ -57,16 +57,12 @@ export function ProjectOverviewSummaryPage() {
                           <b>
                             {ticket.jiraTicketKey
                               ? `${ticket.jiraTicketKey} / `
-                              : ticket.code
-                                ? `${ticket.code} / `
-                                : ""}
+                              : ""}
                             {ticket.title}
                           </b>
                           <span>
-                            {ticket.source === "issue"
-                              ? "Открытый вопрос"
-                              : "Задача WBS"}
-                            {ticket.dueDate ? ` / срок ${date(ticket.dueDate)}` : ""}
+                            {ticket.status} / {ticket.priority}
+                            {ticket.assignee ? ` / ${ticket.assignee}` : ""}
                           </span>
                           {ticket.jiraTicketUrl && (
                             <a

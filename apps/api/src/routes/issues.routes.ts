@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { fetchJiraIssues } from '../jira.js';
+import { ensureDefaultJiraWorkSections } from '../services/jira-work-sections.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 
 export function createIssuesRouter() {
@@ -57,6 +58,19 @@ const jiraIntegrationSchema = z.object({
   openIssuesJql: z.string().trim().min(1),
 });
 
+const jiraWorkSectionsSchema = z.object({
+  sections: z
+    .array(
+      z.object({
+        id: z.string().trim().optional(),
+        title: z.string().trim().min(1).max(80),
+        jql: z.string().trim().max(4000),
+        sortOrder: z.number().int().min(0).max(4),
+      }),
+    )
+    .length(5),
+});
+
 router.put('/projects/:projectId/jira-integration', async (req, res) => {
   const parsed = jiraIntegrationSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -87,6 +101,58 @@ router.put('/projects/:projectId/jira-integration', async (req, res) => {
   });
 
   res.json(integration);
+});
+
+router.put('/projects/:projectId/jira-work-sections', async (req, res) => {
+  const parsed = jiraWorkSectionsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true },
+  });
+
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
+    return;
+  }
+
+  await ensureDefaultJiraWorkSections(project.id);
+  const sections = await prisma.$transaction(
+    parsed.data.sections
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((section) =>
+        prisma.jiraWorkSection.upsert({
+          where: {
+            projectId_sortOrder: {
+              projectId: project.id,
+              sortOrder: section.sortOrder,
+            },
+          },
+          create: {
+            projectId: project.id,
+            sortOrder: section.sortOrder,
+            title: section.title,
+            jql: section.jql,
+          },
+          update: {
+            title: section.title,
+            jql: section.jql,
+          },
+          include: {
+            issues: {
+              orderBy: { syncedAt: 'desc' },
+              include: { snapshot: true },
+            },
+          },
+        }),
+      ),
+  );
+
+  res.json(sections);
 });
 
 router.post('/projects/:projectId/open-issues', async (req, res) => {
@@ -421,7 +487,10 @@ router.patch('/tasks/:taskId/jira-link', async (req, res) => {
 router.post('/projects/:projectId/jira/sync', async (req, res) => {
   const project = await prisma.project.findUnique({
     where: { id: req.params.projectId },
-    include: { jiraIntegration: true },
+    include: {
+      jiraIntegration: true,
+      jiraWorkSections: { orderBy: { sortOrder: 'asc' } },
+    },
   });
 
   if (!project?.jiraIntegration) {
@@ -430,48 +499,77 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
   }
 
   try {
-    const issues = await fetchJiraIssues(project.jiraIntegration.issuesJql);
-    await prisma.$transaction([
-      ...issues.map((issue) =>
-        prisma.jiraIssueSnapshot.upsert({
-          where: {
-            projectId_issueKey: {
+    const workSections =
+      project.jiraWorkSections.length >= 5
+        ? project.jiraWorkSections
+        : await ensureDefaultJiraWorkSections(project.id);
+    const sectionsWithJql = workSections.filter((section) => section.jql.trim());
+    const syncedAt = new Date();
+    let syncedIssues = 0;
+
+    for (const section of workSections) {
+      await prisma.jiraWorkSectionIssue.deleteMany({
+        where: { sectionId: section.id },
+      });
+    }
+
+    for (const section of sectionsWithJql) {
+      const issues = await fetchJiraIssues(section.jql);
+      syncedIssues += issues.length;
+      const snapshots = await Promise.all(
+        issues.map((issue) =>
+          prisma.jiraIssueSnapshot.upsert({
+            where: {
+              projectId_issueKey: {
+                projectId: project.id,
+                issueKey: issue.key,
+              },
+            },
+            update: {
+              issueUrl: issue.url,
+              summary: issue.summary,
+              status: issue.status,
+              priority: issue.priority,
+              assignee: issue.assignee,
+              issueType: issue.issueType,
+              sprint: issue.sprint,
+              updatedAt: issue.updatedAt,
+              syncedAt,
+            },
+            create: {
               projectId: project.id,
               issueKey: issue.key,
+              issueUrl: issue.url,
+              summary: issue.summary,
+              status: issue.status,
+              priority: issue.priority,
+              assignee: issue.assignee,
+              issueType: issue.issueType,
+              sprint: issue.sprint,
+              updatedAt: issue.updatedAt,
+              syncedAt,
             },
-          },
-          update: {
-            issueUrl: issue.url,
-            summary: issue.summary,
-            status: issue.status,
-            priority: issue.priority,
-            assignee: issue.assignee,
-            issueType: issue.issueType,
-            sprint: issue.sprint,
-            updatedAt: issue.updatedAt,
-            syncedAt: new Date(),
-          },
-          create: {
-            projectId: project.id,
-            issueKey: issue.key,
-            issueUrl: issue.url,
-            summary: issue.summary,
-            status: issue.status,
-            priority: issue.priority,
-            assignee: issue.assignee,
-            issueType: issue.issueType,
-            sprint: issue.sprint,
-            updatedAt: issue.updatedAt,
-          },
-        }),
-      ),
-      prisma.jiraIntegration.update({
-        where: { id: project.jiraIntegration.id },
-        data: { syncStatus: 'OK', lastSyncedAt: new Date() },
-      }),
-    ]);
+          }),
+        ),
+      );
+      if (snapshots.length > 0) {
+        await prisma.jiraWorkSectionIssue.createMany({
+          data: snapshots.map((snapshot) => ({
+            sectionId: section.id,
+            snapshotId: snapshot.id,
+            syncedAt,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
 
-    res.json({ synced: issues.length });
+    await prisma.jiraIntegration.update({
+      where: { id: project.jiraIntegration.id },
+      data: { syncStatus: 'OK', lastSyncedAt: syncedAt },
+    });
+
+    res.json({ synced: syncedIssues });
   } catch (error) {
     await prisma.jiraIntegration.update({
       where: { id: project.jiraIntegration.id },

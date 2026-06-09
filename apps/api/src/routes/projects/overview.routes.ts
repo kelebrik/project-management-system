@@ -9,6 +9,7 @@ import {
   overviewStatusLabel,
   renderExecutiveOverviewHtml,
 } from '../../services/executive-overview.js';
+import { ensureDefaultJiraWorkSections } from '../../services/jira-work-sections.js';
 import { calculateProjectCriticalPath } from '../../services/wbs-critical-path.js';
 import { closedIssuesInclude, projectDetailsInclude } from './includes.js';
 import { overviewTransitionSchema } from './schemas.js';
@@ -19,6 +20,7 @@ export function registerProjectOverviewRoutes(
   { currentUser }: ProjectsRoutesContext,
 ) {
   router.get('/projects/:projectId/overview', async (req, res) => {
+    await ensureDefaultJiraWorkSections(req.params.projectId);
     const [project, criticalPath, closedIssues] = await Promise.all([
       prisma.project.findUnique({
         where: { id: req.params.projectId },

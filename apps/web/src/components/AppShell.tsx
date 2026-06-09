@@ -121,6 +121,12 @@ const projectNavItems: ProjectNavItem[] = [
     icon: <GanttChartSquare size={17} />,
   },
   {
+    key: "jiraWork",
+    view: "project-jira-work",
+    label: "Работы в Jira",
+    icon: <BriefcaseBusiness size={17} />,
+  },
+  {
     key: "issues",
     view: "project-issues",
     label: "Открытые вопросы",

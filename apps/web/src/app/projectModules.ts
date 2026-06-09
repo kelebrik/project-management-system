@@ -5,6 +5,7 @@ export type ProjectModuleKey =
   | "passport"
   | "structure"
   | "gantt"
+  | "jiraWork"
   | "issues"
   | "raid"
   | "changes"
@@ -48,6 +49,13 @@ export const defaultProjectModules: ProjectModule[] = [
     label: "Гантт",
     description: "Временная шкала, связи, базовый план и критический путь",
     route: "gantt",
+    enabled: true,
+  },
+  {
+    key: "jiraWork",
+    label: "Работы в Jira",
+    description: "JQL-разделы проекта и синхронизированные тикеты Jira",
+    route: "jira-work",
     enabled: true,
   },
   {
@@ -109,6 +117,7 @@ export const projectModuleKeyByView: Record<
   "project-passport": "passport",
   "project-structure": "structure",
   "project-gantt": "gantt",
+  "project-jira-work": "jiraWork",
   "project-issues": "issues",
   "project-raid": "raid",
   "project-changes": "changes",
@@ -126,6 +135,7 @@ export const projectModuleViewByKey: Record<
   passport: "project-passport",
   structure: "project-structure",
   gantt: "project-gantt",
+  jiraWork: "project-jira-work",
   issues: "project-issues",
   raid: "project-raid",
   changes: "project-changes",

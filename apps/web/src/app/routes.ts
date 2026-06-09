@@ -5,6 +5,7 @@ export type AppView =
   | "project-passport"
   | "project-structure"
   | "project-gantt"
+  | "project-jira-work"
   | "project-issues"
   | "project-raid"
   | "project-changes"
@@ -35,6 +36,7 @@ export type ProjectSectionView = Extract<
   | "project-passport"
   | "project-structure"
   | "project-gantt"
+  | "project-jira-work"
   | "project-issues"
   | "project-raid"
   | "project-changes"
@@ -96,6 +98,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-passport": "passport",
   "project-structure": "wbs",
   "project-gantt": "gantt",
+  "project-jira-work": "jira-work",
   "project-issues": "issues",
   "project-raid": "risks",
   "project-changes": "changes",
@@ -112,6 +115,7 @@ export const appViewPaths: Record<AppView, string> = {
   "project-passport": "/passport",
   "project-structure": "/wbs",
   "project-gantt": "/gantt",
+  "project-jira-work": "/jira-work",
   "project-issues": "/issues",
   "project-raid": "/risks",
   "project-changes": "/changes",
@@ -143,6 +147,8 @@ export const projectPathViews: Record<string, ProjectSectionView> = {
   wbs: "project-structure",
   structure: "project-structure",
   gantt: "project-gantt",
+  "jira-work": "project-jira-work",
+  jirawork: "project-jira-work",
   issues: "project-issues",
   "open-issues": "project-issues",
   risks: "project-raid",
@@ -166,6 +172,8 @@ export const appPathViews: Record<string, AppView> = {
   "/wbs": "project-structure",
   "/structure": "project-structure",
   "/gantt": "project-gantt",
+  "/jira-work": "project-jira-work",
+  "/jirawork": "project-jira-work",
   "/issues": "project-issues",
   "/open-issues": "project-issues",
   "/risks": "project-raid",

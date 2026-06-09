@@ -14,6 +14,7 @@ import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
 import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
 import { ProjectCreatePage } from "./ProjectCreatePage";
 import { ProjectIssuesPage } from "./ProjectIssuesPage";
+import { ProjectJiraWorkPage } from "./ProjectJiraWorkPage";
 import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
 import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
 import { ProjectPassportPage } from "./ProjectPassportPage";
@@ -59,6 +60,7 @@ export function AppPages() {
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
         {project && activeView === "admin-jira" && <AdminJiraProjectPage />}
+        {project && activeView === "project-jira-work" && <ProjectJiraWorkPage />}
         {project && activeView === "project-issues" && <ProjectIssuesPage />}
         {project && activeView === "project-raid" && <ProjectRaidPage />}
         {project && activeView === "project-artifacts" && <ProjectArtifactsPage />}

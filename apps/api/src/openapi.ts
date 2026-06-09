@@ -575,6 +575,14 @@ export const openApiDocument = {
         "Jira integration saved",
       ),
     },
+    "/api/projects/{projectId}/jira-work-sections": {
+      put: securedOperation(
+        ["Jira"],
+        "Create or update the five project Jira work JQL sections",
+        [projectIdParam],
+        "Jira work sections saved",
+      ),
+    },
     "/api/projects/{projectId}/open-issues": {
       get: {
         tags: ["OpenIssues"],
@@ -669,7 +677,7 @@ export const openApiDocument = {
     "/api/projects/{projectId}/jira/sync": {
       post: {
         tags: ["Jira"],
-        summary: "Synchronize configured Jira JQL into snapshots",
+        summary: "Synchronize configured Jira work section JQL into snapshots",
         security: [{ sessionCookie: [] }],
         parameters: [
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },

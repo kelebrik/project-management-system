@@ -100,6 +100,13 @@ export type JiraFormState = {
   openIssuesJql: string;
 };
 
+export type JiraWorkSectionDraft = {
+  id: string | null;
+  sortOrder: number;
+  title: string;
+  jql: string;
+};
+
 export type IssueFormState = {
   title: string;
   severity: Issue["severity"];
