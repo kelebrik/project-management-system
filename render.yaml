@@ -13,7 +13,7 @@ services:
       - key: NPM_CONFIG_PRODUCTION
         value: "false"
       - key: WEB_ORIGIN
-        value: "https://project-management-system.onrender.com"
+        value: "https://project-management-system-lorj.onrender.com"
       - key: METRICS_TOKEN
         sync: false
       - key: WEBHOOK_TIMEOUT_MS
