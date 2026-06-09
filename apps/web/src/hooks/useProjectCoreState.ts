@@ -46,10 +46,8 @@ export function useProjectCoreState() {
   const [projectRegistryDrafts, setProjectRegistryDrafts] = useState<
     Record<string, ProjectRegistryDraft>
   >({});
-  const [passportTargetDateDraft, setPassportTargetDateDraft] = useState("");
   const [passportRows, setPassportRows] = useState<PassportRow[]>([]);
   const [savingPassportRows, setSavingPassportRows] = useState(false);
-  const [savingPassportTargetDate, setSavingPassportTargetDate] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [showProjectPicker, setShowProjectPicker] = useState(false);
@@ -88,14 +86,10 @@ export function useProjectCoreState() {
     setNewProjectForm,
     projectRegistryDrafts,
     setProjectRegistryDrafts,
-    passportTargetDateDraft,
-    setPassportTargetDateDraft,
     passportRows,
     setPassportRows,
     savingPassportRows,
     setSavingPassportRows,
-    savingPassportTargetDate,
-    setSavingPassportTargetDate,
     sidebarCollapsed,
     setSidebarCollapsed,
     projectSearch,

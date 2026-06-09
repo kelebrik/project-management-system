@@ -5,13 +5,9 @@ export function ProjectPassportPage() {
   const {
     addPassportRow,
     deletePassportRow,
-    passportTargetDateDraft,
     passportRows,
-    savePassportTargetDate,
     savePassportRows,
-    savingPassportTargetDate,
     savingPassportRows,
-    setPassportTargetDateDraft,
     updatePassportRow,
   } = ctx;
 
@@ -27,25 +23,6 @@ export function ProjectPassportPage() {
                       onClick={() => addPassportRow(passportRows.length - 1)}
                     >
                       + Добавить поле
-                    </button>
-                  </div>
-                  <div className="passport-target-date">
-                    <label>
-                      <span>Срок проекта</span>
-                      <input
-                        type="date"
-                        value={passportTargetDateDraft}
-                        onChange={(event) =>
-                          setPassportTargetDateDraft(event.target.value)
-                        }
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => void savePassportTargetDate()}
-                      disabled={savingPassportTargetDate}
-                    >
-                      {savingPassportTargetDate ? "Сохраняю..." : "Сохранить срок"}
                     </button>
                   </div>
                   <div className="passport-table">

@@ -56,26 +56,6 @@
   position: static;
 }
 
-.passport-target-date {
-  align-items: end;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(220px, 320px) auto;
-  margin-bottom: 14px;
-}
-
-.passport-target-date label {
-  color: #475569;
-  display: grid;
-  font-size: 12px;
-  font-weight: 800;
-  gap: 6px;
-}
-
-.passport-target-date input {
-  min-height: 42px;
-}
-
 .passport-actions {
   margin-top: 12px;
 }
