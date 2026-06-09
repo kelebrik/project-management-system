@@ -1,3 +1,6 @@
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useState } from "react";
+
 import { usePageContext } from "./PageContext";
 
 export function ProjectJiraWorkPage() {
@@ -11,6 +14,20 @@ export function ProjectJiraWorkPage() {
     syncing,
     syncJira,
   } = ctx;
+  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const toggleSection = (sortOrder: number) => {
+    setCollapsedSections((current) => {
+      const next = new Set(current);
+      if (next.has(sortOrder)) {
+        next.delete(sortOrder);
+      } else {
+        next.add(sortOrder);
+      }
+      return next;
+    });
+  };
 
   return (
     <article className="panel jira-work-page">
@@ -34,11 +51,31 @@ export function ProjectJiraWorkPage() {
           const syncedSection = project.jiraWorkSections.find(
             (entry) => entry.sortOrder === section.sortOrder,
           );
+          const isCollapsed = collapsedSections.has(section.sortOrder);
           return (
-            <section className="jira-work-section" key={section.sortOrder}>
-              <div className="jira-work-section-fields">
-                <label>
-                  Название раздела
+            <section
+              className={`jira-work-section ${isCollapsed ? "collapsed" : ""}`}
+              key={section.sortOrder}
+            >
+              <div className="jira-work-section-head">
+                <button
+                  type="button"
+                  className="jira-work-section-toggle"
+                  onClick={() => toggleSection(section.sortOrder)}
+                  aria-expanded={!isCollapsed}
+                  aria-label={
+                    isCollapsed
+                      ? `Развернуть ${section.title}`
+                      : `Свернуть ${section.title}`
+                  }
+                >
+                  {isCollapsed ? (
+                    <ChevronRight size={18} />
+                  ) : (
+                    <ChevronDown size={18} />
+                  )}
+                </button>
+                <div className="jira-work-section-title">
                   <input
                     value={section.title}
                     onChange={(event) =>
@@ -52,48 +89,53 @@ export function ProjectJiraWorkPage() {
                     }
                     placeholder={`Раздел ${section.sortOrder + 1}`}
                   />
-                </label>
-                <label>
-                  JQL фильтр
-                  <textarea
-                    value={section.jql}
-                    onChange={(event) =>
-                      setJiraWorkSectionDrafts(
-                        jiraWorkSectionDrafts.map((entry) =>
-                          entry.sortOrder === section.sortOrder
-                            ? { ...entry, jql: event.target.value }
-                            : entry,
-                        ),
-                      )
-                    }
-                    rows={3}
-                    placeholder="project = KEY AND statusCategory != Done ORDER BY updated DESC"
-                  />
-                </label>
+                </div>
               </div>
 
-              <div className="jira-work-ticket-list">
-                {(syncedSection?.issues ?? []).map(({ snapshot }) => (
-                  <a
-                    className="jira-work-ticket"
-                    key={snapshot.id}
-                    href={snapshot.issueUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <b>
-                      {snapshot.issueKey} / {snapshot.summary}
-                    </b>
-                    <span>
-                      {snapshot.status} / {snapshot.priority}
-                      {snapshot.assignee ? ` / ${snapshot.assignee}` : ""}
-                    </span>
-                  </a>
-                ))}
-                {(syncedSection?.issues ?? []).length === 0 && (
-                  <p>Тикетов в разделе нет.</p>
-                )}
-              </div>
+              {!isCollapsed && (
+                <div className="jira-work-section-body">
+                  <label className="jira-work-jql-field">
+                    <span>JQL фильтр</span>
+                    <textarea
+                      value={section.jql}
+                      onChange={(event) =>
+                        setJiraWorkSectionDrafts(
+                          jiraWorkSectionDrafts.map((entry) =>
+                            entry.sortOrder === section.sortOrder
+                              ? { ...entry, jql: event.target.value }
+                              : entry,
+                          ),
+                        )
+                      }
+                      rows={3}
+                      placeholder="project = KEY AND statusCategory != Done ORDER BY updated DESC"
+                    />
+                  </label>
+
+                  <div className="jira-work-ticket-list">
+                    {(syncedSection?.issues ?? []).map(({ snapshot }) => (
+                      <a
+                        className="jira-work-ticket"
+                        key={snapshot.id}
+                        href={snapshot.issueUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <b>
+                          {snapshot.issueKey} / {snapshot.summary}
+                        </b>
+                        <span>
+                          {snapshot.status} / {snapshot.priority}
+                          {snapshot.assignee ? ` / ${snapshot.assignee}` : ""}
+                        </span>
+                      </a>
+                    ))}
+                    {(syncedSection?.issues ?? []).length === 0 && (
+                      <p>Тикетов в разделе нет.</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </section>
           );
         })}

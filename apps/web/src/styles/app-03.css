@@ -257,32 +257,82 @@
 .jira-work-page {
   display: grid;
   gap: 16px;
+  grid-column: 1 / -1;
 }
 
 .jira-work-sections {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .jira-work-section {
-  border-top: 1px solid #e2e8f0;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+}
+
+.jira-work-section-head {
+  align-items: center;
+  background: #f8fafc;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 30px minmax(180px, 420px);
+  padding: 12px;
+}
+
+.jira-work-section-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  width: 28px;
+}
+
+.jira-work-section-title input {
+  background: transparent;
+  border: 0;
+  color: #1f2937;
+  font-size: 18px;
+  font-weight: 900;
+  padding: 6px 4px;
+  width: 100%;
+}
+
+.jira-work-section-title input:focus {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px #bfdbfe;
+  outline: none;
+}
+
+.jira-work-section-body {
   display: grid;
   gap: 12px;
-  padding-top: 14px;
+  padding: 12px;
 }
 
-.jira-work-section-fields {
+.jira-work-jql-field {
+  align-items: start;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(180px, 0.42fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(110px, 160px) minmax(320px, 1fr);
 }
 
-.jira-work-section-fields label {
-  display: grid;
-  gap: 6px;
+.jira-work-jql-field span {
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 900;
+  padding-top: 9px;
 }
 
-.jira-work-section-fields textarea {
+.jira-work-jql-field textarea {
   min-height: 84px;
   resize: vertical;
 }
@@ -318,6 +368,20 @@
   font-size: 12px;
   font-weight: 700;
   margin: 0;
+}
+
+@media (max-width: 860px) {
+  .jira-work-section-head {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .jira-work-jql-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jira-work-jql-field span {
+    padding-top: 0;
+  }
 }
 
 .executive-publish-layout {
