@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { usePageContext } from "./PageContext";
 import type { Issue } from "../app/domainTypes";
 
@@ -21,11 +22,37 @@ export function ProjectOpenIssuesSection() {
     project,
     removeIssueJiraLink,
     saveOpenIssue,
+    saveOpenIssueWithPayload,
     setExpandedIssueId,
     setIssueLinkDrafts,
     updateIssueDraft,
     updateIssueStatusDraft,
   } = usePageContext();
+
+  const saveIssueTitle = (issue: Issue) => {
+    const draft = issueEditDrafts[issue.id];
+    if (!draft) return;
+    const title = draft.title.trim();
+    if (!title || title === issue.title) {
+      updateIssueDraft(issue.id, { title: issue.title });
+      return;
+    }
+    void saveOpenIssueWithPayload(issue.id, { title });
+  };
+
+  const handleTitleKeyDown = (
+    event: KeyboardEvent<HTMLInputElement>,
+    issue: Issue,
+  ) => {
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      event.currentTarget.blur();
+      return;
+    }
+    if (event.key === "Escape") {
+      updateIssueDraft(issue.id, { title: issue.title });
+    }
+  };
 
   return <div className="issue-list">
                     <div className="issue-list-head" aria-hidden="true">
@@ -65,9 +92,24 @@ export function ProjectOpenIssuesSection() {
                               );
                             }}
                           >
-                            <span className="issue-summary-title">
-                              {issue.title}
-                              </span>
+                            <input
+                              className="issue-summary-title-input"
+                              value={
+                                issueEditDrafts[issue.id]?.title ?? issue.title
+                              }
+                              onChange={(event) =>
+                                updateIssueDraft(issue.id, {
+                                  title: event.target.value,
+                                })
+                              }
+                              onBlur={() => saveIssueTitle(issue)}
+                              onClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) =>
+                                handleTitleKeyDown(event, issue)
+                              }
+                              aria-label="Название открытого вопроса"
+                              disabled={isReadOnly}
+                            />
                               <span className="issue-summary-cell">
                                 {jiraLink.key && jiraLink.url ? (
                                   <a

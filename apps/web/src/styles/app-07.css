@@ -128,6 +128,32 @@
   white-space: nowrap;
 }
 
+.issue-summary-title-input {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 900;
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 6px;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.issue-summary-title-input:hover:not(:disabled),
+.issue-summary-title-input:focus {
+  background: #fff;
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+  outline: none;
+}
+
+.issue-summary-title-input:disabled {
+  cursor: pointer;
+}
+
 .issue-summary-cell {
   color: #475569;
   font-size: 12px;

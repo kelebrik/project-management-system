@@ -1767,6 +1767,7 @@ function App() {
     saveOpenIssue,
     closeOpenIssue,
     addIssueStatusUpdate,
+    saveOpenIssueWithPayload,
   } = useIssueController({
     projectId: project?.id ?? null,
     issueForm,
@@ -3037,6 +3038,7 @@ function App() {
     saveJiraIntegration,
     saveJiraWorkSections,
     saveOpenIssue,
+    saveOpenIssueWithPayload,
     savePassportRows,
     savePortfolioProjectIdentity,
     saveProjectModules,
