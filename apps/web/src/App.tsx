@@ -2828,22 +2828,8 @@ function App() {
     "admin-modules": "Администрирование: управление модулями",
     "admin-audit": "Администрирование: журнал аудита",
   };
-  const projectViews: AppView[] = [
-    "project-create",
-    "project-overview",
-    "project-passport",
-    "project-structure",
-    "project-gantt",
-    "project-issues",
-    "project-raid",
-    "project-changes",
-    "project-resources",
-    "project-budget",
-    "project-calendars",
-    "project-artifacts",
-  ];
-  const isProjectView = projectViews.includes(activeView);
-  const isProjectSectionView = isProjectView && activeView !== "project-create";
+  const isProjectSectionView = isProjectSectionViewName(activeView);
+  const isProjectView = activeView === "project-create" || isProjectSectionView;
   const isAdminSectionView = isAdminSectionViewName(activeView);
   const shouldShowProjectMenu = Boolean(selectedProjectListItem && isProjectSectionView);
   const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
