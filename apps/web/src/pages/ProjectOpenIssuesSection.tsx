@@ -150,6 +150,10 @@ export function ProjectOpenIssuesSection() {
                             {(() => {
                               const draft = issueEditDrafts[issue.id];
                               const latestStatus = latestIssueStatusUpdate(issue);
+                              const statusHistory = issue.statusUpdates.filter(
+                                (statusUpdate) =>
+                                  statusUpdate.id !== latestStatus?.id,
+                              );
                               return (
                                 <>
                                   <section className="raid-status-panel issue-status-panel">
@@ -165,7 +169,7 @@ export function ProjectOpenIssuesSection() {
                                       </p>
                                     )}
                                     <div className="raid-status-history">
-                                      {issue.statusUpdates.map((statusUpdate) => (
+                                      {statusHistory.map((statusUpdate) => (
                                         <div
                                           className="raid-status-history-row"
                                           key={statusUpdate.id}
