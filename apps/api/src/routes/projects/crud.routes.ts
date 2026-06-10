@@ -139,11 +139,11 @@ export function registerProjectCrudRoutes(
           create: {
             projectId: project.id,
             userId: actor.id,
-            level: 'ADMIN',
+            level: 'EDIT',
             grantedById: actor.id,
           },
           update: {
-            level: 'ADMIN',
+            level: 'EDIT',
             grantedById: actor.id,
           },
         });
