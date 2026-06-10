@@ -51,7 +51,9 @@ export function ProjectPassportPage() {
                         <b>{date(projectTargetSummary?.initialTargetDate ?? project?.targetDate ?? null)}</b>
                       </div>
                       <div>
-                        <span>Текущая цель</span>
+                        <span>
+                          {projectTargetSummary?.activeGoal?.title ?? "Текущая цель"}
+                        </span>
                         <b>{date(projectTargetSummary?.currentTargetDate ?? project?.targetDate ?? null)}</b>
                         <small>{signedDaysLabel(projectTargetSummary?.targetChangeDays ?? null)}</small>
                       </div>

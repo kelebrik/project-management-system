@@ -149,7 +149,7 @@ export const openApiDocument = {
           title: { type: "string" },
           type: {
             type: "string",
-            enum: ["PHASE", "WORK_PACKAGE", "DELIVERABLE", "MILESTONE", "TASK"],
+            enum: ["PHASE", "WORK_PACKAGE", "DELIVERABLE", "MILESTONE", "GOAL", "TASK"],
           },
           status: {
             type: "string",

@@ -7,6 +7,7 @@ export const wbsItemTypes = [
   "WORK_PACKAGE",
   "DELIVERABLE",
   "MILESTONE",
+  "GOAL",
   "TASK",
 ] as const;
 export const wbsItemStatuses = [
@@ -70,6 +71,7 @@ export const labels = {
     WORK_PACKAGE: "Пакет работ",
     DELIVERABLE: "Результат",
     MILESTONE: "Веха",
+    GOAL: "Цель",
     TASK: "Задача",
   },
   wbsStatus: {

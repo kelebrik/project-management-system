@@ -236,14 +236,14 @@ export function createWbsGantt({
         item.type === "PHASE" ||
         item.type === "WORK_PACKAGE";
       const bracket = item.type === "PHASE" || item.type === "WORK_PACKAGE";
-      const milestone = item.type === "MILESTONE";
+      const milestone = item.type === "MILESTONE" || item.type === "GOAL";
       return {
         item,
         start: itemStart,
         end: itemEnd,
         offset: (daysBetween(start, itemStart) / totalDays) * 100,
         width: Math.max(
-          item.type === "MILESTONE" ? 0.8 : 0.15,
+          milestone ? 0.8 : 0.15,
           ((daysBetween(itemStart, itemEnd) + 1) / totalDays) * 100,
         ),
         milestone,

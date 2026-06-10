@@ -45,6 +45,7 @@ enum WbsItemType {
   WORK_PACKAGE
   DELIVERABLE
   MILESTONE
+  GOAL
   TASK
 }
 

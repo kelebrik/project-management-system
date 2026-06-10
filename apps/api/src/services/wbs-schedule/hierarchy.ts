@@ -5,11 +5,15 @@ import {
 } from "./calendar.js";
 import type { WbsScheduleItem } from "./types.js";
 
+export function isWbsCheckpointType(item: Pick<WbsScheduleItem, "type">) {
+  return item.type === "MILESTONE" || item.type === "GOAL";
+}
+
 export function resolveDurationWorkDays(item: WbsScheduleItem) {
+  if (isWbsCheckpointType(item)) return 0;
   if (item.workDays !== null && item.workDays !== undefined) {
     return Math.max(0, item.workDays);
   }
-  if (item.type === "MILESTONE") return 0;
   return null;
 }
 

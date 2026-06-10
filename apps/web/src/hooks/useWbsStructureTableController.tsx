@@ -88,6 +88,7 @@ function normalizeWbsPasteValue(
       "WORK_PACKAGE",
       "DELIVERABLE",
       "MILESTONE",
+      "GOAL",
       "TASK",
     ] as WbsItemType[]).find(
       (type) =>
@@ -279,7 +280,11 @@ export function useWbsStructureTableController({
               aria-label={`Выбрать строку ${draft.code}`}
             />
             <span
-              className={`wbs-color-dot ${item.type === "MILESTONE" ? "tone-o" : wbsToneClass(item)}`}
+              className={`wbs-color-dot ${
+                item.type === "MILESTONE" || item.type === "GOAL"
+                  ? "tone-o"
+                  : wbsToneClass(item)
+              }`}
             />
             <input
               className="wbs-code-input"
@@ -425,6 +430,7 @@ export function useWbsStructureTableController({
             <option value="WORK_PACKAGE">{wbsTypeLabel("WORK_PACKAGE")}</option>
             <option value="DELIVERABLE">{wbsTypeLabel("DELIVERABLE")}</option>
             <option value="MILESTONE">{wbsTypeLabel("MILESTONE")}</option>
+            <option value="GOAL">{wbsTypeLabel("GOAL")}</option>
             <option value="TASK">{wbsTypeLabel("TASK")}</option>
           </select>
         );

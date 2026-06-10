@@ -79,6 +79,9 @@ type AppShellProps = {
   pageContext: PageContextValue;
   project: ProjectDetails | null;
   projectTargetSummary: {
+    activeGoal: {
+      title: string;
+    } | null;
     currentTargetDate: Date | null;
     forecastFinishDate: Date | null;
     targetChangeDays: number | null;

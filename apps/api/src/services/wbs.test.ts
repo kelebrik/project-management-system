@@ -349,6 +349,55 @@ test("calculateWbsScheduleUpdates starts successor from latest predecessor plus 
   assert.equal(taskC?.calendarDays, 5);
 });
 
+test("calculateWbsScheduleUpdates keeps goal due date and moves its forecast by predecessors", () => {
+  const items = [
+    {
+      id: "task-a",
+      code: "1.1",
+      type: "TASK" as const,
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      dueDate: new Date("2026-06-05T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-06-01T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-06-05T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 5,
+      calendarDays: 5,
+      calendarCode: "RU" as const,
+      sortOrder: 10,
+    },
+    {
+      id: "goal",
+      code: "1.2",
+      type: "GOAL" as const,
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      dueDate: new Date("2026-06-01T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-06-01T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-06-01T00:00:00.000Z"),
+      predecessor1: "1.1",
+      predecessor2: null,
+      predecessor3: null,
+      predecessor4: null,
+      predecessor5: null,
+      predecessor6: null,
+      leadLagDays: 0,
+      workDays: 0,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      sortOrder: 20,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], []);
+  const goal = updates.find((item) => item.id === "goal");
+
+  assert.equal(goal?.startDate?.toISOString().slice(0, 10), "2026-06-01");
+  assert.equal(goal?.dueDate?.toISOString().slice(0, 10), "2026-06-01");
+  assert.equal(goal?.forecastStartDate?.toISOString().slice(0, 10), "2026-06-08");
+  assert.equal(goal?.forecastDueDate?.toISOString().slice(0, 10), "2026-06-08");
+  assert.equal(goal?.workDays, 0);
+});
+
 test("calculateWbsScheduleUpdates derives empty work days from dates", () => {
   const items = [
     {

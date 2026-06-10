@@ -3,6 +3,10 @@ import type { ProjectDetails, WbsItem, WbsItemStatus } from "./domainTypes";
 import type { StructureMilestone } from "./milestoneTimeline";
 import { WBS_PREDECESSOR_KEYS } from "./wbsTable";
 
+function isWbsCheckpoint(item: Pick<WbsItem, "type">) {
+  return item.type === "MILESTONE" || item.type === "GOAL";
+}
+
 export function createOverviewDashboard(
   project: ProjectDetails | null,
   structureMilestones: StructureMilestone[],
@@ -126,7 +130,7 @@ export function createOverviewDashboard(
       .filter(
         ({ item, delay }) =>
           delay > 0 &&
-          item.type !== "MILESTONE" &&
+          !isWbsCheckpoint(item) &&
           !childrenByParentId.has(item.id),
       )
       .map(({ item }) => item.id),
@@ -156,13 +160,13 @@ export function createOverviewDashboard(
   const openStatuses: WbsItemStatus[] = ["IN_PROGRESS", "AT_RISK", "BLOCKED"];
   const isScheduleVarianceOpenCandidate = (item: WbsItem) =>
     hasScheduleVarianceDates(item) &&
-    item.type !== "MILESTONE" &&
+    !isWbsCheckpoint(item) &&
     item.status !== "DONE";
   const scheduleDeltaItems = allScheduleDelays
     .filter(({ item, delay }) => {
       if (
         delay <= 0 ||
-        item.type === "MILESTONE" ||
+        isWbsCheckpoint(item) ||
         childrenByParentId.has(item.id) ||
         !isVisibleScheduleVarianceCause(item)
       ) {

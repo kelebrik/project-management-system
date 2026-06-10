@@ -20,6 +20,22 @@ import {
 } from './schemas.js';
 import type { ProjectsRoutesContext } from './types.js';
 
+function dateKey(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+async function findActiveProjectGoal(projectId: string) {
+  const goals = await prisma.wbsItem.findMany({
+    where: {
+      projectId,
+      type: 'GOAL',
+      status: { not: 'CANCELLED' },
+    },
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+  });
+  return goals.find((item) => item.status !== 'DONE') ?? goals.at(-1) ?? null;
+}
+
 export function registerProjectCrudRoutes(
   router: Router,
   { requireAdmin, currentUser, ensureProjectWritable }: ProjectsRoutesContext,
@@ -340,10 +356,10 @@ export function registerProjectCrudRoutes(
       return;
     }
 
-    const previousTargetDate = project.targetDate;
+    const activeGoal = await findActiveProjectGoal(project.id);
+    const previousTargetDate = activeGoal?.dueDate ?? project.targetDate;
     const changed =
-      previousTargetDate.toISOString().slice(0, 10) !==
-      nextTargetDate.toISOString().slice(0, 10);
+      dateKey(previousTargetDate) !== dateKey(nextTargetDate);
 
     if (!changed) {
       const unchanged = await prisma.project.findUnique({
@@ -363,6 +379,19 @@ export function registerProjectCrudRoutes(
           targetDate: nextTargetDate,
         },
       });
+      if (activeGoal) {
+        await tx.wbsItem.update({
+          where: { id: activeGoal.id },
+          data: {
+            startDate: nextTargetDate,
+            dueDate: nextTargetDate,
+            forecastStartDate: nextTargetDate,
+            forecastDueDate: nextTargetDate,
+            workDays: 0,
+            calendarDays: 1,
+          },
+        });
+      }
       await tx.projectTargetDateChange.create({
         data: {
           projectId: project.id,
@@ -374,6 +403,13 @@ export function registerProjectCrudRoutes(
         },
       });
     });
+
+    if (activeGoal) {
+      await recalculateProjectWbsSchedule(project.id, {
+        changedItemId: activeGoal.id,
+        changedFields: ['startDate', 'dueDate', 'forecastStartDate', 'forecastDueDate'],
+      });
+    }
 
     const updated = await prisma.project.findUnique({
       where: { id: project.id },
@@ -392,6 +428,7 @@ export function registerProjectCrudRoutes(
       metadata: {
         previousDate: previousTargetDate.toISOString(),
         newDate: nextTargetDate.toISOString(),
+        activeGoalId: activeGoal?.id ?? null,
         reason: parsed.data.reason,
         approvedBy: parsed.data.approvedBy || null,
       },

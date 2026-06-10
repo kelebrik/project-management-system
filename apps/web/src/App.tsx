@@ -1036,7 +1036,12 @@ function App() {
       );
       wbsDraftsRef.current = nextWbsDrafts;
       setProject(nextProject);
-      setProjectTargetDateDraft(isoDate(new Date(nextProject.targetDate)));
+      setProjectTargetDateDraft(
+        isoDate(
+          createProjectTargetSummary(nextProject)?.currentTargetDate ??
+            new Date(nextProject.targetDate),
+        ),
+      );
       setProjectTargetChangeReason("");
       setProjectTargetApprovedBy("");
       setWbsUndoHistory([]);
@@ -1660,7 +1665,9 @@ function App() {
       setError("Укажите текущую утвержденную цель");
       return;
     }
-    if (targetDate === isoDate(new Date(project.targetDate))) {
+    const currentTargetDate =
+      projectTargetSummary?.currentTargetDate ?? new Date(project.targetDate);
+    if (targetDate === isoDate(currentTargetDate)) {
       setNotice("Цель проекта не изменилась");
       return;
     }

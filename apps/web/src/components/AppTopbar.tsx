@@ -10,6 +10,9 @@ type ScheduleHealth = {
 } | null;
 
 type ProjectTargetSummary = {
+  activeGoal: {
+    title: string;
+  } | null;
   currentTargetDate: Date | null;
   forecastFinishDate: Date | null;
   targetChangeDays: number | null;
@@ -57,7 +60,11 @@ export function AppTopbar({
           <span>Статус: {projectStatusLabel(project.status)}</span>
           <span>РП: {project.projectManager}</span>
           <span>
-            Цель: {date(projectTargetSummary?.currentTargetDate ?? project.targetDate)} (
+            Цель:{" "}
+            {projectTargetSummary?.activeGoal
+              ? `${projectTargetSummary.activeGoal.title}: `
+              : ""}
+            {date(projectTargetSummary?.currentTargetDate ?? project.targetDate)} (
             {signedDaysLabel(projectTargetSummary?.targetChangeDays ?? null)})
           </span>
           <span>

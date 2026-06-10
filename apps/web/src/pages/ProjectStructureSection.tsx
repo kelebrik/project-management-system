@@ -387,7 +387,11 @@ export function ProjectStructureSection() {
                               }
                             >
                               <div
-                                className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""} ${activeWbsItemId === item.id ? "active" : ""}`}
+                                className={`wbs-table-row ${
+                                  item.type === "MILESTONE" || item.type === "GOAL"
+                                    ? "milestone"
+                                    : ""
+                                } ${activeWbsItemId === item.id ? "active" : ""}`}
                                 onClick={() => setActiveWbsItemId(item.id)}
                               >
                                 {orderedWbsColumns.map((column) => (

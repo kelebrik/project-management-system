@@ -12,7 +12,7 @@ export function flattenWbsDescendants(item: WbsTreeItem): WbsTreeItem[] {
 export function wbsToneClass(
   item: Pick<WbsItem, "dueDate" | "status" | "type">,
 ) {
-  if (item.type === "MILESTONE") return "tone-o";
+  if (item.type === "MILESTONE" || item.type === "GOAL") return "tone-o";
   if (item.status === "DONE") return "tone-g";
   if (item.status === "AT_RISK" || item.status === "BLOCKED") return "tone-r";
   if (item.dueDate && new Date(item.dueDate) < startOfDay(new Date())) {
