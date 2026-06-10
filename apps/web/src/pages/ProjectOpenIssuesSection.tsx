@@ -164,9 +164,17 @@ export function ProjectOpenIssuesSection() {
                             {(() => {
                               const draft = issueEditDrafts[issue.id];
                               const latestStatus = latestIssueStatusUpdate(issue);
-                              const statusHistory = issue.statusUpdates.filter(
-                                (statusUpdate) =>
-                                  statusUpdate.id !== latestStatus?.id,
+                              const statusTimeline = [...issue.statusUpdates].sort(
+                                (left, right) => {
+                                  const statusDelta =
+                                    new Date(right.statusAt).getTime() -
+                                    new Date(left.statusAt).getTime();
+                                  if (statusDelta !== 0) return statusDelta;
+                                  return (
+                                    new Date(right.createdAt).getTime() -
+                                    new Date(left.createdAt).getTime()
+                                  );
+                                },
                               );
                               return (
                                 <>
@@ -174,27 +182,11 @@ export function ProjectOpenIssuesSection() {
                                     <section className="issue-work-card issue-status-card">
                                       <div className="issue-card-title">
                                         <div>
-                                          <span>Статусы вопроса</span>
-                                          <p>Что изменилось и какой следующий шаг</p>
+                                          <span>Статусы</span>
+                                          <p>Добавить обновление и посмотреть историю</p>
                                         </div>
                                       </div>
-                                      {latestStatus ? (
-                                        <div className="issue-status-current">
-                                          <span className="issue-status-label">
-                                            Текущий статус
-                                          </span>
-                                          <strong>{date(latestStatus.statusAt)}</strong>
-                                          <p>{latestStatus.text}</p>
-                                        </div>
-                                      ) : (
-                                        <p className="muted-text">
-                                          Статус пока не добавлен.
-                                        </p>
-                                      )}
                                       <div className="issue-status-add-card">
-                                        <div className="issue-card-title compact flat">
-                                          <span>Добавить обновление</span>
-                                        </div>
                                         <div className="issue-status-add-grid">
                                           <label>
                                             Дата
@@ -212,9 +204,9 @@ export function ProjectOpenIssuesSection() {
                                             />
                                           </label>
                                           <label className="issue-status-text-field">
-                                            Текст статуса
+                                            Новый статус
                                             <textarea
-                                              rows={3}
+                                              rows={2}
                                               value={issueStatusDrafts[issue.id]?.text ?? ""}
                                               onChange={(event) =>
                                                 updateIssueStatusDraft(issue.id, {
@@ -235,28 +227,35 @@ export function ProjectOpenIssuesSection() {
                                           </button>
                                         </div>
                                       </div>
-                                      <div className="issue-status-history-card">
-                                        <div className="issue-card-title compact">
-                                          <span>История статусов</span>
-                                        </div>
-                                        {statusHistory.length > 0 ? (
-                                          <div className="issue-status-history">
-                                            {statusHistory.map((statusUpdate) => (
-                                              <div
-                                                className="issue-status-history-row"
-                                                key={statusUpdate.id}
-                                              >
-                                                <span>{date(statusUpdate.statusAt)}</span>
+                                      {statusTimeline.length > 0 ? (
+                                        <div className="issue-status-timeline">
+                                          {statusTimeline.map((statusUpdate) => (
+                                            <article
+                                              className={`issue-status-timeline-item ${
+                                                statusUpdate.id === latestStatus?.id
+                                                  ? "current"
+                                                  : ""
+                                              }`}
+                                              key={statusUpdate.id}
+                                            >
+                                              <div className="issue-status-marker" />
+                                              <div className="issue-status-entry">
+                                                <div className="issue-status-entry-head">
+                                                  <span>{date(statusUpdate.statusAt)}</span>
+                                                  {statusUpdate.id === latestStatus?.id && (
+                                                    <b>Текущий</b>
+                                                  )}
+                                                </div>
                                                 <p>{statusUpdate.text}</p>
                                               </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <p className="muted-text">
-                                            Предыдущих статусов нет.
-                                          </p>
-                                        )}
-                                      </div>
+                                            </article>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div className="issue-status-empty">
+                                          <p>Предыдущих статусов нет.</p>
+                                        </div>
+                                      )}
                                     </section>
 
                                     <aside className="issue-work-card issue-properties-card">
