@@ -298,13 +298,22 @@
   font-weight: 800;
 }
 
-.portfolio-blocker-projects,
+.portfolio-blocker-projects {
+  background: #fff;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
 .portfolio-blocker-list {
   display: grid;
 }
 
-.portfolio-blocker-project + .portfolio-blocker-project {
-  border-top: 1px solid #e2e8f0;
+.portfolio-blocker-project {
+  background: #fff;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .portfolio-blocker-project-title {
@@ -312,7 +321,7 @@
   background: #fff;
   display: flex;
   min-height: 36px;
-  padding: 8px 12px;
+  padding: 10px 12px;
 }
 
 .portfolio-blocker-project-title b {
