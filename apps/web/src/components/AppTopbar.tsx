@@ -13,6 +13,7 @@ type ProjectTargetSummary = {
   activeGoal: {
     title: string;
   } | null;
+  initialTargetDate: Date | null;
   currentTargetDate: Date | null;
   forecastFinishDate: Date | null;
   targetChangeDays: number | null;
@@ -42,6 +43,13 @@ export function AppTopbar({
 }: AppTopbarProps) {
   const showProjectTitle = project && isProjectView && activeView !== "project-create";
   const showProjectBadges = project && activeView !== "portfolio";
+  const targetChangeDays = projectTargetSummary?.targetChangeDays ?? null;
+  const hasCurrentTargetChange = targetChangeDays !== null && targetChangeDays !== 0;
+  const initialTargetDate =
+    projectTargetSummary?.initialTargetDate ?? project?.initialTargetDate ?? project?.targetDate ?? null;
+  const currentTargetDate =
+    projectTargetSummary?.currentTargetDate ?? project?.targetDate ?? null;
+  const activeGoalTitle = projectTargetSummary?.activeGoal?.title ?? "ближайшая цель";
 
   return (
     <header
@@ -57,23 +65,29 @@ export function AppTopbar({
       <div className="topbar-search">{search}</div>
       {showProjectBadges && (
         <div className="topbar-project">
-          <span>Статус: {projectStatusLabel(project.status)}</span>
-          <span>РП: {project.projectManager}</span>
-          <span>
-            Цель:{" "}
-            {projectTargetSummary?.activeGoal
-              ? `${projectTargetSummary.activeGoal.title}: `
-              : ""}
-            {date(projectTargetSummary?.currentTargetDate ?? project.targetDate)} (
-            {signedDaysLabel(projectTargetSummary?.targetChangeDays ?? null)})
-          </span>
-          <span>
-            Прогноз: {date(projectTargetSummary?.forecastFinishDate ?? null)} (
-            {signedDaysLabel(projectTargetSummary?.effectiveDelayDays ?? null)})
-          </span>
-          <b className={`rag ${scheduleHealth?.tone ?? project.rag.toLowerCase()}`}>
-            {scheduleHealth?.label ?? projectHealthLabel(project.rag)}
-          </b>
+          <div className="topbar-project-row">
+            <span>Статус: {projectStatusLabel(project.status)}</span>
+            <span>РП: {project.projectManager}</span>
+            <span>Изначальная цель: {date(initialTargetDate)}</span>
+          </div>
+          {hasCurrentTargetChange && (
+            <div className="topbar-project-row">
+              <span>
+                Актуальная цель: {date(currentTargetDate)} (
+                {signedDaysLabel(targetChangeDays)})
+              </span>
+            </div>
+          )}
+          <div className="topbar-project-row">
+            <b className={`rag ${scheduleHealth?.tone ?? project.rag.toLowerCase()}`}>
+              {scheduleHealth?.label ?? projectHealthLabel(project.rag)}
+            </b>
+            <span>
+              Прогноз по цели "{activeGoalTitle}":{" "}
+              {date(projectTargetSummary?.forecastFinishDate ?? null)} (
+              {signedDaysLabel(projectTargetSummary?.effectiveDelayDays ?? null)})
+            </span>
+          </div>
         </div>
       )}
     </header>

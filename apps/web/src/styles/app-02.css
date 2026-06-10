@@ -266,12 +266,19 @@
 }
 
 .topbar-project {
+  align-items: flex-end;
+  display: grid;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 260px;
+}
+
+.topbar-project-row {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
-  min-width: 260px;
 }
 
 .topbar-project span,

@@ -82,6 +82,7 @@ type AppShellProps = {
     activeGoal: {
       title: string;
     } | null;
+    initialTargetDate: Date | null;
     currentTargetDate: Date | null;
     forecastFinishDate: Date | null;
     targetChangeDays: number | null;
