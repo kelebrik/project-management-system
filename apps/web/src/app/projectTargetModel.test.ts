@@ -85,11 +85,11 @@ test("active project goal uses the first unfinished WBS goal", () => {
   assert.equal(summary?.activeGoal?.title, "Релиз заводской прошивки");
   assert.equal(
     summary?.initialTargetDate ? isoDate(summary.initialTargetDate) : null,
-    "2026-07-01",
+    "2026-09-03",
   );
   assert.equal(
     summary?.currentTargetDate ? isoDate(summary.currentTargetDate) : null,
-    "2026-07-01",
+    "2026-09-03",
   );
   assert.equal(
     summary?.forecastFinishDate ? isoDate(summary.forecastFinishDate) : null,
@@ -155,6 +155,7 @@ test("active project goal switches to the next WBS goal after completion", () =>
     code: "3",
     title: "Релиз первого OTA-обновления",
     dueDate: "2026-08-10T00:00:00.000Z",
+    forecastDueDate: "2026-08-10T00:00:00.000Z",
     sortOrder: 30,
   });
 
@@ -165,6 +166,6 @@ test("active project goal switches to the next WBS goal after completion", () =>
   assert.equal(summary?.activeGoal?.id, "ota-release");
   assert.equal(
     summary?.currentTargetDate ? isoDate(summary.currentTargetDate) : null,
-    "2026-08-10",
+    "2026-09-03",
   );
 });

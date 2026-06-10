@@ -38,13 +38,14 @@ export function createProjectTargetSummary(project: ProjectDetails | null) {
     ? validDate(
         oldestTargetDateChange?.previousDate ??
           project.initialTargetDate ??
-          activeGoal?.dueDate ??
           project.targetDate,
       )
-    : validDate(activeGoal?.dueDate ?? project.initialTargetDate ?? project.targetDate);
+    : validDate(project.initialTargetDate ?? project.targetDate);
   const currentTargetDate = hasTargetDateChange
     ? validDate(activeGoal?.dueDate ?? project.targetDate) ?? initialTargetDate
     : initialTargetDate;
+  const activeGoalTargetDate = validDate(activeGoal?.dueDate ?? null);
+  const effectiveTargetDate = activeGoalTargetDate ?? currentTargetDate;
   const forecastFinishDate = activeGoal
     ? validDate(activeGoal.forecastDueDate ?? activeGoal.dueDate)
     : maxDate(
@@ -70,8 +71,8 @@ export function createProjectTargetSummary(project: ProjectDetails | null) {
         ? signedDaysBetween(initialTargetDate, currentTargetDate)
         : 0,
     effectiveDelayDays:
-      currentTargetDate && forecastFinishDate
-        ? signedDaysBetween(currentTargetDate, forecastFinishDate)
+      effectiveTargetDate && forecastFinishDate
+        ? signedDaysBetween(effectiveTargetDate, forecastFinishDate)
         : null,
     totalVarianceDays:
       initialTargetDate && forecastFinishDate
