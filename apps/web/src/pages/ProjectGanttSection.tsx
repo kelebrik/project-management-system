@@ -173,6 +173,7 @@ export function ProjectGanttSection() {
                               <span><i className="tone-p" />Просрочено</span>
                               <span><i className="tone-x" />Не начато</span>
                               <span><i className="tone-o" />Веха</span>
+                              <span><i className="tone-goal" />Цель</span>
                               <span><i className="tone-critical" />Критический путь</span>
                               <span><i className="tone-near-critical" />Резерв до 5 дн.</span>
                             </div>

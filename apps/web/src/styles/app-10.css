@@ -224,6 +224,24 @@
   width: 9px;
 }
 
+.status-legend .tone-goal {
+  background: #8b5cf6;
+  clip-path: polygon(
+    50% 0%,
+    61% 34%,
+    98% 34%,
+    68% 55%,
+    79% 90%,
+    50% 68%,
+    21% 90%,
+    32% 55%,
+    2% 34%,
+    39% 34%
+  );
+  height: 14px;
+  width: 14px;
+}
+
 .status-legend .tone-critical {
   background: #111827;
   box-shadow: inset 0 0 0 2px #dc2626;

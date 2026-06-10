@@ -51,6 +51,33 @@
   transform: translateY(-50%) rotate(-45deg);
 }
 
+.gantt-bar.goal {
+  background: #8b5cf6;
+  border-radius: 0;
+  box-shadow: 0 1px 4px rgba(76, 29, 149, 0.28);
+  clip-path: polygon(
+    50% 0%,
+    61% 34%,
+    98% 34%,
+    68% 55%,
+    79% 90%,
+    50% 68%,
+    21% 90%,
+    32% 55%,
+    2% 34%,
+    39% 34%
+  );
+  height: 22px;
+  min-width: 22px;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  --gantt-item-color: #8b5cf6;
+}
+
+.gantt-bar.goal .gantt-link-handle {
+  transform: translateY(-50%);
+}
+
 .gantt-bar.summary {
   border-radius: 999px;
   height: 18px;

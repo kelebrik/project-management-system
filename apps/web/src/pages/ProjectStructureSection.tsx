@@ -274,6 +274,7 @@ export function ProjectStructureSection() {
                             <span><i className="tone-p" />Просрочено</span>
                             <span><i className="tone-x" />Не начато</span>
                             <span><i className="tone-o" />Веха</span>
+                            <span><i className="tone-goal" />Цель</span>
                           </div>
                         </div>
                     <div className="wbs-table-shell">
