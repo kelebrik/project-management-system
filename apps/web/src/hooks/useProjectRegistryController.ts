@@ -233,6 +233,58 @@ export function useProjectRegistryController({
     ],
   );
 
+  const saveProjectPortfolio = useCallback(
+    async (projectId: string) => {
+      const draft = projectRegistryDrafts[projectId];
+      if (!draft) return;
+      const sourceProject = projects.find((item) => item.id === projectId);
+      const portfolio = draft.portfolio.trim();
+      if (!portfolio) {
+        setError("Укажите портфель проекта");
+        return;
+      }
+      if (sourceProject?.portfolio === portfolio) {
+        return;
+      }
+      setSavingProjectRegistryId(projectId);
+      setError(null);
+      setNotice(null);
+      try {
+        await apiClient.patch<ProjectListItem>(
+          `/api/projects/${projectId}`,
+          { portfolio },
+          "Не удалось сохранить портфель проекта",
+        );
+        await reloadProjects(selectedProjectId ?? projectId);
+        if (currentProjectId === projectId) {
+          await refreshProject(projectId);
+        }
+        await reloadAuditEvents();
+        setNotice("Портфель проекта обновлен");
+      } catch (saveError) {
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : "Не удалось сохранить портфель проекта",
+        );
+      } finally {
+        setSavingProjectRegistryId(null);
+      }
+    },
+    [
+      currentProjectId,
+      projectRegistryDrafts,
+      projects,
+      refreshProject,
+      reloadAuditEvents,
+      reloadProjects,
+      selectedProjectId,
+      setError,
+      setNotice,
+      setSavingProjectRegistryId,
+    ],
+  );
+
   const saveProjectRegistryItem = useCallback(
     async (projectId: string) => {
       const draft = projectRegistryDrafts[projectId];
@@ -417,6 +469,7 @@ export function useProjectRegistryController({
     createProject,
     updateProjectRegistryDraft,
     savePortfolioProjectIdentity,
+    saveProjectPortfolio,
     saveProjectRegistryItem,
     closeProject,
     deleteProject,

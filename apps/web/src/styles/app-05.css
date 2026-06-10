@@ -1,4 +1,31 @@
 
+.passport-project-meta {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+}
+
+.passport-project-meta h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.passport-project-field {
+  color: #475569;
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+  max-width: 520px;
+}
+
+.passport-project-field input {
+  min-height: 42px;
+}
+
 .passport-targets {
   border: 1px solid #dbe4ef;
   border-radius: 8px;

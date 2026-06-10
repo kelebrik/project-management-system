@@ -47,6 +47,7 @@ export type ProjectRegistryDraft = {
   parentId: string;
   code: string;
   name: string;
+  portfolio: string;
   projectManager: string;
   status: ProjectListItem["status"];
   rag: RagStatus;
@@ -327,7 +328,6 @@ export function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
 
 function defaultPassportRows(project: ProjectDetails): PassportRow[] {
   return [
-    { id: "portfolio", field: "Портфель", description: project.portfolio },
     { id: "sponsor", field: "Спонсор", description: project.sponsor },
     { id: "projectManager", field: "РП", description: project.projectManager },
     { id: "status", field: "Статус", description: projectStatusLabel(project.status) },
@@ -343,7 +343,7 @@ export function normalizePassportRows(project: ProjectDetails | null): PassportR
     return defaultPassportRows(project);
   }
   return rows
-    .filter((row) => row.id !== "targetDate")
+    .filter((row) => row.id !== "targetDate" && row.id !== "portfolio")
     .map((row, index) => ({
       id: row.id || `passport-row-${index + 1}`,
       field: row.field ?? "",
@@ -440,6 +440,7 @@ export function projectToRegistryDraft(project: ProjectListItem): ProjectRegistr
     parentId: project.parentId ?? "",
     code: project.code,
     name: project.name,
+    portfolio: project.portfolio,
     projectManager: project.projectManager,
     status: project.status,
     rag: project.rag,
