@@ -20,6 +20,7 @@ import {
   Plus,
   Settings,
   ShieldAlert,
+  ShieldCheck,
   SlidersHorizontal,
   Users,
 } from "lucide-react";
@@ -197,6 +198,11 @@ const adminNavItems: AdminNavItem[] = [
     view: "admin-modules",
     label: "Управление модулями",
     icon: <SlidersHorizontal size={17} />,
+  },
+  {
+    view: "admin-project-access",
+    label: "Доступ к проектам",
+    icon: <ShieldCheck size={17} />,
   },
   {
     view: "admin-users",

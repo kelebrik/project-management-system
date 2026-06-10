@@ -118,6 +118,7 @@ export const adminPermissionOrder = [
   "admin.health",
   "admin.backup",
   "admin.config",
+  "admin.project_access",
   "admin.audit",
   "admin.integrations",
 ];
@@ -174,6 +175,7 @@ export function adminPermissionLabel(permission: string) {
     "admin.health": "System health",
     "admin.backup": "Backup/restore status",
     "admin.config": "Import/export конфигурации",
+    "admin.project_access": "Доступ к проектам",
     "admin.audit": "Журнал аудита",
     "admin.integrations": "Интеграции и API",
   };

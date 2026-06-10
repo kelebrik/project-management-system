@@ -1,4 +1,5 @@
 import type { ProjectModule } from "./projectModules";
+import type { ProjectAccessLevel } from "./domainTypes";
 
 export type AuthMode = "checking" | "setup" | "login" | "ready";
 
@@ -21,6 +22,35 @@ export type SystemUser = CurrentUser & {
   createdAt: string;
   updatedAt: string;
   hasPassword: boolean;
+};
+
+export type ProjectAccessRecord = {
+  id: string;
+  projectId: string;
+  userId: string;
+  level: ProjectAccessLevel;
+  grantedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: UserRole;
+    isActive: boolean;
+  };
+  project: {
+    id: string;
+    code: string;
+    name: string;
+    status: string;
+  };
+};
+
+export type ProjectAccessDraft = {
+  userIds: string[];
+  projectIds: string[];
+  level: ProjectAccessLevel;
 };
 
 export type AuditEvent = {

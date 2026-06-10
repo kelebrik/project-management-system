@@ -4,6 +4,7 @@ import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
 import { AdminIntegrationsPageContent } from "./AdminIntegrationsPageContent";
 import { AdminJiraProjectPage } from "./AdminJiraProjectPage";
 import { AdminModulesPageContent } from "./AdminModulesPageContent";
+import { AdminProjectAccessPageContent } from "./AdminProjectAccessPageContent";
 import { AdminProjectsPageContent } from "./AdminProjectsPageContent";
 import { AdminRagPageContent, AdminSystemJiraPageContent, AdminTemplatesPageContent, AdminWorkflowsPageContent } from "./AdminSettingsPages";
 import { AdminRolesPageContent } from "./AdminRolesPageContent";
@@ -51,6 +52,7 @@ export function AppPages() {
         {activeView === "admin-backups" && <AdminBackupsPageContent />}
         {activeView === "admin-config" && <AdminConfigPageContent />}
         {activeView === "admin-projects" && <AdminProjectsPageContent />}
+        {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
         {project && activeView === "project-overview" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}

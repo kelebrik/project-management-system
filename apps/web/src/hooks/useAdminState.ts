@@ -7,6 +7,8 @@ import type {
   BackupStatus,
   DictionaryItem,
   DictionaryItemDraft,
+  ProjectAccessDraft,
+  ProjectAccessRecord,
   RolePermission,
   SystemSetting,
   SystemSettingsDraft,
@@ -35,6 +37,13 @@ export function useAdminState() {
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
   const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
+  const [projectAccesses, setProjectAccesses] = useState<ProjectAccessRecord[]>([]);
+  const [projectAccessDraft, setProjectAccessDraft] = useState<ProjectAccessDraft>({
+    userIds: [],
+    projectIds: [],
+    level: "EDIT",
+  });
+  const [savingProjectAccess, setSavingProjectAccess] = useState(false);
   const [dictionaryItems, setDictionaryItems] = useState<DictionaryItem[]>([]);
   const [dictionaryDrafts, setDictionaryDrafts] = useState<
     Record<string, DictionaryItemDraft>
@@ -83,6 +92,13 @@ export function useAdminState() {
     setUsers([]);
     setAuditEvents([]);
     setRolePermissions([]);
+    setProjectAccesses([]);
+    setProjectAccessDraft({
+      userIds: [],
+      projectIds: [],
+      level: "EDIT",
+    });
+    setSavingProjectAccess(false);
     setDictionaryItems([]);
     setDictionaryDrafts({});
     setSystemSettings([]);
@@ -109,6 +125,12 @@ export function useAdminState() {
     setCreatingUser,
     rolePermissions,
     setRolePermissions,
+    projectAccesses,
+    setProjectAccesses,
+    projectAccessDraft,
+    setProjectAccessDraft,
+    savingProjectAccess,
+    setSavingProjectAccess,
     dictionaryItems,
     setDictionaryItems,
     dictionaryDrafts,

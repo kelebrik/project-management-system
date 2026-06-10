@@ -14,6 +14,7 @@ import type {
   CurrentUser,
   DictionaryItem,
   DictionaryItemDraft,
+  ProjectAccessRecord,
   RolePermission,
   SystemSetting,
   SystemSettingsDraft,
@@ -37,6 +38,7 @@ type UseAdminDataControllerOptions = {
   setUserDrafts: Dispatch<SetStateAction<Record<string, UserDraftState>>>;
   setAuditEvents: Dispatch<SetStateAction<AuditEvent[]>>;
   setRolePermissions: Dispatch<SetStateAction<RolePermission[]>>;
+  setProjectAccesses: Dispatch<SetStateAction<ProjectAccessRecord[]>>;
   setDictionaryItems: Dispatch<SetStateAction<DictionaryItem[]>>;
   setDictionaryDrafts: Dispatch<SetStateAction<Record<string, DictionaryItemDraft>>>;
   setSystemSettings: Dispatch<SetStateAction<SystemSetting[]>>;
@@ -57,6 +59,7 @@ export function useAdminDataController({
   setUserDrafts,
   setAuditEvents,
   setRolePermissions,
+  setProjectAccesses,
   setDictionaryItems,
   setDictionaryDrafts,
   setSystemSettings,
@@ -109,8 +112,12 @@ export function useAdminDataController({
         "/api/admin/integrations",
         "Не удалось загрузить интеграции",
       ),
+      apiClient.get<ProjectAccessRecord[]>(
+        "/api/admin/project-access",
+        "Не удалось загрузить доступы к проектам",
+      ),
     ])
-      .then(([data, events, config, integrations]) => {
+      .then(([data, events, config, integrations, projectAccesses]) => {
         if (cancelled) return;
         setUsers(data);
         setUserDrafts(usersToDrafts(data));
@@ -126,6 +133,7 @@ export function useAdminDataController({
         setAdminHealth(config.health);
         setBackupStatus(config.backupStatus);
         setAdminIntegrations(integrations);
+        setProjectAccesses(projectAccesses);
       })
       .catch((loadError) => {
         if (cancelled) return;
@@ -151,6 +159,7 @@ export function useAdminDataController({
     setError,
     setProjectModuleDrafts,
     setProjectModules,
+    setProjectAccesses,
     setRolePermissions,
     setSystemSettings,
     setSystemSettingsDraft,
@@ -215,6 +224,15 @@ export function useAdminDataController({
     setAdminIntegrations(integrations);
   }, [isAdmin, setAdminIntegrations]);
 
+  const reloadProjectAccesses = useCallback(async () => {
+    if (!isAdmin) return;
+    const accesses = await apiClient.get<ProjectAccessRecord[]>(
+      "/api/admin/project-access",
+      "Не удалось загрузить доступы к проектам",
+    );
+    setProjectAccesses(accesses);
+  }, [isAdmin, setProjectAccesses]);
+
   const reloadAdminHealth = useCallback(async () => {
     if (!isAdmin) return;
     const [health, backup] = await Promise.all([
@@ -236,6 +254,7 @@ export function useAdminDataController({
     reloadAuditEvents,
     reloadAdminConfig,
     reloadAdminIntegrations,
+    reloadProjectAccesses,
     reloadAdminHealth,
   };
 }

@@ -126,6 +126,12 @@ enum WbsBaselineStatus {
   ARCHIVED
 }
 
+enum ProjectAccessLevel {
+  VIEW
+  EDIT
+  ADMIN
+}
+
 model Project {
   id               String              @id @default(cuid())
   parentId         String?
@@ -167,6 +173,7 @@ model Project {
   wbsCommands      WbsCommand[]
   wbsBaselines     WbsBaseline[]
   savedViews       SavedView[]
+  projectAccesses  ProjectAccess[]
 
   @@index([parentId])
   @@index([sortOrder])
@@ -206,8 +213,25 @@ model User {
   apiTokensCreated ApiToken[] @relation("ApiTokenCreatedBy")
   webhookEndpointsCreated WebhookEndpoint[] @relation("WebhookEndpointCreatedBy")
   targetDateChanges ProjectTargetDateChange[]
+  projectAccesses ProjectAccess[]
 
   @@index([role, isActive])
+}
+
+model ProjectAccess {
+  id          String             @id @default(cuid())
+  projectId   String
+  userId      String
+  level       ProjectAccessLevel
+  grantedById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId, level])
+  @@index([projectId, level])
 }
 
 model RolePermission {

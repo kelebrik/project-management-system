@@ -44,6 +44,7 @@ export const managedPermissions = [
   'admin.backup',
   'admin.config',
   'admin.modules',
+  'admin.project_access',
   'admin.audit',
   'admin.integrations',
 ];

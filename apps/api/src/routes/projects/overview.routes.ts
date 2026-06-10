@@ -10,6 +10,7 @@ import {
   renderExecutiveOverviewHtml,
 } from '../../services/executive-overview.js';
 import { ensureDefaultJiraWorkSections } from '../../services/jira-work-sections.js';
+import { userProjectAccessLevel } from '../../server/project-access.js';
 import { calculateProjectCriticalPath } from '../../services/wbs-critical-path.js';
 import { closedIssuesInclude, projectDetailsInclude } from './includes.js';
 import { overviewTransitionSchema } from './schemas.js';
@@ -41,7 +42,19 @@ export function registerProjectOverviewRoutes(
       return;
     }
 
-    res.json({ ...project, closedIssues, criticalPath });
+    const user = currentUser(req);
+    const currentUserAccessLevel =
+      user?.role === 'ADMIN'
+        ? 'ADMIN'
+        : user
+          ? await userProjectAccessLevel(user.id, project.id)
+          : null;
+    if (user && user.role !== 'ADMIN' && !currentUserAccessLevel) {
+      res.status(403).json({ error: 'Нет доступа к этому проекту' });
+      return;
+    }
+
+    res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel });
   });
 
   router.post('/projects/:projectId/executive-overviews/generate', async (req, res) => {

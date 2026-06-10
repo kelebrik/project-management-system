@@ -283,6 +283,123 @@
   padding-right: 10px;
 }
 
+.admin-project-access {
+  grid-column: 1 / -1;
+}
+
+.project-access-grant {
+  align-items: end;
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.2fr) minmax(180px, 0.55fr) auto;
+  margin-bottom: 18px;
+  padding: 14px;
+}
+
+.project-access-grant label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.project-access-grant label > span,
+.project-access-row label > span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.project-access-grant select {
+  min-height: 42px;
+}
+
+.project-access-grant select[multiple] {
+  min-height: 142px;
+}
+
+.project-access-grant button {
+  min-height: 42px;
+}
+
+.project-access-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.project-access-head,
+.project-access-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns:
+    minmax(230px, 1fr) minmax(280px, 1.15fr) 190px 170px 190px 64px;
+  min-width: 1160px;
+}
+
+.project-access-head {
+  background: #eaf0f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  min-height: 42px;
+  text-transform: uppercase;
+}
+
+.project-access-head span,
+.project-access-row > div,
+.project-access-row > span,
+.project-access-row label,
+.project-access-row button {
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.project-access-row {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+}
+
+.project-access-row > div {
+  display: grid;
+  gap: 3px;
+}
+
+.project-access-row b {
+  color: #1f2937;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-access-row small,
+.project-access-row > span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.project-access-row label {
+  display: grid;
+  gap: 4px;
+}
+
+.project-access-row select {
+  min-height: 36px;
+}
+
+.project-access-empty {
+  color: #64748b;
+  font-weight: 750;
+  margin: 0;
+  padding: 16px;
+}
+
 .closed-project-banner {
   background: #f1f5f9;
   border-color: #cbd5e1;

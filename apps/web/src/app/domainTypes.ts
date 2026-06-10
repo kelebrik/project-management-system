@@ -47,6 +47,8 @@ export type SavedView = {
   updatedAt: string;
 };
 
+export type ProjectAccessLevel = "VIEW" | "EDIT" | "ADMIN";
+
 export type ProjectListItem = {
   id: string;
   parentId: string | null;
@@ -69,6 +71,7 @@ export type ProjectListItem = {
   uiState: ProjectUiState | null;
   jiraIntegration: JiraIntegration | null;
   targetDateChanges: ProjectTargetDateChange[];
+  currentUserAccessLevel: ProjectAccessLevel | null;
   _count: {
     tasks: number;
     issues: number;

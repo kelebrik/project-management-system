@@ -7,6 +7,7 @@ export {
   AdminJiraPage,
   AdminModulesPage,
   AdminPage,
+  AdminProjectAccessPage,
   AdminProjectsPage,
   AdminRagPage,
   AdminRolesPage,

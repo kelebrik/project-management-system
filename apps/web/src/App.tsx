@@ -299,6 +299,12 @@ function App() {
     setCreatingUser,
     rolePermissions,
     setRolePermissions,
+    projectAccesses,
+    setProjectAccesses,
+    projectAccessDraft,
+    setProjectAccessDraft,
+    savingProjectAccess,
+    setSavingProjectAccess,
     dictionaryItems,
     setDictionaryItems,
     dictionaryDrafts,
@@ -458,13 +464,13 @@ function App() {
   const isAuthenticated = Boolean(currentUser);
   const isAdminUser = currentUser?.role === "ADMIN";
   const isClosedProject = project?.status === "CLOSED";
-  const isReadOnly = !isAuthenticated || isClosedProject;
   const globalSearch = useGlobalSearch();
   const {
     reloadUsers,
     reloadAuditEvents,
     reloadAdminConfig,
     reloadAdminIntegrations,
+    reloadProjectAccesses,
     reloadAdminHealth,
   } = useAdminDataController({
     activeView,
@@ -474,6 +480,7 @@ function App() {
     setUserDrafts,
     setAuditEvents,
     setRolePermissions,
+    setProjectAccesses,
     setDictionaryItems,
     setDictionaryDrafts,
     setSystemSettings,
@@ -598,6 +605,19 @@ function App() {
     () => projects.find((item) => item.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   );
+  const selectedProjectAccessLevel =
+    project?.currentUserAccessLevel ??
+    selectedProjectListItem?.currentUserAccessLevel ??
+    null;
+  const canWriteSelectedProject =
+    isAdminUser ||
+    selectedProjectAccessLevel === "EDIT" ||
+    selectedProjectAccessLevel === "ADMIN";
+  const isSelectedProjectSection =
+    isProjectSectionViewName(activeView) && Boolean(selectedProjectId);
+  const isReadOnly =
+    !isAuthenticated ||
+    Boolean(isSelectedProjectSection && (isClosedProject || !canWriteSelectedProject));
   const filteredDictionaryItems = useMemo(
     () =>
       dictionaryItems.filter((item) => item.dictionary === selectedDictionary),
@@ -1776,6 +1796,10 @@ function App() {
     testWebhook,
     updateUserDraft,
     updateDictionaryDraft,
+    updateProjectAccessDraft,
+    grantProjectAccess,
+    updateProjectAccessLevel,
+    deleteProjectAccess,
     updateProjectModuleDraft,
     saveProjectModules,
     toggleRolePermission,
@@ -1798,6 +1822,10 @@ function App() {
     setCreatingUser,
     rolePermissions,
     setRolePermissions,
+    projectAccessDraft,
+    setProjectAccessDraft,
+    setProjectAccesses,
+    setSavingProjectAccess,
     dictionaryItems,
     dictionaryDrafts,
     setDictionaryDrafts,
@@ -1827,6 +1855,7 @@ function App() {
     reloadAuditEvents,
     reloadAdminConfig,
     reloadAdminIntegrations,
+    reloadProjectAccesses,
     setError,
     setNotice,
   });
@@ -2882,6 +2911,7 @@ function App() {
     "admin-config": "Администрирование: import/export",
     "admin-projects": "Администрирование: реестр проектов",
     "admin-modules": "Администрирование: управление модулями",
+    "admin-project-access": "Администрирование: доступ к проектам",
     "admin-audit": "Администрирование: журнал аудита",
   };
   const isProjectSectionView = isProjectSectionViewName(activeView);
@@ -2987,6 +3017,7 @@ function App() {
     createApiToken,
     createArtifactRow,
     createDictionaryItem,
+    grantProjectAccess,
     createOpenIssue,
     createProject,
     createRaidItem,
@@ -3002,6 +3033,7 @@ function App() {
     deactivateDictionaryItem,
     deleteArtifact,
     deleteProject,
+    deleteProjectAccess,
     deletePassportRow,
     deleteRaidItem,
     dictionaryDrafts,
@@ -3073,6 +3105,8 @@ function App() {
     portfolioStats,
     printSectionAsPdf,
     project,
+    projectAccessDraft,
+    projectAccesses,
     projectTargetApprovedBy,
     projectTargetChangeReason,
     projectTargetDateDraft,
@@ -3138,6 +3172,7 @@ function App() {
     savingPassportRows,
     savingProjectTargetDate,
     savingProjectModules,
+    savingProjectAccess,
     savingProjectRegistryId,
     savingRolePermissionId,
     savingSystemSettings,
@@ -3164,6 +3199,7 @@ function App() {
     setNewDictionaryDraft,
     setNewProjectForm,
     setNewUserForm,
+    setProjectAccessDraft,
     setProjectTargetApprovedBy,
     setProjectTargetChangeReason,
     setProjectTargetDateDraft,
@@ -3218,6 +3254,8 @@ function App() {
     undoWbsChange,
     updateArtifactDraft,
     updateDictionaryDraft,
+    updateProjectAccessDraft,
+    updateProjectAccessLevel,
     updateIssueDraft,
     updateIssueFormLink,
     updateIssueStatusDraft,

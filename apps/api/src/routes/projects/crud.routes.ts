@@ -7,6 +7,7 @@ import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { copyLatestWbsBaselineToProject } from '../../services/wbs-baseline.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
+import { userProjectAccessLevelMap } from '../../server/project-access.js';
 import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
 import { createDefaultProjectStructure } from './default-structure.js';
@@ -40,13 +41,34 @@ export function registerProjectCrudRoutes(
   router: Router,
   { requireAdmin, currentUser, ensureProjectWritable }: ProjectsRoutesContext,
 ) {
-  router.get('/projects', async (_req, res) => {
+  router.get('/projects', async (req, res) => {
     const projects = await prisma.project.findMany({
       orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
       include: projectInclude,
     });
 
-    res.json(projects);
+    const user = currentUser(req);
+    if (!user) {
+      res.json(projects.map((project) => ({ ...project, currentUserAccessLevel: null })));
+      return;
+    }
+    if (user.role === 'ADMIN') {
+      res.json(projects.map((project) => ({ ...project, currentUserAccessLevel: 'ADMIN' })));
+      return;
+    }
+
+    const accessByProjectId = await userProjectAccessLevelMap(
+      user.id,
+      projects.map((project) => project.id),
+    );
+    res.json(
+      projects
+        .filter((project) => accessByProjectId.has(project.id))
+        .map((project) => ({
+          ...project,
+          currentUserAccessLevel: accessByProjectId.get(project.id) ?? null,
+        })),
+    );
   });
 
   router.post('/projects', async (req, res) => {
@@ -104,6 +126,28 @@ export function registerProjectCrudRoutes(
         },
         include: projectInclude,
       });
+      const actor = currentUser(req);
+
+      if (actor && actor.role !== 'ADMIN') {
+        await prisma.projectAccess.upsert({
+          where: {
+            projectId_userId: {
+              projectId: project.id,
+              userId: actor.id,
+            },
+          },
+          create: {
+            projectId: project.id,
+            userId: actor.id,
+            level: 'ADMIN',
+            grantedById: actor.id,
+          },
+          update: {
+            level: 'ADMIN',
+            grantedById: actor.id,
+          },
+        });
+      }
 
       let copiedBaseline: Awaited<ReturnType<typeof copyLatestWbsBaselineToProject>> | null = null;
       if (copyBaselineFromProjectId) {

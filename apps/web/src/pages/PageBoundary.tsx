@@ -12,6 +12,7 @@ import {
   AdminJiraPage,
   AdminModulesPage,
   AdminPage,
+  AdminProjectAccessPage,
   AdminProjectsPage,
   AdminRagPage,
   AdminRolesPage,
@@ -48,6 +49,9 @@ export function PageBoundary({
   }
   if (view === "admin-modules") {
     return <AdminModulesPage>{children}</AdminModulesPage>;
+  }
+  if (view === "admin-project-access") {
+    return <AdminProjectAccessPage>{children}</AdminProjectAccessPage>;
   }
   if (view === "admin-users") {
     return <AdminUsersPage>{children}</AdminUsersPage>;
