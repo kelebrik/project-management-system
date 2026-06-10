@@ -81,29 +81,34 @@ export function PortfolioPage() {
                             {tick.label}
                           </span>
                         ))}
-                        {portfolioGoalTimeline.items.map((item) => (
+                        {portfolioGoalTimeline.items.map((item, index) => (
                           <span
                             className={`portfolio-goal-dot status-${item.status.toLowerCase()}`}
                             key={item.id}
                             style={{ left: `${item.offset}%` }}
-                          />
+                          >
+                            {index + 1}
+                          </span>
                         ))}
                       </div>
                       <div className="portfolio-goal-items">
-                        {portfolioGoalTimeline.items.map((item) => (
+                        {portfolioGoalTimeline.items.map((item, index) => (
                           <button
                             type="button"
                             className={`portfolio-goal-item status-${item.status.toLowerCase()}`}
                             key={item.id}
                             onClick={() => selectProject(item.projectId, firstEnabledProjectView)}
                           >
-                            <b>{item.projectCode} · {item.goalTitle}</b>
-                            <small>
-                              {item.projectName} · срок {date(item.dueDate)}
-                              {item.baselineDueDate
-                                ? ` · базовый план ${date(item.baselineDueDate)}`
-                                : ""}
-                            </small>
+                            <span className="portfolio-goal-item-index">{index + 1}</span>
+                            <span>
+                              <b>{item.projectCode} · {item.goalTitle}</b>
+                              <small>
+                                {item.projectName} · срок {date(item.dueDate)}
+                                {item.baselineDueDate
+                                  ? ` · базовый план ${date(item.baselineDueDate)}`
+                                  : ""}
+                              </small>
+                            </span>
                           </button>
                         ))}
                       </div>

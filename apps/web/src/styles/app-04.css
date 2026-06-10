@@ -109,15 +109,23 @@
 }
 
 .portfolio-goal-dot {
+  align-items: center;
   background: #7c3aed;
   border: 3px solid #fff;
   border-radius: 999px;
   box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.22);
-  height: 14px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 900;
+  height: 22px;
+  justify-content: center;
+  line-height: 1;
   position: absolute;
-  top: 28px;
+  top: 24px;
   transform: translateX(-50%);
-  width: 14px;
+  width: 22px;
+  z-index: 3;
 }
 
 .portfolio-goal-today {
@@ -161,13 +169,15 @@
 }
 
 .portfolio-goal-item {
+  align-items: center;
   background: #fff;
   border: 1px solid #d8e0eb;
   border-radius: 6px;
   color: #1f2937;
   cursor: pointer;
   display: grid;
-  gap: 3px;
+  gap: 10px;
+  grid-template-columns: 28px minmax(0, 1fr);
   min-height: 58px;
   padding: 9px 12px;
   position: relative;
@@ -182,15 +192,48 @@
 }
 
 .portfolio-goal-item b {
+  display: block;
   font-size: 13px;
   line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .portfolio-goal-item small {
   color: #64748b;
+  display: block;
   font-size: 11px;
   font-weight: 700;
   line-height: 1.35;
+  margin-top: 3px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-goal-item-index {
+  align-items: center;
+  background: #7c3aed;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.portfolio-goal-item.status-done .portfolio-goal-item-index {
+  background: #16a34a;
+}
+
+.portfolio-goal-item.status-at_risk .portfolio-goal-item-index,
+.portfolio-goal-item.status-blocked .portfolio-goal-item-index {
+  background: #dc2626;
 }
 
 .portfolio-goal-range {
