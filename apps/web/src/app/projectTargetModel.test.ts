@@ -97,6 +97,7 @@ test("active project goal uses the first unfinished WBS goal", () => {
   );
   assert.equal(summary?.targetChangeDays, 0);
   assert.equal(summary?.effectiveDelayDays, 2);
+  assert.equal(summary?.totalVarianceDays, -62);
 });
 
 test("project target change only appears after an explicit target date history entry", () => {
