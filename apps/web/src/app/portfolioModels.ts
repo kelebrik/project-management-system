@@ -32,28 +32,6 @@ export function filterProjectOptions(
   );
 }
 
-export function createPortfolioStats(projects: ProjectListItem[]) {
-  const activeProjects = projects.filter((item) => item.status === "ACTIVE").length;
-  const redProjects = projects.filter((item) => item.rag === "RED").length;
-  const amberProjects = projects.filter((item) => item.rag === "AMBER").length;
-  const openIssues = projects.reduce((sum, item) => sum + item._count.issues, 0);
-  const averageProgress =
-    projects.length === 0
-      ? 0
-      : Math.round(
-          projects.reduce((sum, item) => sum + item.progress, 0) /
-            projects.length,
-        );
-
-  return {
-    activeProjects,
-    redProjects,
-    amberProjects,
-    openIssues,
-    averageProgress,
-  };
-}
-
 export type PortfolioGoalTimelineItem = {
   id: string;
   projectId: string;

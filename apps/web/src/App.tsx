@@ -111,7 +111,6 @@ import {
 } from "./app/projectTargetModel";
 import {
   createPortfolioGoalTimeline,
-  createPortfolioStats,
   filterProjectOptions,
   getActiveProjects,
   getClosedProjects,
@@ -756,10 +755,6 @@ function App() {
   const filteredProjectOptions = useMemo(
     () => filterProjectOptions(activeProjects, projectSearch),
     [activeProjects, projectSearch],
-  );
-  const portfolioStats = useMemo(
-    () => createPortfolioStats(projects),
-    [projects],
   );
   const portfolioGoalTimeline = useMemo(
     () => createPortfolioGoalTimeline(projects),
@@ -3108,7 +3103,6 @@ function App() {
     overviewDashboard,
     passportRows,
     portfolioGoalTimeline,
-    portfolioStats,
     printSectionAsPdf,
     project,
     projectAccessDraft,

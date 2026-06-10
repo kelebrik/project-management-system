@@ -9,9 +9,7 @@ export function PortfolioPage() {
     firstEnabledProjectView,
     openView,
     portfolioGoalTimeline,
-    portfolioStats,
     projectRegistryDrafts,
-    projects,
     projectToRegistryDraft,
     savePortfolioProjectIdentity,
     savingProjectRegistryId,
@@ -22,37 +20,6 @@ export function PortfolioPage() {
 
   return (
     <>
-      {(
-              <section className="summary-grid">
-                <div className="metric">
-                  <span>Активные проекты</span>
-                  <strong>{portfolioStats.activeProjects}</strong>
-                  <small>Всего проектов: {projects.length}</small>
-                </div>
-                <div className="metric">
-                  <span>Прогресс портфеля</span>
-                  <strong>{portfolioStats.averageProgress}%</strong>
-                  <div className="progress">
-                    <i
-                      style={{ width: `${portfolioStats.averageProgress}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="metric">
-                  <span>Риск-профиль</span>
-                  <strong>
-                    {portfolioStats.redProjects} /{" "}
-                    {portfolioStats.amberProjects}
-                  </strong>
-                  <small>Критичные / под риском</small>
-                </div>
-                <div className="metric">
-                  <span>Открытые вопросы</span>
-                  <strong>{portfolioStats.openIssues}</strong>
-                  <small>Открытые проблемы по портфелю</small>
-                </div>
-              </section>
-            )}
       {(
               <section className="projects-tree-section">
                 <article className="panel portfolio-goal-timeline-panel">
