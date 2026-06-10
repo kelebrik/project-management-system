@@ -281,6 +281,10 @@
   justify-content: flex-end;
 }
 
+.topbar-project-row:last-child {
+  flex-wrap: nowrap;
+}
+
 .topbar-project span,
 .topbar-project b {
   background: #f8fafc;

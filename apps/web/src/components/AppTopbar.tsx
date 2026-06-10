@@ -95,8 +95,7 @@ export function AppTopbar({
             <b className={`rag ${delayTone}`}>{delayLabel}</b>
             <span>
               Прогноз по цели "{activeGoalTitle}":{" "}
-              {date(projectTargetSummary?.forecastFinishDate ?? null)} (
-              {signedDaysLabel(effectiveDelayDays)})
+              {date(projectTargetSummary?.forecastFinishDate ?? null)}
             </span>
           </div>
         </div>
