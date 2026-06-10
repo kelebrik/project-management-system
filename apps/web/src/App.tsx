@@ -110,6 +110,7 @@ import {
   signedDaysLabel,
 } from "./app/projectTargetModel";
 import {
+  createPortfolioGoalTimeline,
   createPortfolioStats,
   filterProjectOptions,
   getActiveProjects,
@@ -758,6 +759,10 @@ function App() {
   );
   const portfolioStats = useMemo(
     () => createPortfolioStats(projects),
+    [projects],
+  );
+  const portfolioGoalTimeline = useMemo(
+    () => createPortfolioGoalTimeline(projects),
     [projects],
   );
   const wbsTree = useMemo(
@@ -3102,6 +3107,7 @@ function App() {
     orderedWbsColumns,
     overviewDashboard,
     passportRows,
+    portfolioGoalTimeline,
     portfolioStats,
     printSectionAsPdf,
     project,

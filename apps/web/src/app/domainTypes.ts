@@ -71,6 +71,7 @@ export type ProjectListItem = {
   uiState: ProjectUiState | null;
   jiraIntegration: JiraIntegration | null;
   targetDateChanges: ProjectTargetDateChange[];
+  wbsItems: WbsItem[];
   currentUserAccessLevel: ProjectAccessLevel | null;
   _count: {
     tasks: number;

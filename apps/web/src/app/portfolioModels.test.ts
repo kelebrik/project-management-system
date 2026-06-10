@@ -1,0 +1,145 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import type { ProjectListItem, WbsItem } from "./domainTypes";
+import { createPortfolioGoalTimeline } from "./portfolioModels";
+
+function localDateKey(value: Date | null | undefined) {
+  if (!value) return null;
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, "0"),
+    String(value.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function wbsGoal(overrides: Partial<WbsItem>): WbsItem {
+  return {
+    id: "goal",
+    parentId: null,
+    code: "G",
+    title: "Цель",
+    type: "GOAL",
+    status: "NOT_STARTED",
+    owner: "",
+    startDate: null,
+    dueDate: "2026-09-03",
+    baselineStartDate: null,
+    baselineDueDate: null,
+    forecastStartDate: null,
+    forecastDueDate: null,
+    wbsLevel: 1,
+    predecessor1: null,
+    predecessor2: null,
+    predecessor3: null,
+    predecessor4: null,
+    predecessor5: null,
+    predecessor6: null,
+    leadLagDays: 0,
+    workDays: null,
+    calendarDays: null,
+    excelStartDate: null,
+    excelEndDate: null,
+    planWorkDays: null,
+    planCalendarDays: null,
+    calendarCode: "RU",
+    templateColor: null,
+    priority: null,
+    plannedCost: "0",
+    forecastCost: "0",
+    progress: 0,
+    jiraTicketKey: null,
+    jiraTicketUrl: null,
+    description: null,
+    closedAt: null,
+    sortOrder: 0,
+    ...overrides,
+  };
+}
+
+function project(overrides: Partial<ProjectListItem>): ProjectListItem {
+  return {
+    id: "project",
+    parentId: "parent",
+    code: "P",
+    name: "Project",
+    portfolio: "",
+    sponsor: "",
+    projectManager: "",
+    status: "ACTIVE",
+    rag: "GREEN",
+    startDate: "2026-01-01",
+    initialTargetDate: "2026-09-03",
+    targetDate: "2026-09-03",
+    progress: 0,
+    scheduleVariance: 0,
+    budgetPlanned: "0",
+    budgetForecast: "0",
+    summary: "",
+    sortOrder: 0,
+    uiState: null,
+    jiraIntegration: null,
+    targetDateChanges: [],
+    wbsItems: [],
+    currentUserAccessLevel: "ADMIN",
+    _count: {
+      tasks: 0,
+      issues: 0,
+      jiraSnapshots: 0,
+    },
+    ...overrides,
+  };
+}
+
+test("portfolio goal timeline uses active child project goals only", () => {
+  const timeline = createPortfolioGoalTimeline([
+    project({
+      id: "parent",
+      parentId: null,
+      code: "ROOT",
+      wbsItems: [wbsGoal({ id: "parent-goal" })],
+    }),
+    project({
+      id: "child-a",
+      code: "A",
+      wbsItems: [
+        wbsGoal({
+          id: "goal-a",
+          title: "Релиз заводской прошивки",
+          dueDate: "2026-09-03",
+          baselineDueDate: "2026-08-20",
+        }),
+        wbsGoal({ id: "cancelled-goal", status: "CANCELLED" }),
+        wbsGoal({ id: "task-like", type: "TASK" }),
+      ],
+    }),
+    project({
+      id: "closed-child",
+      code: "CLOSED",
+      status: "CLOSED",
+      wbsItems: [wbsGoal({ id: "closed-goal" })],
+    }),
+    project({
+      id: "child-b",
+      code: "B",
+      wbsItems: [
+        wbsGoal({
+          id: "goal-b",
+          title: "OTA",
+          dueDate: "2026-10-14",
+        }),
+      ],
+    }),
+  ]);
+
+  assert.equal(timeline.items.length, 2);
+  assert.deepEqual(
+    timeline.items.map((item) => item.id),
+    ["goal-a", "goal-b"],
+  );
+  assert.equal(timeline.items[0]?.projectCode, "A");
+  assert.equal(timeline.items[0]?.baselineDueDate, "2026-08-20");
+  assert.equal(localDateKey(timeline.startDate), "2026-09-03");
+  assert.equal(localDateKey(timeline.endDate), "2026-10-14");
+  assert.ok(timeline.monthTicks.length >= 2);
+});

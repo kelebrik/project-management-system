@@ -59,6 +59,116 @@
   margin-bottom: 18px;
 }
 
+.portfolio-goal-timeline-panel {
+  min-height: 0;
+}
+
+.portfolio-goal-timeline {
+  display: grid;
+  gap: 16px;
+}
+
+.portfolio-goal-axis {
+  height: 66px;
+  padding: 26px 8px 0;
+  position: relative;
+}
+
+.portfolio-goal-axis-line {
+  background: #cbd5e1;
+  border-radius: 999px;
+  display: block;
+  height: 3px;
+  left: 8px;
+  position: absolute;
+  right: 8px;
+  top: 31px;
+}
+
+.portfolio-goal-month-tick {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 58px;
+  position: absolute;
+  text-align: center;
+  top: 42px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.portfolio-goal-month-tick::before {
+  background: #94a3b8;
+  content: "";
+  height: 13px;
+  left: 50%;
+  position: absolute;
+  top: -16px;
+  transform: translateX(-50%);
+  width: 1px;
+}
+
+.portfolio-goal-dot {
+  background: #7c3aed;
+  border: 3px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.22);
+  height: 14px;
+  position: absolute;
+  top: 25px;
+  transform: translateX(-50%);
+  width: 14px;
+}
+
+.portfolio-goal-dot.status-done {
+  background: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.22);
+}
+
+.portfolio-goal-dot.status-at_risk,
+.portfolio-goal-dot.status-blocked {
+  background: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+}
+
+.portfolio-goal-items {
+  display: grid;
+  gap: 8px;
+}
+
+.portfolio-goal-item {
+  background: #fff;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  color: #1f2937;
+  cursor: pointer;
+  display: grid;
+  gap: 3px;
+  min-height: 58px;
+  padding: 9px 12px;
+  position: relative;
+  text-align: left;
+}
+
+.portfolio-goal-item:hover,
+.portfolio-goal-item:focus-visible {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
+  outline: none;
+}
+
+.portfolio-goal-item b {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.portfolio-goal-item small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .project-tree-panel {
   min-height: 0;
 }

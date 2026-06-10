@@ -5,8 +5,10 @@ export function PortfolioPage() {
   const ctx = usePageContext();
   const {
     activeProjectTree,
+    date,
     firstEnabledProjectView,
     openView,
+    portfolioGoalTimeline,
     portfolioStats,
     projectRegistryDrafts,
     projects,
@@ -49,6 +51,63 @@ export function PortfolioPage() {
                   <strong>{portfolioStats.openIssues}</strong>
                   <small>Открытые проблемы по портфелю</small>
                 </div>
+              </section>
+            )}
+      {(
+              <section className="projects-tree-section">
+                <article className="panel portfolio-goal-timeline-panel">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Цели дочерних проектов</h2>
+                      <p>Линейная шкала по записям ИСР с типом Цель</p>
+                    </div>
+                  </div>
+                  {portfolioGoalTimeline.items.length > 0 ? (
+                    <div className="portfolio-goal-timeline">
+                      <div className="portfolio-goal-axis" aria-hidden="true">
+                        <span className="portfolio-goal-axis-line" />
+                        {portfolioGoalTimeline.monthTicks.map((tick) => (
+                          <span
+                            className="portfolio-goal-month-tick"
+                            key={tick.key}
+                            style={{ left: `${tick.offset}%` }}
+                          >
+                            {tick.label}
+                          </span>
+                        ))}
+                        {portfolioGoalTimeline.items.map((item) => (
+                          <span
+                            className={`portfolio-goal-dot status-${item.status.toLowerCase()}`}
+                            key={item.id}
+                            style={{ left: `${item.offset}%` }}
+                          />
+                        ))}
+                      </div>
+                      <div className="portfolio-goal-items">
+                        {portfolioGoalTimeline.items.map((item) => (
+                          <button
+                            type="button"
+                            className={`portfolio-goal-item status-${item.status.toLowerCase()}`}
+                            key={item.id}
+                            onClick={() => selectProject(item.projectId, firstEnabledProjectView)}
+                          >
+                            <b>{item.projectCode} · {item.goalTitle}</b>
+                            <small>
+                              {item.projectName} · срок {date(item.dueDate)}
+                              {item.baselineDueDate
+                                ? ` · базовый план ${date(item.baselineDueDate)}`
+                                : ""}
+                            </small>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="empty-state">
+                      У активных дочерних проектов нет записей ИСР с типом Цель.
+                    </div>
+                  )}
+                </article>
               </section>
             )}
       {(

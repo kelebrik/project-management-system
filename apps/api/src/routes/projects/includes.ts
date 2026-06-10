@@ -2,6 +2,10 @@ import type { Prisma } from '@prisma/client';
 
 export const projectInclude = {
   jiraIntegration: true,
+  wbsItems: {
+    where: { type: 'GOAL' },
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+  },
   targetDateChanges: {
     orderBy: { createdAt: 'desc' },
     include: {
