@@ -113,6 +113,7 @@
   .executive-overview-grid,
   .content-grid,
   .user-create-form,
+  .project-access-grant,
   .details,
   .form-grid,
   .two-col,
@@ -130,6 +131,8 @@
   .project-tree-row,
   .project-admin-head,
   .project-admin-row,
+  .project-access-head,
+  .project-access-row,
   .project-module-head,
   .project-module-row,
   .passport-target-metrics,
@@ -207,6 +210,7 @@
 
   .project-tree-head,
   .project-admin-head,
+  .project-access-head,
   .permission-head,
   .dictionary-head,
   .audit-head,
@@ -217,12 +221,14 @@
   }
 
   .project-admin-table,
+  .project-access-table,
   .permission-table,
   .dictionary-table {
     overflow-x: visible;
   }
 
   .project-admin-row,
+  .project-access-row,
   .permission-row,
   .dictionary-row {
     border: 1px solid #dbe4ef;
@@ -232,6 +238,9 @@
   }
 
   .project-admin-row label,
+  .project-access-row label,
+  .project-access-row > div,
+  .project-access-row > span,
   .project-admin-readonly,
   .dictionary-row label,
   .dictionary-actions,
@@ -244,6 +253,7 @@
   }
 
   .project-admin-row label > span,
+  .project-access-row label > span,
   .project-admin-readonly > span,
   .dictionary-row label > span {
     display: block;

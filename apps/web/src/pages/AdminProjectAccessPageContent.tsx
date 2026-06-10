@@ -1,4 +1,5 @@
-import { Trash2 } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import type { ProjectAccessLevel } from "../app/domainTypes";
 import { userRoleLabel } from "../app/adminHelpers";
@@ -11,11 +12,32 @@ const projectAccessLevelLabels: Record<ProjectAccessLevel, string> = {
   ADMIN: "Администрирование",
 };
 
-function selectedValues(options: HTMLCollectionOf<HTMLOptionElement>) {
-  return Array.from(options)
-    .filter((option) => option.selected)
-    .map((option) => option.value);
-}
+type AccessUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+};
+
+type AccessProject = {
+  id: string;
+  code: string;
+  name: string;
+  level?: number;
+  status: string;
+};
+
+type AccessRecord = {
+  id: string;
+  level: ProjectAccessLevel;
+  user: AccessUser;
+  project: {
+    code: string;
+    name: string;
+    status: string;
+  };
+};
 
 export function AdminProjectAccessPageContent() {
   const {
@@ -31,8 +53,54 @@ export function AdminProjectAccessPageContent() {
     users,
   } = usePageContext();
 
-  const activeUsers = users.filter((user: { isActive: boolean }) => user.isActive);
-  const orderedProjects = activeProjectTree.length > 0 ? activeProjectTree : projects;
+  const [userSearch, setUserSearch] = useState("");
+  const [projectSearch, setProjectSearch] = useState("");
+  const activeUsers = useMemo(
+    () => (users as AccessUser[]).filter((user) => user.isActive),
+    [users],
+  );
+  const orderedProjects = useMemo<AccessProject[]>(
+    () => (activeProjectTree.length > 0 ? activeProjectTree : projects),
+    [activeProjectTree, projects],
+  );
+  const selectedUserIds = new Set(projectAccessDraft.userIds);
+  const selectedProjectIds = new Set(projectAccessDraft.projectIds);
+  const selectedUsers = activeUsers.filter((user) => selectedUserIds.has(user.id));
+  const selectedProjects = orderedProjects.filter((project) =>
+    selectedProjectIds.has(project.id),
+  );
+  const filteredUsers = useMemo(() => {
+    const query = userSearch.trim().toLowerCase();
+    if (!query) return activeUsers;
+    return activeUsers.filter((user) =>
+      `${user.name} ${user.email} ${userRoleLabel(user.role)}`
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [activeUsers, userSearch]);
+  const filteredProjects = useMemo(() => {
+    const query = projectSearch.trim().toLowerCase();
+    if (!query) return orderedProjects;
+    return orderedProjects.filter((project) =>
+      `${project.code} ${project.name}`.toLowerCase().includes(query),
+    );
+  }, [orderedProjects, projectSearch]);
+
+  function toggleUser(userId: string) {
+    updateProjectAccessDraft({
+      userIds: selectedUserIds.has(userId)
+        ? projectAccessDraft.userIds.filter((id: string) => id !== userId)
+        : [...projectAccessDraft.userIds, userId],
+    });
+  }
+
+  function toggleProject(projectId: string) {
+    updateProjectAccessDraft({
+      projectIds: selectedProjectIds.has(projectId)
+        ? projectAccessDraft.projectIds.filter((id: string) => id !== projectId)
+        : [...projectAccessDraft.projectIds, projectId],
+    });
+  }
 
   return (
     <article className="panel project-card admin-project-access">
@@ -47,74 +115,118 @@ export function AdminProjectAccessPageContent() {
       </div>
 
       <form className="project-access-grant" onSubmit={grantProjectAccess}>
-        <label>
-          <span>Пользователи</span>
-          <select
-            multiple
-            value={projectAccessDraft.userIds}
-            onChange={(event) =>
-              updateProjectAccessDraft({
-                userIds: selectedValues(event.currentTarget.selectedOptions),
-              })
+        <div className="project-access-picker">
+          <div className="project-access-picker-title">
+            <h3>Пользователи</h3>
+            <span>{selectedUsers.length} выбрано</span>
+          </div>
+          <label className="project-access-search">
+            <Search size={17} />
+            <input
+              value={userSearch}
+              onChange={(event) => setUserSearch(event.currentTarget.value)}
+              placeholder="Поиск пользователя"
+            />
+          </label>
+          <div className="project-access-choice-list">
+            {filteredUsers.map((user) => {
+              const checked = selectedUserIds.has(user.id);
+              return (
+                <label className="project-access-choice" key={user.id}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleUser(user.id)}
+                  />
+                  <span>
+                    <b>{user.name}</b>
+                    <small>
+                      {user.email} · {userRoleLabel(user.role)}
+                    </small>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="project-access-picker">
+          <div className="project-access-picker-title">
+            <h3>Проекты</h3>
+            <span>{selectedProjects.length} выбрано</span>
+          </div>
+          <label className="project-access-search">
+            <Search size={17} />
+            <input
+              value={projectSearch}
+              onChange={(event) => setProjectSearch(event.currentTarget.value)}
+              placeholder="Поиск проекта"
+            />
+          </label>
+          <div className="project-access-choice-list">
+            {filteredProjects.map((project) => {
+              const checked = selectedProjectIds.has(project.id);
+              return (
+                <label
+                  className="project-access-choice"
+                  key={project.id}
+                  style={{ paddingLeft: `${12 + Math.min(project.level ?? 0, 4) * 14}px` }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleProject(project.id)}
+                  />
+                  <span>
+                    <b>{project.name}</b>
+                    <small>
+                      {project.code}
+                      {project.status === "CLOSED" ? " · закрыт" : ""}
+                    </small>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <aside className="project-access-summary">
+          <div>
+            <h3>Уровень доступа</h3>
+            <div className="project-access-levels">
+              {(["VIEW", "EDIT", "ADMIN"] as ProjectAccessLevel[]).map((level) => (
+                <button
+                  type="button"
+                  className={projectAccessDraft.level === level ? "active" : ""}
+                  key={level}
+                  onClick={() => updateProjectAccessDraft({ level })}
+                >
+                  {projectAccessLevelLabels[level]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="project-access-selection-summary">
+            <span>Пользователей: {selectedUsers.length}</span>
+            <span>Проектов: {selectedProjects.length}</span>
+          </div>
+          <button
+            type="submit"
+            disabled={
+              savingProjectAccess ||
+              selectedUsers.length === 0 ||
+              selectedProjects.length === 0
             }
           >
-            {activeUsers.map(
-              (user: { id: string; name: string; email: string; role: UserRole }) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} · {user.email} · {userRoleLabel(user.role)}
-                </option>
-              ),
-            )}
-          </select>
-        </label>
-        <label>
-          <span>Проекты</span>
-          <select
-            multiple
-            value={projectAccessDraft.projectIds}
-            onChange={(event) =>
-              updateProjectAccessDraft({
-                projectIds: selectedValues(event.currentTarget.selectedOptions),
-              })
-            }
-          >
-            {orderedProjects.map(
-              (project: {
-                id: string;
-                code: string;
-                name: string;
-                level?: number;
-                status: string;
-              }) => (
-                <option key={project.id} value={project.id}>
-                  {"- ".repeat(project.level ?? 0)}
-                  {project.code} · {project.name}
-                  {project.status === "CLOSED" ? " · закрыт" : ""}
-                </option>
-              ),
-            )}
-          </select>
-        </label>
-        <label>
-          <span>Уровень доступа</span>
-          <select
-            value={projectAccessDraft.level}
-            onChange={(event) =>
-              updateProjectAccessDraft({
-                level: event.currentTarget.value as ProjectAccessLevel,
-              })
-            }
-          >
-            <option value="VIEW">{projectAccessLevelLabels.VIEW}</option>
-            <option value="EDIT">{projectAccessLevelLabels.EDIT}</option>
-            <option value="ADMIN">{projectAccessLevelLabels.ADMIN}</option>
-          </select>
-        </label>
-        <button type="submit" disabled={savingProjectAccess}>
-          Выдать доступ
-        </button>
+            Выдать доступ
+          </button>
+        </aside>
       </form>
 
+      <div className="project-access-section-title">
+        <h3>Текущие доступы</h3>
+        <span>{projectAccesses.length}</span>
+      </div>
       <div className="project-access-table">
         <div className="project-access-head">
           <span>Пользователь</span>
@@ -124,22 +236,8 @@ export function AdminProjectAccessPageContent() {
           <span>Статус</span>
           <span />
         </div>
-        {projectAccesses.map(
-          (access: {
-            id: string;
-            level: ProjectAccessLevel;
-            user: {
-              name: string;
-              email: string;
-              role: UserRole;
-              isActive: boolean;
-            };
-            project: {
-              code: string;
-              name: string;
-              status: string;
-            };
-          }) => (
+        {(projectAccesses as AccessRecord[]).map(
+          (access) => (
             <div className="project-access-row" key={access.id}>
               <div>
                 <b>{access.user.name}</b>
