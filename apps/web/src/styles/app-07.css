@@ -195,10 +195,10 @@
 }
 
 .issue-chevron {
+  align-items: center;
   color: #64748b;
-  font-size: 18px;
+  display: inline-flex;
   justify-self: end;
-  line-height: 1;
 }
 
 .issue-details-panel {
@@ -208,12 +208,120 @@
   padding: 14px;
 }
 
+.issue-detail-layout {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(360px, 1.05fr) minmax(340px, 0.95fr);
+}
+
+.issue-work-card {
+  background: #fff;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.issue-card-title {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.issue-card-title span {
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.issue-card-title p {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 650;
+  margin: 2px 0 0;
+}
+
+.issue-card-title.compact {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
+.issue-status-current {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.issue-status-current strong,
+.issue-status-history-row span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.issue-status-current p,
+.issue-status-history-row p {
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.38;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.issue-status-add-card {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+}
+
+.issue-status-add-card label,
+.issue-edit-grid label {
+  color: #64748b;
+  display: grid;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 5px;
+  min-width: 0;
+}
+
+.issue-status-text-field {
+  align-self: stretch;
+}
+
+.issue-status-history-card {
+  display: grid;
+  gap: 10px;
+}
+
+.issue-status-history {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.issue-status-history-row {
+  border-left: 3px solid #cbd5e1;
+  display: grid;
+  gap: 4px;
+  padding: 2px 0 2px 10px;
+}
+
 .issue-detail-meta {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 10px;
 }
 
 .issue-detail-meta span:not(.severity),
@@ -261,7 +369,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 10px;
+  min-width: 0;
 }
 
 .jira-chip {
@@ -276,10 +384,13 @@
 }
 
 .jira-chip button {
+  align-items: center;
   border-radius: 999px;
+  display: inline-flex;
   font-size: 10px;
+  justify-content: center;
   line-height: 1;
-  padding: 3px 6px;
+  padding: 3px;
 }
 
 .muted-inline {
@@ -288,34 +399,41 @@
 }
 
 .issue-link-edit {
+  background: #fff;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(96px, 0.7fr) minmax(120px, 1fr) auto;
-  margin-top: 10px;
+  margin-top: 14px;
   min-width: 0;
+  padding: 12px;
 }
 
 .issue-edit-grid {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  margin-top: 12px;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   min-width: 0;
-  padding: 10px;
 }
 
 .issue-edit-grid input,
 .issue-edit-grid select,
 .issue-edit-grid textarea,
-.issue-edit-grid button {
+.issue-edit-grid button,
+.issue-status-add-card input,
+.issue-status-add-card textarea,
+.issue-status-add-card button {
   font-size: 12px;
   padding: 7px 8px;
 }
 
-.issue-edit-grid .span-2 {
+.issue-impact-field,
+.issue-actions {
+  grid-column: 1 / -1;
+}
+
+.issue-decision-check {
   grid-column: 1 / -1;
 }
 
@@ -385,6 +503,46 @@
 .issue-link-edit button {
   font-size: 12px;
   padding: 7px 8px;
+}
+
+.icon-text-button,
+.issue-link-edit button {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.issue-jira-block {
+  display: grid;
+  gap: 10px;
+}
+
+.issue-primary-jira {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  color: #475569;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+}
+
+.issue-primary-jira a,
+.issue-primary-jira span {
+  align-items: center;
+  color: #1d4ed8;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .jira-links-editor {

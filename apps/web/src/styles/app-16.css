@@ -116,7 +116,9 @@
   .details,
   .form-grid,
   .two-col,
+  .issue-detail-layout,
   .issue-link-edit,
+  .issue-status-add-card,
   .milestone-head,
   .milestone-row,
   .wbs-kpis,
@@ -186,6 +188,15 @@
     align-self: center;
     grid-column: 2;
     grid-row: 1 / 4;
+  }
+
+  .issue-actions {
+    justify-content: stretch;
+  }
+
+  .issue-actions button,
+  .issue-link-edit button {
+    width: 100%;
   }
 
   .raid-row .issue-chevron,
