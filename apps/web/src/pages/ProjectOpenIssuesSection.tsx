@@ -174,12 +174,15 @@ export function ProjectOpenIssuesSection() {
                                     <section className="issue-work-card issue-status-card">
                                       <div className="issue-card-title">
                                         <div>
-                                          <span>Текущий статус</span>
-                                          <p>Последнее обновление по вопросу</p>
+                                          <span>Статусы вопроса</span>
+                                          <p>Что изменилось и какой следующий шаг</p>
                                         </div>
                                       </div>
                                       {latestStatus ? (
                                         <div className="issue-status-current">
+                                          <span className="issue-status-label">
+                                            Текущий статус
+                                          </span>
                                           <strong>{date(latestStatus.statusAt)}</strong>
                                           <p>{latestStatus.text}</p>
                                         </div>
@@ -189,43 +192,48 @@ export function ProjectOpenIssuesSection() {
                                         </p>
                                       )}
                                       <div className="issue-status-add-card">
-                                        <label>
-                                          Дата
-                                          <input
-                                            type="date"
-                                            value={
-                                              issueStatusDrafts[issue.id]?.statusAt ??
-                                              isoDate(new Date())
-                                            }
-                                            onChange={(event) =>
-                                              updateIssueStatusDraft(issue.id, {
-                                                statusAt: event.target.value,
-                                              })
-                                            }
-                                          />
-                                        </label>
-                                        <label className="issue-status-text-field">
-                                          Новый статус
-                                          <textarea
-                                            rows={3}
-                                            value={issueStatusDrafts[issue.id]?.text ?? ""}
-                                            onChange={(event) =>
-                                              updateIssueStatusDraft(issue.id, {
-                                                text: event.target.value,
-                                              })
-                                            }
-                                            placeholder="Что изменилось, следующий шаг, блокеры"
-                                          />
-                                        </label>
-                                        <button
-                                          type="button"
-                                          className="icon-text-button"
-                                          onClick={() => addIssueStatusUpdate(issue.id)}
-                                          disabled={isReadOnly}
-                                        >
-                                          <Plus size={16} />
-                                          Добавить статус
-                                        </button>
+                                        <div className="issue-card-title compact flat">
+                                          <span>Добавить обновление</span>
+                                        </div>
+                                        <div className="issue-status-add-grid">
+                                          <label>
+                                            Дата
+                                            <input
+                                              type="date"
+                                              value={
+                                                issueStatusDrafts[issue.id]?.statusAt ??
+                                                isoDate(new Date())
+                                              }
+                                              onChange={(event) =>
+                                                updateIssueStatusDraft(issue.id, {
+                                                  statusAt: event.target.value,
+                                                })
+                                              }
+                                            />
+                                          </label>
+                                          <label className="issue-status-text-field">
+                                            Текст статуса
+                                            <textarea
+                                              rows={3}
+                                              value={issueStatusDrafts[issue.id]?.text ?? ""}
+                                              onChange={(event) =>
+                                                updateIssueStatusDraft(issue.id, {
+                                                  text: event.target.value,
+                                                })
+                                              }
+                                              placeholder="Что изменилось, следующий шаг, блокеры"
+                                            />
+                                          </label>
+                                          <button
+                                            type="button"
+                                            className="icon-text-button"
+                                            onClick={() => addIssueStatusUpdate(issue.id)}
+                                            disabled={isReadOnly}
+                                          >
+                                            <Plus size={16} />
+                                            Добавить статус
+                                          </button>
+                                        </div>
                                       </div>
                                       <div className="issue-status-history-card">
                                         <div className="issue-card-title compact">

@@ -209,12 +209,14 @@
 }
 
 .issue-detail-layout {
+  align-items: start;
   display: grid;
   gap: 14px;
   grid-template-columns: minmax(360px, 1.05fr) minmax(340px, 0.95fr);
 }
 
 .issue-work-card {
+  align-content: start;
   background: #fff;
   border: 1px solid #dbe4ef;
   border-radius: 8px;
@@ -249,14 +251,29 @@
   padding-top: 12px;
 }
 
+.issue-card-title.flat {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.issue-status-card {
+  align-self: start;
+}
+
 .issue-status-current {
   background: #f8fafc;
   border: 1px solid #dbe4ef;
   border-left: 4px solid #2563eb;
   border-radius: 8px;
   display: grid;
-  gap: 6px;
+  gap: 7px;
   padding: 12px 14px;
+}
+
+.issue-status-label {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .issue-status-current strong,
@@ -278,13 +295,22 @@
 }
 
 .issue-status-add-card {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.issue-status-add-grid {
   align-items: end;
   display: grid;
   gap: 10px;
   grid-template-columns: 150px minmax(0, 1fr) auto;
 }
 
-.issue-status-add-card label,
+.issue-status-add-grid label,
 .issue-edit-grid label {
   color: #64748b;
   display: grid;
@@ -296,6 +322,10 @@
 
 .issue-status-text-field {
   align-self: stretch;
+}
+
+.issue-status-text-field textarea {
+  min-height: 86px;
 }
 
 .issue-status-history-card {
@@ -421,9 +451,9 @@
 .issue-edit-grid select,
 .issue-edit-grid textarea,
 .issue-edit-grid button,
-.issue-status-add-card input,
-.issue-status-add-card textarea,
-.issue-status-add-card button {
+.issue-status-add-grid input,
+.issue-status-add-grid textarea,
+.issue-status-add-grid button {
   font-size: 12px;
   padding: 7px 8px;
 }
