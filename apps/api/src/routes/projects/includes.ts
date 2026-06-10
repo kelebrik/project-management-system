@@ -6,6 +6,20 @@ export const projectInclude = {
     where: { type: 'GOAL' },
     orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
   },
+  raidItems: {
+    where: {
+      type: 'DEPENDENCY',
+      riskScore: { gte: 15 },
+      status: { notIn: ['CLOSED', 'VALIDATED'] },
+    },
+    orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }],
+    include: {
+      statusUpdates: {
+        orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }],
+        take: 1,
+      },
+    },
+  },
   targetDateChanges: {
     orderBy: { createdAt: 'desc' },
     include: {

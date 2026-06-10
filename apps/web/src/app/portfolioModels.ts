@@ -1,4 +1,4 @@
-import type { ProjectListItem, WbsItem } from "./domainTypes";
+import type { ProjectListItem, RaidItem, WbsItem } from "./domainTypes";
 import { addCalendarMonths, signedDaysBetween, startOfDay } from "./dateUtils";
 
 export function getActiveProjects(projects: ProjectListItem[]) {
@@ -55,6 +55,34 @@ export type PortfolioGoalTimelineModel = {
     label: string;
     offset: number;
   }>;
+};
+
+export type PortfolioBlockingProblem = Pick<
+  RaidItem,
+  | "id"
+  | "title"
+  | "owner"
+  | "dueDate"
+  | "riskScore"
+  | "scheduleImpactDays"
+  | "jiraTicketKey"
+  | "jiraTicketUrl"
+  | "status"
+> & {
+  projectId: string;
+  projectName: string;
+};
+
+export type PortfolioBlockingProblemProject = {
+  projectId: string;
+  projectName: string;
+  problems: PortfolioBlockingProblem[];
+};
+
+export type PortfolioBlockingProblemGroup = {
+  portfolio: string;
+  projectCount: number;
+  projects: PortfolioBlockingProblemProject[];
 };
 
 function validDay(value: string | null | undefined) {
@@ -154,4 +182,69 @@ export function createPortfolioGoalTimeline(
         offset: offsetForDate(item.dueDate),
       })),
   } satisfies PortfolioGoalTimelineModel;
+}
+
+export function createPortfolioBlockingProblemGroups(projects: ProjectListItem[]) {
+  const groupsByPortfolio = new Map<string, PortfolioBlockingProblemGroup>();
+
+  const ensureGroup = (portfolio: string) => {
+    const key = portfolio.trim() || "Без портфеля";
+    const existing = groupsByPortfolio.get(key);
+    if (existing) return existing;
+    const nextGroup: PortfolioBlockingProblemGroup = {
+      portfolio: key,
+      projectCount: 0,
+      projects: [],
+    };
+    groupsByPortfolio.set(key, nextGroup);
+    return nextGroup;
+  };
+
+  projects
+    .filter((project) => project.status !== "CLOSED")
+    .forEach((project) => {
+      const group = ensureGroup(project.portfolio);
+      group.projectCount += 1;
+      const redProblems = (project.raidItems ?? [])
+        .filter(
+          (item) =>
+            item.type === "DEPENDENCY" &&
+            item.riskScore >= 15 &&
+            item.status !== "CLOSED" &&
+            item.status !== "VALIDATED",
+        )
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          owner: item.owner,
+          dueDate: item.dueDate,
+          riskScore: item.riskScore,
+          scheduleImpactDays: item.scheduleImpactDays,
+          jiraTicketKey: item.jiraTicketKey,
+          jiraTicketUrl: item.jiraTicketUrl,
+          status: item.status,
+          projectId: project.id,
+          projectName: project.name,
+        }));
+      group.projects.push({
+        projectId: project.id,
+        projectName: project.name,
+        problems: redProblems.sort(
+          (left, right) =>
+            right.riskScore - left.riskScore ||
+            left.title.localeCompare(right.title, "ru"),
+        ),
+      });
+    });
+
+  return Array.from(groupsByPortfolio.values())
+    .map((group) => ({
+      ...group,
+      projects: group.projects.sort(
+        (left, right) =>
+          left.projectName.localeCompare(right.projectName, "ru") ||
+          left.projectId.localeCompare(right.projectId, "ru"),
+      ),
+    }))
+    .sort((left, right) => left.portfolio.localeCompare(right.portfolio, "ru"));
 }

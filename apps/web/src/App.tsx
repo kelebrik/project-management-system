@@ -110,6 +110,7 @@ import {
   signedDaysLabel,
 } from "./app/projectTargetModel";
 import {
+  createPortfolioBlockingProblemGroups,
   createPortfolioGoalTimeline,
   filterProjectOptions,
   getActiveProjects,
@@ -758,6 +759,10 @@ function App() {
   );
   const portfolioGoalTimeline = useMemo(
     () => createPortfolioGoalTimeline(projects),
+    [projects],
+  );
+  const portfolioBlockingProblemGroups = useMemo(
+    () => createPortfolioBlockingProblemGroups(projects),
     [projects],
   );
   const wbsTree = useMemo(
@@ -3102,6 +3107,7 @@ function App() {
     orderedWbsColumns,
     overviewDashboard,
     passportRows,
+    portfolioBlockingProblemGroups,
     portfolioGoalTimeline,
     printSectionAsPdf,
     project,

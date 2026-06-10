@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ProjectListItem, WbsItem } from "./domainTypes";
-import { createPortfolioGoalTimeline } from "./portfolioModels";
+import type { ProjectListItem, RaidItem, WbsItem } from "./domainTypes";
+import {
+  createPortfolioBlockingProblemGroups,
+  createPortfolioGoalTimeline,
+} from "./portfolioModels";
 
 function localDateKey(value: Date | null | undefined) {
   if (!value) return null;
@@ -81,12 +84,45 @@ function project(overrides: Partial<ProjectListItem>): ProjectListItem {
     jiraIntegration: null,
     targetDateChanges: [],
     wbsItems: [],
+    raidItems: [],
     currentUserAccessLevel: "ADMIN",
     _count: {
       tasks: 0,
       issues: 0,
       jiraSnapshots: 0,
     },
+    ...overrides,
+  };
+}
+
+function raidProblem(overrides: Partial<RaidItem>): RaidItem {
+  return {
+    id: "problem",
+    type: "DEPENDENCY",
+    title: "Блокирующая проблема",
+    description: "",
+    owner: "",
+    status: "OPEN",
+    probability: 5,
+    impact: 4,
+    riskScore: 20,
+    mitigationPlan: null,
+    contingencyPlan: null,
+    dueDate: null,
+    residualRisk: 0,
+    validationDate: null,
+    linkedRiskId: null,
+    dependencyType: null,
+    predecessor: null,
+    successor: null,
+    supplier: null,
+    jiraTicketKey: null,
+    jiraTicketUrl: null,
+    decisionRequired: false,
+    escalationLevel: "",
+    scheduleImpactDays: 0,
+    budgetImpact: "0",
+    statusUpdates: [],
     ...overrides,
   };
 }
@@ -156,4 +192,42 @@ test("portfolio goal timeline uses active project goals only", () => {
   assert.equal(localDateKey(timeline.endDate), "2027-02-10");
   assert.equal(Math.round(timeline.todayOffset), 33);
   assert.ok(timeline.monthTicks.length >= 12);
+});
+
+test("portfolio blocking problem groups use active red dependency problems by portfolio", () => {
+  const groups = createPortfolioBlockingProblemGroups([
+    project({
+      id: "project-a",
+      name: "Project A",
+      portfolio: "TV",
+      raidItems: [
+        raidProblem({
+          id: "red-problem",
+          title: "Нет заводского образца",
+          riskScore: 20,
+          scheduleImpactDays: 12,
+        }),
+        raidProblem({ id: "yellow-problem", riskScore: 12 }),
+        raidProblem({ id: "risk", type: "RISK", riskScore: 25 }),
+        raidProblem({ id: "closed-problem", status: "CLOSED", riskScore: 25 }),
+      ],
+    }),
+    project({
+      id: "project-b",
+      name: "Project B",
+      portfolio: "Audio",
+      raidItems: [],
+    }),
+  ]);
+
+  assert.deepEqual(
+    groups.map((group) => group.portfolio),
+    ["Audio", "TV"],
+  );
+  assert.equal(groups[0]?.projects.length, 1);
+  assert.equal(groups[0]?.projects[0]?.problems.length, 0);
+  assert.equal(groups[1]?.projects.length, 1);
+  assert.equal(groups[1]?.projects[0]?.problems.length, 1);
+  assert.equal(groups[1]?.projects[0]?.problems[0]?.id, "red-problem");
+  assert.equal(groups[1]?.projects[0]?.projectName, "Project A");
 });

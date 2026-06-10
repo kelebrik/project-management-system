@@ -8,6 +8,7 @@ export function PortfolioPage() {
     date,
     firstEnabledProjectView,
     openView,
+    portfolioBlockingProblemGroups,
     portfolioGoalTimeline,
     projectRegistryDrafts,
     projectToRegistryDraft,
@@ -68,9 +69,8 @@ export function PortfolioPage() {
                           >
                             <span className="portfolio-goal-item-index">{index + 1}</span>
                             <span>
-                              <b>{item.projectCode} · {item.goalTitle}</b>
+                              <b>{item.projectName} · {item.goalTitle}</b>
                               <small className="portfolio-goal-meta">
-                                <span>{item.projectName}</span>
                                 {item.baselineDueDate && (
                                   <span>базовый план {date(item.baselineDueDate)}</span>
                                 )}
@@ -95,6 +95,83 @@ export function PortfolioPage() {
                       На шкале -4/+8 месяцев нет целей активных проектов.
                     </div>
                   )}
+                </article>
+              </section>
+            )}
+      {(
+              <section className="projects-tree-section">
+                <article className="panel portfolio-blockers-panel">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Блокирующие проблемы</h2>
+                      <p>Проблемы в красной зоне по портфелям</p>
+                    </div>
+                  </div>
+                  <div className="portfolio-blocker-groups">
+                    {portfolioBlockingProblemGroups.map((group) => (
+                      <section className="portfolio-blocker-group" key={group.portfolio}>
+                        <div className="portfolio-blocker-group-title">
+                          <h3>{group.portfolio}</h3>
+                          <span>{group.projectCount} проект(ов)</span>
+                        </div>
+                        <div className="portfolio-blocker-projects">
+                          {group.projects.map((projectGroup) => (
+                            <div
+                              className="portfolio-blocker-project"
+                              key={projectGroup.projectId}
+                            >
+                              <div className="portfolio-blocker-project-title">
+                                <b>{projectGroup.projectName}</b>
+                              </div>
+                              {projectGroup.problems.length > 0 ? (
+                                <div className="portfolio-blocker-list">
+                                  {projectGroup.problems.map((problem) => (
+                                    <button
+                                      type="button"
+                                      className="portfolio-blocker-item"
+                                      key={problem.id}
+                                      onClick={() =>
+                                        selectProject(
+                                          problem.projectId,
+                                          firstEnabledProjectView,
+                                        )
+                                      }
+                                    >
+                                      <span className="portfolio-blocker-score">
+                                        {problem.riskScore}
+                                      </span>
+                                      <span>
+                                        <b>{problem.title}</b>
+                                        <small>
+                                          {problem.owner || "не назначен"}
+                                          {problem.dueDate
+                                            ? ` · срок ${date(problem.dueDate)}`
+                                            : ""}
+                                          {problem.scheduleImpactDays > 0
+                                            ? ` · влияние +${problem.scheduleImpactDays} дн.`
+                                            : ""}
+                                          {problem.jiraTicketKey
+                                            ? ` · ${problem.jiraTicketKey}`
+                                            : ""}
+                                        </small>
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="portfolio-blocker-empty">
+                                  У проекта блокирующих проблем нет.
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                    {portfolioBlockingProblemGroups.length === 0 && (
+                      <div className="empty-state">Активные портфели не найдены.</div>
+                    )}
+                  </div>
                 </article>
               </section>
             )}

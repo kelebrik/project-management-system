@@ -72,6 +72,7 @@ export type ProjectListItem = {
   jiraIntegration: JiraIntegration | null;
   targetDateChanges: ProjectTargetDateChange[];
   wbsItems: WbsItem[];
+  raidItems: RaidItem[];
   currentUserAccessLevel: ProjectAccessLevel | null;
   _count: {
     tasks: number;
