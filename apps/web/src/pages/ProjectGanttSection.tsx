@@ -86,6 +86,13 @@ export function ProjectGanttSection() {
                               <div className="segmented-control" aria-label="Масштаб Гантта">
                                 <button
                                   type="button"
+                                  className={ganttScale === "week" ? "active" : ""}
+                                  onClick={() => setGanttScale("week")}
+                                >
+                                  Недели
+                                </button>
+                                <button
+                                  type="button"
                                   className={ganttScale === "month" ? "active" : ""}
                                   onClick={() => setGanttScale("month")}
                                 >

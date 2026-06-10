@@ -30,6 +30,8 @@ type TimelinePeriod = {
 type TimelineWeek = {
   label: string;
   offset: number;
+  showLabel: boolean;
+  width: number;
 };
 
 export type WbsGanttDependencyLine = {
@@ -198,10 +200,13 @@ export function createWbsGantt({
     cursor < end;
     cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 7)
   ) {
-    if (cursor <= start) continue;
+    const weekEnd = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 7);
+    const position = periodPosition(cursor, weekEnd);
     weeks.push({
       label: shortDate(cursor.toISOString()),
-      offset: (daysBetween(start, cursor) / totalDays) * 100,
+      offset: position.offset,
+      showLabel: position.width >= 2,
+      width: position.width,
     });
   }
   const criticalIds = new Set(criticalPath?.criticalItemIds ?? []);

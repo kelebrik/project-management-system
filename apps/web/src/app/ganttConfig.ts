@@ -1,8 +1,9 @@
-export type GanttScale = "month" | "quarter";
+export type GanttScale = "week" | "month" | "quarter";
 
 export const GANTT_PANEL_HEIGHT_DEFAULT = 456;
 export const GANTT_PANEL_WIDTH_DEFAULT = 0;
 export const GANTT_SCALE_WIDTH: Record<GanttScale, number> = {
+  week: 64,
   month: 120,
   quarter: 72,
 };
