@@ -102,11 +102,17 @@ export function PortfolioPage() {
                             <span className="portfolio-goal-item-index">{index + 1}</span>
                             <span>
                               <b>{item.projectCode} · {item.goalTitle}</b>
-                              <small>
-                                {item.projectName} · срок {date(item.dueDate)}
-                                {item.baselineDueDate
-                                  ? ` · базовый план ${date(item.baselineDueDate)}`
-                                  : ""}
+                              <small className="portfolio-goal-meta">
+                                <span>{item.projectName}</span>
+                                {item.baselineDueDate && (
+                                  <span>базовый план {date(item.baselineDueDate)}</span>
+                                )}
+                                <span>прогноз {date(item.dueDate)}</span>
+                                {item.delayDays !== null && item.delayDays > 0 && (
+                                  <span className="portfolio-goal-delay">
+                                    отставание +{item.delayDays} дн.
+                                  </span>
+                                )}
                               </small>
                             </span>
                           </button>

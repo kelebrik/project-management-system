@@ -1,5 +1,5 @@
 import type { ProjectListItem, WbsItem } from "./domainTypes";
-import { addCalendarMonths, startOfDay } from "./dateUtils";
+import { addCalendarMonths, signedDaysBetween, startOfDay } from "./dateUtils";
 
 export function getActiveProjects(projects: ProjectListItem[]) {
   return projects.filter((item) => item.status !== "CLOSED");
@@ -63,6 +63,7 @@ export type PortfolioGoalTimelineItem = {
   status: WbsItem["status"];
   dueDate: string;
   baselineDueDate: string | null;
+  delayDays: number | null;
   offset: number;
 };
 
@@ -137,6 +138,7 @@ export function createPortfolioGoalTimeline(
           dueDate,
           dueDateSource: item.dueDate ?? item.forecastDueDate ?? "",
           baselineDueDate: item.baselineDueDate,
+          baselineDueDateValue: validDay(item.baselineDueDate),
         };
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item)),
@@ -168,6 +170,9 @@ export function createPortfolioGoalTimeline(
         status: item.status,
         dueDate: item.dueDateSource,
         baselineDueDate: item.baselineDueDate,
+        delayDays: item.baselineDueDateValue
+          ? signedDaysBetween(item.baselineDueDateValue, item.dueDate)
+          : null,
         offset: offsetForDate(item.dueDate),
       })),
   } satisfies PortfolioGoalTimelineModel;

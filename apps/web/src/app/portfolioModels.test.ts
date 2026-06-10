@@ -151,6 +151,7 @@ test("portfolio goal timeline uses active project goals only", () => {
   );
   assert.equal(timeline.items[1]?.projectCode, "A");
   assert.equal(timeline.items[1]?.baselineDueDate, "2026-08-20");
+  assert.equal(timeline.items[1]?.delayDays, 14);
   assert.equal(localDateKey(timeline.startDate), "2026-02-10");
   assert.equal(localDateKey(timeline.endDate), "2027-02-10");
   assert.equal(Math.round(timeline.todayOffset), 33);
