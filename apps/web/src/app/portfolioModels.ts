@@ -110,10 +110,8 @@ function addTimelinePadding(startDate: Date, endDate: Date) {
 }
 
 export function createPortfolioGoalTimeline(projects: ProjectListItem[]) {
-  const childProjects = projects.filter(
-    (project) => project.status !== "CLOSED" && Boolean(project.parentId),
-  );
-  const rawItems = childProjects.flatMap((project) =>
+  const activeProjects = projects.filter((project) => project.status !== "CLOSED");
+  const rawItems = activeProjects.flatMap((project) =>
     (project.wbsItems ?? [])
       .filter((item) => item.type === "GOAL" && item.status !== "CANCELLED")
       .map((item) => {

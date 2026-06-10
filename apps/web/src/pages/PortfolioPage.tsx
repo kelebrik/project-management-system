@@ -58,7 +58,7 @@ export function PortfolioPage() {
                 <article className="panel portfolio-goal-timeline-panel">
                   <div className="panel-title">
                     <div>
-                      <h2>Цели дочерних проектов</h2>
+                      <h2>Цели проектов</h2>
                       <p>Линейная шкала по записям ИСР с типом Цель</p>
                     </div>
                   </div>
@@ -104,7 +104,7 @@ export function PortfolioPage() {
                     </div>
                   ) : (
                     <div className="empty-state">
-                      У активных дочерних проектов нет записей ИСР с типом Цель.
+                      У активных проектов нет записей ИСР с типом Цель.
                     </div>
                   )}
                 </article>

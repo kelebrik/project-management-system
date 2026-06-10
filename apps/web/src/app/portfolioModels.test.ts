@@ -91,13 +91,18 @@ function project(overrides: Partial<ProjectListItem>): ProjectListItem {
   };
 }
 
-test("portfolio goal timeline uses active child project goals only", () => {
+test("portfolio goal timeline uses active project goals only", () => {
   const timeline = createPortfolioGoalTimeline([
     project({
       id: "parent",
       parentId: null,
       code: "ROOT",
-      wbsItems: [wbsGoal({ id: "parent-goal" })],
+      wbsItems: [
+        wbsGoal({
+          id: "parent-goal",
+          dueDate: "2026-08-15",
+        }),
+      ],
     }),
     project({
       id: "child-a",
@@ -132,14 +137,14 @@ test("portfolio goal timeline uses active child project goals only", () => {
     }),
   ]);
 
-  assert.equal(timeline.items.length, 2);
+  assert.equal(timeline.items.length, 3);
   assert.deepEqual(
     timeline.items.map((item) => item.id),
-    ["goal-a", "goal-b"],
+    ["parent-goal", "goal-a", "goal-b"],
   );
-  assert.equal(timeline.items[0]?.projectCode, "A");
-  assert.equal(timeline.items[0]?.baselineDueDate, "2026-08-20");
-  assert.equal(localDateKey(timeline.startDate), "2026-09-03");
+  assert.equal(timeline.items[1]?.projectCode, "A");
+  assert.equal(timeline.items[1]?.baselineDueDate, "2026-08-20");
+  assert.equal(localDateKey(timeline.startDate), "2026-08-15");
   assert.equal(localDateKey(timeline.endDate), "2026-10-14");
   assert.ok(timeline.monthTicks.length >= 2);
 });
