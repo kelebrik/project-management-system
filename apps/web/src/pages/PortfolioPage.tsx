@@ -66,6 +66,12 @@ export function PortfolioPage() {
                     <div className="portfolio-goal-timeline">
                       <div className="portfolio-goal-axis" aria-hidden="true">
                         <span className="portfolio-goal-axis-line" />
+                        <span
+                          className="portfolio-goal-today"
+                          style={{ left: `${portfolioGoalTimeline.todayOffset}%` }}
+                        >
+                          сегодня
+                        </span>
                         {portfolioGoalTimeline.monthTicks.map((tick) => (
                           <span
                             className="portfolio-goal-month-tick"
@@ -101,10 +107,14 @@ export function PortfolioPage() {
                           </button>
                         ))}
                       </div>
+                      <div className="portfolio-goal-range">
+                        <span>{date(portfolioGoalTimeline.startDate)}</span>
+                        <span>{date(portfolioGoalTimeline.endDate)}</span>
+                      </div>
                     </div>
                   ) : (
                     <div className="empty-state">
-                      У активных проектов нет записей ИСР с типом Цель.
+                      На шкале -4/+8 месяцев нет целей активных проектов.
                     </div>
                   )}
                 </article>

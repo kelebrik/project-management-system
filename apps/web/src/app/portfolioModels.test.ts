@@ -92,50 +92,57 @@ function project(overrides: Partial<ProjectListItem>): ProjectListItem {
 }
 
 test("portfolio goal timeline uses active project goals only", () => {
-  const timeline = createPortfolioGoalTimeline([
-    project({
-      id: "parent",
-      parentId: null,
-      code: "ROOT",
-      wbsItems: [
-        wbsGoal({
-          id: "parent-goal",
-          dueDate: "2026-08-15",
-        }),
-      ],
-    }),
-    project({
-      id: "child-a",
-      code: "A",
-      wbsItems: [
-        wbsGoal({
-          id: "goal-a",
-          title: "Релиз заводской прошивки",
-          dueDate: "2026-09-03",
-          baselineDueDate: "2026-08-20",
-        }),
-        wbsGoal({ id: "cancelled-goal", status: "CANCELLED" }),
-        wbsGoal({ id: "task-like", type: "TASK" }),
-      ],
-    }),
-    project({
-      id: "closed-child",
-      code: "CLOSED",
-      status: "CLOSED",
-      wbsItems: [wbsGoal({ id: "closed-goal" })],
-    }),
-    project({
-      id: "child-b",
-      code: "B",
-      wbsItems: [
-        wbsGoal({
-          id: "goal-b",
-          title: "OTA",
-          dueDate: "2026-10-14",
-        }),
-      ],
-    }),
-  ]);
+  const timeline = createPortfolioGoalTimeline(
+    [
+      project({
+        id: "parent",
+        parentId: null,
+        code: "ROOT",
+        wbsItems: [
+          wbsGoal({
+            id: "parent-goal",
+            dueDate: "2026-08-15",
+          }),
+        ],
+      }),
+      project({
+        id: "child-a",
+        code: "A",
+        wbsItems: [
+          wbsGoal({
+            id: "goal-a",
+            title: "Релиз заводской прошивки",
+            dueDate: "2026-09-03",
+            baselineDueDate: "2026-08-20",
+          }),
+          wbsGoal({ id: "cancelled-goal", status: "CANCELLED" }),
+          wbsGoal({ id: "task-like", type: "TASK" }),
+          wbsGoal({
+            id: "out-of-window",
+            dueDate: "2027-03-01",
+          }),
+        ],
+      }),
+      project({
+        id: "closed-child",
+        code: "CLOSED",
+        status: "CLOSED",
+        wbsItems: [wbsGoal({ id: "closed-goal" })],
+      }),
+      project({
+        id: "child-b",
+        code: "B",
+        wbsItems: [
+          wbsGoal({
+            id: "goal-b",
+            title: "OTA",
+            dueDate: "2026-10-14",
+          }),
+        ],
+      }),
+    ],
+    new Date(2026, 5, 10),
+  );
 
   assert.equal(timeline.items.length, 3);
   assert.deepEqual(
@@ -144,7 +151,8 @@ test("portfolio goal timeline uses active project goals only", () => {
   );
   assert.equal(timeline.items[1]?.projectCode, "A");
   assert.equal(timeline.items[1]?.baselineDueDate, "2026-08-20");
-  assert.equal(localDateKey(timeline.startDate), "2026-08-15");
-  assert.equal(localDateKey(timeline.endDate), "2026-10-14");
-  assert.ok(timeline.monthTicks.length >= 2);
+  assert.equal(localDateKey(timeline.startDate), "2026-02-10");
+  assert.equal(localDateKey(timeline.endDate), "2027-02-10");
+  assert.equal(Math.round(timeline.todayOffset), 33);
+  assert.ok(timeline.monthTicks.length >= 12);
 });

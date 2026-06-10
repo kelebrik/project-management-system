@@ -1,5 +1,5 @@
 import type { ProjectListItem, WbsItem } from "./domainTypes";
-import { startOfDay } from "./dateUtils";
+import { addCalendarMonths, startOfDay } from "./dateUtils";
 
 export function getActiveProjects(projects: ProjectListItem[]) {
   return projects.filter((item) => item.status !== "CLOSED");
@@ -68,8 +68,9 @@ export type PortfolioGoalTimelineItem = {
 
 export type PortfolioGoalTimelineModel = {
   items: PortfolioGoalTimelineItem[];
-  startDate: Date | null;
-  endDate: Date | null;
+  startDate: Date;
+  endDate: Date;
+  todayOffset: number;
   monthTicks: Array<{
     key: string;
     label: string;
@@ -90,26 +91,35 @@ function monthTickLabel(value: Date) {
   }).format(value);
 }
 
-function addTimelinePadding(startDate: Date, endDate: Date) {
-  if (startDate.getTime() === endDate.getTime()) {
-    return {
-      startDate: new Date(
-        startDate.getFullYear(),
-        startDate.getMonth(),
-        startDate.getDate() - 14,
+export function createPortfolioGoalTimeline(
+  projects: ProjectListItem[],
+  today = new Date(),
+) {
+  const todayDate = startOfDay(today);
+  const startDate = addCalendarMonths(todayDate, -4);
+  const endDate = addCalendarMonths(todayDate, 8);
+  const totalMs = Math.max(1, endDate.getTime() - startDate.getTime());
+  const offsetForDate = (value: Date) =>
+    Math.min(
+      100,
+      Math.max(
+        0,
+        ((value.getTime() - startDate.getTime()) / totalMs) * 100,
       ),
-      endDate: new Date(
-        endDate.getFullYear(),
-        endDate.getMonth(),
-        endDate.getDate() + 14,
-      ),
-    };
+    );
+  const monthTicks: PortfolioGoalTimelineModel["monthTicks"] = [];
+  for (
+    let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    cursor <= endDate;
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+  ) {
+    monthTicks.push({
+      key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
+      label: monthTickLabel(cursor),
+      offset: offsetForDate(cursor),
+    });
   }
 
-  return { startDate, endDate };
-}
-
-export function createPortfolioGoalTimeline(projects: ProjectListItem[]) {
   const activeProjects = projects.filter((project) => project.status !== "CLOSED");
   const rawItems = activeProjects.flatMap((project) =>
     (project.wbsItems ?? [])
@@ -131,60 +141,18 @@ export function createPortfolioGoalTimeline(projects: ProjectListItem[]) {
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item)),
   );
-
-  if (rawItems.length === 0) {
-    return {
-      items: [],
-      startDate: null,
-      endDate: null,
-      monthTicks: [],
-    } satisfies PortfolioGoalTimelineModel;
-  }
-
-  const minDate = rawItems.reduce(
-    (min, item) => item.dueDate.getTime() < min.getTime() ? item.dueDate : min,
-    rawItems[0].dueDate,
+  const visibleItems = rawItems.filter(
+    (item) =>
+      item.dueDate.getTime() >= startDate.getTime() &&
+      item.dueDate.getTime() <= endDate.getTime(),
   );
-  const maxDate = rawItems.reduce(
-    (max, item) => item.dueDate.getTime() > max.getTime() ? item.dueDate : max,
-    rawItems[0].dueDate,
-  );
-  const padded = addTimelinePadding(minDate, maxDate);
-  const totalMs = Math.max(
-    1,
-    padded.endDate.getTime() - padded.startDate.getTime(),
-  );
-  const offsetForDate = (value: Date) =>
-    Math.min(
-      100,
-      Math.max(
-        0,
-        ((value.getTime() - padded.startDate.getTime()) / totalMs) * 100,
-      ),
-    );
-
-  const monthTicks: PortfolioGoalTimelineModel["monthTicks"] = [];
-  for (
-    let cursor = new Date(
-      padded.startDate.getFullYear(),
-      padded.startDate.getMonth(),
-      1,
-    );
-    cursor <= padded.endDate;
-    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
-  ) {
-    monthTicks.push({
-      key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
-      label: monthTickLabel(cursor),
-      offset: offsetForDate(cursor),
-    });
-  }
 
   return {
-    startDate: padded.startDate,
-    endDate: padded.endDate,
+    startDate,
+    endDate,
+    todayOffset: offsetForDate(todayDate),
     monthTicks,
-    items: rawItems
+    items: visibleItems
       .sort(
         (left, right) =>
           left.dueDate.getTime() - right.dueDate.getTime() ||
