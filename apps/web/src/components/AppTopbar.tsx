@@ -50,6 +50,19 @@ export function AppTopbar({
   const currentTargetDate =
     projectTargetSummary?.currentTargetDate ?? project?.targetDate ?? null;
   const activeGoalTitle = projectTargetSummary?.activeGoal?.title ?? "ближайшая цель";
+  const effectiveDelayDays = projectTargetSummary?.effectiveDelayDays ?? null;
+  const delayTone =
+    effectiveDelayDays === null
+      ? scheduleHealth?.tone ?? project?.rag.toLowerCase() ?? "green"
+      : effectiveDelayDays > 0
+        ? "red"
+        : "green";
+  const delayLabel =
+    effectiveDelayDays === null
+      ? scheduleHealth?.label ?? (project ? projectHealthLabel(project.rag) : "Отставание не рассчитано")
+      : effectiveDelayDays < 0
+        ? `Опережение ${Math.abs(effectiveDelayDays)} дн.`
+        : `Отставание ${signedDaysLabel(effectiveDelayDays)}`;
 
   return (
     <header
@@ -79,13 +92,11 @@ export function AppTopbar({
             </div>
           )}
           <div className="topbar-project-row">
-            <b className={`rag ${scheduleHealth?.tone ?? project.rag.toLowerCase()}`}>
-              {scheduleHealth?.label ?? projectHealthLabel(project.rag)}
-            </b>
+            <b className={`rag ${delayTone}`}>{delayLabel}</b>
             <span>
               Прогноз по цели "{activeGoalTitle}":{" "}
               {date(projectTargetSummary?.forecastFinishDate ?? null)} (
-              {signedDaysLabel(projectTargetSummary?.effectiveDelayDays ?? null)})
+              {signedDaysLabel(effectiveDelayDays)})
             </span>
           </div>
         </div>

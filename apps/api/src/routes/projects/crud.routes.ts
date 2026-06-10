@@ -358,8 +358,7 @@ export function registerProjectCrudRoutes(
 
     const activeGoal = await findActiveProjectGoal(project.id);
     const previousTargetDate = activeGoal?.dueDate ?? project.targetDate;
-    const changed =
-      dateKey(previousTargetDate) !== dateKey(nextTargetDate);
+    const changed = dateKey(previousTargetDate) !== dateKey(nextTargetDate);
 
     if (!changed) {
       const unchanged = await prisma.project.findUnique({
