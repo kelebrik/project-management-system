@@ -1,5 +1,10 @@
 import type { ProjectListItem, RaidItem, WbsItem } from "./domainTypes";
-import { addCalendarMonths, signedDaysBetween, startOfDay } from "./dateUtils";
+import {
+  addCalendarMonths,
+  signedDaysBetween,
+  signedDaysUntil,
+  startOfDay,
+} from "./dateUtils";
 
 export function getActiveProjects(projects: ProjectListItem[]) {
   return projects.filter((item) => item.status !== "CLOSED");
@@ -96,6 +101,19 @@ export type PortfolioKeyRiskGroup = {
   portfolio: string;
   projectCount: number;
   projects: PortfolioKeyRiskProject[];
+};
+
+export type PortfolioSummary = {
+  projectCount: number;
+  redRiskCount: number;
+  blockerCount: number;
+  delayedGoalCount: number;
+};
+
+export type PortfolioRedRaidProject = {
+  projectId: string;
+  projectName: string;
+  items: PortfolioRedRaidItem[];
 };
 
 function validDay(value: string | null | undefined) {
@@ -327,4 +345,83 @@ export function createPortfolioKeyRiskGroups(projects: ProjectListItem[]) {
       ),
     }))
     .sort((left, right) => left.portfolio.localeCompare(right.portfolio, "ru"));
+}
+
+export function createPortfolioSummary(
+  projects: ProjectListItem[],
+  goalTimeline: PortfolioGoalTimelineModel,
+) {
+  const activeProjects = projects.filter((project) => project.status !== "CLOSED");
+  const activeRaidItems = activeProjects.flatMap((project) => project.raidItems ?? []);
+  return {
+    projectCount: activeProjects.length,
+    redRiskCount: activeRaidItems.filter(
+      (item) =>
+        item.type === "RISK" &&
+        item.riskScore >= 15 &&
+        item.status !== "CLOSED" &&
+        item.status !== "VALIDATED",
+    ).length,
+    blockerCount: activeRaidItems.filter(
+      (item) =>
+        item.type === "DEPENDENCY" &&
+        item.riskScore >= 15 &&
+        item.status !== "CLOSED" &&
+        item.status !== "VALIDATED",
+    ).length,
+    delayedGoalCount: goalTimeline.items.filter(
+      (item) => item.delayDays !== null && item.delayDays > 0,
+    ).length,
+  } satisfies PortfolioSummary;
+}
+
+export function visiblePortfolioBlockingProblemProjects(
+  groups: PortfolioBlockingProblemGroup[],
+) {
+  return groups.flatMap((group) =>
+    group.projects
+      .filter((project) => project.problems.length > 0)
+      .map((project) => ({
+        projectId: project.projectId,
+        projectName: project.projectName,
+        items: project.problems,
+      })),
+  );
+}
+
+export function visiblePortfolioKeyRiskProjects(
+  groups: PortfolioKeyRiskGroup[],
+) {
+  return groups.flatMap((group) =>
+    group.projects
+      .filter((project) => project.risks.length > 0)
+      .map((project) => ({
+        projectId: project.projectId,
+        projectName: project.projectName,
+        items: project.risks,
+      })),
+  );
+}
+
+export function createPortfolioRedZoneProjectIds(
+  problemProjects: PortfolioRedRaidProject[],
+  riskProjects: PortfolioRedRaidProject[],
+) {
+  return new Set([
+    ...problemProjects.map((project) => project.projectId),
+    ...riskProjects.map((project) => project.projectId),
+  ]);
+}
+
+export function sortPortfolioRedRaidItems(items: PortfolioRedRaidItem[]) {
+  return [...items].sort((left, right) => {
+    const leftDue = signedDaysUntil(left.dueDate);
+    const rightDue = signedDaysUntil(right.dueDate);
+    return (
+      right.riskScore - left.riskScore ||
+      (leftDue ?? Number.POSITIVE_INFINITY) -
+        (rightDue ?? Number.POSITIVE_INFINITY) ||
+      left.title.localeCompare(right.title, "ru")
+    );
+  });
 }

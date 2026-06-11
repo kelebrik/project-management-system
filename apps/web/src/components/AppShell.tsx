@@ -350,9 +350,9 @@ export function AppShell({
             type="button"
             className={activeView === "portfolio" ? "active" : ""}
             onClick={() => openView("portfolio")}
-            aria-label="Портфель проектов"
+            aria-label="Портфель"
           >
-            {navLabel(<BriefcaseBusiness size={17} />, "Портфель проектов")}
+            {navLabel(<BriefcaseBusiness size={17} />, "Портфель")}
           </button>
           {isAuthenticated && (
             <button

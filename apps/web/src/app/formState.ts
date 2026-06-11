@@ -267,7 +267,7 @@ export function newProjectFormDefaults(): ProjectFormState {
     ...emptyProjectForm,
     code: `PRJ-${suffix}`,
     name: "Новый проект",
-    portfolio: "Портфель проектов",
+    portfolio: "Портфель",
     sponsor: "Спонсор",
     projectManager: "Руководитель проекта",
     startDate: isoDate(startDate),

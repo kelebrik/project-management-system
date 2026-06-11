@@ -26,7 +26,7 @@ export function ProjectOverviewSummaryPage() {
                           <button
                             className="executive-overview-risk-link"
                             type="button"
-                            onClick={() => openRaidItemFromOverview(item.id)}
+                            onClick={() => openRaidItemFromOverview(item.id, item.type)}
                           >
                             {item.title}
                           </button>

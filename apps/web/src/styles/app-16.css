@@ -287,4 +287,46 @@
   .gantt-body {
     grid-template-columns: var(--gantt-wbs-width, 320px) 8px minmax(420px, 1fr);
   }
+
+  .portfolio-filter-row,
+  .portfolio-top-grid,
+  .portfolio-raid-item {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-top-grid .portfolio-goal-timeline-panel {
+    grid-row: auto;
+  }
+
+  .portfolio-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portfolio-view-toggle {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-width: 0;
+  }
+
+  .portfolio-view-toggle button {
+    justify-content: center;
+  }
+
+  .portfolio-raid-due,
+  .portfolio-raid-impact {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .portfolio-summary-grid,
+  .portfolio-view-toggle {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-goal-item b,
+  .portfolio-raid-item-main b,
+  .portfolio-raid-item-main small,
+  .project-tree-name-static {
+    white-space: normal;
+  }
 }

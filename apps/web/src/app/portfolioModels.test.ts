@@ -6,6 +6,10 @@ import {
   createPortfolioBlockingProblemGroups,
   createPortfolioGoalTimeline,
   createPortfolioKeyRiskGroups,
+  createPortfolioRedZoneProjectIds,
+  createPortfolioSummary,
+  visiblePortfolioBlockingProblemProjects,
+  visiblePortfolioKeyRiskProjects,
 } from "./portfolioModels";
 
 function localDateKey(value: Date | null | undefined) {
@@ -275,4 +279,63 @@ test("portfolio key risk groups use active red risks by portfolio", () => {
   assert.equal(groups[1]?.projects[0]?.risks.length, 1);
   assert.equal(groups[1]?.projects[0]?.risks[0]?.id, "red-risk");
   assert.equal(groups[1]?.projects[0]?.projectName, "Project A");
+});
+
+test("portfolio summary and visible red zone projects ignore empty projects", () => {
+  const projects = [
+    project({
+      id: "project-a",
+      name: "Project A",
+      portfolio: "TV",
+      wbsItems: [
+        wbsGoal({
+          id: "delayed-goal",
+          dueDate: "2026-09-20",
+          baselineDueDate: "2026-09-01",
+        }),
+      ],
+      raidItems: [
+        raidProblem({ id: "red-problem", riskScore: 20 }),
+        raidProblem({ id: "red-risk", type: "RISK", riskScore: 16 }),
+      ],
+    }),
+    project({
+      id: "project-b",
+      name: "Project B",
+      portfolio: "Audio",
+      raidItems: [],
+    }),
+    project({
+      id: "closed-project",
+      status: "CLOSED",
+      raidItems: [raidProblem({ id: "closed-project-risk", type: "RISK", riskScore: 25 })],
+    }),
+  ];
+  const goalTimeline = createPortfolioGoalTimeline(projects, new Date(2026, 5, 10));
+  const problemProjects = visiblePortfolioBlockingProblemProjects(
+    createPortfolioBlockingProblemGroups(projects),
+  );
+  const riskProjects = visiblePortfolioKeyRiskProjects(
+    createPortfolioKeyRiskGroups(projects),
+  );
+  const redZoneProjectIds = createPortfolioRedZoneProjectIds(
+    problemProjects,
+    riskProjects,
+  );
+
+  assert.deepEqual(createPortfolioSummary(projects, goalTimeline), {
+    projectCount: 2,
+    redRiskCount: 1,
+    blockerCount: 1,
+    delayedGoalCount: 1,
+  });
+  assert.deepEqual(
+    problemProjects.map((item) => item.projectId),
+    ["project-a"],
+  );
+  assert.deepEqual(
+    riskProjects.map((item) => item.projectId),
+    ["project-a"],
+  );
+  assert.deepEqual([...redZoneProjectIds], ["project-a"]);
 });

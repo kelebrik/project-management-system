@@ -262,6 +262,120 @@
   justify-content: space-between;
 }
 
+.portfolio-control-panel {
+  min-height: 0;
+}
+
+.portfolio-filter-row {
+  align-items: stretch;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.portfolio-summary-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.portfolio-summary-card {
+  background: #f8fafc;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  display: grid;
+  gap: 3px;
+  min-height: 78px;
+  padding: 12px;
+}
+
+.portfolio-summary-card span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.portfolio-summary-card strong {
+  color: #1f2937;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.portfolio-summary-card small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.portfolio-summary-card.red {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.portfolio-summary-card.red strong {
+  color: #dc2626;
+}
+
+.portfolio-summary-card.amber {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.portfolio-summary-card.amber strong {
+  color: #b45309;
+}
+
+.portfolio-summary-card.green {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.portfolio-summary-card.green strong {
+  color: #16a34a;
+}
+
+.portfolio-view-toggle {
+  align-content: center;
+  background: #f8fafc;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  min-width: 190px;
+  padding: 6px;
+}
+
+.portfolio-view-toggle button {
+  background: transparent;
+  border: 0;
+  color: #64748b;
+  justify-content: flex-start;
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
+.portfolio-view-toggle button.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.portfolio-view-toggle button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.portfolio-top-grid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+}
+
+.portfolio-top-grid .portfolio-goal-timeline-panel {
+  grid-row: span 2;
+}
+
 .portfolio-blockers-panel {
   min-height: 0;
 }
@@ -392,6 +506,135 @@
   font-weight: 700;
   margin: 0;
   padding: 0 12px 12px;
+}
+
+.portfolio-raid-projects {
+  display: grid;
+  gap: 10px;
+}
+
+.portfolio-raid-project {
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.portfolio-raid-project-title {
+  align-items: center;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-height: 34px;
+  padding: 8px 10px;
+}
+
+.portfolio-raid-project-title b {
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.portfolio-raid-project-title span {
+  align-items: center;
+  background: #e2e8f0;
+  border-radius: 999px;
+  color: #475569;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  height: 22px;
+  justify-content: center;
+  min-width: 22px;
+  padding: 0 7px;
+}
+
+.portfolio-raid-list {
+  display: grid;
+}
+
+.portfolio-raid-item {
+  align-items: center;
+  background: #fff;
+  border: 0;
+  color: #1f2937;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  min-height: 54px;
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.portfolio-raid-item + .portfolio-raid-item {
+  border-top: 1px solid #e2e8f0;
+}
+
+.portfolio-raid-item:hover,
+.portfolio-raid-item:focus-visible {
+  background: #fff7ed;
+  outline: none;
+}
+
+.portfolio-raid-item-main {
+  display: block;
+  min-width: 0;
+}
+
+.portfolio-raid-item-main b,
+.portfolio-raid-item-main small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-raid-item-main b {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.portfolio-raid-item-main small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.portfolio-raid-due,
+.portfolio-raid-impact {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+.portfolio-raid-due.overdue {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.portfolio-raid-due.soon {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.portfolio-raid-due.normal,
+.portfolio-raid-due.neutral {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.portfolio-raid-impact {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.empty-state.compact {
+  min-height: 62px;
 }
 
 .project-tree-panel {

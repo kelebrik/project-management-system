@@ -24,6 +24,7 @@ import type {
   ProjectDetails,
   ProjectListItem,
   ProjectUiState,
+  RaidItemType,
   SearchResult,
   WbsCriticalPath,
   WbsDependency,
@@ -113,10 +114,14 @@ import {
   createPortfolioBlockingProblemGroups,
   createPortfolioGoalTimeline,
   createPortfolioKeyRiskGroups,
+  createPortfolioRedZoneProjectIds,
+  createPortfolioSummary,
   filterProjectOptions,
   getActiveProjects,
   getClosedProjects,
   getRecentProjects,
+  visiblePortfolioBlockingProblemProjects,
+  visiblePortfolioKeyRiskProjects,
 } from "./app/portfolioModels";
 import {
   createRaidSummary,
@@ -769,6 +774,26 @@ function App() {
   const portfolioKeyRiskGroups = useMemo(
     () => createPortfolioKeyRiskGroups(projects),
     [projects],
+  );
+  const visiblePortfolioProblemProjects = useMemo(
+    () => visiblePortfolioBlockingProblemProjects(portfolioBlockingProblemGroups),
+    [portfolioBlockingProblemGroups],
+  );
+  const visiblePortfolioRiskProjects = useMemo(
+    () => visiblePortfolioKeyRiskProjects(portfolioKeyRiskGroups),
+    [portfolioKeyRiskGroups],
+  );
+  const portfolioRedZoneProjectIds = useMemo(
+    () =>
+      createPortfolioRedZoneProjectIds(
+        visiblePortfolioProblemProjects,
+        visiblePortfolioRiskProjects,
+      ),
+    [visiblePortfolioProblemProjects, visiblePortfolioRiskProjects],
+  );
+  const portfolioSummary = useMemo(
+    () => createPortfolioSummary(projects, portfolioGoalTimeline),
+    [portfolioGoalTimeline, projects],
   );
   const wbsTree = useMemo(
     () => createWbsTree(project?.wbsItems ?? []),
@@ -2855,13 +2880,21 @@ function App() {
       wbsTree,
     });
 
-  function openRaidItemFromOverview(itemId: string) {
-    setRaidTypeFilter("RISK");
+  function openRaidItemFromOverview(
+    itemId: string,
+    itemType: RaidItemType = "RISK",
+    projectId?: string,
+  ) {
+    setRaidTypeFilter(itemType);
     setRaidDecisionOnly(false);
     setRaidOverdueOnly(false);
     setRaidHighOnly(true);
     setExpandedRaidId(itemId);
-    openView("project-raid");
+    if (projectId) {
+      selectProject(projectId, "project-raid");
+    } else {
+      openView("project-raid");
+    }
     window.setTimeout(() => {
       document
         .getElementById(`raid-item-${itemId}`)
@@ -2893,7 +2926,7 @@ function App() {
   }
 
   const viewTitle: Record<AppView, string> = {
-    portfolio: "Портфель проектов",
+    portfolio: "Портфель",
     "project-create": "Создать новый проект",
     "project-overview": project?.name ?? "Обзор и вехи",
     "project-passport": project?.name ?? "Паспорт проекта",
@@ -3116,6 +3149,8 @@ function App() {
     portfolioBlockingProblemGroups,
     portfolioGoalTimeline,
     portfolioKeyRiskGroups,
+    portfolioRedZoneProjectIds,
+    portfolioSummary,
     printSectionAsPdf,
     project,
     projectAccessDraft,
@@ -3284,6 +3319,8 @@ function App() {
     userRoleLabel,
     users,
     userToDraft,
+    visiblePortfolioProblemProjects,
+    visiblePortfolioRiskProjects,
     visibleStructureWbsTree,
     visibleWbsTree,
     WBS_TABLE_COLUMNS,
