@@ -782,6 +782,10 @@
   padding: 16px;
 }
 
+article.panel.portfolio-control-panel {
+  min-height: 0;
+}
+
 .project-card,
 .overview-panel {
   grid-column: span 2;
