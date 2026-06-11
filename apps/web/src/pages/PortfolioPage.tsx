@@ -11,13 +11,8 @@ export function PortfolioPage() {
     portfolioBlockingProblemGroups,
     portfolioGoalTimeline,
     portfolioKeyRiskGroups,
-    projectRegistryDrafts,
-    projectToRegistryDraft,
-    savePortfolioProjectIdentity,
-    savingProjectRegistryId,
     selectProject,
     selectedProjectId,
-    updateProjectRegistryDraft,
   } = ctx;
   const hasMultipleBlockingPortfolios =
     portfolioBlockingProblemGroups.length > 1;
@@ -297,59 +292,25 @@ export function PortfolioPage() {
                       <span>РП</span>
                       <span>Индикатор</span>
                     </div>
-                    {activeProjectTree.map((item) => {
-                      const draft =
-                        projectRegistryDrafts[item.id] ??
-                        projectToRegistryDraft(item);
-                      return (
+                    {activeProjectTree.map((item) => (
                         <div
                           className={`project-tree-row ${item.id === selectedProjectId ? "active" : ""}`}
                           key={item.id}
                         >
-                          <input
-                            className="project-tree-code-input"
-                            value={draft.code}
-                            onChange={(event) =>
-                              updateProjectRegistryDraft(item.id, {
-                                code: event.target.value,
-                              })
-                            }
-                            onBlur={() =>
-                              void savePortfolioProjectIdentity(item.id)
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.currentTarget.blur();
-                              }
-                            }}
+                          <span
+                            className="project-tree-code-static"
                             style={
                               {
                                 marginLeft: `${item.level * 18}px`,
                                 "--project-indent": `${item.level * 18}px`,
                               } as CSSProperties
                             }
-                            aria-label={`Код проекта ${item.name}`}
-                            disabled={savingProjectRegistryId === item.id}
-                          />
-                          <input
-                            className="project-tree-name-input"
-                            value={draft.name}
-                            onChange={(event) =>
-                              updateProjectRegistryDraft(item.id, {
-                                name: event.target.value,
-                              })
-                            }
-                            onBlur={() =>
-                              void savePortfolioProjectIdentity(item.id)
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.currentTarget.blur();
-                              }
-                            }}
-                            aria-label={`Имя проекта ${item.code}`}
-                            disabled={savingProjectRegistryId === item.id}
-                          />
+                          >
+                            {item.code}
+                          </span>
+                          <span className="project-tree-name-static">
+                            {item.name}
+                          </span>
                           <button
                             type="button"
                             className="project-tree-open"
@@ -362,8 +323,7 @@ export function PortfolioPage() {
                           <span>{item.projectManager}</span>
                           <span className={`rag-dot ${item.rag.toLowerCase()}`} />
                         </div>
-                      );
-                    })}
+                    ))}
                     {activeProjectTree.length === 0 && (
                       <div className="empty-state">Активные проекты не найдены.</div>
                     )}
