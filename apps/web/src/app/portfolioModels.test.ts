@@ -5,6 +5,7 @@ import type { ProjectListItem, RaidItem, WbsItem } from "./domainTypes";
 import {
   createPortfolioBlockingProblemGroups,
   createPortfolioGoalTimeline,
+  createPortfolioKeyRiskGroups,
 } from "./portfolioModels";
 
 function localDateKey(value: Date | null | undefined) {
@@ -229,5 +230,49 @@ test("portfolio blocking problem groups use active red dependency problems by po
   assert.equal(groups[1]?.projects.length, 1);
   assert.equal(groups[1]?.projects[0]?.problems.length, 1);
   assert.equal(groups[1]?.projects[0]?.problems[0]?.id, "red-problem");
+  assert.equal(groups[1]?.projects[0]?.projectName, "Project A");
+});
+
+test("portfolio key risk groups use active red risks by portfolio", () => {
+  const groups = createPortfolioKeyRiskGroups([
+    project({
+      id: "project-a",
+      name: "Project A",
+      portfolio: "TV",
+      raidItems: [
+        raidProblem({
+          id: "red-risk",
+          type: "RISK",
+          title: "Не подтверждена компонентная база",
+          riskScore: 20,
+          scheduleImpactDays: 8,
+        }),
+        raidProblem({ id: "yellow-risk", type: "RISK", riskScore: 12 }),
+        raidProblem({ id: "problem", type: "DEPENDENCY", riskScore: 25 }),
+        raidProblem({
+          id: "validated-risk",
+          type: "RISK",
+          status: "VALIDATED",
+          riskScore: 25,
+        }),
+      ],
+    }),
+    project({
+      id: "project-b",
+      name: "Project B",
+      portfolio: "Audio",
+      raidItems: [],
+    }),
+  ]);
+
+  assert.deepEqual(
+    groups.map((group) => group.portfolio),
+    ["Audio", "TV"],
+  );
+  assert.equal(groups[0]?.projects.length, 1);
+  assert.equal(groups[0]?.projects[0]?.risks.length, 0);
+  assert.equal(groups[1]?.projects.length, 1);
+  assert.equal(groups[1]?.projects[0]?.risks.length, 1);
+  assert.equal(groups[1]?.projects[0]?.risks[0]?.id, "red-risk");
   assert.equal(groups[1]?.projects[0]?.projectName, "Project A");
 });

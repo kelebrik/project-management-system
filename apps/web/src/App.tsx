@@ -112,6 +112,7 @@ import {
 import {
   createPortfolioBlockingProblemGroups,
   createPortfolioGoalTimeline,
+  createPortfolioKeyRiskGroups,
   filterProjectOptions,
   getActiveProjects,
   getClosedProjects,
@@ -763,6 +764,10 @@ function App() {
   );
   const portfolioBlockingProblemGroups = useMemo(
     () => createPortfolioBlockingProblemGroups(projects),
+    [projects],
+  );
+  const portfolioKeyRiskGroups = useMemo(
+    () => createPortfolioKeyRiskGroups(projects),
     [projects],
   );
   const wbsTree = useMemo(
@@ -3110,6 +3115,7 @@ function App() {
     passportRows,
     portfolioBlockingProblemGroups,
     portfolioGoalTimeline,
+    portfolioKeyRiskGroups,
     printSectionAsPdf,
     project,
     projectAccessDraft,

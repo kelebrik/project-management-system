@@ -8,7 +8,7 @@ export const projectInclude = {
   },
   raidItems: {
     where: {
-      type: 'DEPENDENCY',
+      type: { in: ['DEPENDENCY', 'RISK'] },
       riskScore: { gte: 15 },
       status: { notIn: ['CLOSED', 'VALIDATED'] },
     },

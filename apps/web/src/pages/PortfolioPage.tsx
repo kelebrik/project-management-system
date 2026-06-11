@@ -10,6 +10,7 @@ export function PortfolioPage() {
     openView,
     portfolioBlockingProblemGroups,
     portfolioGoalTimeline,
+    portfolioKeyRiskGroups,
     projectRegistryDrafts,
     projectToRegistryDraft,
     savePortfolioProjectIdentity,
@@ -20,6 +21,7 @@ export function PortfolioPage() {
   } = ctx;
   const hasMultipleBlockingPortfolios =
     portfolioBlockingProblemGroups.length > 1;
+  const hasMultipleKeyRiskPortfolios = portfolioKeyRiskGroups.length > 1;
   const renderBlockingProblemProjects = (
     projectGroups: (typeof portfolioBlockingProblemGroups)[number]["projects"],
   ) => (
@@ -60,6 +62,52 @@ export function PortfolioPage() {
           ) : (
             <p className="portfolio-blocker-empty">
               У проекта блокирующих проблем нет.
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+  const renderKeyRiskProjects = (
+    projectGroups: (typeof portfolioKeyRiskGroups)[number]["projects"],
+  ) => (
+    <div className="portfolio-blocker-projects">
+      {projectGroups.map((projectGroup) => (
+        <div className="portfolio-blocker-project" key={projectGroup.projectId}>
+          <div className="portfolio-blocker-project-title">
+            <b>{projectGroup.projectName}</b>
+          </div>
+          {projectGroup.risks.length > 0 ? (
+            <div className="portfolio-blocker-list">
+              {projectGroup.risks.map((risk) => (
+                <button
+                  type="button"
+                  className="portfolio-blocker-item"
+                  key={risk.id}
+                  onClick={() =>
+                    selectProject(risk.projectId, firstEnabledProjectView)
+                  }
+                >
+                  <span className="portfolio-blocker-score">
+                    {risk.riskScore}
+                  </span>
+                  <span>
+                    <b>{risk.title}</b>
+                    <small>
+                      {risk.owner || "не назначен"}
+                      {risk.dueDate ? ` · срок ${date(risk.dueDate)}` : ""}
+                      {risk.scheduleImpactDays > 0
+                        ? ` · влияние +${risk.scheduleImpactDays} дн.`
+                        : ""}
+                      {risk.jiraTicketKey ? ` · ${risk.jiraTicketKey}` : ""}
+                    </small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="portfolio-blocker-empty">
+              У проекта ключевых рисков нет.
             </p>
           )}
         </div>
@@ -187,10 +235,49 @@ export function PortfolioPage() {
             )}
       {(
               <section className="projects-tree-section">
+                <article className="panel portfolio-blockers-panel">
+                  <div className="panel-title">
+                    <div>
+                      <h2>Ключевые риски</h2>
+                      <p>
+                        {hasMultipleKeyRiskPortfolios
+                          ? "Риски в красной зоне по портфелям"
+                          : "Риски в красной зоне по проектам"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="portfolio-blocker-groups">
+                    {!hasMultipleKeyRiskPortfolios &&
+                      portfolioKeyRiskGroups[0] &&
+                      renderKeyRiskProjects(
+                        portfolioKeyRiskGroups[0].projects,
+                      )}
+                    {hasMultipleKeyRiskPortfolios &&
+                      portfolioKeyRiskGroups.map((group) => (
+                        <section
+                          className="portfolio-blocker-group"
+                          key={group.portfolio}
+                        >
+                          <div className="portfolio-blocker-group-title">
+                            <h3>{group.portfolio}</h3>
+                            <span>{group.projectCount} проект(ов)</span>
+                          </div>
+                          {renderKeyRiskProjects(group.projects)}
+                        </section>
+                      ))}
+                    {portfolioKeyRiskGroups.length === 0 && (
+                      <div className="empty-state">Активные портфели не найдены.</div>
+                    )}
+                  </div>
+                </article>
+              </section>
+            )}
+      {(
+              <section className="projects-tree-section">
                 <article className="panel project-tree-panel">
                   <div className="panel-title">
                     <div>
-                      <h2>Портфель проектов</h2>
+                      <h2>Проекты портфеля</h2>
                       <p>
                         Иерархия проектов, статусы и ответственные руководители
                       </p>
@@ -208,7 +295,6 @@ export function PortfolioPage() {
                       <span>Имя проекта</span>
                       <span />
                       <span>РП</span>
-                      <span>Прогресс</span>
                       <span>Индикатор</span>
                     </div>
                     {activeProjectTree.map((item) => {
@@ -274,7 +360,6 @@ export function PortfolioPage() {
                             Открыть
                           </button>
                           <span>{item.projectManager}</span>
-                          <span>{item.progress}%</span>
                           <span className={`rag-dot ${item.rag.toLowerCase()}`} />
                         </div>
                       );

@@ -57,9 +57,10 @@ export type PortfolioGoalTimelineModel = {
   }>;
 };
 
-export type PortfolioBlockingProblem = Pick<
+export type PortfolioRedRaidItem = Pick<
   RaidItem,
   | "id"
+  | "type"
   | "title"
   | "owner"
   | "dueDate"
@@ -76,13 +77,25 @@ export type PortfolioBlockingProblem = Pick<
 export type PortfolioBlockingProblemProject = {
   projectId: string;
   projectName: string;
-  problems: PortfolioBlockingProblem[];
+  problems: PortfolioRedRaidItem[];
 };
 
 export type PortfolioBlockingProblemGroup = {
   portfolio: string;
   projectCount: number;
   projects: PortfolioBlockingProblemProject[];
+};
+
+export type PortfolioKeyRiskProject = {
+  projectId: string;
+  projectName: string;
+  risks: PortfolioRedRaidItem[];
+};
+
+export type PortfolioKeyRiskGroup = {
+  portfolio: string;
+  projectCount: number;
+  projects: PortfolioKeyRiskProject[];
 };
 
 function validDay(value: string | null | undefined) {
@@ -215,6 +228,7 @@ export function createPortfolioBlockingProblemGroups(projects: ProjectListItem[]
         )
         .map((item) => ({
           id: item.id,
+          type: item.type,
           title: item.title,
           owner: item.owner,
           dueDate: item.dueDate,
@@ -230,6 +244,72 @@ export function createPortfolioBlockingProblemGroups(projects: ProjectListItem[]
         projectId: project.id,
         projectName: project.name,
         problems: redProblems.sort(
+          (left, right) =>
+            right.riskScore - left.riskScore ||
+            left.title.localeCompare(right.title, "ru"),
+        ),
+      });
+    });
+
+  return Array.from(groupsByPortfolio.values())
+    .map((group) => ({
+      ...group,
+      projects: group.projects.sort(
+        (left, right) =>
+          left.projectName.localeCompare(right.projectName, "ru") ||
+          left.projectId.localeCompare(right.projectId, "ru"),
+      ),
+    }))
+    .sort((left, right) => left.portfolio.localeCompare(right.portfolio, "ru"));
+}
+
+export function createPortfolioKeyRiskGroups(projects: ProjectListItem[]) {
+  const groupsByPortfolio = new Map<string, PortfolioKeyRiskGroup>();
+
+  const ensureGroup = (portfolio: string) => {
+    const key = portfolio.trim() || "Без портфеля";
+    const existing = groupsByPortfolio.get(key);
+    if (existing) return existing;
+    const nextGroup: PortfolioKeyRiskGroup = {
+      portfolio: key,
+      projectCount: 0,
+      projects: [],
+    };
+    groupsByPortfolio.set(key, nextGroup);
+    return nextGroup;
+  };
+
+  projects
+    .filter((project) => project.status !== "CLOSED")
+    .forEach((project) => {
+      const group = ensureGroup(project.portfolio);
+      group.projectCount += 1;
+      const redRisks = (project.raidItems ?? [])
+        .filter(
+          (item) =>
+            item.type === "RISK" &&
+            item.riskScore >= 15 &&
+            item.status !== "CLOSED" &&
+            item.status !== "VALIDATED",
+        )
+        .map((item) => ({
+          id: item.id,
+          type: item.type,
+          title: item.title,
+          owner: item.owner,
+          dueDate: item.dueDate,
+          riskScore: item.riskScore,
+          scheduleImpactDays: item.scheduleImpactDays,
+          jiraTicketKey: item.jiraTicketKey,
+          jiraTicketUrl: item.jiraTicketUrl,
+          status: item.status,
+          projectId: project.id,
+          projectName: project.name,
+        }));
+      group.projects.push({
+        projectId: project.id,
+        projectName: project.name,
+        risks: redRisks.sort(
           (left, right) =>
             right.riskScore - left.riskScore ||
             left.title.localeCompare(right.title, "ru"),

@@ -409,7 +409,7 @@
   align-items: center;
   display: grid;
   gap: 12px;
-  grid-template-columns: 170px minmax(260px, 1fr) 92px 180px 92px 18px;
+  grid-template-columns: 170px minmax(260px, 1fr) 92px 180px 18px;
 }
 
 .project-tree-head {
