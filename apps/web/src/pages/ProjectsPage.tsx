@@ -32,7 +32,9 @@ function compactPassportRows(project: ProjectListItem) {
 export function ProjectsPage() {
   const ctx = usePageContext();
   const { date, projects, selectProject } = ctx;
-  const projectItems = projects as ProjectListItem[];
+  const projectItems = (projects as ProjectListItem[]).filter(
+    (project) => project.status !== "CLOSED",
+  );
 
   return (
     <section className="projects-overview-section">
@@ -84,7 +86,7 @@ export function ProjectsPage() {
             })}
           </div>
         ) : (
-          <div className="empty-state compact">Проектов нет.</div>
+          <div className="empty-state compact">Активных проектов нет.</div>
         )}
       </article>
     </section>
