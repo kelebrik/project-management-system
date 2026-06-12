@@ -7,7 +7,10 @@ import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { copyLatestWbsBaselineToProject } from '../../services/wbs-baseline.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
-import { userProjectAccessLevelMap } from '../../server/project-access.js';
+import {
+  userProjectAccessLevel,
+  userProjectAccessLevelMap,
+} from '../../server/project-access.js';
 import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
 import { createDefaultProjectStructure } from './default-structure.js';
@@ -322,7 +325,7 @@ export function registerProjectCrudRoutes(
 
     try {
       const beforeSnapshot = await projectAuditSnapshot(project.id);
-      const updated = await prisma.project.update({
+      await prisma.project.update({
         where: { id: project.id },
         data: {
           ...parsed.data,
@@ -337,6 +340,21 @@ export function registerProjectCrudRoutes(
               : sanitizeProjectUiState(parsed.data.uiState),
         },
       });
+      const updated = await prisma.project.findUnique({
+        where: { id: project.id },
+        include: projectInclude,
+      });
+      if (!updated) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      const actor = currentUser(req);
+      const currentUserAccessLevel =
+        actor?.role === 'ADMIN'
+          ? 'ADMIN'
+          : actor
+            ? await userProjectAccessLevel(actor.id, updated.id)
+            : null;
 
       const afterSnapshot = await projectAuditSnapshot(project.id);
       await recordAuditEvent({
@@ -360,7 +378,7 @@ export function registerProjectCrudRoutes(
         },
       }).catch(() => undefined);
 
-      res.json(updated);
+      res.json({ ...updated, currentUserAccessLevel });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

@@ -65,6 +65,50 @@ export function useProjectRegistryController({
 }: UseProjectRegistryControllerOptions) {
   const currentProjectId = project?.id ?? null;
 
+  const applyProjectMasterRecord = useCallback(
+    (updated: ProjectListItem) => {
+      setProjects((currentProjects) =>
+        currentProjects.map((item) =>
+          item.id === updated.id ? { ...item, ...updated } : item,
+        ),
+      );
+      setProjectRegistryDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [updated.id]: projectToRegistryDraft(updated),
+      }));
+      setSelectedProjectId((currentId) => currentId ?? updated.id);
+      setProject((currentProject) => {
+        if (currentProject?.id !== updated.id) return currentProject;
+        return {
+          ...currentProject,
+          parentId: updated.parentId,
+          code: updated.code,
+          name: updated.name,
+          portfolio: updated.portfolio,
+          sponsor: updated.sponsor,
+          projectManager: updated.projectManager,
+          status: updated.status,
+          rag: updated.rag,
+          startDate: updated.startDate,
+          initialTargetDate: updated.initialTargetDate,
+          targetDate: updated.targetDate,
+          progress: updated.progress,
+          scheduleVariance: updated.scheduleVariance,
+          budgetPlanned: updated.budgetPlanned,
+          budgetForecast: updated.budgetForecast,
+          summary: updated.summary,
+          sortOrder: updated.sortOrder,
+          uiState: updated.uiState,
+          jiraIntegration: updated.jiraIntegration,
+          targetDateChanges: updated.targetDateChanges,
+          currentUserAccessLevel: updated.currentUserAccessLevel,
+          _count: updated._count,
+        };
+      });
+    },
+    [setProject, setProjectRegistryDrafts, setProjects, setSelectedProjectId],
+  );
+
   const reloadProjects = useCallback(
     async (selectedId?: string) => {
       const data = await apiClient.get<ProjectListItem[]>(
@@ -185,25 +229,12 @@ export function useProjectRegistryController({
       setError(null);
       setNotice(null);
       try {
-        const response = await authenticatedFetch(
-          `${apiBase}/api/projects/${projectId}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              code,
-              name,
-            }),
-          },
+        const updated = await apiClient.patch<ProjectListItem>(
+          `/api/projects/${projectId}`,
+          { code, name },
+          "Не удалось сохранить проект",
         );
-        const result = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(
-            result?.error?.formErrors?.join(", ") ||
-              result?.error ||
-              "Не удалось сохранить проект",
-          );
-        }
+        applyProjectMasterRecord(updated);
         await reloadProjects();
         if (currentProjectId === projectId) {
           await refreshProject(projectId);
@@ -221,6 +252,7 @@ export function useProjectRegistryController({
       }
     },
     [
+      applyProjectMasterRecord,
       currentProjectId,
       projectRegistryDrafts,
       projects,
@@ -250,11 +282,12 @@ export function useProjectRegistryController({
       setError(null);
       setNotice(null);
       try {
-        await apiClient.patch<ProjectListItem>(
+        const updated = await apiClient.patch<ProjectListItem>(
           `/api/projects/${projectId}`,
           { portfolio },
           "Не удалось сохранить портфель проекта",
         );
+        applyProjectMasterRecord(updated);
         await reloadProjects(selectedProjectId ?? projectId);
         if (currentProjectId === projectId) {
           await refreshProject(projectId);
@@ -272,6 +305,7 @@ export function useProjectRegistryController({
       }
     },
     [
+      applyProjectMasterRecord,
       currentProjectId,
       projectRegistryDrafts,
       projects,
@@ -299,31 +333,21 @@ export function useProjectRegistryController({
       setError(null);
       setNotice(null);
       try {
-        const response = await authenticatedFetch(
-          `${apiBase}/api/projects/${projectId}`,
+        const updated = await apiClient.patch<ProjectListItem>(
+          `/api/projects/${projectId}`,
           {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              code,
-              name,
-              parentId: draft.parentId || null,
-              projectManager:
-                draft.projectManager.trim() || "Руководитель проекта",
-              status: draft.status,
-              rag: draft.rag,
-              sortOrder: Number(draft.sortOrder) || 0,
-            }),
+            code,
+            name,
+            parentId: draft.parentId || null,
+            projectManager:
+              draft.projectManager.trim() || "Руководитель проекта",
+            status: draft.status,
+            rag: draft.rag,
+            sortOrder: Number(draft.sortOrder) || 0,
           },
+          "Не удалось сохранить проект",
         );
-        const result = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(
-            result?.error?.formErrors?.join(", ") ||
-              result?.error ||
-              "Не удалось сохранить проект",
-          );
-        }
+        applyProjectMasterRecord(updated);
         await reloadProjects(selectedProjectId ?? projectId);
         if (currentProjectId === projectId) {
           await refreshProject(projectId);
@@ -341,6 +365,7 @@ export function useProjectRegistryController({
       }
     },
     [
+      applyProjectMasterRecord,
       currentProjectId,
       projectRegistryDrafts,
       refreshProject,
