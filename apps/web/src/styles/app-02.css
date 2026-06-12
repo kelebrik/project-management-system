@@ -33,118 +33,6 @@
   background: #93c5fd;
 }
 
-.project-picker {
-  display: grid;
-  gap: 6px;
-  padding: 4px 0 8px;
-  position: relative;
-}
-
-.sidebar .project-picker-trigger {
-  align-items: center;
-  background-color: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  color: #1f2937;
-  display: grid;
-  font-size: 12px;
-  gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  height: 36px;
-  justify-content: stretch;
-  padding: 8px 10px;
-  text-align: left;
-  width: 100%;
-}
-
-.sidebar .project-picker-trigger span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-picker-popover {
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
-  display: grid;
-  gap: 10px;
-  left: 0;
-  padding: 10px;
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
-  z-index: 60;
-}
-
-.project-search {
-  align-items: center;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  display: grid;
-  gap: 6px;
-  grid-template-columns: auto minmax(0, 1fr);
-  padding: 0 8px;
-}
-
-.project-search input {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  font-size: 12px;
-  height: 34px;
-  padding: 0;
-}
-
-.project-search input:focus {
-  box-shadow: none;
-}
-
-.project-picker-section {
-  display: grid;
-  gap: 4px;
-}
-
-.project-picker-section > span {
-  color: #64748b;
-  font-size: 10px;
-  font-weight: 900;
-  padding: 0 2px;
-  text-transform: uppercase;
-}
-
-.project-picker-section button {
-  align-items: start;
-  display: grid;
-  gap: 2px;
-  grid-template-columns: 1fr;
-  padding: 7px 8px;
-}
-
-.project-picker-section button.selected {
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.project-picker-section b,
-.project-picker-section small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-picker-section small,
-.project-picker-section em {
-  color: #64748b;
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 700;
-}
-
 .project-menu {
   display: grid;
   gap: 3px;
@@ -209,10 +97,6 @@
   gap: 4px;
   margin: 2px 0 8px;
   padding-left: 0;
-}
-
-.sidebar-collapsed .project-picker {
-  display: none;
 }
 
 .sidebar-collapsed .sidebar button.child {

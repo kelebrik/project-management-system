@@ -53,8 +53,6 @@ export function useProjectCoreState() {
   const [passportRows, setPassportRows] = useState<PassportRow[]>([]);
   const [savingPassportRows, setSavingPassportRows] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [projectSearch, setProjectSearch] = useState("");
-  const [showProjectPicker, setShowProjectPicker] = useState(false);
 
   return {
     projects,
@@ -103,10 +101,6 @@ export function useProjectCoreState() {
     setSavingPassportRows,
     sidebarCollapsed,
     setSidebarCollapsed,
-    projectSearch,
-    setProjectSearch,
-    showProjectPicker,
-    setShowProjectPicker,
   };
 }
 
