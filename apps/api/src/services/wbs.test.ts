@@ -130,6 +130,25 @@ test("calculateWbsHierarchyStatusUpdates prioritizes at risk over in progress", 
   ]);
 });
 
+test("calculateWbsHierarchyStatusUpdates rolls up in review tasks", () => {
+  const updates = calculateWbsHierarchyStatusUpdates([
+    {
+      id: "phase",
+      parentId: null,
+      type: "PHASE",
+      status: "NOT_STARTED",
+    },
+    {
+      id: "task",
+      parentId: "phase",
+      type: "TASK",
+      status: "IN_REVIEW",
+    },
+  ]);
+
+  assert.deepEqual(updates, [{ id: "phase", status: "IN_REVIEW" }]);
+});
+
 test("calculateWbsHierarchyStatusUpdates reads nested task status through deliverables", () => {
   const updates = calculateWbsHierarchyStatusUpdates([
     {

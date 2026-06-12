@@ -13,6 +13,7 @@ export const wbsItemTypes = [
 export const wbsItemStatuses = [
   "NOT_STARTED",
   "IN_PROGRESS",
+  "IN_REVIEW",
   "AT_RISK",
   "BLOCKED",
   "DONE",
@@ -77,6 +78,7 @@ export const labels = {
   wbsStatus: {
     NOT_STARTED: "Не начата",
     IN_PROGRESS: "В работе",
+    IN_REVIEW: "На проверке",
     AT_RISK: "Под риском",
     BLOCKED: "Провалено",
     DONE: "Сделано",

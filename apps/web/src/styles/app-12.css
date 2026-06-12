@@ -90,13 +90,10 @@
 }
 
 .work-summary-section {
-  background: #fff;
-  border: 1px solid #d8e0eb;
-  border-radius: 6px;
   display: grid;
   gap: 12px;
   margin-bottom: 14px;
-  padding: 14px;
+  min-height: 0;
 }
 
 .work-summary-grid {
@@ -141,8 +138,14 @@
 .work-summary-head,
 .work-summary-row {
   display: grid;
-  grid-template-columns: 92px minmax(260px, 1fr) 150px 140px 140px;
-  min-width: 782px;
+  grid-template-columns: 64px minmax(260px, 1fr) 118px 124px 124px;
+  min-width: 690px;
+}
+
+.work-summary-head.without-start,
+.work-summary-row.without-start {
+  grid-template-columns: 64px minmax(260px, 1fr) 118px 124px;
+  min-width: 566px;
 }
 
 .work-summary-head {
@@ -177,6 +180,11 @@
   min-height: 34px;
   padding: 6px 8px;
   width: 100%;
+}
+
+.work-summary-row select {
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
 .work-summary-code {

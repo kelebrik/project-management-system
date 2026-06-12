@@ -101,7 +101,11 @@ export function milestoneStateLabel(
   ) {
     return { label: "Последние задачи не начаты", tone: "gray" };
   }
-  if (lastTasks.some((item) => item.status === "IN_PROGRESS")) {
+  if (
+    lastTasks.some(
+      (item) => item.status === "IN_PROGRESS" || item.status === "IN_REVIEW",
+    )
+  ) {
     return { label: "Последние задачи в работе", tone: "blue" };
   }
   return { label: "Веха запланирована", tone: "gray" };

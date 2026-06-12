@@ -117,6 +117,9 @@ function aggregateParentStatus(statuses: WbsItemStatus[]): WbsItemStatus | null 
   if (activeStatuses.some((status) => status === "IN_PROGRESS")) {
     return "IN_PROGRESS";
   }
+  if (activeStatuses.some((status) => status === "IN_REVIEW")) {
+    return "IN_REVIEW";
+  }
   if (activeStatuses.every((status) => status === "DONE")) return "DONE";
   if (activeStatuses.some((status) => status === "DONE")) return "IN_PROGRESS";
   return "NOT_STARTED";

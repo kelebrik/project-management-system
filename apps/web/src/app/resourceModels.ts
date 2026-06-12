@@ -18,7 +18,9 @@ export function createResourceSummaryRows(wbsItems: WbsItem[], now: Date) {
       { owner, total: 0, done: 0, inProgress: 0, overdue: 0 };
     row.total += 1;
     if (item.status === "DONE") row.done += 1;
-    if (item.status === "IN_PROGRESS") row.inProgress += 1;
+    if (item.status === "IN_PROGRESS" || item.status === "IN_REVIEW") {
+      row.inProgress += 1;
+    }
     if (item.dueDate && new Date(item.dueDate) < now && item.status !== "DONE") {
       row.overdue += 1;
     }

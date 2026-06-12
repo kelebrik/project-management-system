@@ -157,7 +157,12 @@ export function createOverviewDashboard(
     upstreamCauseCache.set(itemId, causeIds);
     return causeIds;
   };
-  const openStatuses: WbsItemStatus[] = ["IN_PROGRESS", "AT_RISK", "BLOCKED"];
+  const openStatuses: WbsItemStatus[] = [
+    "IN_PROGRESS",
+    "IN_REVIEW",
+    "AT_RISK",
+    "BLOCKED",
+  ];
   const isScheduleVarianceOpenCandidate = (item: WbsItem) =>
     hasScheduleVarianceDates(item) &&
     !isWbsCheckpoint(item) &&

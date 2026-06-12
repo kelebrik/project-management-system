@@ -52,6 +52,7 @@ enum WbsItemType {
 enum WbsItemStatus {
   NOT_STARTED
   IN_PROGRESS
+  IN_REVIEW
   AT_RISK
   BLOCKED
   DONE

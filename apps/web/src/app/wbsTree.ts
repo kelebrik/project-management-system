@@ -18,7 +18,7 @@ export function wbsToneClass(
   if (item.dueDate && new Date(item.dueDate) < startOfDay(new Date())) {
     return "tone-p";
   }
-  if (item.status === "IN_PROGRESS") return "tone-b";
+  if (item.status === "IN_PROGRESS" || item.status === "IN_REVIEW") return "tone-b";
   return "tone-x";
 }
 
@@ -32,7 +32,11 @@ export function summaryToneClass(item: WbsTreeItem) {
   }
   if (
     item.status === "IN_PROGRESS" ||
-    descendants.some((descendant) => descendant.status === "IN_PROGRESS")
+    item.status === "IN_REVIEW" ||
+    descendants.some(
+      (descendant) =>
+        descendant.status === "IN_PROGRESS" || descendant.status === "IN_REVIEW",
+    )
   ) {
     return "tone-b";
   }

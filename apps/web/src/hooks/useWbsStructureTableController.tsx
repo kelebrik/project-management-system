@@ -101,6 +101,7 @@ function normalizeWbsPasteValue(
     const matchedStatus = ([
       "NOT_STARTED",
       "IN_PROGRESS",
+      "IN_REVIEW",
       "AT_RISK",
       "BLOCKED",
       "DONE",
@@ -449,6 +450,7 @@ export function useWbsStructureTableController({
           >
             <option value="NOT_STARTED">{wbsStatusLabel("NOT_STARTED")}</option>
             <option value="IN_PROGRESS">{wbsStatusLabel("IN_PROGRESS")}</option>
+            <option value="IN_REVIEW">{wbsStatusLabel("IN_REVIEW")}</option>
             <option value="AT_RISK">{wbsStatusLabel("AT_RISK")}</option>
             <option value="BLOCKED">{wbsStatusLabel("BLOCKED")}</option>
             <option value="DONE">{wbsStatusLabel("DONE")}</option>

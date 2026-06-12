@@ -153,7 +153,7 @@ export const openApiDocument = {
           },
           status: {
             type: "string",
-            enum: ["NOT_STARTED", "IN_PROGRESS", "AT_RISK", "BLOCKED", "DONE", "CANCELLED"],
+            enum: ["NOT_STARTED", "IN_PROGRESS", "IN_REVIEW", "AT_RISK", "BLOCKED", "DONE", "CANCELLED"],
           },
           owner: { type: "string" },
           startDate: { type: ["string", "null"], format: "date-time" },
