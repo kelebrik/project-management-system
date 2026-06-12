@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FolderTree } from "lucide-react";
+import { FolderTree, Plus } from "lucide-react";
 
 import type { ProjectModuleKey } from "../app/projectModules";
 import type { AppView, ProjectSectionView } from "../app/routes";
@@ -18,6 +18,7 @@ type ProjectSidebarMenuProps = {
   navLabel: (icon: ReactNode, label: string) => ReactNode;
   onOpenView: (view: AppView) => void;
   projectNavItems: ProjectNavItem[];
+  projectPicker: ReactNode;
   shouldShowProjectMenu: boolean;
 };
 
@@ -28,6 +29,7 @@ export function ProjectSidebarMenu({
   navLabel,
   onOpenView,
   projectNavItems,
+  projectPicker,
   shouldShowProjectMenu,
 }: ProjectSidebarMenuProps) {
   return (
@@ -42,6 +44,7 @@ export function ProjectSidebarMenu({
       </button>
       {shouldShowProjectMenu && (
         <div className="sidebar-group">
+          {projectPicker}
           <div className="project-menu">
             {projectNavItems
               .filter((item) => isProjectModuleEnabled(item.key))
@@ -60,6 +63,18 @@ export function ProjectSidebarMenu({
                   {navLabel(item.icon, item.label)}
                 </button>
               ))}
+            <button
+              type="button"
+              className={
+                activeView === "project-create"
+                  ? "active nested child project-create-nav"
+                  : "nested child project-create-nav"
+              }
+              onClick={() => onOpenView("project-create")}
+              aria-label="Создать проект"
+            >
+              {navLabel(<Plus size={17} />, "Создать проект")}
+            </button>
           </div>
         </div>
       )}

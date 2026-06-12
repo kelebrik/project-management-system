@@ -116,8 +116,10 @@ import {
   createPortfolioKeyRiskGroups,
   createPortfolioRedZoneProjectIds,
   createPortfolioSummary,
+  filterProjectOptions,
   getActiveProjects,
   getClosedProjects,
+  getRecentProjects,
   visiblePortfolioBlockingProblemProjects,
   visiblePortfolioKeyRiskProjects,
 } from "./app/portfolioModels";
@@ -282,6 +284,12 @@ function App() {
     setSavingPassportRows,
     sidebarCollapsed,
     setSidebarCollapsed,
+    projectSearch,
+    setProjectSearch,
+    showProjectPicker,
+    setShowProjectPicker,
+    recentProjectIds,
+    setRecentProjectIds,
   } = useProjectCoreState();
   const {
     users,
@@ -747,6 +755,14 @@ function App() {
     if (isProjectModuleEnabled(projectModuleKeyByView[activeView])) return;
     openView(firstEnabledProjectView, { replace: true });
   }, [activeView, firstEnabledProjectView, isProjectModuleEnabled]);
+  const recentProjects = useMemo(
+    () => getRecentProjects(projects, recentProjectIds),
+    [projects, recentProjectIds],
+  );
+  const filteredProjectOptions = useMemo(
+    () => filterProjectOptions(activeProjects, projectSearch),
+    [activeProjects, projectSearch],
+  );
   const portfolioGoalTimeline = useMemo(
     () => createPortfolioGoalTimeline(projects),
     [projects],
@@ -2891,6 +2907,12 @@ function App() {
     setNotice(null);
     const nextProject = projects.find((item) => item.id === projectId);
     setSelectedProjectId(projectId);
+    setProjectSearch("");
+    setShowProjectPicker(false);
+    setRecentProjectIds((current) => [
+      projectId,
+      ...current.filter((item) => item !== projectId),
+    ]);
     const requestedView =
       nextView === "portfolio" || nextView === "projects" || nextView === "project-create"
         ? firstEnabledProjectView
@@ -2941,7 +2963,9 @@ function App() {
   const isProjectView = activeView === "project-create" || isProjectSectionView;
   const isAdminSectionView = isAdminSectionViewName(activeView);
   const shouldShowProjectMenu = Boolean(
-    selectedProjectListItem && (activeView === "projects" || isProjectSectionView),
+    activeView === "projects" ||
+      activeView === "project-create" ||
+      (selectedProjectListItem && isProjectSectionView),
   );
   const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
   const toggleSidebar = () => {
@@ -3344,6 +3368,8 @@ function App() {
       activeView={activeView}
       currentUser={currentUser}
       error={error}
+      filteredProjectOptions={filteredProjectOptions}
+      firstEnabledProjectView={firstEnabledProjectView}
       handleEditableFocus={handleEditableFocus}
       handleEditableKeyDown={handleEditableKeyDown}
       isAdminSectionView={isAdminSectionView}
@@ -3363,10 +3389,18 @@ function App() {
       pageContext={pageContext}
       project={project}
       projectTargetSummary={projectTargetSummary}
+      projectSearch={projectSearch}
+      recentProjects={recentProjects}
       renderGlobalSearch={renderGlobalSearch}
       scheduleHealth={topbarScheduleHealth}
+      selectProject={selectProject}
+      selectedProjectId={selectedProjectId}
+      selectedProjectListItem={selectedProjectListItem}
+      setProjectSearch={setProjectSearch}
+      setShowProjectPicker={setShowProjectPicker}
       shouldShowAdminMenu={shouldShowAdminMenu}
       shouldShowProjectMenu={shouldShowProjectMenu}
+      showProjectPicker={showProjectPicker}
       sidebarCollapsed={sidebarCollapsed}
       signedDaysLabel={signedDaysLabel}
       toggleSidebar={toggleSidebar}
