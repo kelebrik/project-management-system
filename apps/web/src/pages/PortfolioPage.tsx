@@ -1,35 +1,7 @@
-import { useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import { signedDaysUntil } from "../app/dateUtils";
-import type {
-  PortfolioRedRaidItem,
-  PortfolioRedRaidProject,
-} from "../app/portfolioModels";
-import { sortPortfolioRedRaidItems } from "../app/portfolioModels";
+import type { PortfolioRedRaidItem, PortfolioRedRaidProject } from "../app/portfolioModels";
 import { usePageContext } from "./PageContext";
-
-type PortfolioViewMode = "all" | "red" | "mine";
-
-const FILTER_OPTIONS: Array<{
-  value: PortfolioViewMode;
-  label: string;
-}> = [
-  { value: "all", label: "Все" },
-  { value: "red", label: "Только красная зона" },
-  { value: "mine", label: "Только мои" },
-];
-
-function isOwnedByCurrentUser(
-  value: { projectManager?: string | null; owner?: string | null },
-  currentUserName: string,
-) {
-  const owner = (value.owner ?? value.projectManager ?? "").trim().toLowerCase();
-  if (owner.length === 0 || currentUserName.length === 0) return false;
-  return (
-    owner === currentUserName ||
-    (owner.length >= 3 && currentUserName.includes(owner)) ||
-    (currentUserName.length >= 3 && owner.includes(currentUserName))
-  );
-}
 
 function dueDateTone(dueDate: string | null) {
   const days = signedDaysUntil(dueDate);
@@ -51,104 +23,21 @@ export function PortfolioPage() {
   const ctx = usePageContext();
   const {
     activeProjectTree,
-    currentUser,
     date,
     firstEnabledProjectView,
     isReadOnly,
     openRaidItemFromOverview,
     openView,
     portfolioGoalTimeline,
-    portfolioRedZoneProjectIds,
-    portfolioSummary,
     selectProject,
     selectedProjectId,
     visiblePortfolioProblemProjects,
     visiblePortfolioRiskProjects,
   } = ctx;
-  const [viewMode, setViewMode] = useState<PortfolioViewMode>("all");
-  const currentUserName = String(currentUser?.name ?? "").trim().toLowerCase();
-  const canUseMineFilter = currentUserName.length > 0;
-  const effectiveViewMode =
-    viewMode === "mine" && !canUseMineFilter ? "all" : viewMode;
-
-  const matchesMode = (project: {
-    id?: string;
-    projectId?: string;
-    projectManager?: string | null;
-    owner?: string | null;
-  }) => {
-    if (effectiveViewMode === "all") return true;
-    const projectId = project.id ?? project.projectId ?? "";
-    if (effectiveViewMode === "red") return portfolioRedZoneProjectIds.has(projectId);
-    return isOwnedByCurrentUser(project, currentUserName);
-  };
-
-  const visibleProjects = activeProjectTree.filter(matchesMode);
-  const visibleGoals = portfolioGoalTimeline.items.filter((item) => {
-    if (effectiveViewMode === "all") return true;
-    if (effectiveViewMode === "red") {
-      return item.delayDays !== null && item.delayDays > 0;
-    }
-    const project = activeProjectTree.find(
-      (projectItem) => projectItem.id === item.projectId,
-    );
-    return Boolean(project && isOwnedByCurrentUser(project, currentUserName));
-  });
-  const filterRaidProjects = (projects: PortfolioRedRaidProject[]) =>
-    projects
-      .filter((project) =>
-        effectiveViewMode === "red"
-          ? portfolioRedZoneProjectIds.has(project.projectId)
-          : true,
-      )
-      .map((project) => ({
-        ...project,
-        items: sortPortfolioRedRaidItems(
-          project.items.filter((item) =>
-            effectiveViewMode === "mine"
-              ? isOwnedByCurrentUser(item, currentUserName)
-              : true,
-          ),
-        ),
-      }))
-      .filter((project) => project.items.length > 0);
-  const visibleProblemProjects = filterRaidProjects(visiblePortfolioProblemProjects);
-  const visibleRiskProjects = filterRaidProjects(visiblePortfolioRiskProjects);
-  const visibleRiskCount = visibleRiskProjects.reduce(
-    (sum: number, project: PortfolioRedRaidProject) => sum + project.items.length,
-    0,
-  );
-  const visibleProblemCount = visibleProblemProjects.reduce(
-    (sum: number, project: PortfolioRedRaidProject) => sum + project.items.length,
-    0,
-  );
-
-  const summaryCards = [
-    {
-      label: "Проекты",
-      value: String(portfolioSummary.projectCount),
-      detail: `${visibleProjects.length} в текущем фильтре`,
-      tone: "neutral",
-    },
-    {
-      label: "Красные риски",
-      value: String(portfolioSummary.redRiskCount),
-      detail: `${visibleRiskCount} показано`,
-      tone: portfolioSummary.redRiskCount > 0 ? "red" : "green",
-    },
-    {
-      label: "Блокеры",
-      value: String(portfolioSummary.blockerCount),
-      detail: `${visibleProblemCount} показано`,
-      tone: portfolioSummary.blockerCount > 0 ? "red" : "green",
-    },
-    {
-      label: "Цели с отставанием",
-      value: String(portfolioSummary.delayedGoalCount),
-      detail: `${visibleGoals.length} целей на шкале`,
-      tone: portfolioSummary.delayedGoalCount > 0 ? "amber" : "green",
-    },
-  ];
+  const visibleProjects = activeProjectTree;
+  const visibleGoals = portfolioGoalTimeline.items;
+  const visibleProblemProjects = visiblePortfolioProblemProjects;
+  const visibleRiskProjects = visiblePortfolioRiskProjects;
 
   const openRaidItem = (item: PortfolioRedRaidItem) => {
     openRaidItemFromOverview(item.id, item.type, item.projectId);
@@ -211,39 +100,7 @@ export function PortfolioPage() {
 
   return (
     <>
-      <section className="projects-tree-section">
-        <article className="panel portfolio-control-panel">
-          <div className="portfolio-filter-row">
-            <div className="portfolio-summary-grid">
-              {summaryCards.map((card) => (
-                <div
-                  className={`portfolio-summary-card ${card.tone}`}
-                  key={card.label}
-                >
-                  <span>{card.label}</span>
-                  <strong>{card.value}</strong>
-                  <small>{card.detail}</small>
-                </div>
-              ))}
-            </div>
-            <div className="portfolio-view-toggle" aria-label="Фильтр портфеля">
-              {FILTER_OPTIONS.map((option) => (
-                <button
-                  type="button"
-                  className={effectiveViewMode === option.value ? "active" : ""}
-                  disabled={option.value === "mine" && !canUseMineFilter}
-                  key={option.value}
-                  onClick={() => setViewMode(option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="projects-tree-section portfolio-top-grid">
+      <section className="projects-tree-section portfolio-goals-section">
         <article className="panel portfolio-goal-timeline-panel">
           <div className="panel-title">
             <div>
@@ -317,11 +174,13 @@ export function PortfolioPage() {
             </div>
           ) : (
             <div className="empty-state compact">
-              Для выбранного фильтра целей на шкале нет.
+              Целей на шкале нет.
             </div>
           )}
         </article>
+      </section>
 
+      <section className="projects-tree-section portfolio-raid-grid">
         <article className="panel portfolio-blockers-panel">
           <div className="panel-title">
             <div>
@@ -331,7 +190,7 @@ export function PortfolioPage() {
           </div>
           {renderRaidProjects(
             visibleProblemProjects,
-            "Блокирующих проблем в текущем фильтре нет.",
+            "Блокирующих проблем нет.",
           )}
         </article>
 
@@ -344,7 +203,7 @@ export function PortfolioPage() {
           </div>
           {renderRaidProjects(
             visibleRiskProjects,
-            "Ключевых рисков в текущем фильтре нет.",
+            "Ключевых рисков нет.",
           )}
         </article>
       </section>
