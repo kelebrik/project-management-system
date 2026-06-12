@@ -57,19 +57,33 @@ export function AdminProjectsPageContent() {
                           projectToRegistryDraft(item);
                         return (
                           <div className="project-admin-row" key={item.id}>
-                            <div className="project-admin-readonly">
+                            <label>
                               <span>Код</span>
-                              <b>{item.code}</b>
-                            </div>
-                            <div
-                              className="project-admin-readonly project-admin-name"
+                              <input
+                                value={draft.code}
+                                onChange={(event) =>
+                                  updateProjectRegistryDraft(item.id, {
+                                    code: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                            <label
+                              className="project-admin-name"
                               style={{
                                 paddingLeft: `${Math.min(item.level * 18, 72) + 10}px`,
                               }}
                             >
                               <span>Наименование</span>
-                              <b>{item.name}</b>
-                            </div>
+                              <input
+                                value={draft.name}
+                                onChange={(event) =>
+                                  updateProjectRegistryDraft(item.id, {
+                                    name: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
                             <label>
                               <span>Родитель</span>
                               <select

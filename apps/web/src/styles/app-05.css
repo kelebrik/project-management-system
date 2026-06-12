@@ -284,6 +284,11 @@
   position: relative;
 }
 
+.project-admin-name input {
+  position: relative;
+  z-index: 1;
+}
+
 .project-admin-name::before {
   background: #cbd5e1;
   content: "";

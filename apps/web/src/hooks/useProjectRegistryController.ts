@@ -289,6 +289,12 @@ export function useProjectRegistryController({
     async (projectId: string) => {
       const draft = projectRegistryDrafts[projectId];
       if (!draft) return;
+      const code = draft.code.trim();
+      const name = draft.name.trim();
+      if (!code || !name) {
+        setError("Код и наименование проекта обязательны");
+        return;
+      }
       setSavingProjectRegistryId(projectId);
       setError(null);
       setNotice(null);
@@ -299,6 +305,8 @@ export function useProjectRegistryController({
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              code,
+              name,
               parentId: draft.parentId || null,
               projectManager:
                 draft.projectManager.trim() || "Руководитель проекта",
@@ -321,7 +329,7 @@ export function useProjectRegistryController({
           await refreshProject(projectId);
         }
         await reloadAuditEvents();
-        setNotice("Параметры проекта обновлены");
+        setNotice(`Проект ${code} обновлен`);
       } catch (saveError) {
         setError(
           saveError instanceof Error
