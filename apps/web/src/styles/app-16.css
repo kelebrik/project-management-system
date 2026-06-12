@@ -129,6 +129,7 @@
   .artifact-edit-grid,
   .project-tree-head,
   .project-tree-row,
+  .projects-overview-card,
   .project-admin-head,
   .project-admin-row,
   .project-access-head,
@@ -293,6 +294,10 @@
     grid-template-columns: 1fr;
   }
 
+  .projects-overview-passport {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .portfolio-raid-due,
   .portfolio-raid-impact {
     justify-self: start;
@@ -301,6 +306,10 @@
 
 @media (max-width: 640px) {
   .portfolio-goal-item b,
+  .projects-overview-main b,
+  .projects-overview-main small,
+  .projects-overview-meta span,
+  .projects-overview-passport strong,
   .portfolio-raid-item-main b,
   .portfolio-raid-item-main small,
   .project-tree-name-static {

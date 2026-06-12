@@ -1,5 +1,6 @@
 export type AppView =
   | "portfolio"
+  | "projects"
   | "project-create"
   | "project-overview"
   | "project-passport"
@@ -113,6 +114,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
+  projects: "/projects",
   "project-create": "/new-project",
   "project-overview": "/overview",
   "project-passport": "/passport",
@@ -168,7 +170,7 @@ export const projectPathViews: Record<string, ProjectSectionView> = {
 export const appPathViews: Record<string, AppView> = {
   "/": "portfolio",
   "/portfolio": "portfolio",
-  "/projects": "portfolio",
+  "/projects": "projects",
   "/new-project": "project-create",
   "/create-project": "project-create",
   "/overview": "project-overview",

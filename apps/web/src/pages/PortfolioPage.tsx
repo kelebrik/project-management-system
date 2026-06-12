@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { signedDaysUntil } from "../app/dateUtils";
 import type { PortfolioRedRaidItem, PortfolioRedRaidProject } from "../app/portfolioModels";
 import { usePageContext } from "./PageContext";
@@ -22,19 +21,15 @@ function dueDateLabel(dueDate: string | null) {
 export function PortfolioPage() {
   const ctx = usePageContext();
   const {
-    activeProjectTree,
     date,
     firstEnabledProjectView,
-    isReadOnly,
     openRaidItemFromOverview,
     openView,
     portfolioGoalTimeline,
     selectProject,
-    selectedProjectId,
     visiblePortfolioProblemProjects,
     visiblePortfolioRiskProjects,
   } = ctx;
-  const visibleProjects = activeProjectTree;
   const visibleGoals = portfolioGoalTimeline.items;
   const visibleProblemProjects = visiblePortfolioProblemProjects;
   const visibleRiskProjects = visiblePortfolioRiskProjects;
@@ -212,57 +207,18 @@ export function PortfolioPage() {
         <article className="panel project-tree-panel">
           <div className="panel-title">
             <div>
-              <h2>Проекты портфеля</h2>
-              <p>Иерархия проектов, статусы и ответственные руководители</p>
+              <h2>Проекты</h2>
+              <p>Компактная сводка по паспортам проектов вынесена в отдельный раздел</p>
             </div>
             <button
               type="button"
-              disabled={isReadOnly}
-              onClick={() => openView("project-create")}
-              title={isReadOnly ? "Войдите для создания проекта" : undefined}
+              onClick={() => openView("projects")}
             >
-              Создать проект
+              Открыть проекты
             </button>
           </div>
-          <div className="project-tree-list">
-            <div className="project-tree-head">
-              <span>Код проекта</span>
-              <span>Имя проекта</span>
-              <span />
-              <span>РП</span>
-              <span>Индикатор</span>
-            </div>
-            {visibleProjects.map((item) => (
-              <div
-                className={`project-tree-row ${item.id === selectedProjectId ? "active" : ""}`}
-                key={item.id}
-              >
-                <span
-                  className="project-tree-code-static"
-                  style={
-                    {
-                      marginLeft: `${item.level * 18}px`,
-                      "--project-indent": `${item.level * 18}px`,
-                    } as CSSProperties
-                  }
-                >
-                  {item.code}
-                </span>
-                <span className="project-tree-name-static">{item.name}</span>
-                <button
-                  type="button"
-                  className="project-tree-open"
-                  onClick={() => selectProject(item.id, firstEnabledProjectView)}
-                >
-                  Открыть
-                </button>
-                <span>{item.projectManager}</span>
-                <span className={`rag-dot ${item.rag.toLowerCase()}`} />
-              </div>
-            ))}
-            {visibleProjects.length === 0 && (
-              <div className="empty-state">Проекты по текущему фильтру не найдены.</div>
-            )}
+          <div className="empty-state compact">
+            Нажмите «Открыть проекты», чтобы перейти к сводной странице всех проектов.
           </div>
         </article>
       </section>

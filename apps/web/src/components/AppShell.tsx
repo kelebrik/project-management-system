@@ -17,7 +17,6 @@ import {
   KeyRound,
   LayoutDashboard,
   ListChecks,
-  Plus,
   Settings,
   ShieldAlert,
   ShieldCheck,
@@ -26,18 +25,16 @@ import {
 } from "lucide-react";
 
 import type { CurrentUser } from "../app/adminTypes";
-import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
+import type { ProjectDetails } from "../app/domainTypes";
 import type { ProjectModuleKey } from "../app/projectModules";
 import {
   isAdminSectionViewName,
   type AppView,
-  type ProjectSectionView,
 } from "../app/routes";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
 import { PageContextProvider, type PageContextValue } from "../pages/PageContext";
 import { AppTopbar } from "./AppTopbar";
 import { NavLabel } from "./NavLabel";
-import { ProjectPicker } from "./ProjectPicker";
 import {
   ProjectSidebarMenu,
   type ProjectNavItem,
@@ -59,8 +56,6 @@ type AppShellProps = {
   activeView: AppView;
   currentUser: CurrentUser | null;
   error: string | null;
-  filteredProjectOptions: ProjectListItem[];
-  firstEnabledProjectView: ProjectSectionView;
   handleEditableFocus: FocusEventHandler<HTMLDivElement>;
   handleEditableKeyDown: KeyboardEventHandler<HTMLDivElement>;
   isAdminSectionView: boolean;
@@ -89,18 +84,10 @@ type AppShellProps = {
     targetChangeDays: number | null;
     effectiveDelayDays: number | null;
   } | null;
-  projectSearch: string;
-  recentProjects: ProjectListItem[];
   renderGlobalSearch: (className?: string) => ReactNode;
   scheduleHealth: ScheduleHealth;
-  selectProject: (projectId: string, nextView?: AppView) => void;
-  selectedProjectId: string | null;
-  selectedProjectListItem: ProjectListItem | null;
-  setProjectSearch: (value: string) => void;
-  setShowProjectPicker: (value: boolean) => void;
   shouldShowAdminMenu: boolean;
   shouldShowProjectMenu: boolean;
-  showProjectPicker: boolean;
   sidebarCollapsed: boolean;
   signedDaysLabel: (value: number | null) => string;
   toggleSidebar: () => void;
@@ -270,8 +257,6 @@ export function AppShell({
   activeView,
   currentUser,
   error,
-  filteredProjectOptions,
-  firstEnabledProjectView,
   handleEditableFocus,
   handleEditableKeyDown,
   isAdminSectionView,
@@ -291,18 +276,10 @@ export function AppShell({
   pageContext,
   project,
   projectTargetSummary,
-  projectSearch,
-  recentProjects,
   renderGlobalSearch,
   scheduleHealth,
-  selectProject,
-  selectedProjectId,
-  selectedProjectListItem,
-  setProjectSearch,
-  setShowProjectPicker,
   shouldShowAdminMenu,
   shouldShowProjectMenu,
-  showProjectPicker,
   sidebarCollapsed,
   signedDaysLabel,
   toggleSidebar,
@@ -354,37 +331,13 @@ export function AppShell({
           >
             {navLabel(<BriefcaseBusiness size={17} />, "Портфель")}
           </button>
-          {isAuthenticated && (
-            <button
-              type="button"
-              className={activeView === "project-create" ? "active" : ""}
-              onClick={() => openView("project-create")}
-              aria-label="Создать новый проект"
-            >
-              {navLabel(<Plus size={17} />, "Создать новый проект")}
-            </button>
-          )}
-          <ProjectPicker
-            filteredProjects={filteredProjectOptions}
-            isOpen={showProjectPicker}
-            onOpenChange={setShowProjectPicker}
-            onProjectSearchChange={setProjectSearch}
-            onProjectSelect={selectProject}
-            projectSearch={projectSearch}
-            recentProjects={recentProjects}
-            selectedProject={selectedProjectListItem}
-            selectedProjectId={selectedProjectId}
-            targetView={firstEnabledProjectView}
-          />
           <ProjectSidebarMenu
             activeView={activeView}
-            firstEnabledProjectView={firstEnabledProjectView}
             isProjectModuleEnabled={isProjectModuleEnabled}
             isProjectSectionView={isProjectSectionView}
             navLabel={navLabel}
             onOpenView={openView}
             projectNavItems={projectNavItems}
-            selectedProjectId={selectedProjectId}
             shouldShowProjectMenu={shouldShowProjectMenu}
           />
           <button

@@ -11,6 +11,7 @@ import { AdminRolesPageContent } from "./AdminRolesPageContent";
 import { AdminUsersPageContent } from "./AdminUsersPageContent";
 import { ClosedProjectsPage } from "./ClosedProjectsPage";
 import { PortfolioPage } from "./PortfolioPage";
+import { ProjectsPage } from "./ProjectsPage";
 import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
 import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
 import { ProjectCreatePage } from "./ProjectCreatePage";
@@ -27,13 +28,14 @@ import { usePageContext } from "./PageContext";
 export function AppPages() {
   const { activeView, isAdminSectionView, project } = usePageContext();
 
-  if (!(project || activeView === "portfolio" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView)) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView)) {
     return null;
   }
 
   return (
     <>
       {activeView === "portfolio" && <PortfolioPage />}
+      {activeView === "projects" && <ProjectsPage />}
       {project && activeView === "project-overview" && <ProjectOverviewSummaryPage />}
       {activeView === "closed-projects" && <ClosedProjectsPage />}
 

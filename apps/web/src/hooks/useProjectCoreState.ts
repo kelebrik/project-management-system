@@ -55,7 +55,6 @@ export function useProjectCoreState() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [showProjectPicker, setShowProjectPicker] = useState(false);
-  const [recentProjectIds, setRecentProjectIds] = useState<string[]>([]);
 
   return {
     projects,
@@ -108,8 +107,6 @@ export function useProjectCoreState() {
     setProjectSearch,
     showProjectPicker,
     setShowProjectPicker,
-    recentProjectIds,
-    setRecentProjectIds,
   };
 }
 

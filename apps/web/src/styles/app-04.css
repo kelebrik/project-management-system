@@ -59,6 +59,128 @@
   margin-bottom: 18px;
 }
 
+.projects-overview-section {
+  margin-bottom: 18px;
+}
+
+.projects-overview-panel {
+  min-height: 0;
+}
+
+.projects-overview-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.projects-overview-card {
+  align-items: start;
+  background: #fff;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  color: #1f2937;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 10px minmax(240px, 0.9fr) minmax(180px, 0.7fr) minmax(360px, 1.5fr);
+  min-height: 74px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.projects-overview-card:hover,
+.projects-overview-card:focus-visible {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
+  outline: none;
+}
+
+.projects-overview-rag {
+  border-radius: 999px;
+  height: 10px;
+  margin-top: 5px;
+  width: 10px;
+}
+
+.projects-overview-rag.green {
+  background: #22c55e;
+}
+
+.projects-overview-rag.amber {
+  background: #f59e0b;
+}
+
+.projects-overview-rag.red {
+  background: #ef4444;
+}
+
+.projects-overview-main,
+.projects-overview-meta,
+.projects-overview-passport,
+.projects-overview-passport span {
+  min-width: 0;
+}
+
+.projects-overview-main,
+.projects-overview-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.projects-overview-main b,
+.projects-overview-main small,
+.projects-overview-meta span,
+.projects-overview-passport em,
+.projects-overview-passport strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projects-overview-code {
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.projects-overview-main b {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.projects-overview-main small,
+.projects-overview-meta span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.projects-overview-passport {
+  display: grid;
+  gap: 6px 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.projects-overview-passport span {
+  display: grid;
+  gap: 1px;
+}
+
+.projects-overview-passport em {
+  color: #64748b;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.projects-overview-passport strong {
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .portfolio-goal-timeline-panel {
   min-height: 0;
 }

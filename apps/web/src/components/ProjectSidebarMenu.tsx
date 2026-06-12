@@ -13,35 +13,29 @@ export type ProjectNavItem = {
 
 type ProjectSidebarMenuProps = {
   activeView: AppView;
-  firstEnabledProjectView: ProjectSectionView;
   isProjectSectionView: boolean;
   isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   navLabel: (icon: ReactNode, label: string) => ReactNode;
   onOpenView: (view: AppView) => void;
   projectNavItems: ProjectNavItem[];
-  selectedProjectId: string | null;
   shouldShowProjectMenu: boolean;
 };
 
 export function ProjectSidebarMenu({
   activeView,
-  firstEnabledProjectView,
   isProjectModuleEnabled,
   isProjectSectionView,
   navLabel,
   onOpenView,
   projectNavItems,
-  selectedProjectId,
   shouldShowProjectMenu,
 }: ProjectSidebarMenuProps) {
   return (
     <>
       <button
         type="button"
-        className={isProjectSectionView ? "active" : ""}
-        onClick={() =>
-          onOpenView(selectedProjectId ? firstEnabledProjectView : "project-create")
-        }
+        className={activeView === "projects" || isProjectSectionView ? "active" : ""}
+        onClick={() => onOpenView("projects")}
         aria-label="Проекты"
       >
         {navLabel(<FolderTree size={17} />, "Проекты")}
