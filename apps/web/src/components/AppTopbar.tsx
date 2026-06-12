@@ -42,7 +42,7 @@ export function AppTopbar({
   viewTitle,
 }: AppTopbarProps) {
   const showProjectTitle = project && isProjectView && activeView !== "project-create";
-  const showProjectBadges = project && activeView !== "portfolio";
+  const showProjectBadges = Boolean(project && showProjectTitle);
   const targetChangeDays = projectTargetSummary?.targetChangeDays ?? null;
   const hasCurrentTargetChange = targetChangeDays !== null && targetChangeDays !== 0;
   const initialTargetDate =

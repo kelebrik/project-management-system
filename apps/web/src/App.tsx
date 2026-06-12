@@ -2961,6 +2961,7 @@ function App() {
   };
   const isProjectSectionView = isProjectSectionViewName(activeView);
   const isProjectView = activeView === "project-create" || isProjectSectionView;
+  const shouldShowClosedProjectBanner = Boolean(isProjectSectionView && isClosedProject);
   const isAdminSectionView = isAdminSectionViewName(activeView);
   const shouldShowProjectMenu = Boolean(
     activeView === "projects" ||
@@ -3375,7 +3376,7 @@ function App() {
       isAdminSectionView={isAdminSectionView}
       isAdminUser={isAdminUser}
       isAuthenticated={isAuthenticated}
-      isClosedProject={isClosedProject}
+      isClosedProject={shouldShowClosedProjectBanner}
       isProjectModuleEnabled={isProjectModuleEnabled}
       isProjectSectionView={isProjectSectionView}
       isProjectView={isProjectView}
