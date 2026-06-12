@@ -15,11 +15,11 @@ export function ProjectJiraWorkPage() {
     syncing,
     syncJira,
   } = ctx;
-  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(
     () => new Set(),
   );
   const toggleSection = (sortOrder: number) => {
-    setCollapsedSections((current) => {
+    setExpandedSections((current) => {
       const next = new Set(current);
       if (next.has(sortOrder)) {
         next.delete(sortOrder);
@@ -83,7 +83,7 @@ export function ProjectJiraWorkPage() {
           const syncedSection = project.jiraWorkSections.find(
             (entry) => entry.sortOrder === section.sortOrder,
           );
-          const isCollapsed = collapsedSections.has(section.sortOrder);
+          const isCollapsed = !expandedSections.has(section.sortOrder);
           return (
             <section
               className={`jira-work-section ${isCollapsed ? "collapsed" : ""}`}
