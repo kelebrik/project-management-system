@@ -18,11 +18,16 @@ export function AdminProjectsPageContent() {
     projectStatusLabel,
     projectToRegistryDraft,
     ragOptionLabel,
+    savePortfolioProjectIdentity,
     saveProjectRegistryItem,
     savingProjectRegistryId,
     selectProject,
     updateProjectRegistryDraft,
   } = ctx;
+
+  const saveProjectIdentity = (projectId: string) => {
+    void savePortfolioProjectIdentity(projectId);
+  };
 
   return (
                     <article className="panel project-card">
@@ -66,6 +71,12 @@ export function AdminProjectsPageContent() {
                                     code: event.target.value,
                                   })
                                 }
+                                onBlur={() => saveProjectIdentity(item.id)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.currentTarget.blur();
+                                  }
+                                }}
                               />
                             </label>
                             <label
@@ -82,6 +93,12 @@ export function AdminProjectsPageContent() {
                                     name: event.target.value,
                                   })
                                 }
+                                onBlur={() => saveProjectIdentity(item.id)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.currentTarget.blur();
+                                  }
+                                }}
                               />
                             </label>
                             <label>
