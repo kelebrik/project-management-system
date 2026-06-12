@@ -302,6 +302,10 @@
     grid-template-columns: 1fr;
   }
 
+  .work-summary-section {
+    max-height: 520px;
+  }
+
   .portfolio-raid-due,
   .portfolio-raid-impact {
     justify-self: start;
