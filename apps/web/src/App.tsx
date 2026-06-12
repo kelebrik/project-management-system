@@ -2940,7 +2940,9 @@ function App() {
   const isProjectSectionView = isProjectSectionViewName(activeView);
   const isProjectView = activeView === "project-create" || isProjectSectionView;
   const isAdminSectionView = isAdminSectionViewName(activeView);
-  const shouldShowProjectMenu = Boolean(selectedProjectListItem && isProjectSectionView);
+  const shouldShowProjectMenu = Boolean(
+    selectedProjectListItem && (activeView === "projects" || isProjectSectionView),
+  );
   const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
   const toggleSidebar = () => {
     const nextCollapsed = !sidebarCollapsed;
