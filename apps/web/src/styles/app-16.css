@@ -298,6 +298,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .work-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
   .portfolio-raid-due,
   .portfolio-raid-impact {
     justify-self: start;

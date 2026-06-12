@@ -89,6 +89,118 @@
   overflow: auto;
 }
 
+.work-summary-section {
+  background: #fff;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+}
+
+.work-summary-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.work-summary-pane {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.work-summary-pane-title {
+  align-items: center;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.work-summary-pane-title h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.work-summary-pane-title span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.work-summary-table {
+  overflow-x: auto;
+}
+
+.work-summary-head,
+.work-summary-row {
+  display: grid;
+  grid-template-columns: 92px minmax(260px, 1fr) 150px 140px 140px;
+  min-width: 782px;
+}
+
+.work-summary-head {
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.work-summary-head span,
+.work-summary-row > * {
+  border-right: 1px solid #e2e8f0;
+  min-width: 0;
+  padding: 8px;
+}
+
+.work-summary-head span:last-child,
+.work-summary-row > *:last-child {
+  border-right: 0;
+}
+
+.work-summary-row {
+  border-top: 1px solid #e2e8f0;
+}
+
+.work-summary-row input,
+.work-summary-row select {
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 13px;
+  min-height: 34px;
+  padding: 6px 8px;
+  width: 100%;
+}
+
+.work-summary-code {
+  background: transparent;
+  border: 0;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+  justify-content: flex-start;
+  min-height: 34px;
+  overflow: hidden;
+  padding: 0;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-summary-empty {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 18px 12px;
+}
+
 .calendar-page {
   display: grid;
   gap: 18px;
