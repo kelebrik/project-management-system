@@ -9,7 +9,6 @@ export type ProjectModuleKey =
   | "issues"
   | "raid"
   | "changes"
-  | "resources"
   | "budget"
   | "calendars"
   | "artifacts";
@@ -80,13 +79,6 @@ export const defaultProjectModules: ProjectModule[] = [
     enabled: true,
   },
   {
-    key: "resources",
-    label: "Управление ресурсами",
-    description: "Загрузка команды, исполнители и распределение работ",
-    route: "resources",
-    enabled: true,
-  },
-  {
     key: "budget",
     label: "Управление бюджетом",
     description: "Контур план-факт-прогноз бюджета проекта",
@@ -121,7 +113,6 @@ export const projectModuleKeyByView: Record<
   "project-issues": "issues",
   "project-raid": "raid",
   "project-changes": "changes",
-  "project-resources": "resources",
   "project-budget": "budget",
   "project-calendars": "calendars",
   "project-artifacts": "artifacts",
@@ -139,7 +130,6 @@ export const projectModuleViewByKey: Record<
   issues: "project-issues",
   raid: "project-raid",
   changes: "project-changes",
-  resources: "project-resources",
   budget: "project-budget",
   calendars: "project-calendars",
   artifacts: "project-artifacts",

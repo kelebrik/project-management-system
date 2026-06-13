@@ -124,6 +124,10 @@
   .milestone-head,
   .milestone-row,
   .wbs-kpis,
+  .resource-command-grid,
+  .resource-kpi-grid,
+  .resource-lower-grid,
+  .resource-schedule-grid,
   .raid-board,
   .raid-edit-grid,
   .artifact-edit-grid,
@@ -159,6 +163,36 @@
   .gate-row,
   .overview-history div {
     grid-template-columns: 1fr;
+  }
+
+  .resource-heatmap-panel {
+    overflow-x: auto;
+  }
+
+  .resource-panel-head,
+  .resource-schedule-owner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .resource-profile-table {
+    overflow-x: auto;
+  }
+
+  .resource-profile-row {
+    min-width: 640px;
+  }
+
+  .resource-request-card {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .resource-request-card strong,
+  .resource-request-card small {
+    grid-column: 1;
+    grid-row: auto;
+    text-align: left;
   }
 
   .project-card,

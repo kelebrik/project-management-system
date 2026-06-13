@@ -41,6 +41,7 @@ import {
   ProjectSidebarMenu,
   type ProjectNavItem,
 } from "./ProjectSidebarMenu";
+import { ResourceSidebarMenu } from "./ResourceSidebarMenu";
 import { SidebarIdentity } from "./SidebarIdentity";
 import { SystemBanners } from "./SystemBanners";
 
@@ -69,6 +70,7 @@ type AppShellProps = {
   isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   isProjectSectionView: boolean;
   isProjectView: boolean;
+  isResourceSectionView: boolean;
   isReadOnly: boolean;
   logout: () => void;
   notice: string | null;
@@ -154,12 +156,6 @@ const projectNavItems: ProjectNavItem[] = [
     view: "project-changes",
     label: "Управление изменениями",
     icon: <GitBranch size={17} />,
-  },
-  {
-    key: "resources",
-    view: "project-resources",
-    label: "Управление ресурсами",
-    icon: <Users size={17} />,
   },
   {
     key: "budget",
@@ -280,6 +276,7 @@ export function AppShell({
   isProjectModuleEnabled,
   isProjectSectionView,
   isProjectView,
+  isResourceSectionView,
   isReadOnly,
   logout,
   notice,
@@ -375,6 +372,12 @@ export function AppShell({
               />
             }
             shouldShowProjectMenu={shouldShowProjectMenu}
+          />
+          <ResourceSidebarMenu
+            activeView={activeView}
+            isResourceSectionView={isResourceSectionView}
+            navLabel={navLabel}
+            onOpenView={openView}
           />
           <button
             type="button"

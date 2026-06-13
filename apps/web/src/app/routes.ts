@@ -1,6 +1,11 @@
 export type AppView =
   | "portfolio"
   | "projects"
+  | "resources"
+  | "resources-workload"
+  | "resources-schedule"
+  | "resources-directory"
+  | "resources-requests"
   | "project-create"
   | "project-overview"
   | "project-passport"
@@ -10,7 +15,6 @@ export type AppView =
   | "project-issues"
   | "project-raid"
   | "project-changes"
-  | "project-resources"
   | "project-budget"
   | "project-calendars"
   | "project-artifacts"
@@ -42,7 +46,6 @@ export type ProjectSectionView = Extract<
   | "project-issues"
   | "project-raid"
   | "project-changes"
-  | "project-resources"
   | "project-budget"
   | "project-calendars"
   | "project-artifacts"
@@ -66,6 +69,15 @@ export type AdminSectionView = Extract<
   | "admin-modules"
   | "admin-project-access"
   | "admin-audit"
+>;
+
+export type ResourceSectionView = Extract<
+  AppView,
+  | "resources"
+  | "resources-workload"
+  | "resources-schedule"
+  | "resources-directory"
+  | "resources-requests"
 >;
 
 export type FullscreenWorkspaceView = Extract<
@@ -106,7 +118,6 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-issues": "issues",
   "project-raid": "risks",
   "project-changes": "changes",
-  "project-resources": "resources",
   "project-budget": "budget",
   "project-calendars": "calendars",
   "project-artifacts": "artifacts",
@@ -115,6 +126,11 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
   projects: "/projects",
+  resources: "/resources",
+  "resources-workload": "/resources/workload",
+  "resources-schedule": "/resources/schedule",
+  "resources-directory": "/resources/directory",
+  "resources-requests": "/resources/requests",
   "project-create": "/new-project",
   "project-overview": "/overview",
   "project-passport": "/passport",
@@ -124,7 +140,6 @@ export const appViewPaths: Record<AppView, string> = {
   "project-issues": "/issues",
   "project-raid": "/risks",
   "project-changes": "/changes",
-  "project-resources": "/resources",
   "project-budget": "/budget",
   "project-calendars": "/calendars",
   "project-artifacts": "/artifacts",
@@ -160,7 +175,6 @@ export const projectPathViews: Record<string, ProjectSectionView> = {
   risks: "project-raid",
   raid: "project-raid",
   changes: "project-changes",
-  resources: "project-resources",
   budget: "project-budget",
   calendars: "project-calendars",
   calendar: "project-calendars",
@@ -171,6 +185,14 @@ export const appPathViews: Record<string, AppView> = {
   "/": "portfolio",
   "/portfolio": "portfolio",
   "/projects": "projects",
+  "/resources": "resources",
+  "/resources/overview": "resources",
+  "/resources/workload": "resources-workload",
+  "/resources/schedule": "resources-schedule",
+  "/resources/allocations": "resources-schedule",
+  "/resources/directory": "resources-directory",
+  "/resources/resources": "resources-directory",
+  "/resources/requests": "resources-requests",
   "/new-project": "project-create",
   "/create-project": "project-create",
   "/overview": "project-overview",
@@ -185,7 +207,6 @@ export const appPathViews: Record<string, AppView> = {
   "/risks": "project-raid",
   "/raid": "project-raid",
   "/changes": "project-changes",
-  "/resources": "project-resources",
   "/budget": "project-budget",
   "/calendars": "project-calendars",
   "/calendar": "project-calendars",
@@ -255,6 +276,18 @@ export function isProjectSectionViewName(
 
 export function isAdminSectionViewName(view: AppView): view is AdminSectionView {
   return adminSectionViews.includes(view as AdminSectionView);
+}
+
+export function isResourceSectionViewName(
+  view: AppView,
+): view is ResourceSectionView {
+  return (
+    view === "resources" ||
+    view === "resources-workload" ||
+    view === "resources-schedule" ||
+    view === "resources-directory" ||
+    view === "resources-requests"
+  );
 }
 
 export function appPathForView(view: AppView, projectCode?: string | null) {

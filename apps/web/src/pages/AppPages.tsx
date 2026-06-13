@@ -21,14 +21,22 @@ import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
 import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
 import { ProjectPassportPage } from "./ProjectPassportPage";
 import { ProjectRaidPage } from "./ProjectRaidPage";
-import { ProjectBudgetPage, ProjectChangesPage, ProjectResourcesPage } from "./ProjectSupportPages";
+import { ProjectBudgetPage, ProjectChangesPage } from "./ProjectSupportPages";
 import { ProjectWorkspacePage } from "./ProjectWorkspacePage";
+import {
+  ResourceDirectoryPage,
+  ResourceOverviewPage,
+  ResourceRequestsPage,
+  ResourceSchedulePage,
+  ResourceWorkloadPage,
+} from "./ResourcePages";
 import { usePageContext } from "./PageContext";
 
 export function AppPages() {
-  const { activeView, isAdminSectionView, project } = usePageContext();
+  const { activeView, isAdminSectionView, isResourceSectionView, project } =
+    usePageContext();
 
-  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView)) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || isResourceSectionView)) {
     return null;
   }
 
@@ -56,10 +64,14 @@ export function AppPages() {
         {activeView === "admin-projects" && <AdminProjectsPageContent />}
         {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
+        {activeView === "resources" && <ResourceOverviewPage />}
+        {activeView === "resources-workload" && <ResourceWorkloadPage />}
+        {activeView === "resources-schedule" && <ResourceSchedulePage />}
+        {activeView === "resources-directory" && <ResourceDirectoryPage />}
+        {activeView === "resources-requests" && <ResourceRequestsPage />}
         {project && activeView === "project-overview" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
-        {project && activeView === "project-resources" && <ProjectResourcesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}

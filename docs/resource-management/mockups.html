@@ -1,0 +1,1313 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Resource Management Mockups</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f3f6fa;
+        --panel: #ffffff;
+        --line: #d9e0ea;
+        --text: #172033;
+        --muted: #64748b;
+        --blue: #2563eb;
+        --blue-soft: #dbeafe;
+        --green: #16a34a;
+        --green-soft: #dcfce7;
+        --amber: #d97706;
+        --amber-soft: #fef3c7;
+        --red: #dc2626;
+        --red-soft: #fee2e2;
+        --teal: #0f766e;
+        --teal-soft: #ccfbf1;
+        --slate: #334155;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #dfe6ef;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        color: var(--text);
+      }
+
+      .screen {
+        width: 1600px;
+        height: 1000px;
+        background: var(--bg);
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        overflow: hidden;
+        margin: 0;
+      }
+
+      .sidebar {
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+        padding: 24px 18px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 28px;
+      }
+
+      .brand-mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        background: var(--blue);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+      }
+
+      .brand strong {
+        display: block;
+        font-size: 15px;
+      }
+
+      .brand small {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .nav-section {
+        margin-top: 20px;
+      }
+
+      .nav-title {
+        margin: 0 0 8px;
+        color: #94a3b8;
+        font-size: 11px;
+        text-transform: uppercase;
+        font-weight: 800;
+      }
+
+      .nav-item {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        border-radius: 8px;
+        color: var(--slate);
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+
+      .nav-item.active {
+        background: var(--blue-soft);
+        color: #1d4ed8;
+        font-weight: 700;
+        box-shadow: inset 3px 0 0 var(--blue);
+      }
+
+      .main {
+        display: grid;
+        grid-template-rows: 86px 1fr;
+        min-width: 0;
+      }
+
+      .topbar {
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        padding: 18px 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .title h1 {
+        font-size: 24px;
+        line-height: 1.15;
+        margin: 0 0 5px;
+      }
+
+      .title p {
+        color: var(--muted);
+        margin: 0;
+        font-size: 13px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .button {
+        height: 36px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--slate);
+      }
+
+      .button.primary {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: #fff;
+      }
+
+      .workspace {
+        padding: 24px 28px 28px;
+        overflow: hidden;
+      }
+
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+
+      .kpi {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        min-height: 112px;
+      }
+
+      .kpi span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .kpi b {
+        display: block;
+        font-size: 30px;
+        margin: 8px 0 8px;
+      }
+
+      .kpi small {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1.6fr 0.9fr;
+        gap: 16px;
+      }
+
+      .grid-3 {
+        display: grid;
+        grid-template-columns: 1.1fr 1.4fr 0.8fr;
+        gap: 16px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .panel-head {
+        min-height: 56px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .panel-head h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      .panel-head span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .heatmap {
+        display: grid;
+        grid-template-columns: 190px repeat(8, 1fr);
+        padding: 12px;
+        gap: 7px;
+      }
+
+      .cell,
+      .resource-cell,
+      .head-cell {
+        min-height: 42px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+
+      .head-cell {
+        background: #f8fafc;
+        color: var(--muted);
+        font-weight: 800;
+      }
+
+      .resource-cell {
+        background: #f8fafc;
+        font-weight: 700;
+        justify-content: space-between;
+      }
+
+      .resource-cell small {
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .cell {
+        justify-content: center;
+        font-weight: 800;
+      }
+
+      .load-low {
+        background: #e0f2fe;
+        color: #0369a1;
+      }
+
+      .load-ok {
+        background: var(--green-soft);
+        color: #166534;
+      }
+
+      .load-warn {
+        background: var(--amber-soft);
+        color: #92400e;
+      }
+
+      .load-bad {
+        background: var(--red-soft);
+        color: #991b1b;
+      }
+
+      .list {
+        padding: 12px;
+      }
+
+      .issue {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .issue b {
+        font-size: 13px;
+      }
+
+      .issue small {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .tag-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        height: 22px;
+        border-radius: 999px;
+        padding: 0 8px;
+        font-size: 11px;
+        font-weight: 800;
+        background: #f1f5f9;
+        color: var(--slate);
+      }
+
+      .tag.red {
+        background: var(--red-soft);
+        color: #991b1b;
+      }
+
+      .tag.amber {
+        background: var(--amber-soft);
+        color: #92400e;
+      }
+
+      .tag.green {
+        background: var(--green-soft);
+        color: #166534;
+      }
+
+      .tag.blue {
+        background: var(--blue-soft);
+        color: #1d4ed8;
+      }
+
+      .schedule {
+        display: grid;
+        grid-template-columns: 210px repeat(10, 1fr);
+        padding: 12px;
+        gap: 7px;
+      }
+
+      .timeline-row {
+        display: contents;
+      }
+
+      .timeline-name,
+      .timeline-day,
+      .timeline-head {
+        height: 54px;
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 12px;
+      }
+
+      .timeline-head {
+        height: 34px;
+        background: #f8fafc;
+        color: var(--muted);
+        font-weight: 800;
+      }
+
+      .timeline-name {
+        background: #f8fafc;
+        font-weight: 800;
+      }
+
+      .timeline-name small {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .timeline-day {
+        background: #f8fafc;
+        border: 1px dashed #e2e8f0;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .booking {
+        height: 34px;
+        border-radius: 6px;
+        padding: 5px 6px;
+        color: #fff;
+        font-weight: 800;
+        font-size: 10px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-align: center;
+      }
+
+      .booking.blue {
+        background: var(--blue);
+      }
+
+      .booking.teal {
+        background: var(--teal);
+      }
+
+      .booking.amber {
+        background: var(--amber);
+      }
+
+      .booking.red {
+        background: var(--red);
+      }
+
+      .booking.muted {
+        background: #94a3b8;
+      }
+
+      .side-stack {
+        display: grid;
+        gap: 16px;
+      }
+
+      .table {
+        display: grid;
+      }
+
+      .table-row,
+      .table-head {
+        display: grid;
+        grid-template-columns: 1.35fr 0.7fr 0.7fr 0.8fr 0.9fr;
+        min-height: 48px;
+        align-items: center;
+        padding: 0 14px;
+        gap: 10px;
+        border-bottom: 1px solid #edf2f7;
+        font-size: 12px;
+      }
+
+      .table-head {
+        color: var(--muted);
+        font-weight: 800;
+        background: #f8fafc;
+      }
+
+      .profile-grid {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 16px;
+      }
+
+      .person-card {
+        padding: 18px;
+      }
+
+      .avatar {
+        width: 76px;
+        height: 76px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #1d4ed8, #0f766e);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 26px;
+        font-weight: 900;
+        margin-bottom: 14px;
+      }
+
+      .person-card h2 {
+        margin: 0 0 6px;
+        font-size: 21px;
+      }
+
+      .person-card p {
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .facts {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .fact {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #edf2f7;
+        padding-bottom: 8px;
+        font-size: 13px;
+      }
+
+      .fact span {
+        color: var(--muted);
+      }
+
+      .bars {
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .bar-row {
+        display: grid;
+        grid-template-columns: 135px 1fr 48px;
+        gap: 10px;
+        align-items: center;
+        font-size: 12px;
+      }
+
+      .bar-track {
+        height: 12px;
+        background: #eef2f7;
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      .bar-fill {
+        height: 100%;
+        border-radius: 999px;
+      }
+
+      .request-layout {
+        display: grid;
+        grid-template-columns: 430px 1fr 330px;
+        gap: 16px;
+      }
+
+      .form {
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .field label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .input {
+        height: 40px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #fff;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .candidate {
+        display: grid;
+        grid-template-columns: 1fr 86px 86px 88px;
+        gap: 10px;
+        align-items: center;
+        border-bottom: 1px solid #edf2f7;
+        padding: 13px 16px;
+        min-height: 64px;
+      }
+
+      .candidate b {
+        display: block;
+        font-size: 13px;
+      }
+
+      .candidate small {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .impact-card {
+        padding: 14px;
+        border-bottom: 1px solid #edf2f7;
+      }
+
+      .impact-card b {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 6px;
+      }
+
+      .impact-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="screen" data-shot="01-overview-heatmap">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">P</div>
+          <div>
+            <strong>PMS</strong>
+            <small>Project workspace</small>
+          </div>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Проект CVTE968</p>
+          <div class="nav-item">Обзор</div>
+          <div class="nav-item">Паспорт проекта</div>
+          <div class="nav-item">Структура</div>
+          <div class="nav-item">Гантт</div>
+          <div class="nav-item">Открытые вопросы</div>
+          <div class="nav-item active">Управление ресурсами</div>
+          <div class="nav-item">Бюджет</div>
+          <div class="nav-item">Календари</div>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Ресурсные views</p>
+          <div class="nav-item active">Обзор загрузки</div>
+          <div class="nav-item">Расписание</div>
+          <div class="nav-item">Запросы</div>
+          <div class="nav-item">Профили</div>
+        </div>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div class="title">
+            <h1>Управление ресурсами</h1>
+            <p>Capacity vs demand, перегрузки, дефицит ролей и влияние на сроки проекта.</p>
+          </div>
+          <div class="actions">
+            <div class="button">Июнь 2026</div>
+            <div class="button">Группировать: люди</div>
+            <div class="button primary">Создать запрос</div>
+          </div>
+        </header>
+        <div class="workspace">
+          <div class="kpi-grid">
+            <div class="kpi">
+              <span>Перегружены</span>
+              <b>4</b>
+              <small>ресурса выше 100% на ближайшие 3 недели</small>
+            </div>
+            <div class="kpi">
+              <span>Дефицит ролей</span>
+              <b>128 ч</b>
+              <small>backend и QA automation до UAT</small>
+            </div>
+            <div class="kpi">
+              <span>Запросы</span>
+              <b>7</b>
+              <small>3 ожидают Resource Manager больше SLA</small>
+            </div>
+            <div class="kpi">
+              <span>Влияние на срок</span>
+              <b>+9 дн.</b>
+              <small>если конфликт DevOps не закрыт до 19.06</small>
+            </div>
+          </div>
+          <div class="grid-2">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Heatmap загрузки по неделям</h2>
+                  <span>Capacity учитывает FTE, календарь, отпуска и резерв</span>
+                </div>
+                <span>Порог: красный >100%</span>
+              </div>
+              <div class="heatmap">
+                <div class="head-cell">Ресурс</div>
+                <div class="head-cell">08.06</div>
+                <div class="head-cell">15.06</div>
+                <div class="head-cell">22.06</div>
+                <div class="head-cell">29.06</div>
+                <div class="head-cell">06.07</div>
+                <div class="head-cell">13.07</div>
+                <div class="head-cell">20.07</div>
+                <div class="head-cell">27.07</div>
+                <div class="resource-cell">Иванова BA <small>40 ч</small></div>
+                <div class="cell load-ok">78%</div>
+                <div class="cell load-warn">92%</div>
+                <div class="cell load-bad">116%</div>
+                <div class="cell load-warn">96%</div>
+                <div class="cell load-ok">82%</div>
+                <div class="cell load-ok">74%</div>
+                <div class="cell load-low">44%</div>
+                <div class="cell load-ok">68%</div>
+                <div class="resource-cell">Петров Dev <small>36 ч</small></div>
+                <div class="cell load-bad">128%</div>
+                <div class="cell load-bad">132%</div>
+                <div class="cell load-warn">98%</div>
+                <div class="cell load-ok">84%</div>
+                <div class="cell load-ok">72%</div>
+                <div class="cell load-warn">90%</div>
+                <div class="cell load-bad">111%</div>
+                <div class="cell load-ok">76%</div>
+                <div class="resource-cell">Смирнов QA <small>40 ч</small></div>
+                <div class="cell load-ok">66%</div>
+                <div class="cell load-ok">80%</div>
+                <div class="cell load-warn">95%</div>
+                <div class="cell load-bad">121%</div>
+                <div class="cell load-bad">119%</div>
+                <div class="cell load-warn">94%</div>
+                <div class="cell load-ok">82%</div>
+                <div class="cell load-ok">70%</div>
+                <div class="resource-cell">Ли DevOps <small>24 ч</small></div>
+                <div class="cell load-warn">90%</div>
+                <div class="cell load-bad">148%</div>
+                <div class="cell load-bad">152%</div>
+                <div class="cell load-warn">98%</div>
+                <div class="cell load-ok">78%</div>
+                <div class="cell load-low">50%</div>
+                <div class="cell load-ok">64%</div>
+                <div class="cell load-ok">72%</div>
+                <div class="resource-cell">Соколова PMO <small>20 ч</small></div>
+                <div class="cell load-ok">70%</div>
+                <div class="cell load-ok">82%</div>
+                <div class="cell load-warn">88%</div>
+                <div class="cell load-warn">91%</div>
+                <div class="cell load-ok">76%</div>
+                <div class="cell load-ok">68%</div>
+                <div class="cell load-low">42%</div>
+                <div class="cell load-low">36%</div>
+                <div class="resource-cell">Unstaffed QA auto <small>роль</small></div>
+                <div class="cell load-low">0 ч</div>
+                <div class="cell load-warn">24 ч</div>
+                <div class="cell load-bad">56 ч</div>
+                <div class="cell load-bad">48 ч</div>
+                <div class="cell load-warn">20 ч</div>
+                <div class="cell load-ok">0 ч</div>
+                <div class="cell load-ok">0 ч</div>
+                <div class="cell load-ok">0 ч</div>
+              </div>
+            </section>
+            <div class="side-stack">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Критические конфликты</h2>
+                  <span>5 открыто</span>
+                </div>
+                <div class="list">
+                  <div class="issue">
+                    <div class="tag-row">
+                      <span class="tag red">critical path</span>
+                      <span class="tag red">148%</span>
+                    </div>
+                    <b>Ли DevOps перегружен на интеграции стенда</b>
+                    <small>Задачи 4.2.1 и 4.3.3 пересекаются с релизным окном.</small>
+                  </div>
+                  <div class="issue">
+                    <div class="tag-row">
+                      <span class="tag amber">approval</span>
+                      <span class="tag blue">backend</span>
+                    </div>
+                    <b>Запрос backend senior ожидает 4 дня</b>
+                    <small>Без назначения UAT сдвигается на 6 календарных дней.</small>
+                  </div>
+                  <div class="issue">
+                    <div class="tag-row">
+                      <span class="tag red">skills gap</span>
+                    </div>
+                    <b>Нет QA automation с опытом API Gateway</b>
+                    <small>Дефицит 56 часов на неделе 22.06.</small>
+                  </div>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Рекомендации</h2>
+                  <span>impact preview</span>
+                </div>
+                <div class="list">
+                  <div class="issue">
+                    <b>Перенести API smoke tests на QA2</b>
+                    <small>Снижает загрузку Смирнова с 121% до 94%, срок не меняется.</small>
+                  </div>
+                  <div class="issue">
+                    <b>Открыть роль DevOps 0.5 FTE на 2 недели</b>
+                    <small>Убирает риск +9 дней по вехе "Интеграционный стенд".</small>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </main>
+    </section>
+
+    <section class="screen" data-shot="02-schedule-allocations">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">P</div>
+          <div>
+            <strong>PMS</strong>
+            <small>Resource schedule</small>
+          </div>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Проект CVTE968</p>
+          <div class="nav-item">Обзор</div>
+          <div class="nav-item">Структура</div>
+          <div class="nav-item">Гантт</div>
+          <div class="nav-item active">Управление ресурсами</div>
+          <div class="nav-item">Бюджет</div>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Ресурсные views</p>
+          <div class="nav-item">Обзор загрузки</div>
+          <div class="nav-item active">Расписание</div>
+          <div class="nav-item">Запросы</div>
+          <div class="nav-item">Профили</div>
+        </div>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div class="title">
+            <h1>Расписание назначений</h1>
+            <p>Timeline с hard/soft booking, отпусками, незакрытым demand и черновыми сценариями.</p>
+          </div>
+          <div class="actions">
+            <div class="button">Сценарий: UAT без сдвига</div>
+            <div class="button">Роли: все</div>
+            <div class="button primary">Применить сценарий</div>
+          </div>
+        </header>
+        <div class="workspace">
+          <div class="grid-2">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Июнь - июль 2026</h2>
+                  <span>Блоки можно переносить после проверки прав и конфликтов</span>
+                </div>
+                <span>Hard booking / Soft booking / Time off</span>
+              </div>
+              <div class="schedule">
+                <div class="timeline-head">Ресурс</div>
+                <div class="timeline-head">08</div>
+                <div class="timeline-head">11</div>
+                <div class="timeline-head">15</div>
+                <div class="timeline-head">18</div>
+                <div class="timeline-head">22</div>
+                <div class="timeline-head">25</div>
+                <div class="timeline-head">29</div>
+                <div class="timeline-head">02</div>
+                <div class="timeline-head">06</div>
+                <div class="timeline-head">09</div>
+
+                <div class="timeline-name">Петров Dev <small>backend, 36 ч/нед</small></div>
+                <div class="timeline-day"><div class="booking red">API 14</div></div>
+                <div class="timeline-day"><div class="booking red">API 18</div></div>
+                <div class="timeline-day"><div class="booking amber">REV 9</div></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"><div class="booking blue">FIX 12</div></div>
+                <div class="timeline-day"><div class="booking blue">FIX 8</div></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"><div class="booking teal">UAT 10</div></div>
+                <div class="timeline-day"><div class="booking teal">UAT 8</div></div>
+
+                <div class="timeline-name">Иванова BA <small>business analysis</small></div>
+                <div class="timeline-day"><div class="booking blue">SCOPE</div></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"><div class="booking amber">UAT PREP</div></div>
+                <div class="timeline-day"><div class="booking amber">UAT PREP</div></div>
+                <div class="timeline-day"><div class="booking red">CHANGE</div></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"><div class="booking teal">DOCS</div></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+
+                <div class="timeline-name">Смирнов QA <small>manual + API</small></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"><div class="booking teal">CASE 8</div></div>
+                <div class="timeline-day"><div class="booking teal">CASE 10</div></div>
+                <div class="timeline-day"><div class="booking red">API TST</div></div>
+                <div class="timeline-day"><div class="booking red">API TST</div></div>
+                <div class="timeline-day"><div class="booking amber">REG</div></div>
+                <div class="timeline-day"><div class="booking amber">REG</div></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"><div class="booking blue">UAT</div></div>
+                <div class="timeline-day"><div class="booking blue">UAT</div></div>
+
+                <div class="timeline-name">Ли DevOps <small>0.6 FTE, Shanghai</small></div>
+                <div class="timeline-day"><div class="booking muted">OFF</div></div>
+                <div class="timeline-day"><div class="booking red">STAND</div></div>
+                <div class="timeline-day"><div class="booking red">STAND</div></div>
+                <div class="timeline-day"><div class="booking red">REL</div></div>
+                <div class="timeline-day"><div class="booking amber">MON</div></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"><div class="booking blue">CI</div></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+
+                <div class="timeline-name">Unstaffed QA auto <small>роль, 56 ч</small></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"><div class="booking amber">NEED 16</div></div>
+                <div class="timeline-day"><div class="booking red">NEED 20</div></div>
+                <div class="timeline-day"><div class="booking red">NEED 20</div></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+                <div class="timeline-day"></div>
+              </div>
+            </section>
+            <div class="side-stack">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Черновой сценарий</h2>
+                  <span>не применен</span>
+                </div>
+                <div class="list">
+                  <div class="issue">
+                    <b>1. Добавить QA automation 0.5 FTE</b>
+                    <small>Закрывает 40 из 56 часов role demand.</small>
+                  </div>
+                  <div class="issue">
+                    <b>2. Перенести regression на 29.06</b>
+                    <small>Снижает пик QA с 121% до 93%.</small>
+                  </div>
+                  <div class="issue">
+                    <b>3. Закрепить DevOps backup</b>
+                    <small>Убирает конфликт с отпуском и релизным окном.</small>
+                  </div>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Эффект сценария</h2>
+                  <span>impact</span>
+                </div>
+                <div class="bars">
+                  <div class="bar-row">
+                    <span>Перегрузки</span>
+                    <div class="bar-track"><div class="bar-fill" style="width: 38%; background: var(--green)"></div></div>
+                    <b>-62%</b>
+                  </div>
+                  <div class="bar-row">
+                    <span>Дата UAT</span>
+                    <div class="bar-track"><div class="bar-fill" style="width: 80%; background: var(--blue)"></div></div>
+                    <b>0 дн.</b>
+                  </div>
+                  <div class="bar-row">
+                    <span>Cost delta</span>
+                    <div class="bar-track"><div class="bar-fill" style="width: 28%; background: var(--amber)"></div></div>
+                    <b>+420k</b>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </main>
+    </section>
+
+    <section class="screen" data-shot="03-resource-profile">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">P</div>
+          <div>
+            <strong>PMS</strong>
+            <small>Resource profile</small>
+          </div>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Проект CVTE968</p>
+          <div class="nav-item">Обзор</div>
+          <div class="nav-item">Гантт</div>
+          <div class="nav-item active">Управление ресурсами</div>
+          <div class="nav-item">Бюджет</div>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Ресурсные views</p>
+          <div class="nav-item">Обзор загрузки</div>
+          <div class="nav-item">Расписание</div>
+          <div class="nav-item">Запросы</div>
+          <div class="nav-item active">Профили</div>
+        </div>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div class="title">
+            <h1>Профиль ресурса</h1>
+            <p>Доступность, навыки, ставки, назначения и фактические часы по проектам.</p>
+          </div>
+          <div class="actions">
+            <div class="button">Открыть календарь</div>
+            <div class="button">История</div>
+            <div class="button primary">Запросить замену</div>
+          </div>
+        </header>
+        <div class="workspace">
+          <div class="profile-grid">
+            <section class="panel person-card">
+              <div class="avatar">ЛИ</div>
+              <h2>Ли Чжэнь</h2>
+              <p>DevOps Engineer, Shanghai, 0.6 FTE</p>
+              <div class="tag-row">
+                <span class="tag blue">DevOps</span>
+                <span class="tag green">CI/CD</span>
+                <span class="tag amber">K8s</span>
+                <span class="tag red">critical</span>
+              </div>
+              <div class="facts">
+                <div class="fact"><span>Менеджер</span><b>Wang Tao</b></div>
+                <div class="fact"><span>Календарь</span><b>CN / 24 ч</b></div>
+                <div class="fact"><span>Плановая ставка</span><b>7 800 RUB/ч</b></div>
+                <div class="fact"><span>Доступность</span><b>до 12.07</b></div>
+                <div class="fact"><span>Резерв</span><b>4 ч/нед</b></div>
+              </div>
+            </section>
+            <div class="side-stack">
+              <div class="kpi-grid">
+                <div class="kpi">
+                  <span>Capacity</span>
+                  <b>24 ч</b>
+                  <small>в неделю с учетом 0.6 FTE</small>
+                </div>
+                <div class="kpi">
+                  <span>Utilization</span>
+                  <b>148%</b>
+                  <small>пик на неделе 15.06</small>
+                </div>
+                <div class="kpi">
+                  <span>Overtime risk</span>
+                  <b>+22 ч</b>
+                  <small>без backup-ресурса</small>
+                </div>
+                <div class="kpi">
+                  <span>Cost forecast</span>
+                  <b>1.48M</b>
+                  <small>+320k к baseline</small>
+                </div>
+              </div>
+              <div class="grid-2">
+                <section class="panel">
+                  <div class="panel-head">
+                    <h2>Назначения</h2>
+                    <span>июнь-июль</span>
+                  </div>
+                  <div class="table">
+                    <div class="table-head">
+                      <span>Работа</span>
+                      <span>Период</span>
+                      <span>План</span>
+                      <span>Факт</span>
+                      <span>Статус</span>
+                    </div>
+                    <div class="table-row">
+                      <b>4.2.1 Интеграционный стенд</b>
+                      <span>11-19.06</span>
+                      <span>32 ч</span>
+                      <span>18 ч</span>
+                      <span class="tag red">overload</span>
+                    </div>
+                    <div class="table-row">
+                      <b>4.3.3 Release pipeline</b>
+                      <span>18-25.06</span>
+                      <span>24 ч</span>
+                      <span>6 ч</span>
+                      <span class="tag amber">risk</span>
+                    </div>
+                    <div class="table-row">
+                      <b>5.1 CI hardening</b>
+                      <span>29.06-03.07</span>
+                      <span>12 ч</span>
+                      <span>0 ч</span>
+                      <span class="tag blue">soft</span>
+                    </div>
+                  </div>
+                </section>
+                <section class="panel">
+                  <div class="panel-head">
+                    <h2>Загрузка по неделям</h2>
+                    <span>capacity 24 ч</span>
+                  </div>
+                  <div class="bars">
+                    <div class="bar-row">
+                      <span>08.06</span>
+                      <div class="bar-track"><div class="bar-fill" style="width: 90%; background: var(--amber)"></div></div>
+                      <b>90%</b>
+                    </div>
+                    <div class="bar-row">
+                      <span>15.06</span>
+                      <div class="bar-track"><div class="bar-fill" style="width: 100%; background: var(--red)"></div></div>
+                      <b>148%</b>
+                    </div>
+                    <div class="bar-row">
+                      <span>22.06</span>
+                      <div class="bar-track"><div class="bar-fill" style="width: 100%; background: var(--red)"></div></div>
+                      <b>152%</b>
+                    </div>
+                    <div class="bar-row">
+                      <span>29.06</span>
+                      <div class="bar-track"><div class="bar-fill" style="width: 98%; background: var(--amber)"></div></div>
+                      <b>98%</b>
+                    </div>
+                    <div class="bar-row">
+                      <span>06.07</span>
+                      <div class="bar-track"><div class="bar-fill" style="width: 78%; background: var(--green)"></div></div>
+                      <b>78%</b>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>Навыки и ограничения</h2>
+                  <span>используется при подборе кандидатов</span>
+                </div>
+                <div class="list">
+                  <div class="tag-row">
+                    <span class="tag green">Kubernetes L4</span>
+                    <span class="tag green">GitLab CI L4</span>
+                    <span class="tag blue">Linux L3</span>
+                    <span class="tag blue">SberCloud L3</span>
+                    <span class="tag amber">English B1</span>
+                    <span class="tag red">Нет доступа к prod без approval</span>
+                    <span class="tag amber">Недоступен 08.06</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </main>
+    </section>
+
+    <section class="screen" data-shot="04-resource-request">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">P</div>
+          <div>
+            <strong>PMS</strong>
+            <small>Resource request</small>
+          </div>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Проект CVTE968</p>
+          <div class="nav-item">Обзор</div>
+          <div class="nav-item">Структура</div>
+          <div class="nav-item">Гантт</div>
+          <div class="nav-item active">Управление ресурсами</div>
+          <div class="nav-item">Бюджет</div>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Ресурсные views</p>
+          <div class="nav-item">Обзор загрузки</div>
+          <div class="nav-item">Расписание</div>
+          <div class="nav-item active">Запросы</div>
+          <div class="nav-item">Профили</div>
+        </div>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div class="title">
+            <h1>Запрос ресурса</h1>
+            <p>PM формирует demand, система предлагает кандидатов, Resource Manager принимает решение.</p>
+          </div>
+          <div class="actions">
+            <div class="button">SLA: 2 дня</div>
+            <div class="button">Статус: на согласовании</div>
+            <div class="button primary">Утвердить кандидата</div>
+          </div>
+        </header>
+        <div class="workspace">
+          <div class="request-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Потребность</h2>
+                <span>из WBS 4.4.2</span>
+              </div>
+              <div class="form">
+                <div class="field">
+                  <label>Роль</label>
+                  <div class="input">QA automation engineer</div>
+                </div>
+                <div class="field">
+                  <label>Период</label>
+                  <div class="input">17.06.2026 - 03.07.2026</div>
+                </div>
+                <div class="field">
+                  <label>Объем</label>
+                  <div class="input">56 часов, 0.5 FTE</div>
+                </div>
+                <div class="field">
+                  <label>Навыки</label>
+                  <div class="tag-row">
+                    <span class="tag blue">API testing</span>
+                    <span class="tag blue">Postman</span>
+                    <span class="tag amber">Jira</span>
+                    <span class="tag amber">CI</span>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Критичность</label>
+                  <div class="input">Высокая, влияет на UAT и milestone M4</div>
+                </div>
+                <div class="field">
+                  <label>Источник</label>
+                  <div class="input">4.4.2 API regression suite</div>
+                </div>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Кандидаты</h2>
+                  <span>подбор по доступности, навыкам, ставке и конфликтам</span>
+                </div>
+                <span>best fit сверху</span>
+              </div>
+              <div class="candidate">
+                <div>
+                  <b>Кузнецова Анна</b>
+                  <small>QA automation, API L4, RU calendar</small>
+                </div>
+                <span class="tag green">92% fit</span>
+                <span class="tag amber">86%</span>
+                <span class="tag blue">6 200/ч</span>
+              </div>
+              <div class="candidate">
+                <div>
+                  <b>Chen Wei</b>
+                  <small>QA automation, CI L3, CN calendar</small>
+                </div>
+                <span class="tag green">88% fit</span>
+                <span class="tag green">74%</span>
+                <span class="tag blue">5 900/ч</span>
+              </div>
+              <div class="candidate">
+                <div>
+                  <b>Смирнов Алексей</b>
+                  <small>Manual QA + API, уже в проекте</small>
+                </div>
+                <span class="tag amber">78% fit</span>
+                <span class="tag red">121%</span>
+                <span class="tag blue">5 400/ч</span>
+              </div>
+              <div class="candidate">
+                <div>
+                  <b>External vendor pool</b>
+                  <small>2 недели lead time, требуется procurement</small>
+                </div>
+                <span class="tag amber">72% fit</span>
+                <span class="tag green">free</span>
+                <span class="tag amber">8 800/ч</span>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Impact</h2>
+                <span>если выбрать Анну</span>
+              </div>
+              <div class="impact-card">
+                <b>Сроки</b>
+                <p>UAT остается 06.07. Риск сдвига milestone M4 снижается с высокого до среднего.</p>
+              </div>
+              <div class="impact-card">
+                <b>Бюджет</b>
+                <p>Forecast +347 200 RUB. В пределах approved contingency.</p>
+              </div>
+              <div class="impact-card">
+                <b>Ресурсный риск</b>
+                <p>Дефицит QA automation сокращается с 56 до 8 часов.</p>
+              </div>
+              <div class="impact-card">
+                <b>Approval route</b>
+                <p>PM -> Resource Manager -> Team Lead QA. Finance approval не требуется.</p>
+              </div>
+              <div class="list">
+                <div class="tag-row">
+                  <span class="tag green">approve</span>
+                  <span class="tag blue">soft booking first</span>
+                  <span class="tag amber">notify PMO</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </section>
+  </body>
+</html>

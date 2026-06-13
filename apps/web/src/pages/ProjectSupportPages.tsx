@@ -1,4 +1,6 @@
-import { BriefcaseBusiness } from "lucide-react";
+import {
+  BriefcaseBusiness,
+} from "lucide-react";
 
 import { usePageContext } from "./PageContext";
 
@@ -59,73 +61,6 @@ export function ProjectChangesPage() {
                     {overviewDashboard.scheduleDeltaItems.length === 0 && (
                       <div className="empty-state">
                         Изменения сроков относительно базового плана не найдены.
-                      </div>
-                    )}
-                  </div>
-                </article>
-              );
-}
-
-export function ProjectResourcesPage() {
-  const { resourceSummaryRows } = usePageContext();
-  return (
-                <article className="panel project-card project-module-page">
-                  <div className="panel-title">
-                    <div>
-                      <h2>Управление ресурсами</h2>
-                      <p>
-                        Сводка по исполнителям, назначенным работам и просроченным
-                        задачам.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="module-summary-grid">
-                    <div className="metric-card">
-                      <span>Исполнители</span>
-                      <b>{resourceSummaryRows.length}</b>
-                      <small>По полю Исполнитель в Структуре</small>
-                    </div>
-                    <div className="metric-card">
-                      <span>Работы в процессе</span>
-                      <b>
-                        {resourceSummaryRows.reduce(
-                          (sum, row) => sum + row.inProgress,
-                          0,
-                        )}
-                      </b>
-                      <small>Задачи и результаты со статусом В работе</small>
-                    </div>
-                    <div className="metric-card">
-                      <span>Просроченные</span>
-                      <b>
-                        {resourceSummaryRows.reduce(
-                          (sum, row) => sum + row.overdue,
-                          0,
-                        )}
-                      </b>
-                      <small>Не завершены и срок уже прошел</small>
-                    </div>
-                  </div>
-                  <div className="module-table resources-table">
-                    <div className="module-table-head">
-                      <span>Исполнитель</span>
-                      <span>Всего</span>
-                      <span>В работе</span>
-                      <span>Сделано</span>
-                      <span>Просрочено</span>
-                    </div>
-                    {resourceSummaryRows.map((row) => (
-                      <div className="module-table-row" key={row.owner}>
-                        <b>{row.owner}</b>
-                        <span>{row.total}</span>
-                        <span>{row.inProgress}</span>
-                        <span>{row.done}</span>
-                        <span>{row.overdue}</span>
-                      </div>
-                    ))}
-                    {resourceSummaryRows.length === 0 && (
-                      <div className="empty-state">
-                        В Структуре пока нет задач с назначенными исполнителями.
                       </div>
                     )}
                   </div>
