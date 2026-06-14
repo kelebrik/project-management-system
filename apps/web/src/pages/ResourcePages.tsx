@@ -1,16 +1,10 @@
-import {
-  AlertTriangle,
-  CalendarDays,
-  Gauge,
-  Settings2,
-  UserPlus,
-  Users,
-  Workflow,
-} from "lucide-react";
+import { Settings2 } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import type {
   ResourceAllocationProfile,
   ResourceDashboard,
+  ResourceDashboardRow,
   ResourceProfileKind,
 } from "../app/resourceModels";
 import { usePageContext } from "./PageContext";
@@ -33,19 +27,26 @@ const resourceKindLabels: Record<ResourceProfileKind, string> = {
 
 function ResourcePageShell({
   children,
-  description,
-  title = "Управление ресурсами",
+  subtitle,
+  title = "Профиль ресурса",
 }: {
   children: React.ReactNode;
-  description: string;
+  subtitle?: string;
   title?: string;
 }) {
   return (
     <article className="panel project-card project-module-page resource-management-page">
-      <div className="panel-title">
+      <div className="panel-title resource-profile-title">
         <div>
           <h2>{title}</h2>
-          <p>{description}</p>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
+        <div className="resource-profile-actions">
+          <button type="button">Открыть календарь</button>
+          <button type="button">История</button>
+          <button type="button" className="primary">
+            Запросить замену
+          </button>
         </div>
       </div>
       {children}
@@ -53,263 +54,235 @@ function ResourcePageShell({
   );
 }
 
-function ResourceKpis({ dashboard }: { dashboard: ResourceDashboard }) {
+function avatarLetters(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "Р";
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "не задано";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "не задано";
+  return date.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
+function selectedRow(rows: ResourceDashboardRow[], owner: string) {
+  return rows.find((row) => row.owner === owner) ?? rows[0] ?? null;
+}
+
+function ResourceMetricCard({
+  label,
+  note,
+  value,
+}: {
+  label: string;
+  note: string;
+  value: string;
+}) {
   return (
-    <div className="resource-kpi-grid">
-      <div className="metric-card resource-kpi-card">
-        <Users size={18} />
-        <span>Исполнители</span>
-        <b>{dashboard.summary.resourceCount}</b>
-        <small>Назначены в структуре работ активных проектов</small>
-      </div>
-      <div className="metric-card resource-kpi-card">
-        <Gauge size={18} />
-        <span>Перегружены</span>
-        <b>{dashboard.summary.overloadedCount}</b>
-        <small>Спрос выше расчетной доступности</small>
-      </div>
-      <div className="metric-card resource-kpi-card">
-        <UserPlus size={18} />
-        <span>Дефицит</span>
-        <b>{dashboard.summary.roleGapHours} ч</b>
-        <small>Перегрузка и незакрепленный спрос</small>
-      </div>
-      <div className="metric-card resource-kpi-card">
-        <CalendarDays size={18} />
-        <span>Риск срока</span>
-        <b>{dashboard.summary.criticalDelayRiskDays} дн.</b>
-        <small>Оценка влияния критичных конфликтов</small>
-      </div>
+    <div className="resource-profile-metric">
+      <span>{label}</span>
+      <b>{value}</b>
+      <small>{note}</small>
     </div>
   );
 }
 
-function ResourceEmptyState({ dashboard }: { dashboard: ResourceDashboard }) {
-  const hasResourceData =
-    dashboard.rows.length > 0 || Boolean(dashboard.unassignedRow);
-  if (hasResourceData) return null;
-  return (
-    <div className="empty-state">
-      В Структуре пока нет задач или результатов для расчета ресурсной загрузки.
-    </div>
-  );
-}
-
-function ResourceHeatmap({ dashboard }: { dashboard: ResourceDashboard }) {
-  const visibleRows = dashboard.rows.slice(0, 8);
-  const heatmapRows = dashboard.unassignedRow
-    ? [...visibleRows, dashboard.unassignedRow]
-    : visibleRows;
-  return (
-    <section className="resource-panel resource-heatmap-panel">
-      <div className="resource-panel-head">
-        <div>
-          <h3>Загрузка на 8 недель</h3>
-          <p>Трудоемкость WBS / доступность из параметров ресурса.</p>
-        </div>
-        <span>
-          {dashboard.summary.activeWorkCount} активных работ ·{" "}
-          {dashboard.source.activeProjectsCount} проектов
-        </span>
-      </div>
-      <div className="resource-heatmap" role="table">
-        <div className="resource-heatmap-row resource-heatmap-head" role="row">
-          <span>Ресурс</span>
-          {dashboard.weeks.map((week) => (
-            <span key={week.key}>{week.label}</span>
-          ))}
-        </div>
-        {heatmapRows.map((row) => (
-          <div className="resource-heatmap-row" key={row.owner} role="row">
-            <div className="resource-heatmap-owner">
-              <b>{row.owner}</b>
-              <span>
-                {row.role} · {resourceKindLabels[row.profile.kind]} ·{" "}
-                {row.capacityHoursPerWeek} ч/нед
-              </span>
-            </div>
-            {row.cells.map((cell) => (
-              <div
-                className={`resource-load-cell resource-load-${cell.tone}`}
-                key={cell.weekKey}
-                title={`${cell.demandHours} ч спроса / ${cell.capacityHours} ч доступно. Спрос считается по полю трудоемкости WBS в процентах.`}
-              >
-                <b>{cell.label}</b>
-                <span>{cell.demandHours} ч</span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ResourceConflicts({ dashboard }: { dashboard: ResourceDashboard }) {
-  return (
-    <section className="resource-panel">
-      <div className="resource-panel-head">
-        <div>
-          <h3>Конфликты</h3>
-          <p>Что требует решения до следующего статуса.</p>
-        </div>
-        <AlertTriangle size={18} />
-      </div>
-      <div className="resource-conflict-list">
-        {dashboard.conflicts.map((conflict) => (
-          <div
-            className={`resource-conflict-card resource-conflict-${conflict.severity}`}
-            key={conflict.id}
-          >
-            <b>{conflict.title}</b>
-            {conflict.weekLabel && <small>Неделя {conflict.weekLabel}</small>}
-            <span>{conflict.detail}</span>
-          </div>
-        ))}
-        {dashboard.conflicts.length === 0 && (
-          <div className="resource-muted-card">
-            Критичных конфликтов на горизонте нет.
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function ResourceRecommendations({ dashboard }: { dashboard: ResourceDashboard }) {
-  return (
-    <section className="resource-panel">
-      <div className="resource-panel-head">
-        <div>
-          <h3>Рекомендации</h3>
-          <p>Следующие управленческие действия.</p>
-        </div>
-        <Workflow size={18} />
-      </div>
-      <div className="resource-recommendation-list">
-        {dashboard.recommendations.map((item) => (
-          <div
-            className={`resource-recommendation resource-load-${item.tone}`}
-            key={item.id}
-          >
-            <b>{item.title}</b>
-            <span>{item.detail}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+function AssignmentStatus({ utilization }: { utilization: number }) {
+  if (utilization > 100) return <span className="resource-pill danger">overload</span>;
+  if (utilization >= 86) return <span className="resource-pill warning">risk</span>;
+  return <span className="resource-pill soft">soft</span>;
 }
 
 export function ResourceOverviewPage() {
   const { resourceDashboard } = useResourceDashboard();
-  return (
-    <ResourcePageShell description="Приветственная страница ресурсного контура: capacity, риски перегрузки и ближайшие управленческие действия.">
-      <ResourceKpis dashboard={resourceDashboard} />
-      <ResourceEmptyState dashboard={resourceDashboard} />
-      {(resourceDashboard.rows.length > 0 || resourceDashboard.unassignedRow) && (
-        <div className="resource-command-grid">
-          <ResourceHeatmap dashboard={resourceDashboard} />
-          <aside className="resource-side-stack">
-            <ResourceConflicts dashboard={resourceDashboard} />
-            <ResourceRecommendations dashboard={resourceDashboard} />
-          </aside>
-        </div>
-      )}
-    </ResourcePageShell>
+  const rows = resourceDashboard.rows;
+  const [selectedOwner, setSelectedOwner] = useState(rows[0]?.owner ?? "");
+  const row = selectedRow(rows, selectedOwner);
+  const selectedCell = row?.cells.find((cell) => cell.demandHours > 0) ?? row?.cells[0] ?? null;
+  const assignments = row?.activeItems.slice(0, 4) ?? [];
+  const weeklyCells = row?.cells.slice(0, 5) ?? [];
+  const peakCell = row?.cells.reduce(
+    (peak, cell) => (cell.utilization > peak.utilization ? cell : peak),
+    row.cells[0],
   );
-}
+  const skillTags = useMemo(() => {
+    if (!row) return [];
+    return [
+      row.role,
+      resourceKindLabels[row.profile.kind],
+      row.calendarCode ? `${row.calendarCode} calendar` : "calendar TBD",
+      row.profile.projectAllocationPercent >= 100 ? "full project pool" : "shared allocation",
+      row.overdue > 0 ? "есть просроченные" : "без просрочек",
+    ];
+  }, [row]);
 
-export function ResourceWorkloadPage() {
-  const { resourceDashboard } = useResourceDashboard();
-  return (
-    <ResourcePageShell description="Heatmap загрузки по людям и ролям на ближайшие недели.">
-      <ResourceKpis dashboard={resourceDashboard} />
-      <ResourceEmptyState dashboard={resourceDashboard} />
-      {(resourceDashboard.rows.length > 0 || resourceDashboard.unassignedRow) && (
-        <ResourceHeatmap dashboard={resourceDashboard} />
-      )}
-    </ResourcePageShell>
-  );
-}
+  if (!row) {
+    return (
+      <ResourcePageShell subtitle="Доступность, навыки, ставки, назначения и фактические часы по проектам.">
+        <div className="empty-state">Нет ресурсов для отображения.</div>
+      </ResourcePageShell>
+    );
+  }
 
-export function ResourceSchedulePage() {
-  const { resourceDashboard } = useResourceDashboard();
-  const visibleRows = resourceDashboard.rows.slice(0, 8);
   return (
-    <ResourcePageShell description="Расписание назначений: активные работы по самым загруженным исполнителям.">
-      <section className="resource-panel">
-        <div className="resource-panel-head">
-          <div>
-            <h3>Ближайшие назначения</h3>
-            <p>Активные работы по самым загруженным исполнителям.</p>
+    <ResourcePageShell subtitle="Доступность, навыки, ставки, назначения и фактические часы по проектам.">
+      <div className="resource-profile-layout">
+        <section className="resource-profile-card">
+          <div className="resource-avatar">{avatarLetters(row.owner)}</div>
+          <label className="resource-profile-select">
+            <span>Ресурс</span>
+            <select
+              value={row.owner}
+              onChange={(event) => setSelectedOwner(event.target.value)}
+            >
+              {rows.map((resourceRow) => (
+                <option key={resourceRow.owner} value={resourceRow.owner}>
+                  {resourceRow.owner}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p>
+            {row.role}, {resourceKindLabels[row.profile.kind]},{" "}
+            {row.profile.fte || 0} FTE
+          </p>
+          <div className="resource-tag-row">
+            {skillTags.slice(0, 4).map((tag, index) => (
+              <span
+                className={`resource-pill ${index === 2 ? "warning" : index === 3 ? "danger" : "ok"}`}
+                key={tag}
+              >
+                {tag}
+              </span>
+            ))}
           </div>
-        </div>
-        <div className="resource-schedule-grid">
-          {visibleRows.slice(0, 6).map((row) => (
-            <div className="resource-schedule-lane" key={row.owner}>
-              <div className="resource-schedule-owner">
-                <b>{row.owner}</b>
-                <span>{row.remainingHours} ч осталось</span>
+          <dl className="resource-profile-facts">
+            <div>
+              <dt>Менеджер</dt>
+              <dd>{row.profile.kind === "coordinator" ? row.owner : "не задан"}</dd>
+            </div>
+            <div>
+              <dt>Календарь</dt>
+              <dd>{row.calendarCode ?? "не задан"} / {row.capacityHoursPerWeek} ч</dd>
+            </div>
+            <div>
+              <dt>Плановая ставка</dt>
+              <dd>не задана</dd>
+            </div>
+            <div>
+              <dt>Доступность</dt>
+              <dd>{row.capacityHoursPerWeek} ч/нед</dd>
+            </div>
+            <div>
+              <dt>Резерв</dt>
+              <dd>{Math.max(0, row.capacityHoursPerWeek - (selectedCell?.demandHours ?? 0))} ч/нед</dd>
+            </div>
+          </dl>
+        </section>
+
+        <div className="resource-profile-main">
+          <div className="resource-profile-metrics">
+            <ResourceMetricCard
+              label="Capacity"
+              value={`${row.capacityHoursPerWeek} ч`}
+              note={`в неделю с учетом ${row.profile.fte || 0} FTE`}
+            />
+            <ResourceMetricCard
+              label="Utilization"
+              value={`${peakCell?.utilization ?? 0}%`}
+              note={`пик на неделе ${peakCell?.weekLabel ?? "-"}`}
+            />
+            <ResourceMetricCard
+              label="Overtime risk"
+              value={`+${Math.max(0, (peakCell?.demandHours ?? 0) - row.capacityHoursPerWeek)} ч`}
+              note="без backup-ресурса"
+            />
+            <ResourceMetricCard
+              label="Cost forecast"
+              value="не задан"
+              note="нет ставки ресурса"
+            />
+          </div>
+
+          <div className="resource-profile-grid">
+            <section className="resource-profile-panel">
+              <div className="resource-panel-head">
+                <h3>Назначения</h3>
+                <span>июнь-июль</span>
               </div>
-              <div className="resource-bookings">
-                {row.activeItems.slice(0, 5).map((item) => (
-                  <div className="resource-booking" key={item.id}>
+              <div className="resource-assignment-table">
+                <div className="resource-assignment-head">
+                  <span>Работа</span>
+                  <span>Период</span>
+                  <span>План</span>
+                  <span>Факт</span>
+                  <span>Статус</span>
+                </div>
+                {assignments.map((item) => (
+                  <div className="resource-assignment-row" key={item.id}>
                     <b>
-                      {item.projectCode ? `${item.projectCode} · ` : ""}
                       {item.code} {item.title}
                     </b>
-                    <span>
-                      {item.progress}% · {item.remainingHours} ч
-                      {item.isCritical ? " · критический путь" : ""}
-                    </span>
+                    <span>{formatDate(item.startDate)}-{formatDate(item.dueDate)}</span>
+                    <span>{item.plannedHours} ч</span>
+                    <span>{Math.max(0, item.plannedHours - item.remainingHours)} ч</span>
+                    <AssignmentStatus utilization={peakCell?.utilization ?? 0} />
                   </div>
                 ))}
-                {row.activeItems.length === 0 && (
-                  <div className="resource-muted-card">Нет активных работ.</div>
+                {assignments.length === 0 && (
+                  <div className="resource-profile-empty">Активных назначений нет.</div>
                 )}
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    </ResourcePageShell>
-  );
-}
+            </section>
 
-export function ResourceDirectoryPage() {
-  const { resourceDashboard } = useResourceDashboard();
-  const visibleRows = resourceDashboard.rows.slice(0, 12);
-  return (
-    <ResourcePageShell description="Профили ресурсов: тип, доступность, остаточный объем и признаки перегрузки.">
-      <section className="resource-panel">
-        <div className="resource-panel-head">
-          <div>
-            <h3>Профили ресурсов</h3>
-            <p>Сводка по ролям, календарям и остаточному объему.</p>
+            <section className="resource-profile-panel">
+              <div className="resource-panel-head">
+                <h3>Загрузка по неделям</h3>
+                <span>capacity {row.capacityHoursPerWeek} ч</span>
+              </div>
+              <div className="resource-week-list">
+                {weeklyCells.map((cell) => (
+                  <div className="resource-week-row" key={cell.weekKey}>
+                    <span>{cell.weekLabel}</span>
+                    <div className="resource-week-track">
+                      <i
+                        className={`resource-week-fill ${cell.utilization > 100 ? "danger" : cell.utilization >= 86 ? "warning" : "ok"}`}
+                        style={{ width: `${Math.min(100, cell.utilization)}%` }}
+                      />
+                    </div>
+                    <b>{cell.utilization}%</b>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
-        </div>
-        <div className="resource-profile-table">
-          <div className="resource-profile-row resource-profile-head">
-            <span>Исполнитель</span>
-            <span>Роль</span>
-            <span>Тип</span>
-            <span>Доступно</span>
-            <span>Осталось</span>
-            <span>Просрочено</span>
-          </div>
-          {visibleRows.map((row) => (
-            <div className="resource-profile-row" key={row.owner}>
-              <b>{row.owner}</b>
-              <span>{row.role}</span>
-              <span>{resourceKindLabels[row.profile.kind]}</span>
-              <span>{row.capacityHoursPerWeek} ч/нед</span>
-              <span>{row.remainingHours} ч</span>
-              <span>{row.overdue}</span>
+
+          <section className="resource-profile-panel">
+            <div className="resource-panel-head">
+              <h3>Навыки и ограничения</h3>
+              <span>используется при подборе кандидатов</span>
             </div>
-          ))}
+            <div className="resource-tag-row">
+              {skillTags.map((tag, index) => (
+                <span
+                  className={`resource-pill ${index > 2 ? "warning" : "ok"}`}
+                  key={tag}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </ResourcePageShell>
   );
 }
@@ -319,7 +292,10 @@ export function ResourceCapacityPage() {
   const visibleRows = resourceDashboard.rows.slice(0, 20);
 
   return (
-    <ResourcePageShell description="Параметры расчета: норма часов, FTE, доля проектной работы и операционка. Нагрузка берется из трудоемкости WBS.">
+    <ResourcePageShell
+      title="Параметры"
+      subtitle="Норма часов, FTE, доля проектной работы и операционка."
+    >
       <section className="resource-panel">
         <div className="resource-panel-head">
           <div>
@@ -444,43 +420,6 @@ export function ResourceCapacityPage() {
           )}
         </div>
       </section>
-    </ResourcePageShell>
-  );
-}
-
-export function ResourceRequestsPage() {
-  const { resourceDashboard } = useResourceDashboard();
-  return (
-    <ResourcePageShell description="Заявки и согласование ресурсов: дефицит ролей, усиление команды и waiting list.">
-      <div className="resource-command-grid">
-        <ResourceConflicts dashboard={resourceDashboard} />
-        <section className="resource-panel">
-          <div className="resource-panel-head">
-            <div>
-              <h3>Ресурсные заявки</h3>
-              <p>Черновики усиления, рассчитанные по дефициту.</p>
-            </div>
-            <UserPlus size={18} />
-          </div>
-          <div className="resource-request-list">
-            {resourceDashboard.requests.map((request) => (
-              <div className="resource-request-card" key={request.id}>
-                <div>
-                  <b>{request.role}</b>
-                  <span>{request.reason}</span>
-                </div>
-                <strong>{request.hours} ч</strong>
-                <small>{request.dueLabel}</small>
-              </div>
-            ))}
-            {resourceDashboard.requests.length === 0 && (
-              <div className="resource-muted-card">
-                Дополнительные заявки не требуются.
-              </div>
-            )}
-          </div>
-        </section>
-      </div>
     </ResourcePageShell>
   );
 }

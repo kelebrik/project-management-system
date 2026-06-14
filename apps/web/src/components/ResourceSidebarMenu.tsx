@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarDays, Gauge, Settings2, UserPlus, Users } from "lucide-react";
+import { Settings2, Users } from "lucide-react";
 
 import type { AppView } from "../app/routes";
 
@@ -10,26 +10,6 @@ type ResourceNavItem = {
 };
 
 const resourceNavItems: ResourceNavItem[] = [
-  {
-    view: "resources-workload",
-    label: "Загрузка",
-    icon: <Gauge size={17} />,
-  },
-  {
-    view: "resources-schedule",
-    label: "Назначения",
-    icon: <CalendarDays size={17} />,
-  },
-  {
-    view: "resources-directory",
-    label: "Ресурсы",
-    icon: <Users size={17} />,
-  },
-  {
-    view: "resources-requests",
-    label: "Запросы",
-    icon: <UserPlus size={17} />,
-  },
   {
     view: "resources-capacity",
     label: "Параметры",

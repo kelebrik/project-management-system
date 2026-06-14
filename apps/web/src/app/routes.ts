@@ -2,10 +2,6 @@ export type AppView =
   | "portfolio"
   | "projects"
   | "resources"
-  | "resources-workload"
-  | "resources-schedule"
-  | "resources-directory"
-  | "resources-requests"
   | "resources-capacity"
   | "project-create"
   | "project-overview"
@@ -75,10 +71,6 @@ export type AdminSectionView = Extract<
 export type ResourceSectionView = Extract<
   AppView,
   | "resources"
-  | "resources-workload"
-  | "resources-schedule"
-  | "resources-directory"
-  | "resources-requests"
   | "resources-capacity"
 >;
 
@@ -129,10 +121,6 @@ export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
   projects: "/projects",
   resources: "/resources",
-  "resources-workload": "/resources/workload",
-  "resources-schedule": "/resources/schedule",
-  "resources-directory": "/resources/directory",
-  "resources-requests": "/resources/requests",
   "resources-capacity": "/resources/capacity",
   "project-create": "/new-project",
   "project-overview": "/overview",
@@ -190,12 +178,12 @@ export const appPathViews: Record<string, AppView> = {
   "/projects": "projects",
   "/resources": "resources",
   "/resources/overview": "resources",
-  "/resources/workload": "resources-workload",
-  "/resources/schedule": "resources-schedule",
-  "/resources/allocations": "resources-schedule",
-  "/resources/directory": "resources-directory",
-  "/resources/resources": "resources-directory",
-  "/resources/requests": "resources-requests",
+  "/resources/workload": "resources",
+  "/resources/schedule": "resources",
+  "/resources/allocations": "resources",
+  "/resources/directory": "resources",
+  "/resources/resources": "resources",
+  "/resources/requests": "resources",
   "/resources/capacity": "resources-capacity",
   "/resources/settings": "resources-capacity",
   "/new-project": "project-create",
@@ -288,10 +276,6 @@ export function isResourceSectionViewName(
 ): view is ResourceSectionView {
   return (
     view === "resources" ||
-    view === "resources-workload" ||
-    view === "resources-schedule" ||
-    view === "resources-directory" ||
-    view === "resources-requests" ||
     view === "resources-capacity"
   );
 }

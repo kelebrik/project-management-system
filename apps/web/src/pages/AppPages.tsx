@@ -24,12 +24,8 @@ import { ProjectRaidPage } from "./ProjectRaidPage";
 import { ProjectBudgetPage, ProjectChangesPage } from "./ProjectSupportPages";
 import { ProjectWorkspacePage } from "./ProjectWorkspacePage";
 import {
-  ResourceDirectoryPage,
   ResourceOverviewPage,
   ResourceCapacityPage,
-  ResourceRequestsPage,
-  ResourceSchedulePage,
-  ResourceWorkloadPage,
 } from "./ResourcePages";
 import { usePageContext } from "./PageContext";
 
@@ -66,10 +62,6 @@ export function AppPages() {
         {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
         {activeView === "resources" && <ResourceOverviewPage />}
-        {activeView === "resources-workload" && <ResourceWorkloadPage />}
-        {activeView === "resources-schedule" && <ResourceSchedulePage />}
-        {activeView === "resources-directory" && <ResourceDirectoryPage />}
-        {activeView === "resources-requests" && <ResourceRequestsPage />}
         {activeView === "resources-capacity" && <ResourceCapacityPage />}
         {project && activeView === "project-overview" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
