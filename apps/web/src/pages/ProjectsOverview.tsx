@@ -66,7 +66,7 @@ export function ProjectsOverview({
             <span className="projects-overview-meta">
               <span>{projectStatusLabel(project.status)}</span>
               <span>{project.projectManager}</span>
-              <span>цель {date(project.targetDate)}</span>
+              <span>Цель {date(project.targetDate)}</span>
             </span>
             <span className="projects-overview-passport">
               {passportRows.map((row) => (

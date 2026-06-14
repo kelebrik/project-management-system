@@ -128,13 +128,19 @@
 .projects-overview-main b,
 .projects-overview-main small,
 .projects-overview-meta span,
-.projects-overview-passport em,
-.projects-overview-passport strong {
+.projects-overview-passport em {
   display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.projects-overview-passport strong {
+  display: block;
+  min-width: 0;
+  overflow-wrap: normal;
+  white-space: normal;
 }
 
 .projects-overview-code {
