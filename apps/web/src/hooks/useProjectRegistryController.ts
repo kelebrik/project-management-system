@@ -208,8 +208,8 @@ export function useProjectRegistryController({
   );
 
   const savePortfolioProjectIdentity = useCallback(
-    async (projectId: string) => {
-      const draft = projectRegistryDrafts[projectId];
+    async (projectId: string, draftOverride?: ProjectRegistryDraft) => {
+      const draft = draftOverride ?? projectRegistryDrafts[projectId];
       if (!draft) return;
       const sourceProject = projects.find((item) => item.id === projectId);
       const code = draft.code.trim();

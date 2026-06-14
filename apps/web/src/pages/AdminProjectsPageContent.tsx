@@ -25,8 +25,14 @@ export function AdminProjectsPageContent() {
     updateProjectRegistryDraft,
   } = ctx;
 
-  const saveProjectIdentity = (projectId: string) => {
-    void savePortfolioProjectIdentity(projectId);
+  const updateAndSaveProjectIdentity = (
+    projectId: string,
+    currentDraft: ProjectRegistryDraft,
+    patch: Partial<ProjectRegistryDraft>,
+  ) => {
+    const nextDraft = { ...currentDraft, ...patch };
+    updateProjectRegistryDraft(projectId, patch);
+    void savePortfolioProjectIdentity(projectId, nextDraft);
   };
   const saveProjectItem = (
     projectId: string,
@@ -86,7 +92,11 @@ export function AdminProjectsPageContent() {
                                     code: event.target.value,
                                   })
                                 }
-                                onBlur={() => saveProjectIdentity(item.id)}
+                                onBlur={(event) =>
+                                  updateAndSaveProjectIdentity(item.id, draft, {
+                                    code: event.currentTarget.value,
+                                  })
+                                }
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
                                     event.currentTarget.blur();
@@ -108,7 +118,11 @@ export function AdminProjectsPageContent() {
                                     name: event.target.value,
                                   })
                                 }
-                                onBlur={() => saveProjectIdentity(item.id)}
+                                onBlur={(event) =>
+                                  updateAndSaveProjectIdentity(item.id, draft, {
+                                    name: event.currentTarget.value,
+                                  })
+                                }
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
                                     event.currentTarget.blur();
@@ -146,7 +160,11 @@ export function AdminProjectsPageContent() {
                                     projectManager: event.target.value,
                                   })
                                 }
-                                onBlur={() => saveProjectItem(item.id)}
+                                onBlur={(event) =>
+                                  updateAndSaveProjectItem(item.id, draft, {
+                                    projectManager: event.currentTarget.value,
+                                  })
+                                }
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
                                     event.currentTarget.blur();
@@ -195,7 +213,11 @@ export function AdminProjectsPageContent() {
                                     sortOrder: event.target.value,
                                   })
                                 }
-                                onBlur={() => saveProjectItem(item.id)}
+                                onBlur={(event) =>
+                                  updateAndSaveProjectItem(item.id, draft, {
+                                    sortOrder: event.currentTarget.value,
+                                  })
+                                }
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
                                     event.currentTarget.blur();
