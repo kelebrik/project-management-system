@@ -116,6 +116,11 @@
   overflow: hidden;
 }
 
+.work-summary-pane.collapsed {
+  align-self: start;
+  grid-template-rows: auto;
+}
+
 .work-summary-pane-title {
   align-items: center;
   background: #f8fafc;
@@ -129,6 +134,26 @@
 .work-summary-pane-title h3 {
   font-size: 15px;
   margin: 0;
+}
+
+.work-summary-pane-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #0f172a;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-start;
+  min-height: 28px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.work-summary-pane-toggle svg {
+  color: #64748b;
+  flex: 0 0 auto;
 }
 
 .work-summary-pane-title span {

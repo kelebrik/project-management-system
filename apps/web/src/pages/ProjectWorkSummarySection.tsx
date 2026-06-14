@@ -1,3 +1,6 @@
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useState } from "react";
+
 import { usePageContext } from "./PageContext";
 import type { WbsItem, WbsItemStatus } from "../app/domainTypes";
 import { wbsToForm, type WbsFormState } from "../app/formState";
@@ -75,6 +78,8 @@ type WorkSummaryRowsProps = {
   showStart: boolean;
 };
 
+type WorkSummaryPaneKey = "current" | "nextWeek";
+
 export function ProjectWorkSummarySection() {
   const {
     date,
@@ -86,6 +91,12 @@ export function ProjectWorkSummarySection() {
     wbsDrafts,
     wbsStatusLabel,
   } = usePageContext();
+  const [collapsedPanes, setCollapsedPanes] = useState<
+    Record<WorkSummaryPaneKey, boolean>
+  >({
+    current: false,
+    nextWeek: false,
+  });
   const currentWeek = weekRange(0);
   const nextWeek = weekRange(1);
   const allTasks = (project.wbsItems as WbsItem[])
@@ -140,6 +151,12 @@ export function ProjectWorkSummarySection() {
       },
       { silent: true, scheduleDriver: "dates" },
     );
+  };
+  const togglePane = (pane: WorkSummaryPaneKey) => {
+    setCollapsedPanes((current) => ({
+      ...current,
+      [pane]: !current[pane],
+    }));
   };
 
   const renderWorkSummaryRows = ({
@@ -235,29 +252,73 @@ export function ProjectWorkSummarySection() {
         </div>
       </div>
       <div className="work-summary-grid">
-        <article className="work-summary-pane">
+        <article
+          className={`work-summary-pane ${
+            collapsedPanes.current ? "collapsed" : ""
+          }`}
+        >
           <div className="work-summary-pane-title">
-            <h3>Текущие задачи</h3>
+            <button
+              type="button"
+              className="work-summary-pane-toggle"
+              onClick={() => togglePane("current")}
+              aria-expanded={!collapsedPanes.current}
+              aria-label={
+                collapsedPanes.current
+                  ? "Развернуть текущие задачи"
+                  : "Свернуть текущие задачи"
+              }
+            >
+              {collapsedPanes.current ? (
+                <ChevronRight size={17} />
+              ) : (
+                <ChevronDown size={17} />
+              )}
+              <h3>Текущие задачи</h3>
+            </button>
             <span>{currentTasks.length}</span>
           </div>
-          {renderWorkSummaryRows({
-            emptyText: "Текущих задач нет.",
-            items: currentTasks,
-            showStart: false,
-          })}
+          {!collapsedPanes.current &&
+            renderWorkSummaryRows({
+              emptyText: "Текущих задач нет.",
+              items: currentTasks,
+              showStart: false,
+            })}
         </article>
-        <article className="work-summary-pane">
+        <article
+          className={`work-summary-pane ${
+            collapsedPanes.nextWeek ? "collapsed" : ""
+          }`}
+        >
           <div className="work-summary-pane-title">
-            <h3>Старт на следующей неделе</h3>
+            <button
+              type="button"
+              className="work-summary-pane-toggle"
+              onClick={() => togglePane("nextWeek")}
+              aria-expanded={!collapsedPanes.nextWeek}
+              aria-label={
+                collapsedPanes.nextWeek
+                  ? "Развернуть задачи на следующей неделе"
+                  : "Свернуть задачи на следующей неделе"
+              }
+            >
+              {collapsedPanes.nextWeek ? (
+                <ChevronRight size={17} />
+              ) : (
+                <ChevronDown size={17} />
+              )}
+              <h3>Старт на следующей неделе</h3>
+            </button>
             <span>
               {date(nextWeek.start)} - {date(nextWeek.endInclusive)}
             </span>
           </div>
-          {renderWorkSummaryRows({
-            emptyText: "Задач со стартом на следующей неделе нет.",
-            items: tasksStartingNextWeek,
-            showStart: true,
-          })}
+          {!collapsedPanes.nextWeek &&
+            renderWorkSummaryRows({
+              emptyText: "Задач со стартом на следующей неделе нет.",
+              items: tasksStartingNextWeek,
+              showStart: true,
+            })}
         </article>
       </div>
     </section>
