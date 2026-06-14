@@ -180,7 +180,11 @@
   }
 
   .resource-profile-row {
-    min-width: 640px;
+    min-width: 760px;
+  }
+
+  .resource-capacity-table {
+    overflow-x: auto;
   }
 
   .resource-request-card {

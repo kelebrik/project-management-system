@@ -2,17 +2,34 @@ import {
   AlertTriangle,
   CalendarDays,
   Gauge,
+  Settings2,
   UserPlus,
   Users,
   Workflow,
 } from "lucide-react";
 
-import type { ResourceDashboard } from "../app/resourceModels";
+import type {
+  ResourceAllocationProfile,
+  ResourceDashboard,
+  ResourceProfileKind,
+} from "../app/resourceModels";
 import { usePageContext } from "./PageContext";
 
 function useResourceDashboard() {
-  return usePageContext() as { resourceDashboard: ResourceDashboard };
+  return usePageContext() as {
+    resourceDashboard: ResourceDashboard;
+    updateResourceProfile: (
+      owner: string,
+      patch: Partial<ResourceAllocationProfile>,
+    ) => void;
+  };
 }
+
+const resourceKindLabels: Record<ResourceProfileKind, string> = {
+  person: "Сотрудник",
+  "contractor-team": "Команда подрядчика",
+  coordinator: "Координатор",
+};
 
 function ResourcePageShell({
   children,
@@ -43,13 +60,13 @@ function ResourceKpis({ dashboard }: { dashboard: ResourceDashboard }) {
         <Users size={18} />
         <span>Исполнители</span>
         <b>{dashboard.summary.resourceCount}</b>
-        <small>Назначены в структуре работ</small>
+        <small>Назначены в структуре работ активных проектов</small>
       </div>
       <div className="metric-card resource-kpi-card">
         <Gauge size={18} />
         <span>Перегружены</span>
         <b>{dashboard.summary.overloadedCount}</b>
-        <small>Ресурсы с загрузкой выше 100%</small>
+        <small>Спрос выше расчетной доступности</small>
       </div>
       <div className="metric-card resource-kpi-card">
         <UserPlus size={18} />
@@ -88,9 +105,12 @@ function ResourceHeatmap({ dashboard }: { dashboard: ResourceDashboard }) {
       <div className="resource-panel-head">
         <div>
           <h3>Загрузка на 8 недель</h3>
-          <p>Остаточные часы распределены по датам работ.</p>
+          <p>Спрос по WBS / доступность из параметров ресурса.</p>
         </div>
-        <span>{dashboard.summary.activeWorkCount} активных работ</span>
+        <span>
+          {dashboard.summary.activeWorkCount} активных работ ·{" "}
+          {dashboard.source.activeProjectsCount} проектов
+        </span>
       </div>
       <div className="resource-heatmap" role="table">
         <div className="resource-heatmap-row resource-heatmap-head" role="row">
@@ -104,14 +124,15 @@ function ResourceHeatmap({ dashboard }: { dashboard: ResourceDashboard }) {
             <div className="resource-heatmap-owner">
               <b>{row.owner}</b>
               <span>
-                {row.role} · {row.capacityHoursPerWeek} ч/нед
+                {row.role} · {resourceKindLabels[row.profile.kind]} ·{" "}
+                {row.capacityHoursPerWeek} ч/нед
               </span>
             </div>
             {row.cells.map((cell) => (
               <div
                 className={`resource-load-cell resource-load-${cell.tone}`}
                 key={cell.weekKey}
-                title={`${cell.demandHours} ч спроса / ${cell.capacityHours} ч доступно`}
+                title={`${cell.demandHours} ч спроса / ${cell.capacityHours} ч доступно. Доступность = норма × FTE × доля на проекты × доля на этот контур.`}
               >
                 <b>{cell.label}</b>
                 <span>{cell.demandHours} ч</span>
@@ -235,6 +256,7 @@ export function ResourceSchedulePage() {
                 {row.activeItems.slice(0, 5).map((item) => (
                   <div className="resource-booking" key={item.id}>
                     <b>
+                      {item.projectCode ? `${item.projectCode} · ` : ""}
                       {item.code} {item.title}
                     </b>
                     <span>
@@ -259,7 +281,7 @@ export function ResourceDirectoryPage() {
   const { resourceDashboard } = useResourceDashboard();
   const visibleRows = resourceDashboard.rows.slice(0, 12);
   return (
-    <ResourcePageShell description="Профили ресурсов: роли, календарь, остаточный объем и признаки перегрузки.">
+    <ResourcePageShell description="Профили ресурсов: тип, доступность, остаточный объем и признаки перегрузки.">
       <section className="resource-panel">
         <div className="resource-panel-head">
           <div>
@@ -271,7 +293,8 @@ export function ResourceDirectoryPage() {
           <div className="resource-profile-row resource-profile-head">
             <span>Исполнитель</span>
             <span>Роль</span>
-            <span>Календарь</span>
+            <span>Тип</span>
+            <span>Доступно</span>
             <span>Осталось</span>
             <span>Просрочено</span>
           </div>
@@ -279,11 +302,160 @@ export function ResourceDirectoryPage() {
             <div className="resource-profile-row" key={row.owner}>
               <b>{row.owner}</b>
               <span>{row.role}</span>
-              <span>{row.calendarCode ?? "не задан"}</span>
+              <span>{resourceKindLabels[row.profile.kind]}</span>
+              <span>{row.capacityHoursPerWeek} ч/нед</span>
               <span>{row.remainingHours} ч</span>
               <span>{row.overdue}</span>
             </div>
           ))}
+        </div>
+      </section>
+    </ResourcePageShell>
+  );
+}
+
+export function ResourceCapacityPage() {
+  const { resourceDashboard, updateResourceProfile } = useResourceDashboard();
+  const visibleRows = resourceDashboard.rows.slice(0, 20);
+
+  return (
+    <ResourcePageShell description="Параметры расчета: норма часов, FTE, доля проектной работы, операционка и коэффициент исполнительской нагрузки.">
+      <section className="resource-panel">
+        <div className="resource-panel-head">
+          <div>
+            <h3>Параметры расчета загрузки</h3>
+            <p>Доступность = норма × FTE × проектная доля × доля этого контура.</p>
+          </div>
+          <Settings2 size={18} />
+        </div>
+        <div className="resource-capacity-table">
+          <div className="resource-capacity-row resource-capacity-head">
+            <span>Ресурс</span>
+            <span>Тип</span>
+            <span>Роль</span>
+            <span>Норма</span>
+            <span>FTE</span>
+            <span>Проекты</span>
+            <span>Этот контур</span>
+            <span>Операционка</span>
+            <span>Исполнение</span>
+            <span>Доступно</span>
+          </div>
+          {visibleRows.map((row) => (
+            <div className="resource-capacity-row" key={row.owner}>
+              <div className="resource-capacity-owner">
+                <b>{row.owner}</b>
+                <small>{row.profile.note}</small>
+              </div>
+              <label>
+                <select
+                  value={row.profile.kind}
+                  onChange={(event) =>
+                    updateResourceProfile(row.owner, {
+                      kind: event.target.value as ResourceProfileKind,
+                    })
+                  }
+                >
+                  {Object.entries(resourceKindLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <input
+                  value={row.profile.role}
+                  onChange={(event) =>
+                    updateResourceProfile(row.owner, { role: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <input
+                  min={0}
+                  type="number"
+                  value={row.profile.baseHoursPerWeek}
+                  onChange={(event) =>
+                    updateResourceProfile(row.owner, {
+                      baseHoursPerWeek: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <input
+                  min={0}
+                  step={0.1}
+                  type="number"
+                  value={row.profile.fte}
+                  onChange={(event) =>
+                    updateResourceProfile(row.owner, {
+                      fte: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <input
+                  max={100}
+                  min={0}
+                  type="number"
+                  value={row.profile.projectAllocationPercent}
+                  onChange={(event) =>
+                    updateResourceProfile(row.owner, {
+                      projectAllocationPercent: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <input
+                  max={100}
+                  min={0}
+                  type="number"
+                  value={row.profile.currentProjectAllocationPercent}
+                  onChange={(event) =>
+                    updateResourceProfile(row.owner, {
+                      currentProjectAllocationPercent: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <input
+                  max={100}
+                  min={0}
+                  type="number"
+                  value={row.profile.operationalAllocationPercent}
+                  onChange={(event) =>
+                    updateResourceProfile(row.owner, {
+                      operationalAllocationPercent: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <input
+                  max={100}
+                  min={0}
+                  type="number"
+                  value={row.profile.executionFactorPercent}
+                  onChange={(event) =>
+                    updateResourceProfile(row.owner, {
+                      executionFactorPercent: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+              <strong>{row.capacityHoursPerWeek} ч/нед</strong>
+            </div>
+          ))}
+          {visibleRows.length === 0 && (
+            <div className="resource-muted-card">
+              Нет ресурсов для настройки.
+            </div>
+          )}
         </div>
       </section>
     </ResourcePageShell>

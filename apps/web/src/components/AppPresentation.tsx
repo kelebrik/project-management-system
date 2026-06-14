@@ -128,6 +128,7 @@ function createViewTitle(project: any): Record<AppView, string> {
     "resources-schedule": "Управление ресурсами",
     "resources-directory": "Управление ресурсами",
     "resources-requests": "Управление ресурсами",
+    "resources-capacity": "Управление ресурсами",
     "project-create": "Создать новый проект",
     "project-overview": project?.name ?? "Обзор и вехи",
     "project-passport": project?.name ?? "Паспорт проекта",

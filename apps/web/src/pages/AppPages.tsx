@@ -26,6 +26,7 @@ import { ProjectWorkspacePage } from "./ProjectWorkspacePage";
 import {
   ResourceDirectoryPage,
   ResourceOverviewPage,
+  ResourceCapacityPage,
   ResourceRequestsPage,
   ResourceSchedulePage,
   ResourceWorkloadPage,
@@ -69,6 +70,7 @@ export function AppPages() {
         {activeView === "resources-schedule" && <ResourceSchedulePage />}
         {activeView === "resources-directory" && <ResourceDirectoryPage />}
         {activeView === "resources-requests" && <ResourceRequestsPage />}
+        {activeView === "resources-capacity" && <ResourceCapacityPage />}
         {project && activeView === "project-overview" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}

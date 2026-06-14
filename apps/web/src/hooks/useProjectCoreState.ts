@@ -5,6 +5,7 @@ import type {
   ProjectListItem,
   ProjectCalendarOverride,
 } from "../app/domainTypes";
+import type { ResourceAllocationProfile } from "../app/resourceModels";
 import { initialAppView, type AppView } from "../app/routes";
 import {
   newProjectFormDefaults,
@@ -56,6 +57,9 @@ export function useProjectCoreState() {
   const [projectSearch, setProjectSearch] = useState("");
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [recentProjectIds, setRecentProjectIds] = useState<string[]>([]);
+  const [resourceProfileOverrides, setResourceProfileOverrides] = useState<
+    ResourceAllocationProfile[]
+  >([]);
 
   return {
     projects,
@@ -110,6 +114,8 @@ export function useProjectCoreState() {
     setShowProjectPicker,
     recentProjectIds,
     setRecentProjectIds,
+    resourceProfileOverrides,
+    setResourceProfileOverrides,
   };
 }
 

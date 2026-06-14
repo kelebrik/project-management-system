@@ -30,6 +30,7 @@ import {
 import {
   createResourceDashboard,
   createResourceSummaryRows,
+  type ResourceAllocationProfile,
 } from "../app/resourceModels";
 import { buildProjectTree } from "../app/projectTree";
 import { createProjectTargetSummary } from "../app/projectTargetModel";
@@ -89,6 +90,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     raidOverdueOnly,
     raidTypeFilter,
     recentProjectIds,
+    resourceProfileOverrides,
     savedViewName,
     selectedCalendarYear,
     selectedDictionary,
@@ -105,6 +107,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     setRaidHighOnly,
     setRaidOverdueOnly,
     setRaidTypeFilter,
+    setResourceProfileOverrides,
     setSavedViewName,
     setSavedViews,
     setSavingSavedView,
@@ -178,18 +181,52 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     const enabledModule = normalizedProjectModules.find((module) => module.enabled);
     return enabledModule ? projectModuleViewByKey[enabledModule.key] : "project-overview";
   }, [normalizedProjectModules]);
+  const activeResourceProjects = useMemo(
+    () => activeProjects.filter((item: any) => item.status !== "CLOSED"),
+    [activeProjects],
+  );
+  const resourceSource = activeResourceProjects.length > 0 ? activeResourceProjects : project?.wbsItems ?? [];
   const resourceSummaryRows = useMemo(
-    () => createResourceSummaryRows(project?.wbsItems ?? [], new Date()),
-    [project?.wbsItems],
+    () =>
+      createResourceSummaryRows(
+        activeResourceProjects.length > 0
+          ? activeResourceProjects.flatMap((item: any) => item.wbsItems ?? [])
+          : project?.wbsItems ?? [],
+        new Date(),
+      ),
+    [activeResourceProjects, project?.wbsItems],
   );
   const resourceDashboard = useMemo(
     () =>
       createResourceDashboard(
-        project?.wbsItems ?? [],
+        resourceSource,
         new Date(),
         project?.criticalPath?.criticalItemIds ?? [],
+        resourceProfileOverrides,
       ),
-    [project?.criticalPath?.criticalItemIds, project?.wbsItems],
+    [
+      project?.criticalPath?.criticalItemIds,
+      resourceProfileOverrides,
+      resourceSource,
+    ],
+  );
+  const updateResourceProfile = useCallback(
+    (owner: string, patch: Partial<ResourceAllocationProfile>) => {
+      const baseProfile =
+        resourceDashboard.profiles.find((profile) => profile.owner === owner) ??
+        resourceProfileOverrides.find(
+          (profile: ResourceAllocationProfile) => profile.owner === owner,
+        );
+      if (!baseProfile) return;
+      const nextProfile = { ...baseProfile, ...patch, owner };
+      setResourceProfileOverrides((current: ResourceAllocationProfile[]) => {
+        const exists = current.some((profile) => profile.owner === owner);
+        return exists
+          ? current.map((profile) => (profile.owner === owner ? nextProfile : profile))
+          : [...current, nextProfile];
+      });
+    },
+    [resourceDashboard.profiles, resourceProfileOverrides, setResourceProfileOverrides],
   );
   const recentProjects = useMemo(
     () => getRecentProjects(projects, recentProjectIds),
@@ -523,6 +560,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     projectTargetSummary,
     recentProjects,
     resourceDashboard,
+    updateResourceProfile,
     resourceSummaryRows,
     riskMatrix,
     raidSummary,

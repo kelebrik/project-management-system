@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 export const projectInclude = {
   jiraIntegration: true,
   wbsItems: {
-    where: { type: 'GOAL' },
+    where: { type: { in: ['GOAL', 'TASK', 'DELIVERABLE'] } },
     orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
   },
   raidItems: {

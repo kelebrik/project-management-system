@@ -6,6 +6,7 @@ export type AppView =
   | "resources-schedule"
   | "resources-directory"
   | "resources-requests"
+  | "resources-capacity"
   | "project-create"
   | "project-overview"
   | "project-passport"
@@ -78,6 +79,7 @@ export type ResourceSectionView = Extract<
   | "resources-schedule"
   | "resources-directory"
   | "resources-requests"
+  | "resources-capacity"
 >;
 
 export type FullscreenWorkspaceView = Extract<
@@ -131,6 +133,7 @@ export const appViewPaths: Record<AppView, string> = {
   "resources-schedule": "/resources/schedule",
   "resources-directory": "/resources/directory",
   "resources-requests": "/resources/requests",
+  "resources-capacity": "/resources/capacity",
   "project-create": "/new-project",
   "project-overview": "/overview",
   "project-passport": "/passport",
@@ -193,6 +196,8 @@ export const appPathViews: Record<string, AppView> = {
   "/resources/directory": "resources-directory",
   "/resources/resources": "resources-directory",
   "/resources/requests": "resources-requests",
+  "/resources/capacity": "resources-capacity",
+  "/resources/settings": "resources-capacity",
   "/new-project": "project-create",
   "/create-project": "project-create",
   "/overview": "project-overview",
@@ -286,7 +291,8 @@ export function isResourceSectionViewName(
     view === "resources-workload" ||
     view === "resources-schedule" ||
     view === "resources-directory" ||
-    view === "resources-requests"
+    view === "resources-requests" ||
+    view === "resources-capacity"
   );
 }
 

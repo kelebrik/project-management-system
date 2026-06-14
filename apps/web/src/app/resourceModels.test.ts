@@ -155,3 +155,64 @@ test("resource dashboard moves unfinished past work into the current week", () =
     ),
   );
 });
+
+test("resource dashboard treats CVTE as contractor team capacity", () => {
+  const dashboard = createResourceDashboard(
+    [
+      wbsTask({
+        id: "cvte-a",
+        code: "4.1",
+        owner: "CVTE",
+        title: "EVT design",
+        workDays: 10,
+        startDate: "2026-06-15T00:00:00.000Z",
+        dueDate: "2026-06-26T00:00:00.000Z",
+      }),
+      wbsTask({
+        id: "cvte-b",
+        code: "4.2",
+        owner: "CVTE",
+        title: "HW tests",
+        workDays: 10,
+        startDate: "2026-06-15T00:00:00.000Z",
+        dueDate: "2026-06-26T00:00:00.000Z",
+      }),
+    ],
+    new Date("2026-06-15T12:00:00.000Z"),
+  );
+
+  const cvte = dashboard.rows.find((row) => row.owner === "CVTE");
+
+  assert.ok(cvte);
+  assert.equal(cvte.profile.kind, "contractor-team");
+  assert.equal(cvte.capacityHoursPerWeek, 200);
+  assert.equal(cvte.profile.role, "Подрядчик: РП + 5 инженеров");
+  assert.equal(dashboard.summary.overloadedCount, 0);
+});
+
+test("resource dashboard reduces coordinator WBS demand by execution factor", () => {
+  const dashboard = createResourceDashboard(
+    [
+      wbsTask({
+        id: "pm-task",
+        code: "5.1",
+        owner: "Гладков",
+        title: "Согласование плана",
+        workDays: 10,
+        startDate: "2026-06-15T00:00:00.000Z",
+        dueDate: "2026-06-26T00:00:00.000Z",
+      }),
+    ],
+    new Date("2026-06-15T12:00:00.000Z"),
+  );
+
+  const pm = dashboard.rows.find((row) => row.owner === "Гладков");
+
+  assert.ok(pm);
+  assert.equal(pm.profile.kind, "coordinator");
+  assert.equal(pm.profile.executionFactorPercent, 10);
+  assert.equal(pm.capacityHoursPerWeek, 16);
+  assert.equal(pm.cells[0]?.demandHours, 4);
+  assert.equal(pm.cells[1]?.demandHours, 4);
+  assert.equal(dashboard.summary.overloadedCount, 0);
+});

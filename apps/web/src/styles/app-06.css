@@ -438,7 +438,7 @@
   background: #fff;
   border-top: 1px solid #e5edf6;
   display: grid;
-  grid-template-columns: minmax(170px, 1.2fr) minmax(130px, 0.8fr) minmax(90px, 0.45fr) minmax(90px, 0.45fr) minmax(90px, 0.45fr);
+  grid-template-columns: minmax(170px, 1.15fr) minmax(130px, 0.85fr) minmax(110px, 0.6fr) minmax(90px, 0.5fr) minmax(90px, 0.5fr) minmax(90px, 0.45fr);
   min-width: 0;
 }
 
@@ -492,6 +492,86 @@
   grid-column: 2;
   grid-row: 2;
   text-align: right;
+}
+
+.resource-capacity-table {
+  border: 1px solid #e5edf6;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.resource-capacity-row {
+  align-items: stretch;
+  background: #fff;
+  border-top: 1px solid #e5edf6;
+  display: grid;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(150px, 0.75fr) minmax(170px, 0.9fr) repeat(6, minmax(90px, 0.45fr)) minmax(95px, 0.45fr);
+  min-width: 1180px;
+}
+
+.resource-capacity-row:first-child {
+  border-top: 0;
+}
+
+.resource-capacity-head {
+  background: #eef4fb;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.resource-capacity-head span,
+.resource-capacity-row label,
+.resource-capacity-row strong,
+.resource-capacity-owner {
+  align-items: center;
+  border-left: 1px solid #e5edf6;
+  display: grid;
+  min-width: 0;
+  padding: 8px;
+}
+
+.resource-capacity-head span:first-child,
+.resource-capacity-owner {
+  border-left: 0;
+}
+
+.resource-capacity-owner {
+  gap: 3px;
+}
+
+.resource-capacity-owner b,
+.resource-capacity-owner small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-capacity-owner b {
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.resource-capacity-owner small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.resource-capacity-row input,
+.resource-capacity-row select {
+  min-width: 0;
+  width: 100%;
+}
+
+.resource-capacity-row strong {
+  color: #1d4ed8;
+  font-size: 13px;
+  justify-items: start;
 }
 
 .module-table-head {

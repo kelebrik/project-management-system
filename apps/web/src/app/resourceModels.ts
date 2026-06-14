@@ -1,9 +1,24 @@
 import { isoDate, isDefaultWorkingDay, startOfDay } from "./dateUtils";
-import type { WbsItem } from "./domainTypes";
+import type { ProjectListItem, WbsItem } from "./domainTypes";
 
 const UNASSIGNED_OWNER = "Не назначен";
 const WORK_HOURS_PER_DAY = 8;
 const DASHBOARD_WEEK_COUNT = 8;
+
+export type ResourceProfileKind = "person" | "contractor-team" | "coordinator";
+
+export type ResourceAllocationProfile = {
+  owner: string;
+  kind: ResourceProfileKind;
+  role: string;
+  baseHoursPerWeek: number;
+  fte: number;
+  projectAllocationPercent: number;
+  currentProjectAllocationPercent: number;
+  operationalAllocationPercent: number;
+  executionFactorPercent: number;
+  note: string;
+};
 
 export type ResourceSummaryRow = {
   owner: string;
@@ -34,6 +49,8 @@ export type ResourceLoadCell = {
 
 export type ResourceActiveItem = {
   id: string;
+  projectCode: string | null;
+  projectName: string | null;
   code: string;
   title: string;
   status: WbsItem["status"];
@@ -51,9 +68,12 @@ type ResourceWeekDemand = {
 };
 
 export type ResourceDashboardRow = ResourceSummaryRow & {
+  profile: ResourceAllocationProfile;
   role: string;
   calendarCode: WbsItem["calendarCode"] | null;
+  availableHoursPerWeek: number;
   capacityHoursPerWeek: number;
+  blockedHoursPerWeek: number;
   plannedHours: number;
   remainingHours: number;
   peakUtilization: number;
@@ -87,6 +107,12 @@ export type ResourceRecommendation = {
   tone: ResourceLoadTone;
 };
 
+export type ResourceCalculationSource = {
+  projectsCount: number;
+  activeProjectsCount: number;
+  projectNames: string[];
+};
+
 export type ResourceDashboard = {
   weeks: ResourceWeekBucket[];
   rows: ResourceDashboardRow[];
@@ -94,6 +120,8 @@ export type ResourceDashboard = {
   conflicts: ResourceConflict[];
   requests: ResourceRequestPreview[];
   recommendations: ResourceRecommendation[];
+  profiles: ResourceAllocationProfile[];
+  source: ResourceCalculationSource;
   summary: {
     resourceCount: number;
     activeWorkCount: number;
@@ -107,6 +135,7 @@ export type ResourceDashboard = {
 type ResourceBucket = {
   owner: string;
   role: string;
+  profile: ResourceAllocationProfile;
   calendarCodes: Set<WbsItem["calendarCode"]>;
   total: number;
   done: number;
@@ -124,6 +153,74 @@ type SchedulableItem = WbsItem & {
   effectiveStart: Date;
   effectiveEnd: Date;
 };
+
+type ResourceWorkSourceItem = {
+  item: WbsItem;
+  project: Pick<ProjectListItem, "code" | "name" | "status"> | null;
+};
+
+export function createDefaultResourceProfile(
+  owner: string,
+  item?: Pick<WbsItem, "title">,
+): ResourceAllocationProfile {
+  const normalized = owner.trim() || UNASSIGNED_OWNER;
+  if (normalized === UNASSIGNED_OWNER) {
+    return {
+      owner: normalized,
+      kind: "person",
+      role: "Роль не назначена",
+      baseHoursPerWeek: 0,
+      fte: 0,
+      projectAllocationPercent: 0,
+      currentProjectAllocationPercent: 0,
+      operationalAllocationPercent: 0,
+      executionFactorPercent: 100,
+      note: "Работа не закреплена за ресурсом.",
+    };
+  }
+  if (normalized.toLowerCase() === "cvte") {
+    return {
+      owner: normalized,
+      kind: "contractor-team",
+      role: "Подрядчик: РП + 5 инженеров",
+      baseHoursPerWeek: 40,
+      fte: 5,
+      projectAllocationPercent: 100,
+      currentProjectAllocationPercent: 100,
+      operationalAllocationPercent: 0,
+      executionFactorPercent: 100,
+      note: "CVTE считается как выделенная рабочая группа, а не один человек.",
+    };
+  }
+  if (normalized.toLowerCase().includes("гладков")) {
+    return {
+      owner: normalized,
+      kind: "coordinator",
+      role: "РП / агрегатор задач",
+      baseHoursPerWeek: 40,
+      fte: 1,
+      projectAllocationPercent: 40,
+      currentProjectAllocationPercent: 100,
+      operationalAllocationPercent: 60,
+      executionFactorPercent: 10,
+      note: "РП отвечает за координацию; WBS-задачи дают только управленческую нагрузку.",
+    };
+  }
+  const role = inferResourceRole(item ?? { title: "" }, normalized);
+  const isSharedRole = role === "PMO" || role === "Бизнес-аналитик";
+  return {
+    owner: normalized,
+    kind: "person",
+    role,
+    baseHoursPerWeek: WORK_HOURS_PER_DAY * 5,
+    fte: 1,
+    projectAllocationPercent: isSharedRole ? 80 : 100,
+    currentProjectAllocationPercent: 100,
+    operationalAllocationPercent: isSharedRole ? 20 : 0,
+    executionFactorPercent: 100,
+    note: "Профиль создан автоматически из владельца WBS.",
+  };
+}
 
 export function createResourceSummaryRows(wbsItems: WbsItem[], now: Date) {
   const byOwner = new Map<string, ResourceSummaryRow>();
@@ -145,23 +242,26 @@ export function createResourceSummaryRows(wbsItems: WbsItem[], now: Date) {
 }
 
 export function createResourceDashboard(
-  wbsItems: WbsItem[],
+  source: WbsItem[] | ProjectListItem[],
   now: Date,
   criticalItemIds: string[] = [],
+  profileOverrides: ResourceAllocationProfile[] = [],
 ): ResourceDashboard {
   const today = startOfDay(now);
   const weeks = createWeekBuckets(today, DASHBOARD_WEEK_COUNT);
   const criticalIds = new Set(criticalItemIds);
+  const workItems = normalizeResourceWorkSource(source);
+  const profileOverrideMap = createProfileOverrideMap(profileOverrides);
   const byOwner = new Map<string, ResourceBucket>();
   let activeWorkCount = 0;
 
-  for (const item of wbsItems) {
+  for (const { item, project } of workItems) {
     if (!isResourceWorkItem(item)) continue;
     const plannedHours = estimatePlannedHours(item);
     const remainingHours = estimateRemainingHours(item, plannedHours);
     const owner = normalizedOwner(item);
-    const role = inferResourceRole(item, owner);
-    const bucket = ensureResourceBucket(byOwner, owner, role);
+    const profile = resolveResourceProfile(owner, item, profileOverrideMap);
+    const bucket = ensureResourceBucket(byOwner, owner, profile);
 
     bucket.total += 1;
     bucket.plannedHours += plannedHours;
@@ -177,6 +277,8 @@ export function createResourceDashboard(
       activeWorkCount += 1;
       const activeItem: ResourceActiveItem = {
         id: item.id,
+        projectCode: project?.code ?? null,
+        projectName: project?.name ?? null,
         code: item.code,
         title: item.title,
         status: item.status,
@@ -191,7 +293,12 @@ export function createResourceDashboard(
       bucket.activeItems.push(activeItem);
 
       const schedulable = createSchedulableItem(item, today, plannedHours);
-      spreadRemainingHours(bucket.weeklyDemand, weeks, schedulable);
+      spreadRemainingHours(
+        bucket.weeklyDemand,
+        weeks,
+        schedulable,
+        bucket.profile.executionFactorPercent,
+      );
     }
   }
 
@@ -229,6 +336,8 @@ export function createResourceDashboard(
     conflicts,
     requests,
     recommendations,
+    profiles: rows.map((row) => row.profile),
+    source: createResourceCalculationSource(source),
     summary: {
       resourceCount: rows.length,
       activeWorkCount,
@@ -249,6 +358,118 @@ function isResourceWorkItem(item: WbsItem) {
 
 function normalizedOwner(item: Pick<WbsItem, "owner">) {
   return item.owner?.trim() || UNASSIGNED_OWNER;
+}
+
+function normalizeOwnerName(owner: string) {
+  return owner.trim().toLowerCase();
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function positiveCapacityNumber(value: number, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : fallback;
+}
+
+function normalizeResourceProfile(profile: ResourceAllocationProfile) {
+  const owner = profile.owner.trim() || UNASSIGNED_OWNER;
+  const defaults = createDefaultResourceProfile(owner);
+  const baseHoursPerWeek = positiveCapacityNumber(
+    profile.baseHoursPerWeek,
+    defaults.baseHoursPerWeek,
+  );
+  const fte = positiveCapacityNumber(profile.fte, defaults.fte);
+  return {
+    ...defaults,
+    ...profile,
+    owner,
+    role: profile.role.trim() || defaults.role,
+    baseHoursPerWeek,
+    fte,
+    projectAllocationPercent: clampPercent(profile.projectAllocationPercent),
+    currentProjectAllocationPercent: clampPercent(
+      profile.currentProjectAllocationPercent,
+    ),
+    operationalAllocationPercent: clampPercent(
+      profile.operationalAllocationPercent,
+    ),
+    executionFactorPercent: clampPercent(profile.executionFactorPercent),
+    note: profile.note.trim() || defaults.note,
+  };
+}
+
+function createProfileOverrideMap(profiles: ResourceAllocationProfile[]) {
+  return new Map(
+    profiles
+      .map(normalizeResourceProfile)
+      .map((profile) => [normalizeOwnerName(profile.owner), profile]),
+  );
+}
+
+function resolveResourceProfile(
+  owner: string,
+  item: Pick<WbsItem, "title">,
+  profileOverrides: Map<string, ResourceAllocationProfile>,
+) {
+  return (
+    profileOverrides.get(normalizeOwnerName(owner)) ??
+    createDefaultResourceProfile(owner, item)
+  );
+}
+
+function calculateResourceCapacity(profile: ResourceAllocationProfile) {
+  const nominalHours = profile.baseHoursPerWeek * profile.fte;
+  const projectHours = nominalHours * (profile.projectAllocationPercent / 100);
+  const currentProjectHours =
+    projectHours * (profile.currentProjectAllocationPercent / 100);
+  const blockedHours =
+    nominalHours * (profile.operationalAllocationPercent / 100) +
+    projectHours * ((100 - profile.currentProjectAllocationPercent) / 100);
+  return {
+    availableHours: Math.round(currentProjectHours),
+    blockedHours: Math.round(blockedHours),
+  };
+}
+
+function normalizeResourceWorkSource(
+  source: WbsItem[] | ProjectListItem[],
+): ResourceWorkSourceItem[] {
+  if (source.length === 0) return [];
+  const first = source[0] as WbsItem | ProjectListItem;
+  if ("wbsItems" in first) {
+    return (source as ProjectListItem[]).flatMap((project) =>
+      project.wbsItems.map((item) => ({
+        item,
+        project: {
+          code: project.code,
+          name: project.name,
+          status: project.status,
+        },
+      })),
+    );
+  }
+  return (source as WbsItem[]).map((item) => ({ item, project: null }));
+}
+
+function createResourceCalculationSource(source: WbsItem[] | ProjectListItem[]) {
+  if (source.length === 0) {
+    return { projectsCount: 0, activeProjectsCount: 0, projectNames: [] };
+  }
+  const first = source[0] as WbsItem | ProjectListItem;
+  if (!("wbsItems" in first)) {
+    return { projectsCount: 1, activeProjectsCount: 1, projectNames: [] };
+  }
+  const projects = source as ProjectListItem[];
+  return {
+    projectsCount: projects.length,
+    activeProjectsCount: projects.filter((project) => project.status !== "CLOSED")
+      .length,
+    projectNames: projects.map((project) => project.name).slice(0, 5),
+  };
 }
 
 function isOverdue(item: Pick<WbsItem, "dueDate" | "status">, now: Date) {
@@ -400,29 +621,23 @@ function inferResourceRole(item: Pick<WbsItem, "title">, owner: string) {
   return "Специалист";
 }
 
-function capacityForRole(role: string, owner: string) {
-  if (owner === UNASSIGNED_OWNER) return 0;
-  if (role === "PMO") return 24;
-  if (role === "DevOps") return 32;
-  if (role === "Бизнес-аналитик") return 32;
-  return 40;
-}
-
 function ensureResourceBucket(
   byOwner: Map<string, ResourceBucket>,
   owner: string,
-  role: string,
+  profile: ResourceAllocationProfile,
 ) {
   const current = byOwner.get(owner);
   if (current) {
-    if (current.role === "Специалист" && role !== "Специалист") {
-      current.role = role;
+    if (current.role === "Специалист" && profile.role !== "Специалист") {
+      current.role = profile.role;
+      current.profile = profile;
     }
     return current;
   }
   const created: ResourceBucket = {
     owner,
-    role,
+    role: profile.role,
+    profile,
     calendarCodes: new Set(),
     total: 0,
     done: 0,
@@ -441,8 +656,13 @@ function spreadRemainingHours(
   weeklyDemand: Map<string, ResourceWeekDemand>,
   weeks: ResourceWeekBucket[],
   item: SchedulableItem,
+  executionFactorPercent = 100,
 ) {
   if (item.remainingHours <= 0) return;
+  const effectiveRemainingHours = Math.round(
+    item.remainingHours * (executionFactorPercent / 100),
+  );
+  if (effectiveRemainingHours <= 0) return;
 
   const itemWorkingDays = Math.max(
     1,
@@ -460,7 +680,7 @@ function spreadRemainingHours(
     const overlapWorkingDays = countWorkingDays(overlapStart, overlapEnd);
     if (overlapWorkingDays <= 0) continue;
     const hours = Math.round(
-      item.remainingHours * (overlapWorkingDays / itemWorkingDays),
+      effectiveRemainingHours * (overlapWorkingDays / itemWorkingDays),
     );
     if (hours <= 0) continue;
     allocatedHours += hours;
@@ -469,7 +689,7 @@ function spreadRemainingHours(
 
   if (allocatedHours === 0) {
     const closestWeek = findClosestWeek(weeks, item.effectiveEnd);
-    addWeekDemand(weeklyDemand, closestWeek, item.remainingHours);
+    addWeekDemand(weeklyDemand, closestWeek, effectiveRemainingHours);
   }
 }
 
@@ -500,7 +720,8 @@ function createDashboardRow(
   bucket: ResourceBucket,
   weeks: ResourceWeekBucket[],
 ): ResourceDashboardRow {
-  const capacityHoursPerWeek = capacityForRole(bucket.role, bucket.owner);
+  const { availableHours, blockedHours } = calculateResourceCapacity(bucket.profile);
+  const capacityHoursPerWeek = availableHours;
   const cells = weeks.map((week) => {
     const demandHours = Math.round(bucket.weeklyDemand.get(week.key)?.hours ?? 0);
     const utilization =
@@ -531,9 +752,12 @@ function createDashboardRow(
 
   return {
     owner: bucket.owner,
+    profile: bucket.profile,
     role: bucket.role,
     calendarCode: mostCommonCalendar(bucket.calendarCodes),
+    availableHoursPerWeek: availableHours,
     capacityHoursPerWeek,
+    blockedHoursPerWeek: blockedHours,
     total: bucket.total,
     done: bucket.done,
     inProgress: bucket.inProgress,
