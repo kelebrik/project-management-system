@@ -28,6 +28,21 @@ export function AdminProjectsPageContent() {
   const saveProjectIdentity = (projectId: string) => {
     void savePortfolioProjectIdentity(projectId);
   };
+  const saveProjectItem = (
+    projectId: string,
+    draftOverride?: ProjectRegistryDraft,
+  ) => {
+    void saveProjectRegistryItem(projectId, draftOverride);
+  };
+  const updateAndSaveProjectItem = (
+    projectId: string,
+    currentDraft: ProjectRegistryDraft,
+    patch: Partial<ProjectRegistryDraft>,
+  ) => {
+    const nextDraft = { ...currentDraft, ...patch };
+    updateProjectRegistryDraft(projectId, patch);
+    saveProjectItem(projectId, nextDraft);
+  };
 
   return (
                     <article className="panel project-card">
@@ -106,7 +121,7 @@ export function AdminProjectsPageContent() {
                               <select
                                 value={draft.parentId}
                                 onChange={(event) =>
-                                  updateProjectRegistryDraft(item.id, {
+                                  updateAndSaveProjectItem(item.id, draft, {
                                     parentId: event.target.value,
                                   })
                                 }
@@ -131,6 +146,12 @@ export function AdminProjectsPageContent() {
                                     projectManager: event.target.value,
                                   })
                                 }
+                                onBlur={() => saveProjectItem(item.id)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.currentTarget.blur();
+                                  }
+                                }}
                               />
                             </label>
                             <label>
@@ -138,7 +159,7 @@ export function AdminProjectsPageContent() {
                               <select
                                 value={draft.status}
                                 onChange={(event) =>
-                                  updateProjectRegistryDraft(item.id, {
+                                  updateAndSaveProjectItem(item.id, draft, {
                                     status: event.target
                                       .value as ProjectRegistryDraft["status"],
                                   })
@@ -154,7 +175,7 @@ export function AdminProjectsPageContent() {
                               <select
                                 value={draft.rag}
                                 onChange={(event) =>
-                                  updateProjectRegistryDraft(item.id, {
+                                  updateAndSaveProjectItem(item.id, draft, {
                                     rag: event.target.value as RagStatus,
                                   })
                                 }
@@ -174,6 +195,12 @@ export function AdminProjectsPageContent() {
                                     sortOrder: event.target.value,
                                   })
                                 }
+                                onBlur={() => saveProjectItem(item.id)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.currentTarget.blur();
+                                  }
+                                }}
                               />
                             </label>
                             <div className="project-admin-actions">
@@ -187,9 +214,7 @@ export function AdminProjectsPageContent() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() =>
-                                  void saveProjectRegistryItem(item.id)
-                                }
+                                onClick={() => saveProjectItem(item.id)}
                                 disabled={savingProjectRegistryId === item.id}
                               >
                                 {savingProjectRegistryId === item.id

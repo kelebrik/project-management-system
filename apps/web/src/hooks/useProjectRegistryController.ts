@@ -320,8 +320,8 @@ export function useProjectRegistryController({
   );
 
   const saveProjectRegistryItem = useCallback(
-    async (projectId: string) => {
-      const draft = projectRegistryDrafts[projectId];
+    async (projectId: string, draftOverride?: ProjectRegistryDraft) => {
+      const draft = draftOverride ?? projectRegistryDrafts[projectId];
       if (!draft) return;
       const code = draft.code.trim();
       const name = draft.name.trim();
