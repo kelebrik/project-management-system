@@ -1,6 +1,8 @@
 import { signedDaysUntil } from "../app/dateUtils";
+import type { ProjectListItem } from "../app/domainTypes";
 import type { PortfolioRedRaidItem, PortfolioRedRaidProject } from "../app/portfolioModels";
 import { usePageContext } from "./PageContext";
+import { ProjectsOverview } from "./ProjectsOverview";
 
 function dueDateTone(dueDate: string | null) {
   const days = signedDaysUntil(dueDate);
@@ -24,8 +26,8 @@ export function PortfolioPage() {
     date,
     firstEnabledProjectView,
     openRaidItemFromOverview,
-    openView,
     portfolioGoalTimeline,
+    projects,
     selectProject,
     visiblePortfolioProblemProjects,
     visiblePortfolioRiskProjects,
@@ -208,18 +210,14 @@ export function PortfolioPage() {
           <div className="panel-title">
             <div>
               <h2>Проекты</h2>
-              <p>Компактная сводка по паспортам проектов вынесена в отдельный раздел</p>
+              <p>Компактная сводка по паспортам всех проектов</p>
             </div>
-            <button
-              type="button"
-              onClick={() => openView("projects")}
-            >
-              Открыть проекты
-            </button>
           </div>
-          <div className="empty-state compact">
-            Нажмите «Открыть проекты», чтобы перейти к сводной странице всех проектов.
-          </div>
+          <ProjectsOverview
+            date={date}
+            projects={projects as ProjectListItem[]}
+            selectProject={selectProject}
+          />
         </article>
       </section>
     </>
