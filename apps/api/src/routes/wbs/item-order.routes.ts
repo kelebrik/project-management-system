@@ -85,6 +85,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
             status: 'NOT_STARTED',
             owner: '',
             wbsLevel: insertedLevel,
+            effortPercent: 0,
             sortOrder: (insertIndex + 1) * 10,
           },
         });

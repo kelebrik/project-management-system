@@ -13,6 +13,7 @@ export const WBS_TABLE_COLUMNS = [
   { key: "workDays", label: "Раб. дни", width: 96 },
   { key: "calendarDays", label: "Кал. дни", width: 96 },
   { key: "calendar", label: "Календарь", width: 110 },
+  { key: "effortPercent", label: "Трудоемк., %", width: 112 },
   { key: "progress", label: "%", width: 72 },
   { key: "jiraTicketUrl", label: "Jira URL", width: 240 },
   { key: "predecessor1", label: "Предшественник 1", width: 148 },
@@ -47,6 +48,7 @@ export type WbsFormFieldKey =
   | "workDays"
   | "calendarDays"
   | "calendarCode"
+  | "effortPercent"
   | "progress"
   | "jiraTicketUrl"
   | WbsPredecessorKey
@@ -63,6 +65,7 @@ export const WBS_DIRTY_FIELDS: WbsFormFieldKey[] = [
   "workDays",
   "calendarDays",
   "calendarCode",
+  "effortPercent",
   "progress",
   "jiraTicketUrl",
   "predecessor1",
@@ -86,6 +89,7 @@ export const WBS_COLUMN_FIELDS: Record<WbsTableColumnKey, WbsFormFieldKey[]> = {
   workDays: ["workDays"],
   calendarDays: ["calendarDays"],
   calendar: ["calendarCode"],
+  effortPercent: ["effortPercent"],
   progress: ["progress"],
   jiraTicketUrl: ["jiraTicketUrl"],
   predecessor1: ["predecessor1"],
@@ -132,6 +136,7 @@ export type SortableWbsTreeItem = {
   workDays: number | null;
   calendarDays: number | null;
   calendarCode: ProjectCalendarCode;
+  effortPercent: number;
   progress: number;
   jiraTicketKey: string | null;
   jiraTicketUrl: string | null;
@@ -278,6 +283,8 @@ function wbsSortValue(
       return sortableNumberValue(draft?.calendarDays ?? item.calendarDays);
     case "calendar":
       return sortableTextValue(draft?.calendarCode ?? item.calendarCode);
+    case "effortPercent":
+      return sortableNumberValue(draft?.effortPercent ?? item.effortPercent);
     case "progress":
       return sortableNumberValue(draft?.progress ?? item.progress);
     case "jiraTicketUrl":

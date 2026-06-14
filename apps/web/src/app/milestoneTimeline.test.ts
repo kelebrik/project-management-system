@@ -39,6 +39,7 @@ function milestone(id: string, dueDate: string): WbsItem {
     calendarCode: "RU",
     templateColor: null,
     priority: null,
+    effortPercent: 0,
     plannedCost: "0",
     forecastCost: "0",
     progress: 0,

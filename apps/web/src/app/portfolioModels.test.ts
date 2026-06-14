@@ -53,6 +53,7 @@ function wbsGoal(overrides: Partial<WbsItem>): WbsItem {
     calendarCode: "RU",
     templateColor: null,
     priority: null,
+    effortPercent: 0,
     plannedCost: "0",
     forecastCost: "0",
     progress: 0,

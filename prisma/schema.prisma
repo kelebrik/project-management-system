@@ -444,6 +444,7 @@ model WbsItem {
   calendarCode  ProjectCalendarCode @default(RU)
   templateColor String?
   priority      String?
+  effortPercent Int           @default(0)
   plannedCost   Decimal       @default(0) @db.Decimal(14, 2)
   forecastCost  Decimal       @default(0) @db.Decimal(14, 2)
   progress      Int           @default(0)
@@ -523,6 +524,7 @@ model WbsBaselineItem {
   workDays        Int?
   calendarDays    Int?
   calendarCode    ProjectCalendarCode @default(RU)
+  effortPercent   Int                 @default(0)
   progress        Int                 @default(0)
   sortOrder       Int                 @default(0)
   baseline        WbsBaseline         @relation(fields: [baselineId], references: [id], onDelete: Cascade)

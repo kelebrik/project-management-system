@@ -96,6 +96,7 @@ export function useWbsRowActions({
     const leadLagDays = form.leadLagDays.trim();
     const planWorkDays = form.planWorkDays.trim();
     const planCalendarDays = form.planCalendarDays.trim();
+    const effortPercent = form.effortPercent.trim();
     const payload = {
       ...form,
       parentId: parentIdFromWbsLevel(
@@ -125,6 +126,7 @@ export function useWbsRowActions({
       calendarCode: form.calendarCode,
       templateColor: form.templateColor || null,
       priority: form.priority || null,
+      effortPercent: effortPercent ? Number(effortPercent) : 0,
       plannedCost: Number(form.plannedCost),
       forecastCost: Number(form.forecastCost),
       progress: Number(form.progress),

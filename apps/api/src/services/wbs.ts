@@ -377,6 +377,7 @@ export function wbsItemSnapshotData(
     calendarCode: item.calendarCode,
     templateColor: item.templateColor || null,
     priority: item.priority || null,
+    effortPercent: item.effortPercent,
     plannedCost: item.plannedCost,
     forecastCost: item.forecastCost,
     progress: item.progress,

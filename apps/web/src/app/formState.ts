@@ -84,6 +84,7 @@ export type WbsFormState = {
   planCalendarDays: string;
   templateColor: string;
   priority: string;
+  effortPercent: string;
   plannedCost: string;
   forecastCost: string;
   progress: string;
@@ -425,6 +426,7 @@ export function wbsToForm(item: WbsItem): WbsFormState {
     calendarCode: item.calendarCode ?? "RU",
     templateColor: item.templateColor ?? "",
     priority: item.priority ?? "",
+    effortPercent: String(item.effortPercent ?? 0),
     plannedCost: String(item.plannedCost),
     forecastCost: String(item.forecastCost),
     progress: String(item.progress),

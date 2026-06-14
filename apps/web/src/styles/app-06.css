@@ -505,8 +505,8 @@
   background: #fff;
   border-top: 1px solid #e5edf6;
   display: grid;
-  grid-template-columns: minmax(220px, 1.3fr) minmax(150px, 0.75fr) minmax(170px, 0.9fr) repeat(6, minmax(90px, 0.45fr)) minmax(95px, 0.45fr);
-  min-width: 1180px;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(150px, 0.75fr) minmax(170px, 0.9fr) repeat(5, minmax(90px, 0.45fr)) minmax(95px, 0.45fr);
+  min-width: 1080px;
 }
 
 .resource-capacity-row:first-child {

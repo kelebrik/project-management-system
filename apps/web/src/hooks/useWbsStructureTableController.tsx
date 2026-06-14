@@ -563,6 +563,21 @@ export function useWbsStructureTableController({
             <option value="CN">CN</option>
           </select>
         );
+      case "effortPercent":
+        return (
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={draft.effortPercent}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { effortPercent: event.target.value })
+            }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+          />
+        );
       case "progress":
         return (
           <input

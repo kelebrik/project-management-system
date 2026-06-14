@@ -165,6 +165,7 @@ export const openApiDocument = {
           predecessor5: { type: ["string", "null"] },
           predecessor6: { type: ["string", "null"] },
           calendarCode: { type: "string", enum: ["RU", "CN"] },
+          effortPercent: { type: "integer", minimum: 0, maximum: 100 },
           jiraTicketKey: { type: ["string", "null"] },
           jiraTicketUrl: { type: ["string", "null"], format: "uri" },
         },

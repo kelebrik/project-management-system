@@ -72,7 +72,7 @@ function ResourceKpis({ dashboard }: { dashboard: ResourceDashboard }) {
         <UserPlus size={18} />
         <span>Дефицит</span>
         <b>{dashboard.summary.roleGapHours} ч</b>
-        <small>Перегрузка и работы без исполнителя</small>
+        <small>Перегрузка и незакрепленный спрос</small>
       </div>
       <div className="metric-card resource-kpi-card">
         <CalendarDays size={18} />
@@ -105,7 +105,7 @@ function ResourceHeatmap({ dashboard }: { dashboard: ResourceDashboard }) {
       <div className="resource-panel-head">
         <div>
           <h3>Загрузка на 8 недель</h3>
-          <p>Спрос по WBS / доступность из параметров ресурса.</p>
+          <p>Трудоемкость WBS / доступность из параметров ресурса.</p>
         </div>
         <span>
           {dashboard.summary.activeWorkCount} активных работ ·{" "}
@@ -132,7 +132,7 @@ function ResourceHeatmap({ dashboard }: { dashboard: ResourceDashboard }) {
               <div
                 className={`resource-load-cell resource-load-${cell.tone}`}
                 key={cell.weekKey}
-                title={`${cell.demandHours} ч спроса / ${cell.capacityHours} ч доступно. Доступность = норма × FTE × доля на проекты × доля на этот контур.`}
+                title={`${cell.demandHours} ч спроса / ${cell.capacityHours} ч доступно. Спрос считается по полю трудоемкости WBS в процентах.`}
               >
                 <b>{cell.label}</b>
                 <span>{cell.demandHours} ч</span>
@@ -319,7 +319,7 @@ export function ResourceCapacityPage() {
   const visibleRows = resourceDashboard.rows.slice(0, 20);
 
   return (
-    <ResourcePageShell description="Параметры расчета: норма часов, FTE, доля проектной работы, операционка и коэффициент исполнительской нагрузки.">
+    <ResourcePageShell description="Параметры расчета: норма часов, FTE, доля проектной работы и операционка. Нагрузка берется из трудоемкости WBS.">
       <section className="resource-panel">
         <div className="resource-panel-head">
           <div>
@@ -338,7 +338,6 @@ export function ResourceCapacityPage() {
             <span>Проекты</span>
             <span>Этот контур</span>
             <span>Операционка</span>
-            <span>Исполнение</span>
             <span>Доступно</span>
           </div>
           {visibleRows.map((row) => (
@@ -431,19 +430,6 @@ export function ResourceCapacityPage() {
                   onChange={(event) =>
                     updateResourceProfile(row.owner, {
                       operationalAllocationPercent: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label>
-                <input
-                  max={100}
-                  min={0}
-                  type="number"
-                  value={row.profile.executionFactorPercent}
-                  onChange={(event) =>
-                    updateResourceProfile(row.owner, {
-                      executionFactorPercent: Number(event.target.value),
                     })
                   }
                 />

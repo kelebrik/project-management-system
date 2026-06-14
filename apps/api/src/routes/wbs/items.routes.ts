@@ -1,4 +1,4 @@
-import { wbsItemSchema } from '@pms/shared';
+import { wbsItemBaseSchema, wbsItemSchema } from '@pms/shared';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import {
@@ -91,6 +91,7 @@ export function registerWbsItemRoutes(router: Router) {
         calendarCode: parsed.data.calendarCode,
         templateColor: parsed.data.templateColor || null,
         priority: parsed.data.priority || null,
+        effortPercent: parsed.data.effortPercent,
         plannedCost: parsed.data.plannedCost,
         forecastCost: parsed.data.forecastCost,
         progress: parsed.data.progress,
@@ -119,7 +120,7 @@ export function registerWbsItemRoutes(router: Router) {
   });
 
   router.patch('/wbs-items/:itemId', async (req, res) => {
-    const parsed = wbsItemSchema.partial().safeParse(req.body);
+    const parsed = wbsItemBaseSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
       return;
@@ -234,6 +235,7 @@ export function registerWbsItemRoutes(router: Router) {
         calendarCode: parsed.data.calendarCode,
         templateColor: parsed.data.templateColor === undefined ? undefined : parsed.data.templateColor || null,
         priority: parsed.data.priority === undefined ? undefined : parsed.data.priority || null,
+        effortPercent: parsed.data.effortPercent,
         plannedCost: parsed.data.plannedCost,
         forecastCost: parsed.data.forecastCost,
         progress: parsed.data.progress,

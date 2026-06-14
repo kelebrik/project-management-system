@@ -195,6 +195,7 @@ export type WbsItem = {
   calendarCode: ProjectCalendarCode;
   templateColor: string | null;
   priority: string | null;
+  effortPercent: number;
   plannedCost: string;
   forecastCost: string;
   progress: number;

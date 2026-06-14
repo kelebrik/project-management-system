@@ -169,12 +169,12 @@ export function createDefaultResourceProfile(
       owner: normalized,
       kind: "person",
       role: "Роль не назначена",
-      baseHoursPerWeek: 0,
+      baseHoursPerWeek: 40,
       fte: 0,
       projectAllocationPercent: 0,
       currentProjectAllocationPercent: 0,
       operationalAllocationPercent: 0,
-      executionFactorPercent: 100,
+      executionFactorPercent: 10,
       note: "Работа не закреплена за ресурсом.",
     };
   }
@@ -188,8 +188,8 @@ export function createDefaultResourceProfile(
       projectAllocationPercent: 100,
       currentProjectAllocationPercent: 100,
       operationalAllocationPercent: 0,
-      executionFactorPercent: 100,
-      note: "CVTE считается как выделенная рабочая группа, а не один человек.",
+      executionFactorPercent: 2,
+      note: "CVTE считается как выделенная рабочая группа: РП и 5 инженеров.",
     };
   }
   if (normalized.toLowerCase().includes("гладков")) {
@@ -202,8 +202,8 @@ export function createDefaultResourceProfile(
       projectAllocationPercent: 40,
       currentProjectAllocationPercent: 100,
       operationalAllocationPercent: 60,
-      executionFactorPercent: 10,
-      note: "РП отвечает за координацию; WBS-задачи дают только управленческую нагрузку.",
+      executionFactorPercent: 1,
+      note: "РП отвечает за координацию; трудоемкость WBS задается отдельно.",
     };
   }
   const role = inferResourceRole(item ?? { title: "" }, normalized);
@@ -217,8 +217,8 @@ export function createDefaultResourceProfile(
     projectAllocationPercent: isSharedRole ? 80 : 100,
     currentProjectAllocationPercent: 100,
     operationalAllocationPercent: isSharedRole ? 20 : 0,
-    executionFactorPercent: 100,
-    note: "Профиль создан автоматически из владельца WBS.",
+    executionFactorPercent: isSharedRole ? 1 : 2,
+    note: "Профиль создан автоматически; загрузка считается от трудоемкости WBS.",
   };
 }
 
@@ -257,10 +257,12 @@ export function createResourceDashboard(
 
   for (const { item, project } of workItems) {
     if (!isResourceWorkItem(item)) continue;
-    const plannedHours = estimatePlannedHours(item);
-    const remainingHours = estimateRemainingHours(item, plannedHours);
     const owner = normalizedOwner(item);
     const profile = resolveResourceProfile(owner, item, profileOverrideMap);
+    const plannedHours = estimatePlannedHours(item, profile);
+    const remainingHours = isOverdue(item, now)
+      ? 0
+      : estimateRemainingHours(item, plannedHours);
     const bucket = ensureResourceBucket(byOwner, owner, profile);
 
     bucket.total += 1;
@@ -292,12 +294,16 @@ export function createResourceDashboard(
       };
       bucket.activeItems.push(activeItem);
 
-      const schedulable = createSchedulableItem(item, today, plannedHours);
+      const schedulable = createSchedulableItem(
+        item,
+        today,
+        plannedHours,
+        remainingHours,
+      );
       spreadRemainingHours(
         bucket.weeklyDemand,
         weeks,
         schedulable,
-        bucket.profile.executionFactorPercent,
       );
     }
   }
@@ -484,12 +490,39 @@ function normalizeProgress(progress: number | null | undefined) {
   return Math.min(100, Math.max(0, progress));
 }
 
-function estimatePlannedHours(item: WbsItem) {
-  const workDays =
-    positiveNumber(item.workDays) ??
-    positiveNumber(item.planWorkDays) ??
-    estimateWorkDaysFromDates(item);
-  return Math.max(WORK_HOURS_PER_DAY, Math.round(workDays * WORK_HOURS_PER_DAY));
+function estimatePlannedHours(
+  item: WbsItem,
+  profile: ResourceAllocationProfile,
+) {
+  const effortPercent = normalizeEffortPercent(item.effortPercent);
+  if (effortPercent > 0) {
+    const durationDays =
+      positiveNumber(item.workDays) ??
+      positiveNumber(item.planWorkDays) ??
+      estimateWorkDaysFromDates(item);
+    const weeks = Math.max(0.2, durationDays / 5);
+    const demandBaseHours = calculateResourceDemandBaseHours(profile);
+    return Math.max(
+      1,
+      Math.round(demandBaseHours * weeks * (effortPercent / 100)),
+    );
+  }
+  return 0;
+}
+
+function calculateResourceDemandBaseHours(profile: ResourceAllocationProfile) {
+  const defaults = createDefaultResourceProfile(profile.owner);
+  const baseHours =
+    profile.baseHoursPerWeek > 0
+      ? profile.baseHoursPerWeek
+      : defaults.baseHoursPerWeek;
+  const fte = profile.fte > 0 ? profile.fte : 1;
+  return baseHours * fte;
+}
+
+function normalizeEffortPercent(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, value));
 }
 
 function positiveNumber(value: number | null | undefined) {
@@ -517,6 +550,7 @@ function createSchedulableItem(
   item: WbsItem,
   today: Date,
   plannedHours: number,
+  remainingHours: number,
 ): SchedulableItem {
   const parsedStart = parseDate(item.startDate);
   const parsedDue = parseDate(item.dueDate);
@@ -536,14 +570,13 @@ function createSchedulableItem(
   const orderedStart =
     effectiveStart <= effectiveEnd ? effectiveStart : effectiveEnd;
   const orderedEnd = effectiveStart <= effectiveEnd ? effectiveEnd : effectiveStart;
-  const forwardStart =
-    orderedEnd < today ? today : orderedStart < today ? today : orderedStart;
+  const forwardStart = orderedStart < today ? today : orderedStart;
   const forwardEnd = orderedEnd < today ? today : orderedEnd;
 
   return {
     ...item,
     plannedHours,
-    remainingHours: estimateRemainingHours(item, plannedHours),
+    remainingHours,
     effectiveStart: forwardStart,
     effectiveEnd: forwardEnd,
   };
@@ -656,13 +689,8 @@ function spreadRemainingHours(
   weeklyDemand: Map<string, ResourceWeekDemand>,
   weeks: ResourceWeekBucket[],
   item: SchedulableItem,
-  executionFactorPercent = 100,
 ) {
   if (item.remainingHours <= 0) return;
-  const effectiveRemainingHours = Math.round(
-    item.remainingHours * (executionFactorPercent / 100),
-  );
-  if (effectiveRemainingHours <= 0) return;
 
   const itemWorkingDays = Math.max(
     1,
@@ -680,7 +708,7 @@ function spreadRemainingHours(
     const overlapWorkingDays = countWorkingDays(overlapStart, overlapEnd);
     if (overlapWorkingDays <= 0) continue;
     const hours = Math.round(
-      effectiveRemainingHours * (overlapWorkingDays / itemWorkingDays),
+      item.remainingHours * (overlapWorkingDays / itemWorkingDays),
     );
     if (hours <= 0) continue;
     allocatedHours += hours;
@@ -689,7 +717,7 @@ function spreadRemainingHours(
 
   if (allocatedHours === 0) {
     const closestWeek = findClosestWeek(weeks, item.effectiveEnd);
-    addWeekDemand(weeklyDemand, closestWeek, effectiveRemainingHours);
+    addWeekDemand(weeklyDemand, closestWeek, item.remainingHours);
   }
 }
 
