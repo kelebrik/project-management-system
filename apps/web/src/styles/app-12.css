@@ -171,14 +171,14 @@
 .work-summary-head,
 .work-summary-row {
   display: grid;
-  grid-template-columns: 64px minmax(260px, 1fr) 118px 124px 124px;
-  min-width: 690px;
+  grid-template-columns: 60px minmax(260px, 1fr) 108px 116px 116px;
+  min-width: 660px;
 }
 
 .work-summary-head.without-start,
 .work-summary-row.without-start {
-  grid-template-columns: 64px minmax(260px, 1fr) 118px 124px;
-  min-width: 566px;
+  grid-template-columns: 60px minmax(260px, 1fr) 108px 116px;
+  min-width: 544px;
 }
 
 .work-summary-head {
@@ -232,7 +232,7 @@
   justify-content: flex-start;
   min-height: 34px;
   overflow: hidden;
-  padding: 0;
+  padding: 0 6px 0 8px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
