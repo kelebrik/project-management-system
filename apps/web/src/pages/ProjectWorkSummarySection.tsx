@@ -4,8 +4,8 @@ import { useState } from "react";
 import { usePageContext } from "./PageContext";
 import type { WbsItem, WbsItemStatus } from "../app/domainTypes";
 import { wbsToForm, type WbsFormState } from "../app/formState";
+import { createWorkSummaryData } from "../app/workSummaryModel";
 
-const DAY_MS = 86_400_000;
 const WBS_STATUS_OPTIONS: WbsItemStatus[] = [
   "NOT_STARTED",
   "IN_PROGRESS",
@@ -16,60 +16,8 @@ const WBS_STATUS_OPTIONS: WbsItemStatus[] = [
   "CANCELLED",
 ];
 
-function startOfLocalDay(value: Date) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
-
-function parseLocalDate(value: string | null) {
-  if (!value) return null;
-  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (dateOnlyMatch) {
-    const [, year, month, day] = dateOnlyMatch;
-    return new Date(Number(year), Number(month) - 1, Number(day));
-  }
-  const parsedDate = new Date(value);
-  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
-}
-
-function weekRange(offsetWeeks: number, today = new Date()) {
-  const currentDay = startOfLocalDay(today);
-  const mondayBasedDay = (currentDay.getDay() + 6) % 7;
-  const start = new Date(
-    currentDay.getTime() + (offsetWeeks * 7 - mondayBasedDay) * DAY_MS,
-  );
-  const endExclusive = new Date(start.getTime() + 7 * DAY_MS);
-  const endInclusive = new Date(endExclusive.getTime() - DAY_MS);
-  return { start, endExclusive, endInclusive };
-}
-
-function dateInRange(value: string | null, start: Date, endExclusive: Date) {
-  const parsedDate = parseLocalDate(value);
-  if (!parsedDate) return false;
-  const date = startOfLocalDay(parsedDate);
-  return date >= start && date < endExclusive;
-}
-
-function workTaskDateTime(value: string | null) {
-  return parseLocalDate(value)?.getTime() ?? Number.POSITIVE_INFINITY;
-}
-
 function taskDraft(item: WbsItem, wbsDrafts: Record<string, WbsFormState>) {
   return wbsDrafts[item.id] ?? wbsToForm(item);
-}
-
-function compareWorkTasks(
-  left: WbsItem,
-  right: WbsItem,
-  wbsDrafts: Record<string, WbsFormState>,
-) {
-  const leftDraft = taskDraft(left, wbsDrafts);
-  const rightDraft = taskDraft(right, wbsDrafts);
-  return (
-    workTaskDateTime(leftDraft.startDate) - workTaskDateTime(rightDraft.startDate) ||
-    workTaskDateTime(leftDraft.dueDate) - workTaskDateTime(rightDraft.dueDate) ||
-    left.sortOrder - right.sortOrder ||
-    left.code.localeCompare(right.code, "ru")
-  );
 }
 
 type WorkSummaryRowsProps = {
@@ -97,32 +45,10 @@ export function ProjectWorkSummarySection() {
     current: false,
     nextWeek: false,
   });
-  const currentWeek = weekRange(0);
-  const nextWeek = weekRange(1);
-  const allTasks = (project.wbsItems as WbsItem[])
-    .filter((item) => item.type === "TASK")
-    .sort((left, right) => compareWorkTasks(left, right, wbsDrafts));
-  const currentTasks = allTasks.filter((item) => {
-    const draft = taskDraft(item, wbsDrafts);
-    return (
-      draft.status === "IN_PROGRESS" ||
-      draft.status === "IN_REVIEW" ||
-      (draft.status === "NOT_STARTED" &&
-        dateInRange(
-          draft.startDate,
-          currentWeek.start,
-          currentWeek.endExclusive,
-        ))
-    );
-  });
-  const tasksStartingNextWeek = allTasks.filter((item) => {
-    const draft = taskDraft(item, wbsDrafts);
-    return (
-      draft.status !== "DONE" &&
-      draft.status !== "CANCELLED" &&
-      dateInRange(draft.startDate, nextWeek.start, nextWeek.endExclusive)
-    );
-  });
+  const { currentTasks, nextWeek, tasksStartingNextWeek } = createWorkSummaryData(
+    project.wbsItems as WbsItem[],
+    wbsDrafts,
+  );
 
   const saveTaskTitle = (itemId: string) => {
     void saveWbsItem(itemId, { silent: true });
@@ -258,24 +184,26 @@ export function ProjectWorkSummarySection() {
           }`}
         >
           <div className="work-summary-pane-title">
-            <button
-              type="button"
-              className="work-summary-pane-toggle"
-              onClick={() => togglePane("current")}
-              aria-expanded={!collapsedPanes.current}
-              aria-label={
-                collapsedPanes.current
-                  ? "Развернуть текущие задачи"
-                  : "Свернуть текущие задачи"
-              }
-            >
-              {collapsedPanes.current ? (
-                <ChevronRight size={17} />
-              ) : (
-                <ChevronDown size={17} />
-              )}
-              <h3>Текущие задачи</h3>
-            </button>
+            <h3>
+              <button
+                type="button"
+                className="work-summary-pane-toggle"
+                onClick={() => togglePane("current")}
+                aria-expanded={!collapsedPanes.current}
+                aria-label={
+                  collapsedPanes.current
+                    ? "Развернуть текущие задачи"
+                    : "Свернуть текущие задачи"
+                }
+              >
+                {collapsedPanes.current ? (
+                  <ChevronRight size={17} />
+                ) : (
+                  <ChevronDown size={17} />
+                )}
+                Текущие задачи
+              </button>
+            </h3>
             <span>{currentTasks.length}</span>
           </div>
           {!collapsedPanes.current &&
@@ -291,24 +219,26 @@ export function ProjectWorkSummarySection() {
           }`}
         >
           <div className="work-summary-pane-title">
-            <button
-              type="button"
-              className="work-summary-pane-toggle"
-              onClick={() => togglePane("nextWeek")}
-              aria-expanded={!collapsedPanes.nextWeek}
-              aria-label={
-                collapsedPanes.nextWeek
-                  ? "Развернуть задачи на следующей неделе"
-                  : "Свернуть задачи на следующей неделе"
-              }
-            >
-              {collapsedPanes.nextWeek ? (
-                <ChevronRight size={17} />
-              ) : (
-                <ChevronDown size={17} />
-              )}
-              <h3>Старт на следующей неделе</h3>
-            </button>
+            <h3>
+              <button
+                type="button"
+                className="work-summary-pane-toggle"
+                onClick={() => togglePane("nextWeek")}
+                aria-expanded={!collapsedPanes.nextWeek}
+                aria-label={
+                  collapsedPanes.nextWeek
+                    ? "Развернуть задачи на следующей неделе"
+                    : "Свернуть задачи на следующей неделе"
+                }
+              >
+                {collapsedPanes.nextWeek ? (
+                  <ChevronRight size={17} />
+                ) : (
+                  <ChevronDown size={17} />
+                )}
+                Старт на следующей неделе
+              </button>
+            </h3>
             <span>
               {date(nextWeek.start)} - {date(nextWeek.endInclusive)}
             </span>
