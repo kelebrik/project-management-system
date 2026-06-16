@@ -1,0 +1,21 @@
+version: 2
+settings:
+  select_reviewers_randomly: False
+  notify_reviewers_in_mattermost: False
+  manage_mr_reviewers_field: True
+groups:
+  - name: "StarOS DevoOoops"
+    mm_group: "staros_infra"
+    description: "StarOS DevOoops"
+    required_approve_amount: 2
+    members:
+    - naskazkopodatelev
+    - vakrasnov
+    - yaborunov
+    - ivgorbachev
+    - rlpastushak
+    - arakmukhametov
+    include_files:
+    - "Dockerfile"
+    - "CODEOWNERS.yml"
+    - ".gitlab-ci.yml"

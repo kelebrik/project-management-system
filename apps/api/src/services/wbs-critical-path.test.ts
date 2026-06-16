@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateWbsCriticalPath } from "./wbs-critical-path.js";
+import { calculateWbsCriticalPath } from "./wbs-critical-path/calculate.js";
 
 const baseItem = {
   type: "TASK" as const,

@@ -1,19 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { wbsItemBaseSchema, wbsItemSchema } from "@pms/shared";
-import {
-  calculateWbsBaselineVariance,
-  calculateWbsScheduleUpdates,
-} from "./wbs-schedule.js";
+import { calculateWbsBaselineVariance } from "./wbs-schedule/baseline-variance.js";
+import { calculateWbsScheduleUpdates } from "./wbs-schedule/calculate.js";
 import {
   resolveWbsScheduleDateWrites,
   resolveWbsSchedulePatch,
 } from "./wbs-schedule-patch.js";
-import {
-  buildWbsRenumberPlan,
-  calculateWbsHierarchyStatusUpdates,
-  levelFromWbsCode,
-} from "./wbs.js";
+import { buildWbsRenumberPlan, levelFromWbsCode } from "./wbs-ordering.js";
+import { calculateWbsHierarchyStatusUpdates } from "./wbs.js";
 
 test("WBS patch schema does not default effort percent on partial updates", () => {
   assert.equal(wbsItemSchema.parse({ code: "1", title: "", owner: "" }).effortPercent, 0);

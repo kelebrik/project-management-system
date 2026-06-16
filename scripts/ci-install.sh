@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
+. "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/ci-npm-env.sh"
+
 CACHE_DIR="${NPM_CONFIG_CACHE:-.npm}"
 export NPM_CONFIG_CACHE="$CACHE_DIR"
 export npm_config_cache="$CACHE_DIR"
