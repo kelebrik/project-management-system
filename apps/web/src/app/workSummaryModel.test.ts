@@ -145,7 +145,7 @@ test("work summary uses draft values to derive current and next-week tasks", () 
 
   assert.deepEqual(
     data.currentTasks.map((item) => item.id),
-    ["current", "review"],
+    ["review", "current"],
   );
   assert.deepEqual(
     data.tasksStartingNextWeek.map((item) => item.id),
@@ -153,68 +153,48 @@ test("work summary uses draft values to derive current and next-week tasks", () 
   );
 });
 
-test("work summary sorts tasks by start date, due date, sort order and code", () => {
-  const earliestStart = wbsTask({
-    id: "earliest-start",
-    code: "9",
+test("work summary sorts tasks by WBS code", () => {
+  const code310 = wbsTask({
+    id: "code-3-10",
+    code: "3.10",
     status: "IN_PROGRESS",
     startDate: "2026-06-14",
-    dueDate: "2026-06-25",
-    sortOrder: 10,
-  });
-  const earlierDue = wbsTask({
-    id: "earlier-due",
-    code: "5",
-    status: "IN_PROGRESS",
-    startDate: "2026-06-15",
-    dueDate: "2026-06-16",
-    sortOrder: 10,
-  });
-  const earlierDueLowCode = wbsTask({
-    id: "earlier-due-low-code",
-    code: "1",
-    status: "IN_PROGRESS",
-    startDate: "2026-06-15",
-    dueDate: "2026-06-16",
+    dueDate: "2026-06-15",
     sortOrder: 1,
   });
-  const earlierDueHighCode = wbsTask({
-    id: "earlier-due-high-code",
-    code: "9.1",
+  const code32 = wbsTask({
+    id: "code-3-2",
+    code: "3.2",
+    status: "IN_PROGRESS",
+    startDate: "2026-06-20",
+    dueDate: "2026-06-21",
+    sortOrder: 10,
+  });
+  const code311 = wbsTask({
+    id: "code-3-11",
+    code: "3.11",
     status: "IN_PROGRESS",
     startDate: "2026-06-15",
     dueDate: "2026-06-16",
-    sortOrder: 1,
+    sortOrder: 5,
   });
-  const laterDueLowSort = wbsTask({
-    id: "later-due-low-sort",
-    code: "0",
+  const code26 = wbsTask({
+    id: "code-2-6",
+    code: "2.6",
     status: "IN_PROGRESS",
-    startDate: "2026-06-15",
+    startDate: "2026-06-19",
     dueDate: "2026-06-20",
-    sortOrder: 0,
+    sortOrder: 20,
   });
 
   const data = createWorkSummaryData(
-    [
-      laterDueLowSort,
-      earlierDueHighCode,
-      earlierDue,
-      earliestStart,
-      earlierDueLowCode,
-    ],
+    [code310, code32, code311, code26],
     {},
     new Date(2026, 5, 17, 12),
   );
 
   assert.deepEqual(
     data.currentTasks.map((item) => item.id),
-    [
-      "earliest-start",
-      "earlier-due-low-code",
-      "earlier-due-high-code",
-      "earlier-due",
-      "later-due-low-sort",
-    ],
+    ["code-2-6", "code-3-2", "code-3-10", "code-3-11"],
   );
 });

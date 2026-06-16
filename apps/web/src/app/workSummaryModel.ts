@@ -2,6 +2,7 @@ import type { WbsItem } from "./domainTypes";
 import { wbsToForm, type WbsFormState } from "./formState";
 
 const DAY_MS = 86_400_000;
+const WBS_CODE_COLLATOR = new Intl.Collator("ru", { numeric: true });
 
 export type WorkSummaryWeekRange = {
   start: Date;
@@ -31,10 +32,6 @@ function dateInRange(value: string | null, start: Date, endExclusive: Date) {
   return date >= start && date < endExclusive;
 }
 
-function workTaskDateTime(value: string | null) {
-  return parseLocalDate(value)?.getTime() ?? Number.POSITIVE_INFINITY;
-}
-
 function taskDraft(item: WbsItem, wbsDrafts: Record<string, WbsFormState>) {
   return wbsDrafts[item.id] ?? wbsToForm(item);
 }
@@ -56,16 +53,8 @@ export function weekRange(
 export function compareWorkTasks(
   left: WbsItem,
   right: WbsItem,
-  wbsDrafts: Record<string, WbsFormState>,
 ) {
-  const leftDraft = taskDraft(left, wbsDrafts);
-  const rightDraft = taskDraft(right, wbsDrafts);
-  return (
-    workTaskDateTime(leftDraft.startDate) - workTaskDateTime(rightDraft.startDate) ||
-    workTaskDateTime(leftDraft.dueDate) - workTaskDateTime(rightDraft.dueDate) ||
-    left.sortOrder - right.sortOrder ||
-    left.code.localeCompare(right.code, "ru")
-  );
+  return WBS_CODE_COLLATOR.compare(left.code, right.code);
 }
 
 export function createWorkSummaryData(
@@ -77,7 +66,7 @@ export function createWorkSummaryData(
   const nextWeek = weekRange(1, today);
   const allTasks = items
     .filter((item) => item.type === "TASK")
-    .sort((left, right) => compareWorkTasks(left, right, wbsDrafts));
+    .sort(compareWorkTasks);
   const currentTasks = allTasks.filter((item) => {
     const draft = taskDraft(item, wbsDrafts);
     return (
