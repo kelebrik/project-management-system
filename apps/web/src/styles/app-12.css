@@ -134,7 +134,6 @@
 .work-summary-pane-title h3 {
   font-size: 15px;
   margin: 0;
-  min-width: 0;
 }
 
 .work-summary-pane-toggle {
@@ -150,11 +149,6 @@
   min-width: 0;
   padding: 0;
   text-align: left;
-}
-
-.work-summary-pane-toggle:focus-visible {
-  outline: 2px solid #93c5fd;
-  outline-offset: 2px;
 }
 
 .work-summary-pane-toggle svg {
