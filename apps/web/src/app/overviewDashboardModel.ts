@@ -1,5 +1,5 @@
 import { signedDaysBetween, startOfDay } from "./dateUtils";
-import type { ProjectDetails, WbsItem, WbsItemStatus } from "./domainTypes";
+import type { ProjectDetails, WbsItem } from "./domainTypes";
 import type { StructureMilestone } from "./milestoneTimeline";
 import { WBS_PREDECESSOR_KEYS } from "./wbsTable";
 
@@ -103,15 +103,6 @@ export function createOverviewDashboard(
   }
   const hasScheduleVarianceDates = (item: WbsItem) =>
     item.baselineDueDate && item.dueDate && item.status !== "CANCELLED";
-  const closedScheduleCauseCutoff = startOfDay(new Date(today));
-  closedScheduleCauseCutoff.setDate(closedScheduleCauseCutoff.getDate() - 30);
-  const isVisibleScheduleVarianceCause = (item: WbsItem) => {
-    if (item.status !== "DONE") return true;
-    if (!item.closedAt) return true;
-    const closedAt = startOfDay(new Date(item.closedAt));
-    if (Number.isNaN(closedAt.getTime())) return true;
-    return closedAt >= closedScheduleCauseCutoff;
-  };
   const allScheduleDelays = wbsItems
     .filter(hasScheduleVarianceDates)
     .map((item) => ({
@@ -125,14 +116,13 @@ export function createOverviewDashboard(
   const delayByItemId = new Map(
     allScheduleDelays.map(({ item, delay }) => [item.id, delay]),
   );
-  const delayedLeafTaskIds = new Set(
+  const isScheduleDeltaCandidate = (item: WbsItem) =>
+    !isWbsCheckpoint(item) &&
+    !childrenByParentId.has(item.id) &&
+    (criticalPathIds.size === 0 || criticalPathIds.has(item.id));
+  const delayedScheduleDeltaCandidateIds = new Set(
     allScheduleDelays
-      .filter(
-        ({ item, delay }) =>
-          delay > 0 &&
-          !isWbsCheckpoint(item) &&
-          !childrenByParentId.has(item.id),
-      )
+      .filter(({ item }) => isScheduleDeltaCandidate(item))
       .map(({ item }) => item.id),
   );
   const upstreamCauseCache = new Map<string, Set<string>>();
@@ -146,7 +136,7 @@ export function createOverviewDashboard(
     visiting.add(itemId);
     const causeIds = new Set<string>();
     for (const predecessorId of predecessorIdsByItemId.get(itemId) ?? []) {
-      if (delayedLeafTaskIds.has(predecessorId)) {
+      if (delayedScheduleDeltaCandidateIds.has(predecessorId)) {
         causeIds.add(predecessorId);
       }
       for (const upstreamId of upstreamDelayedCauseIds(predecessorId, visiting)) {
@@ -157,50 +147,23 @@ export function createOverviewDashboard(
     upstreamCauseCache.set(itemId, causeIds);
     return causeIds;
   };
-  const openStatuses: WbsItemStatus[] = [
-    "IN_PROGRESS",
-    "IN_REVIEW",
-    "AT_RISK",
-    "BLOCKED",
-  ];
   const isScheduleVarianceOpenCandidate = (item: WbsItem) =>
     hasScheduleVarianceDates(item) &&
     !isWbsCheckpoint(item) &&
     item.status !== "DONE";
   const scheduleDeltaItems = allScheduleDelays
-    .filter(({ item, delay }) => {
-      if (
-        delay <= 0 ||
-        isWbsCheckpoint(item) ||
-        childrenByParentId.has(item.id) ||
-        !isVisibleScheduleVarianceCause(item)
-      ) {
-        return false;
-      }
-      const upstreamCauseIds = [...upstreamDelayedCauseIds(item.id)];
-
-      if (upstreamCauseIds.length === 0) return true;
-
-      const allUpstreamCausesClosed = upstreamCauseIds.every(
-        (predecessorId) => wbsById.get(predecessorId)?.status === "DONE",
-      );
-
-      return (
-        criticalPathIds.has(item.id) &&
-        openStatuses.includes(item.status) &&
-        allUpstreamCausesClosed
-      );
-    })
+    .filter(({ item }) => isScheduleDeltaCandidate(item))
     .map(({ item, delay: rawDelay }) => {
-      const upstreamCauseIds = [...upstreamDelayedCauseIds(item.id)];
-      const inheritedFrom = upstreamCauseIds
-        .map((itemId) => wbsById.get(itemId))
-        .filter((entry): entry is WbsItem => Boolean(entry))
-        .sort(
-          (left, right) =>
-            (delayByItemId.get(right.id) ?? 0) -
-            (delayByItemId.get(left.id) ?? 0),
-        )[0];
+      const inheritedFrom =
+        [...upstreamDelayedCauseIds(item.id)]
+          .map((itemId) => wbsById.get(itemId))
+          .filter((entry): entry is WbsItem => Boolean(entry))
+          .sort(
+            (left, right) =>
+              (delayByItemId.get(right.id) ?? 0) -
+                (delayByItemId.get(left.id) ?? 0) ||
+              left.code.localeCompare(right.code, undefined, { numeric: true }),
+          )[0] ?? null;
       const inheritedDelay = inheritedFrom
         ? delayByItemId.get(inheritedFrom.id) ?? 0
         : 0;
@@ -215,6 +178,7 @@ export function createOverviewDashboard(
     .filter(({ delay }) => delay > 0)
     .sort(
       (left, right) =>
+        right.delay - left.delay ||
         right.rawDelay - left.rawDelay ||
         left.item.code.localeCompare(right.item.code, undefined, {
           numeric: true,

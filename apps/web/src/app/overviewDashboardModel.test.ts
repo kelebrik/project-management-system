@@ -9,9 +9,58 @@ function baseProject(overrides: Partial<ProjectDetails> = {}) {
     issues: [],
     jiraWorkSections: [],
     raidItems: [],
+    wbsDependencies: [],
+    criticalPath: null,
     wbsItems: [],
     ...overrides,
   } as unknown as ProjectDetails;
+}
+
+function wbsItem(
+  overrides: Partial<ProjectDetails["wbsItems"][number]>,
+): ProjectDetails["wbsItems"][number] {
+  return {
+    id: overrides.id ?? "item",
+    parentId: null,
+    code: overrides.code ?? "1",
+    title: overrides.title ?? "Работа",
+    type: "TASK",
+    status: "NOT_STARTED",
+    owner: "Owner",
+    startDate: null,
+    dueDate: null,
+    baselineStartDate: null,
+    baselineDueDate: null,
+    forecastStartDate: null,
+    forecastDueDate: null,
+    wbsLevel: null,
+    predecessor1: null,
+    predecessor2: null,
+    predecessor3: null,
+    predecessor4: null,
+    predecessor5: null,
+    predecessor6: null,
+    leadLagDays: 0,
+    workDays: null,
+    calendarDays: null,
+    excelStartDate: null,
+    excelEndDate: null,
+    planWorkDays: null,
+    planCalendarDays: null,
+    calendarCode: "RU",
+    templateColor: null,
+    priority: null,
+    effortPercent: 100,
+    plannedCost: "0",
+    forecastCost: "0",
+    progress: 0,
+    jiraTicketKey: null,
+    jiraTicketUrl: null,
+    description: null,
+    closedAt: null,
+    sortOrder: 0,
+    ...overrides,
+  };
 }
 
 test("overview risk tickets only come from the first Jira work section", () => {
@@ -95,4 +144,115 @@ test("overview risk tickets use synced issues from the first Jira work section",
 
   assert.equal(dashboard.blockingTickets.length, 1);
   assert.equal(dashboard.blockingTickets[0]?.jiraTicketKey, "PMS-42");
+});
+
+test("overview schedule deltas only include delayed leaf work on the critical path", () => {
+  const criticalTask = wbsItem({
+    id: "critical",
+    code: "2.1",
+    title: "Критическая работа",
+    baselineDueDate: "2026-05-01",
+    dueDate: "2026-05-11",
+  });
+  const nonCriticalTask = wbsItem({
+    id: "non-critical",
+    code: "1.1",
+    title: "Некритическая работа",
+    status: "BLOCKED",
+    baselineDueDate: "2026-05-01",
+    dueDate: "2026-06-20",
+  });
+  const project = baseProject({
+    wbsItems: [nonCriticalTask, criticalTask],
+    criticalPath: {
+      projectStartDate: null,
+      projectFinishDate: null,
+      criticalItemIds: [criticalTask.id],
+      criticalDependencyIds: [],
+      criticalItemCount: 1,
+      nearCriticalItemCount: 0,
+      warnings: [],
+      items: [],
+    },
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.deepEqual(
+    dashboard.scheduleDeltaItems.map(({ item, delay }) => [item.code, delay]),
+    [["2.1", 10]],
+  );
+});
+
+test("overview schedule deltas are not filtered by closed date", () => {
+  const oldClosedCriticalTask = wbsItem({
+    id: "old-closed",
+    code: "3.5.1",
+    title: "Старая закрытая критическая работа",
+    status: "DONE",
+    baselineDueDate: "2026-04-03",
+    dueDate: "2026-05-07",
+    closedAt: "2026-05-08",
+  });
+  const project = baseProject({
+    wbsItems: [oldClosedCriticalTask],
+    criticalPath: {
+      projectStartDate: null,
+      projectFinishDate: null,
+      criticalItemIds: [oldClosedCriticalTask.id],
+      criticalDependencyIds: [],
+      criticalItemCount: 1,
+      nearCriticalItemCount: 0,
+      warnings: [],
+      items: [],
+    },
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.deepEqual(
+    dashboard.scheduleDeltaItems.map(({ item, delay }) => [item.code, delay]),
+    [["3.5.1", 34]],
+  );
+});
+
+test("overview schedule deltas rank incremental impact instead of duplicated downstream delay", () => {
+  const first = wbsItem({
+    id: "first",
+    code: "1.1",
+    title: "Первичная причина",
+    baselineDueDate: "2026-05-01",
+    dueDate: "2026-05-11",
+  });
+  const second = wbsItem({
+    id: "second",
+    code: "1.2",
+    title: "Зависимая работа",
+    baselineDueDate: "2026-05-12",
+    dueDate: "2026-05-25",
+    predecessor1: "1.1",
+  });
+  const project = baseProject({
+    wbsItems: [first, second],
+    criticalPath: {
+      projectStartDate: null,
+      projectFinishDate: null,
+      criticalItemIds: [first.id, second.id],
+      criticalDependencyIds: [],
+      criticalItemCount: 2,
+      nearCriticalItemCount: 0,
+      warnings: [],
+      items: [],
+    },
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.deepEqual(
+    dashboard.scheduleDeltaItems.map(({ item, delay }) => [item.code, delay]),
+    [
+      ["1.1", 10],
+      ["1.2", 3],
+    ],
+  );
 });
