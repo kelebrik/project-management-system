@@ -14,6 +14,7 @@ import {
   HardDriveDownload,
   HeartPulse,
   Import,
+  Code2,
   KeyRound,
   LayoutDashboard,
   ListChecks,
@@ -100,6 +101,7 @@ type AppShellProps = {
   setProjectSearch: (value: string) => void;
   setShowProjectPicker: (value: boolean) => void;
   shouldShowAdminMenu: boolean;
+  shouldShowDevelopmentMenu: boolean;
   shouldShowProjectMenu: boolean;
   showProjectPicker: boolean;
   sidebarCollapsed: boolean;
@@ -297,6 +299,7 @@ export function AppShell({
   setProjectSearch,
   setShowProjectPicker,
   shouldShowAdminMenu,
+  shouldShowDevelopmentMenu,
   shouldShowProjectMenu,
   showProjectPicker,
   sidebarCollapsed,
@@ -373,12 +376,6 @@ export function AppShell({
             }
             shouldShowProjectMenu={shouldShowProjectMenu}
           />
-          <ResourceSidebarMenu
-            activeView={activeView}
-            isResourceSectionView={isResourceSectionView}
-            navLabel={navLabel}
-            onOpenView={openView}
-          />
           <button
             type="button"
             className={activeView === "closed-projects" ? "active" : ""}
@@ -417,6 +414,26 @@ export function AppShell({
                     ))}
                   </div>
                 </div>
+              )}
+            </>
+          )}
+          {isAdminUser && (
+            <>
+              <button
+                type="button"
+                className={isResourceSectionView ? "active" : ""}
+                onClick={() => openView("resources")}
+                aria-label="Разработка"
+              >
+                {navLabel(<Code2 size={17} />, "Разработка")}
+              </button>
+              {shouldShowDevelopmentMenu && (
+                <ResourceSidebarMenu
+                  activeView={activeView}
+                  isResourceSectionView={isResourceSectionView}
+                  navLabel={navLabel}
+                  onOpenView={openView}
+                />
               )}
             </>
           )}

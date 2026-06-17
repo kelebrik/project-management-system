@@ -31,36 +31,33 @@ export function ResourceSidebarMenu({
   onOpenView,
 }: ResourceSidebarMenuProps) {
   return (
-    <>
-      <button
-        type="button"
-        className={isResourceSectionView ? "active" : ""}
-        onClick={() => onOpenView("resources")}
-        aria-label="Управление ресурсами"
-      >
-        {navLabel(<Users size={17} />, "Управление ресурсами")}
-      </button>
-      {isResourceSectionView && (
-        <div className="sidebar-group">
-          <div className="project-menu">
-            {resourceNavItems.map((item) => (
-              <button
-                type="button"
-                key={item.view}
-                className={
-                  activeView === item.view
-                    ? "active nested child"
-                    : "nested child"
-                }
-                onClick={() => onOpenView(item.view)}
-                aria-label={item.label}
-              >
-                {navLabel(item.icon, item.label)}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
+    <div className="sidebar-group">
+      <div className="project-menu">
+        <button
+          type="button"
+          className={isResourceSectionView ? "active nested child" : "nested child"}
+          onClick={() => onOpenView("resources")}
+          aria-label="Управление ресурсами"
+        >
+          {navLabel(<Users size={17} />, "Управление ресурсами")}
+        </button>
+        {isResourceSectionView &&
+          resourceNavItems.map((item) => (
+            <button
+              type="button"
+              key={item.view}
+              className={
+                activeView === item.view
+                  ? "active nested child sidebar-grandchild"
+                  : "nested child sidebar-grandchild"
+              }
+              onClick={() => onOpenView(item.view)}
+              aria-label={item.label}
+            >
+              {navLabel(item.icon, item.label)}
+            </button>
+          ))}
+      </div>
+    </div>
   );
 }

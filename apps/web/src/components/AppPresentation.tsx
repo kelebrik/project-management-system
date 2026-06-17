@@ -218,6 +218,7 @@ export function AppPresentation({
       (selectedProjectListItem && isProjectSectionView),
   );
   const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
+  const shouldShowDevelopmentMenu = Boolean(isAdminUser && isResourceSectionView);
   const viewTitle = createViewTitle(project);
   const renderGlobalSearch = (className = "") => (
     <GlobalSearch
@@ -295,6 +296,7 @@ export function AppPresentation({
     ganttPathDirection,
     ganttRoundedDependencyPath,
     isAdminSectionView,
+    isAdminUser,
     isDefaultWorkingDay,
     isResourceSectionView,
     issuePrimaryJiraLink,
@@ -361,6 +363,7 @@ export function AppPresentation({
       setProjectSearch={setProjectSearch}
       setShowProjectPicker={setShowProjectPicker}
       shouldShowAdminMenu={shouldShowAdminMenu}
+      shouldShowDevelopmentMenu={shouldShowDevelopmentMenu}
       shouldShowProjectMenu={shouldShowProjectMenu}
       showProjectPicker={showProjectPicker}
       sidebarCollapsed={sidebarCollapsed}

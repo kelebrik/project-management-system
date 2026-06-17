@@ -30,10 +30,10 @@ import {
 import { usePageContext } from "./PageContext";
 
 export function AppPages() {
-  const { activeView, isAdminSectionView, isResourceSectionView, project } =
+  const { activeView, isAdminSectionView, isAdminUser, isResourceSectionView, project } =
     usePageContext();
 
-  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || isResourceSectionView)) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isResourceSectionView))) {
     return null;
   }
 
@@ -61,8 +61,8 @@ export function AppPages() {
         {activeView === "admin-projects" && <AdminProjectsPageContent />}
         {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
-        {activeView === "resources" && <ResourceOverviewPage />}
-        {activeView === "resources-capacity" && <ResourceCapacityPage />}
+        {isAdminUser && activeView === "resources" && <ResourceOverviewPage />}
+        {isAdminUser && activeView === "resources-capacity" && <ResourceCapacityPage />}
         {project && activeView === "project-overview" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}

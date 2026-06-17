@@ -7,6 +7,7 @@ import {
   appRouteFromPath,
   initialRouteProjectCode,
   isAdminSectionViewName,
+  isDevelopmentSectionViewName,
   isProjectSectionViewName,
   isResourceSectionViewName,
   normalizeAppPath,
@@ -127,6 +128,10 @@ export function useAppRouting({
       }
       if (isAdminSectionViewName(nextView) && !isAdminUser) {
         setError("Раздел администрирования доступен только администратору");
+        return;
+      }
+      if (isDevelopmentSectionViewName(nextView) && !isAdminUser) {
+        setError("Раздел разработки доступен только администратору");
         return;
       }
       if (

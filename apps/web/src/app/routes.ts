@@ -74,6 +74,8 @@ export type ResourceSectionView = Extract<
   | "resources-capacity"
 >;
 
+export type DevelopmentSectionView = ResourceSectionView;
+
 export type FullscreenWorkspaceView = Extract<
   AppView,
   "project-structure" | "project-gantt"
@@ -98,9 +100,15 @@ export const adminSectionViews: AdminSectionView[] = [
   "admin-audit",
 ];
 
+export const developmentSectionViews: DevelopmentSectionView[] = [
+  "resources",
+  "resources-capacity",
+];
+
 export const writeProtectedViews = new Set<AppView>([
   "project-create",
   ...adminSectionViews,
+  ...developmentSectionViews,
 ]);
 
 export const projectSectionSlugs: Record<ProjectSectionView, string> = {
@@ -120,8 +128,8 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
   projects: "/projects",
-  resources: "/resources",
-  "resources-capacity": "/resources/capacity",
+  resources: "/development/resources",
+  "resources-capacity": "/development/resources/capacity",
   "project-create": "/new-project",
   "project-overview": "/overview",
   "project-passport": "/passport",
@@ -186,6 +194,17 @@ export const appPathViews: Record<string, AppView> = {
   "/resources/requests": "resources",
   "/resources/capacity": "resources-capacity",
   "/resources/settings": "resources-capacity",
+  "/development": "resources",
+  "/development/resources": "resources",
+  "/development/resources/overview": "resources",
+  "/development/resources/workload": "resources",
+  "/development/resources/schedule": "resources",
+  "/development/resources/allocations": "resources",
+  "/development/resources/directory": "resources",
+  "/development/resources/resources": "resources",
+  "/development/resources/requests": "resources",
+  "/development/resources/capacity": "resources-capacity",
+  "/development/resources/settings": "resources-capacity",
   "/new-project": "project-create",
   "/create-project": "project-create",
   "/overview": "project-overview",
@@ -278,6 +297,12 @@ export function isResourceSectionViewName(
     view === "resources" ||
     view === "resources-capacity"
   );
+}
+
+export function isDevelopmentSectionViewName(
+  view: AppView,
+): view is DevelopmentSectionView {
+  return developmentSectionViews.includes(view as DevelopmentSectionView);
 }
 
 export function appPathForView(view: AppView, projectCode?: string | null) {
