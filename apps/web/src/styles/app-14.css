@@ -159,6 +159,34 @@
   margin: 0;
 }
 
+.raid-closed-section {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.raid-closed-section summary {
+  align-items: center;
+  color: #1f2937;
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  font-weight: 900;
+  gap: 8px;
+  list-style-position: inside;
+}
+
+.raid-closed-section summary strong {
+  background: #eef2f7;
+  border-radius: 999px;
+  color: #475569;
+  font-size: 11px;
+  min-width: 24px;
+  padding: 3px 8px;
+  text-align: center;
+}
+
 .raid-head,
 .raid-row,
 .cr-head,
@@ -171,6 +199,15 @@
 .raid-head,
 .raid-row {
   grid-template-columns: minmax(220px, 1fr) 112px 70px 118px 150px 24px;
+}
+
+.raid-closed-head,
+.raid-closed-row {
+  grid-template-columns: minmax(220px, 1fr) 112px 112px 118px 150px;
+}
+
+.raid-closed-row {
+  cursor: default;
 }
 
 .cr-head,
@@ -209,6 +246,10 @@
 .raid-row:focus-visible,
 .cr-row:focus-visible {
   background: #f8fafc;
+}
+
+.raid-closed-row:hover {
+  background: #fff;
 }
 
 .raid-row span,
@@ -398,6 +439,12 @@
 .raid-form button {
   font-size: 12px;
   padding: 7px 8px;
+}
+
+.raid-edit-grid .secondary-button {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
 }
 
 .raid-form {

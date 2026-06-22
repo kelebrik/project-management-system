@@ -33,10 +33,11 @@ function raidPayload(data: z.infer<typeof raidItemSchema>) {
 
 async function validateRaidItem(projectId: string, data: z.infer<typeof raidItemSchema>, itemId?: string) {
   const score = calculatedRiskScore(data.probability, data.impact);
-  if (data.type === 'RISK' && score >= 15 && !data.owner.trim()) {
+  const activeStatus = data.status !== 'CLOSED' && data.status !== 'VALIDATED';
+  if (activeStatus && data.type === 'RISK' && score >= 15 && !data.owner.trim()) {
     return 'У высокого риска должен быть ответственный';
   }
-  if (data.type === 'RISK' && score >= 15 && !data.mitigationPlan?.trim()) {
+  if (activeStatus && data.type === 'RISK' && score >= 15 && !data.mitigationPlan?.trim()) {
     return 'У высокого риска должен быть план снижения';
   }
   if (data.linkedRiskId) {

@@ -5,6 +5,9 @@ import type { RaidTypeFilter } from "../app/raidModels";
 export function ProjectRaidRegister() {
   const {
     addRaidStatusUpdate,
+    closeRaidItem,
+    closedRaidItems,
+    convertRiskToProblem,
     date,
     deleteRaidItem,
     expandedRaidId,
@@ -476,6 +479,26 @@ export function ProjectRaidRegister() {
                                     >
                                       Сохранить запись
                                     </button>
+                                    {item.type === "RISK" && (
+                                      <button
+                                        type="button"
+                                        className="secondary-button"
+                                        onClick={() => convertRiskToProblem(item.id)}
+                                      >
+                                        В проблему
+                                      </button>
+                                    )}
+                                    {(item.type === "RISK" ||
+                                      item.type === "DEPENDENCY") &&
+                                      item.status !== "CLOSED" && (
+                                        <button
+                                          type="button"
+                                          className="secondary-button"
+                                          onClick={() => closeRaidItem(item.id)}
+                                        >
+                                          Закрыть
+                                        </button>
+                                      )}
                                     <button
                                       type="button"
                                       className="danger-button"
@@ -495,6 +518,37 @@ export function ProjectRaidRegister() {
                       </div>
                         </section>
                       ))}
+                      <details className="raid-closed-section">
+                        <summary>
+                          <span>Закрытые риски и проблемы</span>
+                          <strong>{closedRaidItems.length}</strong>
+                        </summary>
+                        <div className="raid-list">
+                          <div className="raid-head raid-closed-head">
+                            <span>Запись</span>
+                            <span>Тип</span>
+                            <span>Статус</span>
+                            <span>Срок</span>
+                            <span>Ответственный</span>
+                          </div>
+                          {closedRaidItems.map((item) => (
+                            <div className="raid-item raid-closed-item" key={item.id}>
+                              <div className="raid-row raid-closed-row">
+                                <span className="raid-title">{item.title}</span>
+                                <span>{raidTypeLabel(item.type)}</span>
+                                <span>{raidStatusLabel(item.status)}</span>
+                                <span>{date(item.dueDate)}</span>
+                                <span>{item.owner}</span>
+                              </div>
+                            </div>
+                          ))}
+                          {closedRaidItems.length === 0 && (
+                            <div className="empty-state">
+                              Закрытых рисков и проблем пока нет.
+                            </div>
+                          )}
+                        </div>
+                      </details>
                     </section>
                     </div>;
 }

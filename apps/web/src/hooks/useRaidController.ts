@@ -144,6 +144,62 @@ export function useRaidController({
     [raidDrafts, refreshProject, setError, setNotice],
   );
 
+  const patchRaidItem = useCallback(
+    async (
+      itemId: string,
+      patch: Partial<ReturnType<typeof raidPayload>>,
+      successMessage: string,
+      fallbackError: string,
+    ) => {
+      setError(null);
+      setNotice(null);
+      try {
+        const response = await authenticatedFetch(`${apiBase}/api/raid-items/${itemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(
+            result.error?.formErrors?.join(", ") || result.error || fallbackError,
+          );
+        }
+        await refreshProject();
+        setNotice(successMessage);
+      } catch (patchError) {
+        setError(patchError instanceof Error ? patchError.message : fallbackError);
+      }
+    },
+    [refreshProject, setError, setNotice],
+  );
+
+  const convertRiskToProblem = useCallback(
+    async (itemId: string) => {
+      if (!window.confirm("Перевести риск в проблему?")) return;
+      await patchRaidItem(
+        itemId,
+        { type: "DEPENDENCY" },
+        "Риск переведен в проблему",
+        "Не удалось перевести риск в проблему",
+      );
+    },
+    [patchRaidItem],
+  );
+
+  const closeRaidItem = useCallback(
+    async (itemId: string) => {
+      if (!window.confirm("Закрыть запись без удаления?")) return;
+      await patchRaidItem(
+        itemId,
+        { status: "CLOSED" },
+        "Запись закрыта",
+        "Не удалось закрыть запись",
+      );
+    },
+    [patchRaidItem],
+  );
+
   const addRaidStatusUpdate = useCallback(
     async (itemId: string) => {
       const draft =
@@ -222,6 +278,8 @@ export function useRaidController({
     updateRaidStatusDraft,
     createRaidItem,
     saveRaidItem,
+    convertRiskToProblem,
+    closeRaidItem,
     addRaidStatusUpdate,
     deleteRaidItem,
   };

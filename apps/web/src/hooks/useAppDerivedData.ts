@@ -22,6 +22,7 @@ import {
   visiblePortfolioKeyRiskProjects,
 } from "../app/portfolioModels";
 import {
+  closedRiskAndProblemItems,
   createRaidSummary,
   createRiskMatrix,
   filterRaidItems,
@@ -422,6 +423,10 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
       raidTypeFilter,
     ],
   );
+  const closedRaidItems = useMemo(
+    () => closedRiskAndProblemItems(project?.raidItems ?? []),
+    [project?.raidItems],
+  );
   const riskMatrix = useMemo(
     () => createRiskMatrix(project?.raidItems ?? []),
     [project?.raidItems],
@@ -537,6 +542,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     calendarYear,
     closedProjectTree,
     closedProjects,
+    closedRaidItems,
     dirtyWbsItemIds,
     draftWbsCodes,
     filteredDictionaryItems,
