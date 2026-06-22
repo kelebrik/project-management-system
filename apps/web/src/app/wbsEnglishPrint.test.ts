@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  createWbsEnglishTranslationHtml,
   normalizeWbsEnglishSourceTitle,
+  parseWbsEnglishTranslationHtml,
   resolveWbsEnglishTitle,
 } from "./wbsEnglishPrint";
 
@@ -45,4 +47,23 @@ test("WBS English title resolver uses cached translations before original text",
 
   assert.equal(translation.text, "New unknown work");
   assert.equal(translation.source, "cache");
+});
+
+test("WBS English translation HTML export can be imported back", () => {
+  const html = createWbsEnglishTranslationHtml({
+    projectName: "Series 9000",
+    exportedAt: new Date("2026-06-22T09:00:00.000Z"),
+    rows: [
+      {
+        code: "4.1",
+        sourceTitle: "Подготовка первой OTA",
+        translatedTitle: "Prepare first OTA package",
+        translationSource: "manual",
+      },
+    ],
+  });
+  const translations = parseWbsEnglishTranslationHtml(html);
+  const key = normalizeWbsEnglishSourceTitle("Подготовка первой OTA");
+
+  assert.equal(translations[key], "Prepare first OTA package");
 });

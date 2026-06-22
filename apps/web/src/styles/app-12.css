@@ -88,88 +88,18 @@
   gap: 6px;
 }
 
-.wbs-translation-panel {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  display: grid;
-  gap: 10px;
-  padding: 12px;
+.wbs-en-menu-popover {
+  min-width: 140px;
 }
 
-.wbs-translation-panel-head {
-  align-items: start;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
+.wbs-en-menu-popover button {
+  justify-content: flex-start;
+  min-height: 32px;
+  width: 100%;
 }
 
-.wbs-translation-panel-head h3 {
-  color: #0f172a;
-  font-size: 14px;
-  margin: 0;
-}
-
-.wbs-translation-panel-head p {
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 700;
-  margin: 4px 0 0;
-}
-
-.wbs-translation-panel-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.wbs-translation-table {
-  border: 1px solid #d8e0eb;
-  border-bottom: 0;
-  border-radius: 6px;
-  max-height: 320px;
-  overflow: auto;
-}
-
-.wbs-translation-row {
-  align-items: center;
-  background: #fff;
-  border-bottom: 1px solid #d8e0eb;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(260px, 1fr) 90px;
-  min-height: 44px;
-  padding: 8px 10px;
-}
-
-.wbs-translation-row div {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.wbs-translation-row span,
-.wbs-translation-row em {
-  color: #64748b;
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.wbs-translation-row strong {
-  color: #1f2937;
-  font-size: 12px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wbs-translation-row input {
-  font-size: 12px;
-  min-height: 34px;
+.wbs-translation-import-input {
+  display: none;
 }
 
 .wbs-table-shell {

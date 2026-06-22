@@ -57,6 +57,13 @@ export type WbsEnglishTranslation = {
 
 export type WbsEnglishTranslationMap = Record<string, string>;
 
+export type WbsEnglishTranslationExportRow = {
+  code: string;
+  sourceTitle: string;
+  translatedTitle: string;
+  translationSource: WbsEnglishTranslationSource;
+};
+
 const WBS_ENGLISH_MANUAL_TRANSLATIONS_KEY =
   "pms.wbsEnglishTranslations.manual.v1";
 const WBS_ENGLISH_TRANSLATION_CACHE_KEY = "pms.wbsEnglishTranslations.cache.v1";
@@ -455,6 +462,111 @@ export function saveWbsEnglishTranslationCache(
   translations: WbsEnglishTranslationMap,
 ) {
   saveTranslationMap(WBS_ENGLISH_TRANSLATION_CACHE_KEY, translations);
+}
+
+function escapeHtml(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function decodeHtml(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
+}
+
+function stripHtml(value: string) {
+  return decodeHtml(value.replace(/<[^>]*>/g, "")).trim();
+}
+
+export function createWbsEnglishTranslationHtml({
+  projectName,
+  exportedAt,
+  rows,
+}: {
+  projectName: string;
+  exportedAt: Date;
+  rows: WbsEnglishTranslationExportRow[];
+}) {
+  const exportedAtIso = exportedAt.toISOString();
+  const rowMarkup = rows
+    .map((row) => {
+      const normalizedTitle = normalizeWbsEnglishSourceTitle(row.sourceTitle);
+      return `<tr data-normalized-title="${escapeHtml(normalizedTitle)}" data-source-title="${escapeHtml(row.sourceTitle)}">
+        <td class="code">${escapeHtml(row.code)}</td>
+        <td class="source-title">${escapeHtml(row.sourceTitle)}</td>
+        <td class="translation-target" contenteditable="true">${escapeHtml(row.translatedTitle)}</td>
+        <td class="translation-source">${escapeHtml(row.translationSource)}</td>
+      </tr>`;
+    })
+    .join("\n");
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(projectName)} - WBS English translations</title>
+  <style>
+    body { color: #1f2937; font-family: Arial, sans-serif; margin: 24px; }
+    h1 { font-size: 22px; margin: 0 0 8px; }
+    p { color: #64748b; font-size: 13px; margin: 0 0 16px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #cbd5e1; font-size: 13px; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f1f5f9; color: #334155; }
+    .code { color: #475569; font-weight: 700; white-space: nowrap; width: 90px; }
+    .source-title { width: 38%; }
+    .translation-target { background: #fff7ed; min-width: 280px; }
+    .translation-source { color: #64748b; font-size: 12px; width: 110px; }
+  </style>
+</head>
+<body data-pms-wbs-translation-export="1" data-project-name="${escapeHtml(projectName)}" data-exported-at="${escapeHtml(exportedAtIso)}">
+  <h1>${escapeHtml(projectName)} - WBS English translations</h1>
+  <p>Translate only the English translation column. Keep the table rows and data attributes unchanged for import.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Original title</th>
+        <th>English translation</th>
+        <th>Source</th>
+      </tr>
+    </thead>
+    <tbody>
+${rowMarkup}
+    </tbody>
+  </table>
+</body>
+</html>`;
+}
+
+export function parseWbsEnglishTranslationHtml(html: string) {
+  const rows = html.match(/<tr\b[^>]*data-normalized-title=["'][\s\S]*?<\/tr>/gi) ?? [];
+  const translations: WbsEnglishTranslationMap = {};
+  for (const row of rows) {
+    const normalizedTitle = decodeHtml(
+      row.match(/\bdata-normalized-title=["']([^"']*)["']/i)?.[1],
+    ).trim();
+    const sourceTitle = decodeHtml(
+      row.match(/\bdata-source-title=["']([^"']*)["']/i)?.[1],
+    ).trim();
+    const translationCell = row.match(
+      /<td\b[^>]*class=["'][^"']*\btranslation-target\b[^"']*["'][^>]*>([\s\S]*?)<\/td>/i,
+    )?.[1];
+    const translation = stripHtml(translationCell ?? "");
+    const translationKey =
+      normalizedTitle || normalizeWbsEnglishSourceTitle(sourceTitle);
+    if (translationKey && translation) {
+      translations[translationKey] = translation;
+    }
+  }
+  return translations;
 }
 
 export function wbsEnglishTitle(
