@@ -356,3 +356,61 @@ test("overview schedule deltas do not duplicate parent delay explained by a chil
     [["2.1", 41]],
   );
 });
+
+test("overview separates schedule delay and acceleration impacts when net variance is zero", () => {
+  const delayedTask = wbsItem({
+    id: "delayed",
+    code: "1.1",
+    title: "Отстающая работа",
+    baselineDueDate: "2026-05-01",
+    forecastDueDate: "2026-05-11",
+    dueDate: "2026-05-11",
+  });
+  const acceleratedTask = wbsItem({
+    id: "accelerated",
+    code: "1.2",
+    title: "Опережающая работа",
+    baselineDueDate: "2026-05-21",
+    forecastDueDate: "2026-05-11",
+    dueDate: "2026-05-11",
+  });
+  const activeGoal = wbsItem({
+    id: "goal",
+    code: "2",
+    title: "Цель",
+    type: "GOAL",
+    predecessor1: "1.1",
+    predecessor2: "1.2",
+    baselineDueDate: "2026-05-30",
+    forecastDueDate: "2026-05-30",
+    dueDate: "2026-05-30",
+  });
+  const project = baseProject({
+    wbsItems: [delayedTask, acceleratedTask, activeGoal],
+    criticalPath: {
+      projectStartDate: null,
+      projectFinishDate: null,
+      criticalItemIds: [delayedTask.id, acceleratedTask.id, activeGoal.id],
+      criticalDependencyIds: [],
+      criticalItemCount: 3,
+      nearCriticalItemCount: 0,
+      warnings: [],
+      items: [],
+    },
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.equal(dashboard.scheduleVarianceFromStructure, 0);
+  assert.deepEqual(
+    dashboard.scheduleDelayItems.map(({ item, delay }) => [item.code, delay]),
+    [["1.1", 10]],
+  );
+  assert.deepEqual(
+    dashboard.scheduleAccelerationItems.map(({ item, acceleration }) => [
+      item.code,
+      acceleration,
+    ]),
+    [["1.2", 10]],
+  );
+});

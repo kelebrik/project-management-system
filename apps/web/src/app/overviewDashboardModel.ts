@@ -113,7 +113,7 @@ export function createOverviewDashboard(
     item.baselineDueDate &&
     (item.forecastDueDate || item.dueDate) &&
     item.status !== "CANCELLED";
-  const allScheduleDelays = wbsItems
+  const allScheduleVariances = wbsItems
     .filter(hasScheduleVarianceDates)
     .map((item) => {
       const baselineDueDate = validScheduleDate(item.baselineDueDate);
@@ -122,16 +122,19 @@ export function createOverviewDashboard(
       );
       return {
         item,
-        delay:
+        variance:
           baselineDueDate && forecastDueDate
             ? signedDaysBetween(baselineDueDate, forecastDueDate)
             : 0,
       };
     })
-    .filter(({ delay }) => delay > 0);
-  const delayByItemId = new Map(
-    allScheduleDelays.map(({ item, delay }) => [item.id, delay]),
-  );
+    .filter(({ variance }) => variance !== 0);
+  const allScheduleDelays = allScheduleVariances
+    .filter(({ variance }) => variance > 0)
+    .map(({ item, variance }) => ({ item, delay: variance }));
+  const allScheduleAccelerations = allScheduleVariances
+    .filter(({ variance }) => variance < 0)
+    .map(({ item, variance }) => ({ item, acceleration: Math.abs(variance) }));
   const isScheduleDeltaReportable = (item: WbsItem) =>
     item.type === "TASK" && !childrenByParentId.has(item.id);
   const collectReportableDescendantIds = (
@@ -183,71 +186,115 @@ export function createOverviewDashboard(
       ? scheduleDeltaCandidateIds.has(item.id)
       : isScheduleDeltaReportable(item) &&
         (criticalPathIds.size === 0 || criticalPathIds.has(item.id));
-  const delayedScheduleDeltaCandidateIds = new Set(
-    allScheduleDelays
-      .filter(({ item }) => isScheduleDeltaCandidate(item))
-      .map(({ item }) => item.id),
-  );
-  const upstreamCauseCache = new Map<string, Set<string>>();
-  const upstreamDelayedCauseIds = (
-    itemId: string,
-    visiting = new Set<string>(),
-  ): Set<string> => {
-    const cached = upstreamCauseCache.get(itemId);
-    if (cached) return cached;
-    if (visiting.has(itemId)) return new Set<string>();
-    visiting.add(itemId);
-    const causeIds = new Set<string>();
-    for (const predecessorId of predecessorIdsByItemId.get(itemId) ?? []) {
-      if (delayedScheduleDeltaCandidateIds.has(predecessorId)) {
-        causeIds.add(predecessorId);
-      }
-      for (const upstreamId of upstreamDelayedCauseIds(predecessorId, visiting)) {
-        causeIds.add(upstreamId);
-      }
-    }
-    visiting.delete(itemId);
-    upstreamCauseCache.set(itemId, causeIds);
-    return causeIds;
-  };
   const isScheduleVarianceOpenCandidate = (item: WbsItem) =>
     hasScheduleVarianceDates(item) &&
     !isWbsCheckpoint(item) &&
     item.status !== "DONE";
-  const scheduleDeltaItems = allScheduleDelays
-    .filter(({ item }) => isScheduleDeltaCandidate(item))
-    .map(({ item, delay: rawDelay }) => {
-      const inheritedFrom =
-        [...upstreamDelayedCauseIds(item.id)]
-          .map((itemId) => wbsById.get(itemId))
-          .filter((entry): entry is WbsItem => Boolean(entry))
-          .sort(
-            (left, right) =>
-              (delayByItemId.get(right.id) ?? 0) -
-                (delayByItemId.get(left.id) ?? 0) ||
-              left.code.localeCompare(right.code, undefined, { numeric: true }),
-          )[0] ?? null;
-      const inheritedDelay = inheritedFrom
-        ? delayByItemId.get(inheritedFrom.id) ?? 0
-        : 0;
-      return {
-        item,
-        delay: Math.max(0, rawDelay - inheritedDelay),
-        rawDelay,
-        inheritedFrom,
-        inheritedDelay,
-      };
-    })
-    .filter(({ delay }) => delay > 0)
-    .sort(
-      (left, right) =>
-        right.delay - left.delay ||
-        right.rawDelay - left.rawDelay ||
-        left.item.code.localeCompare(right.item.code, undefined, {
-          numeric: true,
-        }),
-    )
+  const incrementalScheduleImpactItems = (
+    entries: Array<{ item: WbsItem; impact: number }>,
+  ) => {
+    const impactByItemId = new Map(
+      entries.map(({ item, impact }) => [item.id, impact]),
+    );
+    const impactedCandidateIds = new Set(
+      entries
+        .filter(({ item }) => isScheduleDeltaCandidate(item))
+        .map(({ item }) => item.id),
+    );
+    const upstreamCauseCache = new Map<string, Set<string>>();
+    const upstreamCauseIds = (
+      itemId: string,
+      visiting = new Set<string>(),
+    ): Set<string> => {
+      const cached = upstreamCauseCache.get(itemId);
+      if (cached) return cached;
+      if (visiting.has(itemId)) return new Set<string>();
+      visiting.add(itemId);
+      const causeIds = new Set<string>();
+      for (const predecessorId of predecessorIdsByItemId.get(itemId) ?? []) {
+        if (impactedCandidateIds.has(predecessorId)) {
+          causeIds.add(predecessorId);
+        }
+        for (const upstreamId of upstreamCauseIds(predecessorId, visiting)) {
+          causeIds.add(upstreamId);
+        }
+      }
+      visiting.delete(itemId);
+      upstreamCauseCache.set(itemId, causeIds);
+      return causeIds;
+    };
+
+    return entries
+      .filter(({ item }) => isScheduleDeltaCandidate(item))
+      .map(({ item, impact: rawImpact }) => {
+        const inheritedFrom =
+          [...upstreamCauseIds(item.id)]
+            .map((itemId) => wbsById.get(itemId))
+            .filter((entry): entry is WbsItem => Boolean(entry))
+            .sort(
+              (left, right) =>
+                (impactByItemId.get(right.id) ?? 0) -
+                  (impactByItemId.get(left.id) ?? 0) ||
+                left.code.localeCompare(right.code, undefined, { numeric: true }),
+            )[0] ?? null;
+        const inheritedImpact = inheritedFrom
+          ? impactByItemId.get(inheritedFrom.id) ?? 0
+          : 0;
+        return {
+          item,
+          impact: Math.max(0, rawImpact - inheritedImpact),
+          rawImpact,
+          inheritedFrom,
+          inheritedImpact,
+        };
+      })
+      .filter(({ impact }) => impact > 0)
+      .sort(
+        (left, right) =>
+          right.impact - left.impact ||
+          right.rawImpact - left.rawImpact ||
+          left.item.code.localeCompare(right.item.code, undefined, {
+            numeric: true,
+          }),
+      );
+  };
+  const scheduleDelayImpactItems = incrementalScheduleImpactItems(
+    allScheduleDelays.map(({ item, delay }) => ({ item, impact: delay })),
+  );
+  const scheduleAccelerationImpactItems = incrementalScheduleImpactItems(
+    allScheduleAccelerations.map(({ item, acceleration }) => ({
+      item,
+      impact: acceleration,
+    })),
+  );
+  const scheduleDeltaItems = scheduleDelayImpactItems
+    .map(({ item, impact, rawImpact, inheritedFrom, inheritedImpact }) => ({
+      item,
+      delay: impact,
+      rawDelay: rawImpact,
+      inheritedFrom,
+      inheritedDelay: inheritedImpact,
+    }))
     .slice(0, 5);
+  const scheduleDelayItems = scheduleDeltaItems.slice(0, 3);
+  const scheduleAccelerationItems = scheduleAccelerationImpactItems
+    .map(({ item, impact, rawImpact, inheritedFrom, inheritedImpact }) => ({
+      item,
+      acceleration: impact,
+      rawAcceleration: rawImpact,
+      inheritedFrom,
+      inheritedAcceleration: inheritedImpact,
+    }))
+    .slice(0, 3);
+  const scheduleDelayImpactDays = scheduleDelayImpactItems.reduce(
+    (sum, entry) => sum + entry.impact,
+    0,
+  );
+  const scheduleAccelerationImpactDays =
+    scheduleAccelerationImpactItems.reduce(
+      (sum, entry) => sum + entry.impact,
+      0,
+    );
   const activeGoalBaselineDueDate = validScheduleDate(
     activeGoal?.baselineDueDate ?? activeGoal?.dueDate,
   );
@@ -286,6 +333,10 @@ export function createOverviewDashboard(
     redZoneRisks,
     blockingTickets,
     openDecisionItems,
+    scheduleAccelerationImpactDays,
+    scheduleAccelerationItems,
+    scheduleDelayImpactDays,
+    scheduleDelayItems,
     scheduleDeltaItems,
     scheduleVarianceFromStructure,
   };

@@ -114,22 +114,64 @@ export function ProjectOverviewSummaryPage() {
                       </strong>
                     </div>
                     <div className="executive-overview-list">
-                      {overviewDashboard.scheduleDeltaItems.map(({ item, delay }) => (
-                        <div
-                          className="executive-overview-row"
-                          key={item.id}
-                        >
-                          <b>
-                            {item.jiraTicketKey ? `${item.jiraTicketKey} / ` : ""}
-                            {item.code} {item.title}
-                          </b>
-                          <span>
-                            Отклонение +{delay} календарных дней / исполнитель:{" "}
-                            {item.owner || "не назначен"}
-                          </span>
+                      {overviewDashboard.scheduleVarianceFromStructure === 0 &&
+                        overviewDashboard.scheduleDelayImpactDays > 0 &&
+                        overviewDashboard.scheduleAccelerationImpactDays > 0 && (
+                          <p className="executive-status-text">
+                            Итоговое отклонение 0 дней: есть отставания +
+                            {overviewDashboard.scheduleDelayImpactDays} дн. и
+                            опережение -
+                            {overviewDashboard.scheduleAccelerationImpactDays} дн.
+                          </p>
+                        )}
+                      {overviewDashboard.scheduleDelayItems.length > 0 && (
+                        <div className="schedule-impact-group">
+                          <h4>Максимальное влияние на отставание</h4>
+                          {overviewDashboard.scheduleDelayItems.map(({ item, delay }) => (
+                            <div
+                              className="executive-overview-row"
+                              key={`delay-${item.id}`}
+                            >
+                              <b>
+                                {item.jiraTicketKey
+                                  ? `${item.jiraTicketKey} / `
+                                  : ""}
+                                {item.code} {item.title}
+                              </b>
+                              <span>
+                                +{delay} календарных дней / исполнитель:{" "}
+                                {item.owner || "не назначен"}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                      {overviewDashboard.scheduleDeltaItems.length === 0 && (
+                      )}
+                      {overviewDashboard.scheduleAccelerationItems.length > 0 && (
+                        <div className="schedule-impact-group acceleration">
+                          <h4>Максимальное влияние на опережение</h4>
+                          {overviewDashboard.scheduleAccelerationItems.map(
+                            ({ item, acceleration }) => (
+                              <div
+                                className="executive-overview-row"
+                                key={`acceleration-${item.id}`}
+                              >
+                                <b>
+                                  {item.jiraTicketKey
+                                    ? `${item.jiraTicketKey} / `
+                                    : ""}
+                                  {item.code} {item.title}
+                                </b>
+                                <span>
+                                  -{acceleration} календарных дней / исполнитель:{" "}
+                                  {item.owner || "не назначен"}
+                                </span>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      )}
+                      {overviewDashboard.scheduleDelayItems.length === 0 &&
+                        overviewDashboard.scheduleAccelerationItems.length === 0 && (
                         <p>Отклонений от базового плана нет.</p>
                       )}
                     </div>
