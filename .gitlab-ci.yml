@@ -2,11 +2,18 @@ stages:
   - check
   - build
   - approve
+  - deploy
 
 include:
   - project: "rnd/infra/gitlab-ci"
     ref: main
     file: "codeowners-template.yml"
+
+.tokens: &tokens
+  id_tokens:
+    VAULT_ID_TOKEN:
+      aud:
+        - vault.dev.sberdevices.ru
 
 variables:
   PMS_CI_NPM_VERSION: "10.8.2"
@@ -110,8 +117,60 @@ build_image:
       if [[ "${CI_PIPELINE_SOURCE}" == "push" && "${CI_COMMIT_REF_NAME}" == "master" ]]; then
         echo "Pushing latest"
         buildah push ${CI_REGISTRY_IMAGE}
+        echo "Pushing ${CI_COMMIT_SHORT_SHA}"
+        buildah tag ${CI_REGISTRY_IMAGE} ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
+        buildah push ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
       else
         echo "Pushing test image: ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
         buildah tag ${CI_REGISTRY_IMAGE} ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}
         buildah push ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}
       fi
+
+.deploy_awx:
+  <<: *tokens
+  stage: deploy
+  needs:
+    - build_image
+  tags:
+    - kubernetes-std
+  image: registry.sberdevices.ru/rnd/infra/docker_images/awx-cli:latest
+  variables:
+    PYTHONUNBUFFERED: "1"
+    HYDRA_ENABLED: true
+    HYDRA_VERSION: 4.0.3
+    VAULT_ADDR: https://vault.dev.sberdevices.ru
+    VAULT_AUTH_ROLE: starosfw-deploy
+    VAULT_SECRET_PATH:
+      starosfw/tuz_starosfw_glansbl
+    GIT_STRATEGY: none
+  script:
+    - |
+      awx job_templates launch 378 \
+        --conf.host "https://awx.rnd.dev.sberdevices.ru" \
+        --conf.insecure \
+        --conf.username "${USERNAME}" \
+        --conf.password "${PASSWORD}" \
+        --limit "${DEPLOY_LIMIT}" \
+        --extra_vars "{\"tv_management_image\": \"registry.sberdevices.ru/rnd/infra/tv-project-management:${IMAGE_TAG}\"}" \
+        --job_tags deploy_app \
+        --monitor \
+        --action-timeout 3600 \
+        -f human \
+        --conf.color true
+
+deploy:
+  extends: .deploy_awx
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"
+  variables:
+    IMAGE_TAG: latest
+    DEPLOY_LIMIT: tvmanagement_prod
+
+deploy:nt-01:
+  extends: .deploy_awx
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+      when: manual
+  variables:
+    IMAGE_TAG: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
+    DEPLOY_LIMIT: tvmanagement_test
