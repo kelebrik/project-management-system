@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
+. "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/ci-npm-env.sh"
+
 VERSION="${PMS_CI_NPM_VERSION:-10.8.2}"
 CACHE_DIR="${NPM_CONFIG_CACHE:-.npm}"
 NPM_HOME="${PMS_CI_NPM_HOME:-$CACHE_DIR/npm-cli-$VERSION}"
@@ -47,8 +49,7 @@ NODE
 }
 
 if [ ! -f "$NPM_CLI" ]; then
-  REGISTRY="${NPM_CONFIG_REGISTRY:-${npm_config_registry:-https://registry.npmjs.org}}"
-  REGISTRY="${REGISTRY%/}"
+  REGISTRY="$PMS_NPM_REGISTRY"
   TARBALL_URL="${PMS_CI_NPM_TARBALL_URL:-$REGISTRY/npm/-/npm-$VERSION.tgz}"
   TARBALL="$CACHE_DIR/npm-$VERSION.tgz"
 
@@ -60,7 +61,7 @@ if [ ! -f "$NPM_CLI" ]; then
     rm -rf "$NPM_HOME" "$TARBALL"
     if command -v npm >/dev/null 2>&1; then
       echo "Could not bootstrap npm $VERSION; falling back to bundled npm $(npm --version)." >&2
-      echo "Set PMS_CI_NPM_TARBALL_URL or NPM_CONFIG_REGISTRY to an internal mirror for deterministic CI." >&2
+      echo "Set PMS_CI_NPM_TARBALL_URL or PMS_NPM_REGISTRY to an internal mirror for deterministic CI." >&2
       exec npm "$@"
     fi
     echo "Could not bootstrap npm $VERSION and bundled npm is unavailable." >&2

@@ -2,18 +2,17 @@ services:
   app:
     build:
       context: .
+      args:
+        CI_JOB_TOKEN: ${CI_JOB_TOKEN:-}
     image: project-management-system:local
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+    env_file:
+      - .env
     environment:
-      NODE_ENV: production
-      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
-      AUTH_COOKIE_SECURE: "false"
-      DATABASE_URL: postgresql://pms_user:pms_password@postgres:5432/project_management_system?schema=public
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
@@ -22,7 +21,13 @@ services:
       WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS:-3}
       WEBHOOK_RETRY_BASE_MS: ${WEBHOOK_RETRY_BASE_MS:-500}
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 15s
@@ -43,6 +48,7 @@ services:
     restart: "no"
 
   postgres:
+    profiles: ["local-db"]
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: project_management_system

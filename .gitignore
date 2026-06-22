@@ -7,6 +7,9 @@ build
 .DS_Store
 *.log
 coverage
+reports
+docker/prisma-engines/*
+!docker/prisma-engines/.gitkeep
 .vite
 .render
 .npm

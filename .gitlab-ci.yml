@@ -1,26 +1,20 @@
 stages:
-  - validate
-  - test
+  - check
   - build
+  - approve
 
-workflow:
-  rules:
-    - if: '$PMS_CI_NODE_IMAGE'
-      when: always
-    - when: never
+include:
+  - project: "rnd/infra/gitlab-ci"
+    ref: main
+    file: "codeowners-template.yml"
 
 variables:
-  # PMS_CI_NODE_IMAGE must be configured in GitLab CI variables and must point
-  # to an approved internal registry image. Public node:* images are not
-  # reliable in Sber Kubernetes runners because Docker Hub is blocked and the
-  # corporate proxy may not contain the requested tag.
   PMS_CI_NPM_VERSION: "10.8.2"
-  PMS_CI_BUILDER_IMAGE: "$CI_REGISTRY_IMAGE/ci/image-builder:latest"
-  PMS_CONTAINER_IMAGE: "$CI_REGISTRY_IMAGE/app:$CI_COMMIT_SHORT_SHA"
-  DATABASE_URL: "postgresql://pms_user:pms_password@localhost:5432/project_management_system?schema=public"
-  AUTH_COOKIE_SECURE: "false"
-  WEB_ORIGIN: "*"
   NPM_CONFIG_CACHE: "/tmp/pms-npm-cache"
+  NPM_CONFIG_REGISTRY: "https://nexus.sberdevices.ru/repository/npm"
+  PRISMA_CLI_BINARY_TARGETS: "debian-openssl-3.0.x"
+  PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
+  PRISMA_ENGINES_BASE_URL: "https://git.sberdevices.ru/api/v4/projects/134759/packages/generic/debian_openssl/3.0.x"
 
 cache:
   key:
@@ -31,75 +25,93 @@ cache:
 
 default:
   image:
-    name: "$PMS_CI_NODE_IMAGE"
+    name: "docker.sberdevices.ru/skopeo/docker.io/node:24.16.0-bookworm-slim"
     pull_policy: if-not-present
     # Requires GitLab 18.0+ and GitLab Runner 17.11+.
     # If Sber Git uses an older version, move non-root securityContext to runner config.toml.
     kubernetes:
       user: "1000:1000"
+
+.mr_to_master:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+
+.node_job:
+  extends: .mr_to_master
+  stage: check
   before_script:
     - node --version
     - scripts/ci-npm.sh --version
+    - scripts/ci-prisma-setup.sh bootstrap
     - scripts/ci-install.sh
-    - scripts/ci-npm.sh run prisma:generate
+    - scripts/ci-npm.sh run build --workspace @pms/shared
+    - scripts/ci-prisma-setup.sh link-node-modules
+    - scripts/ci-prisma-generate.sh
 
 static-policy-check:
-  stage: validate
+  extends: .node_job
   script:
     - scripts/ci-npm.sh run test:integration -- --test-name-pattern "Docker runtime|Operations shell|Backup and restore|Smoke scripts|Kubernetes|GitLab CI"
 
 typecheck:
-  stage: validate
+  extends: .node_job
   script:
     - scripts/ci-npm.sh run typecheck
 
 unit-tests:
-  stage: test
+  extends: .node_job
   script:
-    - scripts/ci-npm.sh run test:unit
+    - scripts/ci-npm.sh run test:unit:ci
+  coverage: '/Lines\s*:\s*([\d\.]+)%/'
+  artifacts:
+    when: always
+    expire_in: 1 week
+    reports:
+      junit:
+        - reports/junit-unit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: reports/coverage/cobertura-coverage.xml
+    paths:
+      - reports/
 
 integration-contracts:
-  stage: test
+  extends: .node_job
   script:
-    - scripts/ci-npm.sh run test:integration
-
-build:
-  stage: build
-  script:
-    - scripts/ci-npm.sh run build
+    - scripts/ci-npm.sh run test:integration:ci
   artifacts:
+    when: always
     expire_in: 1 week
+    reports:
+      junit:
+        - reports/junit-integration.xml
     paths:
-      - apps/api/dist/
-      - apps/web/dist/
-      - packages/shared/dist/
-      - prisma/
-      - prisma.config.ts
-      - package.json
-      - package-lock.json
-      - Dockerfile
-      - deploy/k8s/
+      - reports/
 
-container-build:
+build_image:
   stage: build
-  image:
-    name: "$PMS_CI_BUILDER_IMAGE"
-    entrypoint: [""]
-    pull_policy: if-not-present
-    # Requires GitLab 18.0+ and GitLab Runner 17.11+.
-    # If Sber Git uses an older version, move non-root securityContext to runner config.toml.
-    kubernetes:
-      user: "1000:1000"
   rules:
-    - if: '$ENABLE_CONTAINER_BUILD == "true"'
-  needs:
-    - build
-  before_script: []
+    # merge-request event, just build is required
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+    # push to master means that merge request was merged, build+push of images are required
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"
+  tags:
+    - buildah-std
+  image: registry.sberdevices.ru/registry/tools/buildah/noenv:1.28.0
+  before_script:
+    - buildah login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" ${CI_REGISTRY}
   script:
+    # increased ulimit otherwise buildah build fails with "too many open files"
     - |
-      if [ -z "${CORPORATE_IMAGE_BUILD_COMMAND:-}" ]; then
-        echo "Set CORPORATE_IMAGE_BUILD_COMMAND in GitLab CI variables to the approved corporate image builder command."
-        echo "Example: /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --build-arg NODE_IMAGE=$PMS_CI_NODE_IMAGE --destination $PMS_CONTAINER_IMAGE"
-        exit 1
+      buildah build --ulimit nofile=65536:65536 \
+        --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
+        -t ${CI_REGISTRY_IMAGE} .
+    - |
+      if [[ "${CI_PIPELINE_SOURCE}" == "push" && "${CI_COMMIT_REF_NAME}" == "master" ]]; then
+        echo "Pushing latest"
+        buildah push ${CI_REGISTRY_IMAGE}
+      else
+        echo "Pushing test image: ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
+        buildah tag ${CI_REGISTRY_IMAGE} ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}
+        buildah push ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}
       fi
-    - sh -lc "$CORPORATE_IMAGE_BUILD_COMMAND"
