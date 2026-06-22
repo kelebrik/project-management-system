@@ -133,6 +133,7 @@ export const openApiDocument = {
           rag: { type: "string", enum: ["GREEN", "AMBER", "RED"] },
           projectManager: { type: "string" },
           startDate: { type: "string", format: "date-time" },
+          initialTargetDate: { type: ["string", "null"], format: "date-time" },
           targetDate: { type: "string", format: "date-time" },
           progress: { type: "integer", minimum: 0, maximum: 100 },
           scheduleVariance: { type: "integer" },
@@ -148,11 +149,11 @@ export const openApiDocument = {
           title: { type: "string" },
           type: {
             type: "string",
-            enum: ["PHASE", "WORK_PACKAGE", "DELIVERABLE", "MILESTONE", "TASK"],
+            enum: ["PHASE", "WORK_PACKAGE", "DELIVERABLE", "MILESTONE", "GOAL", "TASK"],
           },
           status: {
             type: "string",
-            enum: ["NOT_STARTED", "IN_PROGRESS", "AT_RISK", "BLOCKED", "DONE", "CANCELLED"],
+            enum: ["NOT_STARTED", "IN_PROGRESS", "IN_REVIEW", "AT_RISK", "BLOCKED", "DONE", "CANCELLED"],
           },
           owner: { type: "string" },
           startDate: { type: ["string", "null"], format: "date-time" },
@@ -164,6 +165,7 @@ export const openApiDocument = {
           predecessor5: { type: ["string", "null"] },
           predecessor6: { type: ["string", "null"] },
           calendarCode: { type: "string", enum: ["RU", "CN"] },
+          effortPercent: { type: "integer", minimum: 0, maximum: 100 },
           jiraTicketKey: { type: ["string", "null"] },
           jiraTicketUrl: { type: ["string", "null"], format: "uri" },
         },
@@ -261,6 +263,7 @@ export const openApiDocument = {
         responses: {
           "200": { description: "Prometheus text exposition" },
           "401": { description: "METRICS_TOKEN is configured and token is invalid" },
+          "503": { description: "Production metrics token is not configured" },
         },
       },
     },
@@ -414,6 +417,14 @@ export const openApiDocument = {
         "Close project and make it read-only for all roles",
         [projectIdParam],
         "Project closed",
+      ),
+    },
+    "/api/projects/{projectId}/target-date": {
+      patch: securedOperation(
+        ["Projects"],
+        "Update approved project target date with change history",
+        [projectIdParam],
+        "Project target date updated",
       ),
     },
     "/api/projects/{projectId}/overview": {
@@ -575,6 +586,14 @@ export const openApiDocument = {
         "Jira integration saved",
       ),
     },
+    "/api/projects/{projectId}/jira-work-sections": {
+      put: securedOperation(
+        ["Jira"],
+        "Create or update project Jira work filter sections",
+        [projectIdParam],
+        "Jira work sections saved",
+      ),
+    },
     "/api/projects/{projectId}/open-issues": {
       get: {
         tags: ["OpenIssues"],
@@ -669,7 +688,7 @@ export const openApiDocument = {
     "/api/projects/{projectId}/jira/sync": {
       post: {
         tags: ["Jira"],
-        summary: "Synchronize configured Jira JQL into snapshots",
+        summary: "Synchronize configured Jira work section filters into snapshots",
         security: [{ sessionCookie: [] }],
         parameters: [
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },

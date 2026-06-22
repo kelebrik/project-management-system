@@ -113,22 +113,40 @@
   .executive-overview-grid,
   .content-grid,
   .user-create-form,
+  .project-access-grant,
   .details,
   .form-grid,
   .two-col,
+  .issue-detail-layout,
   .issue-link-edit,
+  .issue-status-add-card,
+  .issue-status-add-grid,
   .milestone-head,
   .milestone-row,
   .wbs-kpis,
+  .resource-command-grid,
+  .resource-profile-layout,
+  .resource-profile-grid,
+  .resource-profile-metrics,
+  .resource-kpi-grid,
+  .resource-lower-grid,
+  .resource-schedule-grid,
   .raid-board,
   .raid-edit-grid,
   .artifact-edit-grid,
   .project-tree-head,
   .project-tree-row,
+  .projects-overview-card,
   .project-admin-head,
   .project-admin-row,
+  .project-access-head,
+  .project-access-row,
   .project-module-head,
   .project-module-row,
+  .passport-target-metrics,
+  .passport-target-edit,
+  .passport-target-history-head,
+  .passport-target-history-row,
   .module-summary-grid,
   .module-table-head,
   .module-table-row,
@@ -148,6 +166,49 @@
   .gate-row,
   .overview-history div {
     grid-template-columns: 1fr;
+  }
+
+  .resource-heatmap-panel {
+    overflow-x: auto;
+  }
+
+  .resource-panel-head,
+  .resource-profile-title,
+  .resource-schedule-owner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .resource-profile-actions {
+    justify-content: flex-start;
+  }
+
+  .resource-assignment-table {
+    overflow-x: auto;
+  }
+
+  .resource-profile-table {
+    overflow-x: auto;
+  }
+
+  .resource-profile-row {
+    min-width: 760px;
+  }
+
+  .resource-capacity-table {
+    overflow-x: auto;
+  }
+
+  .resource-request-card {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .resource-request-card strong,
+  .resource-request-card small {
+    grid-column: 1;
+    grid-row: auto;
+    text-align: left;
   }
 
   .project-card,
@@ -184,6 +245,15 @@
     grid-row: 1 / 4;
   }
 
+  .issue-actions {
+    justify-content: stretch;
+  }
+
+  .issue-actions button,
+  .issue-link-edit button {
+    width: 100%;
+  }
+
   .raid-row .issue-chevron,
   .cr-row .issue-chevron {
     grid-column: 1;
@@ -191,6 +261,7 @@
 
   .project-tree-head,
   .project-admin-head,
+  .project-access-head,
   .permission-head,
   .dictionary-head,
   .audit-head,
@@ -201,12 +272,14 @@
   }
 
   .project-admin-table,
+  .project-access-table,
   .permission-table,
   .dictionary-table {
     overflow-x: visible;
   }
 
   .project-admin-row,
+  .project-access-row,
   .permission-row,
   .dictionary-row {
     border: 1px solid #dbe4ef;
@@ -216,6 +289,9 @@
   }
 
   .project-admin-row label,
+  .project-access-row label,
+  .project-access-row > div,
+  .project-access-row > span,
   .project-admin-readonly,
   .dictionary-row label,
   .dictionary-actions,
@@ -228,6 +304,7 @@
   }
 
   .project-admin-row label > span,
+  .project-access-row label > span,
   .project-admin-readonly > span,
   .dictionary-row label > span {
     display: block;
@@ -260,5 +337,40 @@
   .gantt-head,
   .gantt-body {
     grid-template-columns: var(--gantt-wbs-width, 320px) 8px minmax(420px, 1fr);
+  }
+
+  .portfolio-raid-grid,
+  .portfolio-raid-item {
+    grid-template-columns: 1fr;
+  }
+
+  .projects-overview-passport {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .work-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .work-summary-section {
+    max-height: 520px;
+  }
+
+  .portfolio-raid-due,
+  .portfolio-raid-impact {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .portfolio-goal-item b,
+  .projects-overview-main b,
+  .projects-overview-main small,
+  .projects-overview-meta span,
+  .projects-overview-passport strong,
+  .portfolio-raid-item-main b,
+  .portfolio-raid-item-main small,
+  .project-tree-name-static {
+    white-space: normal;
   }
 }

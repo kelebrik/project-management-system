@@ -8,18 +8,23 @@
 docker compose up -d --build
 ```
 
-Приложение будет доступно на `http://localhost:3000`. При старте контейнер приложения выполняет `prisma migrate deploy`, затем запускает API, который отдает и `/api/*`, и web UI.
+Приложение будет доступно на `http://localhost:3000`. В compose миграции выполняет отдельный one-shot сервис `migrate`; API-контейнер стартует только после успешного `prisma migrate deploy`.
 
 ## Вариант 2. Только контейнер приложения, БД снаружи
 
 ```bash
 docker build -t project-management-system:latest .
+docker run --rm \
+  -e DATABASE_URL='postgresql://user:password@db-host:5432/project_management_system?schema=public' \
+  project-management-system:latest \
+  npm run prisma:deploy
 docker run -d \
   --name project-management-system \
   -p 3000:3000 \
   -e NODE_ENV=production \
-  -e WEB_ORIGIN='*' \
-  -e AUTH_COOKIE_SECURE=false \
+  -e WEB_ORIGIN='https://pms.company.ru' \
+  -e AUTH_COOKIE_SECURE=true \
+  -e METRICS_TOKEN='<random secret>' \
   -e DATABASE_URL='postgresql://user:password@db-host:5432/project_management_system?schema=public' \
   project-management-system:latest
 ```
@@ -46,7 +51,8 @@ docker build \
 DATABASE_URL=postgresql://user:password@host:5432/db?schema=public
 NODE_ENV=production
 PORT=3000
-WEB_ORIGIN=*
+WEB_ORIGIN=https://pms.company.ru
+METRICS_TOKEN=<random secret>
 ```
 
 Опциональные:
@@ -57,6 +63,9 @@ AUTH_SESSION_DAYS=7
 JIRA_BASE_URL=https://jira.company.ru
 JIRA_EMAIL=integration-user@company.ru
 JIRA_API_TOKEN=<secret>
+WEBHOOK_TIMEOUT_MS=5000
+WEBHOOK_MAX_ATTEMPTS=3
+WEBHOOK_RETRY_BASE_MS=500
 ```
 
 ## Проверка
@@ -93,5 +102,5 @@ docker compose --profile ops run --rm restore
 
 - `/api/health` - liveness для балансировщика.
 - `/api/ready` - readiness для Kubernetes/Compose healthcheck, проверяет доступность PostgreSQL.
-- `/api/metrics` - Prometheus text exposition. Если задан `METRICS_TOKEN`, доступ только с `Authorization: Bearer <token>` или `?token=<token>`.
+- `/api/metrics` - Prometheus text exposition. В `NODE_ENV=production` требует `METRICS_TOKEN`; доступ только с `Authorization: Bearer <token>` или `?token=<token>`.
 - API пишет структурированные JSON-логи в stdout/stderr. В контейнерной среде их должен забирать штатный log collector.

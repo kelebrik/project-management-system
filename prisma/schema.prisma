@@ -45,12 +45,14 @@ enum WbsItemType {
   WORK_PACKAGE
   DELIVERABLE
   MILESTONE
+  GOAL
   TASK
 }
 
 enum WbsItemStatus {
   NOT_STARTED
   IN_PROGRESS
+  IN_REVIEW
   AT_RISK
   BLOCKED
   DONE
@@ -125,6 +127,12 @@ enum WbsBaselineStatus {
   ARCHIVED
 }
 
+enum ProjectAccessLevel {
+  VIEW
+  EDIT
+  ADMIN
+}
+
 model Project {
   id               String              @id @default(cuid())
   parentId         String?
@@ -136,6 +144,7 @@ model Project {
   status           ProjectStatus       @default(ACTIVE)
   rag              RagStatus           @default(GREEN)
   startDate        DateTime
+  initialTargetDate DateTime?
   targetDate       DateTime
   budgetPlanned    Decimal             @db.Decimal(14, 2)
   budgetForecast   Decimal             @db.Decimal(14, 2)
@@ -149,6 +158,7 @@ model Project {
   parent           Project?            @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children         Project[]           @relation("ProjectHierarchy")
   jiraIntegration  JiraIntegration?
+  jiraWorkSections JiraWorkSection[]
   tasks            Task[]
   issues           Issue[]
   jiraSnapshots    JiraIssueSnapshot[]
@@ -160,12 +170,30 @@ model Project {
   artifacts        ProjectArtifact[]
   raidItems        RaidItem[]
   changeRequests   ChangeRequest[]
+  targetDateChanges ProjectTargetDateChange[]
   wbsCommands      WbsCommand[]
   wbsBaselines     WbsBaseline[]
   savedViews       SavedView[]
+  projectAccesses  ProjectAccess[]
 
   @@index([parentId])
   @@index([sortOrder])
+}
+
+model ProjectTargetDateChange {
+  id           String   @id @default(cuid())
+  projectId    String
+  previousDate DateTime
+  newDate      DateTime
+  reason       String
+  approvedBy   String?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy    User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([createdById])
 }
 
 model User {
@@ -185,8 +213,26 @@ model User {
   savedViews   SavedView[]
   apiTokensCreated ApiToken[] @relation("ApiTokenCreatedBy")
   webhookEndpointsCreated WebhookEndpoint[] @relation("WebhookEndpointCreatedBy")
+  targetDateChanges ProjectTargetDateChange[]
+  projectAccesses ProjectAccess[]
 
   @@index([role, isActive])
+}
+
+model ProjectAccess {
+  id          String             @id @default(cuid())
+  projectId   String
+  userId      String
+  level       ProjectAccessLevel
+  grantedById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId, level])
+  @@index([projectId, level])
 }
 
 model RolePermission {
@@ -398,6 +444,7 @@ model WbsItem {
   calendarCode  ProjectCalendarCode @default(RU)
   templateColor String?
   priority      String?
+  effortPercent Int           @default(0)
   plannedCost   Decimal       @default(0) @db.Decimal(14, 2)
   forecastCost  Decimal       @default(0) @db.Decimal(14, 2)
   progress      Int           @default(0)
@@ -477,6 +524,7 @@ model WbsBaselineItem {
   workDays        Int?
   calendarDays    Int?
   calendarCode    ProjectCalendarCode @default(RU)
+  effortPercent   Int                 @default(0)
   progress        Int                 @default(0)
   sortOrder       Int                 @default(0)
   baseline        WbsBaseline         @relation(fields: [baselineId], references: [id], onDelete: Cascade)
@@ -567,21 +615,48 @@ model IssueStatusUpdate {
 }
 
 model JiraIssueSnapshot {
-  id        String   @id @default(cuid())
-  projectId String
-  issueKey  String
-  issueUrl  String
-  summary   String
-  status    String
-  priority  String
-  assignee  String?
-  issueType String
-  sprint    String?
-  updatedAt DateTime
-  syncedAt  DateTime @default(now())
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id           String                 @id @default(cuid())
+  projectId    String
+  issueKey     String
+  issueUrl     String
+  summary      String
+  status       String
+  priority     String
+  assignee     String?
+  issueType    String
+  sprint       String?
+  updatedAt    DateTime
+  syncedAt     DateTime               @default(now())
+  project      Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workSections JiraWorkSectionIssue[]
 
   @@unique([projectId, issueKey])
+}
+
+model JiraWorkSection {
+  id        String                 @id @default(cuid())
+  projectId String
+  sortOrder Int
+  title     String
+  jql       String                 @default("")
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  project   Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issues    JiraWorkSectionIssue[]
+
+  @@unique([projectId, sortOrder])
+  @@index([projectId])
+}
+
+model JiraWorkSectionIssue {
+  sectionId  String
+  snapshotId String
+  syncedAt   DateTime          @default(now())
+  section    JiraWorkSection   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  snapshot   JiraIssueSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@id([sectionId, snapshotId])
+  @@index([snapshotId])
 }
 
 model ExecutiveOverview {

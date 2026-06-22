@@ -94,7 +94,7 @@ export function generateExecutiveSummary(project: ProjectForOverviewGeneration) 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const wbsMilestones = project.wbsItems
-    .filter((item) => item.type === 'MILESTONE')
+    .filter((item) => item.type === 'MILESTONE' || item.type === 'GOAL')
     .sort(
       (left, right) =>
         (left.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER) -

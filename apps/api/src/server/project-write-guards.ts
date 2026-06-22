@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { prisma } from '../db.js';
+import { ensureProjectWriteAccess } from './project-access.js';
 
 export function isReadRequest(req: Request) {
   return ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
@@ -71,6 +72,7 @@ function registerEntityWriteGuard(
       return;
     }
     if (!(await ensureEntityProjectWritable(projectId, res))) return;
+    if (!(await ensureProjectWriteAccess(projectId, req, res))) return;
     next();
   });
 }
@@ -83,6 +85,7 @@ export function registerClosedProjectWriteGuards(app: Express) {
     }
     const project = await ensureProjectWritable(req.params.projectId, res);
     if (!project) return;
+    if (!(await ensureProjectWriteAccess(project.id, req, res))) return;
     next();
   });
 

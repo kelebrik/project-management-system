@@ -28,6 +28,10 @@ export async function deleteProjectCascade(projectId: string) {
     await tx.issueStatusUpdate.deleteMany({ where: { issue: { projectId } } });
     await tx.issueJiraLink.deleteMany({ where: { issue: { projectId } } });
     await tx.issue.deleteMany({ where: { projectId } });
+    await tx.jiraWorkSectionIssue.deleteMany({
+      where: { section: { projectId } },
+    });
+    await tx.jiraWorkSection.deleteMany({ where: { projectId } });
     await tx.jiraIssueSnapshot.deleteMany({ where: { projectId } });
     await tx.task.deleteMany({ where: { projectId } });
     await tx.milestone.deleteMany({ where: { projectId } });

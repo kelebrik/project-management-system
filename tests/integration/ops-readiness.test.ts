@@ -10,7 +10,7 @@ function read(filePath: string) {
   return fs.readFileSync(path.join(repoRoot, filePath), "utf8");
 }
 
-test("Docker runtime packages API, Web UI, migrations, and readiness probe", () => {
+test("Docker runtime packages API, Web UI, migration job, and readiness probe", () => {
   const dockerfile = read("Dockerfile");
   const compose = read("docker-compose.yml");
 
@@ -18,12 +18,15 @@ test("Docker runtime packages API, Web UI, migrations, and readiness probe", () 
   assert.match(dockerfile, /npm run build/, "Docker build must compile workspaces");
   assert.match(dockerfile, /apps\/web\/dist/, "Runtime image must include built Web UI");
   assert.match(dockerfile, /EXPOSE 3000/, "Runtime image must expose application port");
-  assert.match(dockerfile, /npm run prisma:deploy/, "Container start must deploy migrations");
-  assert.match(dockerfile, /npm run start --workspace @pms\/api/, "Container start must run the API");
+  assert.doesNotMatch(dockerfile, /CMD[\s\S]*prisma:deploy/, "Application container start must not deploy migrations");
+  assert.match(dockerfile, /"npm", "run", "start", "--workspace", "@pms\/api"/, "Container start must run the API");
   assert.match(dockerfile, /USER node/, "Runtime image must run as a non-root user");
   assert.match(dockerfile, /--chown=node:node/, "Runtime files must be owned by the non-root user");
 
   assert.match(compose, /^\s+app:/m, "docker-compose must define app service");
+  assert.match(compose, /^\s+migrate:/m, "docker-compose must define a one-shot migration service");
+  assert.match(compose, /service_completed_successfully/, "app must wait for successful migration job");
+  assert.match(compose, /npm", "run", "prisma:deploy"/, "migration service must run prisma migrate deploy");
   assert.match(compose, /^\s+postgres:/m, "docker-compose must define postgres service");
   assert.match(compose, /DATABASE_URL:\s*postgresql:\/\/pms_user:pms_password@postgres:5432/, "app must use postgres service DATABASE_URL");
   assert.match(compose, /\/api\/ready/, "app healthcheck must call readiness endpoint");
@@ -84,16 +87,20 @@ test("Smoke scripts cover security, performance, and migration checks", () => {
 
 test("Kubernetes manifest follows corporate restricted-pod policies", () => {
   const manifest = read("deploy/k8s/project-management-system.yaml");
+  const migrateJob = read("deploy/k8s/project-management-system-migrate-job.yaml");
+  const combinedManifest = `${manifest}\n${migrateJob}`;
 
+  assert.match(migrateJob, /kind: Job/, "Kubernetes deployment must provide a one-shot migration Job");
+  assert.match(migrateJob, /command: \["npm", "run", "prisma:deploy"\]/, "Migration Job must run prisma migrate deploy");
   assert.match(manifest, /kind: Deployment/, "Application must be deployed by a controller, not a bare Pod");
-  assert.doesNotMatch(manifest, /kind: Pod\b/, "Manifest must not define bare Pods");
-  assert.match(manifest, /kind: ServiceAccount/, "Manifest must define a dedicated ServiceAccount");
-  assert.match(manifest, /automountServiceAccountToken: false/, "ServiceAccount token automount must be disabled");
-  assert.match(manifest, /runAsNonRoot: true/, "Pod/container must require non-root execution");
-  assert.match(manifest, /runAsUser: 1000/, "Pod/container must set a non-root user");
-  assert.match(manifest, /allowPrivilegeEscalation: false/, "Container must disable privilege escalation");
-  assert.match(manifest, /capabilities:\s*\n\s*drop:\s*\n\s*- ALL/, "Container must drop Linux capabilities");
-  assert.match(manifest, /seccompProfile:\s*\n\s*type: RuntimeDefault/, "Pod must use RuntimeDefault seccomp");
+  assert.doesNotMatch(combinedManifest, /kind: Pod\b/, "Manifest must not define bare Pods");
+  assert.match(combinedManifest, /kind: ServiceAccount/, "Manifest must define a dedicated ServiceAccount");
+  assert.match(combinedManifest, /automountServiceAccountToken: false/, "ServiceAccount token automount must be disabled");
+  assert.match(combinedManifest, /runAsNonRoot: true/, "Pod/container must require non-root execution");
+  assert.match(combinedManifest, /runAsUser: 1000/, "Pod/container must set a non-root user");
+  assert.match(combinedManifest, /allowPrivilegeEscalation: false/, "Container must disable privilege escalation");
+  assert.match(combinedManifest, /capabilities:\s*\n\s*drop:\s*\n\s*- ALL/, "Container must drop Linux capabilities");
+  assert.match(combinedManifest, /seccompProfile:\s*\n\s*type: RuntimeDefault/, "Pod must use RuntimeDefault seccomp");
 });
 
 test("GitLab CI avoids restricted Kubernetes runner patterns", () => {

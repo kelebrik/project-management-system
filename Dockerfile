@@ -47,4 +47,4 @@ EXPOSE 3000
 
 USER node
 
-CMD ["sh", "-c", "npm run prisma:deploy && npm run start --workspace @pms/api"]
+CMD ["npm", "run", "start", "--workspace", "@pms/api"]

@@ -666,9 +666,22 @@ flowchart LR
 - Resource Manager может заменить ресурс и увидеть эффект на сроки/стоимость.
 - PM не может назначить ресурс без соответствующих прав или approval, если включена политика.
 
+### Детальная концепция
+
+Расширенное описание модели, сценариев, расчетов capacity/demand, ролей, API и MVP-этапов вынесено в отдельный документ:
+
+- [Управление ресурсами](resource-management/README.md)
+
 ### Эскиз
 
 ![Resources Workload](wireframes/05-resources-workload.svg)
+
+Дополнительные JPG-макеты интерфейсов:
+
+- [Обзор загрузки](resource-management/01-overview-heatmap.jpg)
+- [Расписание назначений](resource-management/02-schedule-allocations.jpg)
+- [Карточка ресурса](resource-management/03-resource-profile.jpg)
+- [Запрос и согласование ресурса](resource-management/04-resource-request.jpg)
 
 ---
 

@@ -215,6 +215,9 @@ export function ProjectStructureSection() {
                             <option value="IN_PROGRESS">
                               {wbsStatusLabel("IN_PROGRESS")}
                             </option>
+                            <option value="IN_REVIEW">
+                              {wbsStatusLabel("IN_REVIEW")}
+                            </option>
                             <option value="AT_RISK">
                               {wbsStatusLabel("AT_RISK")}
                             </option>
@@ -274,6 +277,7 @@ export function ProjectStructureSection() {
                             <span><i className="tone-p" />Просрочено</span>
                             <span><i className="tone-x" />Не начато</span>
                             <span><i className="tone-o" />Веха</span>
+                            <span><i className="tone-goal" />Цель</span>
                           </div>
                         </div>
                     <div className="wbs-table-shell">
@@ -387,7 +391,11 @@ export function ProjectStructureSection() {
                               }
                             >
                               <div
-                                className={`wbs-table-row ${item.type === "MILESTONE" ? "milestone" : ""} ${activeWbsItemId === item.id ? "active" : ""}`}
+                                className={`wbs-table-row ${
+                                  item.type === "MILESTONE" || item.type === "GOAL"
+                                    ? "milestone"
+                                    : ""
+                                } ${activeWbsItemId === item.id ? "active" : ""}`}
                                 onClick={() => setActiveWbsItemId(item.id)}
                               >
                                 {orderedWbsColumns.map((column) => (

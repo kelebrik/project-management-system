@@ -32,6 +32,16 @@ export const projectModulesSchema = z.object({
   ),
 });
 
+export const projectAccessGrantSchema = z.object({
+  userIds: z.array(z.string().trim().min(1)).min(1),
+  projectIds: z.array(z.string().trim().min(1)).min(1),
+  level: z.enum(['VIEW', 'EDIT', 'ADMIN']),
+});
+
+export const projectAccessPatchSchema = z.object({
+  level: z.enum(['VIEW', 'EDIT', 'ADMIN']),
+});
+
 export const adminConfigImportSchema = z.object({
   rolePermissions: z
     .array(

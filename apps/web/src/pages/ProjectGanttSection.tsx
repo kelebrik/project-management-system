@@ -86,6 +86,13 @@ export function ProjectGanttSection() {
                               <div className="segmented-control" aria-label="Масштаб Гантта">
                                 <button
                                   type="button"
+                                  className={ganttScale === "week" ? "active" : ""}
+                                  onClick={() => setGanttScale("week")}
+                                >
+                                  Недели
+                                </button>
+                                <button
+                                  type="button"
                                   className={ganttScale === "month" ? "active" : ""}
                                   onClick={() => setGanttScale("month")}
                                 >
@@ -173,6 +180,7 @@ export function ProjectGanttSection() {
                               <span><i className="tone-p" />Просрочено</span>
                               <span><i className="tone-x" />Не начато</span>
                               <span><i className="tone-o" />Веха</span>
+                              <span><i className="tone-goal" />Цель</span>
                               <span><i className="tone-critical" />Критический путь</span>
                               <span><i className="tone-near-critical" />Резерв до 5 дн.</span>
                             </div>

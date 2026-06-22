@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FolderTree } from "lucide-react";
+import { FolderTree, Plus } from "lucide-react";
 
 import type { ProjectModuleKey } from "../app/projectModules";
 import type { AppView, ProjectSectionView } from "../app/routes";
@@ -13,41 +13,38 @@ export type ProjectNavItem = {
 
 type ProjectSidebarMenuProps = {
   activeView: AppView;
-  firstEnabledProjectView: ProjectSectionView;
   isProjectSectionView: boolean;
   isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   navLabel: (icon: ReactNode, label: string) => ReactNode;
   onOpenView: (view: AppView) => void;
   projectNavItems: ProjectNavItem[];
-  selectedProjectId: string | null;
+  projectPicker: ReactNode;
   shouldShowProjectMenu: boolean;
 };
 
 export function ProjectSidebarMenu({
   activeView,
-  firstEnabledProjectView,
   isProjectModuleEnabled,
   isProjectSectionView,
   navLabel,
   onOpenView,
   projectNavItems,
-  selectedProjectId,
+  projectPicker,
   shouldShowProjectMenu,
 }: ProjectSidebarMenuProps) {
   return (
     <>
       <button
         type="button"
-        className={isProjectSectionView ? "active" : ""}
-        onClick={() =>
-          onOpenView(selectedProjectId ? firstEnabledProjectView : "project-create")
-        }
+        className={activeView === "projects" || isProjectSectionView ? "active" : ""}
+        onClick={() => onOpenView("projects")}
         aria-label="Проекты"
       >
         {navLabel(<FolderTree size={17} />, "Проекты")}
       </button>
       {shouldShowProjectMenu && (
         <div className="sidebar-group">
+          {projectPicker}
           <div className="project-menu">
             {projectNavItems
               .filter((item) => isProjectModuleEnabled(item.key))
@@ -66,6 +63,18 @@ export function ProjectSidebarMenu({
                   {navLabel(item.icon, item.label)}
                 </button>
               ))}
+            <button
+              type="button"
+              className={
+                activeView === "project-create"
+                  ? "active nested child project-create-nav"
+                  : "nested child project-create-nav"
+              }
+              onClick={() => onOpenView("project-create")}
+              aria-label="Создать проект"
+            >
+              {navLabel(<Plus size={17} />, "Создать проект")}
+            </button>
           </div>
         </div>
       )}

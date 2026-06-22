@@ -5,6 +5,7 @@ import { hashApiToken } from './auth.js';
 import { logEvent } from './logger.js';
 
 const metricsToken = process.env.METRICS_TOKEN ?? '';
+const requireMetricsToken = process.env.NODE_ENV === 'production';
 const defaultRateLimitPerMinute = Math.max(10, Number(process.env.RATE_LIMIT_PER_MINUTE ?? 600));
 const requestMetrics = {
   total: 0,
@@ -88,6 +89,11 @@ export function rateLimitMiddleware(req: Request, res: Response, next: NextFunct
 }
 
 export function metricsHandler(req: Request, res: Response) {
+  if (requireMetricsToken && !metricsToken) {
+    res.status(503).type('text/plain').send('metrics token is not configured\n');
+    return;
+  }
+
   if (metricsToken) {
     const auth = req.get('authorization') ?? '';
     const queryToken = typeof req.query.token === 'string' ? req.query.token : '';

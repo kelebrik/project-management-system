@@ -12,8 +12,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const webDist = path.resolve(__dirname, '../../web/dist');
 
-app.use(express.static(webDist));
+app.use(
+  express.static(webDist, {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-store');
+        return;
+      }
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }),
+);
 app.get(/.*/, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(webDist, 'index.html'));
 });
 

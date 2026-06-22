@@ -7,6 +7,12 @@ export const createProjectSchema = projectSchema.extend({
 
 export const updateProjectSchema = projectSchema.partial();
 
+export const projectTargetDateChangeSchema = z.object({
+  targetDate: z.string().trim().min(1),
+  reason: z.string().trim().min(3),
+  approvedBy: z.string().trim().optional().nullable(),
+});
+
 const milestoneLabelOffsetSchema = z.object({
   x: z.number().finite(),
   y: z.number().finite(),

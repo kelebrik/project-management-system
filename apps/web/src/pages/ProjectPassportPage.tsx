@@ -4,12 +4,35 @@ export function ProjectPassportPage() {
   const ctx = usePageContext();
   const {
     addPassportRow,
+    date,
     deletePassportRow,
     passportRows,
+    project,
+    projectRegistryDrafts,
+    projectTargetApprovedBy,
+    projectTargetChangeReason,
+    projectTargetDateDraft,
+    projectTargetSummary,
+    saveProjectPortfolio,
+    saveProjectTargetDate,
     savePassportRows,
     savingPassportRows,
+    savingProjectTargetDate,
+    savingProjectRegistryId,
+    setProjectTargetApprovedBy,
+    setProjectTargetChangeReason,
+    setProjectTargetDateDraft,
+    signedDateDeltaDays,
+    signedDaysLabel,
+    updateProjectRegistryDraft,
     updatePassportRow,
   } = ctx;
+  const projectDraft = project ? projectRegistryDrafts[project.id] : null;
+  const projectPortfolio = projectDraft?.portfolio ?? project?.portfolio ?? "";
+  const saveCurrentProjectPortfolio = () => {
+    if (!project) return;
+    void saveProjectPortfolio(project.id);
+  };
 
   return (
                   <article className="panel project-card">
@@ -25,6 +48,133 @@ export function ProjectPassportPage() {
                       + Добавить поле
                     </button>
                   </div>
+                  <section className="passport-project-meta">
+                    <h3>Основные параметры</h3>
+                    <label className="passport-project-field">
+                      <span>Портфель</span>
+                      <input
+                        value={projectPortfolio}
+                        onChange={(event) => {
+                          if (!project) return;
+                          updateProjectRegistryDraft(project.id, {
+                            portfolio: event.target.value,
+                          });
+                        }}
+                        onBlur={saveCurrentProjectPortfolio}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        placeholder="Например: Выпуск заводского ПО"
+                        disabled={
+                          !project || savingProjectRegistryId === project.id
+                        }
+                      />
+                    </label>
+                  </section>
+                  <section className="passport-targets">
+                    <div className="passport-targets-head">
+                      <div>
+                        <h3>Цели и сроки проекта</h3>
+                        <p>Утвержденная цель, прогноз завершения и история изменений</p>
+                      </div>
+                    </div>
+                    <div className="passport-target-metrics">
+                      <div>
+                        <span>Стартовая цель</span>
+                        <b>{date(projectTargetSummary?.initialTargetDate ?? project?.targetDate ?? null)}</b>
+                      </div>
+                      <div>
+                        <span>
+                          {projectTargetSummary?.activeGoal?.title ?? "Текущая цель"}
+                        </span>
+                        <b>{date(projectTargetSummary?.currentTargetDate ?? project?.targetDate ?? null)}</b>
+                        <small>{signedDaysLabel(projectTargetSummary?.targetChangeDays ?? null)}</small>
+                      </div>
+                      <div>
+                        <span>Прогноз завершения</span>
+                        <b>{date(projectTargetSummary?.forecastFinishDate ?? null)}</b>
+                        <small>{signedDaysLabel(projectTargetSummary?.effectiveDelayDays ?? null)}</small>
+                      </div>
+                      <div>
+                        <span>Полное отклонение</span>
+                        <b>{signedDaysLabel(projectTargetSummary?.totalVarianceDays ?? null)}</b>
+                      </div>
+                    </div>
+                    <div className="passport-target-edit">
+                      <label>
+                        Текущая утвержденная цель
+                        <input
+                          type="date"
+                          value={projectTargetDateDraft}
+                          onChange={(event) =>
+                            setProjectTargetDateDraft(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label>
+                        Причина изменения
+                        <input
+                          value={projectTargetChangeReason}
+                          onChange={(event) =>
+                            setProjectTargetChangeReason(event.target.value)
+                          }
+                          placeholder="Например: согласованный перенос запуска"
+                        />
+                      </label>
+                      <label>
+                        Согласовано
+                        <input
+                          value={projectTargetApprovedBy}
+                          onChange={(event) =>
+                            setProjectTargetApprovedBy(event.target.value)
+                          }
+                          placeholder="ФИО или орган согласования"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void saveProjectTargetDate()}
+                        disabled={savingProjectTargetDate}
+                      >
+                        {savingProjectTargetDate ? "Сохраняю..." : "Сохранить цель"}
+                      </button>
+                    </div>
+                    <div className="passport-target-history">
+                      <div className="passport-target-history-head">
+                        <span>Дата</span>
+                        <span>Было</span>
+                        <span>Стало</span>
+                        <span>Изменение</span>
+                        <span>Причина</span>
+                        <span>Согласовано</span>
+                      </div>
+                      {project?.targetDateChanges?.length ? (
+                        project.targetDateChanges.map((change) => (
+                          <div className="passport-target-history-row" key={change.id}>
+                            <span>{date(change.createdAt)}</span>
+                            <span>{date(change.previousDate)}</span>
+                            <span>{date(change.newDate)}</span>
+                            <span>
+                              {signedDaysLabel(
+                                signedDateDeltaDays(
+                                  change.previousDate,
+                                  change.newDate,
+                                ),
+                              )}
+                            </span>
+                            <span>{change.reason}</span>
+                            <span>{change.approvedBy || "не указано"}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="passport-target-history-empty">
+                          Истории изменения цели пока нет.
+                        </div>
+                      )}
+                    </div>
+                  </section>
                   <div className="passport-table">
                     <div className="passport-head">
                       <span>Поле</span>

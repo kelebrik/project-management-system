@@ -6,6 +6,10 @@ import {
 } from "./calendar.js";
 import type { WbsCriticalPathItemInput } from "./types.js";
 
+function isWbsCheckpointType(item: Pick<WbsCriticalPathItemInput, "type">) {
+  return item.type === "MILESTONE" || item.type === "GOAL";
+}
+
 export function finishFromStart(
   startDate: Date,
   durationWorkDays: number,
@@ -59,7 +63,7 @@ export function resolveDurationWorkDays(
   item: WbsCriticalPathItemInput,
   overridesByKey: Map<string, boolean>,
 ) {
-  if (item.type === "MILESTONE") return 0;
+  if (isWbsCheckpointType(item)) return 0;
   if (item.workDays !== null && item.workDays !== undefined && item.workDays > 0) {
     return item.workDays;
   }

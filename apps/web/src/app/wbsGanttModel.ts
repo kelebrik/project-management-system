@@ -30,6 +30,8 @@ type TimelinePeriod = {
 type TimelineWeek = {
   label: string;
   offset: number;
+  showLabel: boolean;
+  width: number;
 };
 
 export type WbsGanttDependencyLine = {
@@ -198,10 +200,13 @@ export function createWbsGantt({
     cursor < end;
     cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 7)
   ) {
-    if (cursor <= start) continue;
+    const weekEnd = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 7);
+    const position = periodPosition(cursor, weekEnd);
     weeks.push({
       label: shortDate(cursor.toISOString()),
-      offset: (daysBetween(start, cursor) / totalDays) * 100,
+      offset: position.offset,
+      showLabel: position.width >= 2,
+      width: position.width,
     });
   }
   const criticalIds = new Set(criticalPath?.criticalItemIds ?? []);
@@ -236,14 +241,14 @@ export function createWbsGantt({
         item.type === "PHASE" ||
         item.type === "WORK_PACKAGE";
       const bracket = item.type === "PHASE" || item.type === "WORK_PACKAGE";
-      const milestone = item.type === "MILESTONE";
+      const milestone = item.type === "MILESTONE" || item.type === "GOAL";
       return {
         item,
         start: itemStart,
         end: itemEnd,
         offset: (daysBetween(start, itemStart) / totalDays) * 100,
         width: Math.max(
-          item.type === "MILESTONE" ? 0.8 : 0.15,
+          milestone ? 0.8 : 0.15,
           ((daysBetween(itemStart, itemEnd) + 1) / totalDays) * 100,
         ),
         milestone,

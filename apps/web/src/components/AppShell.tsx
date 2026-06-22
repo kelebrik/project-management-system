@@ -14,12 +14,13 @@ import {
   HardDriveDownload,
   HeartPulse,
   Import,
+  Code2,
   KeyRound,
   LayoutDashboard,
   ListChecks,
-  Plus,
   Settings,
   ShieldAlert,
+  ShieldCheck,
   SlidersHorizontal,
   Users,
 } from "lucide-react";
@@ -41,6 +42,7 @@ import {
   ProjectSidebarMenu,
   type ProjectNavItem,
 } from "./ProjectSidebarMenu";
+import { ResourceSidebarMenu } from "./ResourceSidebarMenu";
 import { SidebarIdentity } from "./SidebarIdentity";
 import { SystemBanners } from "./SystemBanners";
 
@@ -69,6 +71,7 @@ type AppShellProps = {
   isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   isProjectSectionView: boolean;
   isProjectView: boolean;
+  isResourceSectionView: boolean;
   isReadOnly: boolean;
   logout: () => void;
   notice: string | null;
@@ -78,6 +81,16 @@ type AppShellProps = {
   openView: OpenView;
   pageContext: PageContextValue;
   project: ProjectDetails | null;
+  projectTargetSummary: {
+    activeGoal: {
+      title: string;
+    } | null;
+    initialTargetDate: Date | null;
+    currentTargetDate: Date | null;
+    forecastFinishDate: Date | null;
+    targetChangeDays: number | null;
+    effectiveDelayDays: number | null;
+  } | null;
   projectSearch: string;
   recentProjects: ProjectListItem[];
   renderGlobalSearch: (className?: string) => ReactNode;
@@ -88,9 +101,11 @@ type AppShellProps = {
   setProjectSearch: (value: string) => void;
   setShowProjectPicker: (value: boolean) => void;
   shouldShowAdminMenu: boolean;
+  shouldShowDevelopmentMenu: boolean;
   shouldShowProjectMenu: boolean;
   showProjectPicker: boolean;
   sidebarCollapsed: boolean;
+  signedDaysLabel: (value: number | null) => string;
   toggleSidebar: () => void;
   viewTitle: Record<AppView, string>;
 };
@@ -121,6 +136,12 @@ const projectNavItems: ProjectNavItem[] = [
     icon: <GanttChartSquare size={17} />,
   },
   {
+    key: "jiraWork",
+    view: "project-jira-work",
+    label: "Работы в Jira",
+    icon: <BriefcaseBusiness size={17} />,
+  },
+  {
     key: "issues",
     view: "project-issues",
     label: "Открытые вопросы",
@@ -137,12 +158,6 @@ const projectNavItems: ProjectNavItem[] = [
     view: "project-changes",
     label: "Управление изменениями",
     icon: <GitBranch size={17} />,
-  },
-  {
-    key: "resources",
-    view: "project-resources",
-    label: "Управление ресурсами",
-    icon: <Users size={17} />,
   },
   {
     key: "budget",
@@ -180,6 +195,11 @@ const adminNavItems: AdminNavItem[] = [
     view: "admin-modules",
     label: "Управление модулями",
     icon: <SlidersHorizontal size={17} />,
+  },
+  {
+    view: "admin-project-access",
+    label: "Доступ к проектам",
+    icon: <ShieldCheck size={17} />,
   },
   {
     view: "admin-users",
@@ -258,6 +278,7 @@ export function AppShell({
   isProjectModuleEnabled,
   isProjectSectionView,
   isProjectView,
+  isResourceSectionView,
   isReadOnly,
   logout,
   notice,
@@ -267,6 +288,7 @@ export function AppShell({
   openView,
   pageContext,
   project,
+  projectTargetSummary,
   projectSearch,
   recentProjects,
   renderGlobalSearch,
@@ -277,9 +299,11 @@ export function AppShell({
   setProjectSearch,
   setShowProjectPicker,
   shouldShowAdminMenu,
+  shouldShowDevelopmentMenu,
   shouldShowProjectMenu,
   showProjectPicker,
   sidebarCollapsed,
+  signedDaysLabel,
   toggleSidebar,
   viewTitle,
 }: AppShellProps) {
@@ -325,41 +349,31 @@ export function AppShell({
             type="button"
             className={activeView === "portfolio" ? "active" : ""}
             onClick={() => openView("portfolio")}
-            aria-label="Портфель проектов"
+            aria-label="Портфель"
           >
-            {navLabel(<BriefcaseBusiness size={17} />, "Портфель проектов")}
+            {navLabel(<BriefcaseBusiness size={17} />, "Портфель")}
           </button>
-          {isAuthenticated && (
-            <button
-              type="button"
-              className={activeView === "project-create" ? "active" : ""}
-              onClick={() => openView("project-create")}
-              aria-label="Создать новый проект"
-            >
-              {navLabel(<Plus size={17} />, "Создать новый проект")}
-            </button>
-          )}
-          <ProjectPicker
-            filteredProjects={filteredProjectOptions}
-            isOpen={showProjectPicker}
-            onOpenChange={setShowProjectPicker}
-            onProjectSearchChange={setProjectSearch}
-            onProjectSelect={selectProject}
-            projectSearch={projectSearch}
-            recentProjects={recentProjects}
-            selectedProject={selectedProjectListItem}
-            selectedProjectId={selectedProjectId}
-            targetView={firstEnabledProjectView}
-          />
           <ProjectSidebarMenu
             activeView={activeView}
-            firstEnabledProjectView={firstEnabledProjectView}
             isProjectModuleEnabled={isProjectModuleEnabled}
             isProjectSectionView={isProjectSectionView}
             navLabel={navLabel}
             onOpenView={openView}
             projectNavItems={projectNavItems}
-            selectedProjectId={selectedProjectId}
+            projectPicker={
+              <ProjectPicker
+                filteredProjects={filteredProjectOptions}
+                isOpen={showProjectPicker}
+                onOpenChange={setShowProjectPicker}
+                onProjectSearchChange={setProjectSearch}
+                onProjectSelect={selectProject}
+                projectSearch={projectSearch}
+                recentProjects={recentProjects}
+                selectedProject={selectedProjectListItem}
+                selectedProjectId={selectedProjectId}
+                targetView={firstEnabledProjectView}
+              />
+            }
             shouldShowProjectMenu={shouldShowProjectMenu}
           />
           <button
@@ -403,6 +417,26 @@ export function AppShell({
               )}
             </>
           )}
+          {isAdminUser && (
+            <>
+              <button
+                type="button"
+                className={isResourceSectionView ? "active" : ""}
+                onClick={() => openView("resources")}
+                aria-label="Разработка"
+              >
+                {navLabel(<Code2 size={17} />, "Разработка")}
+              </button>
+              {shouldShowDevelopmentMenu && (
+                <ResourceSidebarMenu
+                  activeView={activeView}
+                  isResourceSectionView={isResourceSectionView}
+                  navLabel={navLabel}
+                  onOpenView={openView}
+                />
+              )}
+            </>
+          )}
         </nav>
       </aside>
 
@@ -411,8 +445,10 @@ export function AppShell({
           activeView={activeView}
           isProjectView={isProjectView}
           project={project}
+          projectTargetSummary={projectTargetSummary}
           scheduleHealth={scheduleHealth}
           search={renderGlobalSearch("global-search-topbar")}
+          signedDaysLabel={signedDaysLabel}
           viewTitle={viewTitle}
         />
         <SystemBanners

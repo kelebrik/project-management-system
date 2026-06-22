@@ -47,6 +47,8 @@ export type SavedView = {
   updatedAt: string;
 };
 
+export type ProjectAccessLevel = "VIEW" | "EDIT" | "ADMIN";
+
 export type ProjectListItem = {
   id: string;
   parentId: string | null;
@@ -58,6 +60,7 @@ export type ProjectListItem = {
   status: "DRAFT" | "ACTIVE" | "ON_HOLD" | "CLOSED";
   rag: RagStatus;
   startDate: string;
+  initialTargetDate: string | null;
   targetDate: string;
   progress: number;
   scheduleVariance: number;
@@ -67,11 +70,31 @@ export type ProjectListItem = {
   sortOrder: number;
   uiState: ProjectUiState | null;
   jiraIntegration: JiraIntegration | null;
+  targetDateChanges: ProjectTargetDateChange[];
+  wbsItems: WbsItem[];
+  raidItems: RaidItem[];
+  currentUserAccessLevel: ProjectAccessLevel | null;
   _count: {
     tasks: number;
     issues: number;
     jiraSnapshots: number;
   };
+};
+
+export type ProjectTargetDateChange = {
+  id: string;
+  projectId: string;
+  previousDate: string;
+  newDate: string;
+  reason: string;
+  approvedBy: string | null;
+  createdById: string | null;
+  createdAt: string;
+  createdBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
 };
 
 export type ProjectTreeItem = ProjectListItem & {
@@ -93,6 +116,7 @@ export type ProjectDetails = ProjectListItem & {
   tasks: Task[];
   issues: Issue[];
   closedIssues?: Issue[];
+  jiraWorkSections: JiraWorkSection[];
   jiraSnapshots: JiraIssueSnapshot[];
   overviews: ExecutiveOverview[];
   milestones: Milestone[];
@@ -171,6 +195,7 @@ export type WbsItem = {
   calendarCode: ProjectCalendarCode;
   templateColor: string | null;
   priority: string | null;
+  effortPercent: number;
   plannedCost: string;
   forecastCost: string;
   progress: number;
@@ -361,6 +386,7 @@ export type Issue = {
 
 export type JiraIssueSnapshot = {
   id: string;
+  projectId: string;
   issueKey: string;
   issueUrl: string;
   summary: string;
@@ -368,8 +394,27 @@ export type JiraIssueSnapshot = {
   priority: string;
   assignee: string | null;
   issueType: string;
+  sprint: string | null;
   updatedAt: string;
   syncedAt: string;
+};
+
+export type JiraWorkSectionIssue = {
+  sectionId: string;
+  snapshotId: string;
+  syncedAt: string;
+  snapshot: JiraIssueSnapshot;
+};
+
+export type JiraWorkSection = {
+  id: string;
+  projectId: string;
+  sortOrder: number;
+  title: string;
+  jql: string;
+  createdAt: string;
+  updatedAt: string;
+  issues: JiraWorkSectionIssue[];
 };
 
 export type ExecutiveOverview = {

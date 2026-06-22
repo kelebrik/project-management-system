@@ -5,6 +5,10 @@ import type {
   WbsBaselineVarianceResult,
 } from "./types.js";
 
+function isWbsCheckpointType(item: Pick<WbsBaselineVarianceItem, "type">) {
+  return item.type === "MILESTONE" || item.type === "GOAL";
+}
+
 export function calculateWbsBaselineVariance(
   items: WbsBaselineVarianceItem[],
   dependencies: WbsBaselineVarianceDependency[],
@@ -63,7 +67,7 @@ export function calculateWbsBaselineVariance(
         baselineDueDate: Date;
         dueDate: Date;
       } =>
-        item.type !== "MILESTONE" &&
+        !isWbsCheckpointType(item) &&
         item.baselineDueDate !== null &&
         item.baselineDueDate !== undefined &&
         item.dueDate !== null,

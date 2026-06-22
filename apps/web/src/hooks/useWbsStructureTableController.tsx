@@ -88,6 +88,7 @@ function normalizeWbsPasteValue(
       "WORK_PACKAGE",
       "DELIVERABLE",
       "MILESTONE",
+      "GOAL",
       "TASK",
     ] as WbsItemType[]).find(
       (type) =>
@@ -100,6 +101,7 @@ function normalizeWbsPasteValue(
     const matchedStatus = ([
       "NOT_STARTED",
       "IN_PROGRESS",
+      "IN_REVIEW",
       "AT_RISK",
       "BLOCKED",
       "DONE",
@@ -279,7 +281,11 @@ export function useWbsStructureTableController({
               aria-label={`Выбрать строку ${draft.code}`}
             />
             <span
-              className={`wbs-color-dot ${item.type === "MILESTONE" ? "tone-o" : wbsToneClass(item)}`}
+              className={`wbs-color-dot ${
+                item.type === "MILESTONE" || item.type === "GOAL"
+                  ? "tone-o"
+                  : wbsToneClass(item)
+              }`}
             />
             <input
               className="wbs-code-input"
@@ -425,6 +431,7 @@ export function useWbsStructureTableController({
             <option value="WORK_PACKAGE">{wbsTypeLabel("WORK_PACKAGE")}</option>
             <option value="DELIVERABLE">{wbsTypeLabel("DELIVERABLE")}</option>
             <option value="MILESTONE">{wbsTypeLabel("MILESTONE")}</option>
+            <option value="GOAL">{wbsTypeLabel("GOAL")}</option>
             <option value="TASK">{wbsTypeLabel("TASK")}</option>
           </select>
         );
@@ -443,6 +450,7 @@ export function useWbsStructureTableController({
           >
             <option value="NOT_STARTED">{wbsStatusLabel("NOT_STARTED")}</option>
             <option value="IN_PROGRESS">{wbsStatusLabel("IN_PROGRESS")}</option>
+            <option value="IN_REVIEW">{wbsStatusLabel("IN_REVIEW")}</option>
             <option value="AT_RISK">{wbsStatusLabel("AT_RISK")}</option>
             <option value="BLOCKED">{wbsStatusLabel("BLOCKED")}</option>
             <option value="DONE">{wbsStatusLabel("DONE")}</option>
@@ -554,6 +562,21 @@ export function useWbsStructureTableController({
             <option value="RU">RU</option>
             <option value="CN">CN</option>
           </select>
+        );
+      case "effortPercent":
+        return (
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={draft.effortPercent}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { effortPercent: event.target.value })
+            }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
+            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+          />
         );
       case "progress":
         return (

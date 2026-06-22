@@ -7,25 +7,71 @@ import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { copyLatestWbsBaselineToProject } from '../../services/wbs-baseline.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
+import {
+  userProjectAccessLevel,
+  userProjectAccessLevelMap,
+} from '../../server/project-access.js';
 import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
 import { createDefaultProjectStructure } from './default-structure.js';
 import { sanitizeProjectUiState, wouldCreateProjectCycle } from './helpers.js';
-import { projectInclude } from './includes.js';
-import { createProjectSchema, projectUiStatePatchSchema, updateProjectSchema } from './schemas.js';
+import { projectDetailsInclude, projectInclude } from './includes.js';
+import {
+  createProjectSchema,
+  projectTargetDateChangeSchema,
+  projectUiStatePatchSchema,
+  updateProjectSchema,
+} from './schemas.js';
 import type { ProjectsRoutesContext } from './types.js';
+
+function dateKey(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+async function findActiveProjectGoal(projectId: string) {
+  const goals = await prisma.wbsItem.findMany({
+    where: {
+      projectId,
+      type: 'GOAL',
+      status: { not: 'CANCELLED' },
+    },
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+  });
+  return goals.find((item) => item.status !== 'DONE') ?? goals.at(-1) ?? null;
+}
 
 export function registerProjectCrudRoutes(
   router: Router,
   { requireAdmin, currentUser, ensureProjectWritable }: ProjectsRoutesContext,
 ) {
-  router.get('/projects', async (_req, res) => {
+  router.get('/projects', async (req, res) => {
     const projects = await prisma.project.findMany({
       orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
       include: projectInclude,
     });
 
-    res.json(projects);
+    const user = currentUser(req);
+    if (!user) {
+      res.json(projects.map((project) => ({ ...project, currentUserAccessLevel: null })));
+      return;
+    }
+    if (user.role === 'ADMIN') {
+      res.json(projects.map((project) => ({ ...project, currentUserAccessLevel: 'ADMIN' })));
+      return;
+    }
+
+    const accessByProjectId = await userProjectAccessLevelMap(
+      user.id,
+      projects.map((project) => project.id),
+    );
+    res.json(
+      projects
+        .filter((project) => accessByProjectId.has(project.id))
+        .map((project) => ({
+          ...project,
+          currentUserAccessLevel: accessByProjectId.get(project.id) ?? null,
+        })),
+    );
   });
 
   router.post('/projects', async (req, res) => {
@@ -75,6 +121,7 @@ export function registerProjectCrudRoutes(
           ...projectData,
           parentId: projectData.parentId || null,
           startDate: new Date(projectData.startDate),
+          initialTargetDate: new Date(projectData.targetDate),
           targetDate: new Date(projectData.targetDate),
           budgetPlanned: projectData.budgetPlanned,
           budgetForecast: projectData.budgetForecast,
@@ -82,6 +129,28 @@ export function registerProjectCrudRoutes(
         },
         include: projectInclude,
       });
+      const actor = currentUser(req);
+
+      if (actor && actor.role !== 'ADMIN') {
+        await prisma.projectAccess.upsert({
+          where: {
+            projectId_userId: {
+              projectId: project.id,
+              userId: actor.id,
+            },
+          },
+          create: {
+            projectId: project.id,
+            userId: actor.id,
+            level: 'EDIT',
+            grantedById: actor.id,
+          },
+          update: {
+            level: 'EDIT',
+            grantedById: actor.id,
+          },
+        });
+      }
 
       let copiedBaseline: Awaited<ReturnType<typeof copyLatestWbsBaselineToProject>> | null = null;
       if (copyBaselineFromProjectId) {
@@ -256,7 +325,7 @@ export function registerProjectCrudRoutes(
 
     try {
       const beforeSnapshot = await projectAuditSnapshot(project.id);
-      const updated = await prisma.project.update({
+      await prisma.project.update({
         where: { id: project.id },
         data: {
           ...parsed.data,
@@ -271,6 +340,21 @@ export function registerProjectCrudRoutes(
               : sanitizeProjectUiState(parsed.data.uiState),
         },
       });
+      const updated = await prisma.project.findUnique({
+        where: { id: project.id },
+        include: projectInclude,
+      });
+      if (!updated) {
+        res.status(404).json({ error: 'Проект не найден' });
+        return;
+      }
+      const actor = currentUser(req);
+      const currentUserAccessLevel =
+        actor?.role === 'ADMIN'
+          ? 'ADMIN'
+          : actor
+            ? await userProjectAccessLevel(actor.id, updated.id)
+            : null;
 
       const afterSnapshot = await projectAuditSnapshot(project.id);
       await recordAuditEvent({
@@ -294,7 +378,7 @@ export function registerProjectCrudRoutes(
         },
       }).catch(() => undefined);
 
-      res.json(updated);
+      res.json({ ...updated, currentUserAccessLevel });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -305,6 +389,123 @@ export function registerProjectCrudRoutes(
       }
       throw error;
     }
+  });
+
+  router.patch('/projects/:projectId/target-date', async (req, res) => {
+    const parsed = projectTargetDateChangeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.projectId },
+    });
+
+    if (!project) {
+      res.status(404).json({ error: 'Проект не найден' });
+      return;
+    }
+
+    if (project.status === 'CLOSED') {
+      res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
+      return;
+    }
+
+    const nextTargetDate = new Date(parsed.data.targetDate);
+    if (Number.isNaN(nextTargetDate.getTime())) {
+      res.status(400).json({ error: 'Некорректная дата цели проекта' });
+      return;
+    }
+
+    const activeGoal = await findActiveProjectGoal(project.id);
+    const previousTargetDate = activeGoal?.dueDate ?? project.targetDate;
+    const changed = dateKey(previousTargetDate) !== dateKey(nextTargetDate);
+
+    if (!changed) {
+      const unchanged = await prisma.project.findUnique({
+        where: { id: project.id },
+        include: projectDetailsInclude,
+      });
+      res.json(unchanged);
+      return;
+    }
+
+    const beforeSnapshot = await projectAuditSnapshot(project.id);
+    await prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: project.id },
+        data: {
+          initialTargetDate: project.initialTargetDate ?? previousTargetDate,
+          targetDate: nextTargetDate,
+        },
+      });
+      if (activeGoal) {
+        await tx.wbsItem.update({
+          where: { id: activeGoal.id },
+          data: {
+            startDate: nextTargetDate,
+            dueDate: nextTargetDate,
+            forecastStartDate: nextTargetDate,
+            forecastDueDate: nextTargetDate,
+            workDays: 0,
+            calendarDays: 1,
+          },
+        });
+      }
+      await tx.projectTargetDateChange.create({
+        data: {
+          projectId: project.id,
+          previousDate: previousTargetDate,
+          newDate: nextTargetDate,
+          reason: parsed.data.reason,
+          approvedBy: parsed.data.approvedBy || null,
+          createdById: currentUser(req)?.id ?? null,
+        },
+      });
+    });
+
+    if (activeGoal) {
+      await recalculateProjectWbsSchedule(project.id, {
+        changedItemId: activeGoal.id,
+        changedFields: ['startDate', 'dueDate', 'forecastStartDate', 'forecastDueDate'],
+      });
+    }
+
+    const updated = await prisma.project.findUnique({
+      where: { id: project.id },
+      include: projectDetailsInclude,
+    });
+    const afterSnapshot = await projectAuditSnapshot(project.id);
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'project.target_date.update',
+      objectType: 'Project',
+      objectId: project.id,
+      projectId: project.id,
+      beforeValue: beforeSnapshot ?? project,
+      afterValue: afterSnapshot ?? updated,
+      metadata: {
+        previousDate: previousTargetDate.toISOString(),
+        newDate: nextTargetDate.toISOString(),
+        activeGoalId: activeGoal?.id ?? null,
+        reason: parsed.data.reason,
+        approvedBy: parsed.data.approvedBy || null,
+      },
+    });
+    await emitWebhookEvent({
+      eventType: 'project.target_date.updated',
+      projectId: project.id,
+      payload: {
+        before: beforeSnapshot ?? project,
+        after: afterSnapshot ?? updated,
+        previousDate: previousTargetDate.toISOString(),
+        newDate: nextTargetDate.toISOString(),
+      },
+    }).catch(() => undefined);
+
+    res.json(updated);
   });
 
   router.post('/projects/:projectId/close', requireAdmin, async (req, res) => {

@@ -19,6 +19,11 @@
   width: calc(100% - 12px);
 }
 
+.sidebar button.sidebar-grandchild {
+  margin-left: 24px;
+  width: calc(100% - 24px);
+}
+
 .sidebar button.child::after {
   background: #cbd5e1;
   content: "";
@@ -33,11 +38,17 @@
   background: #93c5fd;
 }
 
+.project-menu {
+  display: grid;
+  gap: 3px;
+}
+
 .project-picker {
   display: grid;
   gap: 6px;
-  padding: 4px 0 8px;
+  margin: 0 0 4px 12px;
   position: relative;
+  width: calc(100% - 12px);
 }
 
 .sidebar .project-picker-trigger {
@@ -145,11 +156,6 @@
   font-weight: 700;
 }
 
-.project-menu {
-  display: grid;
-  gap: 3px;
-}
-
 .sidebar-collapsed .sidebar {
   padding: 18px 10px;
   overflow: visible;
@@ -220,6 +226,11 @@
   width: 42px;
 }
 
+.sidebar-collapsed .sidebar button.sidebar-grandchild {
+  margin-left: 0;
+  width: 42px;
+}
+
 .sidebar-collapsed .sidebar button.child::after {
   display: none;
 }
@@ -266,12 +277,23 @@
 }
 
 .topbar-project {
+  align-items: flex-end;
+  display: grid;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 260px;
+}
+
+.topbar-project-row {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
-  min-width: 260px;
+}
+
+.topbar-project-row:last-child {
+  flex-wrap: nowrap;
 }
 
 .topbar-project span,

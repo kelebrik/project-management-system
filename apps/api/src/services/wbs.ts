@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { wbsItemSchema } from "@pms/shared";
+import { wbsItemSchema, type WbsItemStatus, type WbsItemType } from "@pms/shared";
 import { prisma } from "../db.js";
 import { calculateWbsCriticalPath } from "./wbs-critical-path.js";
 
@@ -19,6 +19,13 @@ export type WbsRenumberRow = {
   level: number;
   parentId: string | null;
   code: string;
+};
+
+export type WbsStatusAggregationItem = {
+  id: string;
+  parentId: string | null;
+  type: WbsItemType;
+  status: WbsItemStatus;
 };
 
 const WBS_PREDECESSOR_FIELDS = [
@@ -100,6 +107,97 @@ function predecessorFieldPatch(predecessors: string[]) {
       predecessors[index] ?? null,
     ]),
   );
+}
+
+function aggregateParentStatus(statuses: WbsItemStatus[]): WbsItemStatus | null {
+  const activeStatuses = statuses.filter((status) => status !== "CANCELLED");
+  if (activeStatuses.length === 0) return null;
+  if (activeStatuses.some((status) => status === "AT_RISK")) return "AT_RISK";
+  if (activeStatuses.some((status) => status === "BLOCKED")) return "BLOCKED";
+  if (activeStatuses.some((status) => status === "IN_PROGRESS")) {
+    return "IN_PROGRESS";
+  }
+  if (activeStatuses.some((status) => status === "IN_REVIEW")) {
+    return "IN_REVIEW";
+  }
+  if (activeStatuses.every((status) => status === "DONE")) return "DONE";
+  if (activeStatuses.some((status) => status === "DONE")) return "IN_PROGRESS";
+  return "NOT_STARTED";
+}
+
+export function calculateWbsHierarchyStatusUpdates(
+  items: WbsStatusAggregationItem[],
+) {
+  const childrenByParent = new Map<string, WbsStatusAggregationItem[]>();
+  const itemById = new Map(items.map((item) => [item.id, item]));
+
+  for (const item of items) {
+    if (!item.parentId) continue;
+    childrenByParent.set(item.parentId, [
+      ...(childrenByParent.get(item.parentId) ?? []),
+      item,
+    ]);
+  }
+
+  const effectiveStatusesById = new Map<string, WbsItemStatus>();
+  const effectiveStatusOf = (
+    item: WbsStatusAggregationItem,
+    seen = new Set<string>(),
+  ): WbsItemStatus => {
+    const knownStatus = effectiveStatusesById.get(item.id);
+    if (knownStatus) return knownStatus;
+    if (seen.has(item.id)) return item.status;
+
+    const children = childrenByParent.get(item.id) ?? [];
+    const nextSeen = new Set(seen);
+    nextSeen.add(item.id);
+    const childStatuses = children.map((child) =>
+      effectiveStatusOf(child, nextSeen),
+    );
+    const nextStatus = aggregateParentStatus(childStatuses) ?? item.status;
+    effectiveStatusesById.set(item.id, nextStatus);
+    return nextStatus;
+  };
+
+  items.forEach((item) => effectiveStatusOf(item));
+
+  return items
+    .filter((item) => item.type === "PHASE" || item.type === "WORK_PACKAGE")
+    .map((item) => ({
+      id: item.id,
+      status: effectiveStatusesById.get(item.id) ?? item.status,
+    }))
+    .filter((update) => update.status !== itemById.get(update.id)?.status);
+}
+
+export async function recalculateProjectWbsHierarchyStatuses(projectId: string) {
+  const items = await prisma.wbsItem.findMany({
+    where: { projectId },
+    select: {
+      id: true,
+      parentId: true,
+      type: true,
+      status: true,
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+  });
+
+  const updates = calculateWbsHierarchyStatusUpdates(items);
+  if (updates.length === 0) return 0;
+
+  await prisma.$transaction(
+    updates.map((update) =>
+      prisma.wbsItem.update({
+        where: { id: update.id },
+        data: {
+          status: update.status,
+          closedAt: update.status === "DONE" ? new Date() : null,
+        },
+      }),
+    ),
+  );
+
+  return updates.length;
 }
 
 export async function renumberProjectWbs(projectId: string) {
@@ -279,6 +377,7 @@ export function wbsItemSnapshotData(
     calendarCode: item.calendarCode,
     templateColor: item.templateColor || null,
     priority: item.priority || null,
+    effortPercent: item.effortPercent,
     plannedCost: item.plannedCost,
     forecastCost: item.forecastCost,
     progress: item.progress,

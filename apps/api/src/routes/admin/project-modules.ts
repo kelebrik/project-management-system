@@ -44,6 +44,13 @@ export const projectModuleDefaults: ProjectModuleConfig[] = [
     enabled: true,
   },
   {
+    key: 'jiraWork',
+    label: 'Работы в Jira',
+    description: 'Jira-фильтры проекта и синхронизированные тикеты Jira',
+    route: 'jira-work',
+    enabled: true,
+  },
+  {
     key: 'issues',
     label: 'Открытые вопросы',
     description: 'Открытые и закрытые вопросы проекта с Jira-связями',

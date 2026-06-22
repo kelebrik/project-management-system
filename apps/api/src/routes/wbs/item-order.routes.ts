@@ -3,6 +3,7 @@ import { prisma } from '../../db.js';
 import {
   getProjectWbsSnapshot,
   levelFromWbsItem,
+  recalculateProjectWbsHierarchyStatuses,
   renumberProjectWbs,
 } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
@@ -84,6 +85,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
             status: 'NOT_STARTED',
             owner: '',
             wbsLevel: insertedLevel,
+            effortPercent: 0,
             sortOrder: (insertIndex + 1) * 10,
           },
         });
@@ -91,6 +93,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
 
       await renumberProjectWbs(project.id);
       await recalculateProjectWbsSchedule(project.id);
+      await recalculateProjectWbsHierarchyStatuses(project.id);
       const snapshot = await getProjectWbsSnapshot(project.id);
       await recordWbsCommand({
         projectId: project.id,
@@ -132,6 +135,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
 
     const updatedCount = await renumberProjectWbs(project.id);
     await recalculateProjectWbsSchedule(project.id);
+    await recalculateProjectWbsHierarchyStatuses(project.id);
     const snapshot = await getProjectWbsSnapshot(project.id);
     await recordWbsCommand({
       projectId: project.id,
@@ -210,6 +214,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
 
     await renumberProjectWbs(project.id);
     await recalculateProjectWbsSchedule(project.id);
+    await recalculateProjectWbsHierarchyStatuses(project.id);
     const snapshot = await getProjectWbsSnapshot(project.id);
     await recordWbsCommand({
       projectId: project.id,

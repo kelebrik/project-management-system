@@ -13,6 +13,7 @@ import {
   MILESTONE_SNAKE_PATH_D,
   buildSnakeMilestoneLayouts,
   buildSnakeMilestonePointLayouts,
+  compressMilestoneTimelineOffset,
   interpolateSnakePoint,
   mapSnakeTimelineOffset,
   snakeLabelNormalPosition,
@@ -262,20 +263,18 @@ export function MilestoneSnakeTimelineSection({
   onPrint: () => void;
 }) {
   const milestones = timeline.lanes.flatMap((lane) => lane.items);
+  const inlineMilestones = milestones;
+  const milestoneLayouts = buildSnakeMilestoneLayouts(inlineMilestones);
+  const milestonePointLayouts = buildSnakeMilestonePointLayouts(milestones);
   const startTime = new Date(timeline.startDate).getTime();
   const endTime = new Date(timeline.endDate).getTime();
+  const todayTime = new Date(timeline.todayDate).getTime();
   const range = endTime - startTime;
-  const inlineMilestones = milestones;
-  const milestoneLayouts = buildSnakeMilestoneLayouts(
-    inlineMilestones,
-    startTime,
-    range,
-  );
-  const milestonePointLayouts = buildSnakeMilestonePointLayouts(
-    milestones,
-    startTime,
-    range,
-  );
+  const canCompressMonthTicks =
+    timeline.todayOffset !== null &&
+    Number.isFinite(todayTime) &&
+    todayTime > startTime &&
+    todayTime < endTime;
   const monthTicks = (() => {
     const start = startOfMonth(new Date(timeline.startDate));
     const end = startOfMonth(new Date(timeline.endDate));
@@ -288,11 +287,18 @@ export function MilestoneSnakeTimelineSection({
     }> = [];
     const cursor = new Date(start);
     while (cursor <= end) {
-      const rawProgress =
-        range === 0 ? 0 : (cursor.getTime() - startTime) / range;
-      const point = interpolateSnakePoint(
-        mapSnakeTimelineOffset(rawProgress),
-      );
+      const rawProgress = canCompressMonthTicks
+        ? compressMilestoneTimelineOffset(
+            cursor.getTime(),
+            startTime,
+            todayTime,
+            endTime,
+            timeline.todayOffset,
+          )
+        : range === 0
+          ? 0
+          : (cursor.getTime() - startTime) / range;
+      const point = interpolateSnakePoint(mapSnakeTimelineOffset(rawProgress));
       const labelPosition = snakeMonthLabelPosition(point);
       ticks.push({
         label: monthLabel(cursor).replace(".", ""),

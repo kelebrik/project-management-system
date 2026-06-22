@@ -5,10 +5,10 @@ export type ProjectModuleKey =
   | "passport"
   | "structure"
   | "gantt"
+  | "jiraWork"
   | "issues"
   | "raid"
   | "changes"
-  | "resources"
   | "budget"
   | "calendars"
   | "artifacts";
@@ -51,6 +51,13 @@ export const defaultProjectModules: ProjectModule[] = [
     enabled: true,
   },
   {
+    key: "jiraWork",
+    label: "Работы в Jira",
+    description: "Jira-фильтры проекта и синхронизированные тикеты Jira",
+    route: "jira-work",
+    enabled: true,
+  },
+  {
     key: "issues",
     label: "Открытые вопросы",
     description: "Открытые и закрытые вопросы проекта с Jira-связями",
@@ -69,13 +76,6 @@ export const defaultProjectModules: ProjectModule[] = [
     label: "Управление изменениями",
     description: "Запросы на изменение scope, сроков и управленческих решений",
     route: "changes",
-    enabled: true,
-  },
-  {
-    key: "resources",
-    label: "Управление ресурсами",
-    description: "Загрузка команды, исполнители и распределение работ",
-    route: "resources",
     enabled: true,
   },
   {
@@ -109,10 +109,10 @@ export const projectModuleKeyByView: Record<
   "project-passport": "passport",
   "project-structure": "structure",
   "project-gantt": "gantt",
+  "project-jira-work": "jiraWork",
   "project-issues": "issues",
   "project-raid": "raid",
   "project-changes": "changes",
-  "project-resources": "resources",
   "project-budget": "budget",
   "project-calendars": "calendars",
   "project-artifacts": "artifacts",
@@ -126,10 +126,10 @@ export const projectModuleViewByKey: Record<
   passport: "project-passport",
   structure: "project-structure",
   gantt: "project-gantt",
+  jiraWork: "project-jira-work",
   issues: "project-issues",
   raid: "project-raid",
   changes: "project-changes",
-  resources: "project-resources",
   budget: "project-budget",
   calendars: "project-calendars",
   artifacts: "project-artifacts",

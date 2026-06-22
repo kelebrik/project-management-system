@@ -12,13 +12,13 @@ export function flattenWbsDescendants(item: WbsTreeItem): WbsTreeItem[] {
 export function wbsToneClass(
   item: Pick<WbsItem, "dueDate" | "status" | "type">,
 ) {
-  if (item.type === "MILESTONE") return "tone-o";
+  if (item.type === "MILESTONE" || item.type === "GOAL") return "tone-o";
   if (item.status === "DONE") return "tone-g";
   if (item.status === "AT_RISK" || item.status === "BLOCKED") return "tone-r";
   if (item.dueDate && new Date(item.dueDate) < startOfDay(new Date())) {
     return "tone-p";
   }
-  if (item.status === "IN_PROGRESS") return "tone-b";
+  if (item.status === "IN_PROGRESS" || item.status === "IN_REVIEW") return "tone-b";
   return "tone-x";
 }
 
@@ -32,7 +32,11 @@ export function summaryToneClass(item: WbsTreeItem) {
   }
   if (
     item.status === "IN_PROGRESS" ||
-    descendants.some((descendant) => descendant.status === "IN_PROGRESS")
+    item.status === "IN_REVIEW" ||
+    descendants.some(
+      (descendant) =>
+        descendant.status === "IN_PROGRESS" || descendant.status === "IN_REVIEW",
+    )
   ) {
     return "tone-b";
   }

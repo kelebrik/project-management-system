@@ -5,10 +5,12 @@ import type {
   ProjectListItem,
   ProjectCalendarOverride,
 } from "../app/domainTypes";
+import type { ResourceAllocationProfile } from "../app/resourceModels";
 import { initialAppView, type AppView } from "../app/routes";
 import {
   newProjectFormDefaults,
   type JiraFormState,
+  type JiraWorkSectionDraft,
   type ProjectFormState,
   type ProjectRegistryDraft,
 } from "../app/formState";
@@ -22,6 +24,7 @@ export function useProjectCoreState() {
   const [activeView, setActiveView] = useState<AppView>(() => initialAppView());
   const [syncing, setSyncing] = useState(false);
   const [savingJira, setSavingJira] = useState(false);
+  const [savingJiraWorkSections, setSavingJiraWorkSections] = useState(false);
   const [savingBaseline, setSavingBaseline] = useState(false);
   const [savingCalendar, setSavingCalendar] = useState<string | null>(null);
   const [selectedCalendarYear, setSelectedCalendarYear] = useState<number | null>(
@@ -36,17 +39,27 @@ export function useProjectCoreState() {
     issuesJql: "",
     openIssuesJql: "",
   });
+  const [jiraWorkSectionDrafts, setJiraWorkSectionDrafts] = useState<
+    JiraWorkSectionDraft[]
+  >([]);
   const [newProjectForm, setNewProjectForm] =
     useState<ProjectFormState>(() => newProjectFormDefaults());
   const [projectRegistryDrafts, setProjectRegistryDrafts] = useState<
     Record<string, ProjectRegistryDraft>
   >({});
+  const [projectTargetDateDraft, setProjectTargetDateDraft] = useState("");
+  const [projectTargetChangeReason, setProjectTargetChangeReason] = useState("");
+  const [projectTargetApprovedBy, setProjectTargetApprovedBy] = useState("");
+  const [savingProjectTargetDate, setSavingProjectTargetDate] = useState(false);
   const [passportRows, setPassportRows] = useState<PassportRow[]>([]);
   const [savingPassportRows, setSavingPassportRows] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [recentProjectIds, setRecentProjectIds] = useState<string[]>([]);
+  const [resourceProfileOverrides, setResourceProfileOverrides] = useState<
+    ResourceAllocationProfile[]
+  >([]);
 
   return {
     projects,
@@ -63,6 +76,8 @@ export function useProjectCoreState() {
     setSyncing,
     savingJira,
     setSavingJira,
+    savingJiraWorkSections,
+    setSavingJiraWorkSections,
     savingBaseline,
     setSavingBaseline,
     savingCalendar,
@@ -73,10 +88,20 @@ export function useProjectCoreState() {
     setSavingProjectRegistryId,
     jiraForm,
     setJiraForm,
+    jiraWorkSectionDrafts,
+    setJiraWorkSectionDrafts,
     newProjectForm,
     setNewProjectForm,
     projectRegistryDrafts,
     setProjectRegistryDrafts,
+    projectTargetDateDraft,
+    setProjectTargetDateDraft,
+    projectTargetChangeReason,
+    setProjectTargetChangeReason,
+    projectTargetApprovedBy,
+    setProjectTargetApprovedBy,
+    savingProjectTargetDate,
+    setSavingProjectTargetDate,
     passportRows,
     setPassportRows,
     savingPassportRows,
@@ -89,6 +114,8 @@ export function useProjectCoreState() {
     setShowProjectPicker,
     recentProjectIds,
     setRecentProjectIds,
+    resourceProfileOverrides,
+    setResourceProfileOverrides,
   };
 }
 

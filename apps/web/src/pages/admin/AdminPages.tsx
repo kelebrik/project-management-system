@@ -17,6 +17,10 @@ export function AdminModulesPage({ children }: AdminPageProps) {
   return <PageShell>{children}</PageShell>;
 }
 
+export function AdminProjectAccessPage({ children }: AdminPageProps) {
+  return <PageShell>{children}</PageShell>;
+}
+
 export function AdminUsersPage({ children }: AdminPageProps) {
   return <PageShell>{children}</PageShell>;
 }

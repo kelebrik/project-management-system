@@ -39,6 +39,7 @@ function milestone(id: string, dueDate: string): WbsItem {
     calendarCode: "RU",
     templateColor: null,
     priority: null,
+    effortPercent: 0,
     plannedCost: "0",
     forecastCost: "0",
     progress: 0,
@@ -50,20 +51,35 @@ function milestone(id: string, dueDate: string): WbsItem {
   };
 }
 
-test("milestone timeline today offset follows calendar date, not milestone count", () => {
-  const items = [
-    milestone("1", "2025-12-01"),
-    milestone("2", "2026-03-17"),
-    milestone("3", "2026-04-06"),
-    milestone("4", "2026-04-27"),
-    milestone("5", "2026-06-17"),
-    milestone("6", "2026-07-01"),
+test("milestone count timeline places today after the completed share of milestones", () => {
+  const beforeTodayDates = [
+    "2025-12-01",
+    "2026-03-17",
+    "2026-04-06",
+    "2026-04-27",
   ];
+  const afterTodayDates = [
+    "2026-06-17",
+    "2026-07-01",
+    "2026-07-21",
+    "2026-08-04",
+    "2026-08-05",
+    "2026-08-11",
+    "2026-08-24",
+    "2026-08-25",
+    "2026-09-03",
+    "2026-09-10",
+    "2026-09-17",
+    "2026-09-24",
+    "2026-10-01",
+  ];
+  const items = [...beforeTodayDates, ...afterTodayDates].map((dueDate, index) =>
+    milestone(String(index + 1), dueDate),
+  );
   const timelineStart = new Date(2025, 11, 1);
-  const timelineEnd = new Date(2026, 6, 1);
+  const timelineEnd = new Date(2026, 9, 1);
   const today = new Date(2026, 5, 9);
-  const range = timelineEnd.getTime() - timelineStart.getTime();
-  const expectedOffset = (today.getTime() - timelineStart.getTime()) / range;
+  const expectedOffset = beforeTodayDates.length / items.length;
 
   const model = createMilestoneTimelineModel({
     milestones: items.map((item) => ({
@@ -76,12 +92,14 @@ test("milestone timeline today offset follows calendar date, not milestone count
     today,
     timelineStart,
     timelineEnd,
+    todayOffsetMode: "milestone-count",
   });
 
   assert.equal(model.todayOffset, expectedOffset);
-  assert.ok(model.todayOffset !== null && model.todayOffset > 0.88);
   assert.ok(
-    mapSnakeTimelineOffset(model.todayOffset) > 0.84,
-    "snake marker should stay near the June date, not near February or March",
+    model.todayOffset !== null &&
+      Math.abs(mapSnakeTimelineOffset(model.todayOffset) - 0.2368235294117647) <
+        0.000001,
+    "snake marker should reserve 4/17 of the path before today",
   );
 });

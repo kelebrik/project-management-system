@@ -7,11 +7,13 @@ export const wbsItemTypes = [
   "WORK_PACKAGE",
   "DELIVERABLE",
   "MILESTONE",
+  "GOAL",
   "TASK",
 ] as const;
 export const wbsItemStatuses = [
   "NOT_STARTED",
   "IN_PROGRESS",
+  "IN_REVIEW",
   "AT_RISK",
   "BLOCKED",
   "DONE",
@@ -70,11 +72,13 @@ export const labels = {
     WORK_PACKAGE: "Пакет работ",
     DELIVERABLE: "Результат",
     MILESTONE: "Веха",
+    GOAL: "Цель",
     TASK: "Задача",
   },
   wbsStatus: {
     NOT_STARTED: "Не начата",
     IN_PROGRESS: "В работе",
+    IN_REVIEW: "На проверке",
     AT_RISK: "Под риском",
     BLOCKED: "Провалено",
     DONE: "Сделано",
@@ -171,12 +175,12 @@ export const projectSchema = projectIdentitySchema.extend({
   uiState: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
-export const wbsItemSchema = z.object({
+const wbsItemShape = {
   parentId: z.string().trim().optional().nullable(),
   code: z.string().trim().min(1),
   title: z.string().trim(),
-  type: z.enum(wbsItemTypes).default("TASK"),
-  status: z.enum(wbsItemStatuses).default("NOT_STARTED"),
+  type: z.enum(wbsItemTypes),
+  status: z.enum(wbsItemStatuses),
   owner: z.string().trim(),
   startDate: z.string().trim().optional().nullable(),
   dueDate: z.string().trim().optional().nullable(),
@@ -191,7 +195,7 @@ export const wbsItemSchema = z.object({
   predecessor4: z.string().trim().optional().nullable(),
   predecessor5: z.string().trim().optional().nullable(),
   predecessor6: z.string().trim().optional().nullable(),
-  leadLagDays: z.coerce.number().int().default(0),
+  leadLagDays: z.coerce.number().int(),
   workDays: z.coerce.number().int().optional().nullable(),
   calendarDays: z.coerce.number().int().optional().nullable(),
   scheduleDriver: z.enum(["dates", "workDays"]).optional(),
@@ -199,12 +203,13 @@ export const wbsItemSchema = z.object({
   excelEndDate: z.string().trim().optional().nullable(),
   planWorkDays: z.coerce.number().int().optional().nullable(),
   planCalendarDays: z.coerce.number().int().optional().nullable(),
-  calendarCode: z.enum(projectCalendarCodes).default("RU"),
+  calendarCode: z.enum(projectCalendarCodes),
   templateColor: z.string().trim().optional().nullable(),
   priority: z.string().trim().optional().nullable(),
-  plannedCost: z.coerce.number().nonnegative().default(0),
-  forecastCost: z.coerce.number().nonnegative().default(0),
-  progress: z.coerce.number().int().min(0).max(100).default(0),
+  effortPercent: z.coerce.number().int().min(0).max(100),
+  plannedCost: z.coerce.number().nonnegative(),
+  forecastCost: z.coerce.number().nonnegative(),
+  progress: z.coerce.number().int().min(0).max(100),
   jiraTicketKey: z.string().trim().optional().nullable(),
   jiraTicketUrl: z
     .string()
@@ -214,7 +219,21 @@ export const wbsItemSchema = z.object({
     .optional()
     .nullable(),
   description: z.string().trim().optional().nullable(),
-  sortOrder: z.coerce.number().int().default(0),
+  sortOrder: z.coerce.number().int(),
+} as const;
+
+export const wbsItemBaseSchema = z.object(wbsItemShape);
+
+export const wbsItemSchema = wbsItemBaseSchema.extend({
+  type: wbsItemShape.type.default("TASK"),
+  status: wbsItemShape.status.default("NOT_STARTED"),
+  leadLagDays: wbsItemShape.leadLagDays.default(0),
+  calendarCode: wbsItemShape.calendarCode.default("RU"),
+  effortPercent: wbsItemShape.effortPercent.default(0),
+  plannedCost: wbsItemShape.plannedCost.default(0),
+  forecastCost: wbsItemShape.forecastCost.default(0),
+  progress: wbsItemShape.progress.default(0),
+  sortOrder: wbsItemShape.sortOrder.default(0),
 });
 
 export const raidItemSchema = z.object({

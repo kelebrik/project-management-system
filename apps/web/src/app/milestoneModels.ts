@@ -12,9 +12,13 @@ import {
   type StructureMilestone,
 } from "./milestoneTimeline";
 
+function isTimelineCheckpoint(item: WbsItem) {
+  return item.type === "MILESTONE" || item.type === "GOAL";
+}
+
 export function createStructureMilestones(wbsItems: WbsItem[]) {
   return wbsItems
-    .filter((item) => item.type === "MILESTONE")
+    .filter(isTimelineCheckpoint)
     .map((milestone) => {
       const calendarDaysLeft = signedDaysUntil(milestone.dueDate);
       const workDaysLeft = signedWorkingDaysUntil(milestone.dueDate);
@@ -24,7 +28,7 @@ export function createStructureMilestones(wbsItems: WbsItem[]) {
       const itemsBeforeMilestone = milestoneDue
         ? wbsItems.filter(
             (item) =>
-              item.type !== "MILESTONE" &&
+              !isTimelineCheckpoint(item) &&
               item.dueDate &&
               startOfDay(new Date(item.dueDate)) <= milestoneDue,
           )
@@ -141,6 +145,7 @@ export function createMilestoneTimeline(
       structureMilestones.map((entry) => [entry.milestone.id, "all"]),
     ),
     minTrackWidth: byPhase.trackWidth,
+    todayOffsetMode: "milestone-count",
   });
 
   return { byPhase, all };

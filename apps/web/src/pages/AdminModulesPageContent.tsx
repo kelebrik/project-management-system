@@ -5,7 +5,6 @@ export function AdminModulesPageContent() {
   const {
     normalizedProjectModules,
     projectModuleDrafts,
-    saveProjectModules,
     savingProjectModules,
     updateProjectModuleDraft,
   } = ctx;
@@ -21,10 +20,7 @@ export function AdminModulesPageContent() {
                       </p>
                     </div>
                   </div>
-                  <form
-                    className="project-module-admin"
-                    onSubmit={saveProjectModules}
-                  >
+                  <div className="project-module-admin">
                     <div className="project-module-table">
                       <div className="project-module-head">
                         <span>Страница</span>
@@ -47,6 +43,7 @@ export function AdminModulesPageContent() {
                               <input
                                 type="checkbox"
                                 checked={enabled}
+                                disabled={savingProjectModules}
                                 onChange={(event) =>
                                   updateProjectModuleDraft(
                                     module.key,
@@ -60,14 +57,10 @@ export function AdminModulesPageContent() {
                         );
                       })}
                     </div>
-                    <div className="form-actions">
-                      <button type="submit" disabled={savingProjectModules}>
-                        {savingProjectModules
-                          ? "Сохраняю..."
-                          : "Сохранить настройки"}
-                      </button>
-                    </div>
-                  </form>
+                    {savingProjectModules && (
+                      <p className="module-save-state">Сохраняю настройки...</p>
+                    )}
+                  </div>
                 </article>
               );
 }

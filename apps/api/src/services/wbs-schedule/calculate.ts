@@ -12,6 +12,7 @@ import {
   maxDate,
   minDate,
   resolveDurationWorkDays,
+  isWbsCheckpointType,
   sortByPlanOrder,
   startFromFinish,
   wbsLevelFromItem,
@@ -171,11 +172,13 @@ function calculateWbsSchedulePass(
       const predecessor = itemsById.get(predecessorRef.predecessorId);
       const predecessorSchedule = computedById.get(predecessorRef.predecessorId);
       const predecessorStartDate =
+        predecessorSchedule?.forecastStartDate ??
         predecessorSchedule?.startDate ??
-        normalizedDate(predecessor?.startDate ?? null);
+        normalizedDate(predecessor?.forecastStartDate ?? predecessor?.startDate ?? null);
       const predecessorDueDate =
+        predecessorSchedule?.forecastDueDate ??
         predecessorSchedule?.dueDate ??
-        normalizedDate(predecessor?.dueDate ?? null);
+        normalizedDate(predecessor?.forecastDueDate ?? predecessor?.dueDate ?? null);
 
       if (predecessorRef.type === "FS" && predecessorDueDate) {
         startConstraints.push(
@@ -242,7 +245,7 @@ function calculateWbsSchedulePass(
 
     if (isDateDrivenChange) {
       durationWorkDays =
-        item.type === "MILESTONE"
+        isWbsCheckpointType(item)
           ? 0
           : nextStartDate && nextDueDate
             ? workingDaysInclusive(
@@ -264,7 +267,7 @@ function calculateWbsSchedulePass(
             );
     } else if (nextStartDate && nextDueDate) {
       durationWorkDays =
-        item.type === "MILESTONE"
+        isWbsCheckpointType(item)
           ? 0
           : workingDaysInclusive(
               nextStartDate,
@@ -272,6 +275,57 @@ function calculateWbsSchedulePass(
               item.calendarCode,
               overridesByKey,
             );
+    }
+
+    if (isWbsCheckpointType(item)) {
+      const computedCheckpointDate = maxDate(
+        [...startConstraints, ...finishConstraints, nextDueDate, nextStartDate].filter(
+          (date): date is Date => date !== null,
+        ),
+      );
+      if (item.type === "GOAL") {
+        const approvedGoalDate =
+          normalizedDate(item.dueDate ?? item.startDate) ?? nextDueDate ?? nextStartDate;
+        nextStartDate = approvedGoalDate;
+        nextDueDate = approvedGoalDate;
+        durationWorkDays = 0;
+        const forecastDate = computedCheckpointDate ?? approvedGoalDate;
+        const update: WbsScheduleUpdate = {
+          id: item.id,
+          startDate: nextStartDate,
+          dueDate: nextDueDate,
+          forecastStartDate: forecastDate,
+          forecastDueDate: forecastDate,
+          workDays: durationWorkDays,
+          calendarDays:
+            nextStartDate && nextDueDate
+              ? calendarDaysInclusive(nextStartDate, nextDueDate)
+              : null,
+        };
+        computedById.set(item.id, update);
+
+        if (
+          !sameDate(item.startDate, update.startDate) ||
+          !sameDate(item.dueDate, update.dueDate) ||
+          !sameDate(item.forecastStartDate ?? null, update.forecastStartDate) ||
+          !sameDate(item.forecastDueDate ?? null, update.forecastDueDate) ||
+          !sameNumber(item.workDays, update.workDays) ||
+          !sameNumber(item.calendarDays, update.calendarDays)
+        ) {
+          updatesById.set(item.id, update);
+        }
+        continue;
+      }
+      const editedAnchor =
+        isDateDrivenChange && changedFields.has("dueDate")
+          ? nextDueDate
+          : isDateDrivenChange && changedFields.has("startDate")
+            ? nextStartDate
+            : null;
+      const checkpointDate = editedAnchor ?? computedCheckpointDate;
+      nextStartDate = checkpointDate;
+      nextDueDate = checkpointDate;
+      durationWorkDays = 0;
     }
 
     const nextCalendarDays =
@@ -321,19 +375,27 @@ function calculateWbsSchedulePass(
     const childDueDates = childSchedules
       .map((schedule) => schedule.dueDate)
       .filter((date): date is Date => date !== null);
+    const childForecastStartDates = childSchedules
+      .map((schedule) => schedule.forecastStartDate ?? schedule.startDate)
+      .filter((date): date is Date => date !== null);
+    const childForecastDueDates = childSchedules
+      .map((schedule) => schedule.forecastDueDate ?? schedule.dueDate)
+      .filter((date): date is Date => date !== null);
     if (childStartDates.length === 0 && childDueDates.length === 0) {
       continue;
     }
 
     const nextStartDate = minDate(childStartDates);
     const nextDueDate = maxDate(childDueDates);
+    const nextForecastStartDate = minDate(childForecastStartDates) ?? nextStartDate;
+    const nextForecastDueDate = maxDate(childForecastDueDates) ?? nextDueDate;
     const nextCalendarDays =
       nextStartDate && nextDueDate
         ? calendarDaysInclusive(nextStartDate, nextDueDate)
         : null;
     const nextWorkDays =
       nextStartDate && nextDueDate
-        ? item.type === "MILESTONE"
+        ? isWbsCheckpointType(item)
           ? 0
           : workingDaysInclusive(
               nextStartDate,
@@ -346,8 +408,8 @@ function calculateWbsSchedulePass(
       id: item.id,
       startDate: nextStartDate,
       dueDate: nextDueDate,
-      forecastStartDate: nextStartDate,
-      forecastDueDate: nextDueDate,
+      forecastStartDate: nextForecastStartDate,
+      forecastDueDate: nextForecastDueDate,
       workDays: nextWorkDays,
       calendarDays: nextCalendarDays,
     };

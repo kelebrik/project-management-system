@@ -14,6 +14,8 @@ import type {
   ApiTokenInfo,
   DictionaryItem,
   DictionaryItemDraft,
+  ProjectAccessDraft,
+  ProjectAccessRecord,
   RolePermission,
   SystemSetting,
   SystemSettingsDraft,
@@ -26,6 +28,7 @@ import type {
 } from "../app/adminTypes";
 import { dictionaryPayload } from "../app/formPayloads";
 import { emptyDictionaryDraft, emptyUserForm } from "../app/formState";
+import type { ProjectAccessLevel } from "../app/domainTypes";
 import {
   normalizeProjectModulesForUi,
   projectModulesToDraft,
@@ -44,6 +47,10 @@ type UseAdminActionsControllerOptions = {
   setCreatingUser: Dispatch<SetStateAction<boolean>>;
   rolePermissions: RolePermission[];
   setRolePermissions: Dispatch<SetStateAction<RolePermission[]>>;
+  projectAccessDraft: ProjectAccessDraft;
+  setProjectAccessDraft: Dispatch<SetStateAction<ProjectAccessDraft>>;
+  setProjectAccesses: Dispatch<SetStateAction<ProjectAccessRecord[]>>;
+  setSavingProjectAccess: Dispatch<SetStateAction<boolean>>;
   dictionaryItems: DictionaryItem[];
   dictionaryDrafts: Record<string, DictionaryItemDraft>;
   setDictionaryDrafts: Dispatch<
@@ -77,6 +84,7 @@ type UseAdminActionsControllerOptions = {
   reloadAuditEvents: () => Promise<void>;
   reloadAdminConfig: () => Promise<void>;
   reloadAdminIntegrations: () => Promise<void>;
+  reloadProjectAccesses: () => Promise<void>;
   setError: Dispatch<SetStateAction<string | null>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
 };
@@ -92,6 +100,10 @@ export function useAdminActionsController({
   setCreatingUser,
   rolePermissions: _rolePermissions,
   setRolePermissions,
+  projectAccessDraft,
+  setProjectAccessDraft,
+  setProjectAccesses,
+  setSavingProjectAccess,
   dictionaryItems,
   dictionaryDrafts,
   setDictionaryDrafts,
@@ -121,6 +133,7 @@ export function useAdminActionsController({
   reloadAuditEvents,
   reloadAdminConfig,
   reloadAdminIntegrations,
+  reloadProjectAccesses,
   setError,
   setNotice,
 }: UseAdminActionsControllerOptions) {
@@ -166,19 +179,139 @@ export function useAdminActionsController({
     [dictionaryItems, setDictionaryDrafts],
   );
 
-  const updateProjectModuleDraft = useCallback(
-    (key: ProjectModuleKey, enabled: boolean) => {
-      setProjectModuleDrafts((current) => ({
+  const updateProjectAccessDraft = useCallback(
+    (patch: Partial<ProjectAccessDraft>) => {
+      setProjectAccessDraft((current) => ({
         ...current,
-        [key]: enabled,
+        ...patch,
       }));
     },
-    [setProjectModuleDrafts],
+    [setProjectAccessDraft],
   );
 
-  const saveProjectModules = useCallback(
+  const grantProjectAccess = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      if (projectAccessDraft.userIds.length === 0 || projectAccessDraft.projectIds.length === 0) {
+        setError("Выберите хотя бы одного пользователя и один проект");
+        return;
+      }
+      setSavingProjectAccess(true);
+      setError(null);
+      setNotice(null);
+      try {
+        const accesses = await apiClient.post<ProjectAccessRecord[]>(
+          "/api/admin/project-access",
+          projectAccessDraft,
+          "Не удалось выдать доступ к проектам",
+        );
+        setProjectAccesses(accesses);
+        setProjectAccessDraft({
+          userIds: [],
+          projectIds: [],
+          level: "EDIT",
+        });
+        await reloadAuditEvents();
+        setNotice("Доступ к проектам сохранен");
+      } catch (saveError) {
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : "Не удалось выдать доступ к проектам",
+        );
+      } finally {
+        setSavingProjectAccess(false);
+      }
+    },
+    [
+      projectAccessDraft,
+      reloadAuditEvents,
+      setError,
+      setNotice,
+      setProjectAccessDraft,
+      setProjectAccesses,
+      setSavingProjectAccess,
+    ],
+  );
+
+  const updateProjectAccessLevel = useCallback(
+    async (accessId: string, level: ProjectAccessLevel) => {
+      setSavingProjectAccess(true);
+      setError(null);
+      setNotice(null);
+      try {
+        const updated = await apiClient.patch<ProjectAccessRecord>(
+          `/api/admin/project-access/${accessId}`,
+          { level },
+          "Не удалось обновить доступ к проекту",
+        );
+        setProjectAccesses((current) =>
+          current.map((access) => (access.id === updated.id ? updated : access)),
+        );
+        await reloadAuditEvents();
+        setNotice("Доступ к проекту обновлен");
+      } catch (saveError) {
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : "Не удалось обновить доступ к проекту",
+        );
+        await reloadProjectAccesses();
+      } finally {
+        setSavingProjectAccess(false);
+      }
+    },
+    [
+      reloadAuditEvents,
+      reloadProjectAccesses,
+      setError,
+      setNotice,
+      setProjectAccesses,
+      setSavingProjectAccess,
+    ],
+  );
+
+  const deleteProjectAccess = useCallback(
+    async (accessId: string) => {
+      setSavingProjectAccess(true);
+      setError(null);
+      setNotice(null);
+      try {
+        await apiClient.delete(
+          `/api/admin/project-access/${accessId}`,
+          "Не удалось удалить доступ к проекту",
+        );
+        setProjectAccesses((current) =>
+          current.filter((access) => access.id !== accessId),
+        );
+        await reloadAuditEvents();
+        setNotice("Доступ к проекту удален");
+      } catch (saveError) {
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : "Не удалось удалить доступ к проекту",
+        );
+        await reloadProjectAccesses();
+      } finally {
+        setSavingProjectAccess(false);
+      }
+    },
+    [
+      reloadAuditEvents,
+      reloadProjectAccesses,
+      setError,
+      setNotice,
+      setProjectAccesses,
+      setSavingProjectAccess,
+    ],
+  );
+
+  const persistProjectModules = useCallback(
+    async (
+      drafts: Record<ProjectModuleKey, boolean>,
+      successMessage: string,
+    ) => {
       setSavingProjectModules(true);
       setError(null);
       setNotice(null);
@@ -186,7 +319,7 @@ export function useAdminActionsController({
         const payload = {
           modules: normalizedProjectModules.map((module) => ({
             key: module.key,
-            enabled: projectModuleDrafts[module.key] ?? module.enabled,
+            enabled: drafts[module.key] ?? module.enabled,
           })),
         };
         const updated = await apiClient.put<ProjectModule[]>(
@@ -198,20 +331,20 @@ export function useAdminActionsController({
         setProjectModules(normalized);
         setProjectModuleDrafts(projectModulesToDraft(normalized));
         await reloadAuditEvents();
-        setNotice("Настройки модулей сохранены");
+        setNotice(successMessage);
       } catch (saveError) {
         setError(
           saveError instanceof Error
             ? saveError.message
             : "Не удалось сохранить управление модулями",
         );
+        throw saveError;
       } finally {
         setSavingProjectModules(false);
       }
     },
     [
       normalizedProjectModules,
-      projectModuleDrafts,
       reloadAuditEvents,
       setError,
       setNotice,
@@ -219,6 +352,38 @@ export function useAdminActionsController({
       setProjectModules,
       setSavingProjectModules,
     ],
+  );
+
+  const updateProjectModuleDraft = useCallback(
+    async (key: ProjectModuleKey, enabled: boolean) => {
+      const previousDrafts = projectModuleDrafts;
+      const nextDrafts = {
+        ...previousDrafts,
+        [key]: enabled,
+      };
+      setProjectModuleDrafts(nextDrafts);
+      try {
+        await persistProjectModules(nextDrafts, "Настройки модулей сохранены");
+      } catch {
+        setProjectModuleDrafts(previousDrafts);
+      }
+    },
+    [persistProjectModules, projectModuleDrafts, setProjectModuleDrafts],
+  );
+
+  const saveProjectModules = useCallback(
+    async (event?: FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+      try {
+        await persistProjectModules(
+          projectModuleDrafts,
+          "Настройки модулей сохранены",
+        );
+      } catch {
+        // Error state is already set by persistProjectModules.
+      }
+    },
+    [persistProjectModules, projectModuleDrafts],
   );
 
   const toggleRolePermission = useCallback(
@@ -796,6 +961,10 @@ export function useAdminActionsController({
     testWebhook,
     updateUserDraft,
     updateDictionaryDraft,
+    updateProjectAccessDraft,
+    grantProjectAccess,
+    updateProjectAccessLevel,
+    deleteProjectAccess,
     updateProjectModuleDraft,
     saveProjectModules,
     toggleRolePermission,

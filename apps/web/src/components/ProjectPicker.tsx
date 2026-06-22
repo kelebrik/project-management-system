@@ -1,28 +1,28 @@
 import { ChevronDown, Search } from "lucide-react";
 
-import type { AppView } from "../app/routes";
 import type { ProjectListItem } from "../app/domainTypes";
 import { projectOptionLabel } from "../app/labels";
+import type { AppView } from "../app/routes";
 
 type ProjectPickerProps = {
   filteredProjects: ProjectListItem[];
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  onProjectSearchChange: (value: string) => void;
   onProjectSelect: (projectId: string, nextView: AppView) => void;
   projectSearch: string;
   recentProjects: ProjectListItem[];
   selectedProject: ProjectListItem | null;
   selectedProjectId: string | null;
   targetView: AppView;
-  onProjectSearchChange: (value: string) => void;
 };
 
 export function ProjectPicker({
   filteredProjects,
   isOpen,
   onOpenChange,
-  onProjectSelect,
   onProjectSearchChange,
+  onProjectSelect,
   projectSearch,
   recentProjects,
   selectedProject,

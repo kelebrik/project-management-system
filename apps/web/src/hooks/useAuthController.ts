@@ -13,6 +13,7 @@ import type {
 } from "../app/adminTypes";
 import {
   isAdminSectionViewName,
+  isDevelopmentSectionViewName,
   writeProtectedViews,
   type AppView,
   type ProjectSectionView,
@@ -140,7 +141,10 @@ export function useAuthController({
     if (authMode !== "ready") return;
     const shouldRedirect =
       (!isAuthenticated && writeProtectedViews.has(activeView)) ||
-      (isAuthenticated && isAdminSectionViewName(activeView) && !isAdminUser);
+      (isAuthenticated &&
+        (isAdminSectionViewName(activeView) ||
+          isDevelopmentSectionViewName(activeView)) &&
+        !isAdminUser);
     if (!shouldRedirect) return;
 
     const fallbackProjectModule = normalizeProjectModulesForUi(projectModules).find(

@@ -47,6 +47,7 @@ export type ProjectRegistryDraft = {
   parentId: string;
   code: string;
   name: string;
+  portfolio: string;
   projectManager: string;
   status: ProjectListItem["status"];
   rag: RagStatus;
@@ -83,6 +84,7 @@ export type WbsFormState = {
   planCalendarDays: string;
   templateColor: string;
   priority: string;
+  effortPercent: string;
   plannedCost: string;
   forecastCost: string;
   progress: string;
@@ -98,6 +100,13 @@ export type JiraFormState = {
   projectKey: string;
   issuesJql: string;
   openIssuesJql: string;
+};
+
+export type JiraWorkSectionDraft = {
+  id: string | null;
+  sortOrder: number;
+  title: string;
+  jql: string;
 };
 
 export type IssueFormState = {
@@ -259,7 +268,7 @@ export function newProjectFormDefaults(): ProjectFormState {
     ...emptyProjectForm,
     code: `PRJ-${suffix}`,
     name: "Новый проект",
-    portfolio: "Портфель проектов",
+    portfolio: "Портфель",
     sponsor: "Спонсор",
     projectManager: "Руководитель проекта",
     startDate: isoDate(startDate),
@@ -320,13 +329,11 @@ export function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
 
 function defaultPassportRows(project: ProjectDetails): PassportRow[] {
   return [
-    { id: "portfolio", field: "Портфель", description: project.portfolio },
     { id: "sponsor", field: "Спонсор", description: project.sponsor },
     { id: "projectManager", field: "РП", description: project.projectManager },
     { id: "status", field: "Статус", description: projectStatusLabel(project.status) },
     { id: "rag", field: "Индикатор", description: projectHealthLabel(project.rag) },
     { id: "startDate", field: "Старт", description: date(project.startDate) },
-    { id: "targetDate", field: "Целевая дата", description: date(project.targetDate) },
   ];
 }
 
@@ -336,11 +343,13 @@ export function normalizePassportRows(project: ProjectDetails | null): PassportR
   if (!Array.isArray(rows) || rows.length === 0) {
     return defaultPassportRows(project);
   }
-  return rows.map((row, index) => ({
-    id: row.id || `passport-row-${index + 1}`,
-    field: row.field ?? "",
-    description: row.description ?? "",
-  }));
+  return rows
+    .filter((row) => row.id !== "targetDate" && row.id !== "portfolio")
+    .map((row, index) => ({
+      id: row.id || `passport-row-${index + 1}`,
+      field: row.field ?? "",
+      description: row.description ?? "",
+    }));
 }
 
 export function raidToForm(item: RaidItem): RaidFormState {
@@ -417,6 +426,7 @@ export function wbsToForm(item: WbsItem): WbsFormState {
     calendarCode: item.calendarCode ?? "RU",
     templateColor: item.templateColor ?? "",
     priority: item.priority ?? "",
+    effortPercent: String(item.effortPercent ?? 0),
     plannedCost: String(item.plannedCost),
     forecastCost: String(item.forecastCost),
     progress: String(item.progress),
@@ -432,6 +442,7 @@ export function projectToRegistryDraft(project: ProjectListItem): ProjectRegistr
     parentId: project.parentId ?? "",
     code: project.code,
     name: project.name,
+    portfolio: project.portfolio,
     projectManager: project.projectManager,
     status: project.status,
     rag: project.rag,

@@ -5,6 +5,12 @@ export async function projectAuditSnapshot(projectId: string) {
     where: { id: projectId },
     include: {
       jiraIntegration: true,
+      targetDateChanges: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          createdBy: { select: { id: true, name: true, email: true } },
+        },
+      },
       _count: {
         select: {
           tasks: true,

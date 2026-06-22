@@ -1,4 +1,149 @@
 
+.passport-project-meta {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+}
+
+.passport-project-meta h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.passport-project-field {
+  color: #475569;
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+  max-width: 520px;
+}
+
+.passport-project-field input {
+  min-height: 42px;
+}
+
+.passport-targets {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 14px;
+}
+
+.passport-targets-head {
+  align-items: start;
+  display: flex;
+  justify-content: space-between;
+}
+
+.passport-targets-head h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.passport-targets-head p {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 3px 0 0;
+}
+
+.passport-target-metrics {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.passport-target-metrics > div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.passport-target-metrics span,
+.passport-target-metrics small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.passport-target-metrics b {
+  color: #1f2937;
+  font-size: 15px;
+}
+
+.passport-target-edit {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 170px minmax(220px, 1fr) minmax(180px, 0.8fr) auto;
+}
+
+.passport-target-edit label {
+  color: #475569;
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.passport-target-edit input {
+  min-height: 42px;
+}
+
+.passport-target-history {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.passport-target-history-head,
+.passport-target-history-row {
+  display: grid;
+  grid-template-columns: 120px 120px 120px 110px minmax(220px, 1fr) minmax(160px, 0.7fr);
+  min-width: 860px;
+}
+
+.passport-target-history-head {
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.passport-target-history-row {
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.passport-target-history-head span,
+.passport-target-history-row span {
+  border-right: 1px solid #e2e8f0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 9px 10px;
+}
+
+.passport-target-history-empty {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 12px;
+}
+
 .passport-table {
   border: 1px solid #dbe4ef;
   border-radius: 8px;
@@ -139,6 +284,11 @@
   position: relative;
 }
 
+.project-admin-name input {
+  position: relative;
+  z-index: 1;
+}
+
 .project-admin-name::before {
   background: #cbd5e1;
   content: "";
@@ -163,6 +313,266 @@
   min-height: 38px;
   padding-left: 10px;
   padding-right: 10px;
+}
+
+.admin-project-access {
+  grid-column: 1 / -1;
+}
+
+.project-access-grant {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.25fr) minmax(260px, 0.55fr);
+  margin-bottom: 20px;
+  padding: 16px;
+}
+
+.project-access-picker,
+.project-access-summary {
+  background: #fff;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.project-access-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.project-access-picker-title,
+.project-access-section-title {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.project-access-picker-title h3,
+.project-access-section-title h3,
+.project-access-summary h3 {
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 850;
+  margin: 0;
+}
+
+.project-access-picker-title span,
+.project-access-section-title span,
+.project-access-selection-summary span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.project-access-search {
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 10px;
+}
+
+.project-access-search svg {
+  color: #64748b;
+  flex: 0 0 auto;
+}
+
+.project-access-search input {
+  border: 0;
+  flex: 1;
+  font-size: 14px;
+  min-width: 0;
+  outline: 0;
+  padding: 0;
+}
+
+.project-access-choice-list {
+  border: 1px solid #e5edf6;
+  border-radius: 8px;
+  display: grid;
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.project-access-choice {
+  align-items: center;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 58px;
+  padding: 10px 12px;
+}
+
+.project-access-choice + .project-access-choice {
+  border-top: 1px solid #edf2f7;
+}
+
+.project-access-choice:hover {
+  background: #f8fafc;
+}
+
+.project-access-choice input {
+  height: 16px;
+  width: 16px;
+}
+
+.project-access-choice > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.project-access-choice b {
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-access-choice small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-access-row label > span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.project-access-summary {
+  align-content: start;
+  display: grid;
+  gap: 16px;
+}
+
+.project-access-levels {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.project-access-levels button {
+  background: #f8fafc;
+  border-color: #dbe4ef;
+  color: #1f2937;
+  justify-content: flex-start;
+  min-height: 40px;
+  width: 100%;
+}
+
+.project-access-levels button.active {
+  background: #e9f0ff;
+  border-color: #2f66d8;
+  color: #1f4fb2;
+}
+
+.project-access-selection-summary {
+  background: #f8fafc;
+  border: 1px solid #e5edf6;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.project-access-summary > button {
+  min-height: 42px;
+  width: 100%;
+}
+
+.project-access-section-title {
+  margin-bottom: 10px;
+}
+
+.project-access-table {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.project-access-head,
+.project-access-row {
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns:
+    minmax(230px, 1fr) minmax(280px, 1.15fr) 190px 170px 190px 64px;
+  min-width: 1160px;
+}
+
+.project-access-head {
+  background: #eaf0f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  min-height: 42px;
+  text-transform: uppercase;
+}
+
+.project-access-head span,
+.project-access-row > div,
+.project-access-row > span,
+.project-access-row label,
+.project-access-row button {
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.project-access-row {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+}
+
+.project-access-row > div {
+  display: grid;
+  gap: 3px;
+}
+
+.project-access-row b {
+  color: #1f2937;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-access-row small,
+.project-access-row > span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.project-access-row label {
+  display: grid;
+  gap: 4px;
+}
+
+.project-access-row select {
+  min-height: 36px;
+}
+
+.project-access-empty {
+  color: #64748b;
+  font-weight: 750;
+  margin: 0;
+  padding: 16px;
 }
 
 .closed-project-banner {

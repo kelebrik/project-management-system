@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, type Dispatch, type SetStateAction } from "react";
 import { apiClient } from "../api/client";
 import type { SavedView } from "../app/domainTypes";
-import { GANTT_HIERARCHY_LEVELS, clampNumber } from "../app/ganttConfig";
+import { GANTT_HIERARCHY_LEVELS, clampNumber, type GanttScale } from "../app/ganttConfig";
 import type { RaidTypeFilter } from "../app/raidModels";
 import type { AppView } from "../app/routes";
 import {
@@ -36,8 +36,8 @@ type UseSavedViewsControllerOptions = {
   setWbsHierarchyLevel: (level: number) => void;
   showStructureCriticalPath: boolean;
   setShowStructureCriticalPath: Dispatch<SetStateAction<boolean>>;
-  ganttScale: "month" | "quarter";
-  setGanttScale: Dispatch<SetStateAction<"month" | "quarter">>;
+  ganttScale: GanttScale;
+  setGanttScale: Dispatch<SetStateAction<GanttScale>>;
   showGanttDependencies: boolean;
   setShowGanttDependencies: Dispatch<SetStateAction<boolean>>;
   showGanttCriticalPath: boolean;
@@ -238,7 +238,11 @@ export function useSavedViewsController({
       if (typeof config.showStructureCriticalPath === "boolean") {
         setShowStructureCriticalPath(config.showStructureCriticalPath);
       }
-      if (config.ganttScale === "month" || config.ganttScale === "quarter") {
+      if (
+        config.ganttScale === "week" ||
+        config.ganttScale === "month" ||
+        config.ganttScale === "quarter"
+      ) {
         setGanttScale(config.ganttScale);
       }
       if (typeof config.showGanttDependencies === "boolean") {

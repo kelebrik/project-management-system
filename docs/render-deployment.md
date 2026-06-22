@@ -29,8 +29,9 @@ Required:
 ```text
 NODE_ENV=production
 NPM_CONFIG_PRODUCTION=false
-WEB_ORIGIN=*
-SEED_DEMO_DATA=true
+WEB_ORIGIN=https://<your-render-service>.onrender.com
+SEED_DEMO_DATA=false
+METRICS_TOKEN=<random secret>
 DATABASE_URL=<Render PostgreSQL internal connection string>
 ```
 

@@ -74,7 +74,7 @@ DATABASE_URL=postgresql://...
 SESSION_SECRET=<long-random-secret>
 WEB_ORIGIN=https://<app-host>
 AUTH_COOKIE_SECURE=true
-METRICS_TOKEN=<optional-token>
+METRICS_TOKEN=<required-random-token>
 JIRA_BASE_URL=<optional-jira-url>
 JIRA_EMAIL=<optional-integration-user>
 JIRA_API_TOKEN=<optional-token>
@@ -104,13 +104,21 @@ JIRA_API_TOKEN=<optional-token>
 1. Собрать image в разрешенный registry.
 2. Заменить `image:` в `deploy/k8s/project-management-system.yaml` на этот image.
 3. Создать secret `project-management-system-secrets`.
-4. Применить манифест:
+4. Выполнить migration Job и дождаться завершения. Для повторного релиза сначала удалите предыдущий completed Job:
+
+```bash
+kubectl delete job project-management-system-migrate --ignore-not-found
+kubectl apply -f deploy/k8s/project-management-system-migrate-job.yaml
+kubectl wait --for=condition=complete job/project-management-system-migrate --timeout=300s
+```
+
+5. Применить манифест приложения:
 
 ```bash
 kubectl apply -f deploy/k8s/project-management-system.yaml
 ```
 
-5. Проверить readiness:
+6. Проверить readiness:
 
 ```bash
 kubectl rollout status deployment/project-management-system

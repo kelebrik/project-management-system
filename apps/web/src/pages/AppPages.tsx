@@ -4,34 +4,43 @@ import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
 import { AdminIntegrationsPageContent } from "./AdminIntegrationsPageContent";
 import { AdminJiraProjectPage } from "./AdminJiraProjectPage";
 import { AdminModulesPageContent } from "./AdminModulesPageContent";
+import { AdminProjectAccessPageContent } from "./AdminProjectAccessPageContent";
 import { AdminProjectsPageContent } from "./AdminProjectsPageContent";
 import { AdminRagPageContent, AdminSystemJiraPageContent, AdminTemplatesPageContent, AdminWorkflowsPageContent } from "./AdminSettingsPages";
 import { AdminRolesPageContent } from "./AdminRolesPageContent";
 import { AdminUsersPageContent } from "./AdminUsersPageContent";
 import { ClosedProjectsPage } from "./ClosedProjectsPage";
 import { PortfolioPage } from "./PortfolioPage";
+import { ProjectsPage } from "./ProjectsPage";
 import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
 import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
 import { ProjectCreatePage } from "./ProjectCreatePage";
 import { ProjectIssuesPage } from "./ProjectIssuesPage";
+import { ProjectJiraWorkPage } from "./ProjectJiraWorkPage";
 import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
 import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
 import { ProjectPassportPage } from "./ProjectPassportPage";
 import { ProjectRaidPage } from "./ProjectRaidPage";
-import { ProjectBudgetPage, ProjectChangesPage, ProjectResourcesPage } from "./ProjectSupportPages";
+import { ProjectBudgetPage, ProjectChangesPage } from "./ProjectSupportPages";
 import { ProjectWorkspacePage } from "./ProjectWorkspacePage";
+import {
+  ResourceOverviewPage,
+  ResourceCapacityPage,
+} from "./ResourcePages";
 import { usePageContext } from "./PageContext";
 
 export function AppPages() {
-  const { activeView, isAdminSectionView, project } = usePageContext();
+  const { activeView, isAdminSectionView, isAdminUser, isResourceSectionView, project } =
+    usePageContext();
 
-  if (!(project || activeView === "portfolio" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView)) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isResourceSectionView))) {
     return null;
   }
 
   return (
     <>
       {activeView === "portfolio" && <PortfolioPage />}
+      {activeView === "projects" && <ProjectsPage />}
       {project && activeView === "project-overview" && <ProjectOverviewSummaryPage />}
       {activeView === "closed-projects" && <ClosedProjectsPage />}
 
@@ -50,15 +59,18 @@ export function AppPages() {
         {activeView === "admin-backups" && <AdminBackupsPageContent />}
         {activeView === "admin-config" && <AdminConfigPageContent />}
         {activeView === "admin-projects" && <AdminProjectsPageContent />}
+        {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
+        {isAdminUser && activeView === "resources" && <ResourceOverviewPage />}
+        {isAdminUser && activeView === "resources-capacity" && <ResourceCapacityPage />}
         {project && activeView === "project-overview" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
-        {project && activeView === "project-resources" && <ProjectResourcesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
         {project && activeView === "admin-jira" && <AdminJiraProjectPage />}
+        {project && activeView === "project-jira-work" && <ProjectJiraWorkPage />}
         {project && activeView === "project-issues" && <ProjectIssuesPage />}
         {project && activeView === "project-raid" && <ProjectRaidPage />}
         {project && activeView === "project-artifacts" && <ProjectArtifactsPage />}

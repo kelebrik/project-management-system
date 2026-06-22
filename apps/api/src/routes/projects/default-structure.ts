@@ -1,5 +1,5 @@
 import { prisma } from '../../db.js';
-import { renumberProjectWbs } from '../../services/wbs.js';
+import { recalculateProjectWbsHierarchyStatuses, renumberProjectWbs } from '../../services/wbs.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 
 const defaultProjectWbsItems = [
@@ -78,4 +78,5 @@ export async function createDefaultProjectStructure(projectId: string, projectSt
 
   await renumberProjectWbs(projectId);
   await recalculateProjectWbsSchedule(projectId);
+  await recalculateProjectWbsHierarchyStatuses(projectId);
 }

@@ -37,6 +37,18 @@ export function ProjectGanttPanel() {
     wbsDisplayLevel,
     wbsGantt,
   } = usePageContext();
+  const primaryPeriods =
+    ganttScale === "week"
+      ? wbsGantt.weeks
+      : ganttScale === "quarter"
+        ? wbsGantt.quarters
+        : wbsGantt.months;
+  const subPeriods =
+    ganttScale === "quarter"
+      ? wbsGantt.months
+      : ganttScale === "month"
+        ? wbsGantt.weeks
+        : [];
 
   return <div
                             className="gantt-panel"
@@ -50,9 +62,7 @@ export function ProjectGanttPanel() {
                                 "--gantt-wbs-width": `${ganttWbsWidth}px`,
                                 "--gantt-timeline-width": `${Math.max(
                                   520,
-                                  (ganttScale === "quarter"
-                                    ? wbsGantt.quarters.length
-                                    : wbsGantt.months.length) *
+                                  primaryPeriods.length *
                                     GANTT_SCALE_WIDTH[ganttScale],
                                 )}px`,
                               } as GanttCssProperties
@@ -68,11 +78,8 @@ export function ProjectGanttPanel() {
                         aria-label="Изменить ширину колонки Структуры"
                       />
                       <div className="gantt-scale">
-                        {wbsGantt.months.length > 0 ? (
-                          (ganttScale === "quarter"
-                            ? wbsGantt.quarters
-                            : wbsGantt.months
-                          ).map((period) => (
+                        {primaryPeriods.length > 0 ? (
+                          primaryPeriods.map((period) => (
                             <span
                               key={period.label}
                               style={{
@@ -157,10 +164,7 @@ export function ProjectGanttPanel() {
                             style={{ minHeight: `${wbsGantt.height}px` }}
                           >
                             <div className="gantt-month-grid" aria-hidden="true">
-                              {(ganttScale === "quarter"
-                                ? wbsGantt.quarters
-                                : wbsGantt.months
-                              ).map((period) => (
+                              {primaryPeriods.map((period) => (
                                 <span
                                   key={period.label}
                                   style={{
@@ -170,9 +174,9 @@ export function ProjectGanttPanel() {
                                 />
                               ))}
                             </div>
-                            {ganttScale === "quarter" && (
+                            {subPeriods.length > 0 && (
                               <div className="gantt-sub-grid" aria-hidden="true">
-                                {wbsGantt.months.map((period) => (
+                                {subPeriods.map((period) => (
                                   <span
                                     key={`${ganttScale}-${period.label}`}
                                     style={{ left: `${period.offset}%` }}
@@ -368,7 +372,7 @@ export function ProjectGanttPanel() {
                                     />
                                   )}
                                     <i
-                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${summary ? "summary" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
+                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${item.type === "GOAL" ? "goal" : ""} ${summary ? "summary" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
                                       style={{
                                         left: `${offset}%`,
                                         width: milestone ? undefined : `${width}%`,

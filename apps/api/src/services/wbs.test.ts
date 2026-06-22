@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { wbsItemBaseSchema, wbsItemSchema } from "@pms/shared";
 import {
   calculateWbsBaselineVariance,
   calculateWbsScheduleUpdates,
@@ -8,7 +9,17 @@ import {
   resolveWbsScheduleDateWrites,
   resolveWbsSchedulePatch,
 } from "./wbs-schedule-patch.js";
-import { buildWbsRenumberPlan, levelFromWbsCode } from "./wbs.js";
+import {
+  buildWbsRenumberPlan,
+  calculateWbsHierarchyStatusUpdates,
+  levelFromWbsCode,
+} from "./wbs.js";
+
+test("WBS patch schema does not default effort percent on partial updates", () => {
+  assert.equal(wbsItemSchema.parse({ code: "1", title: "", owner: "" }).effortPercent, 0);
+  const parsedPatch = wbsItemBaseSchema.partial().parse({ status: "DONE" });
+  assert.deepEqual(parsedPatch, { status: "DONE" });
+});
 
 test("levelFromWbsCode reads hierarchy depth from dotted code", () => {
   assert.equal(levelFromWbsCode("1"), 1);
@@ -62,6 +73,205 @@ test("buildWbsRenumberPlan keeps up to six predecessor codes", () => {
     "5",
     "6",
   ]);
+});
+
+test("calculateWbsHierarchyStatusUpdates moves phase and package to in progress when a child task starts", () => {
+  const updates = calculateWbsHierarchyStatusUpdates([
+    {
+      id: "phase",
+      parentId: null,
+      type: "PHASE",
+      status: "NOT_STARTED",
+    },
+    {
+      id: "package",
+      parentId: "phase",
+      type: "WORK_PACKAGE",
+      status: "NOT_STARTED",
+    },
+    {
+      id: "task",
+      parentId: "package",
+      type: "TASK",
+      status: "IN_PROGRESS",
+    },
+  ]);
+
+  assert.deepEqual(updates, [
+    { id: "phase", status: "IN_PROGRESS" },
+    { id: "package", status: "IN_PROGRESS" },
+  ]);
+});
+
+test("calculateWbsHierarchyStatusUpdates prioritizes at risk over in progress", () => {
+  const updates = calculateWbsHierarchyStatusUpdates([
+    {
+      id: "phase",
+      parentId: null,
+      type: "PHASE",
+      status: "IN_PROGRESS",
+    },
+    {
+      id: "package",
+      parentId: "phase",
+      type: "WORK_PACKAGE",
+      status: "IN_PROGRESS",
+    },
+    {
+      id: "task-a",
+      parentId: "package",
+      type: "TASK",
+      status: "IN_PROGRESS",
+    },
+    {
+      id: "task-b",
+      parentId: "package",
+      type: "TASK",
+      status: "AT_RISK",
+    },
+  ]);
+
+  assert.deepEqual(updates, [
+    { id: "phase", status: "AT_RISK" },
+    { id: "package", status: "AT_RISK" },
+  ]);
+});
+
+test("calculateWbsHierarchyStatusUpdates rolls up in review tasks", () => {
+  const updates = calculateWbsHierarchyStatusUpdates([
+    {
+      id: "phase",
+      parentId: null,
+      type: "PHASE",
+      status: "NOT_STARTED",
+    },
+    {
+      id: "task",
+      parentId: "phase",
+      type: "TASK",
+      status: "IN_REVIEW",
+    },
+  ]);
+
+  assert.deepEqual(updates, [{ id: "phase", status: "IN_REVIEW" }]);
+});
+
+test("calculateWbsHierarchyStatusUpdates reads nested task status through deliverables", () => {
+  const updates = calculateWbsHierarchyStatusUpdates([
+    {
+      id: "phase",
+      parentId: null,
+      type: "PHASE",
+      status: "NOT_STARTED",
+    },
+    {
+      id: "package",
+      parentId: "phase",
+      type: "WORK_PACKAGE",
+      status: "NOT_STARTED",
+    },
+    {
+      id: "deliverable",
+      parentId: "package",
+      type: "DELIVERABLE",
+      status: "NOT_STARTED",
+    },
+    {
+      id: "task",
+      parentId: "deliverable",
+      type: "TASK",
+      status: "AT_RISK",
+    },
+  ]);
+
+  assert.deepEqual(updates, [
+    { id: "phase", status: "AT_RISK" },
+    { id: "package", status: "AT_RISK" },
+  ]);
+});
+
+test("calculateWbsHierarchyStatusUpdates completes package when all child tasks are done", () => {
+  const updates = calculateWbsHierarchyStatusUpdates([
+    {
+      id: "phase",
+      parentId: null,
+      type: "PHASE",
+      status: "IN_PROGRESS",
+    },
+    {
+      id: "package",
+      parentId: "phase",
+      type: "WORK_PACKAGE",
+      status: "IN_PROGRESS",
+    },
+    {
+      id: "task-a",
+      parentId: "package",
+      type: "TASK",
+      status: "DONE",
+    },
+    {
+      id: "task-b",
+      parentId: "package",
+      type: "TASK",
+      status: "DONE",
+    },
+  ]);
+
+  assert.deepEqual(updates, [
+    { id: "phase", status: "DONE" },
+    { id: "package", status: "DONE" },
+  ]);
+});
+
+test("calculateWbsHierarchyStatusUpdates completes phase when all work packages are done", () => {
+  const updates = calculateWbsHierarchyStatusUpdates([
+    {
+      id: "phase",
+      parentId: null,
+      type: "PHASE",
+      status: "IN_PROGRESS",
+    },
+    {
+      id: "package-a",
+      parentId: "phase",
+      type: "WORK_PACKAGE",
+      status: "DONE",
+    },
+    {
+      id: "package-b",
+      parentId: "phase",
+      type: "WORK_PACKAGE",
+      status: "DONE",
+    },
+  ]);
+
+  assert.deepEqual(updates, [{ id: "phase", status: "DONE" }]);
+});
+
+test("calculateWbsHierarchyStatusUpdates keeps mixed done and not started parent in progress", () => {
+  const updates = calculateWbsHierarchyStatusUpdates([
+    {
+      id: "phase",
+      parentId: null,
+      type: "PHASE",
+      status: "NOT_STARTED",
+    },
+    {
+      id: "task-a",
+      parentId: "phase",
+      type: "TASK",
+      status: "DONE",
+    },
+    {
+      id: "task-b",
+      parentId: "phase",
+      type: "TASK",
+      status: "NOT_STARTED",
+    },
+  ]);
+
+  assert.deepEqual(updates, [{ id: "phase", status: "IN_PROGRESS" }]);
 });
 
 const emptyPredecessors = {
@@ -163,6 +373,55 @@ test("calculateWbsScheduleUpdates starts successor from latest predecessor plus 
   assert.equal(taskC?.startDate?.toISOString().slice(0, 10), "2026-05-22");
   assert.equal(taskC?.dueDate?.toISOString().slice(0, 10), "2026-05-26");
   assert.equal(taskC?.calendarDays, 5);
+});
+
+test("calculateWbsScheduleUpdates keeps goal due date and moves its forecast by predecessors", () => {
+  const items = [
+    {
+      id: "task-a",
+      code: "1.1",
+      type: "TASK" as const,
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      dueDate: new Date("2026-06-05T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-06-01T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-06-05T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 5,
+      calendarDays: 5,
+      calendarCode: "RU" as const,
+      sortOrder: 10,
+    },
+    {
+      id: "goal",
+      code: "1.2",
+      type: "GOAL" as const,
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      dueDate: new Date("2026-06-01T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-06-01T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-06-01T00:00:00.000Z"),
+      predecessor1: "1.1",
+      predecessor2: null,
+      predecessor3: null,
+      predecessor4: null,
+      predecessor5: null,
+      predecessor6: null,
+      leadLagDays: 0,
+      workDays: 0,
+      calendarDays: 1,
+      calendarCode: "RU" as const,
+      sortOrder: 20,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], []);
+  const goal = updates.find((item) => item.id === "goal");
+
+  assert.equal(goal?.startDate?.toISOString().slice(0, 10), "2026-06-01");
+  assert.equal(goal?.dueDate?.toISOString().slice(0, 10), "2026-06-01");
+  assert.equal(goal?.forecastStartDate?.toISOString().slice(0, 10), "2026-06-08");
+  assert.equal(goal?.forecastDueDate?.toISOString().slice(0, 10), "2026-06-08");
+  assert.equal(goal?.workDays, 0);
 });
 
 test("calculateWbsScheduleUpdates derives empty work days from dates", () => {
