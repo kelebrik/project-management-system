@@ -283,39 +283,6 @@ function calculateWbsSchedulePass(
           (date): date is Date => date !== null,
         ),
       );
-      if (item.type === "GOAL") {
-        const approvedGoalDate =
-          normalizedDate(item.dueDate ?? item.startDate) ?? nextDueDate ?? nextStartDate;
-        nextStartDate = approvedGoalDate;
-        nextDueDate = approvedGoalDate;
-        durationWorkDays = 0;
-        const forecastDate = computedCheckpointDate ?? approvedGoalDate;
-        const update: WbsScheduleUpdate = {
-          id: item.id,
-          startDate: nextStartDate,
-          dueDate: nextDueDate,
-          forecastStartDate: forecastDate,
-          forecastDueDate: forecastDate,
-          workDays: durationWorkDays,
-          calendarDays:
-            nextStartDate && nextDueDate
-              ? calendarDaysInclusive(nextStartDate, nextDueDate)
-              : null,
-        };
-        computedById.set(item.id, update);
-
-        if (
-          !sameDate(item.startDate, update.startDate) ||
-          !sameDate(item.dueDate, update.dueDate) ||
-          !sameDate(item.forecastStartDate ?? null, update.forecastStartDate) ||
-          !sameDate(item.forecastDueDate ?? null, update.forecastDueDate) ||
-          !sameNumber(item.workDays, update.workDays) ||
-          !sameNumber(item.calendarDays, update.calendarDays)
-        ) {
-          updatesById.set(item.id, update);
-        }
-        continue;
-      }
       const editedAnchor =
         isDateDrivenChange && changedFields.has("dueDate")
           ? nextDueDate
