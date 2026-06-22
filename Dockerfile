@@ -49,6 +49,10 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOME=/tmp
 ENV NPM_CONFIG_CACHE=/tmp/.npm
+ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
+ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
+ENV PRISMA_SCHEMA_ENGINE_BINARY=/opt/prisma-engines/schema-engine-debian-openssl-3.0.x
+ENV PRISMA_QUERY_ENGINE_LIBRARY=/opt/prisma-engines/libquery_engine-debian-openssl-3.0.x.so.node
 
 RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-ssl-verify \
   && sed -i 's|http://deb.debian.org/debian-security|https://nexus.sberdevices.ru/repository/debian_bookworm_security|g' /etc/apt/sources.list.d/debian.sources \
@@ -59,6 +63,7 @@ RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-
   && mkdir -p /tmp/.npm \
   && chown -R node:node /app /tmp/.npm
 
+COPY --from=deps --chown=node:node /opt/prisma-engines /opt/prisma-engines
 COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/packages/shared/package.json ./packages/shared/package.json
@@ -68,9 +73,13 @@ COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=node:node /app/apps/web/dist ./apps/web/dist
 COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/prisma.config.ts ./prisma.config.ts
+COPY --chown=node:node scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+
+RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 3000
 
 USER node
 
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["npm", "run", "start", "--workspace", "@pms/api"]

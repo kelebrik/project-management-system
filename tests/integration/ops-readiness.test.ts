@@ -10,7 +10,7 @@ function read(filePath: string) {
   return fs.readFileSync(path.join(repoRoot, filePath), "utf8");
 }
 
-test("Docker runtime packages API, Web UI, migration job, and readiness probe", () => {
+test("Docker runtime packages API, Web UI, startup migrations, and readiness probe", () => {
   const dockerfile = read("Dockerfile");
   const compose = read("docker-compose.yml");
 
@@ -24,15 +24,15 @@ test("Docker runtime packages API, Web UI, migration job, and readiness probe", 
   assert.match(dockerfile, /npm run build/, "Docker build must compile workspaces");
   assert.match(dockerfile, /apps\/web\/dist/, "Runtime image must include built Web UI");
   assert.match(dockerfile, /EXPOSE 3000/, "Runtime image must expose application port");
-  assert.doesNotMatch(dockerfile, /CMD[\s\S]*prisma:deploy/, "Application container start must not deploy migrations");
+  assert.match(dockerfile, /docker-entrypoint\.sh/, "Runtime image must ship a startup entrypoint");
+  assert.match(dockerfile, /ENTRYPOINT \["\/app\/docker-entrypoint\.sh"\]/, "Container start must run through the migration entrypoint");
+  assert.match(read("scripts/docker-entrypoint.sh"), /npm run prisma:deploy/, "Startup entrypoint must deploy migrations before the API starts");
   assert.match(dockerfile, /"npm", "run", "start", "--workspace", "@pms\/api"/, "Container start must run the API");
   assert.match(dockerfile, /USER node/, "Runtime image must run as a non-root user");
   assert.match(dockerfile, /--chown=node:node/, "Runtime files must be owned by the non-root user");
 
   assert.match(compose, /^\s+app:/m, "docker-compose must define app service");
-  assert.match(compose, /^\s+migrate:/m, "docker-compose must define a one-shot migration service");
-  assert.match(compose, /service_completed_successfully/, "app must wait for successful migration job");
-  assert.match(compose, /npm", "run", "prisma:deploy"/, "migration service must run prisma migrate deploy");
+  assert.doesNotMatch(compose, /^\s+migrate:/m, "docker-compose must not define a separate migration service");
   assert.match(compose, /^\s+postgres:/m, "docker-compose must define postgres service");
   assert.match(compose, /env_file:\s*\n\s*- \.env/, "app must load runtime settings from .env");
   assert.match(compose, /DATABASE_URL: \$\{DATABASE_URL:\?Set DATABASE_URL in \.env\}/, "app must take DATABASE_URL from .env");
@@ -50,6 +50,7 @@ test("Operations shell scripts are syntactically valid", () => {
     "scripts/security-smoke.sh",
     "scripts/performance-smoke.sh",
     "scripts/docker-prisma-engines.sh",
+    "scripts/docker-entrypoint.sh",
     "scripts/ci-prisma-setup.sh",
     "scripts/ci-prisma-generate.sh",
     "scripts/ci-prisma-env.sh",
