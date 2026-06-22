@@ -256,3 +256,40 @@ test("overview schedule deltas rank incremental impact instead of duplicated dow
     ],
   );
 });
+
+test("overview schedule variance still reports delayed parent work without root cause rows", () => {
+  const delayedPhase = wbsItem({
+    id: "phase",
+    code: "2",
+    title: "Этап",
+    type: "PHASE",
+    baselineDueDate: "2026-05-01",
+    dueDate: "2026-06-11",
+  });
+  const childTask = wbsItem({
+    id: "task",
+    parentId: delayedPhase.id,
+    code: "2.1",
+    title: "Работа этапа",
+    baselineDueDate: null,
+    dueDate: "2026-06-11",
+  });
+  const project = baseProject({
+    wbsItems: [delayedPhase, childTask],
+    criticalPath: {
+      projectStartDate: null,
+      projectFinishDate: null,
+      criticalItemIds: [delayedPhase.id, childTask.id],
+      criticalDependencyIds: [],
+      criticalItemCount: 2,
+      nearCriticalItemCount: 0,
+      warnings: [],
+      items: [],
+    },
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.equal(dashboard.scheduleVarianceFromStructure, 41);
+  assert.deepEqual(dashboard.scheduleDeltaItems, []);
+});
