@@ -7,6 +7,7 @@ export function ProjectOverviewSummaryPage() {
     latestRaidStatusUpdate,
     openRaidItemFromOverview,
     overviewDashboard,
+    raidTypeLabel,
   } = ctx;
 
   return (
@@ -14,7 +15,7 @@ export function ProjectOverviewSummaryPage() {
                 <section className="executive-overview-grid">
                   <article className="executive-overview-card danger">
                     <div className="executive-overview-card-title">
-                      <span>Ключевые риски в красной зоне</span>
+                      <span>Ключевые риски и проблемы в красной зоне</span>
                       <strong>{overviewDashboard.redZoneRisks.length}</strong>
                     </div>
                     <div className="executive-overview-list">
@@ -30,6 +31,7 @@ export function ProjectOverviewSummaryPage() {
                           >
                             {item.title}
                           </button>
+                          <span>{raidTypeLabel(item.type)}</span>
                           {latestRaidStatusUpdate(item) && (
                             <p className="executive-status-text">
                               {latestRaidStatusUpdate(item)?.text}
@@ -38,7 +40,7 @@ export function ProjectOverviewSummaryPage() {
                         </div>
                       ))}
                       {overviewDashboard.redZoneRisks.length === 0 && (
-                        <p>Рисков с оценкой 15+ нет.</p>
+                        <p>Рисков и проблем с оценкой 15+ нет.</p>
                       )}
                     </div>
                   </article>

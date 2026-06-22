@@ -48,8 +48,16 @@ export function createOverviewDashboard(
       startOfDay(new Date(entry.milestone.dueDate)) >= today,
   );
   const redZoneRisks = riskItems
-    .filter((item) => item.type === "RISK" && item.riskScore >= 15)
-    .sort((left, right) => right.riskScore - left.riskScore)
+    .filter(
+      (item) =>
+        (item.type === "RISK" || item.type === "DEPENDENCY") &&
+        item.riskScore >= 15,
+    )
+    .sort(
+      (left, right) =>
+        right.riskScore - left.riskScore ||
+        left.title.localeCompare(right.title, "ru"),
+    )
     .slice(0, 5);
   const blockingTickets =
     project?.jiraWorkSections

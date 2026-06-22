@@ -63,6 +63,40 @@ function wbsItem(
   };
 }
 
+function raidItem(
+  overrides: Partial<ProjectDetails["raidItems"][number]>,
+): ProjectDetails["raidItems"][number] {
+  return {
+    id: overrides.id ?? "raid",
+    type: "RISK",
+    title: "Риск",
+    description: "Описание риска",
+    owner: "Owner",
+    status: "OPEN",
+    probability: 4,
+    impact: 4,
+    riskScore: 16,
+    mitigationPlan: null,
+    contingencyPlan: null,
+    dueDate: null,
+    residualRisk: 0,
+    validationDate: null,
+    linkedRiskId: null,
+    dependencyType: null,
+    predecessor: null,
+    successor: null,
+    supplier: null,
+    jiraTicketKey: null,
+    jiraTicketUrl: null,
+    decisionRequired: false,
+    escalationLevel: "Project",
+    scheduleImpactDays: 0,
+    budgetImpact: "0",
+    statusUpdates: [],
+    ...overrides,
+  };
+}
+
 test("overview risk tickets only come from the first Jira work section", () => {
   const project = baseProject({
     jiraWorkSections: [
@@ -144,6 +178,45 @@ test("overview risk tickets use synced issues from the first Jira work section",
 
   assert.equal(dashboard.blockingTickets.length, 1);
   assert.equal(dashboard.blockingTickets[0]?.jiraTicketKey, "PMS-42");
+});
+
+test("overview red zone includes high risks and problems", () => {
+  const project = baseProject({
+    raidItems: [
+      raidItem({ id: "risk", type: "RISK", title: "Красный риск", riskScore: 16 }),
+      raidItem({
+        id: "problem",
+        type: "DEPENDENCY",
+        title: "Красная проблема",
+        riskScore: 20,
+      }),
+      raidItem({
+        id: "assumption",
+        type: "ASSUMPTION",
+        title: "Красное допущение",
+        riskScore: 25,
+      }),
+      raidItem({
+        id: "closed-risk",
+        type: "RISK",
+        status: "CLOSED",
+        riskScore: 25,
+      }),
+      raidItem({
+        id: "low-problem",
+        type: "DEPENDENCY",
+        title: "Желтая проблема",
+        riskScore: 12,
+      }),
+    ],
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.deepEqual(
+    dashboard.redZoneRisks.map((item) => item.id),
+    ["problem", "risk"],
+  );
 });
 
 test("overview schedule deltas only include delayed leaf work on the critical path", () => {
