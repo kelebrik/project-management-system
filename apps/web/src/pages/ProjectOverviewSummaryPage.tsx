@@ -114,16 +114,6 @@ export function ProjectOverviewSummaryPage() {
                       </strong>
                     </div>
                     <div className="executive-overview-list">
-                      {overviewDashboard.scheduleVarianceFromStructure === 0 &&
-                        overviewDashboard.scheduleDelayImpactDays > 0 &&
-                        overviewDashboard.scheduleAccelerationImpactDays > 0 && (
-                          <p className="executive-status-text">
-                            Итоговое отклонение 0 дней: есть отставания +
-                            {overviewDashboard.scheduleDelayImpactDays} дн. и
-                            опережение -
-                            {overviewDashboard.scheduleAccelerationImpactDays} дн.
-                          </p>
-                        )}
                       {overviewDashboard.scheduleDelayItems.length > 0 && (
                         <div className="schedule-impact-group">
                           <h4>Максимальное влияние на отставание</h4>
