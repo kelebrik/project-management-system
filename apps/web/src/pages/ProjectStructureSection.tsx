@@ -1,14 +1,24 @@
-import { FileDown, Maximize2, Minimize2 } from "lucide-react";
+import { FileDown, Languages, Maximize2, Minimize2 } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { usePageContext } from "./PageContext";
 import type { WbsFormState } from "../app/formState";
 import { wbsToForm } from "../app/formState";
 import {
+  hasOfflineWbsEnglishTranslator,
+  loadWbsEnglishManualTranslations,
+  loadWbsEnglishTranslationCache,
+  normalizeWbsEnglishSourceTitle,
+  resolveWbsEnglishTitle,
+  saveWbsEnglishManualTranslations,
+  saveWbsEnglishTranslationCache,
+  translateWbsTitleWithOfflineFallback,
   WBS_COLUMN_EN_LABELS,
   WBS_STATUS_EN_LABELS,
   WBS_TYPE_EN_LABELS,
+  type WbsEnglishTranslation,
+  type WbsEnglishTranslationMap,
   wbsEnglishProjectName,
-  wbsEnglishTitle,
 } from "../app/wbsEnglishPrint";
 import { resolveDraftPredecessorCode, wbsDraftDisplayLevel } from "../app/wbsTree";
 import type { WbsTableCssProperties } from "../app/uiStyleTypes";
@@ -22,6 +32,40 @@ function emptyValue(value: string | number | null | undefined) {
 function formatPercent(value: string | number | null | undefined) {
   const normalizedValue = emptyValue(value);
   return normalizedValue ? `${normalizedValue}%` : "";
+}
+
+function wbsEnglishTranslationSourceLabel(source: WbsEnglishTranslation["source"]) {
+  switch (source) {
+    case "manual":
+      return "ручная";
+    case "glossary":
+      return "глоссарий";
+    case "cache":
+      return "кеш";
+    case "legacy-code":
+      return "код WBS";
+    case "original":
+      return "оригинал";
+    default:
+      return source;
+  }
+}
+
+function upsertTranslation(
+  translations: WbsEnglishTranslationMap,
+  sourceTitle: string,
+  translatedTitle: string,
+) {
+  const normalizedSource = normalizeWbsEnglishSourceTitle(sourceTitle);
+  if (!normalizedSource) return translations;
+  const nextTranslations = { ...translations };
+  const normalizedTranslation = translatedTitle.trim();
+  if (normalizedTranslation) {
+    nextTranslations[normalizedSource] = normalizedTranslation;
+  } else {
+    delete nextTranslations[normalizedSource];
+  }
+  return nextTranslations;
 }
 
 export function ProjectStructureSection() {
@@ -82,6 +126,98 @@ export function ProjectStructureSection() {
 
   const englishProjectName = wbsEnglishProjectName(project.name);
   const englishPrintTitle = `${englishProjectName} - Structure`;
+  const [showEnglishTranslationPanel, setShowEnglishTranslationPanel] =
+    useState(false);
+  const [manualEnglishTranslations, setManualEnglishTranslations] = useState(
+    () => loadWbsEnglishManualTranslations(),
+  );
+  const [cachedEnglishTranslations, setCachedEnglishTranslations] = useState(
+    () => loadWbsEnglishTranslationCache(),
+  );
+  const [offlineTranslationState, setOfflineTranslationState] = useState<
+    "idle" | "running"
+  >("idle");
+
+  const englishStructureRows = useMemo(
+    () =>
+      visibleStructureWbsTree.map((item: WbsTreeItem) => {
+        const draft = wbsDrafts[item.id] ?? wbsToForm(item);
+        const displayCode = draftWbsCodes.get(item.id) ?? draft.code;
+        const translation = resolveWbsEnglishTitle({
+          code: displayCode,
+          title: draft.title,
+          projectName: project.name,
+          manualTranslations: manualEnglishTranslations,
+          cachedTranslations: cachedEnglishTranslations,
+        });
+        return {
+          draft,
+          displayCode,
+          displayLevel: wbsDraftDisplayLevel(item, draft),
+          item,
+          normalizedTitle: normalizeWbsEnglishSourceTitle(draft.title),
+          translation,
+        };
+      }),
+    [
+      cachedEnglishTranslations,
+      draftWbsCodes,
+      manualEnglishTranslations,
+      project.name,
+      visibleStructureWbsTree,
+      wbsDrafts,
+    ],
+  );
+  const editableEnglishRows = useMemo(() => {
+    const seenTitles = new Set<string>();
+    return englishStructureRows.filter((row) => {
+      if (!row.normalizedTitle || seenTitles.has(row.normalizedTitle)) {
+        return false;
+      }
+      seenTitles.add(row.normalizedTitle);
+      return true;
+    });
+  }, [englishStructureRows]);
+  const untranslatedEnglishRows = editableEnglishRows.filter(
+    (row) => row.translation.source === "original",
+  );
+
+  const updateManualEnglishTranslation = (
+    sourceTitle: string,
+    translatedTitle: string,
+  ) => {
+    const nextTranslations = upsertTranslation(
+      manualEnglishTranslations,
+      sourceTitle,
+      translatedTitle,
+    );
+    setManualEnglishTranslations(nextTranslations);
+    saveWbsEnglishManualTranslations(nextTranslations);
+  };
+
+  const translateMissingTitlesOffline = async () => {
+    setOfflineTranslationState("running");
+    try {
+      let nextCache = { ...cachedEnglishTranslations };
+      for (const row of untranslatedEnglishRows) {
+        const translatedTitle = await translateWbsTitleWithOfflineFallback(
+          row.draft.title,
+        ).catch(() => null);
+        if (translatedTitle) {
+          nextCache = upsertTranslation(
+            nextCache,
+            row.draft.title,
+            translatedTitle,
+          );
+        }
+      }
+      setCachedEnglishTranslations(nextCache);
+      saveWbsEnglishTranslationCache(nextCache);
+    } finally {
+      setOfflineTranslationState("idle");
+    }
+  };
+
   const englishWbsCellValue = (
     columnKey: WbsTableColumnKey,
     item: WbsTreeItem,
@@ -274,6 +410,17 @@ export function ProjectStructureSection() {
                               <FileDown size={15} />
                               PDF EN
                             </button>
+                            <button
+                              type="button"
+                              className="wbs-pdf-button"
+                              onClick={() =>
+                                setShowEnglishTranslationPanel((current) => !current)
+                              }
+                              title="Редактировать английские переводы Структуры"
+                            >
+                              <Languages size={15} />
+                              EN
+                            </button>
                             <div
                               className="segmented-control hierarchy-control"
                               aria-label="Глубина иерархии Структуры"
@@ -377,6 +524,78 @@ export function ProjectStructureSection() {
                           </button>
                         </div>
                       )}
+                          {showEnglishTranslationPanel && (
+                            <div className="wbs-translation-panel">
+                              <div className="wbs-translation-panel-head">
+                                <div>
+                                  <h3>Английские переводы Структуры</h3>
+                                  <p>
+                                    Глоссарий общий для всех проектов. Ручные правки
+                                    сохраняются в этом браузере и имеют приоритет.
+                                  </p>
+                                </div>
+                                <div className="wbs-translation-panel-actions">
+                                  <button
+                                    type="button"
+                                    onClick={() => void translateMissingTitlesOffline()}
+                                    disabled={
+                                      offlineTranslationState === "running" ||
+                                      untranslatedEnglishRows.length === 0 ||
+                                      !hasOfflineWbsEnglishTranslator()
+                                    }
+                                    title={
+                                      hasOfflineWbsEnglishTranslator()
+                                        ? "Перевести непокрытые строки локальным переводчиком браузера"
+                                        : "Локальный переводчик в этом браузере недоступен"
+                                    }
+                                  >
+                                    {offlineTranslationState === "running"
+                                      ? "Перевожу..."
+                                      : `Офлайн fallback: ${untranslatedEnglishRows.length}`}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowEnglishTranslationPanel(false)}
+                                  >
+                                    Закрыть
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="wbs-translation-table">
+                                {editableEnglishRows.map((row) => (
+                                  <div
+                                    key={`translation-${row.normalizedTitle}`}
+                                    className="wbs-translation-row"
+                                  >
+                                    <div>
+                                      <span>{row.displayCode}</span>
+                                      <strong>{row.draft.title}</strong>
+                                    </div>
+                                    <input
+                                      value={
+                                        manualEnglishTranslations[
+                                          row.normalizedTitle
+                                        ] ?? row.translation.text
+                                      }
+                                      onChange={(event) =>
+                                        updateManualEnglishTranslation(
+                                          row.draft.title,
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                    <em>
+                                      {wbsEnglishTranslationSourceLabel(
+                                        manualEnglishTranslations[row.normalizedTitle]
+                                          ? "manual"
+                                          : row.translation.source,
+                                      )}
+                                    </em>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <div className="status-legend gantt-status-legend" aria-label="Легенда статусов Структуры">
                             <span><i className="tone-b" />В работе</span>
                             <span><i className="tone-g" />Сделано</span>
@@ -571,16 +790,15 @@ export function ProjectStructureSection() {
                             </div>
                           ))}
                         </div>
-                        {visibleStructureWbsTree.map((item: WbsTreeItem) => {
-                          const draft = wbsDrafts[item.id] ?? wbsToForm(item);
-                          const displayCode =
-                            draftWbsCodes.get(item.id) ?? draft.code;
-                          const translatedTitle = wbsEnglishTitle(
+                        {englishStructureRows.map((row) => {
+                          const {
                             displayCode,
-                            draft.title,
-                            project.name,
-                          );
-                          const displayLevel = wbsDraftDisplayLevel(item, draft);
+                            displayLevel,
+                            draft,
+                            item,
+                            translation,
+                          } = row;
+                          const translatedTitle = translation.text;
                           return (
                             <div
                               key={`en-row-${item.id}`}

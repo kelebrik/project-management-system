@@ -43,6 +43,181 @@ export const WBS_STATUS_EN_LABELS: Record<WbsItemStatus, string> = {
   CANCELLED: "Cancelled",
 };
 
+export type WbsEnglishTranslationSource =
+  | "manual"
+  | "glossary"
+  | "cache"
+  | "legacy-code"
+  | "original";
+
+export type WbsEnglishTranslation = {
+  text: string;
+  source: WbsEnglishTranslationSource;
+};
+
+export type WbsEnglishTranslationMap = Record<string, string>;
+
+const WBS_ENGLISH_MANUAL_TRANSLATIONS_KEY =
+  "pms.wbsEnglishTranslations.manual.v1";
+const WBS_ENGLISH_TRANSLATION_CACHE_KEY = "pms.wbsEnglishTranslations.cache.v1";
+
+const COMMON_WBS_TITLE_GLOSSARY_ENTRIES: Array<[string, string]> = [
+  ["Выпуск заводского ПО", "Factory software release"],
+  ["Запуск проекта", "Project launch"],
+  ["Прототип основной платы", "Mainboard prototype"],
+  ["Первичная сборка прошивки", "Initial firmware build"],
+  ["Первичные тесты печатной платы в сборе", "Initial PCBA tests"],
+  ["Первичное устранение неисправностей", "Initial troubleshooting"],
+  ["Синхронизация патчей", "Patch synchronization"],
+  ["Эпики, метки, фильтры, паспорт и прочее", "Epics, labels, filters, passport, etc."],
+  ["Первичная настройка Jenkins", "Initial Jenkins setup"],
+  ["Планирование образцов", "Sample planning"],
+  ["Старт команды ТВ", "TV team kick-off"],
+  ["Функциональные требования", "Functional requirements"],
+  ["Старт работ SD - CVTE - CH", "SD - CVTE - CH kick-off"],
+  ["Согласование заказа образцов", "Sample order alignment"],
+  [
+    "Согласование функциональных требований ТВ с тремя сторонами",
+    "Three-party TV functional requirements alignment",
+  ],
+  ["Подготовка базового плана проекта", "Baseline project plan preparation"],
+  [
+    "Согласование плана проекта с тремя сторонами",
+    "Three-party project plan alignment",
+  ],
+  ["Проект с тремя сторонами запущен", "Three-party project launched"],
+  ["Аппаратная часть", "Hardware"],
+  ["Пакет документации по аппаратной части", "Hardware documentation package"],
+  ["Проверка документации", "Documentation review"],
+  ["Плата дальней голосовой зоны", "Far-field board"],
+  ["Проектирование платы дальней голосовой зоны", "Far-field board design"],
+  ["Тесты платы дальней голосовой зоны", "Far-field board testing"],
+  ["Оценка платы дальней голосовой зоны", "Far-field board evaluation"],
+  ["Инженерная основная плата", "Engineering mainboard"],
+  ["Проектирование инженерного образца", "EVT design"],
+  ["Тесты инженерного образца", "EVT testing"],
+  ["Тесты аппаратной части", "Hardware tests"],
+  ["Оценка инженерного образца", "EVT evaluation"],
+  ["Дизайн основной платы", "Design mainboard"],
+  ["Старт проектной версии", "DVT go"],
+  ["Поверхностный монтаж", "SMT"],
+  ["Тест проектной версии", "DVT test"],
+  ["Оценка проектной версии", "DVT evaluation"],
+  [
+    "Готовность материалов основной платы для массового производства",
+    "Mass-production mainboard materials ready",
+  ],
+  ["Основная плата готова к массовому производству", "Mainboard ready for mass production"],
+  ["Дизайн ТВ", "TV design"],
+  ["Получение печатных плат в сборе", "Receive PCBAs"],
+  ["Проектирование", "Design"],
+  ["Тестирование", "Testing"],
+  ["Релиз", "Release"],
+  ["ТВ готов к массовому производству", "TV ready for mass production"],
+  ["ТВ-образцы", "TV samples"],
+  ["Производство основных плат", "Mainboard production"],
+  ["Доставка основных плат в Китай", "Mainboard delivery to China"],
+  ["Производство ТВ-образцов", "TV sample production"],
+  ["Доставка ТВ-образцов в московский офис SD", "TV sample delivery to the SD Moscow office"],
+  ["ТВ-образцы готовы", "TV samples ready"],
+  ["Образцы инженерной основной платы", "Engineering mainboard samples"],
+  [
+    "Доставка образцов основной платы в московский офис SD",
+    "Mainboard sample delivery to the SD Moscow office",
+  ],
+  ["Образцы инженерной основной платы готовы", "Engineering mainboard samples ready"],
+  ["Образцы дизайн-версии основной платы", "DVT mainboard samples"],
+  ["Печатная плата в сборе готова", "PCBA ready"],
+  ["Образцы дизайн-версии основной платы готовы", "DVT mainboard samples ready"],
+  ["Аппаратная часть готова к массовому производству", "Hardware ready for mass production"],
+  ["Программная часть", "Software"],
+  ["Подготовка требований к заводской сборке", "Factory build requirements preparation"],
+  [
+    "Согласование критичных требований к заводской сборке",
+    "Critical factory build requirements alignment",
+  ],
+  ["Таблица разделов", "Partition table"],
+  ["Ключ для прошивки в массовом производстве", "Mass-production firmware key"],
+  ["Функция OTA", "OTA function"],
+  ["Функция AT", "AT function"],
+  ["Таблица каналов", "Channel table"],
+  ["Подготовка функциональных требований к ТВ-железу", "TV hardware functional requirements preparation"],
+  ["LED-индикатор", "LED indicator"],
+  ["Zigbee", "ZigBee"],
+  ["Все функции подготовлены", "All features prepared"],
+  ["Старт HomeOS", "HomeOS kick-off"],
+  ["Подготовка кандидата релиза ПО", "Software release candidate preparation"],
+  ["Первая сборка StarOS", "First StarOS build"],
+  ["Первичные регрессионные тесты", "Initial regression tests"],
+  [
+    "Определение состава тикетов перед кандидатом релиза",
+    "Define the ticket scope before the release candidate",
+  ],
+  ["Принятие решения по версии StarOS", "Decide the StarOS version"],
+  ["Принятие решения по версиям приложений", "Decide application versions"],
+  ["Ветвление репозитория", "Repository branching"],
+  ["Создание серверных групп", "Create backend groups"],
+  ["Создание конфигураций умных приложений", "Create SmartApps configs"],
+  ["Заполнение конфигураций умных приложений", "Populate SmartApps configs"],
+  ["Перенос конфигураций умных приложений в релизный цикл", "Move SmartApps configs to the release cycle"],
+  ["[CVTE] Исправления по результатам первых тестов", "[CVTE] Fixes based on the first test results"],
+  ["[AOSP] Исправления по результатам первых тестов", "[AOSP] Fixes based on the first test results"],
+  ["[SPS] Исправления по результатам первых тестов", "[SPS] Fixes based on the first test results"],
+  [
+    "[Пуш-уведомления] Исправления по результатам первых тестов",
+    "[LS/SS/Push] Fixes based on the first test results",
+  ],
+  [
+    "[ТВ и видео] Исправления по результатам первых тестов",
+    "[Live TV/Video] Fixes based on the first test results",
+  ],
+  [
+    "[Первичная настройка] Исправления по результатам первых тестов",
+    "[SUW/Settings] Fixes based on the first test results",
+  ],
+  ["Исправления по результатам первых тестов", "Fixes based on the first test results"],
+  ["Все первичные критичные ошибки и блокеры исправлены", "All initial critical issues and blockers fixed"],
+  ["ТВ-устройства готовы к тестам", "TV devices ready for testing"],
+  ["Релиз ПО", "Software release"],
+  ["Планирование регрессионных тестов (эпики)", "Regression test planning (epics)"],
+  ["Регрессионные тесты приложений", "Application regression tests"],
+  ["Регрессионные тесты платы", "Board regression tests"],
+  ["Настройки телевизионного эквалайзера и кривой громкости", "TV PEQ and volume curve settings"],
+  ["Тесты обработки голоса и активации", "Voice processing and activation tests"],
+  ["Финальный состав тикетов", "Final ticket list"],
+  ["[CVTE] Исправления по регрессу и бете", "[CVTE] Regression and beta fixes"],
+  ["[AOSP] Исправления по регрессу и бете", "[AOSP] Regression and beta fixes"],
+  ["[SPS] Исправления по регрессу и бете", "[SPS] Regression and beta fixes"],
+  ["[Пуш-уведомления] Исправления по регрессу и бете", "[LS/SS/Push] Regression and beta fixes"],
+  ["[ТВ и видео] Исправления по регрессу и бете", "[Live TV/Video] Regression and beta fixes"],
+  ["[Первичная настройка] Исправления по регрессу и бете", "[SUW/Settings] Regression and beta fixes"],
+  ["Исправления по регрессу и бете", "Regression and beta fixes"],
+  ["Решение о готовности", "Go/No-Go decision"],
+  ["Финальные регрессионные тесты", "Final regression tests"],
+  ["Релиз приложений", "Application release"],
+  ["Релиз массового производства", "Mass-production release"],
+  ["Подготовка первой OTA", "Prepare first OTA"],
+  ["Первый OTA готов", "First OTA ready"],
+  ["Старт MP", "MP start"],
+  ["Финальный smoke", "Final smoke test"],
+  ["Финальный smoke-тест", "Final smoke test"],
+  ["Новый пульт", "New remote control"],
+  ["Маркетинг", "Marketing"],
+  ["Подготовка", "Preparation"],
+  ["Дизайн", "Design"],
+  ["Видео", "Videos"],
+  ["Медиаплан", "Media plan"],
+  ["PR", "PR"],
+  ["Подготовка первой ОТА", "Prepare first OTA"],
+];
+
+const COMMON_WBS_TITLE_GLOSSARY: WbsEnglishTranslationMap = Object.fromEntries(
+  COMMON_WBS_TITLE_GLOSSARY_ENTRIES.map(([source, translation]) => [
+    normalizeWbsEnglishSourceTitle(source),
+    translation,
+  ]),
+);
+
 const SERIES_9000_WBS_TITLE_BY_CODE: Record<string, string> = {
   "1": "Project launch",
   "1.1.1": "First board samples received",
@@ -223,14 +398,181 @@ export function wbsEnglishProjectName(projectName: string | null | undefined) {
   return projectName?.trim() || "Project";
 }
 
+export function normalizeWbsEnglishSourceTitle(
+  title: string | null | undefined,
+) {
+  return (title ?? "")
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[‐‑‒–—−]/g, "-")
+    .replace(/\s+/g, " ");
+}
+
+function readTranslationMap(key: string): WbsEnglishTranslationMap {
+  if (typeof window === "undefined") return {};
+  try {
+    const rawValue = window.localStorage.getItem(key);
+    if (!rawValue) return {};
+    const parsedValue = JSON.parse(rawValue);
+    if (!parsedValue || typeof parsedValue !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsedValue).filter(
+        (entry): entry is [string, string] =>
+          typeof entry[0] === "string" && typeof entry[1] === "string",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function saveTranslationMap(key: string, translations: WbsEnglishTranslationMap) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(translations));
+  } catch {
+    // Translation export must keep working even when localStorage is unavailable.
+  }
+}
+
+export function loadWbsEnglishManualTranslations() {
+  return readTranslationMap(WBS_ENGLISH_MANUAL_TRANSLATIONS_KEY);
+}
+
+export function saveWbsEnglishManualTranslations(
+  translations: WbsEnglishTranslationMap,
+) {
+  saveTranslationMap(WBS_ENGLISH_MANUAL_TRANSLATIONS_KEY, translations);
+}
+
+export function loadWbsEnglishTranslationCache() {
+  return readTranslationMap(WBS_ENGLISH_TRANSLATION_CACHE_KEY);
+}
+
+export function saveWbsEnglishTranslationCache(
+  translations: WbsEnglishTranslationMap,
+) {
+  saveTranslationMap(WBS_ENGLISH_TRANSLATION_CACHE_KEY, translations);
+}
+
 export function wbsEnglishTitle(
   code: string | null | undefined,
   title: string | null | undefined,
   projectName: string | null | undefined,
 ) {
-  const normalizedCode = code?.trim() ?? "";
-  if (projectName?.includes("9000") && SERIES_9000_WBS_TITLE_BY_CODE[normalizedCode]) {
-    return SERIES_9000_WBS_TITLE_BY_CODE[normalizedCode];
+  return resolveWbsEnglishTitle({
+    code,
+    title,
+    projectName,
+    manualTranslations: {},
+    cachedTranslations: {},
+  }).text;
+}
+
+export function resolveWbsEnglishTitle({
+  code,
+  title,
+  projectName,
+  manualTranslations,
+  cachedTranslations,
+}: {
+  code: string | null | undefined;
+  title: string | null | undefined;
+  projectName: string | null | undefined;
+  manualTranslations: WbsEnglishTranslationMap;
+  cachedTranslations: WbsEnglishTranslationMap;
+}): WbsEnglishTranslation {
+  const normalizedTitle = normalizeWbsEnglishSourceTitle(title);
+  const originalTitle = title?.trim() || "";
+  const manualTranslation = manualTranslations[normalizedTitle]?.trim();
+  if (manualTranslation) {
+    return { text: manualTranslation, source: "manual" };
   }
-  return title?.trim() || "";
+
+  const glossaryTranslation = COMMON_WBS_TITLE_GLOSSARY[normalizedTitle]?.trim();
+  if (glossaryTranslation) {
+    return { text: glossaryTranslation, source: "glossary" };
+  }
+
+  const cachedTranslation = cachedTranslations[normalizedTitle]?.trim();
+  if (cachedTranslation) {
+    return { text: cachedTranslation, source: "cache" };
+  }
+
+  const normalizedCode = code?.trim() ?? "";
+  if (
+    projectName?.includes("9000") &&
+    SERIES_9000_WBS_TITLE_BY_CODE[normalizedCode]
+  ) {
+    return {
+      text: SERIES_9000_WBS_TITLE_BY_CODE[normalizedCode],
+      source: "legacy-code",
+    };
+  }
+
+  return { text: originalTitle, source: "original" };
+}
+
+export function hasOfflineWbsEnglishTranslator() {
+  if (typeof window === "undefined") return false;
+  const candidate = window as Window &
+    typeof globalThis & {
+      Translator?: { create?: unknown };
+      translation?: { createTranslator?: unknown };
+      ai?: { translator?: { create?: unknown } };
+    };
+  return Boolean(
+    candidate.Translator?.create ||
+      candidate.translation?.createTranslator ||
+      candidate.ai?.translator?.create,
+  );
+}
+
+export async function translateWbsTitleWithOfflineFallback(
+  title: string | null | undefined,
+) {
+  const sourceTitle = title?.trim();
+  if (!sourceTitle || typeof window === "undefined") return null;
+  const candidate = window as Window &
+    typeof globalThis & {
+      Translator?: {
+        create?: (options: {
+          sourceLanguage: string;
+          targetLanguage: string;
+        }) => Promise<{ translate?: (value: string) => Promise<string> }>;
+      };
+      translation?: {
+        createTranslator?: (options: {
+          sourceLanguage: string;
+          targetLanguage: string;
+        }) => Promise<{ translate?: (value: string) => Promise<string> }>;
+      };
+      ai?: {
+        translator?: {
+          create?: (options: {
+            sourceLanguage: string;
+            targetLanguage: string;
+          }) => Promise<{ translate?: (value: string) => Promise<string> }>;
+        };
+      };
+    };
+  const translator =
+    (await candidate.Translator?.create?.({
+      sourceLanguage: "ru",
+      targetLanguage: "en",
+    })) ??
+    (await candidate.translation?.createTranslator?.({
+      sourceLanguage: "ru",
+      targetLanguage: "en",
+    })) ??
+    (await candidate.ai?.translator?.create?.({
+      sourceLanguage: "ru",
+      targetLanguage: "en",
+    }));
+  const translatedTitle = await translator?.translate?.(sourceTitle);
+  const trimmedTranslation = translatedTitle?.trim();
+  if (!trimmedTranslation || trimmedTranslation === sourceTitle) return null;
+  return trimmedTranslation;
 }
