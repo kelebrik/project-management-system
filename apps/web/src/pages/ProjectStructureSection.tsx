@@ -1,9 +1,28 @@
 import { FileDown, Maximize2, Minimize2 } from "lucide-react";
 
 import { usePageContext } from "./PageContext";
+import type { WbsFormState } from "../app/formState";
+import { wbsToForm } from "../app/formState";
+import {
+  WBS_COLUMN_EN_LABELS,
+  WBS_STATUS_EN_LABELS,
+  WBS_TYPE_EN_LABELS,
+  wbsEnglishProjectName,
+  wbsEnglishTitle,
+} from "../app/wbsEnglishPrint";
+import { resolveDraftPredecessorCode, wbsDraftDisplayLevel } from "../app/wbsTree";
 import type { WbsTableCssProperties } from "../app/uiStyleTypes";
-import type { ProjectCalendarCode } from "../app/wbsTable";
-import type { WbsItemStatus } from "../app/domainTypes";
+import type { ProjectCalendarCode, WbsTableColumnKey } from "../app/wbsTable";
+import type { WbsItemStatus, WbsTreeItem } from "../app/domainTypes";
+
+function emptyValue(value: string | number | null | undefined) {
+  return value === null || value === undefined || value === "" ? "" : String(value);
+}
+
+function formatPercent(value: string | number | null | undefined) {
+  const normalizedValue = emptyValue(value);
+  return normalizedValue ? `${normalizedValue}%` : "";
+}
 
 export function ProjectStructureSection() {
   const {
@@ -13,6 +32,7 @@ export function ProjectStructureSection() {
     draggedWbsColumn,
     draggedWbsItemId,
     dropWbsColumn,
+    draftWbsCodes,
     fullscreenWorkspaceView,
     GANTT_HIERARCHY_LEVELS,
     handleWbsPaste,
@@ -56,8 +76,64 @@ export function ProjectStructureSection() {
     wbsSort,
     wbsStatusLabel,
     wbsTableTemplate,
+    wbsTree,
     wbsUndoStack,
   } = usePageContext();
+
+  const englishProjectName = wbsEnglishProjectName(project.name);
+  const englishPrintTitle = `${englishProjectName} - Structure`;
+  const englishWbsCellValue = (
+    columnKey: WbsTableColumnKey,
+    item: WbsTreeItem,
+    draft: WbsFormState,
+    displayCode: string,
+    translatedTitle: string,
+  ) => {
+    switch (columnKey) {
+      case "level":
+        return draft.wbsLevel || emptyValue(item.wbsLevel ?? item.level + 1);
+      case "structure":
+        return `${displayCode} ${translatedTitle}`.trim();
+      case "type":
+        return WBS_TYPE_EN_LABELS[draft.type];
+      case "status":
+        return WBS_STATUS_EN_LABELS[draft.status];
+      case "owner":
+        return draft.owner;
+      case "start":
+        return draft.startDate;
+      case "due":
+        return draft.dueDate;
+      case "workDays":
+        return draft.workDays;
+      case "calendarDays":
+        return draft.calendarDays;
+      case "calendar":
+        return draft.calendarCode;
+      case "effortPercent":
+        return formatPercent(draft.effortPercent);
+      case "progress":
+        return formatPercent(draft.progress);
+      case "jiraTicketUrl":
+        return draft.jiraTicketUrl;
+      case "predecessor1":
+      case "predecessor2":
+      case "predecessor3":
+      case "predecessor4":
+      case "predecessor5":
+      case "predecessor6":
+        return resolveDraftPredecessorCode(
+          draft[columnKey],
+          wbsTree,
+          wbsDrafts,
+          draftWbsCodes,
+        );
+      case "leadLag":
+        return draft.leadLagDays;
+      default:
+        return "";
+    }
+  };
 
   return (
                         <>
@@ -182,6 +258,21 @@ export function ProjectStructureSection() {
                             >
                               <FileDown size={15} />
                               PDF
+                            </button>
+                            <button
+                              type="button"
+                              className="wbs-pdf-button"
+                              onClick={() =>
+                                printSectionAsPdf(
+                                  "project-structure-print-en",
+                                  englishPrintTitle,
+                                )
+                              }
+                              disabled={project.wbsItems.length === 0}
+                              title="Save Structure to PDF in English"
+                            >
+                              <FileDown size={15} />
+                              PDF EN
                             </button>
                             <div
                               className="segmented-control hierarchy-control"
@@ -446,6 +537,97 @@ export function ProjectStructureSection() {
                             </div>
                           )}
                         </div>
+                    </div>
+                    <div
+                      className="wbs-english-print-shell"
+                      data-print-section="project-structure-en"
+                      id="project-structure-print-en"
+                      aria-hidden="true"
+                    >
+                      <div className="wbs-english-print-title">
+                        {englishPrintTitle}
+                      </div>
+                      <div
+                        className="wbs-english-print-table"
+                        style={
+                          {
+                            "--wbs-table-template": wbsTableTemplate,
+                          } as WbsTableCssProperties
+                        }
+                      >
+                        <div className="wbs-english-print-head">
+                          {orderedWbsColumns.map((column) => (
+                            <div
+                              key={`en-head-${column.key}`}
+                              className={`wbs-english-print-cell wbs-english-print-head-cell ${
+                                column.key === "level"
+                                  ? "level-column"
+                                  : column.key === "structure"
+                                  ? "structure-column"
+                                  : ""
+                              }`}
+                            >
+                              {WBS_COLUMN_EN_LABELS[column.key]}
+                            </div>
+                          ))}
+                        </div>
+                        {visibleStructureWbsTree.map((item: WbsTreeItem) => {
+                          const draft = wbsDrafts[item.id] ?? wbsToForm(item);
+                          const displayCode =
+                            draftWbsCodes.get(item.id) ?? draft.code;
+                          const translatedTitle = wbsEnglishTitle(
+                            displayCode,
+                            draft.title,
+                            project.name,
+                          );
+                          const displayLevel = wbsDraftDisplayLevel(item, draft);
+                          return (
+                            <div
+                              key={`en-row-${item.id}`}
+                              className={`wbs-english-print-row ${
+                                item.type === "MILESTONE" || item.type === "GOAL"
+                                  ? "milestone"
+                                  : ""
+                              }`}
+                            >
+                              {orderedWbsColumns.map((column) => (
+                                <div
+                                  key={`en-cell-${item.id}-${column.key}`}
+                                  className={`wbs-english-print-cell ${
+                                    column.key === "level"
+                                      ? "wbs-english-print-level"
+                                      : column.key === "structure"
+                                      ? "wbs-english-print-structure"
+                                      : ""
+                                  }`}
+                                >
+                                  {column.key === "structure" ? (
+                                    <div
+                                      className="wbs-english-structure-cell"
+                                      style={{
+                                        paddingLeft: `${displayLevel * 12 + 4}px`,
+                                      }}
+                                    >
+                                      <span className="wbs-english-code">
+                                        {displayCode}
+                                      </span>
+                                      <span>{translatedTitle}</span>
+                                    </div>
+                                  ) : (
+                                    englishWbsCellValue(
+                                      column.key,
+                                      item,
+                                      draft,
+                                      displayCode,
+                                      translatedTitle,
+                                    )
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                       </>
                       );

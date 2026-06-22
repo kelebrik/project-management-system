@@ -317,13 +317,18 @@ body.milestone-label-dragging * {
   }
 
   body[data-print-target="project-structure-print"] .content-grid > :not(.workspace-focus-structure),
+  body[data-print-target="project-structure-print-en"] .content-grid > :not(.workspace-focus-structure),
   body[data-print-target="project-structure-print"] .work-summary-section,
+  body[data-print-target="project-structure-print-en"] .work-summary-section,
   body[data-print-target="project-structure-print"] .gantt-controls,
-  body[data-print-target="project-structure-print"] .status-legend {
+  body[data-print-target="project-structure-print-en"] .gantt-controls,
+  body[data-print-target="project-structure-print"] .status-legend,
+  body[data-print-target="project-structure-print-en"] .status-legend {
     display: none !important;
   }
 
-  body[data-print-target="project-structure-print"] .content-grid > .workspace-focus-structure {
+  body[data-print-target="project-structure-print"] .content-grid > .workspace-focus-structure,
+  body[data-print-target="project-structure-print-en"] .content-grid > .workspace-focus-structure {
     display: block !important;
   }
 
@@ -333,7 +338,10 @@ body.milestone-label-dragging * {
   body[data-print-target] .workspace-focus-milestones,
   body[data-print-target="project-structure-print"] .workspace-focus-structure,
   body[data-print-target="project-structure-print"] .wbs-gantt-layout,
-  body[data-print-target="project-structure-print"] [data-print-section="project-structure"] {
+  body[data-print-target="project-structure-print"] [data-print-section="project-structure"],
+  body[data-print-target="project-structure-print-en"] .workspace-focus-structure,
+  body[data-print-target="project-structure-print-en"] .wbs-gantt-layout,
+  body[data-print-target="project-structure-print-en"] [data-print-section="project-structure-en"] {
     display: block !important;
     margin: 0 !important;
     max-width: 100% !important;
@@ -344,13 +352,20 @@ body.milestone-label-dragging * {
     width: 100% !important;
   }
 
+  body[data-print-target="project-structure-print"] [data-print-section="project-structure-en"],
+  body[data-print-target="project-structure-print-en"] [data-print-section="project-structure"] {
+    display: none !important;
+  }
+
   body[data-print-target] .workspace-focus-milestones {
     border: 0 !important;
     box-shadow: none !important;
   }
 
   body[data-print-target="project-structure-print"] .workspace-focus-structure,
-  body[data-print-target="project-structure-print"] [data-print-section="project-structure"] {
+  body[data-print-target="project-structure-print"] [data-print-section="project-structure"],
+  body[data-print-target="project-structure-print-en"] .workspace-focus-structure,
+  body[data-print-target="project-structure-print-en"] [data-print-section="project-structure-en"] {
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -400,6 +415,38 @@ body.milestone-label-dragging * {
   body[data-print-target="project-structure-print"] .wbs-table-row {
     break-inside: avoid;
     min-height: 8mm !important;
+    page-break-inside: avoid;
+  }
+
+  body[data-print-target="project-structure-print-en"] .wbs-english-print-table {
+    min-width: 0 !important;
+    width: max-content !important;
+  }
+
+  body[data-print-target="project-structure-print-en"] .wbs-english-print-title {
+    font-size: 13pt !important;
+    margin: 0 0 4mm !important;
+  }
+
+  body[data-print-target="project-structure-print-en"] .wbs-english-print-head,
+  body[data-print-target="project-structure-print-en"] .wbs-english-print-row {
+    display: grid !important;
+    grid-template-columns: var(--wbs-table-template) !important;
+  }
+
+  body[data-print-target="project-structure-print-en"] .wbs-english-print-cell {
+    font-size: 8pt !important;
+    min-height: 8mm !important;
+    padding: 1.8mm 1.5mm !important;
+  }
+
+  body[data-print-target="project-structure-print-en"] .wbs-english-print-head-cell {
+    font-size: 7pt !important;
+    min-height: 9mm !important;
+  }
+
+  body[data-print-target="project-structure-print-en"] .wbs-english-print-row {
+    break-inside: avoid;
     page-break-inside: avoid;
   }
 
