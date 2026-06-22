@@ -414,3 +414,82 @@ test("overview separates schedule delay and acceleration impacts when net varian
     [["1.2", 10]],
   );
 });
+
+test("overview schedule delay impact still shows raw delayed work when compensated", () => {
+  const delayedSource = wbsItem({
+    id: "delayed-source",
+    code: "1.1",
+    title: "Большое раннее отставание",
+    baselineDueDate: "2026-05-01",
+    forecastDueDate: "2026-05-21",
+    dueDate: "2026-05-21",
+  });
+  const recoveredWork = wbsItem({
+    id: "recovered-work",
+    code: "1.2",
+    title: "Частично восстановленная работа",
+    baselineDueDate: "2026-05-10",
+    forecastDueDate: "2026-05-21",
+    dueDate: "2026-05-21",
+    predecessor1: "1.1",
+  });
+  const acceleratedTask = wbsItem({
+    id: "accelerated",
+    code: "1.3",
+    title: "Опережающая работа",
+    baselineDueDate: "2026-06-10",
+    forecastDueDate: "2026-05-20",
+    dueDate: "2026-05-20",
+  });
+  const activeGoal = wbsItem({
+    id: "goal",
+    code: "2",
+    title: "Цель",
+    type: "GOAL",
+    predecessor1: "1.2",
+    predecessor2: "1.3",
+    baselineDueDate: "2026-06-30",
+    forecastDueDate: "2026-06-30",
+    dueDate: "2026-06-30",
+  });
+  const project = baseProject({
+    wbsItems: [delayedSource, recoveredWork, acceleratedTask, activeGoal],
+    criticalPath: {
+      projectStartDate: null,
+      projectFinishDate: null,
+      criticalItemIds: [
+        delayedSource.id,
+        recoveredWork.id,
+        acceleratedTask.id,
+        activeGoal.id,
+      ],
+      criticalDependencyIds: [],
+      criticalItemCount: 4,
+      nearCriticalItemCount: 0,
+      warnings: [],
+      items: [],
+    },
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.equal(dashboard.scheduleVarianceFromStructure, 0);
+  assert.deepEqual(
+    dashboard.scheduleDeltaItems.map(({ item, delay }) => [item.code, delay]),
+    [["1.1", 20]],
+  );
+  assert.deepEqual(
+    dashboard.scheduleDelayItems.map(({ item, delay }) => [item.code, delay]),
+    [
+      ["1.1", 20],
+      ["1.2", 11],
+    ],
+  );
+  assert.deepEqual(
+    dashboard.scheduleAccelerationItems.map(({ item, acceleration }) => [
+      item.code,
+      acceleration,
+    ]),
+    [["1.3", 21]],
+  );
+});
