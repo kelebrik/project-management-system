@@ -129,19 +129,9 @@ export function ProjectOverviewSummaryPage() {
                           </span>
                         </div>
                       ))}
-                      {overviewDashboard.scheduleDeltaItems.length === 0 &&
-                        overviewDashboard.scheduleVarianceFromStructure > 0 && (
-                          <p>
-                            Общее отклонение от базового плана составляет +
-                            {overviewDashboard.scheduleVarianceFromStructure}{" "}
-                            календарных дней, первичные источники сдвига не
-                            выделены.
-                          </p>
-                        )}
-                      {overviewDashboard.scheduleDeltaItems.length === 0 &&
-                        overviewDashboard.scheduleVarianceFromStructure <= 0 && (
-                          <p>Отклонений от базового плана нет.</p>
-                        )}
+                      {overviewDashboard.scheduleDeltaItems.length === 0 && (
+                        <p>Отклонений от базового плана нет.</p>
+                      )}
                     </div>
                   </article>
                 </section>

@@ -116,15 +116,37 @@ export function createOverviewDashboard(
   const delayByItemId = new Map(
     allScheduleDelays.map(({ item, delay }) => [item.id, delay]),
   );
-  const isScheduleDeltaCandidate = (item: WbsItem) =>
+  const isScheduleDeltaReportable = (item: WbsItem) =>
     !isWbsCheckpoint(item) &&
-    !childrenByParentId.has(item.id) &&
     (criticalPathIds.size === 0 || criticalPathIds.has(item.id));
-  const delayedScheduleDeltaCandidateIds = new Set(
+  const delayedScheduleDeltaReportableIds = new Set(
     allScheduleDelays
-      .filter(({ item }) => isScheduleDeltaCandidate(item))
+      .filter(({ item }) => isScheduleDeltaReportable(item))
       .map(({ item }) => item.id),
   );
+  const maxDelayedDescendantCache = new Map<string, number>();
+  const maxDelayedDescendantDelay = (
+    itemId: string,
+    visiting = new Set<string>(),
+  ): number => {
+    const cached = maxDelayedDescendantCache.get(itemId);
+    if (cached !== undefined) return cached;
+    if (visiting.has(itemId)) return 0;
+    visiting.add(itemId);
+    let maxDelay = 0;
+    for (const child of childrenByParentId.get(itemId) ?? []) {
+      if (delayedScheduleDeltaReportableIds.has(child.id)) {
+        maxDelay = Math.max(maxDelay, delayByItemId.get(child.id) ?? 0);
+      }
+      maxDelay = Math.max(
+        maxDelay,
+        maxDelayedDescendantDelay(child.id, visiting),
+      );
+    }
+    visiting.delete(itemId);
+    maxDelayedDescendantCache.set(itemId, maxDelay);
+    return maxDelay;
+  };
   const upstreamCauseCache = new Map<string, Set<string>>();
   const upstreamDelayedCauseIds = (
     itemId: string,
@@ -136,7 +158,7 @@ export function createOverviewDashboard(
     visiting.add(itemId);
     const causeIds = new Set<string>();
     for (const predecessorId of predecessorIdsByItemId.get(itemId) ?? []) {
-      if (delayedScheduleDeltaCandidateIds.has(predecessorId)) {
+      if (delayedScheduleDeltaReportableIds.has(predecessorId)) {
         causeIds.add(predecessorId);
       }
       for (const upstreamId of upstreamDelayedCauseIds(predecessorId, visiting)) {
@@ -152,7 +174,7 @@ export function createOverviewDashboard(
     !isWbsCheckpoint(item) &&
     item.status !== "DONE";
   const scheduleDeltaItems = allScheduleDelays
-    .filter(({ item }) => isScheduleDeltaCandidate(item))
+    .filter(({ item }) => isScheduleDeltaReportable(item))
     .map(({ item, delay: rawDelay }) => {
       const inheritedFrom =
         [...upstreamDelayedCauseIds(item.id)]
@@ -167,12 +189,14 @@ export function createOverviewDashboard(
       const inheritedDelay = inheritedFrom
         ? delayByItemId.get(inheritedFrom.id) ?? 0
         : 0;
+      const descendantDelay = maxDelayedDescendantDelay(item.id);
       return {
         item,
-        delay: Math.max(0, rawDelay - inheritedDelay),
+        delay: Math.max(0, rawDelay - Math.max(inheritedDelay, descendantDelay)),
         rawDelay,
         inheritedFrom,
         inheritedDelay,
+        descendantDelay,
       };
     })
     .filter(({ delay }) => delay > 0)
