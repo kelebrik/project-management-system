@@ -137,8 +137,7 @@ export function createOverviewDashboard(
     .map(({ item, variance }) => ({ item, acceleration: Math.abs(variance) }));
   const isScheduleDeltaReportable = (item: WbsItem) =>
     item.type === "TASK" && !childrenByParentId.has(item.id);
-  const isScheduleImpactReportable = (item: WbsItem) =>
-    !isWbsCheckpoint(item);
+  const isScheduleImpactReportable = isScheduleDeltaReportable;
   const collectReportableDescendantIds = (
     itemId: string,
     result: Set<string>,
@@ -185,6 +184,16 @@ export function createOverviewDashboard(
     upstreamItemCache.set(itemId, itemIds);
     return itemIds;
   };
+  const activeGoalBranchCode = activeGoal?.code.split(".")[0] ?? null;
+  const isInActiveGoalBranch = (item: WbsItem) =>
+    Boolean(
+      activeGoal &&
+        activeGoalBranchCode &&
+        item.id !== activeGoal.id &&
+        item.sortOrder < activeGoal.sortOrder &&
+        (item.code === activeGoalBranchCode ||
+          item.code.startsWith(`${activeGoalBranchCode}.`)),
+    );
   const scheduleDeltaCandidateIds = activeGoal ? new Set<string>() : null;
   const scheduleImpactCandidateIds = activeGoal ? new Set<string>() : null;
   if (activeGoal) {
@@ -218,27 +227,17 @@ export function createOverviewDashboard(
     }
     if (scheduleImpactCandidateIds) {
       collectImpactDescendantIds(activeGoal.id, scheduleImpactCandidateIds);
-      const hasGraphDelayedCandidate = allScheduleDelays.some(({ item }) =>
-        scheduleImpactCandidateIds.has(item.id),
-      );
-      if (!hasGraphDelayedCandidate) {
-        for (const item of wbsItems) {
-          if (item.id === activeGoal.id || item.sortOrder > activeGoal.sortOrder) {
-            continue;
-          }
-          if (isScheduleImpactReportable(item)) {
-            scheduleImpactCandidateIds.add(item.id);
-          }
-          collectImpactDescendantIds(item.id, scheduleImpactCandidateIds);
-        }
+    }
+    for (const item of wbsItems) {
+      if (!isInActiveGoalBranch(item)) continue;
+      if (scheduleDeltaCandidateIds && isScheduleDeltaReportable(item)) {
+        scheduleDeltaCandidateIds.add(item.id);
+      }
+      if (scheduleImpactCandidateIds && isScheduleImpactReportable(item)) {
+        scheduleImpactCandidateIds.add(item.id);
       }
     }
   }
-  const isScheduleDeltaCandidate = (item: WbsItem) =>
-    scheduleDeltaCandidateIds
-      ? scheduleDeltaCandidateIds.has(item.id)
-      : isScheduleDeltaReportable(item) &&
-        (criticalPathIds.size === 0 || criticalPathIds.has(item.id));
   const isScheduleImpactCandidate = (item: WbsItem) =>
     scheduleImpactCandidateIds
       ? scheduleImpactCandidateIds.has(item.id)
@@ -250,13 +249,14 @@ export function createOverviewDashboard(
     item.status !== "DONE";
   const incrementalScheduleImpactItems = (
     entries: Array<{ item: WbsItem; impact: number }>,
+    isCandidate: (item: WbsItem) => boolean,
   ) => {
     const impactByItemId = new Map(
       entries.map(({ item, impact }) => [item.id, impact]),
     );
     const impactedCandidateIds = new Set(
       entries
-        .filter(({ item }) => isScheduleDeltaCandidate(item))
+        .filter(({ item }) => isCandidate(item))
         .map(({ item }) => item.id),
     );
     const upstreamCauseCache = new Map<string, Set<string>>();
@@ -283,7 +283,7 @@ export function createOverviewDashboard(
     };
 
     return entries
-      .filter(({ item }) => isScheduleDeltaCandidate(item))
+      .filter(({ item }) => isCandidate(item))
       .map(({ item, impact: rawImpact }) => {
         const inheritedFrom =
           [...upstreamCauseIds(item.id)]
@@ -318,6 +318,7 @@ export function createOverviewDashboard(
   };
   const scheduleDelayImpactItems = incrementalScheduleImpactItems(
     allScheduleDelays.map(({ item, delay }) => ({ item, impact: delay })),
+    isScheduleImpactCandidate,
   );
   const scheduleDeltaItems = scheduleDelayImpactItems
     .map(({ item, impact, rawImpact, inheritedFrom, inheritedImpact }) => ({
@@ -328,15 +329,14 @@ export function createOverviewDashboard(
       inheritedDelay: inheritedImpact,
     }))
     .slice(0, 5);
-  const scheduleDelayItems = allScheduleDelays
-    .filter(({ item }) => isScheduleImpactCandidate(item))
-    .sort(
-      (left, right) =>
-        right.delay - left.delay ||
-        left.item.code.localeCompare(right.item.code, undefined, {
-          numeric: true,
-        }),
-    )
+  const scheduleDelayItems = scheduleDelayImpactItems
+    .map(({ item, impact, rawImpact, inheritedFrom, inheritedImpact }) => ({
+      item,
+      delay: impact,
+      rawDelay: rawImpact,
+      inheritedFrom,
+      inheritedDelay: inheritedImpact,
+    }))
     .slice(0, 3);
   const scheduleAccelerationItems = allScheduleAccelerations
     .filter(({ item }) => isScheduleImpactCandidate(item))

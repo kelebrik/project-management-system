@@ -307,6 +307,118 @@ test("overview schedule deltas explain the active goal forecast shift", () => {
   );
 });
 
+test("overview schedule delay items rank own delay impact within active goal branch", () => {
+  const codebase = wbsItem({
+    id: "codebase",
+    code: "3.5.1",
+    title: "Предоставление новой кодовой базы",
+    status: "DONE",
+    baselineDueDate: "2026-04-03",
+    forecastDueDate: "2026-05-07",
+    dueDate: "2026-05-07",
+    sortOrder: 10,
+  });
+  const firstBuild = wbsItem({
+    id: "first-build",
+    code: "3.5.2",
+    title: "Первая сборка StarOS",
+    status: "DONE",
+    baselineDueDate: "2026-04-10",
+    forecastDueDate: "2026-05-15",
+    dueDate: "2026-05-15",
+    predecessor1: "3.5.1",
+    sortOrder: 20,
+  });
+  const primaryRegression = wbsItem({
+    id: "primary-regression",
+    code: "3.5.4",
+    title: "Первичные регрессионные тесты",
+    status: "DONE",
+    baselineDueDate: "2026-04-30",
+    forecastDueDate: "2026-06-09",
+    dueDate: "2026-06-09",
+    predecessor1: "3.5.2",
+    sortOrder: 30,
+  });
+  const ticketScope = wbsItem({
+    id: "ticket-scope",
+    code: "3.5.6",
+    title: "Определение состава тикетов для MP",
+    status: "DONE",
+    baselineDueDate: "2026-05-08",
+    forecastDueDate: "2026-06-17",
+    dueDate: "2026-06-17",
+    predecessor1: "3.5.4",
+    sortOrder: 40,
+  });
+  const ambient = wbsItem({
+    id: "ambient",
+    code: "3.3.1.1",
+    title: "Требования Ambient",
+    status: "DONE",
+    baselineDueDate: "2026-04-30",
+    forecastDueDate: "2026-05-27",
+    dueDate: "2026-05-27",
+    sortOrder: 50,
+  });
+  const zigbee = wbsItem({
+    id: "zigbee",
+    code: "3.3.2.1",
+    title: "Zigbee CVTE",
+    status: "DONE",
+    baselineDueDate: "2026-06-05",
+    forecastDueDate: "2026-06-12",
+    dueDate: "2026-06-12",
+    sortOrder: 60,
+  });
+  const unrelatedLateWork = wbsItem({
+    id: "unrelated-late-work",
+    code: "4.1",
+    title: "Нерелевантная будущая работа",
+    baselineDueDate: "2026-05-01",
+    forecastDueDate: "2026-07-01",
+    dueDate: "2026-07-01",
+    sortOrder: 80,
+  });
+  const activeGoal = wbsItem({
+    id: "active-goal",
+    code: "3.12",
+    title: "Старт MP",
+    type: "GOAL",
+    baselineDueDate: "2026-09-04",
+    forecastDueDate: "2026-09-03",
+    dueDate: "2026-09-03",
+    sortOrder: 70,
+  });
+  const project = baseProject({
+    wbsItems: [
+      codebase,
+      firstBuild,
+      primaryRegression,
+      ticketScope,
+      ambient,
+      zigbee,
+      activeGoal,
+      unrelatedLateWork,
+    ],
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.deepEqual(
+    dashboard.scheduleDelayItems.map(({ item, delay }) => [item.code, delay]),
+    [
+      ["3.5.1", 34],
+      ["3.3.1.1", 27],
+      ["3.3.2.1", 7],
+    ],
+  );
+  assert.equal(
+    dashboard.scheduleDelayItems.some(({ item }) => item.code === "3.5.6"),
+    false,
+  );
+});
+
 test("overview schedule deltas do not duplicate parent delay explained by a child", () => {
   const delayedPhase = wbsItem({
     id: "phase",
@@ -480,10 +592,7 @@ test("overview schedule delay impact still shows raw delayed work when compensat
   );
   assert.deepEqual(
     dashboard.scheduleDelayItems.map(({ item, delay }) => [item.code, delay]),
-    [
-      ["1.1", 20],
-      ["1.2", 11],
-    ],
+    [["1.1", 20]],
   );
   assert.deepEqual(
     dashboard.scheduleAccelerationItems.map(({ item, acceleration }) => [
@@ -494,7 +603,7 @@ test("overview schedule delay impact still shows raw delayed work when compensat
   );
 });
 
-test("overview schedule delay impact falls back to structure order before the active goal", () => {
+test("overview schedule delay impact includes active goal branch work before the goal", () => {
   const delayedWork = wbsItem({
     id: "delayed-work",
     code: "1.1",
@@ -515,7 +624,7 @@ test("overview schedule delay impact falls back to structure order before the ac
   });
   const activeGoal = wbsItem({
     id: "goal",
-    code: "2",
+    code: "1.3",
     title: "Цель",
     type: "GOAL",
     predecessor1: "1.2",
