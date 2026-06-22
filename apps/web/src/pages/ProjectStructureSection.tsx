@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2 } from "lucide-react";
+import { FileDown, Maximize2, Minimize2 } from "lucide-react";
 
 import { usePageContext } from "./PageContext";
 import type { WbsTableCssProperties } from "../app/uiStyleTypes";
@@ -19,6 +19,7 @@ export function ProjectStructureSection() {
     isWbsCellDirty,
     orderedWbsColumns,
     project,
+    printSectionAsPdf,
     redoWbsChange,
     renderSavedViewControls,
     renderWbsCell,
@@ -167,6 +168,21 @@ export function ProjectStructureSection() {
                                 </div>
                               )}
                             </div>
+                            <button
+                              type="button"
+                              className="wbs-pdf-button"
+                              onClick={() =>
+                                printSectionAsPdf(
+                                  "project-structure-print",
+                                  `${project.name ?? "Проект"} - Структура`,
+                                )
+                              }
+                              disabled={project.wbsItems.length === 0}
+                              title="Сохранить Структуру в PDF"
+                            >
+                              <FileDown size={15} />
+                              PDF
+                            </button>
                             <div
                               className="segmented-control hierarchy-control"
                               aria-label="Глубина иерархии Структуры"
@@ -280,7 +296,11 @@ export function ProjectStructureSection() {
                             <span><i className="tone-goal" />Цель</span>
                           </div>
                         </div>
-                    <div className="wbs-table-shell">
+                    <div
+                      className="wbs-table-shell"
+                      data-print-section="project-structure"
+                      id="project-structure-print"
+                    >
                       <div
                         className="wbs-excel-table"
                         onPaste={handleWbsPaste}

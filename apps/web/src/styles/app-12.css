@@ -82,6 +82,12 @@
   width: auto;
 }
 
+.gantt-controls .wbs-pdf-button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
 .wbs-table-shell {
   border: 1px solid #d8e0eb;
   border-radius: 6px;
