@@ -257,29 +257,39 @@ test("overview schedule deltas rank incremental impact instead of duplicated dow
   );
 });
 
-test("overview schedule deltas include delayed parent work when it explains the shift", () => {
-  const delayedPhase = wbsItem({
-    id: "phase",
-    code: "2",
-    title: "Этап",
-    type: "PHASE",
+test("overview schedule deltas explain the active goal forecast shift", () => {
+  const delayedTask = wbsItem({
+    id: "task",
+    code: "3.1",
+    title: "Задача для цели",
     baselineDueDate: "2026-05-01",
+    forecastDueDate: "2026-06-11",
     dueDate: "2026-06-11",
   });
-  const childTask = wbsItem({
-    id: "task",
-    parentId: delayedPhase.id,
-    code: "2.1",
-    title: "Работа этапа",
-    baselineDueDate: null,
-    dueDate: "2026-06-11",
+  const unrelatedDelayedTask = wbsItem({
+    id: "unrelated",
+    code: "4",
+    title: "Нерелевантная задержка",
+    baselineDueDate: "2026-05-01",
+    forecastDueDate: "2026-07-01",
+    dueDate: "2026-07-01",
+  });
+  const activeGoal = wbsItem({
+    id: "goal",
+    code: "5",
+    title: "Ближайшая цель",
+    type: "GOAL",
+    predecessor1: "3.1",
+    baselineDueDate: "2026-05-01",
+    dueDate: "2026-05-01",
+    forecastDueDate: "2026-06-11",
   });
   const project = baseProject({
-    wbsItems: [delayedPhase, childTask],
+    wbsItems: [delayedTask, unrelatedDelayedTask, activeGoal],
     criticalPath: {
       projectStartDate: null,
       projectFinishDate: null,
-      criticalItemIds: [delayedPhase.id, childTask.id],
+      criticalItemIds: [delayedTask.id, activeGoal.id],
       criticalDependencyIds: [],
       criticalItemCount: 2,
       nearCriticalItemCount: 0,
@@ -293,7 +303,7 @@ test("overview schedule deltas include delayed parent work when it explains the 
   assert.equal(dashboard.scheduleVarianceFromStructure, 41);
   assert.deepEqual(
     dashboard.scheduleDeltaItems.map(({ item, delay }) => [item.code, delay]),
-    [["2", 41]],
+    [["3.1", 41]],
   );
 });
 
@@ -312,16 +322,27 @@ test("overview schedule deltas do not duplicate parent delay explained by a chil
     code: "2.1",
     title: "Работа этапа",
     baselineDueDate: "2026-05-01",
+    forecastDueDate: "2026-06-11",
     dueDate: "2026-06-11",
   });
+  const activeGoal = wbsItem({
+    id: "goal",
+    code: "3",
+    title: "Цель",
+    type: "GOAL",
+    predecessor1: "2",
+    baselineDueDate: "2026-05-01",
+    dueDate: "2026-05-01",
+    forecastDueDate: "2026-06-11",
+  });
   const project = baseProject({
-    wbsItems: [delayedPhase, delayedTask],
+    wbsItems: [delayedPhase, delayedTask, activeGoal],
     criticalPath: {
       projectStartDate: null,
       projectFinishDate: null,
-      criticalItemIds: [delayedPhase.id, delayedTask.id],
+      criticalItemIds: [delayedPhase.id, delayedTask.id, activeGoal.id],
       criticalDependencyIds: [],
-      criticalItemCount: 2,
+      criticalItemCount: 3,
       nearCriticalItemCount: 0,
       warnings: [],
       items: [],

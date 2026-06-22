@@ -1,10 +1,17 @@
 import { signedDaysBetween, startOfDay } from "./dateUtils";
 import type { ProjectDetails, WbsItem } from "./domainTypes";
 import type { StructureMilestone } from "./milestoneTimeline";
+import { findActiveProjectGoal } from "./projectTargetModel";
 import { WBS_PREDECESSOR_KEYS } from "./wbsTable";
 
 function isWbsCheckpoint(item: Pick<WbsItem, "type">) {
   return item.type === "MILESTONE" || item.type === "GOAL";
+}
+
+function validScheduleDate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = startOfDay(new Date(value));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export function createOverviewDashboard(
@@ -13,6 +20,7 @@ export function createOverviewDashboard(
 ) {
   const today = startOfDay(new Date());
   const wbsItems = project?.wbsItems ?? [];
+  const activeGoal = findActiveProjectGoal(wbsItems);
   const openIssues =
     project?.issues.filter(
       (issue) => issue.status !== "Closed" && issue.status !== "Resolved",
@@ -102,51 +110,84 @@ export function createOverviewDashboard(
     }
   }
   const hasScheduleVarianceDates = (item: WbsItem) =>
-    item.baselineDueDate && item.dueDate && item.status !== "CANCELLED";
+    item.baselineDueDate &&
+    (item.forecastDueDate || item.dueDate) &&
+    item.status !== "CANCELLED";
   const allScheduleDelays = wbsItems
     .filter(hasScheduleVarianceDates)
-    .map((item) => ({
-      item,
-      delay: signedDaysBetween(
-        startOfDay(new Date(item.baselineDueDate as string)),
-        startOfDay(new Date(item.dueDate as string)),
-      ),
-    }))
+    .map((item) => {
+      const baselineDueDate = validScheduleDate(item.baselineDueDate);
+      const forecastDueDate = validScheduleDate(
+        item.forecastDueDate ?? item.dueDate,
+      );
+      return {
+        item,
+        delay:
+          baselineDueDate && forecastDueDate
+            ? signedDaysBetween(baselineDueDate, forecastDueDate)
+            : 0,
+      };
+    })
     .filter(({ delay }) => delay > 0);
   const delayByItemId = new Map(
     allScheduleDelays.map(({ item, delay }) => [item.id, delay]),
   );
   const isScheduleDeltaReportable = (item: WbsItem) =>
-    !isWbsCheckpoint(item) &&
-    (criticalPathIds.size === 0 || criticalPathIds.has(item.id));
-  const delayedScheduleDeltaReportableIds = new Set(
-    allScheduleDelays
-      .filter(({ item }) => isScheduleDeltaReportable(item))
-      .map(({ item }) => item.id),
-  );
-  const maxDelayedDescendantCache = new Map<string, number>();
-  const maxDelayedDescendantDelay = (
+    item.type === "TASK" && !childrenByParentId.has(item.id);
+  const collectReportableDescendantIds = (
     itemId: string,
+    result: Set<string>,
     visiting = new Set<string>(),
-  ): number => {
-    const cached = maxDelayedDescendantCache.get(itemId);
-    if (cached !== undefined) return cached;
-    if (visiting.has(itemId)) return 0;
+  ) => {
+    if (visiting.has(itemId)) return;
     visiting.add(itemId);
-    let maxDelay = 0;
     for (const child of childrenByParentId.get(itemId) ?? []) {
-      if (delayedScheduleDeltaReportableIds.has(child.id)) {
-        maxDelay = Math.max(maxDelay, delayByItemId.get(child.id) ?? 0);
-      }
-      maxDelay = Math.max(
-        maxDelay,
-        maxDelayedDescendantDelay(child.id, visiting),
-      );
+      if (isScheduleDeltaReportable(child)) result.add(child.id);
+      collectReportableDescendantIds(child.id, result, visiting);
     }
     visiting.delete(itemId);
-    maxDelayedDescendantCache.set(itemId, maxDelay);
-    return maxDelay;
   };
+  const upstreamItemCache = new Map<string, Set<string>>();
+  const upstreamItemIds = (
+    itemId: string,
+    visiting = new Set<string>(),
+  ): Set<string> => {
+    const cached = upstreamItemCache.get(itemId);
+    if (cached) return cached;
+    if (visiting.has(itemId)) return new Set<string>();
+    visiting.add(itemId);
+    const itemIds = new Set<string>();
+    for (const predecessorId of predecessorIdsByItemId.get(itemId) ?? []) {
+      itemIds.add(predecessorId);
+      for (const upstreamId of upstreamItemIds(predecessorId, visiting)) {
+        itemIds.add(upstreamId);
+      }
+    }
+    visiting.delete(itemId);
+    upstreamItemCache.set(itemId, itemIds);
+    return itemIds;
+  };
+  const scheduleDeltaCandidateIds = activeGoal ? new Set<string>() : null;
+  if (activeGoal && scheduleDeltaCandidateIds) {
+    for (const upstreamId of upstreamItemIds(activeGoal.id)) {
+      const upstreamItem = wbsById.get(upstreamId);
+      if (!upstreamItem) continue;
+      if (isScheduleDeltaReportable(upstreamItem)) {
+        scheduleDeltaCandidateIds.add(upstreamItem.id);
+      }
+      collectReportableDescendantIds(upstreamItem.id, scheduleDeltaCandidateIds);
+    }
+  }
+  const isScheduleDeltaCandidate = (item: WbsItem) =>
+    scheduleDeltaCandidateIds
+      ? scheduleDeltaCandidateIds.has(item.id)
+      : isScheduleDeltaReportable(item) &&
+        (criticalPathIds.size === 0 || criticalPathIds.has(item.id));
+  const delayedScheduleDeltaCandidateIds = new Set(
+    allScheduleDelays
+      .filter(({ item }) => isScheduleDeltaCandidate(item))
+      .map(({ item }) => item.id),
+  );
   const upstreamCauseCache = new Map<string, Set<string>>();
   const upstreamDelayedCauseIds = (
     itemId: string,
@@ -158,7 +199,7 @@ export function createOverviewDashboard(
     visiting.add(itemId);
     const causeIds = new Set<string>();
     for (const predecessorId of predecessorIdsByItemId.get(itemId) ?? []) {
-      if (delayedScheduleDeltaReportableIds.has(predecessorId)) {
+      if (delayedScheduleDeltaCandidateIds.has(predecessorId)) {
         causeIds.add(predecessorId);
       }
       for (const upstreamId of upstreamDelayedCauseIds(predecessorId, visiting)) {
@@ -174,7 +215,7 @@ export function createOverviewDashboard(
     !isWbsCheckpoint(item) &&
     item.status !== "DONE";
   const scheduleDeltaItems = allScheduleDelays
-    .filter(({ item }) => isScheduleDeltaReportable(item))
+    .filter(({ item }) => isScheduleDeltaCandidate(item))
     .map(({ item, delay: rawDelay }) => {
       const inheritedFrom =
         [...upstreamDelayedCauseIds(item.id)]
@@ -189,14 +230,12 @@ export function createOverviewDashboard(
       const inheritedDelay = inheritedFrom
         ? delayByItemId.get(inheritedFrom.id) ?? 0
         : 0;
-      const descendantDelay = maxDelayedDescendantDelay(item.id);
       return {
         item,
-        delay: Math.max(0, rawDelay - Math.max(inheritedDelay, descendantDelay)),
+        delay: Math.max(0, rawDelay - inheritedDelay),
         rawDelay,
         inheritedFrom,
         inheritedDelay,
-        descendantDelay,
       };
     })
     .filter(({ delay }) => delay > 0)
@@ -209,15 +248,34 @@ export function createOverviewDashboard(
         }),
     )
     .slice(0, 5);
-  const scheduleVarianceFromStructure = scheduleVarianceItems
+  const activeGoalBaselineDueDate = validScheduleDate(
+    activeGoal?.baselineDueDate ?? activeGoal?.dueDate,
+  );
+  const activeGoalForecastDueDate = validScheduleDate(
+    activeGoal?.forecastDueDate ?? activeGoal?.dueDate,
+  );
+  const activeGoalDelay =
+    activeGoal && activeGoalBaselineDueDate && activeGoalForecastDueDate
+      ? Math.max(
+          0,
+          signedDaysBetween(activeGoalBaselineDueDate, activeGoalForecastDueDate),
+        )
+      : null;
+  const fallbackScheduleVarianceFromStructure = scheduleVarianceItems
     .filter(isScheduleVarianceOpenCandidate)
     .reduce((maxDelay, item) => {
-      const delay = signedDaysBetween(
-        startOfDay(new Date(item.baselineDueDate as string)),
-        startOfDay(new Date(item.dueDate as string)),
+      const baselineDueDate = validScheduleDate(item.baselineDueDate);
+      const forecastDueDate = validScheduleDate(
+        item.forecastDueDate ?? item.dueDate,
       );
+      const delay =
+        baselineDueDate && forecastDueDate
+          ? signedDaysBetween(baselineDueDate, forecastDueDate)
+          : 0;
       return Math.max(maxDelay, delay);
     }, 0);
+  const scheduleVarianceFromStructure =
+    activeGoalDelay ?? fallbackScheduleVarianceFromStructure;
 
   return {
     openIssues,
