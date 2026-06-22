@@ -493,3 +493,72 @@ test("overview schedule delay impact still shows raw delayed work when compensat
     [["1.3", 21]],
   );
 });
+
+test("overview schedule delay impact falls back to structure order before the active goal", () => {
+  const delayedWork = wbsItem({
+    id: "delayed-work",
+    code: "1.1",
+    title: "Несвязанная отстающая работа до цели",
+    baselineDueDate: "2026-05-01",
+    forecastDueDate: "2026-05-16",
+    dueDate: "2026-05-16",
+    sortOrder: 10,
+  });
+  const acceleratedTask = wbsItem({
+    id: "accelerated",
+    code: "1.2",
+    title: "Связанная опережающая работа",
+    baselineDueDate: "2026-06-01",
+    forecastDueDate: "2026-05-20",
+    dueDate: "2026-05-20",
+    sortOrder: 20,
+  });
+  const activeGoal = wbsItem({
+    id: "goal",
+    code: "2",
+    title: "Цель",
+    type: "GOAL",
+    predecessor1: "1.2",
+    baselineDueDate: "2026-06-30",
+    forecastDueDate: "2026-06-30",
+    dueDate: "2026-06-30",
+    sortOrder: 30,
+  });
+  const futureDelayedWork = wbsItem({
+    id: "future-delayed-work",
+    code: "3.1",
+    title: "Отставание после цели",
+    baselineDueDate: "2026-05-01",
+    forecastDueDate: "2026-07-01",
+    dueDate: "2026-07-01",
+    sortOrder: 40,
+  });
+  const project = baseProject({
+    wbsItems: [delayedWork, acceleratedTask, activeGoal, futureDelayedWork],
+    criticalPath: {
+      projectStartDate: null,
+      projectFinishDate: null,
+      criticalItemIds: [acceleratedTask.id, activeGoal.id],
+      criticalDependencyIds: [],
+      criticalItemCount: 2,
+      nearCriticalItemCount: 0,
+      warnings: [],
+      items: [],
+    },
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.equal(dashboard.scheduleVarianceFromStructure, 0);
+  assert.deepEqual(
+    dashboard.scheduleDelayItems.map(({ item, delay }) => [item.code, delay]),
+    [["1.1", 15]],
+  );
+  assert.deepEqual(
+    dashboard.scheduleAccelerationItems.map(({ item, acceleration }) => [
+      item.code,
+      acceleration,
+    ]),
+    [["1.2", 12]],
+  );
+});

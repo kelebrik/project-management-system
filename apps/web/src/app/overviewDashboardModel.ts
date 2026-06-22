@@ -213,6 +213,26 @@ export function createOverviewDashboard(
         collectImpactDescendantIds(upstreamItem.id, scheduleImpactCandidateIds);
       }
     }
+    if (scheduleDeltaCandidateIds) {
+      collectReportableDescendantIds(activeGoal.id, scheduleDeltaCandidateIds);
+    }
+    if (scheduleImpactCandidateIds) {
+      collectImpactDescendantIds(activeGoal.id, scheduleImpactCandidateIds);
+      const hasGraphDelayedCandidate = allScheduleDelays.some(({ item }) =>
+        scheduleImpactCandidateIds.has(item.id),
+      );
+      if (!hasGraphDelayedCandidate) {
+        for (const item of wbsItems) {
+          if (item.id === activeGoal.id || item.sortOrder > activeGoal.sortOrder) {
+            continue;
+          }
+          if (isScheduleImpactReportable(item)) {
+            scheduleImpactCandidateIds.add(item.id);
+          }
+          collectImpactDescendantIds(item.id, scheduleImpactCandidateIds);
+        }
+      }
+    }
   }
   const isScheduleDeltaCandidate = (item: WbsItem) =>
     scheduleDeltaCandidateIds
