@@ -238,6 +238,24 @@
   -webkit-line-clamp: 1;
 }
 
+.schedule-impact-group {
+  display: grid;
+  gap: 6px;
+}
+
+.schedule-impact-group h4 {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  margin: 2px 0 0;
+  text-transform: uppercase;
+}
+
+.schedule-impact-group.acceleration .executive-overview-row {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
 .executive-overview-list a {
   color: #1d4ed8;
   font-weight: 900;

@@ -370,7 +370,7 @@ test("calculateWbsScheduleUpdates starts successor from latest predecessor plus 
   assert.equal(taskC?.calendarDays, 5);
 });
 
-test("calculateWbsScheduleUpdates keeps goal due date and moves its forecast by predecessors", () => {
+test("calculateWbsScheduleUpdates recalculates goal dates like milestone dates", () => {
   const items = [
     {
       id: "task-a",
@@ -412,11 +412,12 @@ test("calculateWbsScheduleUpdates keeps goal due date and moves its forecast by 
   const updates = calculateWbsScheduleUpdates(items, [], []);
   const goal = updates.find((item) => item.id === "goal");
 
-  assert.equal(goal?.startDate?.toISOString().slice(0, 10), "2026-06-01");
-  assert.equal(goal?.dueDate?.toISOString().slice(0, 10), "2026-06-01");
+  assert.equal(goal?.startDate?.toISOString().slice(0, 10), "2026-06-08");
+  assert.equal(goal?.dueDate?.toISOString().slice(0, 10), "2026-06-08");
   assert.equal(goal?.forecastStartDate?.toISOString().slice(0, 10), "2026-06-08");
   assert.equal(goal?.forecastDueDate?.toISOString().slice(0, 10), "2026-06-08");
   assert.equal(goal?.workDays, 0);
+  assert.equal(goal?.calendarDays, 1);
 });
 
 test("calculateWbsScheduleUpdates derives empty work days from dates", () => {

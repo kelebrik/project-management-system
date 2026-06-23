@@ -554,6 +554,8 @@ function AppController() {
     updateRaidStatusDraft,
     createRaidItem,
     saveRaidItem,
+    convertRiskToProblem,
+    closeRaidItem,
     addRaidStatusUpdate,
     deleteRaidItem,
   } = useRaidController({
@@ -870,7 +872,7 @@ function AppController() {
     ...{ closeOpenIssue, createOpenIssue, creatingIssue, expandedIssueId, issueDrawerMode, issueEditDrafts, issueForm, issueFormErrors, issueLinkDrafts, issueStatusDrafts, removeIssueFormLink, removeIssueJiraLink, saveOpenIssue, saveOpenIssueWithPayload, saveTaskJiraLink, taskDrafts, updateIssueDraft, updateIssueFormLink, updateIssueStatusDraft },
     ...{ jiraForm, jiraWorkSectionDrafts, saveJiraIntegration, saveJiraWorkSections, savingJira, savingJiraWorkSections, setJiraForm, setJiraWorkSectionDrafts, syncJira },
     ...{ addPassportRow, deletePassportRow, passportRows, savePassportRows, savingPassportRows, updatePassportRow },
-    ...{ addRaidStatusUpdate, expandedRaidId, raidDecisionOnly, raidDrafts, raidForm, raidHighOnly, raidOverdueOnly, raidStatusDrafts, raidTypeFilter, saveRaidItem, createRaidItem, deleteRaidItem, updateRaidDraft, updateRaidStatusDraft },
+    ...{ addRaidStatusUpdate, closeRaidItem, convertRiskToProblem, expandedRaidId, raidDecisionOnly, raidDrafts, raidForm, raidHighOnly, raidOverdueOnly, raidStatusDrafts, raidTypeFilter, saveRaidItem, createRaidItem, deleteRaidItem, updateRaidDraft, updateRaidStatusDraft },
     ...{ newProjectForm, projectAccessDraft, projectAccesses, projectModuleDrafts, projectRegistryDrafts, projectTargetApprovedBy, projectTargetChangeReason, projectTargetDateDraft, savePortfolioProjectIdentity, saveProjectPortfolio, saveProjectRegistryItem, saveProjectTargetDate },
     ...{ addIssueFormLink, addIssueJiraLink, addIssueStatusUpdate, closeProject, createProject, deleteProject, reloadAuditEvents, saveProjectModules, setNewProjectForm, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, updateProjectModuleDraft, updateProjectRegistryDraft },
     ...{ createApiToken, createDictionaryItem, createUser, createWebhook, deactivateDictionaryItem, deleteProjectAccess, exportAdminConfig, grantProjectAccess, importAdminConfig, reloadAdminConfig, reloadAdminHealth, reloadAdminIntegrations, saveDictionaryItem, saveSystemSettings, saveUser, testWebhook, toggleApiToken, toggleRolePermission, toggleWebhook, updateDictionaryDraft, updateProjectAccessDraft, updateProjectAccessLevel, updateUserDraft },

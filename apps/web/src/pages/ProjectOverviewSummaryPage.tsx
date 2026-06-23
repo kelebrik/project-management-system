@@ -7,6 +7,7 @@ export function ProjectOverviewSummaryPage() {
     latestRaidStatusUpdate,
     openRaidItemFromOverview,
     overviewDashboard,
+    raidTypeLabel,
   } = ctx;
 
   return (
@@ -14,7 +15,7 @@ export function ProjectOverviewSummaryPage() {
                 <section className="executive-overview-grid">
                   <article className="executive-overview-card danger">
                     <div className="executive-overview-card-title">
-                      <span>Ключевые риски в красной зоне</span>
+                      <span>Ключевые риски и проблемы в красной зоне</span>
                       <strong>{overviewDashboard.redZoneRisks.length}</strong>
                     </div>
                     <div className="executive-overview-list">
@@ -30,6 +31,7 @@ export function ProjectOverviewSummaryPage() {
                           >
                             {item.title}
                           </button>
+                          <span>{raidTypeLabel(item.type)}</span>
                           {latestRaidStatusUpdate(item) && (
                             <p className="executive-status-text">
                               {latestRaidStatusUpdate(item)?.text}
@@ -38,7 +40,31 @@ export function ProjectOverviewSummaryPage() {
                         </div>
                       ))}
                       {overviewDashboard.redZoneRisks.length === 0 && (
-                        <p>Рисков с оценкой 15+ нет.</p>
+                        <p>Рисков и проблем с оценкой 15+ нет.</p>
+                      )}
+                    </div>
+                  </article>
+
+                  <article className="executive-overview-card">
+                    <div className="executive-overview-card-title">
+                      <span>Решения по ключевым открытым вопросам</span>
+                      <strong>{overviewDashboard.decisionItems}</strong>
+                    </div>
+                    <div className="executive-overview-list">
+                      {overviewDashboard.openDecisionItems.map((issue) => (
+                        <div
+                          className="executive-overview-row"
+                          key={issue.id}
+                        >
+                          <b>{issue.title}</b>
+                          <span>
+                            {issue.owner || "не назначен"} / срок{" "}
+                            {date(issue.dueDate)}
+                          </span>
+                        </div>
+                      ))}
+                      {overviewDashboard.openDecisionItems.length === 0 && (
+                        <p>Открытых вопросов, требующих решения, нет.</p>
                       )}
                     </div>
                   </article>
@@ -83,30 +109,6 @@ export function ProjectOverviewSummaryPage() {
 
                   <article className="executive-overview-card">
                     <div className="executive-overview-card-title">
-                      <span>Решения по ключевым открытым вопросам</span>
-                      <strong>{overviewDashboard.decisionItems}</strong>
-                    </div>
-                    <div className="executive-overview-list">
-                      {overviewDashboard.openDecisionItems.map((issue) => (
-                        <div
-                          className="executive-overview-row"
-                          key={issue.id}
-                        >
-                          <b>{issue.title}</b>
-                          <span>
-                            {issue.owner || "не назначен"} / срок{" "}
-                            {date(issue.dueDate)}
-                          </span>
-                        </div>
-                      ))}
-                      {overviewDashboard.openDecisionItems.length === 0 && (
-                        <p>Открытых вопросов, требующих решения, нет.</p>
-                      )}
-                    </div>
-                  </article>
-
-                  <article className="executive-overview-card">
-                    <div className="executive-overview-card-title">
                       <span>Отклонение сроков</span>
                       <strong>
                         {overviewDashboard.scheduleVarianceFromStructure > 0 ? "+" : ""}
@@ -114,22 +116,54 @@ export function ProjectOverviewSummaryPage() {
                       </strong>
                     </div>
                     <div className="executive-overview-list">
-                      {overviewDashboard.scheduleDeltaItems.map(({ item, delay }) => (
-                        <div
-                          className="executive-overview-row"
-                          key={item.id}
-                        >
-                          <b>
-                            {item.jiraTicketKey ? `${item.jiraTicketKey} / ` : ""}
-                            {item.code} {item.title}
-                          </b>
-                          <span>
-                            Отклонение +{delay} календарных дней / исполнитель:{" "}
-                            {item.owner || "не назначен"}
-                          </span>
+                      {overviewDashboard.scheduleDelayItems.length > 0 && (
+                        <div className="schedule-impact-group">
+                          <h4>Максимальное влияние на отставание</h4>
+                          {overviewDashboard.scheduleDelayItems.map(({ item, delay }) => (
+                            <div
+                              className="executive-overview-row"
+                              key={`delay-${item.id}`}
+                            >
+                              <b>
+                                {item.jiraTicketKey
+                                  ? `${item.jiraTicketKey} / `
+                                  : ""}
+                                {item.code} {item.title}
+                              </b>
+                              <span>
+                                +{delay} календарных дней / исполнитель:{" "}
+                                {item.owner || "не назначен"}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                      {overviewDashboard.scheduleDeltaItems.length === 0 && (
+                      )}
+                      {overviewDashboard.scheduleAccelerationItems.length > 0 && (
+                        <div className="schedule-impact-group acceleration">
+                          <h4>Максимальное влияние на опережение</h4>
+                          {overviewDashboard.scheduleAccelerationItems.map(
+                            ({ item, acceleration }) => (
+                              <div
+                                className="executive-overview-row"
+                                key={`acceleration-${item.id}`}
+                              >
+                                <b>
+                                  {item.jiraTicketKey
+                                    ? `${item.jiraTicketKey} / `
+                                    : ""}
+                                  {item.code} {item.title}
+                                </b>
+                                <span>
+                                  -{acceleration} календарных дней / исполнитель:{" "}
+                                  {item.owner || "не назначен"}
+                                </span>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      )}
+                      {overviewDashboard.scheduleDelayItems.length === 0 &&
+                        overviewDashboard.scheduleAccelerationItems.length === 0 && (
                         <p>Отклонений от базового плана нет.</p>
                       )}
                     </div>

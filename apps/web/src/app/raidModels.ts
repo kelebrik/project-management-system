@@ -11,10 +11,14 @@ export type RaidFilterOptions = {
   today: Date;
 };
 
+const inactiveRaidStatuses = new Set(["CLOSED", "VALIDATED"]);
+
+export function isInactiveRaidItem(item: RaidItem) {
+  return inactiveRaidStatuses.has(item.status);
+}
+
 export function createRaidSummary(raidItems: RaidItem[]) {
-  const activeRaid = raidItems.filter(
-    (item) => item.status !== "CLOSED" && item.status !== "VALIDATED",
-  );
+  const activeRaid = raidItems.filter((item) => !isInactiveRaidItem(item));
   const highRisks = activeRaid.filter(
     (item) => item.type === "RISK" && item.riskScore >= 15,
   );
@@ -48,13 +52,12 @@ export function filterRaidItems(
 ) {
   const todayStart = startOfDay(today);
   return raidItems.filter((item) => {
+    if (isInactiveRaidItem(item)) return false;
     if (raidTypeFilter !== "ALL" && item.type !== raidTypeFilter) return false;
     if (raidDecisionOnly && !item.decisionRequired) return false;
     if (
       raidOverdueOnly &&
       (!item.dueDate ||
-        item.status === "CLOSED" ||
-        item.status === "VALIDATED" ||
         startOfDay(new Date(item.dueDate)) >= todayStart)
     ) {
       return false;
@@ -67,7 +70,7 @@ export function filterRaidItems(
 export function createRiskMatrix(raidItems: RaidItem[]) {
   const cells = new Map<string, number>();
   for (const item of raidItems) {
-    if (item.type !== "RISK" || item.status === "CLOSED") continue;
+    if (item.type !== "RISK" || isInactiveRaidItem(item)) continue;
     const probability = Math.max(1, Math.min(5, item.probability));
     const impact = Math.max(1, Math.min(5, item.impact));
     const key = `${probability}:${impact}`;
@@ -82,4 +85,18 @@ export function groupRaidItems(filteredRaidItems: RaidItem[]) {
     problems: filteredRaidItems.filter((item) => item.type === "DEPENDENCY"),
     assumptions: filteredRaidItems.filter((item) => item.type === "ASSUMPTION"),
   };
+}
+
+export function closedRiskAndProblemItems(raidItems: RaidItem[]) {
+  return raidItems
+    .filter(
+      (item) =>
+        isInactiveRaidItem(item) &&
+        (item.type === "RISK" || item.type === "DEPENDENCY"),
+    )
+    .sort((left, right) => {
+      const leftDate = left.validationDate ?? left.dueDate ?? "";
+      const rightDate = right.validationDate ?? right.dueDate ?? "";
+      return rightDate.localeCompare(leftDate) || left.title.localeCompare(right.title);
+    });
 }
