@@ -47,6 +47,30 @@ export function ProjectOverviewSummaryPage() {
 
                   <article className="executive-overview-card">
                     <div className="executive-overview-card-title">
+                      <span>Решения по ключевым открытым вопросам</span>
+                      <strong>{overviewDashboard.decisionItems}</strong>
+                    </div>
+                    <div className="executive-overview-list">
+                      {overviewDashboard.openDecisionItems.map((issue) => (
+                        <div
+                          className="executive-overview-row"
+                          key={issue.id}
+                        >
+                          <b>{issue.title}</b>
+                          <span>
+                            {issue.owner || "не назначен"} / срок{" "}
+                            {date(issue.dueDate)}
+                          </span>
+                        </div>
+                      ))}
+                      {overviewDashboard.openDecisionItems.length === 0 && (
+                        <p>Открытых вопросов, требующих решения, нет.</p>
+                      )}
+                    </div>
+                  </article>
+
+                  <article className="executive-overview-card">
+                    <div className="executive-overview-card-title">
                       <span>Тикеты под риском</span>
                       <strong>{overviewDashboard.blockingTickets.length}</strong>
                     </div>
@@ -79,30 +103,6 @@ export function ProjectOverviewSummaryPage() {
                       ))}
                       {overviewDashboard.blockingTickets.length === 0 && (
                         <p>Тикетов под риском нет.</p>
-                      )}
-                    </div>
-                  </article>
-
-                  <article className="executive-overview-card">
-                    <div className="executive-overview-card-title">
-                      <span>Решения по ключевым открытым вопросам</span>
-                      <strong>{overviewDashboard.decisionItems}</strong>
-                    </div>
-                    <div className="executive-overview-list">
-                      {overviewDashboard.openDecisionItems.map((issue) => (
-                        <div
-                          className="executive-overview-row"
-                          key={issue.id}
-                        >
-                          <b>{issue.title}</b>
-                          <span>
-                            {issue.owner || "не назначен"} / срок{" "}
-                            {date(issue.dueDate)}
-                          </span>
-                        </div>
-                      ))}
-                      {overviewDashboard.openDecisionItems.length === 0 && (
-                        <p>Открытых вопросов, требующих решения, нет.</p>
                       )}
                     </div>
                   </article>
