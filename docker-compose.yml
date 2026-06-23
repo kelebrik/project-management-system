@@ -26,8 +26,6 @@ services:
       postgres:
         condition: service_healthy
         required: false
-      migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 15s
@@ -35,17 +33,6 @@ services:
       retries: 12
       start_period: 30s
     restart: unless-stopped
-
-  migrate:
-    image: project-management-system:local
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://pms_user:pms_password@postgres:5432/project_management_system?schema=public
-    command: ["npm", "run", "prisma:deploy"]
-    restart: "no"
 
   postgres:
     profiles: ["local-db"]
