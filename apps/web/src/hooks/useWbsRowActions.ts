@@ -201,6 +201,142 @@ export function useWbsRowActions({
     void saveWbsItem(itemId, { ...options, draftOverride: nextDraft });
   }
 
+  function getWbsSubtreeRange(itemId: string) {
+    const startIndex = wbsTree.findIndex((item) => item.id === itemId);
+    if (startIndex === -1) return null;
+    const sourceLevel = wbsTree[startIndex].wbsLevel ?? wbsTree[startIndex].level + 1;
+    let endIndex = startIndex + 1;
+    while (
+      endIndex < wbsTree.length &&
+      (wbsTree[endIndex].wbsLevel ?? wbsTree[endIndex].level + 1) > sourceLevel
+    ) {
+      endIndex += 1;
+    }
+    return { startIndex, endIndex, sourceLevel };
+  }
+
+  async function reorderWbsRowsWithMetadata(
+    nextItems: WbsItem[],
+    metadata: {
+      levelsById?: Record<string, number>;
+      typesById?: Partial<Record<string, WbsItem["type"]>>;
+    } = {},
+    notice = "Структура обновлена",
+  ) {
+    if (!project) return;
+    const normalizedItems = nextItems.map((item, index) => ({
+      ...item,
+      sortOrder: (index + 1) * 10,
+      wbsLevel: metadata.levelsById?.[item.id] ?? item.wbsLevel,
+      type: metadata.typesById?.[item.id] ?? item.type,
+    }));
+    const previousSnapshot = rememberWbsSnapshot();
+    applyWbsItems(normalizedItems);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await authenticatedFetch(
+        `${apiBase}/api/projects/${project.id}/wbs-items/reorder`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderedIds: normalizedItems.map((item) => item.id),
+            levelsById: metadata.levelsById,
+            typesById: metadata.typesById,
+          }),
+        },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          result?.error?.formErrors?.join(", ") ||
+            result?.error ||
+            "Не удалось обновить Структуру",
+        );
+      }
+      if (result?.wbsItems) {
+        applyWbsSnapshotResult(
+          result.wbsItems,
+          result.wbsDependencies,
+          result.criticalPath,
+        );
+      }
+      if (notice) setNotice(notice);
+    } catch (reorderError) {
+      if (previousSnapshot) {
+        setWbsUndoHistory(wbsUndoStackRef.current.slice(0, -1));
+      }
+      await refreshProject(project.id);
+      setError(
+        reorderError instanceof Error
+          ? reorderError.message
+          : "Не удалось обновить Структуру",
+      );
+    } finally {
+      setDraggedWbsItemId(null);
+      setWbsDropTargetId(null);
+    }
+  }
+
+  function saveWbsTypePatch(
+    itemId: string,
+    nextType: WbsItem["type"],
+    options: { silent?: boolean } = {},
+  ) {
+    const current = wbsDraftsRef.current[itemId] ?? wbsDrafts[itemId];
+    if (!current) return;
+    const range = getWbsSubtreeRange(itemId);
+    const sourceItem = range ? wbsTree[range.startIndex] : null;
+    if (
+      project &&
+      range &&
+      sourceItem?.type === "WORK_PACKAGE" &&
+      nextType === "PHASE"
+    ) {
+      const block = wbsTree.slice(range.startIndex, range.endIndex);
+      const phaseStartIndex = (() => {
+        for (let index = range.startIndex - 1; index >= 0; index -= 1) {
+          const candidateLevel = wbsTree[index].wbsLevel ?? wbsTree[index].level + 1;
+          if (candidateLevel === 1) return index;
+        }
+        return range.startIndex;
+      })();
+      const levelOffset = Math.max(0, range.sourceLevel - 1);
+      const levelsById = Object.fromEntries(
+        block.map((item) => [
+          item.id,
+          Math.max(1, (item.wbsLevel ?? item.level + 1) - levelOffset),
+        ]),
+      );
+      const blockIds = new Set(block.map((item) => item.id));
+      const remainingItems = wbsTree.filter((item) => !blockIds.has(item.id));
+      const insertIndex = remainingItems.findIndex(
+        (item) => item.id === wbsTree[phaseStartIndex]?.id,
+      );
+      const nextItems = [...remainingItems];
+      nextItems.splice(Math.max(0, insertIndex), 0, ...block);
+      const nextDrafts = {
+        ...wbsDraftsRef.current,
+        [itemId]: { ...current, type: nextType, wbsLevel: "1" },
+      };
+      wbsDraftsRef.current = nextDrafts;
+      setWbsDrafts(nextDrafts);
+      void reorderWbsRowsWithMetadata(
+        nextItems,
+        {
+          levelsById,
+          typesById: { [itemId]: nextType },
+        },
+        options.silent ? "" : "Пакет работ преобразован в фазу",
+      );
+      return;
+    }
+
+    saveWbsDraftPatch(itemId, { type: nextType }, { ...options, silent: true });
+  }
+
   function toggleWbsCollapse(itemId: string) {
     setCollapsedWbsIds((current) => {
       const next = new Set(current);
@@ -599,6 +735,7 @@ export function useWbsRowActions({
     reorderWbsRows,
     saveDirtyWbsItems,
     saveWbsDraftPatch,
+    saveWbsTypePatch,
     saveWbsItem,
     toggleWbsCollapse,
     updateSelectedWbsDrafts,
