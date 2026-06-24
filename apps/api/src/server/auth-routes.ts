@@ -13,10 +13,11 @@ import {
   safeUser,
   verifyPassword,
 } from './auth.js';
+import { isKeycloakEnabled } from './keycloak-auth.js';
 
 export function registerAuthRoutes(app: Express) {
   app.get('/api/auth/setup-status', async (_req, res) => {
-    res.json({ needsSetup: !(await hasConfiguredAdmin()) });
+    res.json({ needsSetup: !isKeycloakEnabled() && !(await hasConfiguredAdmin()) });
   });
 
   app.post('/api/auth/bootstrap', async (req, res) => {

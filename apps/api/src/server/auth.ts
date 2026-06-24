@@ -9,6 +9,9 @@ const authCookieSecure =
   process.env.AUTH_COOKIE_SECURE === 'true' ||
   (process.env.AUTH_COOKIE_SECURE !== 'false' && process.env.NODE_ENV === 'production');
 
+export const AUTH_COOKIE_SECURE = authCookieSecure;
+export const AUTH_SESSION_DAYS = sessionDays;
+
 export type CurrentUser = {
   id: string;
   email: string;

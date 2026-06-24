@@ -1,11 +1,12 @@
 import {
   useCallback,
   useEffect,
+  useState,
   type Dispatch,
   type FormEvent,
   type SetStateAction,
 } from "react";
-import { ApiError, apiClient } from "../api/client";
+import { ApiError, apiBase, apiClient } from "../api/client";
 import type {
   AuthFormState,
   AuthMode,
@@ -51,6 +52,11 @@ type UseAuthControllerOptions = {
   resetAdminState: () => void;
 };
 
+export type KeycloakAuthStatus = {
+  enabled: boolean;
+  hostname: string | null;
+};
+
 export function useAuthController({
   authMode,
   setAuthMode,
@@ -71,6 +77,11 @@ export function useAuthController({
   openView,
   resetAdminState,
 }: UseAuthControllerOptions) {
+  const [keycloakStatus, setKeycloakStatus] = useState<KeycloakAuthStatus>({
+    enabled: false,
+    hostname: null,
+  });
+
   useEffect(() => {
     let cancelled = false;
 
@@ -123,6 +134,21 @@ export function useAuthController({
       cancelled = true;
     };
   }, [setAuthMode, setCurrentUser, setError, setLoading]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .get<KeycloakAuthStatus>("/api/auth/keycloak/status")
+      .then((status) => {
+        if (!cancelled) setKeycloakStatus(status);
+      })
+      .catch(() => {
+        if (!cancelled) setKeycloakStatus({ enabled: false, hostname: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const onAuthRequired = () => {
@@ -248,5 +274,12 @@ export function useAuthController({
     setNotice,
   ]);
 
-  return { submitAuth, logout };
+  const loginWithKeycloak = useCallback(() => {
+    const redirect = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.location.assign(
+      `${apiBase}/api/auth/keycloak/login?redirect=${encodeURIComponent(redirect)}`,
+    );
+  }, []);
+
+  return { submitAuth, logout, keycloakStatus, loginWithKeycloak };
 }

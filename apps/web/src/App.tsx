@@ -365,7 +365,7 @@ function AppController() {
     setProjects,
     setSelectedProjectId,
   });
-  const { submitAuth, logout } = useAuthController({
+  const { submitAuth, logout, keycloakStatus, loginWithKeycloak } = useAuthController({
     authMode,
     setAuthMode,
     authForm,
@@ -900,10 +900,12 @@ function AppController() {
       isClosedProject={isClosedProject}
       isProjectModuleEnabled={isProjectModuleEnabled}
       isReadOnly={isReadOnly}
+      keycloakEnabled={keycloakStatus.enabled}
       loading={loading}
       logout={logout}
       notice={notice}
       onAuthFormChange={setAuthForm}
+      onKeycloakLogin={loginWithKeycloak}
       onAuthModeChange={setAuthMode}
       onErrorChange={setError}
       onNoticeChange={setNotice}
