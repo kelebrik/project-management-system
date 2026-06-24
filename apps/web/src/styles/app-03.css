@@ -145,6 +145,10 @@
   justify-content: space-between;
 }
 
+.executive-overview-card-title.collapsible {
+  align-items: center;
+}
+
 .executive-overview-card-title span {
   color: #64748b;
   font-size: 11px;
@@ -156,6 +160,52 @@
   color: #1f2937;
   font-size: 24px;
   line-height: 1.15;
+}
+
+.executive-overview-card-title-actions {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.executive-overview-card-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.executive-overview-card-toggle:hover span,
+.executive-overview-card-toggle:focus-visible span {
+  color: #1d4ed8;
+}
+
+.overview-section-link {
+  align-items: center;
+  border: 1px solid #d8e0eb;
+  border-radius: 6px;
+  color: #64748b;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.overview-section-link:hover,
+.overview-section-link:focus-visible {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.executive-overview-card.collapsed {
+  gap: 0;
 }
 
 .executive-overview-card.danger .executive-overview-card-title strong {

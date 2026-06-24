@@ -1,4 +1,24 @@
+import { useEffect } from "react";
 import { usePageContext } from "./PageContext";
+
+function currentHashId() {
+  if (typeof window === "undefined") return "";
+  try {
+    return decodeURIComponent(window.location.hash.replace(/^#/, ""));
+  } catch {
+    return window.location.hash.replace(/^#/, "");
+  }
+}
+
+function scrollToHashSection(sectionId: string) {
+  if (typeof window === "undefined") return;
+  window.requestAnimationFrame(() => {
+    document.getElementById(sectionId)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  });
+}
 
 export function ProjectOverviewMilestonesPage() {
   const ctx = usePageContext();
@@ -14,6 +34,19 @@ export function ProjectOverviewMilestonesPage() {
     startMilestoneLabelDrag,
     toggleWorkspaceFullscreen,
   } = ctx;
+
+  useEffect(() => {
+    const syncHashSection = () => {
+      const hashId = currentHashId();
+      if (hashId === "milestones-by-phase" || hashId === "milestones-all") {
+        scrollToHashSection(hashId);
+      }
+    };
+
+    syncHashSection();
+    window.addEventListener("hashchange", syncHashSection);
+    return () => window.removeEventListener("hashchange", syncHashSection);
+  }, []);
 
   return (
                 <article
