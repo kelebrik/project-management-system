@@ -16,6 +16,60 @@ function isDefaultWorkingDay(value: Date) {
   return day !== 0 && day !== 6;
 }
 
+function addCalendarDays(value: Date, days: number) {
+  const result = startOfUtcDay(value);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+function defaultWorkingDaysInclusive(startDate: Date, dueDate: Date) {
+  const start = startOfUtcDay(startDate);
+  const due = startOfUtcDay(dueDate);
+  if (start.getTime() > due.getTime()) return 0;
+
+  const totalDays = calendarDayDistance(start, due) + 1;
+  const fullWeeks = Math.floor(totalDays / 7);
+  let days = fullWeeks * 5;
+  const remainingDays = totalDays % 7;
+  const startDay = start.getUTCDay();
+
+  for (let offset = 0; offset < remainingDays; offset += 1) {
+    const day = (startDay + offset) % 7;
+    if (day !== 0 && day !== 6) {
+      days += 1;
+    }
+  }
+
+  return days;
+}
+
+function overrideAdjustmentInclusive(
+  startDate: Date,
+  dueDate: Date,
+  calendarCode: ProjectCalendarCode,
+  overridesByKey: Map<string, boolean>,
+) {
+  const startTime = startOfUtcDay(startDate).getTime();
+  const dueTime = startOfUtcDay(dueDate).getTime();
+  let adjustment = 0;
+
+  for (const [key, isOverrideWorkingDay] of overridesByKey.entries()) {
+    if (!key.startsWith(`${calendarCode}:`)) continue;
+    const overrideDate = startOfUtcDay(
+      new Date(`${key.slice(calendarCode.length + 1)}T00:00:00.000Z`),
+    );
+    const overrideTime = overrideDate.getTime();
+    if (overrideTime < startTime || overrideTime > dueTime) continue;
+
+    const isNormallyWorkingDay = isDefaultWorkingDay(overrideDate);
+    if (isOverrideWorkingDay !== isNormallyWorkingDay) {
+      adjustment += isOverrideWorkingDay ? 1 : -1;
+    }
+  }
+
+  return adjustment;
+}
+
 export function startOfUtcDay(value: Date) {
   const result = new Date(value);
   result.setUTCHours(0, 0, 0, 0);
@@ -110,22 +164,13 @@ export function workingDayDistance(
   if (start.getTime() === end.getTime()) return 0;
 
   const direction = start.getTime() < end.getTime() ? 1 : -1;
-  const cursor = new Date(start);
-  let days = 0;
-  let guard = 0;
+  const rangeStart = direction > 0 ? addCalendarDays(start, 1) : end;
+  const rangeEnd = direction > 0 ? end : addCalendarDays(start, -1);
+  const days =
+    defaultWorkingDaysInclusive(rangeStart, rangeEnd) +
+    overrideAdjustmentInclusive(rangeStart, rangeEnd, calendarCode, overridesByKey);
 
-  while (cursor.getTime() !== end.getTime()) {
-    cursor.setUTCDate(cursor.getUTCDate() + direction);
-    if (isWorkingDay(cursor, calendarCode, overridesByKey)) {
-      days += direction;
-    }
-    guard += 1;
-    if (guard > 20_000) {
-      throw new Error("Не удалось посчитать резерв критического пути");
-    }
-  }
-
-  return days;
+  return days * direction;
 }
 
 export function calendarDayDistance(startDate: Date, endDate: Date) {

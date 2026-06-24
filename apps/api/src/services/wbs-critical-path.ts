@@ -1,5 +1,11 @@
 import { prisma } from "../db.js";
 import { calculateWbsCriticalPath } from "./wbs-critical-path/calculate.js";
+import type {
+  WbsCriticalPathCalendarOverride,
+  WbsCriticalPathDependencyInput,
+  WbsCriticalPathItemInput,
+  WbsCriticalPathResult,
+} from "./wbs-critical-path/types.js";
 
 export { calculateWbsCriticalPath } from "./wbs-critical-path/calculate.js";
 export type {
@@ -9,6 +15,37 @@ export type {
   WbsCriticalPathItemInput,
   WbsCriticalPathResult,
 } from "./wbs-critical-path/types.js";
+
+function criticalPathFallback(error: unknown): WbsCriticalPathResult {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Не удалось рассчитать критический путь";
+
+  return {
+    projectStartDate: null,
+    projectFinishDate: null,
+    criticalItemIds: [],
+    criticalDependencyIds: [],
+    criticalItemCount: 0,
+    nearCriticalItemCount: 0,
+    warnings: [`Расчет критического пути временно недоступен: ${message}`],
+    items: [],
+  };
+}
+
+export function safeCalculateWbsCriticalPath(
+  items: WbsCriticalPathItemInput[],
+  dependencies: WbsCriticalPathDependencyInput[],
+  calendarOverrides: WbsCriticalPathCalendarOverride[],
+) {
+  try {
+    return calculateWbsCriticalPath(items, dependencies, calendarOverrides);
+  } catch (error) {
+    console.error("Failed to calculate WBS critical path", error);
+    return criticalPathFallback(error);
+  }
+}
 
 export async function calculateProjectCriticalPath(projectId: string) {
   const [items, dependencies, calendarOverrides] = await Promise.all([
@@ -55,5 +92,5 @@ export async function calculateProjectCriticalPath(projectId: string) {
     }),
   ]);
 
-  return calculateWbsCriticalPath(items, dependencies, calendarOverrides);
+  return safeCalculateWbsCriticalPath(items, dependencies, calendarOverrides);
 }
