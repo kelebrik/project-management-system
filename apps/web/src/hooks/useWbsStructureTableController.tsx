@@ -44,10 +44,10 @@ type SaveWbsItem = (
   },
 ) => Promise<void>;
 
-type SaveWbsLevelPatch = (
+type SaveWbsDraftPatch = (
   itemId: string,
-  nextLevel: number,
-  options?: { silent?: boolean },
+  patch: Partial<WbsFormState>,
+  options?: { silent?: boolean; scheduleDriver?: WbsScheduleDriver },
 ) => void;
 
 type UseWbsStructureTableControllerOptions = {
@@ -60,7 +60,7 @@ type UseWbsStructureTableControllerOptions = {
     sourceRows?: WbsTreeItem[],
   ) => Promise<void>;
   orderedWbsColumns: WbsTableColumn[];
-  saveWbsLevelPatch: SaveWbsLevelPatch;
+  saveWbsDraftPatch: SaveWbsDraftPatch;
   saveWbsItem: SaveWbsItem;
   selectedWbsIds: Set<string>;
   setDraggedWbsItemId: Dispatch<SetStateAction<string | null>>;
@@ -126,7 +126,7 @@ export function useWbsStructureTableController({
   draftWbsCodes,
   insertWbsRow,
   orderedWbsColumns,
-  saveWbsLevelPatch,
+  saveWbsDraftPatch,
   saveWbsItem,
   selectedWbsIds,
   setDraggedWbsItemId,
@@ -149,32 +149,6 @@ export function useWbsStructureTableController({
     editableKeyHandler({
       onEnter: () => {
         void saveWbsItem(itemId, { silent: true, scheduleDriver });
-      },
-      onEscape: () => {
-        const currentItem = wbsTree.find((item) => item.id === itemId);
-        if (!currentItem) return;
-        setWbsDrafts(() => {
-          const source = wbsToForm(currentItem);
-          const nextDrafts = {
-            ...wbsDraftsRef.current,
-            [itemId]: {
-              ...source,
-              code: draftWbsCodes.get(itemId) ?? source.code,
-            },
-          };
-          wbsDraftsRef.current = nextDrafts;
-          return nextDrafts;
-        });
-      },
-    });
-
-  const wbsLevelKeyHandler = (itemId: string, draft: WbsFormState): KeyboardEventHandler =>
-    editableKeyHandler({
-      onEnter: () => {
-        const nextLevel = draft.wbsLevel ? Number(draft.wbsLevel) : 1;
-        saveWbsLevelPatch(itemId, Math.min(12, Math.max(1, nextLevel)), {
-          silent: true,
-        });
       },
       onEscape: () => {
         const currentItem = wbsTree.find((item) => item.id === itemId);
@@ -343,8 +317,12 @@ export function useWbsStructureTableController({
                   const currentLevel = draft.wbsLevel
                     ? Number(draft.wbsLevel)
                     : 1;
-                  const nextLevel = Math.max(1, currentLevel - 1);
-                  saveWbsLevelPatch(item.id, nextLevel, { silent: true });
+                  const nextLevel = String(Math.max(1, currentLevel - 1));
+                  saveWbsDraftPatch(
+                    item.id,
+                    { wbsLevel: nextLevel },
+                    { silent: true },
+                  );
                 }}
                 aria-label="Уменьшить уровень вложения"
               >
@@ -356,8 +334,12 @@ export function useWbsStructureTableController({
                   const currentLevel = draft.wbsLevel
                     ? Number(draft.wbsLevel)
                     : 1;
-                  const nextLevel = Math.min(12, currentLevel + 1);
-                  saveWbsLevelPatch(item.id, nextLevel, { silent: true });
+                  const nextLevel = String(Math.min(12, currentLevel + 1));
+                  saveWbsDraftPatch(
+                    item.id,
+                    { wbsLevel: nextLevel },
+                    { silent: true },
+                  );
                 }}
                 aria-label="Увеличить уровень вложения"
               >
@@ -372,13 +354,8 @@ export function useWbsStructureTableController({
                 updateWbsDraft(item.id, { wbsLevel: event.target.value })
               }
               onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-              onKeyDown={wbsLevelKeyHandler(item.id, draft)}
-              onBlur={() => {
-                const nextLevel = draft.wbsLevel ? Number(draft.wbsLevel) : 1;
-                saveWbsLevelPatch(item.id, Math.min(12, Math.max(1, nextLevel)), {
-                  silent: true,
-                });
-              }}
+              onKeyDown={wbsEditKeyHandler(item.id)}
+              onBlur={() => void saveWbsItem(item.id, { silent: true })}
             />
             <div className="wbs-row-controls">
               <button

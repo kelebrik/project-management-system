@@ -8,7 +8,6 @@ export const wbsInsertAfterSchema = z.object({
 
 export const wbsReorderSchema = z.object({
   orderedIds: z.array(z.string().trim().min(1)).min(1),
-  levelsById: z.record(z.string().trim().min(1), z.coerce.number().int().min(1).max(12)).optional(),
 });
 
 export const wbsDependencySchema = z.object({
