@@ -867,7 +867,7 @@ function AppController() {
 
   const presentationContext = buildAppPresentationContext(derived, {
     activeView, activeWbsItemId, collapsedWbsIds, currentUser, firstEnabledProjectView, isReadOnly, openView, project, projects, selectedProjectId,
-    ...{ adminHealth, adminIntegrations, auditEvents, backupStatus, configTransferText, createdApiToken, creatingDictionaryItem, creatingUser, currentUser, dictionaryDrafts, importingConfig, newDictionaryDraft, newUserForm, rolePermissions, systemSettings, systemSettingsDraft, userDrafts, users, webhookDraft },
+    ...{ adminHealth, adminIntegrations, auditEvents, backupStatus, configTransferText, createdApiToken, creatingDictionaryItem, creatingUser, currentUser, dictionaryDrafts, importingConfig, newDictionaryDraft, newUserForm, setNewUserForm, rolePermissions, systemSettings, systemSettingsDraft, userDrafts, users, webhookDraft },
     ...{ artifactDrafts, expandedArtifactId, createArtifactRow, deleteArtifact, moveArtifact, saveArtifact, updateArtifactDraft, setExpandedArtifactId },
     ...{ closeOpenIssue, createOpenIssue, creatingIssue, expandedIssueId, issueDrawerMode, issueEditDrafts, issueForm, issueFormErrors, issueLinkDrafts, issueStatusDrafts, removeIssueFormLink, removeIssueJiraLink, saveOpenIssue, saveOpenIssueWithPayload, saveTaskJiraLink, taskDrafts, updateIssueDraft, updateIssueFormLink, updateIssueStatusDraft },
     ...{ jiraForm, jiraWorkSectionDrafts, saveJiraIntegration, saveJiraWorkSections, savingJira, savingJiraWorkSections, setJiraForm, setJiraWorkSectionDrafts, syncJira },
