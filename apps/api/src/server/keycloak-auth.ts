@@ -29,6 +29,11 @@ const defaultRedirectPath = '/';
 
 let discoveryCache: { endpoint: string; value: OidcDiscovery; expiresAt: number } | null = null;
 
+function isLocalRequestHost(host: string | undefined) {
+  const hostname = host?.split(':')[0]?.replace(/^\[|\]$/g, '').toLowerCase();
+  return !hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
 function keycloakConfig() {
   const discoveryEndpoint = process.env.KEYCLOAK_OIDCS_DISCOVERY_ENDPOINT?.trim();
   const clientId = process.env.KEYCLOAK_CLIENT_ID?.trim();
@@ -47,11 +52,13 @@ export function isKeycloakEnabled() {
   return keycloakConfig().enabled;
 }
 
-function externalBaseUrl(req: Request) {
+export function externalBaseUrl(req: Request) {
   const configured = process.env.PUBLIC_APP_URL?.trim() || process.env.APP_BASE_URL?.trim();
   if (configured) return configured.replace(/\/+$/, '');
-  const proto = req.get('x-forwarded-proto')?.split(',')[0]?.trim() || req.protocol;
   const host = req.get('x-forwarded-host')?.split(',')[0]?.trim() || req.get('host');
+  const forwardedProto = req.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const rawProto = forwardedProto || req.protocol;
+  const proto = rawProto === 'http' && !isLocalRequestHost(host) ? 'https' : rawProto;
   return `${proto}://${host}`;
 }
 
