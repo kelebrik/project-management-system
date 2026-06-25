@@ -48,6 +48,10 @@ export function createApp() {
       credentials: true,
     }),
   );
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.use(httpMetricsMiddleware);
 
   app.get('/api/health', async (_req, res) => {

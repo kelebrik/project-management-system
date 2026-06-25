@@ -765,16 +765,17 @@ export function useAdminActionsController({
           },
           "Не удалось сохранить пользователя",
         );
-        replaceUser(updatedUser);
+        let savedUser = updatedUser;
         if (draft.password.trim()) {
           const passwordUser = await apiClient.post<SystemUser>(
             `/api/users/${userId}/password`,
             { password: draft.password },
             "Не удалось сменить пароль",
           );
-          replaceUser(passwordUser);
+          savedUser = passwordUser;
         }
         await reloadUsers();
+        replaceUser(savedUser);
         await reloadAuditEvents();
         setNotice("Пользователь обновлен");
       } catch (saveError) {
