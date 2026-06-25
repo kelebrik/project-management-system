@@ -873,6 +873,19 @@
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.workspace-focus-panel-fullscreen.workspace-focus-milestones .milestone-sections {
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-milestones .milestone-section {
+  min-height: 0;
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-milestones .milestone-timeline {
+  min-height: 0;
+}
+
 .workspace-focus-panel-fullscreen .milestone-sections,
 .workspace-focus-panel-fullscreen .milestone-timeline {
   min-height: 0;
