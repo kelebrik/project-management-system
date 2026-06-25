@@ -91,7 +91,7 @@ type UseAdminActionsControllerOptions = {
 
 export function useAdminActionsController({
   users,
-  setUsers: _setUsers,
+  setUsers,
   userDrafts,
   setUserDrafts,
   newUserForm,
@@ -137,8 +137,20 @@ export function useAdminActionsController({
   setError,
   setNotice,
 }: UseAdminActionsControllerOptions) {
-  void _setUsers;
   void _rolePermissions;
+
+  const replaceUser = useCallback(
+    (updatedUser: SystemUser) => {
+      setUsers((current) =>
+        current.map((user) => (user.id === updatedUser.id ? updatedUser : user)),
+      );
+      setUserDrafts((current) => ({
+        ...current,
+        [updatedUser.id]: userToDraft(updatedUser),
+      }));
+    },
+    [setUsers, setUserDrafts],
+  );
 
   const updateUserDraft = useCallback(
     (userId: string, patch: Partial<UserDraftState>) => {
@@ -743,7 +755,7 @@ export function useAdminActionsController({
       setError(null);
       setNotice(null);
       try {
-        await apiClient.patch<SystemUser>(
+        const updatedUser = await apiClient.patch<SystemUser>(
           `/api/users/${userId}`,
           {
             email: draft.email.trim(),
@@ -753,14 +765,17 @@ export function useAdminActionsController({
           },
           "Не удалось сохранить пользователя",
         );
+        let savedUser = updatedUser;
         if (draft.password.trim()) {
-          await apiClient.post<SystemUser>(
+          const passwordUser = await apiClient.post<SystemUser>(
             `/api/users/${userId}/password`,
             { password: draft.password },
             "Не удалось сменить пароль",
           );
+          savedUser = passwordUser;
         }
         await reloadUsers();
+        replaceUser(savedUser);
         await reloadAuditEvents();
         setNotice("Пользователь обновлен");
       } catch (saveError) {
@@ -776,6 +791,7 @@ export function useAdminActionsController({
     [
       reloadAuditEvents,
       reloadUsers,
+      replaceUser,
       setError,
       setNotice,
       setSavingUserId,

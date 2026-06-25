@@ -316,9 +316,9 @@ export async function hasConfiguredAdmin() {
 export async function wouldRemoveLastAdmin(userId: string, data: { role?: UserRole; isActive?: boolean }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, isActive: true, passwordHash: true },
+    select: { role: true, isActive: true },
   });
-  if (!user || user.role !== 'ADMIN' || !user.isActive || !user.passwordHash) {
+  if (!user || user.role !== 'ADMIN' || !user.isActive) {
     return false;
   }
   const nextRole = data.role ?? user.role;
@@ -331,7 +331,6 @@ export async function wouldRemoveLastAdmin(userId: string, data: { role?: UserRo
       id: { not: userId },
       role: 'ADMIN',
       isActive: true,
-      passwordHash: { not: null },
     },
   });
   return otherAdmins === 0;
