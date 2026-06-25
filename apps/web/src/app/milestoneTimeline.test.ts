@@ -103,3 +103,31 @@ test("milestone count timeline places today after the completed share of milesto
     "snake marker should reserve 4/17 of the path before today",
   );
 });
+
+test("phase milestone timeline hides lanes without visible milestones", () => {
+  const item = milestone("m1", "2026-06-10");
+  const model = createMilestoneTimelineModel({
+    milestones: [
+      {
+        milestone: item,
+        calendarDaysLeft: null,
+        workDaysLeft: null,
+        state: { label: "", tone: "gray" },
+      },
+    ],
+    lanes: [
+      { id: "phase-1", code: "1", title: "Phase 1", items: [] },
+      { id: "phase-2", code: "2", title: "Phase 2", items: [] },
+      { id: "phase-3", code: "3", title: "Phase 3", items: [] },
+    ],
+    laneIdByMilestoneId: new Map([[item.id, "phase-2"]]),
+    today: new Date(2026, 5, 1),
+    timelineStart: new Date(2026, 4, 1),
+    timelineEnd: new Date(2026, 6, 1),
+  });
+
+  assert.deepEqual(
+    model.lanes.map((lane) => lane.id),
+    ["phase-2"],
+  );
+});

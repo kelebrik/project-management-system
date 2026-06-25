@@ -87,12 +87,14 @@ type AppPresentationProps = {
   isClosedProject: boolean;
   isProjectModuleEnabled: (key: any) => boolean;
   isReadOnly: boolean;
+  keycloakEnabled: boolean;
   loading: boolean;
   logout: () => void;
   notice: string | null;
   onAuthFormChange: (value: any) => void;
   onAuthModeChange: (mode: "login" | "ready") => void;
   onErrorChange: (value: string | null) => void;
+  onKeycloakLogin: () => void;
   onNoticeChange: (value: string | null) => void;
   onSubmitAuth: (event: any) => void;
   onSelectSearchResult: (result: any) => void;
@@ -174,12 +176,14 @@ export function AppPresentation({
   isClosedProject,
   isProjectModuleEnabled,
   isReadOnly,
+  keycloakEnabled,
   loading,
   logout,
   notice,
   onAuthFormChange,
   onAuthModeChange,
   onErrorChange,
+  onKeycloakLogin,
   onNoticeChange,
   onSubmitAuth,
   onSelectSearchResult,
@@ -259,12 +263,14 @@ export function AppPresentation({
         authForm={authForm}
         authMode={authPageMode}
         error={error}
+        keycloakEnabled={keycloakEnabled}
         onContinueReadOnly={() => {
           onAuthModeChange("ready");
           onErrorChange(null);
           onNoticeChange(null);
         }}
         onFormChange={onAuthFormChange}
+        onKeycloakLogin={onKeycloakLogin}
         onSubmit={onSubmitAuth}
         submitting={authSubmitting}
       />

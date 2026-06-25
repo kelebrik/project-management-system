@@ -14,6 +14,7 @@ import { createWbsRouter } from '../routes/wbs.routes.js';
 import { attachAuth, currentUser, hashPassword, requireAdmin, requireAuth, requireAuthForWrites, userResponse, wouldRemoveLastAdmin } from './auth.js';
 import { registerAuthRoutes } from './auth-routes.js';
 import { serverErrorMessage } from './errors.js';
+import { registerKeycloakAuthRoutes } from './keycloak-auth.js';
 import { logEvent } from './logger.js';
 import { writePermissionMiddleware } from './permissions.js';
 import { ensureEntityProjectWritable, ensureProjectWritable, registerClosedProjectWriteGuards } from './project-write-guards.js';
@@ -90,6 +91,7 @@ export function createApp() {
   app.use('/api', rateLimitMiddleware);
 
   registerAuthRoutes(app);
+  registerKeycloakAuthRoutes(app);
 
   app.use('/api', createSearchRouter());
   app.use('/api', createSavedViewsRouter({ currentUser, requireAuth }));

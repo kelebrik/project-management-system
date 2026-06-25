@@ -6,8 +6,10 @@ type AuthPageProps = {
   authForm: AuthFormState;
   authMode: Extract<AuthMode, "setup" | "login">;
   error: string | null;
+  keycloakEnabled: boolean;
   onContinueReadOnly: () => void;
   onFormChange: (form: AuthFormState) => void;
+  onKeycloakLogin: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   submitting: boolean;
 };
@@ -16,8 +18,10 @@ export function AuthPage({
   authForm,
   authMode,
   error,
+  keycloakEnabled,
   onContinueReadOnly,
   onFormChange,
+  onKeycloakLogin,
   onSubmit,
   submitting,
 }: AuthPageProps) {
@@ -51,6 +55,14 @@ export function AuthPage({
           </div>
         )}
         <form className="auth-form" onSubmit={onSubmit}>
+          {authMode === "login" && keycloakEnabled && (
+            <>
+              <button type="button" onClick={onKeycloakLogin}>
+                Войти через SSO
+              </button>
+              <div className="auth-divider">или</div>
+            </>
+          )}
           {isSetup && (
             <label>
               Имя администратора

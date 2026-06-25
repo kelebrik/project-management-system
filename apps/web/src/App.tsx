@@ -365,7 +365,7 @@ function AppController() {
     setProjects,
     setSelectedProjectId,
   });
-  const { submitAuth, logout } = useAuthController({
+  const { submitAuth, logout, keycloakStatus, loginWithKeycloak } = useAuthController({
     authMode,
     setAuthMode,
     authForm,
@@ -707,6 +707,7 @@ function AppController() {
     reorderWbsRows,
     saveDirtyWbsItems,
     saveWbsDraftPatch,
+    saveWbsTypePatch,
     saveWbsItem,
     toggleWbsCollapse,
     updateSelectedWbsDrafts,
@@ -748,6 +749,7 @@ function AppController() {
       insertWbsRow,
       orderedWbsColumns,
       saveWbsDraftPatch,
+      saveWbsTypePatch,
       saveWbsItem,
       selectedWbsIds,
       setDraggedWbsItemId,
@@ -877,7 +879,7 @@ function AppController() {
     ...{ addIssueFormLink, addIssueJiraLink, addIssueStatusUpdate, closeProject, createProject, deleteProject, reloadAuditEvents, saveProjectModules, setNewProjectForm, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, updateProjectModuleDraft, updateProjectRegistryDraft },
     ...{ createApiToken, createDictionaryItem, createUser, createWebhook, deactivateDictionaryItem, deleteProjectAccess, exportAdminConfig, grantProjectAccess, importAdminConfig, reloadAdminConfig, reloadAdminHealth, reloadAdminIntegrations, saveDictionaryItem, saveSystemSettings, saveUser, testWebhook, toggleApiToken, toggleRolePermission, toggleWebhook, updateDictionaryDraft, updateProjectAccessDraft, updateProjectAccessLevel, updateUserDraft },
     ...{ savingBaseline, savingCalendar, savingDictionaryItemId, savingIntegration, savingProjectAccess, savingProjectModules, savingProjectRegistryId, savingProjectTargetDate, savingRolePermissionId, savingSystemSettings, savingUserId },
-    ...{ completeGanttLinkDrag, draggedWbsColumn, draggedWbsItemId, dropWbsColumn, ganttLinkDraft, ganttPanelHeight, ganttPanelWidth, ganttScale, ganttTimelineRef, ganttWbsWidth, handleWbsPaste, isWbsCellDirty, redoWbsChange, renderWbsCell, reorderWbsRows, resetGanttPanelSize, restoringWbsSnapshot, saveDirtyWbsItems, saveWbsBaseline, saveWbsDraftPatch, saveWbsItem, savingWbsBulk, selectedWbsIds, setActiveWbsItemId, setDraggedWbsColumn, setGanttScale, setHoveredGanttItemId, setSelectedWbsIds, setShowGanttBaseline, setShowGanttForecast, setShowStructureCriticalPath, setShowWbsColumnMenu, setWbsDropTargetId, showGanttBaseline, showGanttCriticalPath, showGanttDependencies, showGanttForecast, showStructureCriticalPath, showWbsColumnMenu, startGanttLinkDrag, startGanttPanelResize, startGanttResize, startWbsColumnDrag, startWbsColumnResize, toggleGanttCriticalPath, toggleGanttDependencies, toggleWbsCollapse, toggleWbsColumn, toggleWbsSort, undoWbsChange, updateSelectedWbsDrafts, updateWbsDraft, wbsDrafts, wbsDropTargetId, wbsHiddenColumns, wbsRedoStack, wbsSort, wbsUndoStack },
+    ...{ completeGanttLinkDrag, draggedWbsColumn, draggedWbsItemId, dropWbsColumn, ganttLinkDraft, ganttPanelHeight, ganttPanelWidth, ganttScale, ganttTimelineRef, ganttWbsWidth, handleWbsPaste, isWbsCellDirty, redoWbsChange, renderWbsCell, reorderWbsRows, resetGanttPanelSize, restoringWbsSnapshot, saveDirtyWbsItems, saveWbsBaseline, saveWbsDraftPatch, saveWbsTypePatch, saveWbsItem, savingWbsBulk, selectedWbsIds, setActiveWbsItemId, setDraggedWbsColumn, setGanttScale, setHoveredGanttItemId, setSelectedWbsIds, setShowGanttBaseline, setShowGanttForecast, setShowStructureCriticalPath, setShowWbsColumnMenu, setWbsDropTargetId, showGanttBaseline, showGanttCriticalPath, showGanttDependencies, showGanttForecast, showStructureCriticalPath, showWbsColumnMenu, startGanttLinkDrag, startGanttPanelResize, startGanttResize, startWbsColumnDrag, startWbsColumnResize, toggleGanttCriticalPath, toggleGanttDependencies, toggleWbsCollapse, toggleWbsColumn, toggleWbsSort, undoWbsChange, updateSelectedWbsDrafts, updateWbsDraft, wbsDrafts, wbsDropTargetId, wbsHiddenColumns, wbsRedoStack, wbsSort, wbsUndoStack },
     ...{ deleteRaidItem, deleteProject, deleteProjectAccess, saveArtifact, setApiTokenDraft, setConfigTransferText, setExpandedIssueId, setExpandedRaidId, setIssueDrawerMode, setIssueForm, setIssueFormErrors, setIssueLinkDrafts, setNewDictionaryDraft, setProjectAccessDraft, setRaidDecisionOnly, setRaidForm, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter, setSelectedCalendarYear, setSelectedDictionary, setSystemSettingsDraft, setTaskDrafts, setWebhookDraft, syncing, toggleCalendarDay },
     openRaidItemFromOverview, selectProject, updatePassportRow,
   });
@@ -900,10 +902,12 @@ function AppController() {
       isClosedProject={isClosedProject}
       isProjectModuleEnabled={isProjectModuleEnabled}
       isReadOnly={isReadOnly}
+      keycloakEnabled={keycloakStatus.enabled}
       loading={loading}
       logout={logout}
       notice={notice}
       onAuthFormChange={setAuthForm}
+      onKeycloakLogin={loginWithKeycloak}
       onAuthModeChange={setAuthMode}
       onErrorChange={setError}
       onNoticeChange={setNotice}

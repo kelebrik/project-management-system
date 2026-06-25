@@ -1,4 +1,4 @@
-import { wbsItemSchema } from '@pms/shared';
+import { wbsItemSchema, wbsItemTypes } from '@pms/shared';
 import { z } from 'zod';
 
 export const wbsInsertAfterSchema = z.object({
@@ -8,6 +8,8 @@ export const wbsInsertAfterSchema = z.object({
 
 export const wbsReorderSchema = z.object({
   orderedIds: z.array(z.string().trim().min(1)).min(1),
+  levelsById: z.record(z.string().trim().min(1), z.coerce.number().int().min(1).max(12)).optional(),
+  typesById: z.record(z.string().trim().min(1), z.enum(wbsItemTypes)).optional(),
 });
 
 export const wbsDependencySchema = z.object({

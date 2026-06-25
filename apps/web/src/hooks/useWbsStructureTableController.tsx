@@ -50,6 +50,12 @@ type SaveWbsDraftPatch = (
   options?: { silent?: boolean; scheduleDriver?: WbsScheduleDriver },
 ) => void;
 
+type SaveWbsTypePatch = (
+  itemId: string,
+  nextType: WbsItemType,
+  options?: { silent?: boolean },
+) => void;
+
 type UseWbsStructureTableControllerOptions = {
   activeWbsItemId: string | null;
   collapsedWbsIds: Set<string>;
@@ -61,6 +67,7 @@ type UseWbsStructureTableControllerOptions = {
   ) => Promise<void>;
   orderedWbsColumns: WbsTableColumn[];
   saveWbsDraftPatch: SaveWbsDraftPatch;
+  saveWbsTypePatch: SaveWbsTypePatch;
   saveWbsItem: SaveWbsItem;
   selectedWbsIds: Set<string>;
   setDraggedWbsItemId: Dispatch<SetStateAction<string | null>>;
@@ -127,6 +134,7 @@ export function useWbsStructureTableController({
   insertWbsRow,
   orderedWbsColumns,
   saveWbsDraftPatch,
+  saveWbsTypePatch,
   saveWbsItem,
   selectedWbsIds,
   setDraggedWbsItemId,
@@ -419,13 +427,11 @@ export function useWbsStructureTableController({
           <select
             value={draft.type}
             onChange={(event) => {
-              updateWbsDraft(item.id, {
-                type: event.target.value as WbsItemType,
+              saveWbsTypePatch(item.id, event.target.value as WbsItemType, {
+                silent: true,
               });
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
           >
             <option value="PHASE">{wbsTypeLabel("PHASE")}</option>
             <option value="WORK_PACKAGE">{wbsTypeLabel("WORK_PACKAGE")}</option>

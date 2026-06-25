@@ -1,11 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { workingDayDistance } from "./wbs-critical-path/calendar.js";
 import { calculateWbsCriticalPath } from "./wbs-critical-path/calculate.js";
 
 const baseItem = {
   type: "TASK" as const,
   calendarCode: "RU" as const,
 };
+
+test("workingDayDistance handles long schedule ranges without iteration guard failures", () => {
+  assert.equal(
+    workingDayDistance(
+      new Date("2026-01-01T00:00:00.000Z"),
+      new Date("2106-01-01T00:00:00.000Z"),
+      "RU",
+      new Map(),
+    ),
+    20871,
+  );
+});
 
 test("calculateWbsCriticalPath marks the longest dependency chain as critical", () => {
   const items = [

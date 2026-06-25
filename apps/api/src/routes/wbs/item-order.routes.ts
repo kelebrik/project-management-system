@@ -204,12 +204,18 @@ export function registerWbsItemOrderRoutes(router: Router) {
     const nextIds = [...orderedIds, ...missingIds];
 
     await prisma.$transaction(
-      nextIds.map((id, index) =>
-        prisma.wbsItem.update({
+      nextIds.map((id, index) => {
+        const nextLevel = parsed.data.levelsById?.[id];
+        const nextType = parsed.data.typesById?.[id];
+        return prisma.wbsItem.update({
           where: { id },
-          data: { sortOrder: (index + 1) * 10 },
-        }),
-      ),
+          data: {
+            sortOrder: (index + 1) * 10,
+            ...(nextLevel ? { wbsLevel: nextLevel } : {}),
+            ...(nextType ? { type: nextType } : {}),
+          },
+        });
+      }),
     );
 
     await renumberProjectWbs(project.id);
@@ -219,7 +225,11 @@ export function registerWbsItemOrderRoutes(router: Router) {
     await recordWbsCommand({
       projectId: project.id,
       type: 'MOVE',
-      payload: { orderedIds: parsed.data.orderedIds },
+      payload: {
+        orderedIds: parsed.data.orderedIds,
+        levelsById: parsed.data.levelsById,
+        typesById: parsed.data.typesById,
+      },
       afterSnapshot: snapshot,
     });
 

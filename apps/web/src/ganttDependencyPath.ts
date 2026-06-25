@@ -112,17 +112,7 @@ function ganttDependencyPathPoints(line: GanttDependencyPathInput) {
     pushGanttPathPoint(points, detourX, laneY);
     pushGanttPathPoint(points, targetStubX, laneY);
   } else {
-    const detourBase =
-      sourceDirection > 0
-        ? Math.max(line.fromX, line.toX)
-        : Math.min(line.fromX, line.toX);
-    const detourX = clampNumber(
-      detourBase + sourceDirection * GANTT_LINK_DETOUR_PERCENT,
-      0.4,
-      99.6,
-    );
-    pushGanttPathPoint(points, detourX, line.fromY);
-    pushGanttPathPoint(points, detourX, targetBoundaryY);
+    pushGanttPathPoint(points, sourceStubX, targetBoundaryY);
     pushGanttPathPoint(points, targetStubX, targetBoundaryY);
   }
 

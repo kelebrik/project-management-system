@@ -712,7 +712,7 @@ export function createMilestoneTimelineModel({
   let maxLaneLevel = 0;
   const labelMinGap = 0.15;
   const modelLanes = Array.from(laneById.values()).filter(
-    (lane) => lane.items.length > 0 || lane.id !== "unassigned",
+    (lane) => lane.items.length > 0,
   );
   const maxLaneMilestones = Math.max(
     1,

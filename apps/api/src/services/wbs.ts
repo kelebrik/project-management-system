@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import { wbsItemSchema, type WbsItemStatus, type WbsItemType } from "@pms/shared";
 import { prisma } from "../db.js";
-import { calculateWbsCriticalPath } from "./wbs-critical-path/calculate.js";
+import { safeCalculateWbsCriticalPath } from "./wbs-critical-path.js";
 import {
   buildWbsRenumberPlan,
   levelFromWbsCode,
@@ -235,7 +235,7 @@ export async function getProjectWbsSnapshot(projectId: string) {
   return {
     wbsItems,
     wbsDependencies,
-    criticalPath: calculateWbsCriticalPath(
+    criticalPath: safeCalculateWbsCriticalPath(
       wbsItems.map((item) => ({
         id: item.id,
         code: item.code,
