@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { ProjectDetails, ProjectUiState } from "../app/domainTypes";
 import {
+  filterMilestoneLabelOffsets,
   milestoneLabelOffsetKey,
   normalizeMilestoneLabelLayoutOffsets,
   type MilestoneLabelOffset,
@@ -20,6 +21,7 @@ type UseMilestoneLabelLayoutStateOptions = {
   projectRef: React.MutableRefObject<ProjectDetails | null>;
   isReadOnly: boolean;
   milestoneLabelLayoutFingerprint: string;
+  milestoneLabelLayoutOffsetKeys: string[];
   setProject: React.Dispatch<React.SetStateAction<ProjectDetails | null>>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
 };
@@ -29,6 +31,7 @@ export function useMilestoneLabelLayoutState({
   projectRef,
   isReadOnly,
   milestoneLabelLayoutFingerprint,
+  milestoneLabelLayoutOffsetKeys,
   setProject,
   setError,
 }: UseMilestoneLabelLayoutStateOptions) {
@@ -62,14 +65,14 @@ export function useMilestoneLabelLayoutState({
 
     const nextOffsets = normalizeMilestoneLabelLayoutOffsets(
       project.uiState?.milestoneLabelLayout,
-      milestoneLabelLayoutFingerprint,
+      milestoneLabelLayoutOffsetKeys,
     );
     milestoneLabelOffsetsRef.current = nextOffsets;
     setMilestoneLabelOffsets(nextOffsets);
   }, [
     project?.id,
     project?.uiState?.milestoneLabelLayout,
-    milestoneLabelLayoutFingerprint,
+    milestoneLabelLayoutOffsetKeys,
   ]);
 
   const persistMilestoneLabelLayout = useCallback(
@@ -77,9 +80,13 @@ export function useMilestoneLabelLayoutState({
       const currentProject = projectRef.current;
       if (!currentProject?.id || isReadOnly) return;
 
+      const nextOffsets = filterMilestoneLabelOffsets(
+        offsets,
+        milestoneLabelLayoutOffsetKeys,
+      );
       const nextLayout = {
         fingerprint: milestoneLabelLayoutFingerprint,
-        offsets,
+        offsets: nextOffsets,
         updatedAt: new Date().toISOString(),
       };
       const saveSequence = ++milestoneLabelLayoutSaveSequenceRef.current;
@@ -118,7 +125,14 @@ export function useMilestoneLabelLayoutState({
         );
       }
     },
-    [isReadOnly, milestoneLabelLayoutFingerprint, projectRef, setError, setProject],
+    [
+      isReadOnly,
+      milestoneLabelLayoutFingerprint,
+      milestoneLabelLayoutOffsetKeys,
+      projectRef,
+      setError,
+      setProject,
+    ],
   );
 
   const setMilestoneLabelOffsetsForDrag = useCallback(

@@ -59,6 +59,20 @@ export function normalizeMilestoneLabelOffsets(
   return normalized;
 }
 
+export function filterMilestoneLabelOffsets(
+  offsets: MilestoneLabelOffsets,
+  validOffsetKeys: Iterable<string>,
+) {
+  const validKeys = new Set(validOffsetKeys);
+  const filtered: MilestoneLabelOffsets = {};
+  Object.entries(offsets).forEach(([key, offset]) => {
+    if (validKeys.has(key)) {
+      filtered[key] = offset;
+    }
+  });
+  return filtered;
+}
+
 function roundFingerprintNumber(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.round(value * 10000) / 10000
@@ -119,12 +133,42 @@ export function createMilestoneLabelLayoutFingerprint(timeline: {
   });
 }
 
+export function createMilestoneLabelLayoutOffsetKeys(timeline: {
+  byPhase: MilestoneFingerprintModel;
+  all: MilestoneFingerprintModel;
+}) {
+  const keys = new Set<string>();
+
+  timeline.byPhase.lanes.forEach((lane) => {
+    lane.items.forEach((item) => {
+      keys.add(milestoneLabelOffsetKey("phase", item.milestone.id));
+    });
+  });
+
+  timeline.all.lanes.forEach((lane) => {
+    lane.items.forEach((item) => {
+      keys.add(milestoneLabelOffsetKey("all", item.milestone.id));
+    });
+  });
+
+  if (timeline.all.todayOffset !== null) {
+    keys.add(milestoneLabelOffsetKey("all", MILESTONE_TODAY_LABEL_ID));
+  }
+
+  return [...keys].sort();
+}
+
 export function normalizeMilestoneLabelLayoutOffsets(
   value: unknown,
-  expectedFingerprint: string,
+  validOffsetKeys?: Iterable<string>,
 ) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const layout = value as { fingerprint?: unknown; offsets?: unknown };
-  if (layout.fingerprint !== expectedFingerprint) return {};
-  return normalizeMilestoneLabelOffsets(layout.offsets);
+  const layout = value as { offsets?: unknown };
+  const rawOffsets = Object.prototype.hasOwnProperty.call(layout, "offsets")
+    ? layout.offsets
+    : value;
+  const offsets = normalizeMilestoneLabelOffsets(rawOffsets);
+  return validOffsetKeys
+    ? filterMilestoneLabelOffsets(offsets, validOffsetKeys)
+    : offsets;
 }

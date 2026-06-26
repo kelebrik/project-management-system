@@ -2,7 +2,10 @@ import { useCallback, useMemo } from "react";
 import type { ProjectCalendarOverride } from "../app/domainTypes";
 import { wbsToForm } from "../app/formState";
 import { projectScheduleHealth } from "../app/labels";
-import { createMilestoneLabelLayoutFingerprint } from "../app/milestoneLabelLayout";
+import {
+  createMilestoneLabelLayoutFingerprint,
+  createMilestoneLabelLayoutOffsetKeys,
+} from "../app/milestoneLabelLayout";
 import {
   createMilestoneTimeline,
   createStructureMilestones,
@@ -380,6 +383,10 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     () => createMilestoneLabelLayoutFingerprint(milestoneTimeline),
     [milestoneTimeline],
   );
+  const milestoneLabelLayoutOffsetKeys = useMemo(
+    () => createMilestoneLabelLayoutOffsetKeys(milestoneTimeline),
+    [milestoneTimeline],
+  );
   const { fullscreenWorkspaceView, toggleWorkspaceFullscreen } =
     useWorkspaceFullscreen(activeView);
   const { milestoneLabelOffsets, startMilestoneLabelDrag } =
@@ -388,6 +395,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
       projectRef,
       isReadOnly,
       milestoneLabelLayoutFingerprint,
+      milestoneLabelLayoutOffsetKeys,
       setProject,
       setError,
     });
