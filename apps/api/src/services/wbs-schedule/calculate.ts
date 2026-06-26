@@ -13,6 +13,7 @@ import {
   minDate,
   resolveDurationWorkDays,
   isWbsCheckpointType,
+  isWbsZeroDurationItem,
   sortByPlanOrder,
   startFromFinish,
   wbsLevelFromItem,
@@ -245,7 +246,7 @@ function calculateWbsSchedulePass(
 
     if (isDateDrivenChange) {
       durationWorkDays =
-        isWbsCheckpointType(item)
+        isWbsZeroDurationItem(item)
           ? 0
           : nextStartDate && nextDueDate
             ? workingDaysInclusive(
@@ -267,7 +268,7 @@ function calculateWbsSchedulePass(
             );
     } else if (nextStartDate && nextDueDate) {
       durationWorkDays =
-        isWbsCheckpointType(item)
+        isWbsZeroDurationItem(item)
           ? 0
           : workingDaysInclusive(
               nextStartDate,
@@ -292,6 +293,11 @@ function calculateWbsSchedulePass(
       const checkpointDate = editedAnchor ?? computedCheckpointDate;
       nextStartDate = checkpointDate;
       nextDueDate = checkpointDate;
+      durationWorkDays = 0;
+    } else if (item.status === "CANCELLED") {
+      const cancelledDate = nextStartDate ?? nextDueDate;
+      nextStartDate = cancelledDate;
+      nextDueDate = cancelledDate;
       durationWorkDays = 0;
     }
 
@@ -362,7 +368,7 @@ function calculateWbsSchedulePass(
         : null;
     const nextWorkDays =
       nextStartDate && nextDueDate
-        ? isWbsCheckpointType(item)
+        ? isWbsZeroDurationItem(item)
           ? 0
           : workingDaysInclusive(
               nextStartDate,

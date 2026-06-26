@@ -57,6 +57,7 @@ export async function calculateProjectCriticalPath(projectId: string) {
         code: true,
         title: true,
         type: true,
+        status: true,
         startDate: true,
         dueDate: true,
         workDays: true,

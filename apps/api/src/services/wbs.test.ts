@@ -474,6 +474,35 @@ test("calculateWbsScheduleUpdates uses work days to calculate due date", () => {
   assert.equal(taskA?.calendarDays, 5);
 });
 
+test("calculateWbsScheduleUpdates sets cancelled task work days to zero", () => {
+  const items = [
+    {
+      id: "task-a",
+      code: "1.1",
+      type: "TASK" as const,
+      status: "CANCELLED" as const,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      dueDate: new Date("2026-05-22T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-05-18T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-05-22T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 5,
+      calendarDays: 5,
+      calendarCode: "RU" as const,
+      sortOrder: 10,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], []);
+  const taskA = updates.find((item) => item.id === "task-a");
+
+  assert.equal(taskA?.startDate?.toISOString().slice(0, 10), "2026-05-18");
+  assert.equal(taskA?.dueDate?.toISOString().slice(0, 10), "2026-05-18");
+  assert.equal(taskA?.workDays, 0);
+  assert.equal(taskA?.calendarDays, 1);
+});
+
 test("calculateWbsScheduleUpdates recalculates work days when dates are edited", () => {
   const items = [
     {
