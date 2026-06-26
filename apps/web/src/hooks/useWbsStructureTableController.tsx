@@ -446,8 +446,10 @@ export function useWbsStructureTableController({
           <select
             value={draft.status}
             onChange={(event) => {
+              const nextStatus = event.target.value as WbsItemStatus;
               updateWbsDraft(item.id, {
-                status: event.target.value as WbsItemStatus,
+                status: nextStatus,
+                ...(nextStatus === "CANCELLED" ? { workDays: "0" } : {}),
               });
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}

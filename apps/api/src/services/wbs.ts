@@ -241,6 +241,7 @@ export async function getProjectWbsSnapshot(projectId: string) {
         code: item.code,
         title: item.title,
         type: item.type,
+        status: item.status,
         startDate: item.startDate,
         dueDate: item.dueDate,
         workDays: item.workDays,

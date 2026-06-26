@@ -10,6 +10,12 @@ function isWbsCheckpointType(item: Pick<WbsCriticalPathItemInput, "type">) {
   return item.type === "MILESTONE" || item.type === "GOAL";
 }
 
+function isWbsZeroDurationItem(
+  item: Pick<WbsCriticalPathItemInput, "type" | "status">,
+) {
+  return isWbsCheckpointType(item) || item.status === "CANCELLED";
+}
+
 export function finishFromStart(
   startDate: Date,
   durationWorkDays: number,
@@ -63,9 +69,9 @@ export function resolveDurationWorkDays(
   item: WbsCriticalPathItemInput,
   overridesByKey: Map<string, boolean>,
 ) {
-  if (isWbsCheckpointType(item)) return 0;
-  if (item.workDays !== null && item.workDays !== undefined && item.workDays > 0) {
-    return item.workDays;
+  if (isWbsZeroDurationItem(item)) return 0;
+  if (item.workDays !== null && item.workDays !== undefined) {
+    return Math.max(0, item.workDays);
   }
   if (item.startDate && item.dueDate) {
     return Math.max(

@@ -9,8 +9,14 @@ export function isWbsCheckpointType(item: Pick<WbsScheduleItem, "type">) {
   return item.type === "MILESTONE" || item.type === "GOAL";
 }
 
+export function isWbsZeroDurationItem(
+  item: Pick<WbsScheduleItem, "type" | "status">,
+) {
+  return isWbsCheckpointType(item) || item.status === "CANCELLED";
+}
+
 export function resolveDurationWorkDays(item: WbsScheduleItem) {
-  if (isWbsCheckpointType(item)) return 0;
+  if (isWbsZeroDurationItem(item)) return 0;
   if (item.workDays !== null && item.workDays !== undefined) {
     return Math.max(0, item.workDays);
   }

@@ -1,6 +1,7 @@
 import type {
   ProjectCalendarCode,
   WbsDependencyType,
+  WbsItemStatus,
   WbsItemType,
 } from "@prisma/client";
 
@@ -9,6 +10,7 @@ export type WbsCriticalPathItemInput = {
   code: string;
   title: string;
   type: WbsItemType;
+  status?: WbsItemStatus;
   startDate: Date | null;
   dueDate: Date | null;
   workDays: number | null;
