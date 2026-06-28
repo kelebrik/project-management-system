@@ -18,7 +18,6 @@ import {
   mapSnakeTimelineOffset,
   snakeLabelNormalPosition,
   snakeMonthLabelPosition,
-  splitPhaseTitle,
   type MilestoneSnakePoint,
   type MilestoneTimelineModel,
   type SvgTextAnchor,
@@ -32,6 +31,12 @@ type MilestonePointStyle = CSSProperties & {
   "--milestone-drag-x"?: string;
   "--milestone-drag-y"?: string;
 };
+
+const PHASE_LABEL_RESERVE_PX = 320;
+
+function phaseTimelineLeft(offset: number) {
+  return `calc(18px + var(--milestone-label-reserve) + ${(offset * 100).toFixed(3)}% - ${(offset * (60 + PHASE_LABEL_RESERVE_PX)).toFixed(3)}px)`;
+}
 
 function MilestoneLegend() {
   return (
@@ -112,8 +117,9 @@ export function MilestoneTimelineSection({
         className="milestone-timeline"
         style={
           {
-            "--milestone-track-width": `${timeline.trackWidth}px`,
+            "--milestone-track-width": `${timeline.trackWidth + PHASE_LABEL_RESERVE_PX}px`,
             "--milestone-lane-height": `${timeline.laneHeight}px`,
+            "--milestone-label-reserve": `${PHASE_LABEL_RESERVE_PX}px`,
           } as CSSProperties
         }
       >
@@ -125,15 +131,15 @@ export function MilestoneTimelineSection({
             </div>
             {timeline.lanes.map((lane) => (
               <div className="milestone-lane" key={lane.id}>
-                <div className="milestone-lane-title">
-                  {lane.code && <span>{lane.code}</span>}
-                  <strong>
-                    {splitPhaseTitle(lane.title).map((line) => (
-                      <span key={line}>{line}</span>
-                    ))}
-                  </strong>
-                </div>
+                <div className="milestone-lane-title" aria-hidden="true" />
                 <div className="milestone-lane-canvas">
+                  <div
+                    className="milestone-axis-title"
+                    title={`${lane.code ? `${lane.code} ` : ""}${lane.title}`}
+                  >
+                    {lane.code && <span>{lane.code}</span>}
+                    <strong>{lane.title}</strong>
+                  </div>
                   <div className="milestone-axis" aria-hidden="true" />
                   <div className="milestone-axis-arrow" aria-hidden="true" />
                   {timeline.todayOffset !== null && (
@@ -141,7 +147,7 @@ export function MilestoneTimelineSection({
                       className="milestone-today"
                       aria-hidden="true"
                       style={{
-                        left: `calc(18px + ${(timeline.todayOffset * 100).toFixed(3)}% - ${(timeline.todayOffset * 60).toFixed(3)}px)`,
+                        left: phaseTimelineLeft(timeline.todayOffset),
                       }}
                     />
                   )}
@@ -164,7 +170,7 @@ export function MilestoneTimelineSection({
                           key={milestone.id}
                           style={
                             {
-                              left: `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`,
+                              left: phaseTimelineLeft(offset),
                               "--milestone-label-level": level,
                               "--milestone-label-shift": `${labelShiftPx}px`,
                               "--milestone-drag-x": `${manualOffset.x}px`,

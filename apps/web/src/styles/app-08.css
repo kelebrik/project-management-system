@@ -130,15 +130,15 @@
 .milestone-lanes {
   display: grid;
   gap: 10px;
-  min-width: calc(128px + 14px + var(--milestone-track-width, 960px));
+  min-width: calc(28px + 10px + var(--milestone-track-width, 960px));
   padding: 14px 20px 18px;
 }
 
 .milestone-scale,
 .milestone-lane {
   display: grid;
-  gap: 14px;
-  grid-template-columns: 128px var(--milestone-track-width, 960px);
+  gap: 10px;
+  grid-template-columns: 28px var(--milestone-track-width, 960px);
 }
 
 .milestone-scale {
@@ -156,7 +156,7 @@
 
 .milestone-scale span {
   position: absolute;
-  left: calc(128px + 14px + 18px);
+  left: calc(28px + 10px + 18px + var(--milestone-label-reserve, 180px));
   top: 0;
 }
 
@@ -171,7 +171,7 @@
 
 .milestone-lane-title {
   align-self: stretch;
-  border-right: 1px solid #e2e8f0;
+  border-right: 0;
   color: #334155;
   display: flex;
   flex-direction: column;
@@ -179,7 +179,7 @@
   justify-content: center;
   min-height: var(--milestone-lane-height, 188px);
   overflow-wrap: anywhere;
-  padding-right: 12px;
+  padding-right: 0;
 }
 
 .milestone-lane-title > span {
@@ -207,25 +207,62 @@
   position: relative;
 }
 
+.milestone-axis-title {
+  align-items: center;
+  box-sizing: border-box;
+  color: #f8fafc;
+  display: flex;
+  gap: 8px;
+  height: 32px;
+  left: 18px;
+  max-width: var(--milestone-label-reserve, 320px);
+  overflow: hidden;
+  padding: 0 12px 0 14px;
+  pointer-events: none;
+  position: absolute;
+  top: calc(var(--milestone-axis-center) - 16px);
+  width: var(--milestone-label-reserve, 320px);
+  z-index: 3;
+}
+
+.milestone-axis-title span {
+  background: rgba(15, 23, 42, 0.24);
+  border-radius: 4px;
+  color: #e0f2fe;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 4px 5px;
+}
+
+.milestone-axis-title strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
 .milestone-axis {
   background: #64748b;
   border: 1px solid #475569;
   box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.18);
-  height: 20px;
+  height: 32px;
   left: 18px;
   position: absolute;
   right: 38px;
-  top: calc(var(--milestone-axis-center) - 10px);
+  top: calc(var(--milestone-axis-center) - 16px);
 }
 
 .milestone-axis-arrow {
-  border-bottom: 21px solid transparent;
-  border-left: 28px solid #64748b;
-  border-top: 21px solid transparent;
+  border-bottom: 27px solid transparent;
+  border-left: 32px solid #64748b;
+  border-top: 27px solid transparent;
   height: 0;
   position: absolute;
   right: 10px;
-  top: calc(var(--milestone-axis-center) - 21px);
+  top: calc(var(--milestone-axis-center) - 27px);
   width: 0;
 }
 
