@@ -156,7 +156,7 @@
 
 .milestone-scale span {
   position: absolute;
-  left: calc(28px + 10px + 18px + var(--milestone-label-reserve, 180px));
+  left: calc(28px + 10px + 18px);
   top: 0;
 }
 
@@ -214,14 +214,14 @@
   display: flex;
   gap: 8px;
   height: 32px;
-  left: 18px;
-  max-width: var(--milestone-label-reserve, 320px);
+  left: calc(18px + var(--milestone-axis-title-left, 0px));
+  max-width: var(--milestone-axis-title-width, 320px);
   overflow: hidden;
   padding: 0 12px 0 14px;
   pointer-events: none;
   position: absolute;
   top: calc(var(--milestone-axis-center) - 16px);
-  width: var(--milestone-label-reserve, 320px);
+  width: var(--milestone-axis-title-width, 320px);
   z-index: 3;
 }
 
