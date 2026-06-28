@@ -507,10 +507,13 @@ body.milestone-label-dragging * {
   }
 
   body[data-print-target="milestones-by-phase"] .milestone-axis-title {
-    font-size: 8pt;
     left: 5mm;
-    max-width: calc(var(--milestone-label-reserve, 180px) - 6mm);
+    max-width: calc(var(--milestone-label-reserve, 320px) - 6mm);
     padding: 0 2mm;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-axis-title strong {
+    font-size: 9pt;
   }
 
   body[data-print-target="milestones-by-phase"] .milestone-lane-canvas {
