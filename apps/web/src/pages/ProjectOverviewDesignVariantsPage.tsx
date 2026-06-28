@@ -16,6 +16,8 @@ import { useEffect, useMemo, useState } from "react";
 import { date, shortDate } from "../app/dateUtils";
 import type { MilestoneTimelineItem } from "../app/milestoneTimeline";
 import { projectHealthLabel, raidTypeLabel } from "../app/labels";
+import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
+import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
 import { usePageContext } from "./PageContext";
 
 type DesignVariant =
@@ -24,7 +26,8 @@ type DesignVariant =
   | "status-3"
   | "schedule-1"
   | "schedule-2"
-  | "schedule-3";
+  | "schedule-3"
+  | "current";
 
 type ScheduleMode = "phase" | "all" | "problem";
 
@@ -75,14 +78,20 @@ function isDesignVariant(value: string | null): value is DesignVariant {
     value === "status-3" ||
     value === "schedule-1" ||
     value === "schedule-2" ||
-    value === "schedule-3"
+    value === "schedule-3" ||
+    value === "current"
   );
 }
 
-function updateDesignVariant(variant: DesignVariant) {
+function designVariantUrl(variant: DesignVariant) {
+  if (typeof window === "undefined") return `?design=${variant}`;
   const url = new URL(window.location.href);
   url.searchParams.set("design", variant);
-  window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function updateDesignVariant(variant: DesignVariant) {
+  window.history.pushState(null, "", designVariantUrl(variant));
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
@@ -96,10 +105,41 @@ export function ProjectOverviewDesignVariantsPage({
   variant: DesignVariant;
 }) {
   const data = useOverviewData();
-  if (variant.startsWith("status")) {
-    return <StatusDesignRouter data={data} variant={variant} />;
+  if (variant === "current") {
+    return (
+      <>
+        <DesignShowcaseNav active="current" />
+        <ProjectOverviewSummaryPage />
+        <section className="content-grid design-current-grid">
+          <ProjectOverviewMilestonesPage />
+        </section>
+      </>
+    );
   }
-  return <ScheduleDesignRouter data={data} variant={variant} />;
+  if (variant.startsWith("status")) {
+    return (
+      <>
+        <DesignShowcaseNav active={variant} />
+        <StatusDesignRouter data={data} showVariantNav={false} variant={variant} />
+      </>
+    );
+  }
+  return (
+    <>
+      <DesignShowcaseNav active={variant} />
+      <ScheduleDesignRouter data={data} showVariantNav={false} variant={variant} />
+    </>
+  );
+}
+
+export function ProjectOverviewShowcasePage() {
+  const data = useOverviewData();
+  return (
+    <>
+      <DesignShowcaseNav active="status-1" />
+      <StatusDesignExecutive data={data} showVariantNav={false} />
+    </>
+  );
 }
 
 function useOverviewData() {
@@ -315,26 +355,70 @@ function useOverviewData() {
 
 function StatusDesignRouter({
   data,
+  showVariantNav = true,
   variant,
 }: {
   data: ReturnType<typeof useOverviewData>;
+  showVariantNav?: boolean;
   variant: DesignVariant;
 }) {
-  if (variant === "status-2") return <StatusDesignBoard data={data} />;
-  if (variant === "status-3") return <StatusDesignCommand data={data} />;
-  return <StatusDesignExecutive data={data} />;
+  if (variant === "status-2") {
+    return <StatusDesignBoard data={data} showVariantNav={showVariantNav} />;
+  }
+  if (variant === "status-3") {
+    return <StatusDesignCommand data={data} showVariantNav={showVariantNav} />;
+  }
+  return <StatusDesignExecutive data={data} showVariantNav={showVariantNav} />;
 }
 
 function ScheduleDesignRouter({
   data,
+  showVariantNav = true,
   variant,
 }: {
   data: ReturnType<typeof useOverviewData>;
+  showVariantNav?: boolean;
   variant: DesignVariant;
 }) {
-  if (variant === "schedule-2") return <ScheduleDesignAtlas data={data} />;
-  if (variant === "schedule-3") return <ScheduleDesignControl data={data} />;
-  return <ScheduleDesignWorkspace data={data} />;
+  if (variant === "schedule-2") {
+    return <ScheduleDesignAtlas data={data} showVariantNav={showVariantNav} />;
+  }
+  if (variant === "schedule-3") {
+    return <ScheduleDesignControl data={data} showVariantNav={showVariantNav} />;
+  }
+  return <ScheduleDesignWorkspace data={data} showVariantNav={showVariantNav} />;
+}
+
+function DesignShowcaseNav({ active }: { active: DesignVariant }) {
+  const links: Array<{ id: DesignVariant; label: string; group: string }> = [
+    { id: "status-1", label: "Состояние 1", group: "Состояние проекта" },
+    { id: "status-2", label: "Состояние 2", group: "Состояние проекта" },
+    { id: "status-3", label: "Состояние 3", group: "Состояние проекта" },
+    { id: "schedule-1", label: "График 1", group: "График проекта" },
+    { id: "schedule-2", label: "График 2", group: "График проекта" },
+    { id: "schedule-3", label: "График 3", group: "График проекта" },
+    { id: "current", label: "Текущий вид", group: "Сравнение" },
+  ];
+  return (
+    <section className="design-showcase-nav">
+      <div className="design-showcase-title">
+        <span>Демо для руководителей</span>
+        <h2>Варианты обзорной страницы</h2>
+      </div>
+      <div className="design-showcase-links">
+        {links.map((link) => (
+          <a
+            className={active === link.id ? "active" : ""}
+            href={designVariantUrl(link.id)}
+            key={link.id}
+            title={link.group}
+          >
+            {link.label}
+          </a>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function VariantNav({
@@ -364,12 +448,14 @@ function VariantNav({
 
 function StatusDesignExecutive({
   data,
+  showVariantNav = true,
 }: {
   data: ReturnType<typeof useOverviewData>;
+  showVariantNav?: boolean;
 }) {
   return (
     <section className="design-page design-page-status executive">
-      <VariantNav active="status-1" type="status" />
+      {showVariantNav && <VariantNav active="status-1" type="status" />}
       <DesignHero data={data} label="Состояние проекта" />
       <KpiStrip kpis={data.kpis} />
       <div className="design-two-columns">
@@ -385,12 +471,14 @@ function StatusDesignExecutive({
 
 function StatusDesignBoard({
   data,
+  showVariantNav = true,
 }: {
   data: ReturnType<typeof useOverviewData>;
+  showVariantNav?: boolean;
 }) {
   return (
     <section className="design-page design-page-status board">
-      <VariantNav active="status-2" type="status" />
+      {showVariantNav && <VariantNav active="status-2" type="status" />}
       <div className="status-board-layout">
         <aside className={`status-board-hero ${data.scheduleTone}`}>
           <span>Состояние</span>
@@ -427,12 +515,14 @@ function StatusDesignBoard({
 
 function StatusDesignCommand({
   data,
+  showVariantNav = true,
 }: {
   data: ReturnType<typeof useOverviewData>;
+  showVariantNav?: boolean;
 }) {
   return (
     <section className="design-page design-page-status command">
-      <VariantNav active="status-3" type="status" />
+      {showVariantNav && <VariantNav active="status-3" type="status" />}
       <div className="command-head">
         <div>
           <span>Командный экран</span>
@@ -490,13 +580,15 @@ function StatusDesignCommand({
 
 function ScheduleDesignWorkspace({
   data,
+  showVariantNav = true,
 }: {
   data: ReturnType<typeof useOverviewData>;
+  showVariantNav?: boolean;
 }) {
   const [mode, setMode] = useState<ScheduleMode>("phase");
   return (
     <section className="design-page design-page-schedule workspace">
-      <VariantNav active="schedule-1" type="schedule" />
+      {showVariantNav && <VariantNav active="schedule-1" type="schedule" />}
       <ScheduleHeader data={data} mode={mode} onModeChange={setMode} />
       <ScheduleModeContent data={data} mode={mode} variant="workspace" />
     </section>
@@ -505,13 +597,15 @@ function ScheduleDesignWorkspace({
 
 function ScheduleDesignAtlas({
   data,
+  showVariantNav = true,
 }: {
   data: ReturnType<typeof useOverviewData>;
+  showVariantNav?: boolean;
 }) {
   const [mode, setMode] = useState<ScheduleMode>("all");
   return (
     <section className="design-page design-page-schedule atlas">
-      <VariantNav active="schedule-2" type="schedule" />
+      {showVariantNav && <VariantNav active="schedule-2" type="schedule" />}
       <div className="schedule-atlas-head">
         <div>
           <span>График проекта</span>
@@ -534,13 +628,15 @@ function ScheduleDesignAtlas({
 
 function ScheduleDesignControl({
   data,
+  showVariantNav = true,
 }: {
   data: ReturnType<typeof useOverviewData>;
+  showVariantNav?: boolean;
 }) {
   const [mode, setMode] = useState<ScheduleMode>("problem");
   return (
     <section className="design-page design-page-schedule control">
-      <VariantNav active="schedule-3" type="schedule" />
+      {showVariantNav && <VariantNav active="schedule-3" type="schedule" />}
       <div className="schedule-control-head">
         <div>
           <span>График проекта</span>

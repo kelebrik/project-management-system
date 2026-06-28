@@ -17,10 +17,9 @@ import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
 import { ProjectCreatePage } from "./ProjectCreatePage";
 import { ProjectIssuesPage } from "./ProjectIssuesPage";
 import { ProjectJiraWorkPage } from "./ProjectJiraWorkPage";
-import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
-import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
 import {
   ProjectOverviewDesignVariantsPage,
+  ProjectOverviewShowcasePage,
   useOverviewDesignVariant,
 } from "./ProjectOverviewDesignVariantsPage";
 import { ProjectPassportPage } from "./ProjectPassportPage";
@@ -46,10 +45,13 @@ export function AppPages() {
     <>
       {activeView === "portfolio" && <PortfolioPage />}
       {activeView === "projects" && <ProjectsPage />}
-      {project && activeView === "project-overview" && overviewDesignVariant && (
-        <ProjectOverviewDesignVariantsPage variant={overviewDesignVariant} />
+      {project && activeView === "project-overview" && (
+        overviewDesignVariant ? (
+          <ProjectOverviewDesignVariantsPage variant={overviewDesignVariant} />
+        ) : (
+          <ProjectOverviewShowcasePage />
+        )
       )}
-      {project && activeView === "project-overview" && !overviewDesignVariant && <ProjectOverviewSummaryPage />}
       {activeView === "closed-projects" && <ClosedProjectsPage />}
 
       <section className="content-grid">
@@ -71,7 +73,6 @@ export function AppPages() {
         {activeView === "admin-audit" && <AdminAuditPageContent />}
         {isAdminUser && activeView === "resources" && <ResourceOverviewPage />}
         {isAdminUser && activeView === "resources-capacity" && <ResourceCapacityPage />}
-        {project && activeView === "project-overview" && !overviewDesignVariant && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
