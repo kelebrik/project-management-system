@@ -490,11 +490,11 @@ body.milestone-label-dragging * {
   body[data-print-target="milestones-by-phase"] .milestone-scale,
   body[data-print-target="milestones-by-phase"] .milestone-lane {
     gap: 4mm !important;
-    grid-template-columns: 30mm minmax(0, 1fr) !important;
+    grid-template-columns: 8mm minmax(0, 1fr) !important;
   }
 
   body[data-print-target="milestones-by-phase"] .milestone-scale span {
-    left: calc(30mm + 4mm + 5mm) !important;
+    left: calc(8mm + 4mm + 5mm + var(--milestone-label-reserve, 180px)) !important;
   }
 
   body[data-print-target="milestones-by-phase"] .milestone-scale span + span {
@@ -503,7 +503,14 @@ body.milestone-label-dragging * {
   }
 
   body[data-print-target="milestones-by-phase"] .milestone-lane-title {
-    padding-right: 3mm;
+    padding-right: 0;
+  }
+
+  body[data-print-target="milestones-by-phase"] .milestone-axis-title {
+    font-size: 8pt;
+    left: 5mm;
+    max-width: calc(var(--milestone-label-reserve, 180px) - 6mm);
+    padding: 0 2mm;
   }
 
   body[data-print-target="milestones-by-phase"] .milestone-lane-canvas {
