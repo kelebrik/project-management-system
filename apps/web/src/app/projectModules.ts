@@ -24,8 +24,8 @@ export type ProjectModule = {
 export const defaultProjectModules: ProjectModule[] = [
   {
     key: "overview",
-    label: "Обзор и вехи",
-    description: "Executive Overview, ключевые риски, решения и вехи проекта",
+    label: "Состояние проекта",
+    description: "Состояние проекта, ключевые риски, решения и график вех",
     route: "overview",
     enabled: true,
   },
@@ -106,6 +106,7 @@ export const projectModuleKeyByView: Record<
   ProjectModuleKey
 > = {
   "project-overview": "overview",
+  "project-schedule": "overview",
   "project-passport": "passport",
   "project-structure": "structure",
   "project-gantt": "gantt",

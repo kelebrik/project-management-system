@@ -51,7 +51,7 @@ export function ProjectSidebarMenu({
               .map((item) => (
                 <button
                   type="button"
-                  key={item.key}
+                  key={item.view}
                   className={
                     activeView === item.view
                       ? "active nested child"
