@@ -32,7 +32,7 @@ type MilestonePointStyle = CSSProperties & {
   "--milestone-drag-y"?: string;
 };
 
-const PHASE_LABEL_RESERVE_PX = 180;
+const PHASE_LABEL_RESERVE_PX = 320;
 
 function phaseTimelineLeft(offset: number) {
   return `calc(18px + var(--milestone-label-reserve) + ${(offset * 100).toFixed(3)}% - ${(offset * (60 + PHASE_LABEL_RESERVE_PX)).toFixed(3)}px)`;
