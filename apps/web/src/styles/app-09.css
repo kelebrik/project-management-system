@@ -494,7 +494,7 @@ body.milestone-label-dragging * {
   }
 
   body[data-print-target="milestones-by-phase"] .milestone-scale span {
-    left: calc(8mm + 4mm + 5mm + var(--milestone-label-reserve, 180px)) !important;
+    left: calc(8mm + 4mm + 5mm) !important;
   }
 
   body[data-print-target="milestones-by-phase"] .milestone-scale span + span {
@@ -507,8 +507,8 @@ body.milestone-label-dragging * {
   }
 
   body[data-print-target="milestones-by-phase"] .milestone-axis-title {
-    left: 5mm;
-    max-width: calc(var(--milestone-label-reserve, 320px) - 6mm);
+    left: calc(5mm + var(--milestone-axis-title-left, 0px));
+    max-width: var(--milestone-axis-title-width, 320px);
     padding: 0 2mm;
   }
 
