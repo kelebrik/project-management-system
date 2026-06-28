@@ -35,9 +35,11 @@ type MilestonePointStyle = CSSProperties & {
 const PHASE_LABEL_MAX_WIDTH_PX = 320;
 const PHASE_LABEL_MIN_WIDTH_PX = 96;
 const PHASE_POINT_GAP_PX = 28;
+const PHASE_TIMELINE_LEFT_PX = 8;
+const PHASE_TIMELINE_RIGHT_PX = 42;
 
 function phaseTimelineLeft(offset: number) {
-  return `calc(18px + ${(offset * 100).toFixed(3)}% - ${(offset * 60).toFixed(3)}px)`;
+  return `calc(${PHASE_TIMELINE_LEFT_PX}px + ${(offset * 100).toFixed(3)}% - ${(offset * (PHASE_TIMELINE_LEFT_PX + PHASE_TIMELINE_RIGHT_PX)).toFixed(3)}px)`;
 }
 
 function phaseAxisTitlePreferredWidth(code: string | undefined, title: string) {
@@ -54,7 +56,10 @@ function phaseAxisTitleStyle(
   trackWidth: number,
 ) {
   const preferredWidth = phaseAxisTitlePreferredWidth(lane.code, lane.title);
-  const usableWidth = Math.max(0, trackWidth - 60);
+  const usableWidth = Math.max(
+    0,
+    trackWidth - PHASE_TIMELINE_LEFT_PX - PHASE_TIMELINE_RIGHT_PX,
+  );
   const protectedRanges = lane.items
     .map((item) => {
       const center = item.offset * usableWidth;
