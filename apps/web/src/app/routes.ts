@@ -5,6 +5,7 @@ export type AppView =
   | "resources-capacity"
   | "project-create"
   | "project-overview"
+  | "project-schedule"
   | "project-passport"
   | "project-structure"
   | "project-gantt"
@@ -36,6 +37,7 @@ export type AppView =
 export type ProjectSectionView = Extract<
   AppView,
   | "project-overview"
+  | "project-schedule"
   | "project-passport"
   | "project-structure"
   | "project-gantt"
@@ -113,6 +115,7 @@ export const writeProtectedViews = new Set<AppView>([
 
 export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-overview": "overview",
+  "project-schedule": "schedule",
   "project-passport": "passport",
   "project-structure": "wbs",
   "project-gantt": "gantt",
@@ -132,6 +135,7 @@ export const appViewPaths: Record<AppView, string> = {
   "resources-capacity": "/development/resources/capacity",
   "project-create": "/new-project",
   "project-overview": "/overview",
+  "project-schedule": "/schedule",
   "project-passport": "/passport",
   "project-structure": "/wbs",
   "project-gantt": "/gantt",
@@ -163,6 +167,8 @@ export const appViewPaths: Record<AppView, string> = {
 
 export const projectPathViews: Record<string, ProjectSectionView> = {
   overview: "project-overview",
+  schedule: "project-schedule",
+  milestones: "project-schedule",
   passport: "project-passport",
   wbs: "project-structure",
   structure: "project-structure",
@@ -208,6 +214,8 @@ export const appPathViews: Record<string, AppView> = {
   "/new-project": "project-create",
   "/create-project": "project-create",
   "/overview": "project-overview",
+  "/schedule": "project-schedule",
+  "/milestones": "project-schedule",
   "/passport": "project-passport",
   "/wbs": "project-structure",
   "/structure": "project-structure",

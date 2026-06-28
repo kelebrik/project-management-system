@@ -63,7 +63,7 @@ export function AppPages() {
         {activeView === "admin-audit" && <AdminAuditPageContent />}
         {isAdminUser && activeView === "resources" && <ResourceOverviewPage />}
         {isAdminUser && activeView === "resources-capacity" && <ResourceCapacityPage />}
-        {project && activeView === "project-overview" && <ProjectOverviewMilestonesPage />}
+        {project && activeView === "project-schedule" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}

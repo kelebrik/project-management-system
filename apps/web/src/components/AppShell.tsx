@@ -114,8 +114,14 @@ const projectNavItems: ProjectNavItem[] = [
   {
     key: "overview",
     view: "project-overview",
-    label: "Обзор и вехи",
+    label: "Состояние проекта",
     icon: <LayoutDashboard size={17} />,
+  },
+  {
+    key: "overview",
+    view: "project-schedule",
+    label: "График проекта",
+    icon: <GanttChartSquare size={17} />,
   },
   {
     key: "passport",

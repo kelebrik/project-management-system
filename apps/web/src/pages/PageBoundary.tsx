@@ -32,7 +32,7 @@ export function PageBoundary({
   children,
   isAdminSectionViewName,
 }: PageBoundaryProps) {
-  if (view === "project-overview") {
+  if (view === "project-overview" || view === "project-schedule") {
     return <OverviewPage>{children}</OverviewPage>;
   }
   if (view === "project-structure") {

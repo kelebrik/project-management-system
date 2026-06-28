@@ -6,7 +6,7 @@ function expectedViewForFullscreen(
 ) {
   return fullscreenWorkspaceView === "overview-milestones-by-phase" ||
     fullscreenWorkspaceView === "overview-milestones-all"
-    ? "project-overview"
+    ? "project-schedule"
     : fullscreenWorkspaceView;
 }
 
