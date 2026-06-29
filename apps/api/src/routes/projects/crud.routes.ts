@@ -131,6 +131,8 @@ export function registerProjectCrudRoutes(
       });
       const actor = currentUser(req);
 
+      const createdProjectAccessLevel = actor?.role === 'ADMIN' ? 'ADMIN' : 'EDIT';
+
       if (actor && actor.role !== 'ADMIN') {
         await prisma.projectAccess.upsert({
           where: {
@@ -204,7 +206,11 @@ export function registerProjectCrudRoutes(
         payload: { project: afterSnapshot ?? project, copiedBaseline },
       }).catch(() => undefined);
 
-      res.status(201).json({ ...project, copiedBaseline });
+      res.status(201).json({
+        ...project,
+        currentUserAccessLevel: actor ? createdProjectAccessLevel : null,
+        copiedBaseline,
+      });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
