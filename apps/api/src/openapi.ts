@@ -824,6 +824,12 @@ export const openApiDocument = {
     "/api/admin/config/import": {
       post: securedOperation(["Admin"], "Import admin configuration"),
     },
+    "/api/admin/import/wbs-template": {
+      get: securedOperation(["Admin"], "Download WBS XLSX import template"),
+    },
+    "/api/admin/import/wbs-items": {
+      post: securedOperation(["Admin"], "Import WBS tasks from XLS or XLSX"),
+    },
     "/api/admin/project-modules": {
       put: securedOperation(["Admin"], "Update project module visibility settings"),
     },

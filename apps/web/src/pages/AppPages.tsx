@@ -2,6 +2,7 @@ import { AdminAuditPageContent } from "./AdminAuditPageContent";
 import { AdminBackupsPageContent, AdminConfigPageContent, AdminHealthPageContent } from "./AdminStatusPages";
 import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
 import { AdminIntegrationsPageContent } from "./AdminIntegrationsPageContent";
+import { AdminImportPageContent } from "./AdminImportPageContent";
 import { AdminJiraProjectPage } from "./AdminJiraProjectPage";
 import { AdminModulesPageContent } from "./AdminModulesPageContent";
 import { AdminProjectAccessPageContent } from "./AdminProjectAccessPageContent";
@@ -55,6 +56,7 @@ export function AppPages() {
         {activeView === "admin-workflows" && <AdminWorkflowsPageContent />}
         {activeView === "admin-jira" && <AdminSystemJiraPageContent />}
         {activeView === "admin-integrations" && <AdminIntegrationsPageContent />}
+        {activeView === "admin-import" && <AdminImportPageContent />}
         {activeView === "admin-health" && <AdminHealthPageContent />}
         {activeView === "admin-backups" && <AdminBackupsPageContent />}
         {activeView === "admin-config" && <AdminConfigPageContent />}
