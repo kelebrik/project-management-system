@@ -1,4 +1,4 @@
-export const GANTT_ROW_HEIGHT = 36;
+export const GANTT_ROW_HEIGHT = 24;
 export const GANTT_LINK_ENDPOINT_GAP_PERCENT = 0.12;
 
 export const GANTT_LINK_STUB_PERCENT = 1.15;
