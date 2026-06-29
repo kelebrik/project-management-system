@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { registerAdminConfigRoutes } from './admin/config.routes.js';
 import { registerAdminHealthRoutes } from './admin/health.routes.js';
+import { registerAdminImportRoutes } from './admin/import.routes.js';
 import { registerAdminIntegrationRoutes } from './admin/integrations.routes.js';
 import { registerProjectAccessRoutes } from './admin/project-access.routes.js';
 import { registerProjectModuleRoutes } from './admin/project-modules.js';
@@ -12,6 +13,7 @@ export function createAdminRouter(context: AdminRoutesContext) {
 
   registerAdminHealthRoutes(router, context);
   registerProjectModuleRoutes(router, context);
+  registerAdminImportRoutes(router, context);
   registerAdminConfigRoutes(router, context);
   registerAdminIntegrationRoutes(router, context);
   registerAdminUserRoutes(router, context);
