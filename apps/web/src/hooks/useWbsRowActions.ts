@@ -176,7 +176,14 @@ export function useWbsRowActions({
     setSavingWbsBulk(true);
     try {
       for (const itemId of dirtyWbsItemIds) {
-        await saveWbsItem(itemId, { silent: true });
+        const draft = wbsDraftsRef.current[itemId] ?? wbsDrafts[itemId];
+        await saveWbsItem(itemId, {
+          silent: true,
+          scheduleDriver:
+            draft?.status === "CANCELLED" && draft.workDays === "0"
+              ? "workDays"
+              : undefined,
+        });
       }
       setNotice("Изменения Структуры сохранены");
     } finally {

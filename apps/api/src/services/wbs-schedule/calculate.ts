@@ -185,7 +185,7 @@ function calculateWbsSchedulePass(
         startConstraints.push(
           addWorkingDays(
             predecessorDueDate,
-            1 + predecessorRef.lagDays,
+            (item.status === "CANCELLED" ? 0 : 1) + predecessorRef.lagDays,
             item.calendarCode,
             overridesByKey,
           ),

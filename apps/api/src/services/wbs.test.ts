@@ -503,6 +503,80 @@ test("calculateWbsScheduleUpdates sets cancelled task work days to zero", () => 
   assert.equal(taskA?.calendarDays, 1);
 });
 
+test("calculateWbsScheduleUpdates skips cancelled predecessors in finish-start chains", () => {
+  const items = [
+    {
+      id: "task-a",
+      code: "1.1",
+      type: "TASK" as const,
+      status: "DONE" as const,
+      startDate: new Date("2026-06-08T00:00:00.000Z"),
+      dueDate: new Date("2026-06-10T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-06-08T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-06-10T00:00:00.000Z"),
+      ...emptyPredecessors,
+      leadLagDays: 0,
+      workDays: 3,
+      calendarDays: 3,
+      calendarCode: "RU" as const,
+      sortOrder: 10,
+    },
+    {
+      id: "task-b",
+      code: "1.2",
+      type: "TASK" as const,
+      status: "CANCELLED" as const,
+      startDate: new Date("2026-06-11T00:00:00.000Z"),
+      dueDate: new Date("2026-06-12T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-06-11T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-06-12T00:00:00.000Z"),
+      predecessor1: "1.1",
+      predecessor2: null,
+      predecessor3: null,
+      predecessor4: null,
+      predecessor5: null,
+      predecessor6: null,
+      leadLagDays: 0,
+      workDays: 2,
+      calendarDays: 2,
+      calendarCode: "RU" as const,
+      sortOrder: 20,
+    },
+    {
+      id: "task-c",
+      code: "1.3",
+      type: "TASK" as const,
+      status: "NOT_STARTED" as const,
+      startDate: new Date("2026-06-11T00:00:00.000Z"),
+      dueDate: new Date("2026-06-15T00:00:00.000Z"),
+      forecastStartDate: new Date("2026-06-11T00:00:00.000Z"),
+      forecastDueDate: new Date("2026-06-15T00:00:00.000Z"),
+      predecessor1: "1.2",
+      predecessor2: null,
+      predecessor3: null,
+      predecessor4: null,
+      predecessor5: null,
+      predecessor6: null,
+      leadLagDays: 0,
+      workDays: 3,
+      calendarDays: 5,
+      calendarCode: "RU" as const,
+      sortOrder: 30,
+    },
+  ];
+
+  const updates = calculateWbsScheduleUpdates(items, [], []);
+  const taskB = updates.find((item) => item.id === "task-b");
+  const finalItems = applyTestScheduleUpdates(items, updates);
+  const taskC = finalItems.find((item) => item.id === "task-c");
+
+  assert.equal(taskB?.startDate?.toISOString().slice(0, 10), "2026-06-10");
+  assert.equal(taskB?.dueDate?.toISOString().slice(0, 10), "2026-06-10");
+  assert.equal(taskB?.workDays, 0);
+  assert.equal(taskC?.startDate?.toISOString().slice(0, 10), "2026-06-11");
+  assert.equal(taskC?.dueDate?.toISOString().slice(0, 10), "2026-06-15");
+});
+
 test("calculateWbsScheduleUpdates recalculates work days when dates are edited", () => {
   const items = [
     {
