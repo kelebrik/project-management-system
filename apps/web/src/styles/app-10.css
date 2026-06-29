@@ -345,8 +345,7 @@
   white-space: nowrap;
 }
 
-.gantt-label + .gantt-label,
-.gantt-track-row + .gantt-track-row {
+.gantt-label + .gantt-label {
   border-top: 1px solid #edf1f6;
 }
 
