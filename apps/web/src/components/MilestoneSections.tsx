@@ -32,10 +32,75 @@ type MilestonePointStyle = CSSProperties & {
   "--milestone-drag-y"?: string;
 };
 
-const PHASE_LABEL_RESERVE_PX = 320;
+const PHASE_LABEL_MAX_WIDTH_PX = 320;
+const PHASE_LABEL_MIN_WIDTH_PX = 96;
+const PHASE_POINT_GAP_PX = 28;
+const PHASE_TIMELINE_LEFT_PX = 8;
+const PHASE_TIMELINE_RIGHT_PX = 42;
 
 function phaseTimelineLeft(offset: number) {
-  return `calc(18px + var(--milestone-label-reserve) + ${(offset * 100).toFixed(3)}% - ${(offset * (60 + PHASE_LABEL_RESERVE_PX)).toFixed(3)}px)`;
+  return `calc(${PHASE_TIMELINE_LEFT_PX}px + ${(offset * 100).toFixed(3)}% - ${(offset * (PHASE_TIMELINE_LEFT_PX + PHASE_TIMELINE_RIGHT_PX)).toFixed(3)}px)`;
+}
+
+function phaseAxisTitlePreferredWidth(code: string | undefined, title: string) {
+  const codeWidth = code ? Math.max(28, code.length * 8 + 18) : 0;
+  const titleWidth = Math.ceil(title.length * 8);
+  return Math.min(
+    PHASE_LABEL_MAX_WIDTH_PX,
+    Math.max(PHASE_LABEL_MIN_WIDTH_PX, codeWidth + titleWidth + 36),
+  );
+}
+
+function phaseAxisTitleStyle(
+  lane: MilestoneTimelineModel["lanes"][number],
+  trackWidth: number,
+) {
+  const preferredWidth = phaseAxisTitlePreferredWidth(lane.code, lane.title);
+  const usableWidth = Math.max(
+    0,
+    trackWidth - PHASE_TIMELINE_LEFT_PX - PHASE_TIMELINE_RIGHT_PX,
+  );
+  const protectedRanges = lane.items
+    .map((item) => {
+      const center = item.offset * usableWidth;
+      return {
+        start: Math.max(0, center - PHASE_POINT_GAP_PX),
+        end: Math.min(usableWidth, center + PHASE_POINT_GAP_PX),
+      };
+    })
+    .sort((left, right) => left.start - right.start);
+
+  const gaps: Array<{ start: number; end: number }> = [];
+  let cursor = 0;
+  protectedRanges.forEach((range) => {
+    if (range.start > cursor) {
+      gaps.push({ start: cursor, end: range.start });
+    }
+    cursor = Math.max(cursor, range.end);
+  });
+  if (cursor < usableWidth) {
+    gaps.push({ start: cursor, end: usableWidth });
+  }
+
+  const preferredGap =
+    gaps[0] && gaps[0].start === 0 && gaps[0].end >= Math.min(PHASE_LABEL_MIN_WIDTH_PX, preferredWidth)
+      ? gaps[0]
+      : gaps.find((gap) => gap.end - gap.start >= preferredWidth) ??
+    gaps.reduce(
+      (best, gap) =>
+        gap.end - gap.start > best.end - best.start ? gap : best,
+      { start: 0, end: Math.min(preferredWidth, usableWidth) },
+    );
+  const availableWidth = Math.max(0, preferredGap.end - preferredGap.start);
+  const width = Math.min(
+    preferredWidth,
+    Math.max(Math.min(PHASE_LABEL_MIN_WIDTH_PX, usableWidth), availableWidth),
+  );
+
+  return {
+    "--milestone-axis-title-left": `${Math.round(preferredGap.start)}px`,
+    "--milestone-axis-title-width": `${Math.round(width)}px`,
+  } as CSSProperties;
 }
 
 function MilestoneLegend() {
@@ -117,9 +182,8 @@ export function MilestoneTimelineSection({
         className="milestone-timeline"
         style={
           {
-            "--milestone-track-width": `${timeline.trackWidth + PHASE_LABEL_RESERVE_PX}px`,
+            "--milestone-track-width": `${timeline.trackWidth}px`,
             "--milestone-lane-height": `${timeline.laneHeight}px`,
-            "--milestone-label-reserve": `${PHASE_LABEL_RESERVE_PX}px`,
           } as CSSProperties
         }
       >
@@ -135,6 +199,7 @@ export function MilestoneTimelineSection({
                 <div className="milestone-lane-canvas">
                   <div
                     className="milestone-axis-title"
+                    style={phaseAxisTitleStyle(lane, timeline.trackWidth)}
                     title={`${lane.code ? `${lane.code} ` : ""}${lane.title}`}
                   >
                     {lane.code && <span>{lane.code}</span>}
