@@ -1,31 +1,4 @@
 
-.passport-project-meta {
-  border: 1px solid #dbe4ef;
-  border-radius: 8px;
-  display: grid;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 14px;
-}
-
-.passport-project-meta h3 {
-  font-size: 16px;
-  margin: 0;
-}
-
-.passport-project-field {
-  color: #475569;
-  display: grid;
-  font-size: 12px;
-  font-weight: 800;
-  gap: 6px;
-  max-width: 520px;
-}
-
-.passport-project-field input {
-  min-height: 42px;
-}
-
 .passport-targets {
   border: 1px solid #dbe4ef;
   border-radius: 8px;
@@ -79,6 +52,15 @@
 .passport-target-metrics b {
   color: #1f2937;
   font-size: 15px;
+}
+
+.passport-target-approval {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
 }
 
 .passport-target-edit {
@@ -148,6 +130,7 @@
   border: 1px solid #dbe4ef;
   border-radius: 8px;
   overflow: hidden;
+  margin-top: 16px;
 }
 
 .passport-head,
@@ -162,7 +145,7 @@
   color: #64748b;
   font-size: 11px;
   font-weight: 900;
-  min-height: 42px;
+  min-height: 34px;
   text-transform: uppercase;
 }
 
@@ -172,7 +155,7 @@
 .passport-row-controls {
   border-right: 1px solid #e2e8f0;
   min-width: 0;
-  padding: 10px;
+  padding: 6px 8px;
 }
 
 .passport-row {
@@ -184,7 +167,11 @@
 .passport-row textarea {
   border: 0;
   border-radius: 0;
-  min-height: 44px;
+  min-height: 34px;
+}
+
+.passport-row textarea {
+  resize: vertical;
 }
 
 .passport-row-controls {
