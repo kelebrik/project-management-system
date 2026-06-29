@@ -447,10 +447,18 @@ export function useWbsStructureTableController({
             value={draft.status}
             onChange={(event) => {
               const nextStatus = event.target.value as WbsItemStatus;
-              updateWbsDraft(item.id, {
+              const patch = {
                 status: nextStatus,
                 ...(nextStatus === "CANCELLED" ? { workDays: "0" } : {}),
-              });
+              };
+              if (nextStatus === "CANCELLED") {
+                saveWbsDraftPatch(item.id, patch, {
+                  silent: true,
+                  scheduleDriver: "workDays",
+                });
+                return;
+              }
+              updateWbsDraft(item.id, patch);
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}

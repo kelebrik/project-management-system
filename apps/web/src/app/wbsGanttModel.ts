@@ -98,6 +98,7 @@ export function createWbsGantt({
   wbsDependencies,
 }: WbsGanttOptions) {
   const datedItems = visibleWbsTree
+    .filter((item) => item.status !== "CANCELLED")
     .map((item) => {
       const start = validDate(item.startDate);
       const end = validDate(item.dueDate);
