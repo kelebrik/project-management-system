@@ -8,31 +8,21 @@ export function ProjectPassportPage() {
     deletePassportRow,
     passportRows,
     project,
-    projectRegistryDrafts,
     projectTargetApprovedBy,
     projectTargetChangeReason,
     projectTargetDateDraft,
     projectTargetSummary,
-    saveProjectPortfolio,
     saveProjectTargetDate,
     savePassportRows,
     savingPassportRows,
     savingProjectTargetDate,
-    savingProjectRegistryId,
     setProjectTargetApprovedBy,
     setProjectTargetChangeReason,
     setProjectTargetDateDraft,
     signedDateDeltaDays,
     signedDaysLabel,
-    updateProjectRegistryDraft,
     updatePassportRow,
   } = ctx;
-  const projectDraft = project ? projectRegistryDrafts[project.id] : null;
-  const projectPortfolio = projectDraft?.portfolio ?? project?.portfolio ?? "";
-  const saveCurrentProjectPortfolio = () => {
-    if (!project) return;
-    void saveProjectPortfolio(project.id);
-  };
 
   return (
                   <article className="panel project-card">
@@ -48,31 +38,6 @@ export function ProjectPassportPage() {
                       + Добавить поле
                     </button>
                   </div>
-                  <section className="passport-project-meta">
-                    <h3>Основные параметры</h3>
-                    <label className="passport-project-field">
-                      <span>Портфель</span>
-                      <input
-                        value={projectPortfolio}
-                        onChange={(event) => {
-                          if (!project) return;
-                          updateProjectRegistryDraft(project.id, {
-                            portfolio: event.target.value,
-                          });
-                        }}
-                        onBlur={saveCurrentProjectPortfolio}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        placeholder="Например: Выпуск заводского ПО"
-                        disabled={
-                          !project || savingProjectRegistryId === project.id
-                        }
-                      />
-                    </label>
-                  </section>
                   <section className="passport-targets">
                     <div className="passport-targets-head">
                       <div>
@@ -101,45 +66,6 @@ export function ProjectPassportPage() {
                         <span>Полное отклонение</span>
                         <b>{signedDaysLabel(projectTargetSummary?.totalVarianceDays ?? null)}</b>
                       </div>
-                    </div>
-                    <div className="passport-target-edit">
-                      <label>
-                        Текущая утвержденная цель
-                        <input
-                          type="date"
-                          value={projectTargetDateDraft}
-                          onChange={(event) =>
-                            setProjectTargetDateDraft(event.target.value)
-                          }
-                        />
-                      </label>
-                      <label>
-                        Причина изменения
-                        <input
-                          value={projectTargetChangeReason}
-                          onChange={(event) =>
-                            setProjectTargetChangeReason(event.target.value)
-                          }
-                          placeholder="Например: согласованный перенос запуска"
-                        />
-                      </label>
-                      <label>
-                        Согласовано
-                        <input
-                          value={projectTargetApprovedBy}
-                          onChange={(event) =>
-                            setProjectTargetApprovedBy(event.target.value)
-                          }
-                          placeholder="ФИО или орган согласования"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => void saveProjectTargetDate()}
-                        disabled={savingProjectTargetDate}
-                      >
-                        {savingProjectTargetDate ? "Сохраняю..." : "Сохранить цель"}
-                      </button>
                     </div>
                     <div className="passport-target-history">
                       <div className="passport-target-history-head">
@@ -199,7 +125,7 @@ export function ProjectPassportPage() {
                               description: event.target.value,
                             })
                           }
-                          rows={2}
+                          rows={1}
                           placeholder="Описание или значение"
                         />
                         <div className="passport-row-controls">
@@ -234,6 +160,52 @@ export function ProjectPassportPage() {
                       {savingPassportRows ? "Сохраняю..." : "Сохранить паспорт"}
                     </button>
                   </div>
+                  <section className="passport-target-approval">
+                    <div className="passport-targets-head">
+                      <div>
+                        <h3>Утвердить новую цель</h3>
+                      </div>
+                    </div>
+                    <div className="passport-target-edit">
+                      <label>
+                        Новая дата цели
+                        <input
+                          type="date"
+                          value={projectTargetDateDraft}
+                          onChange={(event) =>
+                            setProjectTargetDateDraft(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label>
+                        Причина изменения
+                        <input
+                          value={projectTargetChangeReason}
+                          onChange={(event) =>
+                            setProjectTargetChangeReason(event.target.value)
+                          }
+                          placeholder="Например: согласованный перенос запуска"
+                        />
+                      </label>
+                      <label>
+                        Согласовано
+                        <input
+                          value={projectTargetApprovedBy}
+                          onChange={(event) =>
+                            setProjectTargetApprovedBy(event.target.value)
+                          }
+                          placeholder="ФИО или орган согласования"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void saveProjectTargetDate()}
+                        disabled={savingProjectTargetDate}
+                      >
+                        {savingProjectTargetDate ? "Сохраняю..." : "Сохранить цель"}
+                      </button>
+                    </div>
+                  </section>
                 </article>
               );
 }
