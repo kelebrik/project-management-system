@@ -8,31 +8,21 @@ export function ProjectPassportPage() {
     deletePassportRow,
     passportRows,
     project,
-    projectRegistryDrafts,
     projectTargetApprovedBy,
     projectTargetChangeReason,
     projectTargetDateDraft,
     projectTargetSummary,
-    saveProjectPortfolio,
     saveProjectTargetDate,
     savePassportRows,
     savingPassportRows,
     savingProjectTargetDate,
-    savingProjectRegistryId,
     setProjectTargetApprovedBy,
     setProjectTargetChangeReason,
     setProjectTargetDateDraft,
     signedDateDeltaDays,
     signedDaysLabel,
-    updateProjectRegistryDraft,
     updatePassportRow,
   } = ctx;
-  const projectDraft = project ? projectRegistryDrafts[project.id] : null;
-  const projectPortfolio = projectDraft?.portfolio ?? project?.portfolio ?? "";
-  const saveCurrentProjectPortfolio = () => {
-    if (!project) return;
-    void saveProjectPortfolio(project.id);
-  };
 
   return (
                   <article className="panel project-card">
@@ -48,36 +38,11 @@ export function ProjectPassportPage() {
                       + Добавить поле
                     </button>
                   </div>
-                  <section className="passport-project-meta">
-                    <h3>Основные параметры</h3>
-                    <label className="passport-project-field">
-                      <span>Портфель</span>
-                      <input
-                        value={projectPortfolio}
-                        onChange={(event) => {
-                          if (!project) return;
-                          updateProjectRegistryDraft(project.id, {
-                            portfolio: event.target.value,
-                          });
-                        }}
-                        onBlur={saveCurrentProjectPortfolio}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.currentTarget.blur();
-                          }
-                        }}
-                        placeholder="Например: Выпуск заводского ПО"
-                        disabled={
-                          !project || savingProjectRegistryId === project.id
-                        }
-                      />
-                    </label>
-                  </section>
                   <section className="passport-targets">
                     <div className="passport-targets-head">
                       <div>
                         <h3>Цели и сроки проекта</h3>
-                        <p>Утвержденная цель, прогноз завершения и история изменений</p>
+                        <p>Утвержденная цель и прогноз завершения</p>
                       </div>
                     </div>
                     <div className="passport-target-metrics">
@@ -102,9 +67,75 @@ export function ProjectPassportPage() {
                         <b>{signedDaysLabel(projectTargetSummary?.totalVarianceDays ?? null)}</b>
                       </div>
                     </div>
+                  </section>
+                  <div className="passport-table">
+                    <div className="passport-head">
+                      <span>Поле</span>
+                      <span>Описание</span>
+                      <span />
+                    </div>
+                    {passportRows.map((row, index) => (
+                      <div className="passport-row" key={row.id}>
+                        <input
+                          value={row.field}
+                          onChange={(event) =>
+                            updatePassportRow(row.id, {
+                              field: event.target.value,
+                            })
+                          }
+                          placeholder="Наименование поля"
+                        />
+                        <textarea
+                          value={row.description}
+                          onChange={(event) =>
+                            updatePassportRow(row.id, {
+                              description: event.target.value,
+                            })
+                          }
+                          rows={1}
+                          placeholder="Описание или значение"
+                        />
+                        <div className="passport-row-controls">
+                          <button
+                            type="button"
+                            className="wbs-inline-insert-button"
+                            onClick={() => addPassportRow(index)}
+                            aria-label="Добавить поле ниже"
+                            title="Добавить поле ниже"
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="wbs-row-delete-button"
+                            onClick={() => deletePassportRow(row.id)}
+                            aria-label="Удалить поле"
+                            title="Удалить поле"
+                          >
+                            x
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="form-actions passport-actions">
+                    <button
+                      type="button"
+                      onClick={() => void savePassportRows()}
+                      disabled={savingPassportRows}
+                    >
+                      {savingPassportRows ? "Сохраняю..." : "Сохранить паспорт"}
+                    </button>
+                  </div>
+                  <section className="passport-target-approval">
+                    <div className="passport-targets-head">
+                      <div>
+                        <h3>Утвердить новую цель</h3>
+                      </div>
+                    </div>
                     <div className="passport-target-edit">
                       <label>
-                        Текущая утвержденная цель
+                        Новая дата цели
                         <input
                           type="date"
                           value={projectTargetDateDraft}
@@ -175,65 +206,6 @@ export function ProjectPassportPage() {
                       )}
                     </div>
                   </section>
-                  <div className="passport-table">
-                    <div className="passport-head">
-                      <span>Поле</span>
-                      <span>Описание</span>
-                      <span />
-                    </div>
-                    {passportRows.map((row, index) => (
-                      <div className="passport-row" key={row.id}>
-                        <input
-                          value={row.field}
-                          onChange={(event) =>
-                            updatePassportRow(row.id, {
-                              field: event.target.value,
-                            })
-                          }
-                          placeholder="Наименование поля"
-                        />
-                        <textarea
-                          value={row.description}
-                          onChange={(event) =>
-                            updatePassportRow(row.id, {
-                              description: event.target.value,
-                            })
-                          }
-                          rows={2}
-                          placeholder="Описание или значение"
-                        />
-                        <div className="passport-row-controls">
-                          <button
-                            type="button"
-                            className="wbs-inline-insert-button"
-                            onClick={() => addPassportRow(index)}
-                            aria-label="Добавить поле ниже"
-                            title="Добавить поле ниже"
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
-                            className="wbs-row-delete-button"
-                            onClick={() => deletePassportRow(row.id)}
-                            aria-label="Удалить поле"
-                            title="Удалить поле"
-                          >
-                            x
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="form-actions passport-actions">
-                    <button
-                      type="button"
-                      onClick={() => void savePassportRows()}
-                      disabled={savingPassportRows}
-                    >
-                      {savingPassportRows ? "Сохраняю..." : "Сохранить паспорт"}
-                    </button>
-                  </div>
                 </article>
               );
 }
