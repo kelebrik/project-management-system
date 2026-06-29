@@ -465,8 +465,13 @@ export function ProjectStructureSection() {
                             defaultValue=""
                             onChange={(event) => {
                               if (!event.target.value) return;
+                              const status =
+                                event.target.value as WbsItemStatus;
                               updateSelectedWbsDrafts({
-                                status: event.target.value as WbsItemStatus,
+                                status,
+                                ...(status === "CANCELLED"
+                                  ? { workDays: "0" }
+                                  : {}),
                               });
                               event.currentTarget.value = "";
                             }}
