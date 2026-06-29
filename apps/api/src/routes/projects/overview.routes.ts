@@ -49,10 +49,6 @@ export function registerProjectOverviewRoutes(
         : user
           ? await userProjectAccessLevel(user.id, project.id)
           : null;
-    if (user && user.role !== 'ADMIN' && !currentUserAccessLevel) {
-      res.status(403).json({ error: 'Нет доступа к этому проекту' });
-      return;
-    }
 
     res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel });
   });

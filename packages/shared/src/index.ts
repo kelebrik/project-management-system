@@ -35,6 +35,11 @@ export const userRoles = [
   "TEAM_MEMBER",
   "EXECUTIVE_VIEWER",
 ] as const;
+export const assignableUserRoles = [
+  "ADMIN",
+  "PROJECT_MANAGER",
+  "EXECUTIVE_VIEWER",
+] as const;
 export const issueSeverities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 export const openIssueStatuses = [
   "Open",
@@ -112,9 +117,9 @@ export const labels = {
   },
   userRole: {
     ADMIN: "Администратор",
-    PROJECT_MANAGER: "Руководитель проекта",
+    PROJECT_MANAGER: "РП",
     TEAM_MEMBER: "Участник команды",
-    EXECUTIVE_VIEWER: "Руководитель",
+    EXECUTIVE_VIEWER: "Просмотр",
   },
 } as const;
 
@@ -136,7 +141,7 @@ export const bootstrapAdminSchema = z.object({
 export const createUserSchema = z.object({
   email: z.string().trim().email("Некорректный email").toLowerCase(),
   name: z.string().trim().min(2, "Укажите имя пользователя"),
-  role: z.enum(userRoles).default("PROJECT_MANAGER"),
+  role: z.enum(assignableUserRoles).default("EXECUTIVE_VIEWER"),
   isActive: z.boolean().default(true),
   password: passwordSchema,
 });
@@ -144,7 +149,7 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   email: z.string().trim().email("Некорректный email").toLowerCase().optional(),
   name: z.string().trim().min(2, "Укажите имя пользователя").optional(),
-  role: z.enum(userRoles).optional(),
+  role: z.enum(assignableUserRoles).optional(),
   isActive: z.boolean().optional(),
 });
 

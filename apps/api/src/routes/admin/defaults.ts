@@ -3,7 +3,6 @@ import type { UserRole } from '@prisma/client';
 export const managedRoles: UserRole[] = [
   'ADMIN',
   'PROJECT_MANAGER',
-  'TEAM_MEMBER',
   'EXECUTIVE_VIEWER',
 ];
 

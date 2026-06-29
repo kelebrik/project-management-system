@@ -20,20 +20,18 @@ export function defaultPermissionEnabled(role: UserRole, permission: string) {
   if (role === 'ADMIN') return true;
   if (permission.startsWith('admin.')) return false;
   if (role === 'EXECUTIVE_VIEWER') {
-    return permission.endsWith('.read') || permission === 'overview.export';
+    return (
+      permission.endsWith('.read') ||
+      permission === 'project.create' ||
+      permission === 'overview.export'
+    );
   }
   if (role === 'TEAM_MEMBER') {
-    return [
-      'project.read',
-      'wbs.read',
-      'issue.read',
-      'issue.create',
-      'issue.update',
-      'raid.read',
-      'raid.create',
-      'raid.update',
-      'overview.export',
-    ].includes(permission);
+    return (
+      permission.endsWith('.read') ||
+      permission === 'project.create' ||
+      permission === 'overview.export'
+    );
   }
   return [
     'project.read',
