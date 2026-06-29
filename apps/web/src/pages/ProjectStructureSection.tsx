@@ -68,7 +68,6 @@ export function ProjectStructureSection() {
     project,
     printSectionAsPdf,
     redoWbsChange,
-    renderSavedViewControls,
     renderWbsCell,
     reorderWbsRows,
     restoringWbsSnapshot,
@@ -459,7 +458,6 @@ export function ProjectStructureSection() {
                                 : "Сохранено"}
                             </span>
                           </div>
-                          {renderSavedViewControls()}
                           {selectedWbsIds.size > 0 && (
                             <div className="wbs-bulk-toolbar">
                           <span>Выбрано: {selectedWbsIds.size}</span>
