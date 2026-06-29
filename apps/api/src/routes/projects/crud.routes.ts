@@ -66,7 +66,6 @@ export function registerProjectCrudRoutes(
     );
     res.json(
       projects
-        .filter((project) => accessByProjectId.has(project.id))
         .map((project) => ({
           ...project,
           currentUserAccessLevel: accessByProjectId.get(project.id) ?? null,
@@ -131,25 +130,33 @@ export function registerProjectCrudRoutes(
       });
       const actor = currentUser(req);
 
+      const createdProjectAccessLevel = actor?.role === 'ADMIN' ? 'ADMIN' : 'EDIT';
+
       if (actor && actor.role !== 'ADMIN') {
-        await prisma.projectAccess.upsert({
-          where: {
-            projectId_userId: {
+        await prisma.$transaction([
+          prisma.projectAccess.upsert({
+            where: {
+              projectId_userId: {
+                projectId: project.id,
+                userId: actor.id,
+              },
+            },
+            create: {
               projectId: project.id,
               userId: actor.id,
+              level: 'EDIT',
+              grantedById: actor.id,
             },
-          },
-          create: {
-            projectId: project.id,
-            userId: actor.id,
-            level: 'EDIT',
-            grantedById: actor.id,
-          },
-          update: {
-            level: 'EDIT',
-            grantedById: actor.id,
-          },
-        });
+            update: {
+              level: 'EDIT',
+              grantedById: actor.id,
+            },
+          }),
+          prisma.user.update({
+            where: { id: actor.id },
+            data: { role: 'PROJECT_MANAGER' },
+          }),
+        ]);
       }
 
       let copiedBaseline: Awaited<ReturnType<typeof copyLatestWbsBaselineToProject>> | null = null;
@@ -204,7 +211,11 @@ export function registerProjectCrudRoutes(
         payload: { project: afterSnapshot ?? project, copiedBaseline },
       }).catch(() => undefined);
 
-      res.status(201).json({ ...project, copiedBaseline });
+      res.status(201).json({
+        ...project,
+        currentUserAccessLevel: actor ? createdProjectAccessLevel : null,
+        copiedBaseline,
+      });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

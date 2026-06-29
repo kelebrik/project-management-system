@@ -188,7 +188,7 @@ export const emptyAuthForm: AuthFormState = {
 export const emptyUserForm: UserFormState = {
   email: "",
   name: "",
-  role: "PROJECT_MANAGER",
+  role: "EXECUTIVE_VIEWER",
   isActive: true,
   password: "",
 };

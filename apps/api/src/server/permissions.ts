@@ -3,9 +3,12 @@ import {
   apiTokenHasPermission,
   currentApiToken,
   currentUser,
+  type AuthRequest,
+  type CurrentUser,
   type PermissionName,
   userHasPermission,
 } from './auth.js';
+import { projectIdForWritePath, userCanWriteProject } from './project-access.js';
 import { isReadRequest } from './project-write-guards.js';
 
 export function writePermissionForPath(pathname: string, method: string): PermissionName | null {
@@ -127,28 +130,71 @@ export function writePermissionForPath(pathname: string, method: string): Permis
   return 'project.update';
 }
 
+type WritePermissionDecision =
+  | { ok: true }
+  | { ok: false; status: 401 | 403; error: string };
+
+type WritePermissionContext = {
+  user: CurrentUser | null;
+  apiToken: AuthRequest['apiToken'] | null;
+  pathname: string;
+  method: string;
+};
+
+type WritePermissionDependencies = {
+  projectIdForWritePath: (pathname: string) => Promise<string | null>;
+  userCanWriteProject: (userId: string, projectId: string) => Promise<boolean>;
+  userHasPermission: (user: CurrentUser, permission: PermissionName) => Promise<boolean>;
+  apiTokenHasPermission: (token: AuthRequest['apiToken'], permission: PermissionName) => boolean;
+};
+
+export async function canProceedWithWrite(
+  context: WritePermissionContext,
+  dependencies: WritePermissionDependencies = {
+    projectIdForWritePath,
+    userCanWriteProject,
+    userHasPermission,
+    apiTokenHasPermission,
+  },
+): Promise<WritePermissionDecision> {
+  const requiredPermission = writePermissionForPath(context.pathname, context.method);
+  if (!requiredPermission) {
+    return { ok: true };
+  }
+  if (!context.user && !context.apiToken) {
+    return { ok: false, status: 401, error: 'Требуется вход в систему' };
+  }
+  if (context.apiToken && dependencies.apiTokenHasPermission(context.apiToken, requiredPermission)) {
+    return { ok: true };
+  }
+  if (context.user && context.user.role !== 'ADMIN') {
+    const projectId = await dependencies.projectIdForWritePath(context.pathname);
+    if (projectId) {
+      if (await dependencies.userCanWriteProject(context.user.id, projectId)) {
+        return { ok: true };
+      }
+      return { ok: false, status: 403, error: 'Нет доступа на изменение этого проекта' };
+    }
+  }
+  if (!context.user || !(await dependencies.userHasPermission(context.user, requiredPermission))) {
+    return { ok: false, status: 403, error: 'Недостаточно прав' };
+  }
+  return { ok: true };
+}
+
 export async function writePermissionMiddleware(req: Request, res: Response, next: NextFunction) {
   if (isReadRequest(req)) {
     next();
     return;
   }
-  const requiredPermission = writePermissionForPath(req.path, req.method);
-  if (!requiredPermission) {
-    next();
-    return;
-  }
-  const user = currentUser(req);
-  const apiToken = currentApiToken(req);
-  if (!user && !apiToken) {
-    res.status(401).json({ error: 'Требуется вход в систему' });
-    return;
-  }
-  if (apiToken && apiTokenHasPermission(apiToken, requiredPermission)) {
-    next();
-    return;
-  }
-  if (!user || !(await userHasPermission(user, requiredPermission))) {
-    res.status(403).json({ error: 'Недостаточно прав' });
+  const decision = await canProceedWithWrite({
+    user: currentUser(req),
+    apiToken: currentApiToken(req),
+    pathname: req.path,
+    method: req.method,
+  });
+  if (!decision.ok) {
+    res.status(decision.status).json({ error: decision.error });
     return;
   }
   next();
