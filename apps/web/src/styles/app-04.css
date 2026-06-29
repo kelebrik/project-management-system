@@ -834,6 +834,16 @@
   margin-bottom: 10px;
 }
 
+.workspace-focus-panel-fullscreen.workspace-focus-structure,
+.workspace-focus-panel-fullscreen.workspace-focus-gantt {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-structure .panel-title,
+.workspace-focus-panel-fullscreen.workspace-focus-gantt .panel-title {
+  display: none;
+}
+
 .workspace-focus-panel-fullscreen .wbs-gantt-layout {
   min-height: 0;
   overflow: hidden;
