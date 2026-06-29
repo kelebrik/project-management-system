@@ -29,7 +29,6 @@ export function AdminRolesPageContent() {
                           <span>Право</span>
                           <span>{userRoleLabel("ADMIN")}</span>
                           <span>{userRoleLabel("PROJECT_MANAGER")}</span>
-                          <span>{userRoleLabel("TEAM_MEMBER")}</span>
                           <span>{userRoleLabel("EXECUTIVE_VIEWER")}</span>
                         </div>
                         {adminPermissionOrder.map((permissionName) => {
@@ -45,7 +44,6 @@ export function AdminRolesPageContent() {
                                 [
                                   "ADMIN",
                                   "PROJECT_MANAGER",
-                                  "TEAM_MEMBER",
                                   "EXECUTIVE_VIEWER",
                                 ] as UserRole[]
                               ).map((role) => {
