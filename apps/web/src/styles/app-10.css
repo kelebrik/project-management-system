@@ -335,13 +335,13 @@
   border-right: 1px solid #d8e0eb;
   color: #2f3b4d;
   display: flex;
-  gap: 5px;
-  font-size: 12px;
+  gap: 7px;
+  font-size: 13px;
   font-weight: 800;
-  height: 20px;
+  height: 24px;
   min-width: 0;
   overflow: hidden;
-  padding-right: 10px;
+  padding-right: 12px;
   white-space: nowrap;
 }
 
@@ -396,9 +396,9 @@
 
 .gantt-bar {
   background: #477ff6;
-  border-radius: 0;
+  border-radius: 999px;
   box-shadow: 0 1px 2px rgba(32, 52, 89, 0.16);
-  height: 20px;
+  height: 18px;
   min-width: 6px;
   position: absolute;
   top: 50%;
