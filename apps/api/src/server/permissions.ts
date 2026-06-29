@@ -6,6 +6,7 @@ import {
   type PermissionName,
   userHasPermission,
 } from './auth.js';
+import { projectIdForWritePath, userCanWriteProject } from './project-access.js';
 import { isReadRequest } from './project-write-guards.js';
 
 export function writePermissionForPath(pathname: string, method: string): PermissionName | null {
@@ -146,6 +147,13 @@ export async function writePermissionMiddleware(req: Request, res: Response, nex
   if (apiToken && apiTokenHasPermission(apiToken, requiredPermission)) {
     next();
     return;
+  }
+  if (user && user.role !== 'ADMIN') {
+    const projectId = await projectIdForWritePath(req.path);
+    if (projectId && (await userCanWriteProject(user.id, projectId))) {
+      next();
+      return;
+    }
   }
   if (!user || !(await userHasPermission(user, requiredPermission))) {
     res.status(403).json({ error: 'Недостаточно прав' });
