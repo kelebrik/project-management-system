@@ -56,6 +56,7 @@ export function ProjectStructureSection() {
     activeWbsHierarchyLevel,
     activeWbsItemId,
     dirtyWbsItemIds,
+    deleteSelectedWbsItems,
     draggedWbsColumn,
     draggedWbsItemId,
     dropWbsColumn,
@@ -533,7 +534,16 @@ export function ProjectStructureSection() {
                           </select>
                           <button
                             type="button"
+                            className="danger-button"
+                            onClick={() => void deleteSelectedWbsItems()}
+                            disabled={savingWbsBulk}
+                          >
+                            Удалить выбранные
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setSelectedWbsIds(new Set())}
+                            disabled={savingWbsBulk}
                           >
                             Снять выбор
                           </button>

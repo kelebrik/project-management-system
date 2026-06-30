@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileArchive,
+  FileSpreadsheet,
   FileText,
   FolderTree,
   GanttChartSquare,
@@ -261,6 +262,11 @@ const adminNavItems: AdminNavItem[] = [
     view: "admin-config",
     label: "Import/export",
     icon: <Import size={17} />,
+  },
+  {
+    view: "admin-import",
+    label: "Импорт",
+    icon: <FileSpreadsheet size={17} />,
   },
   {
     view: "admin-audit",

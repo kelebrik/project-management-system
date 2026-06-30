@@ -483,6 +483,32 @@ export const openApiDocument = {
           "423": { description: "Project is closed and read-only" },
         },
       },
+      delete: {
+        ...securedOperation(
+          ["WBS"],
+          "Delete selected WBS items",
+          [projectIdParam],
+          "WBS snapshot after bulk delete",
+        ),
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  itemIds: {
+                    type: "array",
+                    items: { type: "string" },
+                    minItems: 1,
+                  },
+                },
+                required: ["itemIds"],
+              },
+            },
+          },
+        },
+      },
     },
     "/api/projects/{projectId}/wbs-items/insert-after": {
       post: createOperation(
@@ -823,6 +849,12 @@ export const openApiDocument = {
     },
     "/api/admin/config/import": {
       post: securedOperation(["Admin"], "Import admin configuration"),
+    },
+    "/api/admin/import/wbs-template": {
+      get: securedOperation(["Admin"], "Download WBS XLSX import template"),
+    },
+    "/api/admin/import/wbs-items": {
+      post: securedOperation(["Admin"], "Import WBS tasks from XLS or XLSX"),
     },
     "/api/admin/project-modules": {
       put: securedOperation(["Admin"], "Update project module visibility settings"),

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CurrentUser } from './auth.js';
-import { canProceedWithWrite } from './permissions.js';
+import { canProceedWithWrite, writePermissionForPath } from './permissions.js';
 
 const projectManager: CurrentUser = {
   id: 'user-1',
@@ -74,4 +74,12 @@ test('global create project permission still allows creating a new project', asy
   );
 
   assert.deepEqual(decision, { ok: true });
+});
+
+test('admin WBS import uses its own permission', () => {
+  assert.equal(writePermissionForPath('/admin/import/wbs-items', 'POST'), 'admin.import');
+});
+
+test('bulk WBS delete requires delete permission', () => {
+  assert.equal(writePermissionForPath('/projects/project-1/wbs-items', 'DELETE'), 'wbs.delete');
 });

@@ -12,6 +12,10 @@ export const wbsReorderSchema = z.object({
   typesById: z.record(z.string().trim().min(1), z.enum(wbsItemTypes)).optional(),
 });
 
+export const wbsBulkDeleteSchema = z.object({
+  itemIds: z.array(z.string().trim().min(1)).min(1).max(500),
+});
+
 export const wbsDependencySchema = z.object({
   predecessorId: z.string().trim().min(1),
   successorId: z.string().trim().min(1),
