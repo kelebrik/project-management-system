@@ -46,6 +46,7 @@ type WbsRowActionsDeps = {
   setDraggedWbsItemId: Dispatch<SetStateAction<string | null>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
+  setSelectedWbsIds: Dispatch<SetStateAction<Set<string>>>;
   setSavingWbsBulk: Dispatch<SetStateAction<boolean>>;
   setWbsDrafts: Dispatch<SetStateAction<Record<string, WbsFormState>>>;
   setWbsDropTargetId: Dispatch<SetStateAction<string | null>>;
@@ -74,6 +75,7 @@ export function useWbsRowActions({
   setDraggedWbsItemId,
   setError,
   setNotice,
+  setSelectedWbsIds,
   setSavingWbsBulk,
   setWbsDrafts,
   setWbsDropTargetId,
@@ -736,7 +738,55 @@ export function useWbsRowActions({
     }
   }
 
+  async function deleteSelectedWbsItems() {
+    if (!project || selectedWbsIds.size === 0) return;
+    const itemIds = [...selectedWbsIds].filter((itemId) =>
+      project.wbsItems.some((item) => item.id === itemId),
+    );
+    if (itemIds.length === 0) {
+      setSelectedWbsIds(new Set());
+      return;
+    }
+    if (!window.confirm(`Удалить выбранные строки Структуры: ${itemIds.length}?`)) return;
+
+    setError(null);
+    setNotice(null);
+    setSavingWbsBulk(true);
+    rememberWbsSnapshot();
+    try {
+      const response = await authenticatedFetch(`${apiBase}/api/projects/${project.id}/wbs-items`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось удалить выбранные элементы Структуры");
+      }
+      if (result?.wbsItems) {
+        applyWbsSnapshotResult(
+          result.wbsItems,
+          result.wbsDependencies,
+          result.criticalPath,
+        );
+      } else {
+        await refreshProject(project.id);
+      }
+      setSelectedWbsIds(new Set());
+      setNotice(`Удалено элементов Структуры: ${result?.deletedCount ?? itemIds.length}`);
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Не удалось удалить выбранные элементы Структуры",
+      );
+    } finally {
+      setSavingWbsBulk(false);
+    }
+  }
+
   return {
+    deleteSelectedWbsItems,
     deleteWbsItem,
     insertWbsRow,
     reorderWbsRows,

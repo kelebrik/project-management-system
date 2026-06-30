@@ -483,6 +483,32 @@ export const openApiDocument = {
           "423": { description: "Project is closed and read-only" },
         },
       },
+      delete: {
+        ...securedOperation(
+          ["WBS"],
+          "Delete selected WBS items",
+          [projectIdParam],
+          "WBS snapshot after bulk delete",
+        ),
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  itemIds: {
+                    type: "array",
+                    items: { type: "string" },
+                    minItems: 1,
+                  },
+                },
+                required: ["itemIds"],
+              },
+            },
+          },
+        },
+      },
     },
     "/api/projects/{projectId}/wbs-items/insert-after": {
       post: createOperation(

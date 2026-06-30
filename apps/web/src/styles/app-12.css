@@ -49,6 +49,11 @@
   width: auto;
 }
 
+.wbs-bulk-toolbar .danger-button {
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
 .column-menu {
   position: relative;
 }
