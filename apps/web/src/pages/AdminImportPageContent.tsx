@@ -22,7 +22,8 @@ function phaseLabel(phase: Pick<WbsItem, "code" | "title">) {
 }
 
 export function AdminImportPageContent() {
-  const { projects, projectOptionLabel, setError, setNotice } = usePageContext();
+  const { project, projects, projectOptionLabel, setError, setNotice, setProject } =
+    usePageContext();
   const activeProjects = useMemo(
     () => projects.filter((item: ProjectListItem) => item.status !== "CLOSED"),
     [projects],
@@ -157,6 +158,18 @@ export function AdminImportPageContent() {
             }
           : current,
       );
+      if (project?.id === importResult.project.id) {
+        setProject?.((current: ProjectDetails | null) =>
+          current
+            ? {
+                ...current,
+                wbsItems: importResult.snapshot.wbsItems,
+                wbsDependencies: importResult.snapshot.wbsDependencies,
+                criticalPath: importResult.snapshot.criticalPath,
+              }
+            : current,
+        );
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось импортировать задачи");
     } finally {
