@@ -132,10 +132,10 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   );
   assert.match(
     gitlabCi,
-    /\.mr_to_master:[\s\S]*CI_PIPELINE_SOURCE == "merge_request_event"[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/,
+    /\.rule_mr_to_master:[\s\S]*CI_PIPELINE_SOURCE == "merge_request_event"[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/,
     "CI must define merge-request-to-master rules for validation and test jobs",
   );
-  assert.match(gitlabCi, /\.mr_to_master:[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/, "CI must define merge-request-to-master rules for validation and test jobs");
+  assert.match(gitlabCi, /\.mr_to_master:[\s\S]*\*rule_mr_to_master/, "CI must define merge-request-to-master rules for validation and test jobs");
   assert.doesNotMatch(gitlabCi, /^\s*DATABASE_URL:/m, "CI must not define a runtime database URL in global variables");
   assert.match(ciPrismaGenerate, /DATABASE_URL="\$\{DATABASE_URL:-postgresql:\/\/ci:ci@127\.0\.0\.1:5432\/ci\?schema=public\}"/, "CI prisma generate must use a local stub DATABASE_URL when none is provided");
   assert.match(gitlabCi, /\.node_job:[\s\S]*ci-prisma-setup\.sh bootstrap[\s\S]*ci-prisma-generate\.sh/, "CI node jobs must bootstrap Prisma engines before npm install and run an isolated prisma generate");
@@ -146,7 +146,7 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   assert.match(gitlabCi, /unit-tests:[\s\S]*extends: \.node_job/, "unit-tests must run on merge requests to master");
   assert.match(gitlabCi, /integration-contracts:[\s\S]*extends: \.node_job/, "integration-contracts must run on merge requests to master");
   assert.match(gitlabCi, /\.node_job:[\s\S]*stage: check/, "validation and test jobs must run in the same parallel check stage");
-  assert.match(gitlabCi, /build_image:[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/, "build_image must run on merge requests to master");
+  assert.match(gitlabCi, /build_image:[\s\S]*extends: \.master_pipeline/, "build_image must run on merge requests to master and push to master");
   assert.match(gitlabCi, /build_image:[\s\S]*--build-arg CI_JOB_TOKEN="\$\{CI_JOB_TOKEN\}"/, "build_image must pass CI_JOB_TOKEN into the Docker build");
   assert.doesNotMatch(gitlabCi, /name:\s*"node:/, "CI must not default to public Docker Hub Node images");
   assert.match(gitlabCi, /PRISMA_ENGINES_BASE_URL:/, "CI must configure an internal Prisma engines package URL");

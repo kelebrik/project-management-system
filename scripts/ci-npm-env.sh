@@ -12,3 +12,4 @@ if [ "$PMS_CI_INSECURE_TLS" = "1" ] || [ "$PMS_CI_INSECURE_TLS" = "true" ]; then
   export npm_config_strict_ssl=false
   export NODE_TLS_REJECT_UNAUTHORIZED=0
 fi
+

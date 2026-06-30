@@ -32,6 +32,7 @@ ENV PRISMA_SCHEMA_ENGINE_BINARY=/opt/prisma-engines/schema-engine-debian-openssl
 ENV PRISMA_QUERY_ENGINE_LIBRARY=/opt/prisma-engines/libquery_engine-debian-openssl-3.0.x.so.node
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 ENV NPM_CONFIG_REGISTRY=https://nexus.sberdevices.ru/repository/npm
+ENV NPM_CONFIG_STRICT_SSL=false
 
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/package.json
