@@ -79,3 +79,7 @@ test('global create project permission still allows creating a new project', asy
 test('admin WBS import uses its own permission', () => {
   assert.equal(writePermissionForPath('/admin/import/wbs-items', 'POST'), 'admin.import');
 });
+
+test('bulk WBS delete requires delete permission', () => {
+  assert.equal(writePermissionForPath('/projects/project-1/wbs-items', 'DELETE'), 'wbs.delete');
+});

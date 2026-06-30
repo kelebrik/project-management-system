@@ -16,6 +16,11 @@ import {
   validateWbsProjectAndParent,
   wouldCreateWbsCycle,
 } from './helpers.js';
+import { wbsBulkDeleteSchema } from './schemas.js';
+
+function wbsLevelFromItem(item: { code: string; wbsLevel: number | null }) {
+  return Math.max(1, item.wbsLevel ?? item.code.split('.').filter(Boolean).length);
+}
 
 export function registerWbsItemRoutes(router: Router) {
   router.post('/projects/:projectId/wbs-items', async (req, res) => {
@@ -117,6 +122,99 @@ export function registerWbsItemRoutes(router: Router) {
       payload: { item, snapshot },
     }).catch(() => undefined);
     res.status(201).json({ item, ...snapshot });
+  });
+
+  router.delete('/projects/:projectId/wbs-items', async (req, res) => {
+    const parsed = wbsBulkDeleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+
+    const itemIds = [...new Set(parsed.data.itemIds)];
+    const items = await prisma.wbsItem.findMany({
+      where: { projectId: req.params.projectId },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const itemsById = new Map(items.map((item) => [item.id, item]));
+    const missingIds = itemIds.filter((itemId) => !itemsById.has(itemId));
+    if (missingIds.length > 0) {
+      res.status(404).json({ error: 'Один или несколько элементов Структуры не найдены в проекте' });
+      return;
+    }
+
+    const deletedIdSet = new Set(itemIds);
+    const levelUpdates = new Map<string, number>();
+    const parentUpdates = new Map<string, string | null>();
+    for (const item of items) {
+      if (deletedIdSet.has(item.id)) continue;
+      let deletedAncestorCount = 0;
+      let parentId = item.parentId;
+      while (parentId && deletedIdSet.has(parentId)) {
+        deletedAncestorCount += 1;
+        parentId = itemsById.get(parentId)?.parentId ?? null;
+      }
+      if (deletedAncestorCount === 0) continue;
+      levelUpdates.set(item.id, Math.max(1, wbsLevelFromItem(item) - deletedAncestorCount));
+      parentUpdates.set(item.id, parentId);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const [itemId, parentId] of parentUpdates) {
+        await tx.wbsItem.update({
+          where: { id: itemId },
+          data: {
+            parentId,
+            wbsLevel: levelUpdates.get(itemId),
+          },
+        });
+      }
+
+      await tx.wbsDependency.deleteMany({
+        where: {
+          OR: [
+            { predecessorId: { in: itemIds } },
+            { successorId: { in: itemIds } },
+          ],
+        },
+      });
+
+      await tx.wbsItem.deleteMany({
+        where: {
+          projectId: req.params.projectId,
+          id: { in: itemIds },
+        },
+      });
+    });
+
+    await renumberProjectWbs(req.params.projectId);
+    await recalculateProjectWbsSchedule(req.params.projectId);
+    await recalculateProjectWbsHierarchyStatuses(req.params.projectId);
+    const snapshot = await getProjectWbsSnapshot(req.params.projectId);
+    const deletedItems = itemIds
+      .map((itemId) => itemsById.get(itemId))
+      .filter((item) => item !== undefined)
+      .map((item) => ({
+        id: item.id,
+        code: item.code,
+        title: item.title,
+      }));
+    await recordWbsCommand({
+      projectId: req.params.projectId,
+      type: 'DELETE',
+      payload: {
+        action: 'bulk-delete',
+        itemIds,
+        deletedItems,
+      },
+      beforeSnapshot: deletedItems,
+      afterSnapshot: snapshot,
+    });
+
+    res.json({
+      deletedCount: itemIds.length,
+      ...snapshot,
+    });
   });
 
   router.patch('/wbs-items/:itemId', async (req, res) => {
