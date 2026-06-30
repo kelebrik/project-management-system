@@ -17,6 +17,10 @@ function projectLabel(project: Pick<ProjectListItem, "code" | "name">) {
   return `${project.code} - ${project.name}`;
 }
 
+function phaseLabel(phase: Pick<WbsItem, "code" | "title">) {
+  return `${phase.code} - ${phase.title || "Без названия"}`;
+}
+
 export function AdminImportPageContent() {
   const { projects, projectOptionLabel, setError, setNotice } = usePageContext();
   const activeProjects = useMemo(
@@ -56,8 +60,11 @@ export function AdminImportPageContent() {
       .then((data) => {
         if (cancelled) return;
         setProjectDetails(data);
-        const firstPhase = data.wbsItems.find((item) => item.type === "PHASE");
-        setSelectedPhaseId(firstPhase?.id ?? "");
+        setSelectedPhaseId((current) =>
+          data.wbsItems.some((item) => item.type === "PHASE" && item.id === current)
+            ? current
+            : "",
+        );
       })
       .catch((error) => {
         if (!cancelled) {
@@ -77,6 +84,7 @@ export function AdminImportPageContent() {
     () => projectDetails?.wbsItems.filter((item) => item.type === "PHASE") ?? [],
     [projectDetails],
   );
+  const selectedPhase = phases.find((item) => item.id === selectedPhaseId) ?? null;
 
   const downloadTemplate = async () => {
     setError(null);
@@ -136,7 +144,9 @@ export function AdminImportPageContent() {
       }
       const importResult = payload as ImportResult;
       setResult(importResult);
-      setNotice(`Импортировано задач: ${importResult.createdCount}`);
+      setNotice(
+        `Импортировано задач: ${importResult.createdCount}. Фаза: ${phaseLabel(importResult.phase)}`,
+      );
       setProjectDetails((current) =>
         current
           ? {
@@ -204,20 +214,29 @@ export function AdminImportPageContent() {
                 setResult(null);
               }}
               disabled={!selectedProjectId || loadingProject || phases.length === 0}
+              required
             >
-              {phases.length === 0 && (
-                <option value="">
-                  {loadingProject ? "Загрузка фаз..." : "В проекте нет фаз"}
-                </option>
-              )}
+              <option value="">
+                {loadingProject
+                  ? "Загрузка фаз..."
+                  : phases.length > 0
+                    ? "Выберите фазу"
+                    : "В проекте нет фаз"}
+              </option>
               {phases.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.code} - {item.title || "Без названия"}
+                  {phaseLabel(item)}
                 </option>
               ))}
             </select>
           </label>
         </div>
+
+        {selectedPhase && (
+          <div className="admin-import-target">
+            Задачи будут импортированы в фазу: <b>{phaseLabel(selectedPhase)}</b>
+          </div>
+        )}
 
         <label className="admin-import-file">
           <span>Файл XLS/XLSX</span>
@@ -241,7 +260,7 @@ export function AdminImportPageContent() {
           <b>{result.createdCount}</b>
           <span>
             задач импортировано в {projectLabel(result.project)}, фаза{" "}
-            {result.phase.code} - {result.phase.title}
+            {phaseLabel(result.phase)}
           </span>
         </div>
       )}

@@ -845,6 +845,16 @@
   padding: 9px 10px;
 }
 
+.admin-import-target {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
 .admin-import-actions {
   justify-content: flex-start;
 }
