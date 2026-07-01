@@ -7,6 +7,7 @@ export type AppView =
   | "project-overview"
   | "project-schedule"
   | "project-passport"
+  | "project-business-requirements"
   | "project-structure"
   | "project-gantt"
   | "project-jira-work"
@@ -40,6 +41,7 @@ export type ProjectSectionView = Extract<
   | "project-overview"
   | "project-schedule"
   | "project-passport"
+  | "project-business-requirements"
   | "project-structure"
   | "project-gantt"
   | "project-jira-work"
@@ -120,6 +122,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-overview": "overview",
   "project-schedule": "schedule",
   "project-passport": "passport",
+  "project-business-requirements": "business-requirements",
   "project-structure": "wbs",
   "project-gantt": "gantt",
   "project-jira-work": "jira-work",
@@ -140,6 +143,7 @@ export const appViewPaths: Record<AppView, string> = {
   "project-overview": "/overview",
   "project-schedule": "/schedule",
   "project-passport": "/passport",
+  "project-business-requirements": "/business-requirements",
   "project-structure": "/wbs",
   "project-gantt": "/gantt",
   "project-jira-work": "/jira-work",
@@ -174,6 +178,8 @@ export const projectPathViews: Record<string, ProjectSectionView> = {
   schedule: "project-schedule",
   milestones: "project-schedule",
   passport: "project-passport",
+  "business-requirements": "project-business-requirements",
+  requirements: "project-business-requirements",
   wbs: "project-structure",
   structure: "project-structure",
   gantt: "project-gantt",
@@ -221,6 +227,8 @@ export const appPathViews: Record<string, AppView> = {
   "/schedule": "project-schedule",
   "/milestones": "project-schedule",
   "/passport": "project-passport",
+  "/business-requirements": "project-business-requirements",
+  "/requirements": "project-business-requirements",
   "/wbs": "project-structure",
   "/structure": "project-structure",
   "/gantt": "project-gantt",
