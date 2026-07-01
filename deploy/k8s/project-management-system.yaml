@@ -44,6 +44,8 @@ spec:
           env:
             - name: NODE_ENV
               value: production
+            - name: NODE_OPTIONS
+              value: "--use-env-proxy --use-openssl-ca"
             - name: PORT
               value: "3000"
             - name: AUTH_COOKIE_SECURE
