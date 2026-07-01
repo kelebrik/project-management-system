@@ -14,6 +14,7 @@ import { ClosedProjectsPage } from "./ClosedProjectsPage";
 import { PortfolioPage } from "./PortfolioPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
+import { ProjectBusinessRequirementsPage } from "./ProjectBusinessRequirementsPage";
 import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
 import { ProjectCreatePage } from "./ProjectCreatePage";
 import { ProjectIssuesPage } from "./ProjectIssuesPage";
@@ -67,6 +68,7 @@ export function AppPages() {
         {isAdminUser && activeView === "resources-capacity" && <ResourceCapacityPage />}
         {project && activeView === "project-schedule" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
+        {project && activeView === "project-business-requirements" && <ProjectBusinessRequirementsPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}

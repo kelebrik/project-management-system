@@ -30,6 +30,13 @@ export const projectModuleDefaults: ProjectModuleConfig[] = [
     enabled: true,
   },
   {
+    key: 'businessRequirements',
+    label: 'Бизнес требования',
+    description: 'Редактируемая таблица бизнес-требований проекта',
+    route: 'business-requirements',
+    enabled: true,
+  },
+  {
     key: 'structure',
     label: 'Структура',
     description: 'Иерархия работ проекта, сроки, исполнители и предшественники',
