@@ -78,6 +78,11 @@ METRICS_TOKEN=<required-random-token>
 JIRA_BASE_URL=<optional-jira-url>
 JIRA_EMAIL=<optional-integration-user>
 JIRA_API_TOKEN=<optional-token>
+KEYCLOAK_HOSTNAME=sso.sberdevices.ru
+KEYCLOAK_OIDCS_DISCOVERY_ENDPOINT=https://sso.sberdevices.ru/realms/master/.well-known/openid-configuration
+KEYCLOAK_REALM=master
+KEYCLOAK_CLIENT_ID=<keycloak-client-id>
+KEYCLOAK_CLIENT_SECRET=<keycloak-client-secret>
 ```
 
 `DATABASE_URL` должен указывать на существующую PostgreSQL БД. Если переносится текущая production БД, сначала нужен `pg_dump --format=custom`, затем restore на новой БД и только после этого `prisma migrate deploy`.
