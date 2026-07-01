@@ -1,4 +1,4 @@
-import { Plus, Save, Table2 } from "lucide-react";
+import { ClipboardPaste, Plus, Save, Table2 } from "lucide-react";
 import {
   useEffect,
   useMemo,
@@ -75,9 +75,6 @@ export function ProjectBusinessRequirementsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [activeCell, setActiveCell] = useState<{ rowIndex: number; columnIndex: number } | null>(
-    null,
-  );
 
   useEffect(() => {
     if (!project?.id) return;
@@ -179,57 +176,53 @@ export function ProjectBusinessRequirementsPage() {
     }
   };
 
-  const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
-    if (!canEdit || !activeCell) return;
-    const clipboardText = event.clipboardData.getData("text/plain");
-    if (!clipboardText || !/[\t\n\r]/.test(clipboardText)) return;
+  const replaceTableFromClipboard = (clipboardText: string) => {
     const pastedGrid = parseClipboardGrid(clipboardText);
     if (pastedGrid.length === 0) return;
 
-    event.preventDefault();
-    setTable((current) => {
-      let nextColumns = [...current.columns];
-      const requiredColumnCount = activeCell.columnIndex + Math.max(...pastedGrid.map((row) => row.length));
-      while (nextColumns.length < requiredColumnCount) {
-        nextColumns = [
-          ...nextColumns,
-          {
-            id: makeId("col"),
-            title: `Столбец ${nextColumns.length + 1}`,
-          },
-        ];
-      }
+    const columnCount = Math.max(...pastedGrid.map((row) => row.length));
+    if (columnCount === 0) return;
 
-      let nextRows = current.rows.map((row) => ({
-        ...row,
-        cells: { ...row.cells },
-      }));
-      const requiredRowCount = activeCell.rowIndex + pastedGrid.length;
-      while (nextRows.length < requiredRowCount) {
-        nextRows = [...nextRows, emptyRow(nextColumns)];
-      }
+    const headerRow = pastedGrid[0] ?? [];
+    const nextColumns = Array.from({ length: columnCount }, (_, columnIndex) => ({
+      id: makeId("col"),
+      title: headerRow[columnIndex]?.trim() || `Столбец ${columnIndex + 1}`,
+    }));
+    const bodyRows = pastedGrid.slice(1);
+    const nextRows = (bodyRows.length ? bodyRows : [[]]).map((pastedRow) => ({
+      id: makeId("row"),
+      cells: Object.fromEntries(
+        nextColumns.map((column, columnIndex) => [column.id, pastedRow[columnIndex] ?? ""]),
+      ),
+    }));
 
-      pastedGrid.forEach((pastedRow, pastedRowIndex) => {
-        const targetRow = nextRows[activeCell.rowIndex + pastedRowIndex];
-        if (!targetRow) return;
-        pastedRow.forEach((value, pastedColumnIndex) => {
-          const targetColumn = nextColumns[activeCell.columnIndex + pastedColumnIndex];
-          if (!targetColumn) return;
-          targetRow.cells[targetColumn.id] = value;
-        });
-      });
-
-      nextRows = nextRows.map((row) => ({
-        ...row,
-        cells: {
-          ...Object.fromEntries(nextColumns.map((column) => [column.id, ""])),
-          ...row.cells,
-        },
-      }));
-      return { columns: nextColumns, rows: nextRows };
-    });
+    setTable({ columns: nextColumns, rows: nextRows });
     setDirty(true);
-    setNotice(`Вставлено строк: ${pastedGrid.length}`);
+    setNotice(`Вставлена таблица: ${nextRows.length} строк, ${nextColumns.length} столбцов`);
+  };
+
+  const pasteTableFromClipboard = async () => {
+    if (!canEdit) return;
+    setError(null);
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      if (!clipboardText || !/[\t\n\r]/.test(clipboardText)) {
+        setError("В буфере обмена нет табличных данных");
+        return;
+      }
+      replaceTableFromClipboard(clipboardText);
+    } catch {
+      setError("Браузер не дал доступ к буферу обмена");
+    }
+  };
+
+  const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
+    if (!canEdit) return;
+    const clipboardText = event.clipboardData.getData("text/plain");
+    if (!clipboardText || !/[\t\n\r]/.test(clipboardText)) return;
+
+    event.preventDefault();
+    replaceTableFromClipboard(clipboardText);
   };
 
   return (
@@ -248,6 +241,10 @@ export function ProjectBusinessRequirementsPage() {
             <Table2 size={16} />
             Добавить столбец
           </button>
+          <button type="button" onClick={() => void pasteTableFromClipboard()} disabled={!canEdit}>
+            <ClipboardPaste size={16} />
+            Вставить Excel
+          </button>
           <button type="button" onClick={() => void saveTable()} disabled={!canEdit || !dirty}>
             <Save size={16} />
             {saving ? "Сохраняю..." : "Сохранить"}
@@ -260,7 +257,7 @@ export function ProjectBusinessRequirementsPage() {
         <span className={dirty ? "dirty" : "saved"}>{dirty ? "Есть несохраненные изменения" : "Сохранено"}</span>
       </div>
 
-      <div className="business-requirements-table-shell" onPaste={handlePaste}>
+      <div className="business-requirements-table-shell" onPaste={handlePaste} tabIndex={canEdit ? 0 : -1}>
         <div
           className="business-requirements-table"
           style={{ "--requirements-template": tableTemplate } as CSSProperties}
@@ -280,12 +277,11 @@ export function ProjectBusinessRequirementsPage() {
           {rows.map((row, rowIndex) => (
             <div className="requirements-row" key={row.id}>
               <div className="requirements-row-number">{rowIndex + 1}</div>
-              {columns.map((column, columnIndex) => (
+              {columns.map((column) => (
                 <textarea
                   key={column.id}
                   value={row.cells[column.id] ?? ""}
                   disabled={!canEdit}
-                  onFocus={() => setActiveCell({ rowIndex, columnIndex })}
                   onChange={(event) => updateCell(row.id, column.id, event.target.value)}
                   aria-label={`Строка ${rowIndex + 1}, ${column.title}`}
                 />
