@@ -12,6 +12,10 @@ RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-
   && sed -i 's|http://deb.debian.org/debian|https://nexus.sberdevices.ru/repository/debian_bookworm|g' /etc/apt/sources.list.d/debian.sources \
   && apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+  && for cert in SberDevices_RCA.crt SberDevices_ICA.crt mincifra_rootca.crt mincifra_subca.crt rootca_ssl_rsa2022.crt subca_ssl_rsa2024.crt; do \
+       curl --fail --show-error --location --insecure "https://cdp.sberdevices.ru/pki/${cert}" -o "/usr/local/share/ca-certificates/${cert}"; \
+     done \
+  && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 COPY scripts/docker-prisma-engines.sh scripts/docker-prisma-engines.sh
@@ -58,7 +62,11 @@ RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-
   && sed -i 's|http://deb.debian.org/debian-security|https://nexus.sberdevices.ru/repository/debian_bookworm_security|g' /etc/apt/sources.list.d/debian.sources \
   && sed -i 's|http://deb.debian.org/debian|https://nexus.sberdevices.ru/repository/debian_bookworm|g' /etc/apt/sources.list.d/debian.sources \
   && apt update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+  && for cert in SberDevices_RCA.crt SberDevices_ICA.crt mincifra_rootca.crt mincifra_subca.crt rootca_ssl_rsa2022.crt subca_ssl_rsa2024.crt; do \
+       curl --fail --show-error --location --insecure "https://cdp.sberdevices.ru/pki/${cert}" -o "/usr/local/share/ca-certificates/${cert}"; \
+     done \
+  && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
   && mkdir -p /tmp/.npm \
   && chown -R node:node /app /tmp/.npm
