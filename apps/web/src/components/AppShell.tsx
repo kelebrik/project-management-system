@@ -131,6 +131,12 @@ const projectNavItems: ProjectNavItem[] = [
     icon: <FileText size={17} />,
   },
   {
+    key: "businessRequirements",
+    view: "project-business-requirements",
+    label: "Бизнес требования",
+    icon: <FileSpreadsheet size={17} />,
+  },
+  {
     key: "structure",
     view: "project-structure",
     label: "Структура",

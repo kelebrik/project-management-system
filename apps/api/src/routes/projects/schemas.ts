@@ -67,3 +67,23 @@ export const milestoneSchema = z.object({
   owner: z.string().trim().min(1),
   description: z.string().trim().optional().nullable(),
 });
+
+export const businessRequirementsSchema = z.object({
+  columns: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(80),
+        title: z.string().trim().max(120),
+      }),
+    )
+    .min(1)
+    .max(80),
+  rows: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(80),
+        cells: z.record(z.string().trim().min(1).max(80), z.string().max(5000)),
+      }),
+    )
+    .max(2000),
+});

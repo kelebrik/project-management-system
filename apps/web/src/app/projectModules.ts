@@ -3,6 +3,7 @@ import type { ProjectSectionView } from "./routes";
 export type ProjectModuleKey =
   | "overview"
   | "passport"
+  | "businessRequirements"
   | "structure"
   | "gantt"
   | "jiraWork"
@@ -34,6 +35,13 @@ export const defaultProjectModules: ProjectModule[] = [
     label: "Паспорт проекта",
     description: "Редактируемые атрибуты паспорта проекта",
     route: "passport",
+    enabled: true,
+  },
+  {
+    key: "businessRequirements",
+    label: "Бизнес требования",
+    description: "Редактируемая таблица бизнес-требований проекта",
+    route: "business-requirements",
     enabled: true,
   },
   {
@@ -108,6 +116,7 @@ export const projectModuleKeyByView: Record<
   "project-overview": "overview",
   "project-schedule": "overview",
   "project-passport": "passport",
+  "project-business-requirements": "businessRequirements",
   "project-structure": "structure",
   "project-gantt": "gantt",
   "project-jira-work": "jiraWork",
@@ -125,6 +134,7 @@ export const projectModuleViewByKey: Record<
 > = {
   overview: "project-overview",
   passport: "project-passport",
+  businessRequirements: "project-business-requirements",
   structure: "project-structure",
   gantt: "project-gantt",
   jiraWork: "project-jira-work",
