@@ -30,6 +30,7 @@ ENV PRISMA_CLI_BINARY_TARGETS=${PRISMA_CLI_BINARY_TARGETS}
 ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 ENV PRISMA_SCHEMA_ENGINE_BINARY=/opt/prisma-engines/schema-engine-debian-openssl-3.0.x
 ENV PRISMA_QUERY_ENGINE_LIBRARY=/opt/prisma-engines/libquery_engine-debian-openssl-3.0.x.so.node
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 ENV NPM_CONFIG_REGISTRY=https://nexus.sberdevices.ru/repository/npm
 
 COPY package.json package-lock.json ./
@@ -57,6 +58,7 @@ ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
 ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 ENV PRISMA_SCHEMA_ENGINE_BINARY=/opt/prisma-engines/schema-engine-debian-openssl-3.0.x
 ENV PRISMA_QUERY_ENGINE_LIBRARY=/opt/prisma-engines/libquery_engine-debian-openssl-3.0.x.so.node
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-ssl-verify \
   && sed -i 's|http://deb.debian.org/debian-security|https://nexus.sberdevices.ru/repository/debian_bookworm_security|g' /etc/apt/sources.list.d/debian.sources \
