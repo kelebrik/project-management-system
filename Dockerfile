@@ -18,9 +18,9 @@ RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-
   && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-COPY scripts/docker-prisma-engines.sh scripts/docker-prisma-engines.sh
+COPY scripts/ci-npm-env.sh scripts/ci-npm.sh scripts/docker-prisma-engines.sh scripts/
 
-RUN chmod +x scripts/docker-prisma-engines.sh \
+RUN chmod +x scripts/ci-npm.sh scripts/docker-prisma-engines.sh \
   && PRISMA_ENGINES_BASE_URL=${PRISMA_ENGINES_BASE_URL} \
      PRISMA_CLI_BINARY_TARGETS=${PRISMA_CLI_BINARY_TARGETS} \
      PRISMA_ENGINES_JOB_TOKEN=${CI_JOB_TOKEN} \
@@ -37,14 +37,14 @@ COPY packages/shared/package.json packages/shared/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 
-RUN npm ci --include=dev --ignore-scripts
+RUN scripts/ci-npm.sh ci --include=dev --ignore-scripts
 RUN scripts/docker-prisma-engines.sh link-node-modules
 
 FROM deps AS build
 COPY . .
-RUN PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npm run prisma:generate
-RUN npm run build
-RUN npm prune --omit=dev
+RUN PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 scripts/ci-npm.sh run prisma:generate
+RUN scripts/ci-npm.sh run build
+RUN scripts/ci-npm.sh prune --omit=dev
 
 FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
