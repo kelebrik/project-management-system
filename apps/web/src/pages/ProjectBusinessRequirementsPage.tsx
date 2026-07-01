@@ -1,4 +1,4 @@
-import { ClipboardPaste, Plus, Save, Table2 } from "lucide-react";
+import { ClipboardPaste, Plus, Save, Table2, Trash2 } from "lucide-react";
 import {
   useEffect,
   useMemo,
@@ -156,6 +156,29 @@ export function ProjectBusinessRequirementsPage() {
     setDirty(true);
   };
 
+  const deleteRow = (rowId: string) => {
+    if (rows.length <= 1) return;
+    setTable((current) => ({
+      columns: current.columns,
+      rows: current.rows.filter((row) => row.id !== rowId),
+    }));
+    setDirty(true);
+  };
+
+  const deleteColumn = (columnId: string) => {
+    if (columns.length <= 1) return;
+    setTable((current) => ({
+      columns: current.columns.filter((column) => column.id !== columnId),
+      rows: current.rows.map((row) => ({
+        ...row,
+        cells: Object.fromEntries(
+          Object.entries(row.cells).filter(([cellColumnId]) => cellColumnId !== columnId),
+        ),
+      })),
+    }));
+    setDirty(true);
+  };
+
   const saveTable = async () => {
     if (!project?.id) return;
     setSaving(true);
@@ -265,18 +288,39 @@ export function ProjectBusinessRequirementsPage() {
           <div className="requirements-row requirements-head">
             <div className="requirements-corner" />
             {columns.map((column) => (
-              <input
-                key={column.id}
-                value={column.title}
-                disabled={!canEdit}
-                onChange={(event) => updateColumnTitle(column.id, event.target.value)}
-                aria-label={`Название столбца ${column.title}`}
-              />
+              <div className="requirements-column-title" key={column.id}>
+                <input
+                  value={column.title}
+                  disabled={!canEdit}
+                  onChange={(event) => updateColumnTitle(column.id, event.target.value)}
+                  aria-label={`Название столбца ${column.title}`}
+                />
+                <button
+                  type="button"
+                  title="Удалить столбец"
+                  aria-label={`Удалить столбец ${column.title}`}
+                  onClick={() => deleteColumn(column.id)}
+                  disabled={!canEdit || columns.length <= 1}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ))}
           </div>
           {rows.map((row, rowIndex) => (
             <div className="requirements-row" key={row.id}>
-              <div className="requirements-row-number">{rowIndex + 1}</div>
+              <div className="requirements-row-number">
+                <span>{rowIndex + 1}</span>
+                <button
+                  type="button"
+                  title="Удалить строку"
+                  aria-label={`Удалить строку ${rowIndex + 1}`}
+                  onClick={() => deleteRow(row.id)}
+                  disabled={!canEdit || rows.length <= 1}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
               {columns.map((column) => (
                 <textarea
                   key={column.id}
