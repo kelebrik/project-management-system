@@ -39,13 +39,11 @@ function keycloakConfig() {
   const clientId = process.env.KEYCLOAK_CLIENT_ID?.trim();
   const clientSecret = process.env.KEYCLOAK_CLIENT_SECRET?.trim();
   const hostname = process.env.KEYCLOAK_HOSTNAME?.trim();
-  const realm = process.env.KEYCLOAK_REALM?.trim() || 'master';
   return {
     discoveryEndpoint,
     clientId,
     clientSecret,
     hostname,
-    realm,
     enabled: Boolean(discoveryEndpoint && clientId && clientSecret),
   };
 }
@@ -160,27 +158,6 @@ async function loadDiscovery(endpoint: string) {
   return discovery;
 }
 
-function discoveryEndpoints(config: ReturnType<typeof keycloakConfig>) {
-  const endpoints = [config.discoveryEndpoint].filter((value): value is string => Boolean(value));
-  if (config.hostname) {
-    const hostname = config.hostname.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-    endpoints.push(`https://${hostname}/realms/${encodeURIComponent(config.realm)}/.well-known/openid-configuration`);
-  }
-  return Array.from(new Set(endpoints));
-}
-
-async function loadConfiguredDiscovery(config: ReturnType<typeof keycloakConfig>) {
-  const errors: string[] = [];
-  for (const endpoint of discoveryEndpoints(config)) {
-    try {
-      return await loadDiscovery(endpoint);
-    } catch (error) {
-      errors.push(`${endpoint}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-  throw new Error(`Keycloak discovery unavailable: ${errors.join('; ') || 'no endpoints configured'}`);
-}
-
 async function exchangeCode(req: Request, code: string, discovery: OidcDiscovery) {
   const { clientId, clientSecret } = keycloakConfig();
   if (!clientId || !clientSecret) {
@@ -286,7 +263,7 @@ export function registerKeycloakAuthRoutes(app: Express) {
         return;
       }
 
-      const discovery = await loadConfiguredDiscovery(config);
+      const discovery = await loadDiscovery(config.discoveryEndpoint);
       const state = randomBytes(24).toString('base64url');
       const redirectPath = safeRedirectPath(req.query.redirect);
       const stateValue = Buffer.from(JSON.stringify({ state, redirectPath })).toString('base64url');
@@ -329,7 +306,7 @@ export function registerKeycloakAuthRoutes(app: Express) {
         return;
       }
 
-      const discovery = await loadConfiguredDiscovery(config);
+      const discovery = await loadDiscovery(config.discoveryEndpoint);
       const token = await exchangeCode(req, code, discovery);
       const profile = await profileFromToken(discovery, token);
       const user = await upsertKeycloakUser(profile);
