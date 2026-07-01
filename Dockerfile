@@ -27,9 +27,6 @@ ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 ENV PRISMA_SCHEMA_ENGINE_BINARY=/opt/prisma-engines/schema-engine-debian-openssl-3.0.x
 ENV PRISMA_QUERY_ENGINE_LIBRARY=/opt/prisma-engines/libquery_engine-debian-openssl-3.0.x.so.node
 ENV NPM_CONFIG_REGISTRY=https://nexus.sberdevices.ru/repository/npm
-ENV NPM_CONFIG_STRICT_SSL=false
-ENV npm_config_strict_ssl=false
-ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/package.json
