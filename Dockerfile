@@ -46,7 +46,6 @@ FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV NODE_OPTIONS="--use-env-proxy --use-openssl-ca"
 ENV PORT=3000
 ENV HOME=/tmp
 ENV NPM_CONFIG_CACHE=/tmp/.npm
