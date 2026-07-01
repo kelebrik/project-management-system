@@ -15,6 +15,7 @@ mkdir -p "$CACHE_DIR"
 
 install_dependencies() {
   scripts/ci-npm.sh ci --include=dev --ignore-scripts --no-audit --no-fund
+  test -x node_modules/.bin/prisma
 }
 
 if install_dependencies; then

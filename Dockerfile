@@ -18,9 +18,9 @@ RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-
   && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-COPY scripts/ci-npm-env.sh scripts/ci-npm.sh scripts/docker-prisma-engines.sh scripts/
+COPY scripts/ci-install.sh scripts/ci-npm-env.sh scripts/ci-npm.sh scripts/docker-prisma-engines.sh scripts/
 
-RUN chmod +x scripts/ci-npm.sh scripts/docker-prisma-engines.sh \
+RUN chmod +x scripts/ci-install.sh scripts/ci-npm.sh scripts/docker-prisma-engines.sh \
   && PRISMA_ENGINES_BASE_URL=${PRISMA_ENGINES_BASE_URL} \
      PRISMA_CLI_BINARY_TARGETS=${PRISMA_CLI_BINARY_TARGETS} \
      PRISMA_ENGINES_JOB_TOKEN=${CI_JOB_TOKEN} \
@@ -37,7 +37,7 @@ COPY packages/shared/package.json packages/shared/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 
-RUN scripts/ci-npm.sh ci --include=dev --ignore-scripts
+RUN scripts/ci-install.sh
 RUN scripts/docker-prisma-engines.sh link-node-modules
 
 FROM deps AS build
