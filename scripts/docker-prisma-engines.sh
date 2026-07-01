@@ -6,7 +6,11 @@ ENGINES_DIR="${PRISMA_ENGINES_DIR:-/opt/prisma-engines}"
 BASE_URL="${PRISMA_ENGINES_BASE_URL:-}"
 JOB_TOKEN="${PRISMA_ENGINES_JOB_TOKEN:-${CI_JOB_TOKEN:-}}"
 LOCAL_DIR="${PRISMA_ENGINES_LOCAL_DIR:-docker/prisma-engines/${TARGET}}"
-INSECURE_TLS="${PMS_CI_INSECURE_TLS:-0}"
+INSECURE_TLS="${PMS_CI_INSECURE_TLS:-}"
+if [ -z "$INSECURE_TLS" ] && [ -n "$JOB_TOKEN" ]; then
+  INSECURE_TLS=1
+fi
+INSECURE_TLS="${INSECURE_TLS:-0}"
 
 SCHEMA_ENGINE="${ENGINES_DIR}/schema-engine-${TARGET}"
 QUERY_ENGINE="${ENGINES_DIR}/libquery_engine-${TARGET}.so.node"
@@ -77,7 +81,7 @@ download() {
   fi
 
   if command -v node >/dev/null 2>&1; then
-    if ! PRISMA_ENGINES_JOB_TOKEN="$JOB_TOKEN" PRISMA_ENGINES_AUTH_MODE="$(auth_mode)" node - "$download_url" "$download_output" <<'NODE'
+    if ! PMS_CI_INSECURE_TLS="$INSECURE_TLS" PRISMA_ENGINES_JOB_TOKEN="$JOB_TOKEN" PRISMA_ENGINES_AUTH_MODE="$(auth_mode)" node - "$download_url" "$download_output" <<'NODE'
 const fs = require("node:fs");
 const https = require("node:https");
 
