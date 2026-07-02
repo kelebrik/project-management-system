@@ -16,6 +16,10 @@ test('jiraWorkSectionFilterToJql converts Jira filter links and ids', () => {
     jiraWorkSectionFilterToJql('https://jira.example/issues/?filter=12345'),
     'filter = 12345',
   );
+  assert.equal(
+    jiraWorkSectionFilterToJql('https://tasks.sberdevices.ru/issues/?filter=39227'),
+    'filter = 39227',
+  );
   assert.equal(jiraWorkSectionFilterToJql('/issues/?filter=987'), 'filter = 987');
   assert.equal(jiraWorkSectionFilterToJql('54321'), 'filter = 54321');
 });

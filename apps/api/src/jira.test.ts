@@ -71,3 +71,65 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
     process.env.JIRA_API_TOKEN = previousEnv.JIRA_API_TOKEN;
   }
 });
+
+test('fetchJiraIssues falls back to Jira Server search endpoint', async () => {
+  const previousEnv = {
+    JIRA_BASE_URL: process.env.JIRA_BASE_URL,
+    JIRA_EMAIL: process.env.JIRA_EMAIL,
+    JIRA_API_TOKEN: process.env.JIRA_API_TOKEN,
+  };
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+  process.env.JIRA_BASE_URL = 'https://tasks.sberdevices.ru';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+
+    if (String(input).endsWith('/rest/api/3/search/jql')) {
+      return new Response('Not Found', { status: 404 });
+    }
+
+    return new Response(
+      JSON.stringify({
+        issues: [
+          {
+            key: 'TV-7500',
+            fields: {
+              summary: 'Filter result',
+              status: { name: 'Open' },
+              priority: { name: 'Medium' },
+              assignee: null,
+              issuetype: { name: 'Task' },
+              updated: '2026-07-02T10:00:00.000+0300',
+            },
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('filter = 39227');
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, 'https://tasks.sberdevices.ru/rest/api/3/search/jql');
+    assert.equal(calls[1].url, 'https://tasks.sberdevices.ru/rest/api/2/search');
+    assert.equal(
+      JSON.parse(String(calls[1].init?.body)).jql,
+      'filter = 39227',
+    );
+    assert.equal(issues[0].key, 'TV-7500');
+    assert.equal(issues[0].url, 'https://tasks.sberdevices.ru/browse/TV-7500');
+  } finally {
+    globalThis.fetch = previousFetch;
+    process.env.JIRA_BASE_URL = previousEnv.JIRA_BASE_URL;
+    process.env.JIRA_EMAIL = previousEnv.JIRA_EMAIL;
+    process.env.JIRA_API_TOKEN = previousEnv.JIRA_API_TOKEN;
+  }
+});

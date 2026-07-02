@@ -26,7 +26,7 @@ export function useWbsWorkspaceState() {
   const [collapsedWbsIds, setCollapsedWbsIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [showGanttDependencies, setShowGanttDependencies] = useState(true);
+  const [showGanttDependencies, setShowGanttDependencies] = useState(false);
   const [showGanttBaseline, setShowGanttBaseline] = useState(false);
   const [showGanttForecast, setShowGanttForecast] = useState(false);
   const [showGanttCriticalPath, setShowGanttCriticalPath] = useState(false);

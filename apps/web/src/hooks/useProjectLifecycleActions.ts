@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, type FormEvent } from "react";
 import { apiClient } from "../api/client";
 import type { ProjectDetails, ProjectUiState } from "../app/domainTypes";
 import {
@@ -17,6 +17,7 @@ import {
 } from "../app/ganttConfig";
 import { createProjectTargetSummary } from "../app/projectTargetModel";
 import { isoDate } from "../app/dateUtils";
+import { buildWbsTree, collapsedWbsIdsForLevel } from "../app/wbsTree";
 import {
   normalizeWbsColumnOrder,
   normalizeWbsColumnWidths,
@@ -31,6 +32,7 @@ import { shouldApplyProjectSnapshotAfterWbsSave } from "../wbsProjectLoadGuard";
 type ProjectLifecycleActionsDeps = Record<string, any>;
 
 export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
+  const collapsedDefaultsProjectIdRef = useRef<string | null>(null);
   const {
     activeView,
     authMode,
@@ -242,14 +244,19 @@ const applyProject = useCallback(
           ),
         ),
     );
-    setCollapsedWbsIds(
-      (currentIds) =>
-        new Set(
-          [...currentIds].filter((itemId) =>
-            nextProject.wbsItems.some((item) => item.id === itemId),
-          ),
+    const isNewProjectForWbsDefaults =
+      collapsedDefaultsProjectIdRef.current !== nextProject.id;
+    collapsedDefaultsProjectIdRef.current = nextProject.id;
+    setCollapsedWbsIds((currentIds) => {
+      if (isNewProjectForWbsDefaults) {
+        return collapsedWbsIdsForLevel(buildWbsTree(nextProject.wbsItems), 1);
+      }
+      return new Set(
+        [...currentIds].filter((itemId) =>
+          nextProject.wbsItems.some((item) => item.id === itemId),
         ),
-    );
+      );
+    });
     setArtifactDrafts(
       Object.fromEntries(
         nextProject.artifacts.map((item) => [item.id, artifactToForm(item)]),
