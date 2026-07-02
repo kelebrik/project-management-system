@@ -86,23 +86,38 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
     throw new Error('Jira is not configured');
   }
 
-  const response = await fetch(`${baseUrl}/rest/api/3/search/jql`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      jql,
-      fields: ['summary', 'status', 'priority', 'assignee', 'issuetype', 'updated'],
-      maxResults,
-    }),
+  const authHeader = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
+  const searchBody = JSON.stringify({
+    jql,
+    fields: ['summary', 'status', 'priority', 'assignee', 'issuetype', 'updated'],
+    maxResults,
   });
+  let response: Response | null = null;
+  let lastErrorBody = '';
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Jira request failed: ${response.status} ${body}`);
+  for (const path of ['/rest/api/3/search/jql', '/rest/api/2/search']) {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: searchBody,
+    });
+
+    if (response.ok) {
+      break;
+    }
+
+    lastErrorBody = await response.text();
+    if (![404, 405, 410].includes(response.status) || path === '/rest/api/2/search') {
+      throw new Error(`Jira request failed: ${response.status} ${lastErrorBody}`);
+    }
+  }
+
+  if (!response?.ok) {
+    throw new Error(`Jira request failed${lastErrorBody ? `: ${lastErrorBody}` : ''}`);
   }
 
   const parsed = jiraSearchResponseSchema.parse(await response.json());

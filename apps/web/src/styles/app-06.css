@@ -163,11 +163,11 @@
 .requirements-row {
   display: grid;
   grid-template-columns: var(--requirements-template);
-  min-height: 74px;
+  min-height: 46px;
 }
 
 .requirements-head {
-  min-height: 44px;
+  min-height: 36px;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -251,9 +251,9 @@
   color: #1f2937;
   font-family: inherit;
   font-size: 13px;
-  line-height: 1.35;
-  min-height: 74px;
-  padding: 10px 12px;
+  line-height: 1.25;
+  min-height: 46px;
+  padding: 6px 10px;
   resize: vertical;
 }
 
