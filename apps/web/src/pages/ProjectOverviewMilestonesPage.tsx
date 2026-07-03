@@ -154,6 +154,7 @@ function createProjectGoalTimeline(
 export function ProjectOverviewMilestonesPage() {
   const ctx = usePageContext();
   const {
+    activeMilestoneLabelDrag,
     fullscreenWorkspaceView,
     milestoneLabelOffsets,
     milestoneTimeline,
@@ -290,6 +291,7 @@ export function ProjectOverviewMilestonesPage() {
             sectionId="milestones-by-phase"
             title="Вехи по фазам"
             timeline={milestoneTimeline.byPhase}
+            activeLabelDrag={activeMilestoneLabelDrag}
             labelOffsets={milestoneLabelOffsets}
             isFullscreen={
               fullscreenWorkspaceView === "overview-milestones-by-phase"

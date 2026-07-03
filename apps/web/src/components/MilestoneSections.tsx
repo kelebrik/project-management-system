@@ -129,6 +129,7 @@ export function MilestoneTimelineSection({
   sectionId,
   title,
   timeline,
+  activeLabelDrag = null,
   labelOffsets,
   isFullscreen = false,
   onToggleFullscreen,
@@ -139,6 +140,10 @@ export function MilestoneTimelineSection({
   sectionId: string;
   title: string;
   timeline: MilestoneTimelineModel;
+  activeLabelDrag?: {
+    scope: MilestoneLabelScope;
+    milestoneId: string;
+  } | null;
   labelOffsets: MilestoneLabelOffsets;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -229,6 +234,9 @@ export function MilestoneTimelineSection({
                         labelOffsets[
                           milestoneLabelOffsetKey("phase", milestone.id)
                         ] ?? zeroMilestoneLabelOffset;
+                      const isLabelDragging =
+                        activeLabelDrag?.scope === "phase" &&
+                        activeLabelDrag.milestoneId === milestone.id;
                       return (
                         <span
                           className={`milestone-point ${side} ${state.tone}`}
@@ -265,7 +273,9 @@ export function MilestoneTimelineSection({
                             <span className="milestone-marker" />
                           </button>
                           <span
-                            className="milestone-caption draggable-milestone-label"
+                            className={`milestone-caption draggable-milestone-label ${
+                              isLabelDragging ? "is-dragging" : ""
+                            }`}
                             onClick={(event) => event.stopPropagation()}
                             onPointerDown={(event) =>
                               onLabelPointerDown(
