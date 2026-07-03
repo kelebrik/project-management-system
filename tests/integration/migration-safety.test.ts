@@ -12,6 +12,7 @@ const allowedDataRewriteMigrations = new Set([
   "20260514093000_wbs_excel_fields",
   "20260518110000_restore_cvte_structure_from_excel",
   "20260609180000_jira_work_sections_three_defaults",
+  "20260703130000_remove_admin_jira_settings",
 ]);
 
 const destructivePatterns = [
