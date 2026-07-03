@@ -153,7 +153,6 @@ function createViewTitle(project: any): Record<AppView, string> {
     "admin-health": "Администрирование: system health",
     "admin-backups": "Администрирование: backup/restore",
     "admin-config": "Администрирование: import/export",
-    "admin-import": "Администрирование: импорт",
     "admin-projects": "Администрирование: реестр проектов",
     "admin-modules": "Администрирование: управление модулями",
     "admin-project-access": "Администрирование: доступ к проектам",
