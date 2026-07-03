@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight, Link as LinkIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Link as LinkIcon } from "lucide-react";
+import { useEffect } from "react";
 import { usePageContext } from "./PageContext";
 
 const RISK_TICKETS_SECTION_ID = "risk-tickets";
@@ -32,22 +32,14 @@ export function ProjectOverviewSummaryPage() {
     overviewDashboard,
     raidTypeLabel,
   } = usePageContext();
-  const [riskTicketsOpen, setRiskTicketsOpen] = useState(
-    () => currentHashId() === RISK_TICKETS_SECTION_ID,
-  );
-  const [scheduleVarianceOpen, setScheduleVarianceOpen] = useState(
-    () => currentHashId() === SCHEDULE_VARIANCE_SECTION_ID,
-  );
 
   useEffect(() => {
     const syncHashSection = () => {
       const hashId = currentHashId();
-      if (hashId === RISK_TICKETS_SECTION_ID) {
-        setRiskTicketsOpen(true);
-        scrollToHashSection(hashId);
-      }
-      if (hashId === SCHEDULE_VARIANCE_SECTION_ID) {
-        setScheduleVarianceOpen(true);
+      if (
+        hashId === RISK_TICKETS_SECTION_ID ||
+        hashId === SCHEDULE_VARIANCE_SECTION_ID
+      ) {
         scrollToHashSection(hashId);
       }
     };
@@ -108,29 +100,14 @@ export function ProjectOverviewSummaryPage() {
         </div>
       </article>
 
-      <article
-        className={`executive-overview-card ${
-          riskTicketsOpen ? "" : "collapsed"
-        }`}
-        id={RISK_TICKETS_SECTION_ID}
-      >
-        <div className="executive-overview-card-title collapsible">
-          <button
-            type="button"
-            className="executive-overview-card-toggle"
-            onClick={() => setRiskTicketsOpen((current) => !current)}
-            aria-expanded={riskTicketsOpen}
-            aria-controls={`${RISK_TICKETS_SECTION_ID}-content`}
-          >
-            {riskTicketsOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-            <span>Тикеты под риском</span>
-          </button>
+      <article className="executive-overview-card" id={RISK_TICKETS_SECTION_ID}>
+        <div className="executive-overview-card-title">
+          <span>Тикеты под риском</span>
           <div className="executive-overview-card-title-actions">
             <strong>{overviewDashboard.blockingTickets.length}</strong>
             <a
               className="overview-section-link"
               href={`#${RISK_TICKETS_SECTION_ID}`}
-              onClick={() => setRiskTicketsOpen(true)}
               aria-label="Ссылка на раздел Тикеты под риском"
               title="Ссылка на раздел"
             >
@@ -138,59 +115,42 @@ export function ProjectOverviewSummaryPage() {
             </a>
           </div>
         </div>
-        {riskTicketsOpen && (
-          <div
-            className="executive-overview-list"
-            id={`${RISK_TICKETS_SECTION_ID}-content`}
-          >
-            {overviewDashboard.blockingTickets.map((ticket) => (
-              <div
-                className="executive-overview-row"
-                key={`${ticket.source}-${ticket.id}`}
-              >
-                <b>
-                  {ticket.jiraTicketKey ? `${ticket.jiraTicketKey} / ` : ""}
-                  {ticket.title}
-                </b>
-                <span>
-                  {ticket.status} / {ticket.priority}
-                  {ticket.assignee ? ` / ${ticket.assignee}` : ""}
-                </span>
-                {ticket.jiraTicketUrl && (
-                  <a href={ticket.jiraTicketUrl} target="_blank" rel="noreferrer">
-                    Открыть Jira
-                  </a>
-                )}
-              </div>
-            ))}
-            {overviewDashboard.blockingTickets.length === 0 && (
-              <p>Тикетов под риском нет.</p>
-            )}
-          </div>
-        )}
+        <div
+          className="executive-overview-list"
+          id={`${RISK_TICKETS_SECTION_ID}-content`}
+        >
+          {overviewDashboard.blockingTickets.map((ticket) => (
+            <div
+              className="executive-overview-row"
+              key={`${ticket.source}-${ticket.id}`}
+            >
+              <b>
+                {ticket.jiraTicketKey ? `${ticket.jiraTicketKey} / ` : ""}
+                {ticket.title}
+              </b>
+              <span>
+                {ticket.status} / {ticket.priority}
+                {ticket.assignee ? ` / ${ticket.assignee}` : ""}
+              </span>
+              {ticket.jiraTicketUrl && (
+                <a href={ticket.jiraTicketUrl} target="_blank" rel="noreferrer">
+                  Открыть Jira
+                </a>
+              )}
+            </div>
+          ))}
+          {overviewDashboard.blockingTickets.length === 0 && (
+            <p>Тикетов под риском нет.</p>
+          )}
+        </div>
       </article>
 
       <article
-        className={`executive-overview-card ${
-          scheduleVarianceOpen ? "" : "collapsed"
-        }`}
+        className="executive-overview-card"
         id={SCHEDULE_VARIANCE_SECTION_ID}
       >
-        <div className="executive-overview-card-title collapsible">
-          <button
-            type="button"
-            className="executive-overview-card-toggle"
-            onClick={() => setScheduleVarianceOpen((current) => !current)}
-            aria-expanded={scheduleVarianceOpen}
-            aria-controls={`${SCHEDULE_VARIANCE_SECTION_ID}-content`}
-          >
-            {scheduleVarianceOpen ? (
-              <ChevronDown size={15} />
-            ) : (
-              <ChevronRight size={15} />
-            )}
-            <span>Отклонение сроков</span>
-          </button>
+        <div className="executive-overview-card-title">
+          <span>Отклонение сроков</span>
           <div className="executive-overview-card-title-actions">
             <strong>
               {overviewDashboard.scheduleVarianceFromStructure > 0 ? "+" : ""}
@@ -199,7 +159,6 @@ export function ProjectOverviewSummaryPage() {
             <a
               className="overview-section-link"
               href={`#${SCHEDULE_VARIANCE_SECTION_ID}`}
-              onClick={() => setScheduleVarianceOpen(true)}
               aria-label="Ссылка на раздел Отклонение сроков"
               title="Ссылка на раздел"
             >
@@ -207,56 +166,54 @@ export function ProjectOverviewSummaryPage() {
             </a>
           </div>
         </div>
-        {scheduleVarianceOpen && (
-          <div
-            className="executive-overview-list"
-            id={`${SCHEDULE_VARIANCE_SECTION_ID}-content`}
-          >
-            {overviewDashboard.scheduleDelayItems.length > 0 && (
-              <div className="schedule-impact-group">
-                <h4>Максимальное влияние на отставание</h4>
-                {overviewDashboard.scheduleDelayItems.map(({ item, delay }) => (
-                  <div className="executive-overview-row" key={`delay-${item.id}`}>
+        <div
+          className="executive-overview-list"
+          id={`${SCHEDULE_VARIANCE_SECTION_ID}-content`}
+        >
+          {overviewDashboard.scheduleDelayItems.length > 0 && (
+            <div className="schedule-impact-group">
+              <h4>Максимальное влияние на отставание</h4>
+              {overviewDashboard.scheduleDelayItems.map(({ item, delay }) => (
+                <div className="executive-overview-row" key={`delay-${item.id}`}>
+                  <b>
+                    {item.jiraTicketKey ? `${item.jiraTicketKey} / ` : ""}
+                    {item.code} {item.title}
+                  </b>
+                  <span>
+                    +{delay} календарных дней / исполнитель:{" "}
+                    {item.owner || "не назначен"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {overviewDashboard.scheduleAccelerationItems.length > 0 && (
+            <div className="schedule-impact-group acceleration">
+              <h4>Максимальное влияние на опережение</h4>
+              {overviewDashboard.scheduleAccelerationItems.map(
+                ({ item, acceleration }) => (
+                  <div
+                    className="executive-overview-row"
+                    key={`acceleration-${item.id}`}
+                  >
                     <b>
                       {item.jiraTicketKey ? `${item.jiraTicketKey} / ` : ""}
                       {item.code} {item.title}
                     </b>
                     <span>
-                      +{delay} календарных дней / исполнитель:{" "}
+                      -{acceleration} календарных дней / исполнитель:{" "}
                       {item.owner || "не назначен"}
                     </span>
                   </div>
-                ))}
-              </div>
-            )}
-            {overviewDashboard.scheduleAccelerationItems.length > 0 && (
-              <div className="schedule-impact-group acceleration">
-                <h4>Максимальное влияние на опережение</h4>
-                {overviewDashboard.scheduleAccelerationItems.map(
-                  ({ item, acceleration }) => (
-                    <div
-                      className="executive-overview-row"
-                      key={`acceleration-${item.id}`}
-                    >
-                      <b>
-                        {item.jiraTicketKey ? `${item.jiraTicketKey} / ` : ""}
-                        {item.code} {item.title}
-                      </b>
-                      <span>
-                        -{acceleration} календарных дней / исполнитель:{" "}
-                        {item.owner || "не назначен"}
-                      </span>
-                    </div>
-                  ),
-                )}
-              </div>
-            )}
-            {overviewDashboard.scheduleDelayItems.length === 0 &&
-              overviewDashboard.scheduleAccelerationItems.length === 0 && (
-                <p>Отклонений от базового плана нет.</p>
+                ),
               )}
-          </div>
-        )}
+            </div>
+          )}
+          {overviewDashboard.scheduleDelayItems.length === 0 &&
+            overviewDashboard.scheduleAccelerationItems.length === 0 && (
+              <p>Отклонений от базового плана нет.</p>
+            )}
+        </div>
       </article>
     </section>
   );
