@@ -104,7 +104,6 @@ export type AdminHealth = {
   ok: boolean;
   database: string;
   databaseLatencyMs: number;
-  jiraConfigured: boolean;
   uptimeSeconds: number;
   startedAt: string;
   nodeEnv: string;
@@ -229,11 +228,6 @@ export type DictionaryItemDraft = {
 };
 
 export type SystemSettingsDraft = {
-  jiraEnabled: boolean;
-  jiraBaseUrl: string;
-  jiraEmail: string;
-  jiraApiToken: string;
-  jiraMaxResults: string;
   gitlabEnabled: boolean;
   gitlabBaseUrl: string;
   gitlabToken: string;

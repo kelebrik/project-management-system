@@ -64,10 +64,11 @@ Render service settings if creating manually:
   - `JIRA_BASE_URL=<your Jira base URL>`
   - `JIRA_EMAIL=<integration user email>`
   - `JIRA_API_TOKEN=<Jira API token>`
+  - `JIRA_MAX_RESULTS=100`
 
 ## Jira Strategy
 
-Jira remains the operational Kanban/Scrum system. This application does not duplicate Jira boards. It stores Jira board links, Jira ticket URLs on tasks, and synchronized issue snapshots for portfolio reporting, open issues, and executive overview evidence.
+Jira remains the operational Kanban/Scrum system. This application does not duplicate Jira boards. It stores Jira board links, Jira ticket URLs on tasks, and synchronized issue snapshots for portfolio reporting, open issues, and executive overview evidence. Jira REST API access is configured only through backend container environment variables, not through Admin Back Office.
 
 ## Docker Deployment
 

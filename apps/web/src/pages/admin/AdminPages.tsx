@@ -45,10 +45,6 @@ export function AdminWorkflowsPage({ children }: AdminPageProps) {
   return <PageShell>{children}</PageShell>;
 }
 
-export function AdminJiraPage({ children }: AdminPageProps) {
-  return <PageShell>{children}</PageShell>;
-}
-
 export function AdminHealthPage({ children }: AdminPageProps) {
   return <PageShell>{children}</PageShell>;
 }

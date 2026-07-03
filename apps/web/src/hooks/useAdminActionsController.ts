@@ -551,22 +551,6 @@ export function useAdminActionsController({
           "/api/admin/system-settings",
           {
             settings: {
-              "jira.enabled": {
-                value: systemSettingsDraft.jiraEnabled ? "true" : "false",
-              },
-              "jira.baseUrl": {
-                value: systemSettingsDraft.jiraBaseUrl.trim(),
-              },
-              "jira.email": {
-                value: systemSettingsDraft.jiraEmail.trim(),
-              },
-              "jira.apiToken": {
-                value: systemSettingsDraft.jiraApiToken.trim(),
-                isSecret: true,
-              },
-              "jira.maxResults": {
-                value: String(Number(systemSettingsDraft.jiraMaxResults) || 100),
-              },
               "gitlab.enabled": {
                 value: systemSettingsDraft.gitlabEnabled ? "true" : "false",
               },

@@ -245,11 +245,6 @@ const adminNavItems: AdminNavItem[] = [
     icon: <GitBranch size={17} />,
   },
   {
-    view: "admin-jira",
-    label: "Jira",
-    icon: <BriefcaseBusiness size={17} />,
-  },
-  {
     view: "admin-integrations",
     label: "Интеграции и API",
     icon: <GitBranch size={17} />,

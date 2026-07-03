@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { prisma } from './db.js';
 
 export type JiraIssue = {
   key: string;
@@ -37,50 +36,40 @@ type JiraConfig = {
   maxResults: number;
 };
 
-const jiraSettingKeys = [
-  'jira.enabled',
-  'jira.baseUrl',
-  'jira.email',
-  'jira.apiToken',
-  'jira.maxResults',
-] as const;
-
 export function isJiraConfigured() {
-  return Boolean(
-    process.env.JIRA_BASE_URL &&
-      process.env.JIRA_EMAIL &&
-      process.env.JIRA_API_TOKEN,
-  );
+  const config = resolveJiraConfig();
+  return Boolean(config.enabled && config.baseUrl && config.email && config.token);
 }
 
-async function getJiraConfig(): Promise<JiraConfig> {
-  const settings = await prisma.systemSetting
-    .findMany({
-      where: { key: { in: [...jiraSettingKeys] } },
-    })
-    .catch(() => []);
-  const byKey = new Map(settings.map((setting) => [setting.key, setting.value]));
-  const configuredInDb =
-    byKey.has('jira.baseUrl') || byKey.has('jira.email') || byKey.has('jira.apiToken');
-  const enabled = configuredInDb
-    ? byKey.get('jira.enabled') === 'true'
-    : true;
-  const baseUrl = (byKey.get('jira.baseUrl') || process.env.JIRA_BASE_URL || '').replace(
-    /\/$/,
-    '',
-  );
-  const email = byKey.get('jira.email') || process.env.JIRA_EMAIL || '';
-  const token = byKey.get('jira.apiToken') || process.env.JIRA_API_TOKEN || '';
+function nonEmpty(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizedBaseUrl(value: string | undefined) {
+  return (nonEmpty(value) ?? '').replace(/\/+$/, '');
+}
+
+export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraConfig {
+  const envBaseUrl = nonEmpty(env.JIRA_BASE_URL);
+  const envEmail = nonEmpty(env.JIRA_EMAIL);
+  const envToken = nonEmpty(env.JIRA_API_TOKEN);
   const maxResults = Math.min(
     500,
-    Math.max(1, Number(byKey.get('jira.maxResults') || 100) || 100),
+    Math.max(1, Number(nonEmpty(env.JIRA_MAX_RESULTS) ?? 100) || 100),
   );
 
-  return { enabled, baseUrl, email, token, maxResults };
+  return {
+    enabled: true,
+    baseUrl: normalizedBaseUrl(envBaseUrl),
+    email: envEmail ?? '',
+    token: envToken ?? '',
+    maxResults,
+  };
 }
 
 export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
-  const { enabled, baseUrl, email, token, maxResults } = await getJiraConfig();
+  const { enabled, baseUrl, email, token, maxResults } = resolveJiraConfig();
 
   if (!enabled || !baseUrl || !email || !token) {
     throw new Error('Jira is not configured');

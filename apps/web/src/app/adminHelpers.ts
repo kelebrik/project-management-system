@@ -57,11 +57,6 @@ type SystemSetting = {
 };
 
 type SystemSettingsDraft = {
-  jiraEnabled: boolean;
-  jiraBaseUrl: string;
-  jiraEmail: string;
-  jiraApiToken: string;
-  jiraMaxResults: string;
   gitlabEnabled: boolean;
   gitlabBaseUrl: string;
   gitlabToken: string;
@@ -114,7 +109,6 @@ export const adminPermissionOrder = [
   "admin.templates",
   "admin.rag",
   "admin.workflow",
-  "admin.jira",
   "admin.health",
   "admin.backup",
   "admin.config",
@@ -172,7 +166,6 @@ export function adminPermissionLabel(permission: string) {
     "admin.templates": "Шаблоны Структуры",
     "admin.rag": "Формулы RAG",
     "admin.workflow": "Workflow согласований",
-    "admin.jira": "Настройки Jira",
     "admin.health": "System health",
     "admin.backup": "Backup/restore status",
     "admin.config": "Import/export конфигурации",
@@ -222,11 +215,6 @@ export function dictionaryItemsToDrafts(items: DictionaryItem[]) {
 export function systemSettingsToDraft(settings: SystemSetting[]): SystemSettingsDraft {
   const byKey = new Map(settings.map((setting) => [setting.key, setting]));
   return {
-    jiraEnabled: byKey.get("jira.enabled")?.value === "true",
-    jiraBaseUrl: byKey.get("jira.baseUrl")?.value ?? "",
-    jiraEmail: byKey.get("jira.email")?.value ?? "",
-    jiraApiToken: "",
-    jiraMaxResults: byKey.get("jira.maxResults")?.value || "100",
     gitlabEnabled: byKey.get("gitlab.enabled")?.value === "true",
     gitlabBaseUrl: byKey.get("gitlab.baseUrl")?.value ?? "",
     gitlabToken: "",

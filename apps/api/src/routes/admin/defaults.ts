@@ -38,7 +38,6 @@ export const managedPermissions = [
   'admin.templates',
   'admin.rag',
   'admin.workflow',
-  'admin.jira',
   'admin.health',
   'admin.backup',
   'admin.config',
@@ -117,11 +116,6 @@ const defaultWbsTemplates = JSON.stringify(
 );
 
 export const defaultSystemSettings = [
-  ['jira.enabled', 'false', false],
-  ['jira.baseUrl', '', false],
-  ['jira.email', '', false],
-  ['jira.apiToken', '', true],
-  ['jira.maxResults', '100', false],
   ['rag.formula.green', 'Критичных открытых вопросов = 0 AND просроченных задач = 0', false],
   [
     'rag.formula.amber',

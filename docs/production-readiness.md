@@ -255,7 +255,7 @@ docker build \
 - проверить restore на тестовой БД;
 - настроить healthcheck `/api/ready`;
 - подключить сбор JSON-логов;
-- настроить Jira через Admin Back Office или переменные окружения.
+- настроить Jira через переменные окружения контейнера;
 - выпустить API token для интеграций, если нужен machine-to-machine доступ;
 - настроить webhook endpoints для корпоративных потребителей событий;
 - выполнить migration job отдельно от старта приложения: `npm run prisma:deploy`, compose `migrate` service или Kubernetes Job;
