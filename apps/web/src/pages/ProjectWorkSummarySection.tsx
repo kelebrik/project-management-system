@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 
 import { usePageContext } from "./PageContext";
 import type { WbsItem, WbsItemStatus } from "../app/domainTypes";
@@ -36,7 +36,6 @@ function phaseIdForItem(item: WbsItem, itemById: Map<string, WbsItem>) {
 type WorkSummaryRowsProps = {
   emptyText: string;
   items: WbsItem[];
-  statusHeaderControl?: ReactNode;
   showStart: boolean;
 };
 
@@ -126,29 +125,13 @@ export function ProjectWorkSummarySection() {
   const renderWorkSummaryRows = ({
     emptyText,
     items,
-    statusHeaderControl,
     showStart,
   }: WorkSummaryRowsProps) => {
-    if (items.length === 0 && !statusHeaderControl) {
+    if (items.length === 0) {
       return <div className="work-summary-empty">{emptyText}</div>;
     }
     return (
       <div className="work-summary-table">
-        {statusHeaderControl && (
-          <div
-            className={`work-summary-filter-row ${
-              showStart ? "with-start" : "without-start"
-            }`}
-          >
-            <span />
-            <span />
-            <div className="work-summary-status-filter-cell">
-              {statusHeaderControl}
-            </div>
-            {showStart && <span />}
-            <span />
-          </div>
-        )}
         <div
           className={`work-summary-head ${
             showStart ? "with-start" : "without-start"
@@ -160,69 +143,65 @@ export function ProjectWorkSummarySection() {
           {showStart && <span>Старт</span>}
           <span>Срок</span>
         </div>
-        {items.length === 0 ? (
-          <div className="work-summary-empty in-table">{emptyText}</div>
-        ) : (
-          items.map((item) => {
-            const draft = taskDraft(item, wbsDrafts);
-            return (
-              <div
-                className={`work-summary-row ${
-                  showStart ? "with-start" : "without-start"
-                }`}
-                key={item.id}
-                onFocus={() => setActiveWbsItemId(item.id)}
+        {items.map((item) => {
+          const draft = taskDraft(item, wbsDrafts);
+          return (
+            <div
+              className={`work-summary-row ${
+                showStart ? "with-start" : "without-start"
+              }`}
+              key={item.id}
+              onFocus={() => setActiveWbsItemId(item.id)}
+            >
+              <button
+                type="button"
+                className="work-summary-code"
+                onClick={() => setActiveWbsItemId(item.id)}
+                title="Выделить задачу в Структуре"
               >
-                <button
-                  type="button"
-                  className="work-summary-code"
-                  onClick={() => setActiveWbsItemId(item.id)}
-                  title="Выделить задачу в Структуре"
-                >
-                  {item.code}
-                </button>
-                <input
-                  value={draft.title}
-                  onChange={(event) =>
-                    updateWbsDraft(item.id, { title: event.target.value })
+                {item.code}
+              </button>
+              <input
+                value={draft.title}
+                onChange={(event) =>
+                  updateWbsDraft(item.id, { title: event.target.value })
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.currentTarget.blur();
                   }
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.currentTarget.blur();
-                    }
-                  }}
-                  onBlur={() => saveTaskTitle(item.id)}
-                />
-                <select
-                  value={draft.status}
-                  onChange={(event) =>
-                    saveTaskStatus(item.id, event.target.value as WbsItemStatus)
-                  }
-                >
-                  {WBS_STATUS_OPTIONS.map((status) => (
-                    <option key={status} value={status}>
-                      {wbsStatusLabel(status)}
-                    </option>
-                  ))}
-                </select>
-                {showStart && (
-                  <input
-                    type="date"
-                    value={draft.startDate}
-                    onChange={(event) =>
-                      saveTaskStart(item.id, event.target.value)
-                    }
-                  />
-                )}
+                }}
+                onBlur={() => saveTaskTitle(item.id)}
+              />
+              <select
+                value={draft.status}
+                onChange={(event) =>
+                  saveTaskStatus(item.id, event.target.value as WbsItemStatus)
+                }
+              >
+                {WBS_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {wbsStatusLabel(status)}
+                  </option>
+                ))}
+              </select>
+              {showStart && (
                 <input
                   type="date"
-                  value={draft.dueDate}
-                  onChange={(event) => saveTaskDue(item.id, event.target.value)}
+                  value={draft.startDate}
+                  onChange={(event) =>
+                    saveTaskStart(item.id, event.target.value)
+                  }
                 />
-              </div>
-            );
-          })
-        )}
+              )}
+              <input
+                type="date"
+                value={draft.dueDate}
+                onChange={(event) => saveTaskDue(item.id, event.target.value)}
+              />
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -263,6 +242,19 @@ export function ProjectWorkSummarySection() {
                   Текущие задачи
                 </button>
               </h3>
+              <select
+                className="work-summary-phase-filter"
+                value={currentTasksPhaseId}
+                onChange={(event) => setCurrentTasksPhaseId(event.target.value)}
+                aria-label="Фильтр текущих задач по фазе"
+              >
+                <option value={ALL_PHASES_FILTER}>Все фазы</option>
+                {phaseOptions.map((phase) => (
+                  <option key={phase.id} value={phase.id}>
+                    {phase.code} {phase.title}
+                  </option>
+                ))}
+              </select>
             </div>
             <span>{filteredCurrentTasks.length}</span>
           </div>
@@ -270,23 +262,6 @@ export function ProjectWorkSummarySection() {
             renderWorkSummaryRows({
               emptyText: "Текущих задач нет.",
               items: filteredCurrentTasks,
-              statusHeaderControl: (
-                <select
-                  className="work-summary-phase-filter"
-                  value={currentTasksPhaseId}
-                  onChange={(event) =>
-                    setCurrentTasksPhaseId(event.target.value)
-                  }
-                  aria-label="Фильтр текущих задач по фазе"
-                >
-                  <option value={ALL_PHASES_FILTER}>Все фазы</option>
-                  {phaseOptions.map((phase) => (
-                    <option key={phase.id} value={phase.id}>
-                      {phase.code} {phase.title}
-                    </option>
-                  ))}
-                </select>
-              ),
               showStart: false,
             })}
         </article>
