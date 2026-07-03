@@ -2,7 +2,6 @@ import { AdminAuditPageContent } from "./AdminAuditPageContent";
 import { AdminBackupsPageContent, AdminConfigPageContent, AdminHealthPageContent } from "./AdminStatusPages";
 import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
 import { AdminIntegrationsPageContent } from "./AdminIntegrationsPageContent";
-import { AdminImportPageContent } from "./AdminImportPageContent";
 import { AdminModulesPageContent } from "./AdminModulesPageContent";
 import { AdminProjectAccessPageContent } from "./AdminProjectAccessPageContent";
 import { AdminProjectsPageContent } from "./AdminProjectsPageContent";
@@ -55,7 +54,6 @@ export function AppPages() {
         {activeView === "admin-rag" && <AdminRagPageContent />}
         {activeView === "admin-workflows" && <AdminWorkflowsPageContent />}
         {activeView === "admin-integrations" && <AdminIntegrationsPageContent />}
-        {activeView === "admin-import" && <AdminImportPageContent />}
         {activeView === "admin-health" && <AdminHealthPageContent />}
         {activeView === "admin-backups" && <AdminBackupsPageContent />}
         {activeView === "admin-config" && <AdminConfigPageContent />}

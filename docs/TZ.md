@@ -501,7 +501,7 @@ flowchart LR
   - holidays/non-working days;
   - time zones.
 - Import/export:
-  - XLSX/CSV;
+  - CSV;
   - PDF/PNG for Gantt;
   - MS Project XML/MPP support как отдельный этап после MVP.
 
@@ -838,7 +838,7 @@ flowchart LR
 - Scheduled reports:
   - email;
   - PDF;
-  - CSV/XLSX;
+  - CSV;
   - webhook.
 - Snapshots для отчетной даты.
 - Права на виджеты с финансовыми и персональными данными.

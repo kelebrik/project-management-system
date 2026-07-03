@@ -64,7 +64,6 @@ const legacyPermissionFallbacks: Record<string, string[]> = {
   'admin.health': ['admin.manage'],
   'admin.backup': ['admin.manage'],
   'admin.config': ['admin.manage'],
-  'admin.import': ['admin.manage'],
   'admin.audit': ['admin.manage'],
   'admin.modules': ['admin.manage', 'admin.config'],
   'admin.integrations': ['admin.manage', 'admin.config'],

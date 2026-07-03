@@ -265,11 +265,6 @@ const adminNavItems: AdminNavItem[] = [
     icon: <Import size={17} />,
   },
   {
-    view: "admin-import",
-    label: "Импорт",
-    icon: <FileSpreadsheet size={17} />,
-  },
-  {
     view: "admin-audit",
     label: "Журнал аудита",
     icon: <FileText size={17} />,
