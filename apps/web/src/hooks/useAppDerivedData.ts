@@ -389,7 +389,11 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
   );
   const { fullscreenWorkspaceView, toggleWorkspaceFullscreen } =
     useWorkspaceFullscreen(activeView);
-  const { milestoneLabelOffsets, startMilestoneLabelDrag } =
+  const {
+    activeMilestoneLabelDrag,
+    milestoneLabelOffsets,
+    startMilestoneLabelDrag,
+  } =
     useMilestoneLabelLayoutState({
       project,
       projectRef,
@@ -542,6 +546,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
 
   return {
     activeGanttLinkIds,
+    activeMilestoneLabelDrag,
     activeProjectTree,
     activeProjects,
     activeWbsHierarchyLevel,

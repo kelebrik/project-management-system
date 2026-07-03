@@ -26,6 +26,11 @@ type UseMilestoneLabelLayoutStateOptions = {
   setError: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
+export type ActiveMilestoneLabelDrag = {
+  scope: MilestoneLabelScope;
+  milestoneId: string;
+} | null;
+
 export function useMilestoneLabelLayoutState({
   project,
   projectRef,
@@ -37,6 +42,8 @@ export function useMilestoneLabelLayoutState({
 }: UseMilestoneLabelLayoutStateOptions) {
   const [milestoneLabelOffsets, setMilestoneLabelOffsets] =
     useState<MilestoneLabelOffsets>({});
+  const [activeMilestoneLabelDrag, setActiveMilestoneLabelDrag] =
+    useState<ActiveMilestoneLabelDrag>(null);
   const milestoneLabelOffsetsRef = useRef<MilestoneLabelOffsets>({});
   const milestoneLabelLayoutSaveSequenceRef = useRef(0);
   const milestoneLabelDragRef = useRef<{
@@ -48,7 +55,6 @@ export function useMilestoneLabelLayoutState({
     deltaScaleX: number;
     deltaScaleY: number;
     hasMoved: boolean;
-    dragTarget: Element;
   } | null>(null);
 
   useEffect(() => {
@@ -178,9 +184,8 @@ export function useMilestoneLabelLayoutState({
           // Capturing can fail if the pointer is already released.
         }
       }
-      milestoneLabelDragRef.current?.dragTarget.classList.remove("is-dragging");
-      event.currentTarget.classList.add("is-dragging");
       document.body.classList.add("milestone-label-dragging");
+      setActiveMilestoneLabelDrag({ scope, milestoneId });
       milestoneLabelDragRef.current = {
         scope,
         milestoneId,
@@ -190,7 +195,6 @@ export function useMilestoneLabelLayoutState({
         deltaScaleX,
         deltaScaleY,
         hasMoved: false,
-        dragTarget: event.currentTarget,
       };
     },
     [],
@@ -226,7 +230,9 @@ export function useMilestoneLabelLayoutState({
   const stopMilestoneLabelDrag = useCallback(() => {
     const drag = milestoneLabelDragRef.current;
     milestoneLabelDragRef.current = null;
-    drag?.dragTarget.classList.remove("is-dragging");
+    if (drag) {
+      setActiveMilestoneLabelDrag(null);
+    }
     document.body.classList.remove("milestone-label-dragging");
     if (drag?.hasMoved) {
       void persistMilestoneLabelLayout(milestoneLabelOffsetsRef.current);
@@ -245,6 +251,7 @@ export function useMilestoneLabelLayoutState({
   }, [handleMilestoneLabelPointerMove, stopMilestoneLabelDrag]);
 
   return {
+    activeMilestoneLabelDrag,
     milestoneLabelOffsets,
     startMilestoneLabelDrag,
   };
