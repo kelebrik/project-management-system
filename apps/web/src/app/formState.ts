@@ -203,11 +203,6 @@ export const emptyDictionaryDraft: DictionaryItemDraft = {
 };
 
 export const emptySystemSettingsDraft: SystemSettingsDraft = {
-  jiraEnabled: false,
-  jiraBaseUrl: "",
-  jiraEmail: "",
-  jiraApiToken: "",
-  jiraMaxResults: "100",
   gitlabEnabled: false,
   gitlabBaseUrl: "",
   gitlabToken: "",

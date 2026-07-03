@@ -25,11 +25,6 @@ export function AdminHealthPageContent() {
                       <small>Latency: {adminHealth?.databaseLatencyMs ?? 0} мс</small>
                     </div>
                     <div className="metric-card">
-                      <span>Jira</span>
-                      <b>{adminHealth?.jiraConfigured ? "Настроена" : "Не настроена"}</b>
-                      <small>Интеграция зависит от системных настроек</small>
-                    </div>
-                    <div className="metric-card">
                       <span>Окружение</span>
                       <b>{adminHealth?.nodeEnv ?? "development"}</b>
                       <small>Uptime: {adminHealth?.uptimeSeconds ?? 0} сек.</small>

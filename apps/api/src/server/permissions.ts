@@ -26,7 +26,7 @@ export function writePermissionForPath(pathname: string, method: string): Permis
     return 'admin.dictionaries';
   }
   if (pathname.startsWith('/admin/system-settings')) {
-    return 'admin.jira';
+    return 'admin.config';
   }
   if (pathname.startsWith('/admin/project-modules')) {
     return 'admin.modules';

@@ -3,11 +3,10 @@ import { AdminBackupsPageContent, AdminConfigPageContent, AdminHealthPageContent
 import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
 import { AdminIntegrationsPageContent } from "./AdminIntegrationsPageContent";
 import { AdminImportPageContent } from "./AdminImportPageContent";
-import { AdminJiraProjectPage } from "./AdminJiraProjectPage";
 import { AdminModulesPageContent } from "./AdminModulesPageContent";
 import { AdminProjectAccessPageContent } from "./AdminProjectAccessPageContent";
 import { AdminProjectsPageContent } from "./AdminProjectsPageContent";
-import { AdminRagPageContent, AdminSystemJiraPageContent, AdminTemplatesPageContent, AdminWorkflowsPageContent } from "./AdminSettingsPages";
+import { AdminRagPageContent, AdminTemplatesPageContent, AdminWorkflowsPageContent } from "./AdminSettingsPages";
 import { AdminRolesPageContent } from "./AdminRolesPageContent";
 import { AdminUsersPageContent } from "./AdminUsersPageContent";
 import { ClosedProjectsPage } from "./ClosedProjectsPage";
@@ -55,7 +54,6 @@ export function AppPages() {
         {activeView === "admin-templates" && <AdminTemplatesPageContent />}
         {activeView === "admin-rag" && <AdminRagPageContent />}
         {activeView === "admin-workflows" && <AdminWorkflowsPageContent />}
-        {activeView === "admin-jira" && <AdminSystemJiraPageContent />}
         {activeView === "admin-integrations" && <AdminIntegrationsPageContent />}
         {activeView === "admin-import" && <AdminImportPageContent />}
         {activeView === "admin-health" && <AdminHealthPageContent />}
@@ -73,7 +71,6 @@ export function AppPages() {
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
-        {project && activeView === "admin-jira" && <AdminJiraProjectPage />}
         {project && activeView === "project-jira-work" && <ProjectJiraWorkPage />}
         {project && activeView === "project-issues" && <ProjectIssuesPage />}
         {project && activeView === "project-raid" && <ProjectRaidPage />}

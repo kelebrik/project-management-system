@@ -149,7 +149,6 @@ function createViewTitle(project: any): Record<AppView, string> {
     "admin-templates": "Администрирование: шаблоны Структуры",
     "admin-rag": "Администрирование: формулы RAG",
     "admin-workflows": "Администрирование: workflow",
-    "admin-jira": "Администрирование: Jira",
     "admin-integrations": "Администрирование: интеграции и API",
     "admin-health": "Администрирование: system health",
     "admin-backups": "Администрирование: backup/restore",

@@ -9,7 +9,6 @@ import {
   AdminConfigPage,
   AdminDictionariesPage,
   AdminHealthPage,
-  AdminJiraPage,
   AdminModulesPage,
   AdminPage,
   AdminProjectAccessPage,
@@ -70,9 +69,6 @@ export function PageBoundary({
   }
   if (view === "admin-workflows") {
     return <AdminWorkflowsPage>{children}</AdminWorkflowsPage>;
-  }
-  if (view === "admin-jira") {
-    return <AdminJiraPage>{children}</AdminJiraPage>;
   }
   if (view === "admin-health") {
     return <AdminHealthPage>{children}</AdminHealthPage>;
