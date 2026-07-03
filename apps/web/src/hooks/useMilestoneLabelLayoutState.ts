@@ -48,6 +48,7 @@ export function useMilestoneLabelLayoutState({
     deltaScaleX: number;
     deltaScaleY: number;
     hasMoved: boolean;
+    dragTarget: Element;
   } | null>(null);
 
   useEffect(() => {
@@ -177,6 +178,8 @@ export function useMilestoneLabelLayoutState({
           // Capturing can fail if the pointer is already released.
         }
       }
+      milestoneLabelDragRef.current?.dragTarget.classList.remove("is-dragging");
+      event.currentTarget.classList.add("is-dragging");
       document.body.classList.add("milestone-label-dragging");
       milestoneLabelDragRef.current = {
         scope,
@@ -187,6 +190,7 @@ export function useMilestoneLabelLayoutState({
         deltaScaleX,
         deltaScaleY,
         hasMoved: false,
+        dragTarget: event.currentTarget,
       };
     },
     [],
@@ -222,6 +226,7 @@ export function useMilestoneLabelLayoutState({
   const stopMilestoneLabelDrag = useCallback(() => {
     const drag = milestoneLabelDragRef.current;
     milestoneLabelDragRef.current = null;
+    drag?.dragTarget.classList.remove("is-dragging");
     document.body.classList.remove("milestone-label-dragging");
     if (drag?.hasMoved) {
       void persistMilestoneLabelLayout(milestoneLabelOffsetsRef.current);
