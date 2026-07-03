@@ -236,6 +236,13 @@
   min-width: 0;
 }
 
+.work-summary-pane-title-main {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
 .work-summary-pane-toggle {
   align-items: center;
   background: transparent;
@@ -295,6 +302,19 @@
   top: 0;
   text-transform: uppercase;
   z-index: 2;
+}
+
+.work-summary-phase-filter {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  max-width: 210px;
+  min-height: 30px;
+  min-width: 126px;
+  padding: 5px 8px;
 }
 
 .work-summary-head span,

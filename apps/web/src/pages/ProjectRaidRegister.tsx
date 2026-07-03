@@ -393,43 +393,6 @@ export function ProjectRaidRegister() {
                                       })
                                     }
                                   />
-                                  <input
-                                    value={raidDrafts[item.id].predecessor}
-                                    onChange={(event) =>
-                                      updateRaidDraft(item.id, {
-                                        predecessor: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Предшественник"
-                                  />
-                                  <input
-                                    value={raidDrafts[item.id].successor}
-                                    onChange={(event) =>
-                                      updateRaidDraft(item.id, {
-                                        successor: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Последователь"
-                                  />
-                                  <input
-                                    value={raidDrafts[item.id].supplier}
-                                    onChange={(event) =>
-                                      updateRaidDraft(item.id, {
-                                        supplier: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Поставщик"
-                                  />
-                                  <input
-                                    type="number"
-                                    value={raidDrafts[item.id].scheduleImpactDays}
-                                    onChange={(event) =>
-                                      updateRaidDraft(item.id, {
-                                        scheduleImpactDays: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Дни по срокам"
-                                  />
                                     <label className="checkbox-line compact-checkbox">
                                     <input
                                       type="checkbox"
