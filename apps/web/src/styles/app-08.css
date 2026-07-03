@@ -423,6 +423,10 @@
   cursor: grabbing;
 }
 
+.draggable-milestone-label.is-dragging .milestone-label {
+  color: #dc2626;
+}
+
 .milestone-label-grip {
   color: #94a3b8;
   font-size: 13px;
