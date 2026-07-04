@@ -84,6 +84,55 @@
   min-width: 16px;
 }
 
+.gantt-bar.phase-line {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  height: 24px;
+  min-width: 42px;
+  overflow: visible;
+  top: 0;
+  transform: none;
+}
+
+.gantt-bar.phase-line::after {
+  background: var(--gantt-item-color);
+  border-radius: 999px;
+  bottom: 4px;
+  content: "";
+  height: 4px;
+  left: 0;
+  opacity: 0.74;
+  position: absolute;
+  right: 0;
+}
+
+.gantt-phase-label {
+  color: var(--gantt-item-color);
+  display: block;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  left: 0;
+  line-height: 1.2;
+  max-width: max(100%, 260px);
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  text-overflow: ellipsis;
+  top: 3px;
+  white-space: nowrap;
+}
+
+.gantt-bar.phase-line .gantt-link-handle {
+  top: calc(100% - 6px);
+  z-index: 9;
+}
+
+.gantt-track-row.active .gantt-bar.phase-line {
+  box-shadow: none;
+}
+
 .gantt-bar.summary-bracket {
   background: transparent;
   border-bottom: 0;

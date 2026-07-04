@@ -73,3 +73,34 @@ test("createWbsGantt excludes cancelled WBS items", () => {
   );
   assert.equal(model.height, GANTT_ROW_HEIGHT);
 });
+
+test("createWbsGantt renders phases as phase lines and work packages as brackets", () => {
+  const phase = wbsTreeItem({
+    id: "phase",
+    code: "1",
+    title: "Фаза",
+    type: "PHASE",
+  });
+  const workPackage = wbsTreeItem({
+    id: "package",
+    code: "1.1",
+    title: "Пакет работ",
+    type: "WORK_PACKAGE",
+  });
+
+  const model = createWbsGantt({
+    visibleWbsTree: [phase, workPackage],
+    criticalPath: null,
+    wbsDependencies: [],
+  });
+
+  const phaseEntry = model.items.find((entry) => entry.item.id === phase.id);
+  const workPackageEntry = model.items.find(
+    (entry) => entry.item.id === workPackage.id,
+  );
+
+  assert.equal(phaseEntry?.phaseLine, true);
+  assert.equal(phaseEntry?.bracket, false);
+  assert.equal(workPackageEntry?.phaseLine, false);
+  assert.equal(workPackageEntry?.bracket, true);
+});

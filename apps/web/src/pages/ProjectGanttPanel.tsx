@@ -323,6 +323,7 @@ export function ProjectGanttPanel() {
                                 milestone,
                                 critical,
                                 summary,
+                                phaseLine,
                                 bracket,
                                 baselineRange,
                                   forecastRange,
@@ -372,7 +373,7 @@ export function ProjectGanttPanel() {
                                     />
                                   )}
                                     <i
-                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${item.type === "GOAL" ? "goal" : ""} ${summary ? "summary" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
+                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${item.type === "GOAL" ? "goal" : ""} ${summary ? "summary" : ""} ${phaseLine ? "phase-line" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
                                       style={{
                                         left: `${offset}%`,
                                         width: milestone ? undefined : `${width}%`,
@@ -383,6 +384,11 @@ export function ProjectGanttPanel() {
                                           : `. Резерв: ${totalFloatWorkDays} раб. дн.`
                                       }`}
                                     >
+                                    {phaseLine && (
+                                      <span className="gantt-phase-label">
+                                        {item.title} | {date(item.startDate)} - {date(item.dueDate)}
+                                      </span>
+                                    )}
                                     <button
                                       type="button"
                                       className="gantt-link-handle start"
