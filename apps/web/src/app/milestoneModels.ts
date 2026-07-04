@@ -16,6 +16,9 @@ function isTimelineCheckpoint(item: WbsItem) {
   return item.type === "MILESTONE" || item.type === "GOAL";
 }
 
+const STALE_PHASE_HIDE_DAYS = 21;
+const DAY_MS = 86_400_000;
+
 export function createStructureMilestones(wbsItems: WbsItem[]) {
   return wbsItems
     .filter(isTimelineCheckpoint)
@@ -52,12 +55,13 @@ export function createStructureMilestones(wbsItems: WbsItem[]) {
 export function createMilestoneTimeline(
   wbsItems: WbsItem[],
   structureMilestones: StructureMilestone[],
+  todaySource = new Date(),
 ) {
   const itemById = new Map(wbsItems.map((item) => [item.id, item]));
   const phases = wbsItems
     .filter((item) => item.type === "PHASE")
     .sort((left, right) => left.sortOrder - right.sortOrder);
-  const today = startOfDay(new Date());
+  const today = startOfDay(todaySource);
   const timelineStart = startOfDay(addCalendarMonths(today, -2));
   const timelineEnd = startOfDay(addCalendarMonths(today, 4));
   const allMilestoneDates = structureMilestones
@@ -96,6 +100,14 @@ export function createMilestoneTimeline(
       phaseIdForMilestone(entry.milestone) ?? "unassigned",
     ]),
   );
+  const milestonesByPhaseLaneId = new Map<string, StructureMilestone[]>();
+  structureMilestones.forEach((entry) => {
+    const laneId = laneIdByMilestoneId.get(entry.milestone.id) ?? "unassigned";
+    milestonesByPhaseLaneId.set(laneId, [
+      ...(milestonesByPhaseLaneId.get(laneId) ?? []),
+      entry,
+    ]);
+  });
   const phaseLanes =
     phases.length > 0
       ? [
@@ -120,9 +132,37 @@ export function createMilestoneTimeline(
             items: [] as MilestoneTimelineItem[],
           },
         ];
+  const staleCutoffTime = today.getTime() - STALE_PHASE_HIDE_DAYS * DAY_MS;
+  const stalePhaseLaneIds = new Set(
+    phaseLanes
+      .filter((lane) => lane.id !== "unassigned")
+      .filter((lane) => {
+        const laneMilestones = milestonesByPhaseLaneId.get(lane.id) ?? [];
+        return (
+          laneMilestones.length > 0 &&
+          laneMilestones.every((entry) => {
+            if (entry.milestone.status !== "DONE" || !entry.milestone.dueDate) {
+              return false;
+            }
+            const dueDate = startOfDay(new Date(entry.milestone.dueDate));
+            return (
+              !Number.isNaN(dueDate.getTime()) &&
+              dueDate.getTime() < staleCutoffTime
+            );
+          })
+        );
+      })
+      .map((lane) => lane.id),
+  );
+  const byPhaseMilestones = structureMilestones.filter(
+    (entry) => !stalePhaseLaneIds.has(laneIdByMilestoneId.get(entry.milestone.id) ?? ""),
+  );
+  const byPhaseLanes = phaseLanes.filter(
+    (lane) => !stalePhaseLaneIds.has(lane.id),
+  );
   const byPhase = createMilestoneTimelineModel({
-    milestones: structureMilestones,
-    lanes: phaseLanes,
+    milestones: byPhaseMilestones,
+    lanes: byPhaseLanes,
     today,
     timelineStart,
     timelineEnd,
@@ -148,5 +188,11 @@ export function createMilestoneTimeline(
     todayOffsetMode: "milestone-count",
   });
 
-  return { byPhase, all };
+  return {
+    byPhase: {
+      ...byPhase,
+      hiddenStaleLaneCount: stalePhaseLaneIds.size,
+    },
+    all,
+  };
 }

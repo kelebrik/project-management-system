@@ -307,7 +307,9 @@ export function MilestoneTimelineSection({
           </div>
         ) : (
           <div className="empty-state">
-            {timeline.hasMilestonesOutsideRange
+            {timeline.hiddenStaleLaneCount
+              ? "Фазы, у которых все вехи завершены более 3 недель назад, скрыты."
+              : timeline.hasMilestonesOutsideRange
               ? "В окне от -2 до +4 месяцев от текущей даты нет вех."
               : "В Структуре пока нет элементов типа «Веха»."}
           </div>
