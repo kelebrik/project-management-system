@@ -374,6 +374,7 @@ html {
   .project-access-row,
   .project-module-head,
   .project-module-row,
+  .portfolio-project-timeline-row,
   .passport-target-metrics,
   .passport-target-edit,
   .passport-target-history-head,
@@ -574,6 +575,10 @@ html {
   .portfolio-raid-grid,
   .portfolio-raid-item {
     grid-template-columns: 1fr;
+  }
+
+  .portfolio-project-timeline-row .portfolio-goal-items {
+    grid-column: 1;
   }
 
   .projects-overview-passport {

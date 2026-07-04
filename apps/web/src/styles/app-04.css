@@ -196,6 +196,102 @@
   gap: 16px;
 }
 
+.portfolio-project-timelines {
+  display: grid;
+  gap: 12px;
+}
+
+.portfolio-project-timeline-row {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px 14px;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  padding: 12px;
+}
+
+.portfolio-project-timeline-title {
+  align-self: start;
+  background: #fff;
+  border: 1px solid #d8e0eb;
+  border-radius: 7px;
+  color: #1f2937;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 56px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.portfolio-project-timeline-title:hover,
+.portfolio-project-timeline-title:focus-visible {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
+  outline: none;
+}
+
+.portfolio-project-timeline-title b,
+.portfolio-project-timeline-title small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-project-timeline-title b {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.portfolio-project-timeline-title small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  margin-top: 3px;
+}
+
+.portfolio-project-timeline-title strong {
+  align-items: center;
+  background: #e0f2fe;
+  border-radius: 999px;
+  color: #075985;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  height: 28px;
+  justify-content: center;
+  min-width: 28px;
+  padding: 0 8px;
+}
+
+.portfolio-project-timeline-track {
+  min-width: 0;
+  height: 78px;
+  padding: 28px 8px 0;
+  position: relative;
+}
+
+.portfolio-project-timeline-row .portfolio-goal-items {
+  grid-column: 2;
+}
+
+.portfolio-goal-row-empty {
+  align-items: center;
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  color: #64748b;
+  display: flex;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
 .portfolio-goal-axis {
   height: 78px;
   padding: 28px 8px 0;
