@@ -28,12 +28,13 @@ import {
   ResourceCapacityPage,
 } from "./ResourcePages";
 import { usePageContext } from "./PageContext";
+import { WikiPage } from "./WikiPage";
 
 export function AppPages() {
   const { activeView, isAdminSectionView, isAdminUser, isResourceSectionView, project } =
     usePageContext();
 
-  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isResourceSectionView))) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isResourceSectionView))) {
     return null;
   }
 
@@ -41,6 +42,7 @@ export function AppPages() {
     <>
       {activeView === "portfolio" && <PortfolioPage />}
       {activeView === "projects" && <ProjectsPage />}
+      {activeView === "wiki" && <WikiPage />}
       {project && activeView === "project-overview" && <ProjectOverviewSummaryPage />}
       {activeView === "closed-projects" && <ClosedProjectsPage />}
 
