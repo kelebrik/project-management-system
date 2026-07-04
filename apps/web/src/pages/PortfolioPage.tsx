@@ -173,15 +173,15 @@ export function PortfolioPage() {
                             <span className="portfolio-goal-item-index">
                               {index + 1}
                             </span>
-                            <span>
-                              <b>{item.goalTitle}</b>
+                            <span className="portfolio-goal-inline">
+                              <b>
+                                {item.projectName} · {item.goalTitle}
+                              </b>
                               <small className="portfolio-goal-meta">
-                                {item.baselineDueDate && (
-                                  <span>
-                                    базовый план {date(item.baselineDueDate)}
-                                  </span>
-                                )}
-                                <span>прогноз {date(item.dueDate)}</span>
+                                <span>
+                                  базовый план {date(item.baselineDueDate)}
+                                </span>
+                                <span>актуальный прогноз {date(item.dueDate)}</span>
                                 {item.delayDays !== null && item.delayDays > 0 && (
                                   <span className="portfolio-goal-delay">
                                     отставание +{item.delayDays} дн.

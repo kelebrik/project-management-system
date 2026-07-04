@@ -606,6 +606,7 @@ html {
 
 @media (max-width: 640px) {
   .portfolio-goal-item b,
+  .portfolio-goal-inline,
   .projects-overview-main b,
   .projects-overview-main small,
   .projects-overview-meta span,
@@ -614,5 +615,15 @@ html {
   .portfolio-raid-item-main small,
   .project-tree-name-static {
     white-space: normal;
+  }
+
+  .portfolio-goal-inline {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .portfolio-goal-inline > .portfolio-goal-meta::before {
+    content: "";
+    padding: 0;
   }
 }

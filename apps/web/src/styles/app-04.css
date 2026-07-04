@@ -389,7 +389,7 @@
 
 .portfolio-goal-items {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .portfolio-goal-item {
@@ -400,10 +400,10 @@
   color: #1f2937;
   cursor: pointer;
   display: grid;
-  gap: 10px;
-  grid-template-columns: 28px minmax(0, 1fr);
-  min-height: 58px;
-  padding: 9px 12px;
+  gap: 8px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  min-height: 38px;
+  padding: 6px 10px;
   position: relative;
   text-align: left;
 }
@@ -413,6 +413,15 @@
   border-color: #93c5fd;
   box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
   outline: none;
+}
+
+.portfolio-goal-inline {
+  align-items: center;
+  display: flex;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .portfolio-goal-item b {
@@ -429,15 +438,23 @@
   align-items: center;
   color: #64748b;
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   font-size: 11px;
   font-weight: 700;
   gap: 4px 0;
   line-height: 1.35;
-  margin-top: 3px;
+  margin-top: 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-goal-inline > .portfolio-goal-meta::before {
+  color: #94a3b8;
+  content: "·";
+  padding: 0 6px;
 }
 
 .portfolio-goal-meta span {
@@ -461,11 +478,11 @@
   border-radius: 999px;
   color: #fff;
   display: inline-flex;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
-  height: 28px;
+  height: 24px;
   justify-content: center;
-  width: 28px;
+  width: 24px;
 }
 
 .portfolio-goal-item.status-done .portfolio-goal-item-index {
