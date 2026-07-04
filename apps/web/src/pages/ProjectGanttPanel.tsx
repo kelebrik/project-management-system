@@ -323,7 +323,7 @@ export function ProjectGanttPanel() {
                                 milestone,
                                 critical,
                                 summary,
-                                phaseLine,
+                                rangeLine,
                                 bracket,
                                 baselineRange,
                                   forecastRange,
@@ -373,7 +373,7 @@ export function ProjectGanttPanel() {
                                     />
                                   )}
                                     <i
-                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${item.type === "GOAL" ? "goal" : ""} ${summary ? "summary" : ""} ${phaseLine ? "phase-line" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
+                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${item.type === "GOAL" ? "goal" : ""} ${summary ? "summary" : ""} ${rangeLine ? "range-line" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
                                       style={{
                                         left: `${offset}%`,
                                         width: milestone ? undefined : `${width}%`,
@@ -384,8 +384,8 @@ export function ProjectGanttPanel() {
                                           : `. Резерв: ${totalFloatWorkDays} раб. дн.`
                                       }`}
                                     >
-                                    {phaseLine && (
-                                      <span className="gantt-phase-label">
+                                    {rangeLine && (
+                                      <span className="gantt-range-label">
                                         {item.title} | {date(item.startDate)} - {date(item.dueDate)}
                                       </span>
                                     )}

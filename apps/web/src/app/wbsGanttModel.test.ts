@@ -74,7 +74,7 @@ test("createWbsGantt excludes cancelled WBS items", () => {
   assert.equal(model.height, GANTT_ROW_HEIGHT);
 });
 
-test("createWbsGantt renders phases as phase lines and work packages as brackets", () => {
+test("createWbsGantt renders phases and work packages as labeled range lines", () => {
   const phase = wbsTreeItem({
     id: "phase",
     code: "1",
@@ -99,8 +99,8 @@ test("createWbsGantt renders phases as phase lines and work packages as brackets
     (entry) => entry.item.id === workPackage.id,
   );
 
-  assert.equal(phaseEntry?.phaseLine, true);
+  assert.equal(phaseEntry?.rangeLine, true);
   assert.equal(phaseEntry?.bracket, false);
-  assert.equal(workPackageEntry?.phaseLine, false);
-  assert.equal(workPackageEntry?.bracket, true);
+  assert.equal(workPackageEntry?.rangeLine, true);
+  assert.equal(workPackageEntry?.bracket, false);
 });
