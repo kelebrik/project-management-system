@@ -84,7 +84,7 @@
   min-width: 16px;
 }
 
-.gantt-bar.phase-line {
+.gantt-bar.range-line {
   background: transparent;
   border-radius: 0;
   box-shadow: none;
@@ -95,7 +95,7 @@
   transform: none;
 }
 
-.gantt-bar.phase-line::after {
+.gantt-bar.range-line::after {
   background: var(--gantt-item-color);
   border-radius: 999px;
   bottom: 4px;
@@ -107,7 +107,7 @@
   right: 0;
 }
 
-.gantt-phase-label {
+.gantt-range-label {
   color: var(--gantt-item-color);
   display: block;
   font-size: 11px;
@@ -124,12 +124,12 @@
   white-space: nowrap;
 }
 
-.gantt-bar.phase-line .gantt-link-handle {
+.gantt-bar.range-line .gantt-link-handle {
   top: calc(100% - 6px);
   z-index: 9;
 }
 
-.gantt-track-row.active .gantt-bar.phase-line {
+.gantt-track-row.active .gantt-bar.range-line {
   box-shadow: none;
 }
 

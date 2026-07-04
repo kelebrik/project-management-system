@@ -241,8 +241,8 @@ export function createWbsGantt({
         item.children.length > 0 ||
         item.type === "PHASE" ||
         item.type === "WORK_PACKAGE";
-      const phaseLine = item.type === "PHASE";
-      const bracket = item.type === "WORK_PACKAGE";
+      const rangeLine = item.type === "PHASE" || item.type === "WORK_PACKAGE";
+      const bracket = false;
       const milestone = item.type === "MILESTONE" || item.type === "GOAL";
       return {
         item,
@@ -259,7 +259,7 @@ export function createWbsGantt({
         totalFloatWorkDays:
           criticalItemsById.get(item.id)?.totalFloatWorkDays ?? null,
         summary,
-        phaseLine,
+        rangeLine,
         bracket,
         baselineRange: range(baselineStart, baselineEnd),
         forecastRange: range(forecastStart, forecastEnd),
