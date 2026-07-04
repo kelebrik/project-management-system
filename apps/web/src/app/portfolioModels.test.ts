@@ -194,10 +194,57 @@ test("portfolio goal timeline uses active project goals only", () => {
   assert.equal(timeline.items[1]?.projectCode, "A");
   assert.equal(timeline.items[1]?.baselineDueDate, "2026-08-20");
   assert.equal(timeline.items[1]?.delayDays, 14);
+  assert.deepEqual(
+    timeline.projectRows.map((row) => row.projectId),
+    ["child-a", "child-b", "parent"],
+  );
+  assert.deepEqual(
+    timeline.projectRows.map((row) => row.items.map((item) => item.id)),
+    [["goal-a"], ["goal-b"], ["parent-goal"]],
+  );
   assert.equal(localDateKey(timeline.startDate), "2026-02-10");
   assert.equal(localDateKey(timeline.endDate), "2027-02-10");
   assert.equal(Math.round(timeline.todayOffset), 33);
   assert.ok(timeline.monthTicks.length >= 12);
+});
+
+test("portfolio goal timeline keeps active project rows without visible goals", () => {
+  const timeline = createPortfolioGoalTimeline(
+    [
+      project({
+        id: "with-goal",
+        code: "A",
+        name: "Project A",
+        portfolio: "TV",
+        wbsItems: [wbsGoal({ id: "goal-a" })],
+      }),
+      project({
+        id: "without-goal",
+        code: "B",
+        name: "Project B",
+        portfolio: "TV",
+        wbsItems: [],
+      }),
+      project({
+        id: "closed",
+        code: "C",
+        name: "Closed",
+        portfolio: "TV",
+        status: "CLOSED",
+        wbsItems: [wbsGoal({ id: "closed-goal" })],
+      }),
+    ],
+    new Date(2026, 5, 10),
+  );
+
+  assert.deepEqual(
+    timeline.projectRows.map((row) => row.projectId),
+    ["with-goal", "without-goal"],
+  );
+  assert.deepEqual(
+    timeline.projectRows.map((row) => row.items.map((item) => item.id)),
+    [["goal-a"], []],
+  );
 });
 
 test("portfolio blocking problem groups use active red dependency problems by portfolio", () => {
