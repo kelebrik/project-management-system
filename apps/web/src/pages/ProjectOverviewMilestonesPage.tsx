@@ -233,15 +233,13 @@ export function ProjectOverviewMilestonesPage() {
                   }}
                 >
                   <span className="portfolio-goal-item-index">{index + 1}</span>
-                  <span>
+                  <span className="portfolio-goal-inline">
                     <b>{item.goalTitle}</b>
                     <small className="portfolio-goal-meta">
-                      {item.baselineDueDate && (
-                        <span>
-                          базовый план {formatDate(item.baselineDueDate)}
-                        </span>
-                      )}
-                      <span>прогноз {formatDate(item.dueDate)}</span>
+                      <span>
+                        базовый план {formatDate(item.baselineDueDate)}
+                      </span>
+                      <span>актуальный прогноз {formatDate(item.dueDate)}</span>
                       {item.delayDays !== null && item.delayDays > 0 && (
                         <span className="portfolio-goal-delay">
                           отставание +{item.delayDays} дн.
