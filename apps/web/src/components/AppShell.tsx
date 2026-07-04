@@ -2,6 +2,7 @@ import type { FocusEventHandler, KeyboardEventHandler, ReactNode } from "react";
 import {
   Archive,
   BarChart3,
+  BookOpen,
   BriefcaseBusiness,
   CalendarDays,
   ChevronLeft,
@@ -34,6 +35,7 @@ import {
   type AppView,
   type ProjectSectionView,
 } from "../app/routes";
+import { wikiGroups } from "../app/wikiContent";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
 import { PageContextProvider, type PageContextValue } from "../pages/PageContext";
 import { AppTopbar } from "./AppTopbar";
@@ -318,6 +320,7 @@ export function AppShell({
   const navLabel = (icon: ReactNode, label: string) => (
     <NavLabel icon={icon} label={label} sidebarCollapsed={sidebarCollapsed} />
   );
+  const shouldShowWikiToc = activeView === "wiki" && !sidebarCollapsed;
 
   return (
     <div
@@ -444,6 +447,37 @@ export function AppShell({
                 />
               )}
             </>
+          )}
+          <button
+            type="button"
+            className={activeView === "wiki" ? "active" : ""}
+            onClick={() => openView("wiki")}
+            aria-label="FAQ"
+          >
+            {navLabel(<BookOpen size={17} />, "FAQ")}
+          </button>
+          {shouldShowWikiToc && (
+            <div className="sidebar-group wiki-sidebar-group">
+              <div className="wiki-sidebar-title">Оглавление</div>
+              <div className="wiki-sidebar-menu">
+                {wikiGroups.map((group) => (
+                  <section key={group.id}>
+                    <a className="wiki-sidebar-link" href={`#${group.id}`}>
+                      {group.title}
+                    </a>
+                    {group.articles.map((article) => (
+                      <a
+                        className="wiki-sidebar-link article"
+                        href={`#${article.id}`}
+                        key={article.id}
+                      >
+                        {article.title}
+                      </a>
+                    ))}
+                  </section>
+                ))}
+              </div>
+            </div>
           )}
         </nav>
       </aside>
