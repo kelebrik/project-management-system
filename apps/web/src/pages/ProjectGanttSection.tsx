@@ -120,45 +120,50 @@ export function ProjectGanttSection() {
                               >
                                 Сегодня
                               </button>
-                              <button
-                                type="button"
-                                className={showGanttDependencies ? "active" : ""}
-                                onClick={toggleGanttDependencies}
-                              >
-                                Связи
-                              </button>
-                              <button
-                                type="button"
-                                className={showGanttCriticalPath ? "active" : ""}
-                                onClick={toggleGanttCriticalPath}
-                                title="Показать задачи и связи с нулевым резервом"
-                              >
-                                Критический путь
-                              </button>
-                              <button
-                                type="button"
-                                className={showGanttBaseline ? "active" : ""}
-                                onClick={() =>
-                                  setShowGanttBaseline((current) => !current)
-                                }
-                              >
-                                Базовый план
-                              </button>
-                              <button
-                                type="button"
-                                className={showGanttForecast ? "active" : ""}
-                                onClick={() =>
-                                  setShowGanttForecast((current) => !current)
-                                }
-                              >
-                                Прогноз
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void resetGanttPanelSize()}
-                              >
-                                Сбросить размер
-                              </button>
+                              <details className="view-settings-menu">
+                                <summary>Настройки вида</summary>
+                                <div className="view-settings-popover">
+                                  <button
+                                    type="button"
+                                    className={showGanttDependencies ? "active" : ""}
+                                    onClick={toggleGanttDependencies}
+                                  >
+                                    Связи
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={showGanttCriticalPath ? "active" : ""}
+                                    onClick={toggleGanttCriticalPath}
+                                    title="Показать задачи и связи с нулевым резервом"
+                                  >
+                                    Критический путь
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={showGanttBaseline ? "active" : ""}
+                                    onClick={() =>
+                                      setShowGanttBaseline((current) => !current)
+                                    }
+                                  >
+                                    Базовый план
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={showGanttForecast ? "active" : ""}
+                                    onClick={() =>
+                                      setShowGanttForecast((current) => !current)
+                                    }
+                                  >
+                                    Прогноз
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void resetGanttPanelSize()}
+                                  >
+                                    Сбросить размер
+                                  </button>
+                                </div>
+                              </details>
                               <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Гантта">
                                 {GANTT_HIERARCHY_LEVELS.map((level) => (
                                   <button

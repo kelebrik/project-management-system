@@ -65,6 +65,7 @@ export function ProjectStructureSection() {
     GANTT_HIERARCHY_LEVELS,
     handleWbsPaste,
     isWbsCellDirty,
+    isReadOnly,
     orderedWbsColumns,
     project,
     printSectionAsPdf,
@@ -285,44 +286,57 @@ export function ProjectStructureSection() {
                                 ? "Обычный режим"
                                 : "На весь экран"}
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => void undoWbsChange()}
-                              onMouseDown={(event) => event.preventDefault()}
-                              disabled={
-                                restoringWbsSnapshot || wbsUndoStack.length === 0
-                              }
-                              aria-label="Откатить последнее изменение Структуры"
-                              title="Назад"
-                            >
-                              ← Назад
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void redoWbsChange()}
-                              onMouseDown={(event) => event.preventDefault()}
-                              disabled={
-                                restoringWbsSnapshot || wbsRedoStack.length === 0
-                              }
-                              aria-label="Вернуть отмененное изменение Структуры"
-                              title="Вперед"
-                            >
-                              Вперед →
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void saveDirtyWbsItems()}
-                              disabled={savingWbsBulk || dirtyWbsItemIds.size === 0}
-                            >
-                              {savingWbsBulk ? "Сохраняю..." : "Сохранить изменения"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void saveWbsBaseline()}
-                              disabled={savingBaseline || project.wbsItems.length === 0}
-                            >
-                              Зафиксировать базовый план
-                            </button>
+                            {!isReadOnly && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void undoWbsChange()}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  disabled={
+                                    restoringWbsSnapshot ||
+                                    wbsUndoStack.length === 0
+                                  }
+                                  aria-label="Откатить последнее изменение Структуры"
+                                  title="Назад"
+                                >
+                                  ← Назад
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void redoWbsChange()}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  disabled={
+                                    restoringWbsSnapshot ||
+                                    wbsRedoStack.length === 0
+                                  }
+                                  aria-label="Вернуть отмененное изменение Структуры"
+                                  title="Вперед"
+                                >
+                                  Вперед →
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void saveDirtyWbsItems()}
+                                  disabled={
+                                    savingWbsBulk || dirtyWbsItemIds.size === 0
+                                  }
+                                >
+                                  {savingWbsBulk
+                                    ? "Сохраняю..."
+                                    : "Сохранить изменения"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void saveWbsBaseline()}
+                                  disabled={
+                                    savingBaseline ||
+                                    project.wbsItems.length === 0
+                                  }
+                                >
+                                  Зафиксировать базовый план
+                                </button>
+                              </>
+                            )}
                             <button
                               type="button"
                               className={showStructureCriticalPath ? "active" : ""}
