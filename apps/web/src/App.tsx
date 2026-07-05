@@ -749,6 +749,7 @@ function AppController() {
       deleteWbsItem,
       draftWbsCodes,
       insertWbsRow,
+      isReadOnly,
       orderedWbsColumns,
       saveWbsDraftPatch,
       saveWbsTypePatch,

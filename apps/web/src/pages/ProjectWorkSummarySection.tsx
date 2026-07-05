@@ -44,6 +44,7 @@ type WorkSummaryPaneKey = "current" | "nextWeek";
 export function ProjectWorkSummarySection() {
   const {
     date,
+    isReadOnly,
     project,
     saveWbsDraftPatch,
     saveWbsItem,
@@ -161,44 +162,66 @@ export function ProjectWorkSummarySection() {
               >
                 {item.code}
               </button>
-              <input
-                value={draft.title}
-                onChange={(event) =>
-                  updateWbsDraft(item.id, { title: event.target.value })
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.currentTarget.blur();
-                  }
-                }}
-                onBlur={() => saveTaskTitle(item.id)}
-              />
-              <select
-                value={draft.status}
-                onChange={(event) =>
-                  saveTaskStatus(item.id, event.target.value as WbsItemStatus)
-                }
-              >
-                {WBS_STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {wbsStatusLabel(status)}
-                  </option>
-                ))}
-              </select>
-              {showStart && (
+              {isReadOnly ? (
+                <span className="work-summary-readonly">{draft.title}</span>
+              ) : (
                 <input
-                  type="date"
-                  value={draft.startDate}
+                  value={draft.title}
                   onChange={(event) =>
-                    saveTaskStart(item.id, event.target.value)
+                    updateWbsDraft(item.id, { title: event.target.value })
                   }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                  onBlur={() => saveTaskTitle(item.id)}
                 />
               )}
-              <input
-                type="date"
-                value={draft.dueDate}
-                onChange={(event) => saveTaskDue(item.id, event.target.value)}
-              />
+              {isReadOnly ? (
+                <span className="work-summary-readonly">
+                  {wbsStatusLabel(draft.status)}
+                </span>
+              ) : (
+                <select
+                  value={draft.status}
+                  onChange={(event) =>
+                    saveTaskStatus(item.id, event.target.value as WbsItemStatus)
+                  }
+                >
+                  {WBS_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {wbsStatusLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {showStart && (
+                isReadOnly ? (
+                  <span className="work-summary-readonly">
+                    {date(draft.startDate)}
+                  </span>
+                ) : (
+                  <input
+                    type="date"
+                    value={draft.startDate}
+                    onChange={(event) =>
+                      saveTaskStart(item.id, event.target.value)
+                    }
+                  />
+                )
+              )}
+              {isReadOnly ? (
+                <span className="work-summary-readonly">
+                  {date(draft.dueDate)}
+                </span>
+              ) : (
+                <input
+                  type="date"
+                  value={draft.dueDate}
+                  onChange={(event) => saveTaskDue(item.id, event.target.value)}
+                />
+              )}
             </div>
           );
         })}

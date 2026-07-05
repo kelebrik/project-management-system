@@ -317,14 +317,21 @@ export function AppShell({
   toggleSidebar,
   viewTitle,
 }: AppShellProps) {
+  const isWorkspaceWideMode =
+    activeView === "project-structure" || activeView === "project-gantt";
+  const effectiveSidebarCollapsed = sidebarCollapsed || isWorkspaceWideMode;
   const navLabel = (icon: ReactNode, label: string) => (
-    <NavLabel icon={icon} label={label} sidebarCollapsed={sidebarCollapsed} />
+    <NavLabel
+      icon={icon}
+      label={label}
+      sidebarCollapsed={effectiveSidebarCollapsed}
+    />
   );
   const shouldShowWikiToc = activeView === "wiki" && !sidebarCollapsed;
 
   return (
     <div
-      className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${isReadOnly ? "read-only-mode" : ""}`}
+      className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${isWorkspaceWideMode ? "workspace-wide-mode" : ""} ${isReadOnly ? "read-only-mode" : ""}`}
       onFocusCapture={handleEditableFocus}
       onKeyDownCapture={handleEditableKeyDown}
     >

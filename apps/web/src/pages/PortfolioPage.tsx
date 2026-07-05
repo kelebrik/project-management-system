@@ -107,6 +107,24 @@ export function PortfolioPage() {
           </div>
           {timelineRows.length > 0 ? (
             <div className="portfolio-goal-timeline">
+              <div className="portfolio-goal-axis portfolio-goal-axis-shared">
+                <span className="portfolio-goal-axis-line" />
+                <span
+                  className="portfolio-goal-today"
+                  style={{ left: `${portfolioGoalTimeline.todayOffset}%` }}
+                >
+                  сегодня
+                </span>
+                {portfolioGoalTimeline.monthTicks.map((tick) => (
+                  <span
+                    className="portfolio-goal-month-tick"
+                    key={tick.key}
+                    style={{ left: `${tick.offset}%` }}
+                  >
+                    {tick.label}
+                  </span>
+                ))}
+              </div>
               <div className="portfolio-project-timelines">
                 {timelineRows.map((row) => (
                   <section
@@ -134,20 +152,9 @@ export function PortfolioPage() {
                     >
                       <span className="portfolio-goal-axis-line" />
                       <span
-                        className="portfolio-goal-today"
+                        className="portfolio-goal-today-line"
                         style={{ left: `${portfolioGoalTimeline.todayOffset}%` }}
-                      >
-                        сегодня
-                      </span>
-                      {portfolioGoalTimeline.monthTicks.map((tick) => (
-                        <span
-                          className="portfolio-goal-month-tick"
-                          key={tick.key}
-                          style={{ left: `${tick.offset}%` }}
-                        >
-                          {tick.label}
-                        </span>
-                      ))}
+                      />
                       {row.items.map((item, index) => (
                         <span
                           className={`portfolio-goal-dot status-${item.status.toLowerCase()}`}
