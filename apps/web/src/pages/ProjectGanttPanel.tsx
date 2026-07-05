@@ -108,7 +108,7 @@ export function ProjectGanttPanel() {
                             {wbsGantt.items.map(
                               ({ item, critical, milestone, toneClass }) => (
                                 <div
-                                  className={`gantt-label ${critical ? "critical" : ""} ${
+                                  className={`gantt-label gantt-label-${item.type.toLowerCase().replaceAll("_", "-")} ${critical ? "critical" : ""} ${
                                     activeWbsItemId === item.id ? "active" : ""
                                   } ${
                                     activeGanttLinkIds.predecessors.has(item.id)
