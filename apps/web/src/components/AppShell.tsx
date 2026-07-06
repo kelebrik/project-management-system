@@ -71,6 +71,7 @@ type AppShellProps = {
   isAdminUser: boolean;
   isAuthenticated: boolean;
   isClosedProject: boolean;
+  isDevelopmentSectionView: boolean;
   isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   isProjectSectionView: boolean;
   isProjectView: boolean;
@@ -137,12 +138,6 @@ const projectNavItems: ProjectNavItem[] = [
     view: "project-business-requirements",
     label: "Бизнес требования",
     icon: <FileSpreadsheet size={17} />,
-  },
-  {
-    key: "structure",
-    view: "project-pm-workspace",
-    label: "Рабочий стол PM",
-    icon: <LayoutDashboard size={17} />,
   },
   {
     key: "structure",
@@ -291,6 +286,7 @@ export function AppShell({
   isAdminUser,
   isAuthenticated,
   isClosedProject,
+  isDevelopmentSectionView,
   isProjectModuleEnabled,
   isProjectSectionView,
   isProjectView,
@@ -370,14 +366,6 @@ export function AppShell({
           >
             {navLabel(<BriefcaseBusiness size={17} />, "Портфель")}
           </button>
-          <button
-            type="button"
-            className={activeView === "portfolio-v2" ? "active" : ""}
-            onClick={() => openView("portfolio-v2")}
-            aria-label="Портфель_v2"
-          >
-            {navLabel(<BarChart3 size={17} />, "Портфель_v2")}
-          </button>
           <ProjectSidebarMenu
             activeView={activeView}
             isProjectModuleEnabled={isProjectModuleEnabled}
@@ -446,7 +434,7 @@ export function AppShell({
             <>
               <button
                 type="button"
-                className={isResourceSectionView ? "active" : ""}
+                className={isDevelopmentSectionView ? "active" : ""}
                 onClick={() => openView("resources")}
                 aria-label="Разработка"
               >
@@ -458,6 +446,20 @@ export function AppShell({
                   isResourceSectionView={isResourceSectionView}
                   navLabel={navLabel}
                   onOpenView={openView}
+                  projectPicker={
+                    <ProjectPicker
+                      filteredProjects={filteredProjectOptions}
+                      isOpen={showProjectPicker}
+                      onOpenChange={setShowProjectPicker}
+                      onProjectSearchChange={setProjectSearch}
+                      onProjectSelect={selectProject}
+                      projectSearch={projectSearch}
+                      recentProjects={recentProjects}
+                      selectedProject={selectedProjectListItem}
+                      selectedProjectId={selectedProjectId}
+                      targetView="project-pm-workspace"
+                    />
+                  }
                 />
               )}
             </>

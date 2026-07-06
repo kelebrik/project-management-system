@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Settings2, Users } from "lucide-react";
+import { BarChart3, LayoutDashboard, Settings2, Users } from "lucide-react";
 
 import type { AppView } from "../app/routes";
 
@@ -17,11 +17,25 @@ const resourceNavItems: ResourceNavItem[] = [
   },
 ];
 
+const developmentNavItems: ResourceNavItem[] = [
+  {
+    view: "portfolio-v2",
+    label: "Портфель_v2",
+    icon: <BarChart3 size={17} />,
+  },
+  {
+    view: "project-pm-workspace",
+    label: "Рабочий стол PM",
+    icon: <LayoutDashboard size={17} />,
+  },
+];
+
 type ResourceSidebarMenuProps = {
   activeView: AppView;
   isResourceSectionView: boolean;
   navLabel: (icon: ReactNode, label: string) => ReactNode;
   onOpenView: (view: AppView) => void;
+  projectPicker?: ReactNode;
 };
 
 export function ResourceSidebarMenu({
@@ -29,10 +43,25 @@ export function ResourceSidebarMenu({
   isResourceSectionView,
   navLabel,
   onOpenView,
+  projectPicker,
 }: ResourceSidebarMenuProps) {
   return (
     <div className="sidebar-group">
       <div className="project-menu">
+        {developmentNavItems.map((item) => (
+          <button
+            type="button"
+            key={item.view}
+            className={
+              activeView === item.view ? "active nested child" : "nested child"
+            }
+            onClick={() => onOpenView(item.view)}
+            aria-label={item.label}
+          >
+            {navLabel(item.icon, item.label)}
+          </button>
+        ))}
+        {activeView === "project-pm-workspace" && projectPicker}
         <button
           type="button"
           className={isResourceSectionView ? "active nested child" : "nested child"}

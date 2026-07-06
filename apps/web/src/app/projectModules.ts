@@ -117,7 +117,6 @@ export const projectModuleKeyByView: Record<
   "project-schedule": "overview",
   "project-passport": "passport",
   "project-business-requirements": "businessRequirements",
-  "project-pm-workspace": "structure",
   "project-structure": "structure",
   "project-gantt": "gantt",
   "project-jira-work": "jiraWork",

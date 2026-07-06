@@ -9,7 +9,6 @@ import {
   isAdminSectionViewName,
   isDevelopmentSectionViewName,
   isProjectSectionViewName,
-  isResourceSectionViewName,
   normalizeAppPath,
   normalizeProjectRouteCode,
   writeProtectedViews,
@@ -144,7 +143,7 @@ export function useAppRouting({
       setActiveView(nextView);
       const routeProjectCode =
         options?.projectCode ??
-        (isResourceSectionViewName(nextView)
+        (isDevelopmentSectionViewName(nextView)
           ? null
           : selectedProjectListItem?.code ?? project?.code ?? null);
       const nextPath = appPathForView(nextView, routeProjectCode);

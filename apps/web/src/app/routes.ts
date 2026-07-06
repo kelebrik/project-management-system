@@ -43,7 +43,6 @@ export type ProjectSectionView = Extract<
   | "project-schedule"
   | "project-passport"
   | "project-business-requirements"
-  | "project-pm-workspace"
   | "project-structure"
   | "project-gantt"
   | "project-jira-work"
@@ -80,7 +79,12 @@ export type ResourceSectionView = Extract<
   | "resources-capacity"
 >;
 
-export type DevelopmentSectionView = ResourceSectionView;
+export type DevelopmentSectionView = Extract<
+  AppView,
+  | "portfolio-v2"
+  | "project-pm-workspace"
+  | ResourceSectionView
+>;
 
 export type FullscreenWorkspaceView = Extract<
   AppView,
@@ -106,6 +110,8 @@ export const adminSectionViews: AdminSectionView[] = [
 ];
 
 export const developmentSectionViews: DevelopmentSectionView[] = [
+  "portfolio-v2",
+  "project-pm-workspace",
   "resources",
   "resources-capacity",
 ];
@@ -121,7 +127,6 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-schedule": "schedule",
   "project-passport": "passport",
   "project-business-requirements": "business-requirements",
-  "project-pm-workspace": "pm-workspace",
   "project-structure": "wbs",
   "project-gantt": "gantt",
   "project-jira-work": "jira-work",
@@ -135,7 +140,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
-  "portfolio-v2": "/portfolio-v2",
+  "portfolio-v2": "/development/portfolio-v2",
   projects: "/projects",
   wiki: "/faq",
   resources: "/development/resources",
@@ -145,7 +150,7 @@ export const appViewPaths: Record<AppView, string> = {
   "project-schedule": "/schedule",
   "project-passport": "/passport",
   "project-business-requirements": "/business-requirements",
-  "project-pm-workspace": "/pm-workspace",
+  "project-pm-workspace": "/development/pm-workspace",
   "project-structure": "/wbs",
   "project-gantt": "/gantt",
   "project-jira-work": "/jira-work",
@@ -173,7 +178,7 @@ export const appViewPaths: Record<AppView, string> = {
   "admin-audit": "/admin/audit",
 };
 
-export const projectPathViews: Record<string, ProjectSectionView> = {
+export const projectPathViews: Record<string, ProjectSectionView | DevelopmentSectionView> = {
   overview: "project-overview",
   schedule: "project-schedule",
   milestones: "project-schedule",
@@ -216,6 +221,9 @@ export const appPathViews: Record<string, AppView> = {
   "/resources/capacity": "resources-capacity",
   "/resources/settings": "resources-capacity",
   "/development": "resources",
+  "/development/portfolio-v2": "portfolio-v2",
+  "/development/pm-workspace": "project-pm-workspace",
+  "/development/workspace": "project-pm-workspace",
   "/development/resources": "resources",
   "/development/resources/overview": "resources",
   "/development/resources/workload": "resources",
