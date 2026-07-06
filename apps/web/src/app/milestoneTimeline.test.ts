@@ -194,6 +194,46 @@ test("phase milestone timeline hides phases completed more than three weeks ago"
   );
 });
 
+test("project milestone timelines exclude cancelled milestones", () => {
+  const activeMilestone = milestone("m1", "2026-06-20", {
+    parentId: "phase-1",
+    sortOrder: 1,
+  });
+  const cancelledMilestone = milestone("m2", "2026-06-21", {
+    parentId: "phase-1",
+    status: "CANCELLED",
+    sortOrder: 2,
+  });
+  const wbsItems = [
+    phase("phase-1", 1),
+    activeMilestone,
+    cancelledMilestone,
+  ];
+  const structureMilestones = createStructureMilestones(wbsItems);
+  const timeline = createMilestoneTimeline(
+    wbsItems,
+    structureMilestones,
+    new Date(2026, 5, 1),
+  );
+
+  assert.deepEqual(
+    structureMilestones.map((entry) => entry.milestone.id),
+    [activeMilestone.id],
+  );
+  assert.deepEqual(
+    timeline.byPhase.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [activeMilestone.id],
+  );
+  assert.deepEqual(
+    timeline.all.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [activeMilestone.id],
+  );
+});
+
 test("phase milestone timeline keeps old overdue phases visible", () => {
   const overduePhase = phase("phase-1", 1);
   const overdueMilestone = milestone("m1", "2026-06-01", {
