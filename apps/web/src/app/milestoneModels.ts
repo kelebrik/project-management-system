@@ -21,7 +21,9 @@ const DAY_MS = 86_400_000;
 
 export function createStructureMilestones(wbsItems: WbsItem[]) {
   return wbsItems
-    .filter(isTimelineCheckpoint)
+    .filter(
+      (item) => isTimelineCheckpoint(item) && item.status !== "CANCELLED",
+    )
     .map((milestone) => {
       const calendarDaysLeft = signedDaysUntil(milestone.dueDate);
       const workDaysLeft = signedWorkingDaysUntil(milestone.dueDate);
