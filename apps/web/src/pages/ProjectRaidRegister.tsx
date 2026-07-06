@@ -7,6 +7,7 @@ export function ProjectRaidRegister() {
     addRaidStatusUpdate,
     closeRaidItem,
     closedRaidItems,
+    convertRiskToAssumption,
     convertRiskToProblem,
     date,
     deleteRaidItem,
@@ -460,13 +461,22 @@ export function ProjectRaidRegister() {
                                       Сохранить запись
                                     </button>
                                     {item.type === "RISK" && (
-                                      <button
-                                        type="button"
-                                        className="secondary-button"
-                                        onClick={() => convertRiskToProblem(item.id)}
-                                      >
-                                        В проблему
-                                      </button>
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="secondary-button"
+                                          onClick={() => convertRiskToProblem(item.id)}
+                                        >
+                                          В проблему
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="secondary-button"
+                                          onClick={() => convertRiskToAssumption(item.id)}
+                                        >
+                                          В допущение
+                                        </button>
+                                      </>
                                     )}
                                     {(item.type === "RISK" ||
                                       item.type === "DEPENDENCY") &&

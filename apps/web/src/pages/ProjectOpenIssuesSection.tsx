@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from "react";
 import {
+  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -18,6 +19,7 @@ export function ProjectOpenIssuesSection() {
     addIssueStatusUpdate,
     calendarDelayDays,
     closeOpenIssue,
+    convertIssueToProblem,
     date,
     expandedIssueId,
     isReadOnly,
@@ -428,6 +430,17 @@ export function ProjectOpenIssuesSection() {
                                             >
                                               <Save size={16} />
                                               Сохранить вопрос
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="icon-text-button"
+                                              onClick={() =>
+                                                convertIssueToProblem(issue.id)
+                                              }
+                                              disabled={isReadOnly}
+                                            >
+                                              <AlertTriangle size={16} />
+                                              В проблему
                                             </button>
                                             <button
                                               type="button"

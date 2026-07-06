@@ -344,6 +344,35 @@ export function useIssueController({
     [issueEditDrafts, saveOpenIssueWithPayload, setIssueEditDrafts],
   );
 
+  const convertIssueToProblem = useCallback(
+    async (issueId: string) => {
+      if (!window.confirm("Перевести открытый вопрос в проблему?")) return;
+      setError(null);
+      setNotice(null);
+      try {
+        const response = await authenticatedFetch(
+          `${apiBase}/api/open-issues/${issueId}/convert-to-problem`,
+          { method: "POST" },
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(
+            responseErrorMessage(result, "Не удалось перевести вопрос в проблему"),
+          );
+        }
+        await refreshProject();
+        setNotice("Открытый вопрос переведен в проблему");
+      } catch (convertError) {
+        setError(
+          convertError instanceof Error
+            ? convertError.message
+            : "Не удалось перевести вопрос в проблему",
+        );
+      }
+    },
+    [refreshProject, setError, setNotice],
+  );
+
   const addIssueStatusUpdate = useCallback(
     async (issueId: string) => {
       const draft =
@@ -403,6 +432,7 @@ export function useIssueController({
     updateIssueStatusDraft,
     saveOpenIssue,
     closeOpenIssue,
+    convertIssueToProblem,
     addIssueStatusUpdate,
     saveOpenIssueWithPayload,
   };
