@@ -1,5 +1,6 @@
 export type AppView =
   | "portfolio"
+  | "portfolio-v2"
   | "projects"
   | "wiki"
   | "resources"
@@ -9,6 +10,7 @@ export type AppView =
   | "project-schedule"
   | "project-passport"
   | "project-business-requirements"
+  | "project-pm-workspace"
   | "project-structure"
   | "project-gantt"
   | "project-jira-work"
@@ -41,6 +43,7 @@ export type ProjectSectionView = Extract<
   | "project-schedule"
   | "project-passport"
   | "project-business-requirements"
+  | "project-pm-workspace"
   | "project-structure"
   | "project-gantt"
   | "project-jira-work"
@@ -118,6 +121,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-schedule": "schedule",
   "project-passport": "passport",
   "project-business-requirements": "business-requirements",
+  "project-pm-workspace": "pm-workspace",
   "project-structure": "wbs",
   "project-gantt": "gantt",
   "project-jira-work": "jira-work",
@@ -131,6 +135,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
+  "portfolio-v2": "/portfolio-v2",
   projects: "/projects",
   wiki: "/faq",
   resources: "/development/resources",
@@ -140,6 +145,7 @@ export const appViewPaths: Record<AppView, string> = {
   "project-schedule": "/schedule",
   "project-passport": "/passport",
   "project-business-requirements": "/business-requirements",
+  "project-pm-workspace": "/pm-workspace",
   "project-structure": "/wbs",
   "project-gantt": "/gantt",
   "project-jira-work": "/jira-work",
@@ -174,6 +180,8 @@ export const projectPathViews: Record<string, ProjectSectionView> = {
   passport: "project-passport",
   "business-requirements": "project-business-requirements",
   requirements: "project-business-requirements",
+  "pm-workspace": "project-pm-workspace",
+  workspace: "project-pm-workspace",
   wbs: "project-structure",
   structure: "project-structure",
   gantt: "project-gantt",
@@ -193,6 +201,7 @@ export const projectPathViews: Record<string, ProjectSectionView> = {
 export const appPathViews: Record<string, AppView> = {
   "/": "portfolio",
   "/portfolio": "portfolio",
+  "/portfolio-v2": "portfolio-v2",
   "/projects": "projects",
   "/faq": "wiki",
   "/wiki": "wiki",
@@ -225,6 +234,8 @@ export const appPathViews: Record<string, AppView> = {
   "/passport": "project-passport",
   "/business-requirements": "project-business-requirements",
   "/requirements": "project-business-requirements",
+  "/pm-workspace": "project-pm-workspace",
+  "/workspace": "project-pm-workspace",
   "/wbs": "project-structure",
   "/structure": "project-structure",
   "/gantt": "project-gantt",

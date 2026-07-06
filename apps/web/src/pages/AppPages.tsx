@@ -10,6 +10,7 @@ import { AdminRolesPageContent } from "./AdminRolesPageContent";
 import { AdminUsersPageContent } from "./AdminUsersPageContent";
 import { ClosedProjectsPage } from "./ClosedProjectsPage";
 import { PortfolioPage } from "./PortfolioPage";
+import { PortfolioV2Page } from "./PortfolioV2Page";
 import { ProjectsPage } from "./ProjectsPage";
 import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
 import { ProjectBusinessRequirementsPage } from "./ProjectBusinessRequirementsPage";
@@ -20,6 +21,7 @@ import { ProjectJiraWorkPage } from "./ProjectJiraWorkPage";
 import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
 import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
 import { ProjectPassportPage } from "./ProjectPassportPage";
+import { ProjectPmWorkspacePage } from "./ProjectPmWorkspacePage";
 import { ProjectRaidPage } from "./ProjectRaidPage";
 import { ProjectBudgetPage, ProjectChangesPage } from "./ProjectSupportPages";
 import { ProjectWorkspacePage } from "./ProjectWorkspacePage";
@@ -34,13 +36,14 @@ export function AppPages() {
   const { activeView, isAdminSectionView, isAdminUser, isResourceSectionView, project } =
     usePageContext();
 
-  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isResourceSectionView))) {
+  if (!(project || activeView === "portfolio" || activeView === "portfolio-v2" || activeView === "projects" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isResourceSectionView))) {
     return null;
   }
 
   return (
     <>
       {activeView === "portfolio" && <PortfolioPage />}
+      {activeView === "portfolio-v2" && <PortfolioV2Page />}
       {activeView === "projects" && <ProjectsPage />}
       {activeView === "wiki" && <WikiPage />}
       {project && activeView === "project-overview" && <ProjectOverviewSummaryPage />}
@@ -69,6 +72,7 @@ export function AppPages() {
         {project && activeView === "project-business-requirements" && <ProjectBusinessRequirementsPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
+        {project && activeView === "project-pm-workspace" && <ProjectPmWorkspacePage />}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
         {project && activeView === "project-jira-work" && <ProjectJiraWorkPage />}
