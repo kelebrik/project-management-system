@@ -31,19 +31,21 @@ import {
 } from "./ResourcePages";
 import { usePageContext } from "./PageContext";
 import { WikiPage } from "./WikiPage";
+import { isDevelopmentSectionViewName } from "../app/routes";
 
 export function AppPages() {
-  const { activeView, isAdminSectionView, isAdminUser, isResourceSectionView, project } =
+  const { activeView, isAdminSectionView, isAdminUser, project } =
     usePageContext();
+  const isDevelopmentSectionView = isDevelopmentSectionViewName(activeView);
 
-  if (!(project || activeView === "portfolio" || activeView === "portfolio-v2" || activeView === "projects" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isResourceSectionView))) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isDevelopmentSectionView))) {
     return null;
   }
 
   return (
     <>
       {activeView === "portfolio" && <PortfolioPage />}
-      {activeView === "portfolio-v2" && <PortfolioV2Page />}
+      {isAdminUser && activeView === "portfolio-v2" && <PortfolioV2Page />}
       {activeView === "projects" && <ProjectsPage />}
       {activeView === "wiki" && <WikiPage />}
       {project && activeView === "project-overview" && <ProjectOverviewSummaryPage />}
@@ -72,7 +74,7 @@ export function AppPages() {
         {project && activeView === "project-business-requirements" && <ProjectBusinessRequirementsPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
-        {project && activeView === "project-pm-workspace" && <ProjectPmWorkspacePage />}
+        {isAdminUser && project && activeView === "project-pm-workspace" && <ProjectPmWorkspacePage />}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
         {project && activeView === "project-jira-work" && <ProjectJiraWorkPage />}

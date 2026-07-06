@@ -43,6 +43,7 @@ import {
 } from "../app/projectTargetModel";
 import type { AppView } from "../app/routes";
 import {
+  isDevelopmentSectionViewName,
   isAdminSectionViewName,
   isProjectSectionViewName,
   isResourceSectionViewName,
@@ -216,9 +217,15 @@ export function AppPresentation({
   const activeView = context.activeView as AppView;
   const isProjectSectionView = isProjectSectionViewName(activeView);
   const isResourceSectionView = isResourceSectionViewName(activeView);
+  const isDevelopmentSectionView = isDevelopmentSectionViewName(activeView);
   const isProjectView =
-    activeView === "project-create" || isProjectSectionView;
-  const shouldShowClosedProjectBanner = Boolean(isProjectSectionView && isClosedProject);
+    activeView === "project-create" ||
+    activeView === "project-pm-workspace" ||
+    isProjectSectionView;
+  const shouldShowClosedProjectBanner = Boolean(
+    (isProjectSectionView || activeView === "project-pm-workspace") &&
+      isClosedProject,
+  );
   const isAdminSectionView = isAdminSectionViewName(activeView);
   const shouldShowProjectMenu = Boolean(
     activeView === "projects" ||
@@ -226,7 +233,9 @@ export function AppPresentation({
       (selectedProjectListItem && isProjectSectionView),
   );
   const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
-  const shouldShowDevelopmentMenu = Boolean(isAdminUser && isResourceSectionView);
+  const shouldShowDevelopmentMenu = Boolean(
+    isAdminUser && isDevelopmentSectionView,
+  );
   const viewTitle = createViewTitle(project);
   const renderGlobalSearch = (className = "") => (
     <GlobalSearch
@@ -307,6 +316,7 @@ export function AppPresentation({
     ganttRoundedDependencyPath,
     isAdminSectionView,
     isAdminUser,
+    isDevelopmentSectionView,
     isDefaultWorkingDay,
     isResourceSectionView,
     issuePrimaryJiraLink,
@@ -349,6 +359,7 @@ export function AppPresentation({
       isAdminUser={isAdminUser}
       isAuthenticated={isAuthenticated}
       isClosedProject={shouldShowClosedProjectBanner}
+      isDevelopmentSectionView={isDevelopmentSectionView}
       isProjectModuleEnabled={isProjectModuleEnabled}
       isProjectSectionView={isProjectSectionView}
       isProjectView={isProjectView}
