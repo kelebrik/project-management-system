@@ -140,6 +140,12 @@ const projectNavItems: ProjectNavItem[] = [
   },
   {
     key: "structure",
+    view: "project-pm-workspace",
+    label: "Рабочий стол PM",
+    icon: <LayoutDashboard size={17} />,
+  },
+  {
+    key: "structure",
     view: "project-structure",
     label: "Структура",
     icon: <ListChecks size={17} />,
@@ -363,6 +369,14 @@ export function AppShell({
             aria-label="Портфель"
           >
             {navLabel(<BriefcaseBusiness size={17} />, "Портфель")}
+          </button>
+          <button
+            type="button"
+            className={activeView === "portfolio-v2" ? "active" : ""}
+            onClick={() => openView("portfolio-v2")}
+            aria-label="Портфель_v2"
+          >
+            {navLabel(<BarChart3 size={17} />, "Портфель_v2")}
           </button>
           <ProjectSidebarMenu
             activeView={activeView}

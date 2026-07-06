@@ -124,6 +124,7 @@ type AppPresentationProps = {
 function createViewTitle(project: any): Record<AppView, string> {
   return {
     portfolio: "Портфель",
+    "portfolio-v2": "Портфель_v2",
     projects: "Проекты",
     wiki: "FAQ",
     resources: "Управление ресурсами",
@@ -133,6 +134,7 @@ function createViewTitle(project: any): Record<AppView, string> {
     "project-schedule": project?.name ?? "График проекта",
     "project-passport": project?.name ?? "Паспорт проекта",
     "project-business-requirements": project?.name ?? "Бизнес требования",
+    "project-pm-workspace": project?.name ?? "Рабочий стол PM",
     "project-structure": project?.name ?? "Структура",
     "project-gantt": project?.name ?? "Гантт",
     "project-jira-work": project?.name ?? "Работы в Jira",
