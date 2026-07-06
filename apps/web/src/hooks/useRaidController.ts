@@ -187,6 +187,19 @@ export function useRaidController({
     [patchRaidItem],
   );
 
+  const convertRiskToAssumption = useCallback(
+    async (itemId: string) => {
+      if (!window.confirm("Перевести риск в допущение?")) return;
+      await patchRaidItem(
+        itemId,
+        { type: "ASSUMPTION", linkedRiskId: null },
+        "Риск переведен в допущение",
+        "Не удалось перевести риск в допущение",
+      );
+    },
+    [patchRaidItem],
+  );
+
   const closeRaidItem = useCallback(
     async (itemId: string) => {
       if (!window.confirm("Закрыть запись без удаления?")) return;
@@ -279,6 +292,7 @@ export function useRaidController({
     createRaidItem,
     saveRaidItem,
     convertRiskToProblem,
+    convertRiskToAssumption,
     closeRaidItem,
     addRaidStatusUpdate,
     deleteRaidItem,

@@ -35,6 +35,13 @@ function isClosedIssueStatus(status: string | undefined) {
   return status === 'Done' || status === 'Closed' || status === 'Resolved';
 }
 
+function issueSeverityToRaidImpact(severity: string) {
+  if (severity === 'CRITICAL') return 5;
+  if (severity === 'HIGH') return 4;
+  if (severity === 'MEDIUM') return 3;
+  return 2;
+}
+
 const issueInclude = {
   jiraLinks: { orderBy: { createdAt: 'asc' as const } },
   statusUpdates: { orderBy: [{ statusAt: 'desc' as const }, { createdAt: 'desc' as const }] },
@@ -306,6 +313,94 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     payload: { before: issue, after: updated },
   }).catch(() => undefined);
   res.json(updated);
+});
+
+router.post('/open-issues/:issueId/convert-to-problem', async (req, res) => {
+  const issue = await prisma.issue.findUnique({
+    where: { id: req.params.issueId },
+    include: issueInclude,
+  });
+
+  if (!issue) {
+    res.status(404).json({ error: 'Открытый вопрос не найден' });
+    return;
+  }
+
+  if (isClosedIssueStatus(issue.status)) {
+    res.status(409).json({ error: 'Закрытый вопрос нельзя перевести в проблему' });
+    return;
+  }
+
+  const primaryJiraLink = issue.jiraTicketKey || issue.jiraTicketUrl
+    ? { jiraKey: issue.jiraTicketKey, jiraUrl: issue.jiraTicketUrl }
+    : issue.jiraLinks[0];
+  const impact = issueSeverityToRaidImpact(issue.severity);
+  const probability = 5;
+  const convertedAt = new Date();
+  const description = issue.impact.trim()
+    ? issue.impact.trim()
+    : `Проблема создана из открытого вопроса: ${issue.title}`;
+
+  const { raidItem, updatedIssue } = await prisma.$transaction(async (tx) => {
+    const createdRaidItem = await tx.raidItem.create({
+      data: {
+        projectId: issue.projectId,
+        type: 'DEPENDENCY',
+        title: issue.title,
+        description,
+        owner: issue.owner || 'Не назначен',
+        status: 'OPEN',
+        probability,
+        impact,
+        riskScore: probability * impact,
+        mitigationPlan: null,
+        contingencyPlan: null,
+        dueDate: issue.dueDate,
+        residualRisk: 0,
+        validationDate: null,
+        linkedRiskId: null,
+        dependencyType: 'Открытый вопрос',
+        predecessor: null,
+        successor: null,
+        supplier: null,
+        jiraTicketKey: primaryJiraLink?.jiraKey ?? null,
+        jiraTicketUrl: primaryJiraLink?.jiraUrl ?? null,
+        decisionRequired: issue.decisionRequired,
+        escalationLevel: 'Проект',
+        scheduleImpactDays: 0,
+        budgetImpact: 0,
+        statusUpdates: {
+          create: {
+            statusAt: convertedAt,
+            text: `Создано из открытого вопроса: ${issue.title}`,
+          },
+        },
+      },
+      include: {
+        statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
+      },
+    });
+
+    const closedIssue = await tx.issue.update({
+      where: { id: issue.id },
+      data: {
+        status: 'Resolved',
+        decisionRequired: false,
+        closedDelayDays: calendarDelayDays(issue.initialDueDate, issue.dueDate),
+      },
+      include: issueInclude,
+    });
+
+    return { raidItem: createdRaidItem, updatedIssue: closedIssue };
+  });
+
+  await emitWebhookEvent({
+    eventType: 'issue.converted_to_problem',
+    projectId: issue.projectId,
+    payload: { before: issue, issue: updatedIssue, raidItem },
+  }).catch(() => undefined);
+
+  res.status(201).json({ issue: updatedIssue, raidItem });
 });
 
 router.post('/open-issues/:issueId/status-updates', async (req, res) => {
