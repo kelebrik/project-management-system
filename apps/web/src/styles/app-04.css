@@ -201,21 +201,6 @@
   gap: 12px;
 }
 
-.portfolio-project-timeline-scale-row {
-  align-items: center;
-  display: grid;
-  gap: 10px 14px;
-  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
-}
-
-.portfolio-project-timeline-scale-label {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 900;
-  padding-left: 12px;
-  text-transform: uppercase;
-}
-
 .portfolio-project-timeline-row {
   background: #f8fafc;
   border: 1px solid #dbe4ef;
@@ -313,10 +298,6 @@
   position: relative;
 }
 
-.portfolio-goal-axis-shared {
-  min-width: 0;
-}
-
 .portfolio-goal-axis-line {
   background: #cbd5e1;
   border-radius: 999px;
@@ -358,6 +339,44 @@
 .portfolio-goal-month-tick.minor::before {
   height: 9px;
   top: -15px;
+}
+
+.portfolio-goal-track-month-tick {
+  background: rgba(148, 163, 184, 0.48);
+  bottom: 6px;
+  pointer-events: none;
+  position: absolute;
+  top: 8px;
+  transform: translateX(-50%);
+  width: 1px;
+  z-index: 1;
+}
+
+.portfolio-goal-track-month-tick.major {
+  background: rgba(100, 116, 139, 0.62);
+}
+
+.portfolio-goal-track-month-tick.major::after {
+  color: #64748b;
+  content: attr(data-label);
+  font-size: 10px;
+  font-weight: 800;
+  left: 50%;
+  line-height: 1;
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -2px);
+  white-space: nowrap;
+}
+
+.portfolio-goal-track-month-tick.major.edge-start::after {
+  left: 0;
+  transform: translate(4px, -2px);
+}
+
+.portfolio-goal-track-month-tick.major.edge-end::after {
+  left: 0;
+  transform: translate(calc(-100% - 4px), -2px);
 }
 
 .portfolio-goal-dot {
