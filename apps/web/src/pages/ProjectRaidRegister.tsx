@@ -191,6 +191,21 @@ export function ProjectRaidRegister() {
                               <div className="raid-details">
                                 {(() => {
                                   const latestStatus = latestRaidStatusUpdate(item);
+                                  const statusHistory = [...(item.statusUpdates ?? [])]
+                                    .filter(
+                                      (statusUpdate) =>
+                                        statusUpdate.id !== latestStatus?.id,
+                                    )
+                                    .sort((left, right) => {
+                                      const statusDelta =
+                                        new Date(right.statusAt).getTime() -
+                                        new Date(left.statusAt).getTime();
+                                      if (statusDelta !== 0) return statusDelta;
+                                      return (
+                                        new Date(right.createdAt).getTime() -
+                                        new Date(left.createdAt).getTime()
+                                      );
+                                    });
                                   return (
                                     <section className="raid-status-panel">
                                       <div className="subhead">Статус</div>
@@ -204,17 +219,19 @@ export function ProjectRaidRegister() {
                                           Статус пока не добавлен.
                                         </p>
                                       )}
-                                      <div className="raid-status-history">
-                                        {item.statusUpdates.map((statusUpdate) => (
-                                          <div
-                                            className="raid-status-history-row"
-                                            key={statusUpdate.id}
-                                          >
-                                            <span>{date(statusUpdate.statusAt)}</span>
-                                            <p>{statusUpdate.text}</p>
-                                          </div>
-                                        ))}
-                                      </div>
+                                      {statusHistory.length > 0 && (
+                                        <div className="raid-status-history">
+                                          {statusHistory.map((statusUpdate) => (
+                                            <div
+                                              className="raid-status-history-row"
+                                              key={statusUpdate.id}
+                                            >
+                                              <span>{date(statusUpdate.statusAt)}</span>
+                                              <p>{statusUpdate.text}</p>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                       <div className="raid-status-add">
                                         <input
                                           type="date"
@@ -392,43 +409,6 @@ export function ProjectRaidRegister() {
                                         validationDate: event.target.value,
                                       })
                                     }
-                                  />
-                                  <input
-                                    value={raidDrafts[item.id].predecessor}
-                                    onChange={(event) =>
-                                      updateRaidDraft(item.id, {
-                                        predecessor: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Предшественник"
-                                  />
-                                  <input
-                                    value={raidDrafts[item.id].successor}
-                                    onChange={(event) =>
-                                      updateRaidDraft(item.id, {
-                                        successor: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Последователь"
-                                  />
-                                  <input
-                                    value={raidDrafts[item.id].supplier}
-                                    onChange={(event) =>
-                                      updateRaidDraft(item.id, {
-                                        supplier: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Поставщик"
-                                  />
-                                  <input
-                                    type="number"
-                                    value={raidDrafts[item.id].scheduleImpactDays}
-                                    onChange={(event) =>
-                                      updateRaidDraft(item.id, {
-                                        scheduleImpactDays: event.target.value,
-                                      })
-                                    }
-                                    placeholder="Дни по срокам"
                                   />
                                     <label className="checkbox-line compact-checkbox">
                                     <input

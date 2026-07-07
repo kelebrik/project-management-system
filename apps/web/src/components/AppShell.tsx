@@ -2,6 +2,7 @@ import type { FocusEventHandler, KeyboardEventHandler, ReactNode } from "react";
 import {
   Archive,
   BarChart3,
+  BookOpen,
   BriefcaseBusiness,
   CalendarDays,
   ChevronLeft,
@@ -34,6 +35,7 @@ import {
   type AppView,
   type ProjectSectionView,
 } from "../app/routes";
+import { wikiGroups } from "../app/wikiContent";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
 import { PageContextProvider, type PageContextValue } from "../pages/PageContext";
 import { AppTopbar } from "./AppTopbar";
@@ -69,6 +71,7 @@ type AppShellProps = {
   isAdminUser: boolean;
   isAuthenticated: boolean;
   isClosedProject: boolean;
+  isDevelopmentSectionView: boolean;
   isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   isProjectSectionView: boolean;
   isProjectView: boolean;
@@ -245,11 +248,6 @@ const adminNavItems: AdminNavItem[] = [
     icon: <GitBranch size={17} />,
   },
   {
-    view: "admin-jira",
-    label: "Jira",
-    icon: <BriefcaseBusiness size={17} />,
-  },
-  {
     view: "admin-integrations",
     label: "Интеграции и API",
     icon: <GitBranch size={17} />,
@@ -270,11 +268,6 @@ const adminNavItems: AdminNavItem[] = [
     icon: <Import size={17} />,
   },
   {
-    view: "admin-import",
-    label: "Импорт",
-    icon: <FileSpreadsheet size={17} />,
-  },
-  {
     view: "admin-audit",
     label: "Журнал аудита",
     icon: <FileText size={17} />,
@@ -293,6 +286,7 @@ export function AppShell({
   isAdminUser,
   isAuthenticated,
   isClosedProject,
+  isDevelopmentSectionView,
   isProjectModuleEnabled,
   isProjectSectionView,
   isProjectView,
@@ -328,6 +322,7 @@ export function AppShell({
   const navLabel = (icon: ReactNode, label: string) => (
     <NavLabel icon={icon} label={label} sidebarCollapsed={sidebarCollapsed} />
   );
+  const shouldShowWikiToc = activeView === "wiki" && !sidebarCollapsed;
 
   return (
     <div
@@ -439,7 +434,7 @@ export function AppShell({
             <>
               <button
                 type="button"
-                className={isResourceSectionView ? "active" : ""}
+                className={isDevelopmentSectionView ? "active" : ""}
                 onClick={() => openView("resources")}
                 aria-label="Разработка"
               >
@@ -451,9 +446,54 @@ export function AppShell({
                   isResourceSectionView={isResourceSectionView}
                   navLabel={navLabel}
                   onOpenView={openView}
+                  projectPicker={
+                    <ProjectPicker
+                      filteredProjects={filteredProjectOptions}
+                      isOpen={showProjectPicker}
+                      onOpenChange={setShowProjectPicker}
+                      onProjectSearchChange={setProjectSearch}
+                      onProjectSelect={selectProject}
+                      projectSearch={projectSearch}
+                      recentProjects={recentProjects}
+                      selectedProject={selectedProjectListItem}
+                      selectedProjectId={selectedProjectId}
+                      targetView="project-pm-workspace"
+                    />
+                  }
                 />
               )}
             </>
+          )}
+          <button
+            type="button"
+            className={activeView === "wiki" ? "active" : ""}
+            onClick={() => openView("wiki")}
+            aria-label="FAQ"
+          >
+            {navLabel(<BookOpen size={17} />, "FAQ")}
+          </button>
+          {shouldShowWikiToc && (
+            <div className="sidebar-group wiki-sidebar-group">
+              <div className="wiki-sidebar-title">Оглавление</div>
+              <div className="wiki-sidebar-menu">
+                {wikiGroups.map((group) => (
+                  <section key={group.id}>
+                    <a className="wiki-sidebar-link" href={`#${group.id}`}>
+                      {group.title}
+                    </a>
+                    {group.articles.map((article) => (
+                      <a
+                        className="wiki-sidebar-link article"
+                        href={`#${article.id}`}
+                        key={article.id}
+                      >
+                        {article.title}
+                      </a>
+                    ))}
+                  </section>
+                ))}
+              </div>
+            </div>
           )}
         </nav>
       </aside>

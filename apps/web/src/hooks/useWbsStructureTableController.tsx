@@ -65,6 +65,7 @@ type UseWbsStructureTableControllerOptions = {
     afterIndex: number,
     sourceRows?: WbsTreeItem[],
   ) => Promise<void>;
+  isReadOnly: boolean;
   orderedWbsColumns: WbsTableColumn[];
   saveWbsDraftPatch: SaveWbsDraftPatch;
   saveWbsTypePatch: SaveWbsTypePatch;
@@ -126,12 +127,24 @@ function normalizeWbsPasteValue(
   return trimmedValue;
 }
 
+function emptyReadonlyValue(value: string | number | null | undefined) {
+  return value === null || value === undefined || value === ""
+    ? "—"
+    : String(value);
+}
+
+function formatReadonlyPercent(value: string | number | null | undefined) {
+  const normalizedValue = emptyReadonlyValue(value);
+  return normalizedValue === "—" ? normalizedValue : `${normalizedValue}%`;
+}
+
 export function useWbsStructureTableController({
   activeWbsItemId,
   collapsedWbsIds,
   deleteWbsItem,
   draftWbsCodes,
   insertWbsRow,
+  isReadOnly,
   orderedWbsColumns,
   saveWbsDraftPatch,
   saveWbsTypePatch,
@@ -206,6 +219,7 @@ export function useWbsStructureTableController({
   };
 
   const handleWbsPaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    if (isReadOnly) return;
     const clipboardText = event.clipboardData.getData("text/plain");
     if (!activeWbsItemId || !clipboardText || !/[\t\n\r]/.test(clipboardText)) {
       return;
@@ -253,6 +267,110 @@ export function useWbsStructureTableController({
     item: WbsTreeItem,
     draft: WbsFormState,
   ) => {
+    if (isReadOnly) {
+      if (columnKey === "structure") {
+        return (
+          <div
+            className="wbs-work-cell read-only-cell"
+            style={{
+              paddingLeft: `${wbsDraftDisplayLevel(item, draft) * 18 + 8}px`,
+            }}
+          >
+            {item.children.length > 0 ? (
+              <button
+                type="button"
+                className="tree-toggle"
+                onClick={() => toggleWbsCollapse(item.id)}
+                aria-label={
+                  collapsedWbsIds.has(item.id)
+                    ? "Раскрыть элемент Структуры"
+                    : "Схлопнуть элемент Структуры"
+                }
+              >
+                {collapsedWbsIds.has(item.id) ? "+" : "-"}
+              </button>
+            ) : (
+              <span className="tree-spacer" />
+            )}
+            <span
+              className={`wbs-color-dot ${
+                item.type === "MILESTONE" || item.type === "GOAL"
+                  ? "tone-o"
+                  : wbsToneClass(item)
+              }`}
+            />
+            <span className="wbs-code-readonly">
+              {draftWbsCodes.get(item.id) ?? draft.code}
+            </span>
+            <span className="wbs-title-readonly">
+              {emptyReadonlyValue(draft.title)}
+            </span>
+          </div>
+        );
+      }
+
+      let value: string;
+      switch (columnKey) {
+        case "level":
+          value = emptyReadonlyValue(draft.wbsLevel);
+          break;
+        case "type":
+          value = wbsTypeLabel(draft.type);
+          break;
+        case "status":
+          value = wbsStatusLabel(draft.status);
+          break;
+        case "owner":
+          value = emptyReadonlyValue(draft.owner);
+          break;
+        case "start":
+          value = emptyReadonlyValue(draft.startDate);
+          break;
+        case "due":
+          value = emptyReadonlyValue(draft.dueDate);
+          break;
+        case "workDays":
+          value = emptyReadonlyValue(draft.workDays);
+          break;
+        case "calendarDays":
+          value = emptyReadonlyValue(draft.calendarDays);
+          break;
+        case "calendar":
+          value = emptyReadonlyValue(draft.calendarCode);
+          break;
+        case "effortPercent":
+          value = formatReadonlyPercent(draft.effortPercent);
+          break;
+        case "progress":
+          value = formatReadonlyPercent(draft.progress);
+          break;
+        case "jiraTicketUrl":
+          value = emptyReadonlyValue(draft.jiraTicketUrl);
+          break;
+        case "predecessor1":
+        case "predecessor2":
+        case "predecessor3":
+        case "predecessor4":
+        case "predecessor5":
+        case "predecessor6":
+          value = emptyReadonlyValue(
+            resolveDraftPredecessorCode(
+              draft[columnKey],
+              wbsTree,
+              wbsDrafts,
+              draftWbsCodes,
+            ),
+          );
+          break;
+        case "leadLag":
+          value = emptyReadonlyValue(draft.leadLagDays);
+          break;
+        default:
+          value = "—";
+      }
+      return <span className="wbs-readonly-value">{value}</span>;
+    }
+
     switch (columnKey) {
       case "structure":
         return (

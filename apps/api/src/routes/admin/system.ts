@@ -2,7 +2,6 @@ import type { UserRole } from '@prisma/client';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../../db.js';
-import { isJiraConfigured } from '../../jira.js';
 import {
   defaultDictionaryItems,
   defaultSystemSettings,
@@ -164,7 +163,6 @@ export async function adminSystemHealth(startedAt: Date) {
     ok: database === 'ok',
     database,
     databaseLatencyMs,
-    jiraConfigured: isJiraConfigured(),
     uptimeSeconds: Math.round(process.uptime()),
     startedAt: startedAt.toISOString(),
     nodeEnv: process.env.NODE_ENV ?? 'development',

@@ -423,6 +423,19 @@
   cursor: grabbing;
 }
 
+.draggable-milestone-label.is-dragging {
+  background: #dc2626;
+  border-color: #b91c1c;
+  box-shadow: 0 12px 26px rgba(220, 38, 38, 0.28);
+  cursor: grabbing;
+}
+
+.draggable-milestone-label.is-dragging .milestone-date,
+.draggable-milestone-label.is-dragging .milestone-label,
+.draggable-milestone-label.is-dragging .milestone-label-grip {
+  color: #ffffff;
+}
+
 .milestone-label-grip {
   color: #94a3b8;
   font-size: 13px;

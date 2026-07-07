@@ -77,27 +77,20 @@ export function AppTopbar({
       </div>
       <div className="topbar-search">{search}</div>
       {showProjectBadges && (
-        <div className="topbar-project">
-          <div className="topbar-project-row">
-            <span>Статус: {projectStatusLabel(project.status)}</span>
-            <span>РП: {project.projectManager}</span>
-            <span>Изначальная цель: {date(initialTargetDate)}</span>
-          </div>
+        <div className="topbar-project topbar-project-compact">
+          <span>Статус: {projectStatusLabel(project.status)}</span>
+          <span>РП: {project.projectManager}</span>
+          <span>Цель: {date(initialTargetDate)}</span>
           {hasCurrentTargetChange && (
-            <div className="topbar-project-row">
-              <span>
-                Актуальная цель: {date(currentTargetDate)} (
-                {signedDaysLabel(targetChangeDays)})
-              </span>
-            </div>
-          )}
-          <div className="topbar-project-row">
-            <b className={`rag ${delayTone}`}>{delayLabel}</b>
             <span>
-              Прогноз по цели "{activeGoalTitle}":{" "}
-              {date(projectTargetSummary?.forecastFinishDate ?? null)}
+              Актуальная: {date(currentTargetDate)} (
+              {signedDaysLabel(targetChangeDays)})
             </span>
-          </div>
+          )}
+          <b className={`rag ${delayTone}`}>{delayLabel}</b>
+          <span>
+            Прогноз "{activeGoalTitle}": {date(projectTargetSummary?.forecastFinishDate ?? null)}
+          </span>
         </div>
       )}
     </header>

@@ -1,6 +1,8 @@
 export type AppView =
   | "portfolio"
+  | "portfolio-v2"
   | "projects"
+  | "wiki"
   | "resources"
   | "resources-capacity"
   | "project-create"
@@ -8,6 +10,7 @@ export type AppView =
   | "project-schedule"
   | "project-passport"
   | "project-business-requirements"
+  | "project-pm-workspace"
   | "project-structure"
   | "project-gantt"
   | "project-jira-work"
@@ -25,12 +28,10 @@ export type AppView =
   | "admin-templates"
   | "admin-rag"
   | "admin-workflows"
-  | "admin-jira"
   | "admin-integrations"
   | "admin-health"
   | "admin-backups"
   | "admin-config"
-  | "admin-import"
   | "admin-projects"
   | "admin-modules"
   | "admin-project-access"
@@ -62,12 +63,10 @@ export type AdminSectionView = Extract<
   | "admin-templates"
   | "admin-rag"
   | "admin-workflows"
-  | "admin-jira"
   | "admin-integrations"
   | "admin-health"
   | "admin-backups"
   | "admin-config"
-  | "admin-import"
   | "admin-projects"
   | "admin-modules"
   | "admin-project-access"
@@ -80,7 +79,12 @@ export type ResourceSectionView = Extract<
   | "resources-capacity"
 >;
 
-export type DevelopmentSectionView = ResourceSectionView;
+export type DevelopmentSectionView = Extract<
+  AppView,
+  | "portfolio-v2"
+  | "project-pm-workspace"
+  | ResourceSectionView
+>;
 
 export type FullscreenWorkspaceView = Extract<
   AppView,
@@ -95,12 +99,10 @@ export const adminSectionViews: AdminSectionView[] = [
   "admin-templates",
   "admin-rag",
   "admin-workflows",
-  "admin-jira",
   "admin-integrations",
   "admin-health",
   "admin-backups",
   "admin-config",
-  "admin-import",
   "admin-projects",
   "admin-modules",
   "admin-project-access",
@@ -108,6 +110,8 @@ export const adminSectionViews: AdminSectionView[] = [
 ];
 
 export const developmentSectionViews: DevelopmentSectionView[] = [
+  "portfolio-v2",
+  "project-pm-workspace",
   "resources",
   "resources-capacity",
 ];
@@ -136,7 +140,9 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
+  "portfolio-v2": "/development/portfolio-v2",
   projects: "/projects",
+  wiki: "/faq",
   resources: "/development/resources",
   "resources-capacity": "/development/resources/capacity",
   "project-create": "/new-project",
@@ -144,6 +150,7 @@ export const appViewPaths: Record<AppView, string> = {
   "project-schedule": "/schedule",
   "project-passport": "/passport",
   "project-business-requirements": "/business-requirements",
+  "project-pm-workspace": "/development/pm-workspace",
   "project-structure": "/wbs",
   "project-gantt": "/gantt",
   "project-jira-work": "/jira-work",
@@ -161,25 +168,25 @@ export const appViewPaths: Record<AppView, string> = {
   "admin-templates": "/admin/templates",
   "admin-rag": "/admin/rag",
   "admin-workflows": "/admin/workflows",
-  "admin-jira": "/admin/jira",
   "admin-integrations": "/admin/integrations",
   "admin-health": "/admin/health",
   "admin-backups": "/admin/backups",
   "admin-config": "/admin/config",
-  "admin-import": "/admin/import",
   "admin-projects": "/admin/projects",
   "admin-modules": "/admin/modules",
   "admin-project-access": "/admin/project-access",
   "admin-audit": "/admin/audit",
 };
 
-export const projectPathViews: Record<string, ProjectSectionView> = {
+export const projectPathViews: Record<string, ProjectSectionView | DevelopmentSectionView> = {
   overview: "project-overview",
   schedule: "project-schedule",
   milestones: "project-schedule",
   passport: "project-passport",
   "business-requirements": "project-business-requirements",
   requirements: "project-business-requirements",
+  "pm-workspace": "project-pm-workspace",
+  workspace: "project-pm-workspace",
   wbs: "project-structure",
   structure: "project-structure",
   gantt: "project-gantt",
@@ -199,7 +206,10 @@ export const projectPathViews: Record<string, ProjectSectionView> = {
 export const appPathViews: Record<string, AppView> = {
   "/": "portfolio",
   "/portfolio": "portfolio",
+  "/portfolio-v2": "portfolio-v2",
   "/projects": "projects",
+  "/faq": "wiki",
+  "/wiki": "wiki",
   "/resources": "resources",
   "/resources/overview": "resources",
   "/resources/workload": "resources",
@@ -211,6 +221,9 @@ export const appPathViews: Record<string, AppView> = {
   "/resources/capacity": "resources-capacity",
   "/resources/settings": "resources-capacity",
   "/development": "resources",
+  "/development/portfolio-v2": "portfolio-v2",
+  "/development/pm-workspace": "project-pm-workspace",
+  "/development/workspace": "project-pm-workspace",
   "/development/resources": "resources",
   "/development/resources/overview": "resources",
   "/development/resources/workload": "resources",
@@ -229,6 +242,8 @@ export const appPathViews: Record<string, AppView> = {
   "/passport": "project-passport",
   "/business-requirements": "project-business-requirements",
   "/requirements": "project-business-requirements",
+  "/pm-workspace": "project-pm-workspace",
+  "/workspace": "project-pm-workspace",
   "/wbs": "project-structure",
   "/structure": "project-structure",
   "/gantt": "project-gantt",
@@ -252,12 +267,10 @@ export const appPathViews: Record<string, AppView> = {
   "/admin/templates": "admin-templates",
   "/admin/rag": "admin-rag",
   "/admin/workflows": "admin-workflows",
-  "/admin/jira": "admin-jira",
   "/admin/integrations": "admin-integrations",
   "/admin/health": "admin-health",
   "/admin/backups": "admin-backups",
   "/admin/config": "admin-config",
-  "/admin/import": "admin-import",
   "/admin/projects": "admin-projects",
   "/admin/modules": "admin-modules",
   "/admin/project-access": "admin-project-access",

@@ -26,6 +26,11 @@ type UseMilestoneLabelLayoutStateOptions = {
   setError: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
+export type ActiveMilestoneLabelDrag = {
+  scope: MilestoneLabelScope;
+  milestoneId: string;
+} | null;
+
 export function useMilestoneLabelLayoutState({
   project,
   projectRef,
@@ -37,6 +42,8 @@ export function useMilestoneLabelLayoutState({
 }: UseMilestoneLabelLayoutStateOptions) {
   const [milestoneLabelOffsets, setMilestoneLabelOffsets] =
     useState<MilestoneLabelOffsets>({});
+  const [activeMilestoneLabelDrag, setActiveMilestoneLabelDrag] =
+    useState<ActiveMilestoneLabelDrag>(null);
   const milestoneLabelOffsetsRef = useRef<MilestoneLabelOffsets>({});
   const milestoneLabelLayoutSaveSequenceRef = useRef(0);
   const milestoneLabelDragRef = useRef<{
@@ -178,6 +185,7 @@ export function useMilestoneLabelLayoutState({
         }
       }
       document.body.classList.add("milestone-label-dragging");
+      setActiveMilestoneLabelDrag({ scope, milestoneId });
       milestoneLabelDragRef.current = {
         scope,
         milestoneId,
@@ -222,6 +230,9 @@ export function useMilestoneLabelLayoutState({
   const stopMilestoneLabelDrag = useCallback(() => {
     const drag = milestoneLabelDragRef.current;
     milestoneLabelDragRef.current = null;
+    if (drag) {
+      setActiveMilestoneLabelDrag(null);
+    }
     document.body.classList.remove("milestone-label-dragging");
     if (drag?.hasMoved) {
       void persistMilestoneLabelLayout(milestoneLabelOffsetsRef.current);
@@ -240,6 +251,7 @@ export function useMilestoneLabelLayoutState({
   }, [handleMilestoneLabelPointerMove, stopMilestoneLabelDrag]);
 
   return {
+    activeMilestoneLabelDrag,
     milestoneLabelOffsets,
     startMilestoneLabelDrag,
   };

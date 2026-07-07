@@ -43,6 +43,7 @@ import {
 } from "../app/projectTargetModel";
 import type { AppView } from "../app/routes";
 import {
+  isDevelopmentSectionViewName,
   isAdminSectionViewName,
   isProjectSectionViewName,
   isResourceSectionViewName,
@@ -124,7 +125,9 @@ type AppPresentationProps = {
 function createViewTitle(project: any): Record<AppView, string> {
   return {
     portfolio: "Портфель",
+    "portfolio-v2": "Портфель_v2",
     projects: "Проекты",
+    wiki: "FAQ",
     resources: "Управление ресурсами",
     "resources-capacity": "Управление ресурсами",
     "project-create": "Создать новый проект",
@@ -132,6 +135,7 @@ function createViewTitle(project: any): Record<AppView, string> {
     "project-schedule": project?.name ?? "График проекта",
     "project-passport": project?.name ?? "Паспорт проекта",
     "project-business-requirements": project?.name ?? "Бизнес требования",
+    "project-pm-workspace": project?.name ?? "Рабочий стол PM",
     "project-structure": project?.name ?? "Структура",
     "project-gantt": project?.name ?? "Гантт",
     "project-jira-work": project?.name ?? "Работы в Jira",
@@ -149,12 +153,10 @@ function createViewTitle(project: any): Record<AppView, string> {
     "admin-templates": "Администрирование: шаблоны Структуры",
     "admin-rag": "Администрирование: формулы RAG",
     "admin-workflows": "Администрирование: workflow",
-    "admin-jira": "Администрирование: Jira",
     "admin-integrations": "Администрирование: интеграции и API",
     "admin-health": "Администрирование: system health",
     "admin-backups": "Администрирование: backup/restore",
     "admin-config": "Администрирование: import/export",
-    "admin-import": "Администрирование: импорт",
     "admin-projects": "Администрирование: реестр проектов",
     "admin-modules": "Администрирование: управление модулями",
     "admin-project-access": "Администрирование: доступ к проектам",
@@ -215,9 +217,15 @@ export function AppPresentation({
   const activeView = context.activeView as AppView;
   const isProjectSectionView = isProjectSectionViewName(activeView);
   const isResourceSectionView = isResourceSectionViewName(activeView);
+  const isDevelopmentSectionView = isDevelopmentSectionViewName(activeView);
   const isProjectView =
-    activeView === "project-create" || isProjectSectionView;
-  const shouldShowClosedProjectBanner = Boolean(isProjectSectionView && isClosedProject);
+    activeView === "project-create" ||
+    activeView === "project-pm-workspace" ||
+    isProjectSectionView;
+  const shouldShowClosedProjectBanner = Boolean(
+    (isProjectSectionView || activeView === "project-pm-workspace") &&
+      isClosedProject,
+  );
   const isAdminSectionView = isAdminSectionViewName(activeView);
   const shouldShowProjectMenu = Boolean(
     activeView === "projects" ||
@@ -225,7 +233,9 @@ export function AppPresentation({
       (selectedProjectListItem && isProjectSectionView),
   );
   const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
-  const shouldShowDevelopmentMenu = Boolean(isAdminUser && isResourceSectionView);
+  const shouldShowDevelopmentMenu = Boolean(
+    isAdminUser && isDevelopmentSectionView,
+  );
   const viewTitle = createViewTitle(project);
   const renderGlobalSearch = (className = "") => (
     <GlobalSearch
@@ -306,6 +316,7 @@ export function AppPresentation({
     ganttRoundedDependencyPath,
     isAdminSectionView,
     isAdminUser,
+    isDevelopmentSectionView,
     isDefaultWorkingDay,
     isResourceSectionView,
     issuePrimaryJiraLink,
@@ -348,6 +359,7 @@ export function AppPresentation({
       isAdminUser={isAdminUser}
       isAuthenticated={isAuthenticated}
       isClosedProject={shouldShowClosedProjectBanner}
+      isDevelopmentSectionView={isDevelopmentSectionView}
       isProjectModuleEnabled={isProjectModuleEnabled}
       isProjectSectionView={isProjectSectionView}
       isProjectView={isProjectView}

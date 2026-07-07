@@ -1,0 +1,242 @@
+.main-readonly-banner {
+  display: none;
+}
+
+.project-topbar {
+  align-items: center;
+}
+
+.topbar-project-compact {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: min(620px, 45vw);
+}
+
+.topbar-project-compact span,
+.topbar-project-compact b {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-search label {
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+}
+
+.global-search kbd {
+  background: #f1f5f9;
+  border: 1px solid #d8e0eb;
+  border-radius: 5px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+
+.global-search-results,
+.global-search-results section {
+  display: grid;
+  gap: 4px;
+}
+
+.search-result-group {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 4px 8px 0;
+  text-transform: uppercase;
+}
+
+.global-search-popover button.active,
+.global-search-popover button:focus-visible {
+  background: #eff6ff;
+  outline: none;
+}
+
+.view-settings-menu {
+  position: relative;
+}
+
+.view-settings-menu summary {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  list-style: none;
+  padding: 7px 10px;
+}
+
+.view-settings-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.view-settings-menu[open] summary {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.view-settings-popover {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+}
+
+.view-settings-popover button {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.portfolio-project-timeline-row {
+  gap: 8px 14px;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  padding: 10px 12px;
+}
+
+.portfolio-project-timeline-track {
+  height: 56px;
+  padding-top: 20px;
+}
+
+.portfolio-project-timeline-track .portfolio-goal-axis-line {
+  top: 32px;
+}
+
+.portfolio-project-timeline-track .portfolio-goal-dot {
+  top: 22px;
+}
+
+.portfolio-goal-today-line {
+  background: rgba(220, 38, 38, 0.55);
+  bottom: 8px;
+  position: absolute;
+  top: 22px;
+  transform: translateX(-50%);
+  width: 2px;
+  z-index: 2;
+}
+
+.portfolio-goal-row-empty {
+  min-height: 32px;
+}
+
+.portfolio-goal-item {
+  min-height: 32px;
+  padding-bottom: 4px;
+  padding-top: 4px;
+}
+
+.portfolio-goal-item-index {
+  height: 22px;
+  width: 22px;
+}
+
+.wbs-work-cell.read-only-cell {
+  gap: 8px;
+}
+
+.wbs-code-readonly {
+  color: #1d4ed8;
+  font-weight: 900;
+  min-width: 36px;
+}
+
+.wbs-title-readonly,
+.wbs-readonly-value,
+.work-summary-readonly {
+  color: #1f2937;
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wbs-readonly-value,
+.work-summary-readonly {
+  padding: 7px 8px;
+}
+
+.read-only-mode .wbs-table-row input,
+.read-only-mode .wbs-table-row select,
+.read-only-mode .work-summary-row input,
+.read-only-mode .work-summary-row select {
+  display: none;
+}
+
+.wiki-article {
+  gap: 0;
+  padding: 0;
+}
+
+.wiki-article-head {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px;
+}
+
+.wiki-article-head::-webkit-details-marker {
+  display: none;
+}
+
+.wiki-article-head::after {
+  color: #64748b;
+  content: "Развернуть";
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.wiki-article[open] .wiki-article-head::after {
+  content: "Свернуть";
+}
+
+.wiki-article-sections {
+  border-top: 1px solid #e5edf6;
+  padding: 12px 14px 14px;
+}
+
+.wiki-sidebar-link.active-anchor {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.wiki-article mark,
+.wiki-group-title mark {
+  background: #fef3c7;
+  border-radius: 3px;
+  color: inherit;
+  padding: 0 2px;
+}
+
+@media (max-width: 1040px) {
+  .main-readonly-banner {
+    display: flex;
+    margin-bottom: 14px;
+  }
+
+  .topbar-project-compact {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+}

@@ -46,11 +46,16 @@ GET/HEAD/OPTIONS доступны без авторизации в режиме 
 
 ### Jira
 
-Настройки Jira можно задавать через Admin Back Office или переменные окружения:
+Доступ backend к Jira задается только переменными окружения контейнера:
 
 - `JIRA_BASE_URL`;
 - `JIRA_EMAIL`;
-- `JIRA_API_TOKEN`.
+- `JIRA_API_TOKEN`;
+- `JIRA_MAX_RESULTS` optional, default `100`, maximum `500`.
+
+Backend ходит в Jira от сервисного аккаунта из этих переменных.
+Пользовательский Keycloak/OIDC токен для Jira REST API не используется.
+В Admin Back Office Jira credentials не хранятся и не редактируются.
 
 На уровне проекта хранится:
 

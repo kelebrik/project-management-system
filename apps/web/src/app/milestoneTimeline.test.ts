@@ -3,21 +3,25 @@ import test from "node:test";
 
 import type { WbsItem } from "./domainTypes";
 import {
+  createMilestoneTimeline,
+  createStructureMilestones,
+} from "./milestoneModels";
+import {
   createMilestoneTimelineModel,
   mapSnakeTimelineOffset,
 } from "./milestoneTimeline";
 
-function milestone(id: string, dueDate: string): WbsItem {
+function wbsItem(overrides: Partial<WbsItem> & Pick<WbsItem, "id" | "type">): WbsItem {
   return {
-    id,
+    id: overrides.id,
     parentId: null,
-    code: id,
-    title: `Milestone ${id}`,
-    type: "MILESTONE",
+    code: overrides.id,
+    title: `Item ${overrides.id}`,
+    type: overrides.type,
     status: "NOT_STARTED",
     owner: "",
     startDate: null,
-    dueDate,
+    dueDate: null,
     baselineStartDate: null,
     baselineDueDate: null,
     forecastStartDate: null,
@@ -47,8 +51,28 @@ function milestone(id: string, dueDate: string): WbsItem {
     jiraTicketUrl: null,
     description: null,
     closedAt: null,
-    sortOrder: Number(id),
+    sortOrder: Number(overrides.id.replace(/\D/g, "")) || 0,
+    ...overrides,
   };
+}
+
+function milestone(id: string, dueDate: string, overrides: Partial<WbsItem> = {}): WbsItem {
+  return wbsItem({
+    id,
+    type: "MILESTONE",
+    dueDate,
+    ...overrides,
+  });
+}
+
+function phase(id: string, sortOrder: number): WbsItem {
+  return wbsItem({
+    id,
+    code: String(sortOrder),
+    title: `Phase ${sortOrder}`,
+    type: "PHASE",
+    sortOrder,
+  });
 }
 
 test("milestone count timeline places today after the completed share of milestones", () => {
@@ -130,4 +154,103 @@ test("phase milestone timeline hides lanes without visible milestones", () => {
     model.lanes.map((lane) => lane.id),
     ["phase-2"],
   );
+});
+
+test("phase milestone timeline hides phases completed more than three weeks ago", () => {
+  const stalePhase = phase("phase-1", 1);
+  const activePhase = phase("phase-2", 2);
+  const staleMilestone = milestone("m1", "2026-06-01", {
+    parentId: stalePhase.id,
+    status: "DONE",
+    sortOrder: 1,
+  });
+  const activeMilestone = milestone("m2", "2026-06-20", {
+    parentId: activePhase.id,
+    status: "DONE",
+    sortOrder: 2,
+  });
+  const wbsItems = [
+    stalePhase,
+    staleMilestone,
+    activePhase,
+    activeMilestone,
+  ];
+  const timeline = createMilestoneTimeline(
+    wbsItems,
+    createStructureMilestones(wbsItems),
+    new Date(2026, 6, 4),
+  );
+
+  assert.deepEqual(
+    timeline.byPhase.lanes.map((lane) => lane.id),
+    [activePhase.id],
+  );
+  assert.equal(timeline.byPhase.hiddenStaleLaneCount, 1);
+  assert.deepEqual(
+    timeline.all.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [staleMilestone.id, activeMilestone.id],
+  );
+});
+
+test("project milestone timelines exclude cancelled milestones", () => {
+  const activeMilestone = milestone("m1", "2026-06-20", {
+    parentId: "phase-1",
+    sortOrder: 1,
+  });
+  const cancelledMilestone = milestone("m2", "2026-06-21", {
+    parentId: "phase-1",
+    status: "CANCELLED",
+    sortOrder: 2,
+  });
+  const wbsItems = [
+    phase("phase-1", 1),
+    activeMilestone,
+    cancelledMilestone,
+  ];
+  const structureMilestones = createStructureMilestones(wbsItems);
+  const timeline = createMilestoneTimeline(
+    wbsItems,
+    structureMilestones,
+    new Date(2026, 5, 1),
+  );
+
+  assert.deepEqual(
+    structureMilestones.map((entry) => entry.milestone.id),
+    [activeMilestone.id],
+  );
+  assert.deepEqual(
+    timeline.byPhase.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [activeMilestone.id],
+  );
+  assert.deepEqual(
+    timeline.all.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [activeMilestone.id],
+  );
+});
+
+test("phase milestone timeline keeps old overdue phases visible", () => {
+  const overduePhase = phase("phase-1", 1);
+  const overdueMilestone = milestone("m1", "2026-06-01", {
+    parentId: overduePhase.id,
+    status: "NOT_STARTED",
+    sortOrder: 1,
+  });
+  const wbsItems = [overduePhase, overdueMilestone];
+  const timeline = createMilestoneTimeline(
+    wbsItems,
+    createStructureMilestones(wbsItems),
+    new Date(2026, 6, 4),
+  );
+
+  assert.deepEqual(
+    timeline.byPhase.lanes.map((lane) => lane.id),
+    [overduePhase.id],
+  );
+  assert.equal(timeline.byPhase.hiddenStaleLaneCount, 0);
 });

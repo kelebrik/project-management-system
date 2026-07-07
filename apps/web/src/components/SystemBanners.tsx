@@ -50,12 +50,9 @@ export function SystemBanners({
         )}
       </div>
       {!isAuthenticated && (
-        <div className="readonly-banner">
+        <div className="readonly-banner main-readonly-banner">
           <KeyRound size={16} />
-          <span>
-            Режим только для просмотра. Для создания и изменения данных нужно
-            войти в систему.
-          </span>
+          <span>Только просмотр. Войдите, чтобы редактировать данные.</span>
           <button type="button" onClick={onLogin}>
             Войти
           </button>

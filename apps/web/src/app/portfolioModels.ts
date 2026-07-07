@@ -50,8 +50,17 @@ export type PortfolioGoalTimelineItem = {
   offset: number;
 };
 
+export type PortfolioGoalTimelineProjectRow = {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  portfolio: string;
+  items: PortfolioGoalTimelineItem[];
+};
+
 export type PortfolioGoalTimelineModel = {
   items: PortfolioGoalTimelineItem[];
+  projectRows: PortfolioGoalTimelineProjectRow[];
   startDate: Date;
   endDate: Date;
   todayOffset: number;
@@ -158,7 +167,15 @@ export function createPortfolioGoalTimeline(
     });
   }
 
-  const activeProjects = projects.filter((project) => project.status !== "CLOSED");
+  const activeProjects = projects
+    .filter((project) => project.status !== "CLOSED")
+    .sort(
+      (left, right) =>
+        left.portfolio.localeCompare(right.portfolio, "ru") ||
+        left.name.localeCompare(right.name, "ru") ||
+        left.code.localeCompare(right.code, "ru") ||
+        left.id.localeCompare(right.id, "ru"),
+    );
   const rawItems = activeProjects.flatMap((project) =>
     (project.wbsItems ?? [])
       .filter((item) => item.type === "GOAL" && item.status !== "CANCELLED")
@@ -186,32 +203,48 @@ export function createPortfolioGoalTimeline(
       item.dueDate.getTime() <= endDate.getTime(),
   );
 
+  const items = visibleItems
+    .sort(
+      (left, right) =>
+        left.dueDate.getTime() - right.dueDate.getTime() ||
+        left.projectCode.localeCompare(right.projectCode, "ru") ||
+        left.goalTitle.localeCompare(right.goalTitle, "ru"),
+    )
+    .map((item) => ({
+      id: item.id,
+      projectId: item.projectId,
+      projectCode: item.projectCode,
+      projectName: item.projectName,
+      goalTitle: item.goalTitle,
+      status: item.status,
+      dueDate: item.dueDateSource,
+      baselineDueDate: item.baselineDueDate,
+      delayDays: item.baselineDueDateValue
+        ? signedDaysBetween(item.baselineDueDateValue, item.dueDate)
+        : null,
+      offset: offsetForDate(item.dueDate),
+    }));
+  const itemsByProjectId = new Map<string, PortfolioGoalTimelineItem[]>();
+  for (const item of items) {
+    itemsByProjectId.set(item.projectId, [
+      ...(itemsByProjectId.get(item.projectId) ?? []),
+      item,
+    ]);
+  }
+
   return {
     startDate,
     endDate,
     todayOffset: offsetForDate(todayDate),
     monthTicks,
-    items: visibleItems
-      .sort(
-        (left, right) =>
-          left.dueDate.getTime() - right.dueDate.getTime() ||
-          left.projectCode.localeCompare(right.projectCode, "ru") ||
-          left.goalTitle.localeCompare(right.goalTitle, "ru"),
-      )
-      .map((item) => ({
-        id: item.id,
-        projectId: item.projectId,
-        projectCode: item.projectCode,
-        projectName: item.projectName,
-        goalTitle: item.goalTitle,
-        status: item.status,
-        dueDate: item.dueDateSource,
-        baselineDueDate: item.baselineDueDate,
-        delayDays: item.baselineDueDateValue
-          ? signedDaysBetween(item.baselineDueDateValue, item.dueDate)
-          : null,
-        offset: offsetForDate(item.dueDate),
-      })),
+    items,
+    projectRows: activeProjects.map((project) => ({
+      projectId: project.id,
+      projectCode: project.code,
+      projectName: project.name,
+      portfolio: project.portfolio.trim() || "Без портфеля",
+      items: itemsByProjectId.get(project.id) ?? [],
+    })),
   } satisfies PortfolioGoalTimelineModel;
 }
 

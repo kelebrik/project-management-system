@@ -14,14 +14,14 @@ test("Docker runtime packages API, Web UI, startup migrations, and readiness pro
   const dockerfile = read("Dockerfile");
   const compose = read("docker-compose.yml");
 
-  assert.match(dockerfile, /npm run prisma:generate/, "Docker build must generate Prisma client");
+  assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) run prisma:generate/, "Docker build must generate Prisma client");
   assert.match(dockerfile, /docker-prisma-engines\.sh/, "Docker build must bootstrap Prisma engines during image build");
   assert.match(dockerfile, /PRISMA_ENGINES_BASE_URL=/, "Docker build must download Prisma engines from the internal package registry");
   assert.match(dockerfile, /ARG CI_JOB_TOKEN/, "Docker build must accept CI_JOB_TOKEN for authenticated engine downloads");
   assert.match(dockerfile, /debian-openssl-3\.0\.x/, "Docker build must target Debian Bookworm OpenSSL 3 engines");
   assert.match(dockerfile, /PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1/, "Docker build must skip prisma.sh checksum verification in isolated environments");
-  assert.match(dockerfile, /npm ci --include=dev --ignore-scripts/, "Docker build must install npm packages without prisma.sh postinstall downloads");
-  assert.match(dockerfile, /npm run build/, "Docker build must compile workspaces");
+  assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) ci --include=dev --ignore-scripts|scripts\/ci-install\.sh/, "Docker build must install npm packages without prisma.sh postinstall downloads");
+  assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) run build/, "Docker build must compile workspaces");
   assert.match(dockerfile, /apps\/web\/dist/, "Runtime image must include built Web UI");
   assert.match(dockerfile, /EXPOSE 3000/, "Runtime image must expose application port");
   assert.match(dockerfile, /docker-entrypoint\.sh/, "Runtime image must ship a startup entrypoint");

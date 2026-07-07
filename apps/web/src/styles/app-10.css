@@ -337,12 +337,22 @@
   display: flex;
   gap: 7px;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   height: 24px;
   min-width: 0;
   overflow: hidden;
   padding-right: 12px;
   white-space: nowrap;
+}
+
+.gantt-label-work-package,
+.gantt-label-milestone,
+.gantt-label-goal {
+  font-weight: 800;
+}
+
+.gantt-label-task {
+  font-size: 12px;
 }
 
 .gantt-label + .gantt-label,
@@ -357,6 +367,10 @@
   text-overflow: ellipsis;
 }
 
+.gantt-label b {
+  font-weight: inherit;
+}
+
 .gantt-label.critical {
   color: #0f172a;
 }
@@ -364,6 +378,11 @@
 .gantt-label.active,
 .gantt-track-row.active {
   background: #eff6ff;
+}
+
+.gantt-label.hovered,
+.gantt-track-row.hovered {
+  background: #f1f5f9;
 }
 
 .gantt-label.predecessor,

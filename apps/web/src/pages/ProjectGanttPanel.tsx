@@ -22,6 +22,7 @@ export function ProjectGanttPanel() {
     ganttScale,
     ganttTimelineRef,
     ganttWbsWidth,
+    hoveredGanttItemId,
     project,
     setActiveWbsItemId,
     setHoveredGanttItemId,
@@ -108,8 +109,12 @@ export function ProjectGanttPanel() {
                             {wbsGantt.items.map(
                               ({ item, critical, milestone, toneClass }) => (
                                 <div
-                                  className={`gantt-label ${critical ? "critical" : ""} ${
+                                  className={`gantt-label gantt-label-${item.type.toLowerCase().replaceAll("_", "-")} ${critical ? "critical" : ""} ${
                                     activeWbsItemId === item.id ? "active" : ""
+                                  } ${
+                                    hoveredGanttItemId === item.id
+                                      ? "hovered"
+                                      : ""
                                   } ${
                                     activeGanttLinkIds.predecessors.has(item.id)
                                       ? "predecessor"
@@ -323,6 +328,7 @@ export function ProjectGanttPanel() {
                                 milestone,
                                 critical,
                                 summary,
+                                rangeLine,
                                 bracket,
                                 baselineRange,
                                   forecastRange,
@@ -334,6 +340,10 @@ export function ProjectGanttPanel() {
                                   <div
                                   className={`gantt-track-row ${
                                     activeWbsItemId === item.id ? "active" : ""
+                                  } ${
+                                    hoveredGanttItemId === item.id
+                                      ? "hovered"
+                                      : ""
                                   } ${
                                     activeGanttLinkIds.predecessors.has(item.id)
                                       ? "predecessor"
@@ -372,7 +382,7 @@ export function ProjectGanttPanel() {
                                     />
                                   )}
                                     <i
-                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${item.type === "GOAL" ? "goal" : ""} ${summary ? "summary" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
+                                      className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${item.type === "GOAL" ? "goal" : ""} ${summary ? "summary" : ""} ${rangeLine ? "range-line" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
                                       style={{
                                         left: `${offset}%`,
                                         width: milestone ? undefined : `${width}%`,
@@ -383,6 +393,11 @@ export function ProjectGanttPanel() {
                                           : `. Резерв: ${totalFloatWorkDays} раб. дн.`
                                       }`}
                                     >
+                                    {rangeLine && (
+                                      <span className="gantt-range-label">
+                                        {item.title} | {date(item.startDate)} - {date(item.dueDate)}
+                                      </span>
+                                    )}
                                     <button
                                       type="button"
                                       className="gantt-link-handle start"

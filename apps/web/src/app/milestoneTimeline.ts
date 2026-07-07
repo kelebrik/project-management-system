@@ -43,6 +43,7 @@ export type MilestoneTimelineModel = {
   laneHeight: number;
   todayOffset: number | null;
   hasMilestonesOutsideRange: boolean;
+  hiddenStaleLaneCount?: number;
 };
 
 export type MilestoneSnakePoint = {

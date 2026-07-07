@@ -1,11 +1,15 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { usePageContext } from "./PageContext";
 import type { WbsItem, WbsItemStatus } from "../app/domainTypes";
 import { wbsToForm, type WbsFormState } from "../app/formState";
-import { createWorkSummaryData } from "../app/workSummaryModel";
+import {
+  compareWorkTasks,
+  createWorkSummaryData,
+} from "../app/workSummaryModel";
 
+const ALL_PHASES_FILTER = "__all_phases__";
 const WBS_STATUS_OPTIONS: WbsItemStatus[] = [
   "NOT_STARTED",
   "IN_PROGRESS",
@@ -20,6 +24,15 @@ function taskDraft(item: WbsItem, wbsDrafts: Record<string, WbsFormState>) {
   return wbsDrafts[item.id] ?? wbsToForm(item);
 }
 
+function phaseIdForItem(item: WbsItem, itemById: Map<string, WbsItem>) {
+  let current: WbsItem | undefined = item;
+  while (current) {
+    if (current.type === "PHASE") return current.id;
+    current = current.parentId ? itemById.get(current.parentId) : undefined;
+  }
+  return null;
+}
+
 type WorkSummaryRowsProps = {
   emptyText: string;
   items: WbsItem[];
@@ -31,6 +44,7 @@ type WorkSummaryPaneKey = "current" | "nextWeek";
 export function ProjectWorkSummarySection() {
   const {
     date,
+    isReadOnly,
     project,
     saveWbsDraftPatch,
     saveWbsItem,
@@ -45,10 +59,34 @@ export function ProjectWorkSummarySection() {
     current: false,
     nextWeek: false,
   });
+  const [currentTasksPhaseId, setCurrentTasksPhaseId] =
+    useState(ALL_PHASES_FILTER);
+  const projectWbsItems = project.wbsItems as WbsItem[];
   const { currentTasks, nextWeek, tasksStartingNextWeek } = createWorkSummaryData(
-    project.wbsItems as WbsItem[],
+    projectWbsItems,
     wbsDrafts,
   );
+  const phaseOptions = useMemo(
+    () =>
+      projectWbsItems
+        .filter((item) => item.type === "PHASE")
+        .sort(compareWorkTasks),
+    [projectWbsItems],
+  );
+  const taskPhaseById = useMemo(() => {
+    const itemById = new Map(projectWbsItems.map((item) => [item.id, item]));
+    return new Map(
+      projectWbsItems
+        .filter((item) => item.type === "TASK")
+        .map((item) => [item.id, phaseIdForItem(item, itemById)]),
+    );
+  }, [projectWbsItems]);
+  const filteredCurrentTasks =
+    currentTasksPhaseId === ALL_PHASES_FILTER
+      ? currentTasks
+      : currentTasks.filter(
+          (item) => taskPhaseById.get(item.id) === currentTasksPhaseId,
+        );
 
   const saveTaskTitle = (itemId: string) => {
     void saveWbsItem(itemId, { silent: true });
@@ -124,44 +162,66 @@ export function ProjectWorkSummarySection() {
               >
                 {item.code}
               </button>
-              <input
-                value={draft.title}
-                onChange={(event) =>
-                  updateWbsDraft(item.id, { title: event.target.value })
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.currentTarget.blur();
-                  }
-                }}
-                onBlur={() => saveTaskTitle(item.id)}
-              />
-              <select
-                value={draft.status}
-                onChange={(event) =>
-                  saveTaskStatus(item.id, event.target.value as WbsItemStatus)
-                }
-              >
-                {WBS_STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {wbsStatusLabel(status)}
-                  </option>
-                ))}
-              </select>
-              {showStart && (
+              {isReadOnly ? (
+                <span className="work-summary-readonly">{draft.title}</span>
+              ) : (
                 <input
-                  type="date"
-                  value={draft.startDate}
+                  value={draft.title}
                   onChange={(event) =>
-                    saveTaskStart(item.id, event.target.value)
+                    updateWbsDraft(item.id, { title: event.target.value })
                   }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                  onBlur={() => saveTaskTitle(item.id)}
                 />
               )}
-              <input
-                type="date"
-                value={draft.dueDate}
-                onChange={(event) => saveTaskDue(item.id, event.target.value)}
-              />
+              {isReadOnly ? (
+                <span className="work-summary-readonly">
+                  {wbsStatusLabel(draft.status)}
+                </span>
+              ) : (
+                <select
+                  value={draft.status}
+                  onChange={(event) =>
+                    saveTaskStatus(item.id, event.target.value as WbsItemStatus)
+                  }
+                >
+                  {WBS_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {wbsStatusLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {showStart && (
+                isReadOnly ? (
+                  <span className="work-summary-readonly">
+                    {date(draft.startDate)}
+                  </span>
+                ) : (
+                  <input
+                    type="date"
+                    value={draft.startDate}
+                    onChange={(event) =>
+                      saveTaskStart(item.id, event.target.value)
+                    }
+                  />
+                )
+              )}
+              {isReadOnly ? (
+                <span className="work-summary-readonly">
+                  {date(draft.dueDate)}
+                </span>
+              ) : (
+                <input
+                  type="date"
+                  value={draft.dueDate}
+                  onChange={(event) => saveTaskDue(item.id, event.target.value)}
+                />
+              )}
             </div>
           );
         })}
@@ -184,32 +244,47 @@ export function ProjectWorkSummarySection() {
           }`}
         >
           <div className="work-summary-pane-title">
-            <h3>
-              <button
-                type="button"
-                className="work-summary-pane-toggle"
-                onClick={() => togglePane("current")}
-                aria-expanded={!collapsedPanes.current}
-                aria-label={
-                  collapsedPanes.current
-                    ? "Развернуть текущие задачи"
-                    : "Свернуть текущие задачи"
-                }
+            <div className="work-summary-pane-title-main">
+              <h3>
+                <button
+                  type="button"
+                  className="work-summary-pane-toggle"
+                  onClick={() => togglePane("current")}
+                  aria-expanded={!collapsedPanes.current}
+                  aria-label={
+                    collapsedPanes.current
+                      ? "Развернуть текущие задачи"
+                      : "Свернуть текущие задачи"
+                  }
+                >
+                  {collapsedPanes.current ? (
+                    <ChevronRight size={17} />
+                  ) : (
+                    <ChevronDown size={17} />
+                  )}
+                  Текущие задачи
+                </button>
+              </h3>
+              <select
+                className="work-summary-phase-filter"
+                value={currentTasksPhaseId}
+                onChange={(event) => setCurrentTasksPhaseId(event.target.value)}
+                aria-label="Фильтр текущих задач по фазе"
               >
-                {collapsedPanes.current ? (
-                  <ChevronRight size={17} />
-                ) : (
-                  <ChevronDown size={17} />
-                )}
-                Текущие задачи
-              </button>
-            </h3>
-            <span>{currentTasks.length}</span>
+                <option value={ALL_PHASES_FILTER}>Все фазы</option>
+                {phaseOptions.map((phase) => (
+                  <option key={phase.id} value={phase.id}>
+                    {phase.code} {phase.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <span>{filteredCurrentTasks.length}</span>
           </div>
           {!collapsedPanes.current &&
             renderWorkSummaryRows({
               emptyText: "Текущих задач нет.",
-              items: currentTasks,
+              items: filteredCurrentTasks,
               showStart: false,
             })}
         </article>

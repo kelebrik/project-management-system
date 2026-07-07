@@ -236,6 +236,18 @@
   min-width: 0;
 }
 
+.work-summary-pane-title-main {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 0;
+  min-width: 0;
+}
+
+.work-summary-pane-title-main h3 {
+  flex: 0 0 auto;
+}
+
 .work-summary-pane-toggle {
   align-items: center;
   background: transparent;
@@ -295,6 +307,22 @@
   top: 0;
   text-transform: uppercase;
   z-index: 2;
+}
+
+.work-summary-phase-filter {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #0f172a;
+  flex: 0 1 260px;
+  font-size: 12px;
+  font-weight: 800;
+  margin-left: clamp(28px, 5vw, 84px);
+  max-width: 260px;
+  min-height: 30px;
+  min-width: 150px;
+  padding: 5px 8px;
+  width: clamp(150px, 24vw, 260px);
 }
 
 .work-summary-head span,

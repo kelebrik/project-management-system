@@ -32,7 +32,7 @@ export function PortfolioPage() {
     visiblePortfolioProblemProjects,
     visiblePortfolioRiskProjects,
   } = ctx;
-  const visibleGoals = portfolioGoalTimeline.items;
+  const timelineRows = portfolioGoalTimeline.projectRows;
   const visibleProblemProjects = visiblePortfolioProblemProjects;
   const visibleRiskProjects = visiblePortfolioRiskProjects;
 
@@ -101,67 +101,109 @@ export function PortfolioPage() {
         <article className="panel portfolio-goal-timeline-panel">
           <div className="panel-title">
             <div>
-              <h2>Цели проектов</h2>
-              <p>Линейная шкала по записям ИСР с типом Цель</p>
+              <h2>Временные линии проектов</h2>
+              <p>Отдельная шкала целей ИСР для каждого активного проекта</p>
             </div>
           </div>
-          {visibleGoals.length > 0 ? (
+          {timelineRows.length > 0 ? (
             <div className="portfolio-goal-timeline">
-              <div className="portfolio-goal-axis" aria-hidden="true">
-                <span className="portfolio-goal-axis-line" />
-                <span
-                  className="portfolio-goal-today"
-                  style={{ left: `${portfolioGoalTimeline.todayOffset}%` }}
-                >
-                  сегодня
-                </span>
-                {portfolioGoalTimeline.monthTicks.map((tick) => (
-                  <span
-                    className="portfolio-goal-month-tick"
-                    key={tick.key}
-                    style={{ left: `${tick.offset}%` }}
+              <div className="portfolio-project-timelines">
+                {timelineRows.map((row) => (
+                  <section
+                    className="portfolio-project-timeline-row"
+                    key={row.projectId}
                   >
-                    {tick.label}
-                  </span>
-                ))}
-                {visibleGoals.map((item, index) => (
-                  <span
-                    className={`portfolio-goal-dot status-${item.status.toLowerCase()}`}
-                    key={item.id}
-                    style={{ left: `${item.offset}%` }}
-                  >
-                    {index + 1}
-                  </span>
-                ))}
-              </div>
-              <div className="portfolio-goal-items">
-                {visibleGoals.map((item, index) => (
-                  <button
-                    type="button"
-                    className={`portfolio-goal-item status-${item.status.toLowerCase()}`}
-                    key={item.id}
-                    onClick={() =>
-                      selectProject(item.projectId, firstEnabledProjectView)
-                    }
-                  >
-                    <span className="portfolio-goal-item-index">{index + 1}</span>
-                    <span>
-                      <b>
-                        {item.projectName} · {item.goalTitle}
-                      </b>
-                      <small className="portfolio-goal-meta">
-                        {item.baselineDueDate && (
-                          <span>базовый план {date(item.baselineDueDate)}</span>
-                        )}
-                        <span>прогноз {date(item.dueDate)}</span>
-                        {item.delayDays !== null && item.delayDays > 0 && (
-                          <span className="portfolio-goal-delay">
-                            отставание +{item.delayDays} дн.
-                          </span>
-                        )}
-                      </small>
-                    </span>
-                  </button>
+                    <button
+                      type="button"
+                      className="portfolio-project-timeline-title"
+                      onClick={() =>
+                        selectProject(row.projectId, firstEnabledProjectView)
+                      }
+                    >
+                      <span>
+                        <b>{row.projectName}</b>
+                        <small>
+                          {row.projectCode} · {row.portfolio}
+                        </small>
+                      </span>
+                      <strong>{row.items.length}</strong>
+                    </button>
+                    <div
+                      className="portfolio-project-timeline-track"
+                      aria-label={`Временная линия проекта ${row.projectName}`}
+                    >
+                      <span className="portfolio-goal-axis-line" />
+                      {portfolioGoalTimeline.monthTicks.map((tick, index) => (
+                        <span
+                          className={`portfolio-goal-track-month-tick ${
+                            index % 2 === 0 ? "major" : "minor"
+                          } ${
+                            index === 0 ? "edge-start" : ""
+                          } ${
+                            index === portfolioGoalTimeline.monthTicks.length - 1
+                              ? "edge-end"
+                              : ""
+                          }`}
+                          data-label={index % 2 === 0 ? tick.label : ""}
+                          key={tick.key}
+                          style={{ left: `${tick.offset}%` }}
+                          title={tick.label}
+                        />
+                      ))}
+                      <span
+                        className="portfolio-goal-today-line"
+                        style={{ left: `${portfolioGoalTimeline.todayOffset}%` }}
+                      />
+                      {row.items.map((item, index) => (
+                        <span
+                          className={`portfolio-goal-dot status-${item.status.toLowerCase()}`}
+                          key={item.id}
+                          style={{ left: `${item.offset}%` }}
+                          title={`${item.goalTitle}: ${date(item.dueDate)}`}
+                        >
+                          {index + 1}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="portfolio-goal-items">
+                      {row.items.length > 0 ? (
+                        row.items.map((item, index) => (
+                          <button
+                            type="button"
+                            className={`portfolio-goal-item status-${item.status.toLowerCase()}`}
+                            key={item.id}
+                            onClick={() =>
+                              selectProject(item.projectId, firstEnabledProjectView)
+                            }
+                          >
+                            <span className="portfolio-goal-item-index">
+                              {index + 1}
+                            </span>
+                            <span className="portfolio-goal-inline">
+                              <b>
+                                {item.projectName} · {item.goalTitle}
+                              </b>
+                              <small className="portfolio-goal-meta">
+                                <span>
+                                  базовый план {date(item.baselineDueDate)}
+                                </span>
+                                <span>актуальный прогноз {date(item.dueDate)}</span>
+                                {item.delayDays !== null && item.delayDays > 0 && (
+                                  <span className="portfolio-goal-delay">
+                                    отставание +{item.delayDays} дн.
+                                  </span>
+                                )}
+                              </small>
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="portfolio-goal-row-empty">
+                          Целей в диапазоне шкалы нет.
+                        </div>
+                      )}
+                    </div>
+                  </section>
                 ))}
               </div>
               <div className="portfolio-goal-range">
@@ -171,7 +213,7 @@ export function PortfolioPage() {
             </div>
           ) : (
             <div className="empty-state compact">
-              Целей на шкале нет.
+              Активных проектов нет.
             </div>
           )}
         </article>

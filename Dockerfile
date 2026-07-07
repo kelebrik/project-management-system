@@ -12,11 +12,15 @@ RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-
   && sed -i 's|http://deb.debian.org/debian|https://nexus.sberdevices.ru/repository/debian_bookworm|g' /etc/apt/sources.list.d/debian.sources \
   && apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+  && for cert in SberDevices_RCA.crt SberDevices_ICA.crt mincifra_rootca.crt mincifra_subca.crt rootca_ssl_rsa2022.crt subca_ssl_rsa2024.crt; do \
+       curl --fail --show-error --location --insecure "https://cdp.sberdevices.ru/pki/${cert}" -o "/usr/local/share/ca-certificates/${cert}"; \
+     done \
+  && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-COPY scripts/docker-prisma-engines.sh scripts/docker-prisma-engines.sh
+COPY scripts/ci-install.sh scripts/ci-npm-env.sh scripts/ci-npm.sh scripts/docker-prisma-engines.sh scripts/
 
-RUN chmod +x scripts/docker-prisma-engines.sh \
+RUN chmod +x scripts/ci-install.sh scripts/ci-npm.sh scripts/docker-prisma-engines.sh \
   && PRISMA_ENGINES_BASE_URL=${PRISMA_ENGINES_BASE_URL} \
      PRISMA_CLI_BINARY_TARGETS=${PRISMA_CLI_BINARY_TARGETS} \
      PRISMA_ENGINES_JOB_TOKEN=${CI_JOB_TOKEN} \
@@ -26,6 +30,7 @@ ENV PRISMA_CLI_BINARY_TARGETS=${PRISMA_CLI_BINARY_TARGETS}
 ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 ENV PRISMA_SCHEMA_ENGINE_BINARY=/opt/prisma-engines/schema-engine-debian-openssl-3.0.x
 ENV PRISMA_QUERY_ENGINE_LIBRARY=/opt/prisma-engines/libquery_engine-debian-openssl-3.0.x.so.node
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 ENV NPM_CONFIG_REGISTRY=https://nexus.sberdevices.ru/repository/npm
 
 COPY package.json package-lock.json ./
@@ -33,14 +38,14 @@ COPY packages/shared/package.json packages/shared/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 
-RUN npm ci --include=dev --ignore-scripts
+RUN scripts/ci-install.sh
 RUN scripts/docker-prisma-engines.sh link-node-modules
 
 FROM deps AS build
 COPY . .
-RUN PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npm run prisma:generate
-RUN npm run build
-RUN npm prune --omit=dev
+RUN PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 scripts/ci-npm.sh run prisma:generate
+RUN scripts/ci-npm.sh run build
+RUN scripts/ci-npm.sh prune --omit=dev
 
 FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
@@ -53,12 +58,17 @@ ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
 ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 ENV PRISMA_SCHEMA_ENGINE_BINARY=/opt/prisma-engines/schema-engine-debian-openssl-3.0.x
 ENV PRISMA_QUERY_ENGINE_LIBRARY=/opt/prisma-engines/libquery_engine-debian-openssl-3.0.x.so.node
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-ssl-verify \
   && sed -i 's|http://deb.debian.org/debian-security|https://nexus.sberdevices.ru/repository/debian_bookworm_security|g' /etc/apt/sources.list.d/debian.sources \
   && sed -i 's|http://deb.debian.org/debian|https://nexus.sberdevices.ru/repository/debian_bookworm|g' /etc/apt/sources.list.d/debian.sources \
   && apt update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+  && for cert in SberDevices_RCA.crt SberDevices_ICA.crt mincifra_rootca.crt mincifra_subca.crt rootca_ssl_rsa2022.crt subca_ssl_rsa2024.crt; do \
+       curl --fail --show-error --location --insecure "https://cdp.sberdevices.ru/pki/${cert}" -o "/usr/local/share/ca-certificates/${cert}"; \
+     done \
+  && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
   && mkdir -p /tmp/.npm \
   && chown -R node:node /app /tmp/.npm

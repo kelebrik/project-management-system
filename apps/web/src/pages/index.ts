@@ -4,7 +4,6 @@ export {
   AdminConfigPage,
   AdminDictionariesPage,
   AdminHealthPage,
-  AdminJiraPage,
   AdminModulesPage,
   AdminPage,
   AdminProjectAccessPage,
