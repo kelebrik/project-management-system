@@ -47,7 +47,22 @@ function nonEmpty(value: string | undefined) {
 }
 
 function normalizedBaseUrl(value: string | undefined) {
-  return (nonEmpty(value) ?? '').replace(/\/+$/, '');
+  const trimmed = nonEmpty(value);
+  if (!trimmed) return '';
+
+  const withProtocol = /^[a-z][a-z\d+\-.]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  try {
+    const url = new URL(withProtocol);
+    url.search = '';
+    url.hash = '';
+    url.pathname = url.pathname.replace(/\/+$/, '');
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return withProtocol.replace(/\/+$/, '');
+  }
 }
 
 export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraConfig {
