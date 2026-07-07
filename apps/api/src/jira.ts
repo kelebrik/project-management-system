@@ -27,6 +27,7 @@ const jiraSearchResponseSchema = z.object({
     }),
   ),
 });
+type JiraSearchResponse = z.infer<typeof jiraSearchResponseSchema>;
 
 type JiraConfig = {
   enabled: boolean;
@@ -91,6 +92,10 @@ function cleanJiraErrorBody(body: string) {
     .slice(0, 500);
 }
 
+function isJsonResponse(response: Response) {
+  return response.headers.get('content-type')?.toLowerCase().includes('application/json') ?? false;
+}
+
 export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraConfig {
   const envBaseUrl = nonEmpty(env.JIRA_BASE_URL);
   const envEmail = nonEmpty(env.JIRA_EMAIL);
@@ -121,15 +126,16 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
     fields: ['summary', 'status', 'priority', 'assignee', 'issuetype', 'updated'],
     maxResults,
   });
-  let response: Response | null = null;
   let lastErrorBody = '';
   let lastStatus = 0;
   const authHeaders = jiraAuthHeaders(email, token);
+  let parsed: JiraSearchResponse | null = null;
 
   for (const authHeader of authHeaders) {
     for (const path of ['/rest/api/3/search/jql', '/rest/api/2/search']) {
-      response = await fetch(`${baseUrl}${path}`, {
+      const response = await fetch(`${baseUrl}${path}`, {
         method: 'POST',
+        redirect: 'manual',
         headers: {
           Authorization: authHeader,
           Accept: 'application/json',
@@ -139,12 +145,28 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
       });
 
       if (response.ok) {
+        if (!isJsonResponse(response)) {
+          lastStatus = response.status;
+          lastErrorBody = await response.text();
+          break;
+        }
+
+        try {
+          parsed = jiraSearchResponseSchema.parse(await response.json());
+        } catch (error) {
+          lastStatus = response.status;
+          lastErrorBody =
+            error instanceof Error ? error.message : 'Jira response is not valid JSON';
+        }
         break;
       }
 
       lastStatus = response.status;
-      lastErrorBody = await response.text();
-      if ([401, 403].includes(response.status)) {
+      lastErrorBody =
+        response.status >= 300 && response.status < 400
+          ? `Redirected to ${response.headers.get('location') ?? 'unknown location'}`
+          : await response.text();
+      if ([401, 403].includes(response.status) || (response.status >= 300 && response.status < 400)) {
         break;
       }
       if (![404, 405, 410].includes(response.status) || path === '/rest/api/2/search') {
@@ -154,20 +176,18 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
       }
     }
 
-    if (response?.ok) {
+    if (parsed) {
       break;
     }
   }
 
-  if (!response?.ok) {
+  if (!parsed) {
     throw new Error(
       `Jira authentication failed: ${lastStatus || 'unknown'} ${
         lastErrorBody ? cleanJiraErrorBody(lastErrorBody) : ''
       }`.trim(),
     );
   }
-
-  const parsed = jiraSearchResponseSchema.parse(await response.json());
 
   return parsed.issues.map((issue) => ({
     key: issue.key,
