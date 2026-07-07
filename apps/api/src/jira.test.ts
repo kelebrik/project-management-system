@@ -262,6 +262,72 @@ test('fetchJiraIssues falls back to basic auth when bearer token is rejected', a
   }
 });
 
+test('fetchJiraIssues falls back to basic auth when bearer returns HTML login page', async () => {
+  const previousEnv = {
+    JIRA_BASE_URL: process.env.JIRA_BASE_URL,
+    JIRA_EMAIL: process.env.JIRA_EMAIL,
+    JIRA_API_TOKEN: process.env.JIRA_API_TOKEN,
+  };
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+
+    if ((init?.headers as Record<string, string>).Authorization === 'Bearer secret') {
+      return new Response('<!DOCTYPE html><title>Login</title>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        issues: [
+          {
+            key: 'PMS-44',
+            fields: {
+              summary: 'HTML fallback result',
+              status: { name: 'Open' },
+              priority: { name: 'Medium' },
+              assignee: null,
+              issuetype: { name: 'Task' },
+              updated: '2026-07-02T10:00:00.000+0300',
+            },
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('project = PMS');
+
+    assert.equal(calls.length, 2);
+    assert.equal(
+      (calls[0].init?.headers as Record<string, string>).Authorization,
+      'Bearer secret',
+    );
+    assert.equal(
+      (calls[1].init?.headers as Record<string, string>).Authorization,
+      `Basic ${Buffer.from('bot@example.com:secret').toString('base64')}`,
+    );
+    assert.equal(issues[0].key, 'PMS-44');
+  } finally {
+    globalThis.fetch = previousFetch;
+    process.env.JIRA_BASE_URL = previousEnv.JIRA_BASE_URL;
+    process.env.JIRA_EMAIL = previousEnv.JIRA_EMAIL;
+    process.env.JIRA_API_TOKEN = previousEnv.JIRA_API_TOKEN;
+  }
+});
+
 test('fetchJiraIssues reports concise Jira auth failures without HTML payload', async () => {
   const previousEnv = {
     JIRA_BASE_URL: process.env.JIRA_BASE_URL,
