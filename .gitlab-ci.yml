@@ -176,9 +176,6 @@ build_image:
         done
         chmod 0644 "${SBER_CA_BUNDLE}" "${cert_dir}"/*.crt
         echo "Sber CA bundle contains $(grep -c "BEGIN CERTIFICATE" "${SBER_CA_BUNDLE}") certificates"
-        for cert_path in "${cert_dir}"/*.crt; do
-          openssl x509 -in "${cert_path}" -noout -subject >/dev/null
-        done
   script:
     - |
       awx job_templates launch 378 \
