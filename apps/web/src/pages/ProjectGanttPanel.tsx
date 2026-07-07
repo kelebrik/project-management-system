@@ -22,6 +22,7 @@ export function ProjectGanttPanel() {
     ganttScale,
     ganttTimelineRef,
     ganttWbsWidth,
+    hoveredGanttItemId,
     project,
     setActiveWbsItemId,
     setHoveredGanttItemId,
@@ -110,6 +111,10 @@ export function ProjectGanttPanel() {
                                 <div
                                   className={`gantt-label gantt-label-${item.type.toLowerCase().replaceAll("_", "-")} ${critical ? "critical" : ""} ${
                                     activeWbsItemId === item.id ? "active" : ""
+                                  } ${
+                                    hoveredGanttItemId === item.id
+                                      ? "hovered"
+                                      : ""
                                   } ${
                                     activeGanttLinkIds.predecessors.has(item.id)
                                       ? "predecessor"
@@ -335,6 +340,10 @@ export function ProjectGanttPanel() {
                                   <div
                                   className={`gantt-track-row ${
                                     activeWbsItemId === item.id ? "active" : ""
+                                  } ${
+                                    hoveredGanttItemId === item.id
+                                      ? "hovered"
+                                      : ""
                                   } ${
                                     activeGanttLinkIds.predecessors.has(item.id)
                                       ? "predecessor"

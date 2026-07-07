@@ -380,6 +380,11 @@
   background: #eff6ff;
 }
 
+.gantt-label.hovered,
+.gantt-track-row.hovered {
+  background: #f1f5f9;
+}
+
 .gantt-label.predecessor,
 .gantt-track-row.predecessor {
   background: #f0fdf4;
