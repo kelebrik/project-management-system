@@ -110,9 +110,13 @@
   border: 1px solid #dbe4ef;
   border-radius: 8px;
   height: 58px;
-  margin-left: 254px;
   padding-top: 20px;
   position: relative;
+}
+
+.portfolio-project-timeline-scale-row {
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  padding: 0 12px;
 }
 
 .portfolio-project-timeline-row {

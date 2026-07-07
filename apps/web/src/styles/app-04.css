@@ -201,6 +201,21 @@
   gap: 12px;
 }
 
+.portfolio-project-timeline-scale-row {
+  align-items: center;
+  display: grid;
+  gap: 10px 14px;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+}
+
+.portfolio-project-timeline-scale-label {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  padding-left: 12px;
+  text-transform: uppercase;
+}
+
 .portfolio-project-timeline-row {
   background: #f8fafc;
   border: 1px solid #dbe4ef;
@@ -298,6 +313,10 @@
   position: relative;
 }
 
+.portfolio-goal-axis-shared {
+  min-width: 0;
+}
+
 .portfolio-goal-axis-line {
   background: #cbd5e1;
   border-radius: 999px;
@@ -330,6 +349,15 @@
   top: -17px;
   transform: translateX(-50%);
   width: 1px;
+}
+
+.portfolio-goal-month-tick.minor {
+  min-width: 0;
+}
+
+.portfolio-goal-month-tick.minor::before {
+  height: 9px;
+  top: -15px;
 }
 
 .portfolio-goal-dot {
