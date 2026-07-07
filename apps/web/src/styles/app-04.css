@@ -353,7 +353,17 @@
 }
 
 .portfolio-goal-track-month-tick.major {
+  background: transparent;
+}
+
+.portfolio-goal-track-month-tick.major::before {
   background: rgba(100, 116, 139, 0.62);
+  bottom: 0;
+  content: "";
+  left: 0;
+  position: absolute;
+  top: 16px;
+  width: 1px;
 }
 
 .portfolio-goal-track-month-tick.major::after {
