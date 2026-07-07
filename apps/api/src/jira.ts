@@ -38,7 +38,7 @@ type JiraConfig = {
 
 export function isJiraConfigured() {
   const config = resolveJiraConfig();
-  return Boolean(config.enabled && config.baseUrl && config.email && config.token);
+  return Boolean(config.enabled && config.baseUrl && config.token);
 }
 
 function nonEmpty(value: string | undefined) {
@@ -65,6 +65,32 @@ function normalizedBaseUrl(value: string | undefined) {
   }
 }
 
+function jiraAuthHeaders(email: string, token: string) {
+  const headers = [`Bearer ${token}`];
+  if (email) {
+    headers.push(`Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`);
+  }
+  return headers;
+}
+
+function cleanJiraErrorBody(body: string) {
+  const authFailure = body.match(/Basic Authentication Failure[^<]*/i)?.[0];
+  if (authFailure) {
+    return authFailure.replace(/\s+/g, ' ').trim();
+  }
+
+  return body
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500);
+}
+
 export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraConfig {
   const envBaseUrl = nonEmpty(env.JIRA_BASE_URL);
   const envEmail = nonEmpty(env.JIRA_EMAIL);
@@ -86,11 +112,10 @@ export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraCon
 export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
   const { enabled, baseUrl, email, token, maxResults } = resolveJiraConfig();
 
-  if (!enabled || !baseUrl || !email || !token) {
+  if (!enabled || !baseUrl || !token) {
     throw new Error('Jira is not configured');
   }
 
-  const authHeader = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
   const searchBody = JSON.stringify({
     jql,
     fields: ['summary', 'status', 'priority', 'assignee', 'issuetype', 'updated'],
@@ -98,30 +123,48 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
   });
   let response: Response | null = null;
   let lastErrorBody = '';
+  let lastStatus = 0;
+  const authHeaders = jiraAuthHeaders(email, token);
 
-  for (const path of ['/rest/api/3/search/jql', '/rest/api/2/search']) {
-    response = await fetch(`${baseUrl}${path}`, {
-      method: 'POST',
-      headers: {
-        Authorization: authHeader,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: searchBody,
-    });
+  for (const authHeader of authHeaders) {
+    for (const path of ['/rest/api/3/search/jql', '/rest/api/2/search']) {
+      response = await fetch(`${baseUrl}${path}`, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: searchBody,
+      });
 
-    if (response.ok) {
-      break;
+      if (response.ok) {
+        break;
+      }
+
+      lastStatus = response.status;
+      lastErrorBody = await response.text();
+      if ([401, 403].includes(response.status)) {
+        break;
+      }
+      if (![404, 405, 410].includes(response.status) || path === '/rest/api/2/search') {
+        throw new Error(
+          `Jira request failed: ${response.status} ${cleanJiraErrorBody(lastErrorBody)}`,
+        );
+      }
     }
 
-    lastErrorBody = await response.text();
-    if (![404, 405, 410].includes(response.status) || path === '/rest/api/2/search') {
-      throw new Error(`Jira request failed: ${response.status} ${lastErrorBody}`);
+    if (response?.ok) {
+      break;
     }
   }
 
   if (!response?.ok) {
-    throw new Error(`Jira request failed${lastErrorBody ? `: ${lastErrorBody}` : ''}`);
+    throw new Error(
+      `Jira authentication failed: ${lastStatus || 'unknown'} ${
+        lastErrorBody ? cleanJiraErrorBody(lastErrorBody) : ''
+      }`.trim(),
+    );
   }
 
   const parsed = jiraSearchResponseSchema.parse(await response.json());
