@@ -721,7 +721,7 @@ export const openApiDocument = {
         ],
         responses: {
           "200": { description: "Jira snapshots synchronized" },
-          "400": { description: "Jira integration is not configured for project" },
+          "404": { description: "Project not found" },
           "502": { description: "Jira request failed" },
         },
       },
