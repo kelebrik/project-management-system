@@ -64,6 +64,7 @@ JIRA_BASE_URL=https://jira.company.ru
 JIRA_EMAIL=integration-user@company.ru
 JIRA_USERNAME=integration-user
 JIRA_API_TOKEN=<api-token-or-password>
+JIRA_PASSWORD=<optional-service-account-password>
 JIRA_MAX_RESULTS=100
 WEBHOOK_TIMEOUT_MS=5000
 WEBHOOK_MAX_ATTEMPTS=3
@@ -71,11 +72,12 @@ WEBHOOK_RETRY_BASE_MS=500
 ```
 
 Jira-синхронизация выполняется backend-контейнером от сервисного аккаунта
-из `JIRA_EMAIL`, optional `JIRA_USERNAME` и `JIRA_API_TOKEN`. Для Jira Server
-`JIRA_USERNAME` может быть логином сервисного аккаунта, а `JIRA_API_TOKEN` -
-его паролем или секретом. Keycloak/OIDC-токен пользователя не передается в
-Jira и не используется для REST API. Jira credentials не хранятся и не
-редактируются через Admin Back Office.
+из `JIRA_EMAIL`, optional `JIRA_USERNAME`, `JIRA_API_TOKEN` и optional
+`JIRA_PASSWORD`. Для Jira Server `JIRA_USERNAME` может быть логином сервисного
+аккаунта, а `JIRA_PASSWORD` - его паролем. Если `JIRA_PASSWORD` не задан,
+backend использует `JIRA_API_TOKEN` как пароль fallback. Keycloak/OIDC-токен
+пользователя не передается в Jira и не используется для REST API. Jira
+credentials не хранятся и не редактируются через Admin Back Office.
 
 ## Проверка
 
