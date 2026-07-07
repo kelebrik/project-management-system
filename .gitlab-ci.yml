@@ -138,11 +138,52 @@ build_image:
     PYTHONUNBUFFERED: "1"
     HYDRA_ENABLED: true
     HYDRA_VERSION: 4.0.3
+    SBER_CA_BUNDLE: /tmp/sberdevices-ca/ca-bundle.crt
+    SSL_CERT_FILE: /tmp/sberdevices-ca/ca-bundle.crt
+    REQUESTS_CA_BUNDLE: /tmp/sberdevices-ca/ca-bundle.crt
+    CURL_CA_BUNDLE: /tmp/sberdevices-ca/ca-bundle.crt
+    VAULT_CACERT: /tmp/sberdevices-ca/ca-bundle.crt
+    NODE_EXTRA_CA_CERTS: /tmp/sberdevices-ca/ca-bundle.crt
     VAULT_ADDR: https://vault.dev.sberdevices.ru
     VAULT_AUTH_ROLE: starosfw-deploy
     VAULT_SECRET_PATH:
       starosfw/tuz_starosfw_glansbl
-    GIT_STRATEGY: none
+    GIT_STRATEGY: fetch
+  hooks:
+    pre_get_sources_script:
+      - |
+        set -eu
+        cert_dir="$(dirname "${SBER_CA_BUNDLE}")"
+        mkdir -p "${cert_dir}"
+        if [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+          cp /etc/ssl/certs/ca-certificates.crt "${SBER_CA_BUNDLE}"
+        else
+          : > "${SBER_CA_BUNDLE}"
+        fi
+        download_cert() {
+          cert_name="$1"
+          cert_path="${cert_dir}/${cert_name}"
+          cert_url="https://cdp.sberdevices.ru/pki/${cert_name}"
+          if command -v curl >/dev/null 2>&1; then
+            curl --fail --show-error --location --insecure "${cert_url}" -o "${cert_path}"
+          elif command -v wget >/dev/null 2>&1; then
+            wget --no-check-certificate -qO "${cert_path}" "${cert_url}"
+          else
+            echo "curl or wget is required to download Sber CA certificates" >&2
+            exit 1
+          fi
+          if ! grep -q "BEGIN CERTIFICATE" "${cert_path}"; then
+            echo "Downloaded file is not a PEM certificate: ${cert_url}" >&2
+            exit 1
+          fi
+          printf '\n' >> "${SBER_CA_BUNDLE}"
+          cat "${cert_path}" >> "${SBER_CA_BUNDLE}"
+          printf '\n' >> "${SBER_CA_BUNDLE}"
+        }
+        for cert in SberDevices_RCA.crt SberDevices_ICA.crt mincifra_rootca.crt mincifra_subca.crt rootca_ssl_rsa2022.crt subca_ssl_rsa2024.crt; do
+          download_cert "${cert}"
+        done
+        chmod 0644 "${SBER_CA_BUNDLE}" "${cert_dir}"/*.crt
   script:
     - |
       awx job_templates launch 378 \
