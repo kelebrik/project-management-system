@@ -107,32 +107,6 @@ export function PortfolioPage() {
           </div>
           {timelineRows.length > 0 ? (
             <div className="portfolio-goal-timeline">
-              <div className="portfolio-project-timeline-scale-row">
-                <span className="portfolio-project-timeline-scale-label">
-                  Шкала времени
-                </span>
-                <div className="portfolio-goal-axis portfolio-goal-axis-shared">
-                  <span className="portfolio-goal-axis-line" />
-                  <span
-                    className="portfolio-goal-today"
-                    style={{ left: `${portfolioGoalTimeline.todayOffset}%` }}
-                  >
-                    сегодня
-                  </span>
-                  {portfolioGoalTimeline.monthTicks.map((tick, index) => (
-                    <span
-                      className={`portfolio-goal-month-tick ${
-                        index % 2 === 0 ? "" : "minor"
-                      }`}
-                      key={tick.key}
-                      aria-label={tick.label}
-                      style={{ left: `${tick.offset}%` }}
-                    >
-                      {index % 2 === 0 ? tick.label : ""}
-                    </span>
-                  ))}
-                </div>
-              </div>
               <div className="portfolio-project-timelines">
                 {timelineRows.map((row) => (
                   <section
@@ -159,6 +133,23 @@ export function PortfolioPage() {
                       aria-label={`Временная линия проекта ${row.projectName}`}
                     >
                       <span className="portfolio-goal-axis-line" />
+                      {portfolioGoalTimeline.monthTicks.map((tick, index) => (
+                        <span
+                          className={`portfolio-goal-track-month-tick ${
+                            index % 2 === 0 ? "major" : "minor"
+                          } ${
+                            index === 0 ? "edge-start" : ""
+                          } ${
+                            index === portfolioGoalTimeline.monthTicks.length - 1
+                              ? "edge-end"
+                              : ""
+                          }`}
+                          data-label={index % 2 === 0 ? tick.label : ""}
+                          key={tick.key}
+                          style={{ left: `${tick.offset}%` }}
+                          title={tick.label}
+                        />
+                      ))}
                       <span
                         className="portfolio-goal-today-line"
                         style={{ left: `${portfolioGoalTimeline.todayOffset}%` }}
