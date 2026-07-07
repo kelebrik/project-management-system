@@ -139,7 +139,7 @@ build_image:
     HYDRA_ENABLED: true
     HYDRA_VERSION: 4.0.3
     SBER_CA_BUNDLE: /tmp/sberdevices-ca/ca-bundle.crt
-    SSL_CERT_DIR: /tmp/sberdevices-ca
+    VAULT_CA_PATH: /tmp/sberdevices-ca/ca-bundle.crt
     VAULT_ADDR: https://vault.dev.sberdevices.ru
     VAULT_AUTH_ROLE: starosfw-deploy
     VAULT_SECRET_PATH:
