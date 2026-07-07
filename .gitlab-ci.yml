@@ -155,11 +155,7 @@ build_image:
         set -eu
         cert_dir="$(dirname "${SBER_CA_BUNDLE}")"
         mkdir -p "${cert_dir}"
-        if [ -f /etc/ssl/certs/ca-certificates.crt ]; then
-          cp /etc/ssl/certs/ca-certificates.crt "${SBER_CA_BUNDLE}"
-        else
-          : > "${SBER_CA_BUNDLE}"
-        fi
+        : > "${SBER_CA_BUNDLE}"
         download_cert() {
           cert_name="$1"
           cert_path="${cert_dir}/${cert_name}"
@@ -176,14 +172,14 @@ build_image:
             echo "Downloaded file is not a PEM certificate: ${cert_url}" >&2
             exit 1
           fi
-          printf '\n' >> "${SBER_CA_BUNDLE}"
           cat "${cert_path}" >> "${SBER_CA_BUNDLE}"
           printf '\n' >> "${SBER_CA_BUNDLE}"
         }
-        for cert in SberDevices_RCA.crt SberDevices_ICA.crt mincifra_rootca.crt mincifra_subca.crt rootca_ssl_rsa2022.crt subca_ssl_rsa2024.crt; do
+        for cert in rootca_ssl_rsa2022.crt subca_ssl_rsa2024.crt mincifra_rootca.crt mincifra_subca.crt SberDevices_RCA.crt SberDevices_ICA.crt; do
           download_cert "${cert}"
         done
         chmod 0644 "${SBER_CA_BUNDLE}" "${cert_dir}"/*.crt
+        echo "Sber CA bundle contains $(grep -c "BEGIN CERTIFICATE" "${SBER_CA_BUNDLE}") certificates"
   script:
     - |
       awx job_templates launch 378 \
