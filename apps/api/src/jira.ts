@@ -33,6 +33,7 @@ type JiraConfig = {
   enabled: boolean;
   baseUrl: string;
   email: string;
+  username: string;
   token: string;
   maxResults: number;
 };
@@ -66,11 +67,22 @@ function normalizedBaseUrl(value: string | undefined) {
   }
 }
 
-function jiraAuthHeaders(email: string, token: string) {
+function jiraLoginFromEmail(email: string) {
+  const atIndex = email.indexOf('@');
+  return atIndex > 0 ? email.slice(0, atIndex) : '';
+}
+
+function jiraAuthHeaders(email: string, username: string, token: string) {
   const headers = [`Bearer ${token}`];
-  if (email) {
-    headers.push(`Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`);
+  const basicLogins = [username, email, jiraLoginFromEmail(email)].filter(Boolean);
+  const seenLogins = new Set<string>();
+
+  for (const login of basicLogins) {
+    if (seenLogins.has(login)) continue;
+    seenLogins.add(login);
+    headers.push(`Basic ${Buffer.from(`${login}:${token}`).toString('base64')}`);
   }
+
   return headers;
 }
 
@@ -99,6 +111,7 @@ function isJsonResponse(response: Response) {
 export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraConfig {
   const envBaseUrl = nonEmpty(env.JIRA_BASE_URL);
   const envEmail = nonEmpty(env.JIRA_EMAIL);
+  const envUsername = nonEmpty(env.JIRA_USERNAME);
   const envToken = nonEmpty(env.JIRA_API_TOKEN);
   const maxResults = Math.min(
     500,
@@ -109,13 +122,14 @@ export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraCon
     enabled: true,
     baseUrl: normalizedBaseUrl(envBaseUrl),
     email: envEmail ?? '',
+    username: envUsername ?? '',
     token: envToken ?? '',
     maxResults,
   };
 }
 
 export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
-  const { enabled, baseUrl, email, token, maxResults } = resolveJiraConfig();
+  const { enabled, baseUrl, email, username, token, maxResults } = resolveJiraConfig();
 
   if (!enabled || !baseUrl || !token) {
     throw new Error('Jira is not configured');
@@ -128,7 +142,7 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
   });
   let lastErrorBody = '';
   let lastStatus = 0;
-  const authHeaders = jiraAuthHeaders(email, token);
+  const authHeaders = jiraAuthHeaders(email, username, token);
   let parsed: JiraSearchResponse | null = null;
 
   for (const authHeader of authHeaders) {
