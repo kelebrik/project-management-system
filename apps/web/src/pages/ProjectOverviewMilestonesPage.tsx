@@ -287,7 +287,7 @@ export function ProjectOverviewMilestonesPage() {
         <div className="milestone-sections">
           <MilestoneTimelineSection
             sectionId="milestones-by-phase"
-            title="Вехи по фазам"
+            variant="plain"
             timeline={milestoneTimeline.byPhase}
             activeLabelDrag={activeMilestoneLabelDrag}
             labelOffsets={milestoneLabelOffsets}

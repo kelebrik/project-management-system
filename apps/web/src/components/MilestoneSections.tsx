@@ -127,18 +127,19 @@ function MilestoneLegend() {
 
 export function MilestoneTimelineSection({
   sectionId,
-  title,
+  title = null,
   timeline,
   activeLabelDrag = null,
   labelOffsets,
   isFullscreen = false,
+  variant = "card",
   onToggleFullscreen,
   onOpenStructure,
   onLabelPointerDown,
   onPrint,
 }: {
   sectionId: string;
-  title: string;
+  title?: string | null;
   timeline: MilestoneTimelineModel;
   activeLabelDrag?: {
     scope: MilestoneLabelScope;
@@ -146,6 +147,7 @@ export function MilestoneTimelineSection({
   } | null;
   labelOffsets: MilestoneLabelOffsets;
   isFullscreen?: boolean;
+  variant?: "card" | "plain";
   onToggleFullscreen?: () => void;
   onOpenStructure: () => void;
   onLabelPointerDown: (
@@ -156,33 +158,45 @@ export function MilestoneTimelineSection({
   ) => void;
   onPrint: () => void;
 }) {
+  const hasHeader = Boolean(title) || Boolean(onToggleFullscreen) || Boolean(onPrint);
+
   return (
-    <section className="milestone-section" data-print-section={sectionId} id={sectionId}>
-      <div className="milestone-section-head">
-        <h3>{title}</h3>
-        <div className="milestone-section-actions">
-          <MilestoneLegend />
-          {onToggleFullscreen && (
-            <button
-              type="button"
-              className="workspace-fullscreen-button"
-              onClick={onToggleFullscreen}
-              aria-label={
-                isFullscreen
-                  ? "Вернуть обычный режим вех по фазам"
-                  : "Развернуть вехи по фазам на весь экран"
-              }
-              title={isFullscreen ? "Вернуть обычный режим" : "На весь экран"}
-            >
-              {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-              {isFullscreen ? "Обычный режим" : "На весь экран"}
+    <section
+      className={
+        variant === "plain"
+          ? "milestone-section milestone-section-plain"
+          : "milestone-section"
+      }
+      data-print-section={sectionId}
+      id={sectionId}
+    >
+      {hasHeader && (
+        <div className="milestone-section-head">
+          {title && <h3>{title}</h3>}
+          <div className="milestone-section-actions">
+            <MilestoneLegend />
+            {onToggleFullscreen && (
+              <button
+                type="button"
+                className="workspace-fullscreen-button"
+                onClick={onToggleFullscreen}
+                aria-label={
+                  isFullscreen
+                    ? "Вернуть обычный режим вех по фазам"
+                    : "Развернуть вехи по фазам на весь экран"
+                }
+                title={isFullscreen ? "Вернуть обычный режим" : "На весь экран"}
+              >
+                {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                {isFullscreen ? "Обычный режим" : "На весь экран"}
+              </button>
+            )}
+            <button type="button" onClick={onPrint}>
+              Сохранить в PDF
             </button>
-          )}
-          <button type="button" onClick={onPrint}>
-            Сохранить в PDF
-          </button>
+          </div>
         </div>
-      </div>
+      )}
       <div
         className="milestone-timeline"
         style={

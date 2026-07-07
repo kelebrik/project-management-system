@@ -19,6 +19,22 @@ test('resolveJiraConfig uses env service account', () => {
   });
 });
 
+test('resolveJiraConfig accepts host-only Jira base URL from container env', () => {
+  const config = resolveJiraConfig({
+    JIRA_BASE_URL: 'tasks.sberdevices.ru',
+    JIRA_EMAIL: 'tuz_starosfw_tvmngmt@sberdevices.ru',
+    JIRA_API_TOKEN: 'service-token',
+  });
+
+  assert.deepEqual(config, {
+    enabled: true,
+    baseUrl: 'https://tasks.sberdevices.ru',
+    email: 'tuz_starosfw_tvmngmt@sberdevices.ru',
+    token: 'service-token',
+    maxResults: 100,
+  });
+});
+
 test('resolveJiraConfig reads Jira max results from env', () => {
   const config = resolveJiraConfig({
     JIRA_BASE_URL: 'https://tasks.sberdevices.ru',
@@ -130,7 +146,7 @@ test('fetchJiraIssues falls back to Jira Server search endpoint', async () => {
   const previousFetch = globalThis.fetch;
   const calls: Array<{ url: string; init?: RequestInit }> = [];
 
-  process.env.JIRA_BASE_URL = 'https://tasks.sberdevices.ru';
+  process.env.JIRA_BASE_URL = 'tasks.sberdevices.ru';
   process.env.JIRA_EMAIL = 'bot@example.com';
   process.env.JIRA_API_TOKEN = 'secret';
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
