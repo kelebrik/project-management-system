@@ -77,13 +77,16 @@ AUTH_COOKIE_SECURE=true
 METRICS_TOKEN=<required-random-token>
 JIRA_BASE_URL=<optional-jira-url>
 JIRA_EMAIL=<optional-integration-user>
-JIRA_API_TOKEN=<optional-token>
+JIRA_USERNAME=<optional-jira-server-login>
+JIRA_API_TOKEN=<optional-token-or-password>
 JIRA_MAX_RESULTS=100
 ```
 
 Jira REST API вызывается backend-контейнером через service account из
-`JIRA_EMAIL` и `JIRA_API_TOKEN`. Keycloak/OIDC login пользователя нужен только
-для входа в приложение; его пароль или token в Jira не пробрасываются. Jira
+`JIRA_EMAIL`, optional `JIRA_USERNAME` и `JIRA_API_TOKEN`. Для Jira Server
+`JIRA_USERNAME` может быть логином сервисного аккаунта, а `JIRA_API_TOKEN` -
+его паролем или секретом. Keycloak/OIDC login пользователя нужен только для
+входа в приложение; его пароль или token в Jira не пробрасываются. Jira
 credentials не задаются через Admin Back Office.
 
 `DATABASE_URL` должен указывать на существующую PostgreSQL БД. Если переносится текущая production БД, сначала нужен `pg_dump --format=custom`, затем restore на новой БД и только после этого `prisma migrate deploy`.
