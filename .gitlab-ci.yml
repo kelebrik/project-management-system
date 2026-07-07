@@ -142,7 +142,7 @@ build_image:
     SSL_CERT_FILE: /tmp/sberdevices-ca/ca-bundle.crt
     REQUESTS_CA_BUNDLE: /tmp/sberdevices-ca/ca-bundle.crt
     CURL_CA_BUNDLE: /tmp/sberdevices-ca/ca-bundle.crt
-    VAULT_CACERT: /tmp/sberdevices-ca/ca-bundle.crt
+    GIT_SSL_CAINFO: /tmp/sberdevices-ca/ca-bundle.crt
     NODE_EXTRA_CA_CERTS: /tmp/sberdevices-ca/ca-bundle.crt
     VAULT_ADDR: https://vault.dev.sberdevices.ru
     VAULT_AUTH_ROLE: starosfw-deploy
