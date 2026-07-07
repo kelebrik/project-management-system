@@ -495,8 +495,8 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     },
   });
 
-  if (!project?.jiraIntegration) {
-    res.status(404).json({ error: 'Интеграция Jira не настроена для этого проекта' });
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -568,17 +568,21 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       }
     }
 
-    await prisma.jiraIntegration.update({
-      where: { id: project.jiraIntegration.id },
-      data: { syncStatus: 'OK', lastSyncedAt: syncedAt },
-    });
+    if (project.jiraIntegration) {
+      await prisma.jiraIntegration.update({
+        where: { id: project.jiraIntegration.id },
+        data: { syncStatus: 'OK', lastSyncedAt: syncedAt },
+      });
+    }
 
     res.json({ synced: syncedIssues });
   } catch (error) {
-    await prisma.jiraIntegration.update({
-      where: { id: project.jiraIntegration.id },
-      data: { syncStatus: 'ERROR' },
-    });
+    if (project.jiraIntegration) {
+      await prisma.jiraIntegration.update({
+        where: { id: project.jiraIntegration.id },
+        data: { syncStatus: 'ERROR' },
+      });
+    }
     res.status(502).json({
       error: error instanceof Error ? error.message : 'Не удалось синхронизировать Jira',
     });
