@@ -52,6 +52,7 @@ GET/HEAD/OPTIONS доступны без авторизации в режиме 
 - `JIRA_EMAIL`;
 - `JIRA_USERNAME` optional, Jira Server login if it differs from email;
 - `JIRA_API_TOKEN`;
+- `JIRA_PASSWORD` optional, Jira Server password if it differs from `JIRA_API_TOKEN`;
 - `JIRA_MAX_RESULTS` optional, default `100`, maximum `500`.
 
 Backend ходит в Jira от сервисного аккаунта из этих переменных.

@@ -65,6 +65,7 @@ Render service settings if creating manually:
   - `JIRA_EMAIL=<integration user email>`
   - `JIRA_USERNAME=<optional Jira Server login if it differs from email>`
   - `JIRA_API_TOKEN=<Jira API token or service account password>`
+  - `JIRA_PASSWORD=<optional Jira Server service account password>`
   - `JIRA_MAX_RESULTS=100`
 
 ## Jira Strategy

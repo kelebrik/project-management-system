@@ -3,7 +3,13 @@ import test from 'node:test';
 
 import { fetchJiraIssues, resolveJiraConfig } from './jira.js';
 
-const jiraEnvKeys = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_USERNAME', 'JIRA_API_TOKEN'] as const;
+const jiraEnvKeys = [
+  'JIRA_BASE_URL',
+  'JIRA_EMAIL',
+  'JIRA_USERNAME',
+  'JIRA_API_TOKEN',
+  'JIRA_PASSWORD',
+] as const;
 
 function snapshotJiraEnv() {
   return Object.fromEntries(jiraEnvKeys.map((key) => [key, process.env[key]])) as Record<
@@ -36,6 +42,7 @@ test('resolveJiraConfig uses env service account', () => {
     email: 'service-account@example.com',
     username: '',
     token: 'service-token',
+    password: 'service-token',
     maxResults: 100,
   });
 });
@@ -53,6 +60,7 @@ test('resolveJiraConfig accepts host-only Jira base URL from container env', () 
     email: 'tuz_starosfw_tvmngmt@sberdevices.ru',
     username: '',
     token: 'service-token',
+    password: 'service-token',
     maxResults: 100,
   });
 });
@@ -71,6 +79,27 @@ test('resolveJiraConfig accepts explicit Jira username for server auth', () => {
     email: 'tuz_starosfw_tvmngmt@sberdevices.ru',
     username: 'tuz_starosfw_tvmngmt',
     token: 'service-password',
+    password: 'service-password',
+    maxResults: 100,
+  });
+});
+
+test('resolveJiraConfig accepts separate Jira password for server auth', () => {
+  const config = resolveJiraConfig({
+    JIRA_BASE_URL: 'tasks.sberdevices.ru',
+    JIRA_EMAIL: 'tuz_starosfw_tvmngmt@sberdevices.ru',
+    JIRA_USERNAME: 'tuz_starosfw_tvmngmt',
+    JIRA_API_TOKEN: 'pat-token',
+    JIRA_PASSWORD: 'service-password',
+  });
+
+  assert.deepEqual(config, {
+    enabled: true,
+    baseUrl: 'https://tasks.sberdevices.ru',
+    email: 'tuz_starosfw_tvmngmt@sberdevices.ru',
+    username: 'tuz_starosfw_tvmngmt',
+    token: 'pat-token',
+    password: 'service-password',
     maxResults: 100,
   });
 });
@@ -89,6 +118,7 @@ test('resolveJiraConfig reads Jira max results from env', () => {
     email: 'env-bot@example.com',
     username: '',
     token: 'env-token',
+    password: 'env-token',
     maxResults: 500,
   });
 });
@@ -106,6 +136,7 @@ test('resolveJiraConfig reports incomplete config when Jira env credentials are 
     email: '',
     username: '',
     token: '',
+    password: '',
     maxResults: 100,
   });
 });
@@ -345,6 +376,93 @@ test('fetchJiraIssues falls back to Jira login derived from email local part', a
       usernameBasic,
     );
     assert.equal(issues[0].key, 'TV-968');
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssues falls back to Jira Server cookie session auth', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const emailBasic = `Basic ${Buffer.from('tuz_starosfw_tvmngmt@sberdevices.ru:service-password').toString('base64')}`;
+  const usernameBasic = `Basic ${Buffer.from('tuz_starosfw_tvmngmt:service-password').toString('base64')}`;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'tuz_starosfw_tvmngmt@sberdevices.ru';
+  process.env.JIRA_API_TOKEN = 'pat-token';
+  process.env.JIRA_PASSWORD = 'service-password';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+    const url = String(input);
+
+    if (url.endsWith('/rest/auth/1/session')) {
+      const body = JSON.parse(String(init?.body));
+      if (body.username === 'tuz_starosfw_tvmngmt') {
+        return new Response(
+          JSON.stringify({ session: { name: 'JSESSIONID', value: 'session-123' } }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      }
+
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    const headers = init?.headers as Record<string, string>;
+    if (headers.Cookie === 'JSESSIONID=session-123') {
+      return new Response(
+        JSON.stringify({
+          issues: [
+            {
+              key: 'TV-969',
+              fields: {
+                summary: 'Session auth result',
+                status: { name: 'Open' },
+                priority: { name: 'Medium' },
+                assignee: null,
+                issuetype: { name: 'Task' },
+                updated: '2026-07-02T10:00:00.000+0300',
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    return new Response('Unauthorized', { status: 401 });
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('project = TV');
+
+    assert.equal(issues[0].key, 'TV-969');
+    assert.equal(
+      (calls[0].init?.headers as Record<string, string>).Authorization,
+      'Bearer pat-token',
+    );
+    assert.equal(
+      (calls[1].init?.headers as Record<string, string>).Authorization,
+      emailBasic,
+    );
+    assert.equal(
+      (calls[2].init?.headers as Record<string, string>).Authorization,
+      usernameBasic,
+    );
+    assert.equal(calls[3].url, 'https://jira.example/rest/auth/1/session');
+    assert.equal(calls[4].url, 'https://jira.example/rest/auth/1/session');
+    assert.equal(calls[5].url, 'https://jira.example/rest/api/3/search/jql');
+    assert.equal(
+      (calls[5].init?.headers as Record<string, string>).Cookie,
+      'JSESSIONID=session-123',
+    );
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);
