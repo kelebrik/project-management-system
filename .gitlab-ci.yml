@@ -138,8 +138,8 @@ build_image:
     PYTHONUNBUFFERED: "1"
     HYDRA_ENABLED: true
     HYDRA_VERSION: 4.0.3
-    SBER_CA_BUNDLE: /tmp/sberdevices-ca/ca-bundle.crt
-    VAULT_CA_PATH: /tmp/sberdevices-ca/ca-bundle.crt
+    SBER_CA_BUNDLE: ${CI_PROJECT_DIR}/.sberdevices-ca/ca-bundle.crt
+    VAULT_CA_PATH: ${CI_PROJECT_DIR}/.sberdevices-ca/ca-bundle.crt
     VAULT_ADDR: https://vault.dev.sberdevices.ru
     VAULT_AUTH_ROLE: starosfw-deploy
     VAULT_SECRET_PATH:
@@ -152,6 +152,7 @@ build_image:
         cert_dir="$(dirname "${SBER_CA_BUNDLE}")"
         mkdir -p "${cert_dir}"
         : > "${SBER_CA_BUNDLE}"
+        echo "Sber CA bundle path: ${SBER_CA_BUNDLE}"
         download_cert() {
           cert_name="$1"
           cert_path="${cert_dir}/${cert_name}"
