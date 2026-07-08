@@ -125,6 +125,21 @@ async function syncJira(options: { baseUrl?: string } = {}) {
       `${apiBase}/api/projects/${project.id}/overview`,
     );
     applyProject(await refreshed.json());
+    const syncedCount =
+      typeof result.synced === "number" ? result.synced : 0;
+    const configuredSections =
+      typeof result.configuredSections === "number"
+        ? result.configuredSections
+        : 0;
+    if (configuredSections === 0) {
+      setNotice("Jira: нет разделов с заполненным фильтром");
+    } else if (syncedCount === 0) {
+      setNotice(
+        `Jira: синхронизация выполнена, тикетов не найдено. Проверь JQL и доступ ${options.baseUrl ?? "Jira"}`,
+      );
+    } else {
+      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}`);
+    }
   } catch (syncError) {
     setError(
       syncError instanceof Error

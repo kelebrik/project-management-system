@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { fetchJiraIssues } from '../jira.js';
+import { logEvent } from '../server/logger.js';
 import {
   ensureDefaultJiraWorkSections,
   jiraWorkSectionFilterToJql,
@@ -617,18 +618,27 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       .filter((section) => section.jiraQuery);
     const syncedAt = new Date();
     let syncedIssues = 0;
-
-    for (const section of workSections) {
-      await prisma.jiraWorkSectionIssue.deleteMany({
-        where: { sectionId: section.id },
-      });
-    }
+    const sectionStats: Array<{
+      id: string;
+      title: string;
+      sortOrder: number;
+      issues: number;
+    }> = [];
 
     for (const section of sectionsWithFilter) {
       const issues = await fetchJiraIssues(section.jiraQuery, {
         baseUrl: parsedSync.data.baseUrl,
       });
       syncedIssues += issues.length;
+      sectionStats.push({
+        id: section.id,
+        title: section.title,
+        sortOrder: section.sortOrder,
+        issues: issues.length,
+      });
+      await prisma.jiraWorkSectionIssue.deleteMany({
+        where: { sectionId: section.id },
+      });
       const snapshots = await Promise.all(
         issues.map((issue) =>
           prisma.jiraIssueSnapshot.upsert({
@@ -684,7 +694,20 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       });
     }
 
-    res.json({ synced: syncedIssues });
+    logEvent('info', 'jira.sync.completed', {
+      projectId: project.id,
+      baseUrl: parsedSync.data.baseUrl ?? 'env',
+      configuredSections: sectionsWithFilter.length,
+      syncedIssues,
+      sections: sectionStats,
+    });
+
+    res.json({
+      synced: syncedIssues,
+      configuredSections: sectionsWithFilter.length,
+      totalSections: workSections.length,
+      sections: sectionStats,
+    });
   } catch (error) {
     if (project.jiraIntegration) {
       await prisma.jiraIntegration.update({

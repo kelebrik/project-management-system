@@ -739,7 +739,33 @@ export const openApiDocument = {
           },
         },
         responses: {
-          "200": { description: "Jira snapshots synchronized" },
+          "200": {
+            description: "Jira snapshots synchronized",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    synced: { type: "number" },
+                    configuredSections: { type: "number" },
+                    totalSections: { type: "number" },
+                    sections: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string" },
+                          title: { type: "string" },
+                          sortOrder: { type: "number" },
+                          issues: { type: "number" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           "404": { description: "Project not found" },
           "502": { description: "Jira request failed" },
         },
