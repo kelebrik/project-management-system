@@ -29,6 +29,10 @@ const jiraSearchResponseSchema = z.object({
 });
 type JiraSearchResponse = z.infer<typeof jiraSearchResponseSchema>;
 
+const jiraFilterResponseSchema = z.object({
+  jql: z.string(),
+});
+
 const jiraSessionResponseSchema = z.object({
   session: z.object({
     name: z.string(),
@@ -155,6 +159,90 @@ function jiraSearchPaths(baseUrl: string) {
   }
 
   return ['/rest/api/2/search', '/rest/api/3/search/jql'];
+}
+
+function jiraFilterPaths(baseUrl: string, filterId: string) {
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    if (host.endsWith('atlassian.net')) {
+      return [`/rest/api/3/filter/${filterId}`, `/rest/api/2/filter/${filterId}`];
+    }
+  } catch {
+    // Host-only values are normalized before use; keep Jira Server order as fallback.
+  }
+
+  return [`/rest/api/2/filter/${filterId}`, `/rest/api/3/filter/${filterId}`];
+}
+
+function savedFilterIdFromJql(jql: string) {
+  return jql.trim().match(/^filter\s*=\s*"?(\d+)"?$/i)?.[1] ?? null;
+}
+
+function jiraSearchBody(jql: string, maxResults: number) {
+  return JSON.stringify({
+    jql,
+    fields: ['summary', 'status', 'priority', 'assignee', 'issuetype', 'updated'],
+    maxResults,
+  });
+}
+
+async function fetchJiraFilterJql(
+  baseUrl: string,
+  filterId: string,
+  authHeaders: Record<string, string>,
+) {
+  let lastErrorBody = '';
+  let lastStatus = 0;
+  const paths = jiraFilterPaths(baseUrl, filterId);
+
+  for (const [index, path] of paths.entries()) {
+    const isLastPath = index === paths.length - 1;
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: {
+        ...authHeaders,
+        Accept: 'application/json',
+      },
+    });
+
+    if (response.ok) {
+      if (!isJsonResponse(response)) {
+        return { jql: null, status: response.status, body: await response.text() };
+      }
+
+      try {
+        return {
+          jql: jiraFilterResponseSchema.parse(await response.json()).jql,
+          status: response.status,
+          body: '',
+        };
+      } catch (error) {
+        return {
+          jql: null,
+          status: response.status,
+          body: error instanceof Error ? error.message : 'Jira filter response is not valid JSON',
+        };
+      }
+    }
+
+    lastStatus = response.status;
+    lastErrorBody =
+      response.status >= 300 && response.status < 400
+        ? `Redirected to ${response.headers.get('location') ?? 'unknown location'}`
+        : await response.text();
+    if (
+      [400, 401, 403, 404].includes(response.status) ||
+      (response.status >= 300 && response.status < 400)
+    ) {
+      return { jql: null, status: lastStatus, body: lastErrorBody };
+    }
+    if (![405, 410].includes(response.status) || isLastPath) {
+      return { jql: null, status: lastStatus, body: lastErrorBody };
+    }
+  }
+
+  return { jql: null, status: lastStatus, body: lastErrorBody };
 }
 
 async function fetchJiraSearch(
@@ -287,20 +375,33 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
     throw new Error('Jira is not configured');
   }
 
-  const searchBody = JSON.stringify({
-    jql,
-    fields: ['summary', 'status', 'priority', 'assignee', 'issuetype', 'updated'],
-    maxResults,
-  });
+  const savedFilterId = savedFilterIdFromJql(jql);
   let lastErrorBody = '';
   let lastStatus = 0;
   const authAttempts = jiraAuthAttempts(email, token);
   const attemptedMethods: string[] = [];
+  let lastFailure: 'auth' | 'filter' = 'auth';
   let parsed: JiraSearchResponse | null = null;
 
   for (const authAttempt of authAttempts) {
     attemptedMethods.push(authAttempt.label);
-    const result = await fetchJiraSearch(baseUrl, searchBody, authAttempt.headers);
+    let effectiveJql = jql;
+    if (savedFilterId) {
+      const filter = await fetchJiraFilterJql(baseUrl, savedFilterId, authAttempt.headers);
+      lastStatus = filter.status;
+      lastErrorBody = filter.body;
+      if (!filter.jql) {
+        lastFailure = 'filter';
+        continue;
+      }
+      effectiveJql = filter.jql;
+    }
+
+    const result = await fetchJiraSearch(
+      baseUrl,
+      jiraSearchBody(effectiveJql, maxResults),
+      authAttempt.headers,
+    );
     parsed = result.parsed;
     lastStatus = result.status;
     lastErrorBody = result.body;
@@ -315,7 +416,25 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
       lastErrorBody = session.body;
       if (!session.cookie) continue;
 
-      const result = await fetchJiraSearch(baseUrl, searchBody, { Cookie: session.cookie });
+      let effectiveJql = jql;
+      if (savedFilterId) {
+        const filter = await fetchJiraFilterJql(baseUrl, savedFilterId, {
+          Cookie: session.cookie,
+        });
+        lastStatus = filter.status;
+        lastErrorBody = filter.body;
+        if (!filter.jql) {
+          lastFailure = 'filter';
+          continue;
+        }
+        effectiveJql = filter.jql;
+      }
+
+      const result = await fetchJiraSearch(
+        baseUrl,
+        jiraSearchBody(effectiveJql, maxResults),
+        { Cookie: session.cookie },
+      );
       parsed = result.parsed;
       lastStatus = result.status;
       lastErrorBody = result.body;
@@ -324,6 +443,16 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
   }
 
   if (!parsed) {
+    if (lastFailure === 'filter' && savedFilterId) {
+      throw new Error(
+        `Jira saved filter ${savedFilterId} is unavailable for ${email}: ${
+          lastStatus || 'unknown'
+        } ${lastErrorBody ? cleanJiraErrorBody(lastErrorBody) : ''}; auth methods tried: ${attemptedMethods.join(
+          ', ',
+        )}`.trim(),
+      );
+    }
+
     throw new Error(
       `Jira authentication failed: ${lastStatus || 'unknown'} ${
         lastErrorBody ? cleanJiraErrorBody(lastErrorBody) : ''
