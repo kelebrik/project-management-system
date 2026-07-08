@@ -144,6 +144,10 @@ function cleanJiraErrorBody(body: string) {
     .slice(0, 500);
 }
 
+function isAnonymousFieldVisibilityError(body: string) {
+  return /cannot be viewed by anonymous users/i.test(body);
+}
+
 function isJsonResponse(response: Response) {
   return response.headers.get('content-type')?.toLowerCase().includes('application/json') ?? false;
 }
@@ -292,6 +296,9 @@ async function fetchJiraSearch(
       response.status >= 300 && response.status < 400
         ? `Redirected to ${response.headers.get('location') ?? 'unknown location'}`
         : await response.text();
+    if (response.status === 400 && isAnonymousFieldVisibilityError(lastErrorBody)) {
+      return { parsed: null, status: lastStatus, body: lastErrorBody };
+    }
     if (
       [401, 403].includes(response.status) ||
       (response.status >= 300 && response.status < 400)
