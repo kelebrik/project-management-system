@@ -7,7 +7,9 @@ export type JiraIssue = {
   status: string;
   priority: string;
   assignee: string | null;
+  reporter: string | null;
   issueType: string;
+  resolution: string | null;
   sprint: string | null;
   updatedAt: Date;
 };
@@ -21,7 +23,9 @@ const jiraSearchResponseSchema = z.object({
         status: z.object({ name: z.string() }).nullable(),
         priority: z.object({ name: z.string() }).nullable(),
         assignee: z.object({ displayName: z.string() }).nullable(),
+        reporter: z.object({ displayName: z.string() }).nullable().optional(),
         issuetype: z.object({ name: z.string() }).nullable(),
+        resolution: z.object({ name: z.string() }).nullable().optional(),
         updated: z.string(),
       }),
     }),
@@ -270,7 +274,16 @@ function savedFilterIdFromJql(jql: string) {
 function jiraSearchBody(jql: string, maxResults: number) {
   return JSON.stringify({
     jql,
-    fields: ['summary', 'status', 'priority', 'assignee', 'issuetype', 'updated'],
+    fields: [
+      'summary',
+      'status',
+      'priority',
+      'assignee',
+      'reporter',
+      'issuetype',
+      'resolution',
+      'updated',
+    ],
     maxResults,
   });
 }
@@ -795,7 +808,9 @@ export async function fetchJiraIssuesWithMeta(
       status: issue.fields.status?.name ?? 'Unknown',
       priority: issue.fields.priority?.name ?? 'None',
       assignee: issue.fields.assignee?.displayName ?? null,
+      reporter: issue.fields.reporter?.displayName ?? null,
       issueType: issue.fields.issuetype?.name ?? 'Issue',
+      resolution: issue.fields.resolution?.name ?? 'Unresolved',
       sprint: null,
       updatedAt: new Date(issue.fields.updated),
     })),

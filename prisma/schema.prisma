@@ -637,7 +637,9 @@ model JiraIssueSnapshot {
   status       String
   priority     String
   assignee     String?
+  reporter     String?
   issueType    String
+  resolution   String?
   sprint       String?
   updatedAt    DateTime
   syncedAt     DateTime               @default(now())
