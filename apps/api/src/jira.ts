@@ -152,6 +152,20 @@ function isJsonResponse(response: Response) {
   return response.headers.get('content-type')?.toLowerCase().includes('application/json') ?? false;
 }
 
+function cookieHeaderFromResponse(response: Response) {
+  const headers = response.headers as Headers & { getSetCookie?: () => string[] };
+  const setCookies = headers.getSetCookie?.() ?? [];
+  const legacySetCookie = response.headers.get('set-cookie');
+  if (legacySetCookie && setCookies.length === 0) {
+    setCookies.push(legacySetCookie);
+  }
+
+  return setCookies
+    .map((cookie) => cookie.split(';')[0]?.trim() ?? '')
+    .filter(Boolean)
+    .join('; ');
+}
+
 function jiraSearchPaths(baseUrl: string) {
   try {
     const host = new URL(baseUrl).hostname.toLowerCase();
@@ -357,6 +371,36 @@ async function fetchJiraSessionCookie(baseUrl: string, username: string, passwor
   return { cookie: '', status: response.status, body: await response.text() };
 }
 
+async function fetchJiraWebLoginCookie(baseUrl: string, username: string, password: string) {
+  const response = await fetch(`${baseUrl}/login.jsp`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      Accept: 'text/html,application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      os_username: username,
+      os_password: password,
+      os_destination: '/',
+      login: 'Log In',
+    }).toString(),
+  });
+  const cookie = cookieHeaderFromResponse(response);
+  if (cookie && response.status < 400) {
+    return { cookie, status: response.status, body: '' };
+  }
+
+  return {
+    cookie: '',
+    status: response.status,
+    body:
+      response.status >= 300 && response.status < 400
+        ? `Redirected to ${response.headers.get('location') ?? 'unknown location'}`
+        : await response.text(),
+  };
+}
+
 export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraConfig {
   const envBaseUrl = nonEmpty(env.JIRA_BASE_URL);
   const envEmail = nonEmpty(env.JIRA_EMAIL);
@@ -441,6 +485,40 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
         baseUrl,
         jiraSearchBody(effectiveJql, maxResults),
         { Cookie: session.cookie },
+      );
+      parsed = result.parsed;
+      lastStatus = result.status;
+      lastErrorBody = result.body;
+      if (parsed) break;
+    }
+  }
+
+  if (!parsed) {
+    for (const candidate of jiraLoginCandidates(email)) {
+      attemptedMethods.push(`web-login:${candidate.label}`);
+      const login = await fetchJiraWebLoginCookie(baseUrl, candidate.login, token);
+      lastStatus = login.status;
+      lastErrorBody = login.body;
+      if (!login.cookie) continue;
+
+      let effectiveJql = jql;
+      if (savedFilterId) {
+        const filter = await fetchJiraFilterJql(baseUrl, savedFilterId, {
+          Cookie: login.cookie,
+        });
+        lastStatus = filter.status;
+        lastErrorBody = filter.body;
+        if (!filter.jql) {
+          lastFailure = 'filter';
+          continue;
+        }
+        effectiveJql = filter.jql;
+      }
+
+      const result = await fetchJiraSearch(
+        baseUrl,
+        jiraSearchBody(effectiveJql, maxResults),
+        { Cookie: login.cookie },
       );
       parsed = result.parsed;
       lastStatus = result.status;

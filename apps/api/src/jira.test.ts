@@ -621,6 +621,93 @@ test('fetchJiraIssues falls back to Jira Server cookie session auth', async () =
   }
 });
 
+test('fetchJiraIssues falls back to Jira web login cookie auth', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+  process.env.JIRA_BASE_URL = 'tasks.sberdevices.ru';
+  process.env.JIRA_EMAIL = 'tuz_starosfw_tvmngmt@sberdevices.ru';
+  process.env.JIRA_API_TOKEN = 'service-token';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+    const url = String(input);
+
+    if (url.endsWith('/login.jsp')) {
+      const body = new URLSearchParams(String(init?.body));
+      if (body.get('os_username') === 'tuz_starosfw_tvmngmt') {
+        return new Response('', {
+          status: 302,
+          headers: {
+            Location: '/',
+            'Set-Cookie': 'JSESSIONID=web-session-123; Path=/; HttpOnly',
+          },
+        });
+      }
+
+      return new Response('<html><body>Login failed</body></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+
+    if (url.endsWith('/rest/auth/1/session')) {
+      return new Response(
+        JSON.stringify({ errorMessages: ['Login failed'], errors: {} }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    const headers = init?.headers as Record<string, string>;
+    if (headers.Cookie === 'JSESSIONID=web-session-123') {
+      return new Response(
+        JSON.stringify({
+          issues: [
+            {
+              key: 'TV-7900',
+              fields: {
+                summary: 'Web login auth result',
+                status: { name: 'Open' },
+                priority: { name: 'Medium' },
+                assignee: null,
+                issuetype: { name: 'Task' },
+                updated: '2026-07-02T10:00:00.000+0300',
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    return new Response('Unauthorized', { status: 401 });
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('project = TV');
+
+    assert.equal(issues[0].key, 'TV-7900');
+    assert.equal(calls[0].url, 'https://tasks.sberdevices.ru/rest/api/2/search');
+    assert.equal(calls[3].url, 'https://tasks.sberdevices.ru/rest/auth/1/session');
+    assert.equal(calls[5].url, 'https://tasks.sberdevices.ru/login.jsp');
+    assert.equal(calls[6].url, 'https://tasks.sberdevices.ru/login.jsp');
+    assert.equal(calls[7].url, 'https://tasks.sberdevices.ru/rest/api/2/search');
+    assert.equal(
+      (calls[7].init?.headers as Record<string, string>).Cookie,
+      'JSESSIONID=web-session-123',
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
 test('fetchJiraIssues falls back to basic auth when bearer returns HTML login page', async () => {
   const previousEnv = snapshotJiraEnv();
   const previousFetch = globalThis.fetch;
