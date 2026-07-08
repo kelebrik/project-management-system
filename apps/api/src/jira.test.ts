@@ -186,16 +186,107 @@ test('fetchJiraIssues uses Jira Server search endpoint before Cloud endpoint', a
   }) as typeof fetch;
 
   try {
-    const issues = await fetchJiraIssues('filter = 39227');
+    const issues = await fetchJiraIssues('project = TV');
 
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, 'https://tasks.sberdevices.ru/rest/api/2/search');
     assert.equal(
       JSON.parse(String(calls[0].init?.body)).jql,
-      'filter = 39227',
+      'project = TV',
     );
     assert.equal(issues[0].key, 'TV-7500');
     assert.equal(issues[0].url, 'https://tasks.sberdevices.ru/browse/TV-7500');
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssues resolves Jira saved filter id before search', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+  process.env.JIRA_BASE_URL = 'tasks.sberdevices.ru';
+  process.env.JIRA_EMAIL = 'tuz_starosfw_tvmngmt@sberdevices.ru';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+
+    if (String(input).endsWith('/rest/api/2/filter/39227')) {
+      return new Response(
+        JSON.stringify({ jql: 'project = TV AND statusCategory != Done' }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        issues: [
+          {
+            key: 'TV-7700',
+            fields: {
+              summary: 'Saved filter result',
+              status: { name: 'Open' },
+              priority: { name: 'Medium' },
+              assignee: null,
+              issuetype: { name: 'Task' },
+              updated: '2026-07-02T10:00:00.000+0300',
+            },
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('filter = 39227');
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, 'https://tasks.sberdevices.ru/rest/api/2/filter/39227');
+    assert.equal(calls[1].url, 'https://tasks.sberdevices.ru/rest/api/2/search');
+    assert.equal(
+      JSON.parse(String(calls[1].init?.body)).jql,
+      'project = TV AND statusCategory != Done',
+    );
+    assert.equal(issues[0].key, 'TV-7700');
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssues reports unavailable Jira saved filter', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+
+  process.env.JIRA_BASE_URL = 'tasks.sberdevices.ru';
+  process.env.JIRA_EMAIL = 'tuz_starosfw_tvmngmt@sberdevices.ru';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        errorMessages: ['The requested filter does not exist or is private'],
+        errors: {},
+      }),
+      {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    )) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssues('filter = 39227'),
+      /Jira saved filter 39227 is unavailable for tuz_starosfw_tvmngmt@sberdevices\.ru/,
+    );
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);
@@ -237,7 +328,7 @@ test('fetchJiraIssues normalizes bearer token prefix from env', async () => {
   }) as typeof fetch;
 
   try {
-    const issues = await fetchJiraIssues('filter = 39227');
+    const issues = await fetchJiraIssues('project = TV');
 
     assert.equal(
       (calls[0].init?.headers as Record<string, string>).Authorization,
