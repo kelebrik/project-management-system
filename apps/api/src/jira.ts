@@ -68,6 +68,9 @@ function normalizedBaseUrl(value: string | undefined) {
 
   try {
     const url = new URL(withProtocol);
+    if (url.hostname.toLowerCase() === 'tasks.sberdevices.ru') {
+      url.hostname = 'tasks.dev.sberdevices.ru';
+    }
     url.search = '';
     url.hash = '';
     url.pathname = url.pathname.replace(/\/+$/, '');

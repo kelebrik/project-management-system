@@ -25,14 +25,14 @@ function restoreJiraEnv(snapshot: ReturnType<typeof snapshotJiraEnv>) {
 
 test('resolveJiraConfig uses env service account', () => {
   const config = resolveJiraConfig({
-    JIRA_BASE_URL: 'https://tasks.sberdevices.ru/',
+    JIRA_BASE_URL: 'https://tasks.dev.sberdevices.ru/',
     JIRA_EMAIL: 'service-account@example.com',
     JIRA_API_TOKEN: 'service-token',
   });
 
   assert.deepEqual(config, {
     enabled: true,
-    baseUrl: 'https://tasks.sberdevices.ru',
+    baseUrl: 'https://tasks.dev.sberdevices.ru',
     email: 'service-account@example.com',
     token: 'service-token',
     maxResults: 100,
@@ -48,7 +48,7 @@ test('resolveJiraConfig accepts host-only Jira base URL from container env', () 
 
   assert.deepEqual(config, {
     enabled: true,
-    baseUrl: 'https://tasks.sberdevices.ru',
+    baseUrl: 'https://tasks.dev.sberdevices.ru',
     email: 'tuz_starosfw_tvmngmt@sberdevices.ru',
     token: 'service-token',
     maxResults: 100,
@@ -57,7 +57,7 @@ test('resolveJiraConfig accepts host-only Jira base URL from container env', () 
 
 test('resolveJiraConfig reads Jira max results from env', () => {
   const config = resolveJiraConfig({
-    JIRA_BASE_URL: 'https://tasks.sberdevices.ru',
+    JIRA_BASE_URL: 'https://tasks.dev.sberdevices.ru',
     JIRA_EMAIL: 'env-bot@example.com',
     JIRA_API_TOKEN: 'env-token',
     JIRA_MAX_RESULTS: '750',
@@ -65,7 +65,7 @@ test('resolveJiraConfig reads Jira max results from env', () => {
 
   assert.deepEqual(config, {
     enabled: true,
-    baseUrl: 'https://tasks.sberdevices.ru',
+    baseUrl: 'https://tasks.dev.sberdevices.ru',
     email: 'env-bot@example.com',
     token: 'env-token',
     maxResults: 500,
@@ -189,13 +189,13 @@ test('fetchJiraIssues uses Jira Server search endpoint before Cloud endpoint', a
     const issues = await fetchJiraIssues('project = TV');
 
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, 'https://tasks.sberdevices.ru/rest/api/2/search');
+    assert.equal(calls[0].url, 'https://tasks.dev.sberdevices.ru/rest/api/2/search');
     assert.equal(
       JSON.parse(String(calls[0].init?.body)).jql,
       'project = TV',
     );
     assert.equal(issues[0].key, 'TV-7500');
-    assert.equal(issues[0].url, 'https://tasks.sberdevices.ru/browse/TV-7500');
+    assert.equal(issues[0].url, 'https://tasks.dev.sberdevices.ru/browse/TV-7500');
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);
@@ -250,8 +250,8 @@ test('fetchJiraIssues resolves Jira saved filter id before search', async () => 
     const issues = await fetchJiraIssues('filter = 39227');
 
     assert.equal(calls.length, 2);
-    assert.equal(calls[0].url, 'https://tasks.sberdevices.ru/rest/api/2/filter/39227');
-    assert.equal(calls[1].url, 'https://tasks.sberdevices.ru/rest/api/2/search');
+    assert.equal(calls[0].url, 'https://tasks.dev.sberdevices.ru/rest/api/2/filter/39227');
+    assert.equal(calls[1].url, 'https://tasks.dev.sberdevices.ru/rest/api/2/search');
     assert.equal(
       JSON.parse(String(calls[1].init?.body)).jql,
       'project = TV AND statusCategory != Done',
@@ -693,11 +693,11 @@ test('fetchJiraIssues falls back to Jira web login cookie auth', async () => {
     const issues = await fetchJiraIssues('project = TV');
 
     assert.equal(issues[0].key, 'TV-7900');
-    assert.equal(calls[0].url, 'https://tasks.sberdevices.ru/rest/api/2/search');
-    assert.equal(calls[3].url, 'https://tasks.sberdevices.ru/rest/auth/1/session');
-    assert.equal(calls[5].url, 'https://tasks.sberdevices.ru/login.jsp');
-    assert.equal(calls[6].url, 'https://tasks.sberdevices.ru/login.jsp');
-    assert.equal(calls[7].url, 'https://tasks.sberdevices.ru/rest/api/2/search');
+    assert.equal(calls[0].url, 'https://tasks.dev.sberdevices.ru/rest/api/2/search');
+    assert.equal(calls[3].url, 'https://tasks.dev.sberdevices.ru/rest/auth/1/session');
+    assert.equal(calls[5].url, 'https://tasks.dev.sberdevices.ru/login.jsp');
+    assert.equal(calls[6].url, 'https://tasks.dev.sberdevices.ru/login.jsp');
+    assert.equal(calls[7].url, 'https://tasks.dev.sberdevices.ru/rest/api/2/search');
     assert.equal(
       (calls[7].init?.headers as Record<string, string>).Cookie,
       'JSESSIONID=web-session-123',
