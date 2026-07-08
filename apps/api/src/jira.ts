@@ -148,6 +148,10 @@ function isAnonymousFieldVisibilityError(body: string) {
   return /cannot be viewed by anonymous users/i.test(body);
 }
 
+function isJiraLoginPage(body: string) {
+  return /name=["']os_username["']|id=["']login-form["']|login failed/i.test(body);
+}
+
 function isJsonResponse(response: Response) {
   return response.headers.get('content-type')?.toLowerCase().includes('application/json') ?? false;
 }
@@ -383,21 +387,27 @@ async function fetchJiraWebLoginCookie(baseUrl: string, username: string, passwo
       os_username: username,
       os_password: password,
       os_destination: '/',
+      os_cookie: 'true',
       login: 'Log In',
     }).toString(),
   });
   const cookie = cookieHeaderFromResponse(response);
-  if (cookie && response.status < 400) {
+  if (cookie && response.status >= 300 && response.status < 400) {
+    return { cookie, status: response.status, body: '' };
+  }
+
+  const body =
+    response.status >= 300 && response.status < 400
+      ? `Redirected to ${response.headers.get('location') ?? 'unknown location'}`
+      : await response.text();
+  if (cookie && response.status < 400 && !isJiraLoginPage(body)) {
     return { cookie, status: response.status, body: '' };
   }
 
   return {
     cookie: '',
     status: response.status,
-    body:
-      response.status >= 300 && response.status < 400
-        ? `Redirected to ${response.headers.get('location') ?? 'unknown location'}`
-        : await response.text(),
+    body,
   };
 }
 
@@ -432,6 +442,7 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
   const authAttempts = jiraAuthAttempts(email, token);
   const attemptedMethods: string[] = [];
   let lastFailure: 'auth' | 'filter' = 'auth';
+  let sawAnonymousSearch = false;
   let parsed: JiraSearchResponse | null = null;
 
   for (const authAttempt of authAttempts) {
@@ -456,6 +467,7 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
     parsed = result.parsed;
     lastStatus = result.status;
     lastErrorBody = result.body;
+    sawAnonymousSearch ||= isAnonymousFieldVisibilityError(result.body);
     if (parsed) break;
   }
 
@@ -489,6 +501,7 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
       parsed = result.parsed;
       lastStatus = result.status;
       lastErrorBody = result.body;
+      sawAnonymousSearch ||= isAnonymousFieldVisibilityError(result.body);
       if (parsed) break;
     }
   }
@@ -523,11 +536,20 @@ export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
       parsed = result.parsed;
       lastStatus = result.status;
       lastErrorBody = result.body;
+      sawAnonymousSearch ||= isAnonymousFieldVisibilityError(result.body);
       if (parsed) break;
     }
   }
 
   if (!parsed) {
+    if (sawAnonymousSearch || isAnonymousFieldVisibilityError(lastErrorBody)) {
+      throw new Error(
+        `Jira did not authenticate ${email}; requests are still anonymous after auth methods: ${attemptedMethods.join(
+          ', ',
+        )}. Check JIRA_API_TOKEN for this service account.`,
+      );
+    }
+
     if (lastFailure === 'filter' && savedFilterId) {
       throw new Error(
         `Jira saved filter ${savedFilterId} is unavailable for ${email}: ${
