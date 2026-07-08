@@ -156,6 +156,44 @@ test("phase milestone timeline hides lanes without visible milestones", () => {
   );
 });
 
+test("phase milestone timeline keeps fallback labels close to their markers", () => {
+  const first = milestone("m1", "2026-06-10", { sortOrder: 1 });
+  const second = milestone("m2", "2026-06-10", { sortOrder: 2 });
+  const model = createMilestoneTimelineModel({
+    milestones: [first, second].map((item) => ({
+      milestone: item,
+      calendarDaysLeft: null,
+      workDaysLeft: null,
+      state: { label: "", tone: "gray" },
+    })),
+    lanes: [{ id: "all", code: "", title: "Вехи", items: [] }],
+    laneIdByMilestoneId: new Map([
+      [first.id, "all"],
+      [second.id, "all"],
+    ]),
+    today: new Date(2026, 5, 1),
+    timelineStart: new Date(2026, 5, 1),
+    timelineEnd: new Date(2026, 5, 30),
+  });
+
+  const items = model.lanes[0].items;
+
+  assert.equal(items.length, 2);
+  assert.equal(items[0].offset, items[1].offset);
+  assert.deepEqual(
+    items.map((item) => ({
+      side: item.side,
+      level: item.level,
+      labelShiftPx: item.labelShiftPx,
+    })),
+    [
+      { side: "top", level: 0, labelShiftPx: 0 },
+      { side: "bottom", level: 0, labelShiftPx: 0 },
+    ],
+  );
+  assert.equal(model.laneHeight, 146);
+});
+
 test("phase milestone timeline hides phases completed more than three weeks ago", () => {
   const stalePhase = phase("phase-1", 1);
   const activePhase = phase("phase-2", 2);
