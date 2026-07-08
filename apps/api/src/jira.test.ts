@@ -398,6 +398,78 @@ test('fetchJiraIssues falls back to basic auth when bearer token is rejected', a
   }
 });
 
+test('fetchJiraIssues falls back when bearer search is treated as anonymous', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+  process.env.JIRA_BASE_URL = 'tasks.sberdevices.ru';
+  process.env.JIRA_EMAIL = 'tuz_starosfw_tvmngmt@sberdevices.ru';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+
+    if ((init?.headers as Record<string, string>).Authorization === 'Bearer secret') {
+      return new Response(
+        JSON.stringify({
+          errorMessages: [
+            "Field 'labels' does not exist or this field cannot be viewed by anonymous users.",
+            "Field 'priority' does not exist or this field cannot be viewed by anonymous users.",
+            "Field 'type' does not exist or this field cannot be viewed by anonymous users.",
+          ],
+          errors: {},
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        issues: [
+          {
+            key: 'TV-7800',
+            fields: {
+              summary: 'Authenticated JQL result',
+              status: { name: 'Open' },
+              priority: { name: 'Medium' },
+              assignee: null,
+              issuetype: { name: 'Task' },
+              updated: '2026-07-02T10:00:00.000+0300',
+            },
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues(
+      'labels = tv AND priority = High AND type = Bug',
+    );
+
+    assert.equal(calls.length, 2);
+    assert.equal(
+      (calls[0].init?.headers as Record<string, string>).Authorization,
+      'Bearer secret',
+    );
+    assert.equal(
+      (calls[1].init?.headers as Record<string, string>).Authorization,
+      `Basic ${Buffer.from('tuz_starosfw_tvmngmt@sberdevices.ru:secret').toString('base64')}`,
+    );
+    assert.equal(issues[0].key, 'TV-7800');
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
 test('fetchJiraIssues falls back to Jira login derived from email local part', async () => {
   const previousEnv = snapshotJiraEnv();
   const previousFetch = globalThis.fetch;
