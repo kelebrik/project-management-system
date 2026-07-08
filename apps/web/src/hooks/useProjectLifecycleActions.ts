@@ -106,6 +106,7 @@ async function syncJira() {
   setSyncing(true);
   setError(null);
   try {
+    await persistJiraWorkSections(project.id);
     const response = await authenticatedFetch(
       `${apiBase}/api/projects/${project.id}/jira/sync`,
       {
@@ -128,6 +129,36 @@ async function syncJira() {
     );
   } finally {
     setSyncing(false);
+  }
+}
+
+function jiraWorkSectionsPayload() {
+  return {
+    sections: jiraWorkSectionDrafts.map((section, index) => ({
+      id: section.id ?? undefined,
+      sortOrder: index,
+      title: section.title.trim() || `Раздел ${index + 1}`,
+      jql: section.jql.trim(),
+    })),
+  };
+}
+
+async function persistJiraWorkSections(projectId: string) {
+  const response = await authenticatedFetch(
+    `${apiBase}/api/projects/${projectId}/jira-work-sections`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(jiraWorkSectionsPayload()),
+    },
+  );
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      result.error?.formErrors?.join(", ") ||
+        result.error ||
+        "Не удалось сохранить разделы Jira",
+    );
   }
 }
 
@@ -492,29 +523,7 @@ async function saveJiraWorkSections(event: FormEvent<HTMLFormElement>) {
   setError(null);
   setNotice(null);
   try {
-    const response = await authenticatedFetch(
-      `${apiBase}/api/projects/${project.id}/jira-work-sections`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sections: jiraWorkSectionDrafts.map((section, index) => ({
-            id: section.id ?? undefined,
-            sortOrder: index,
-            title: section.title.trim() || `Раздел ${index + 1}`,
-            jql: section.jql.trim(),
-          })),
-        }),
-      },
-    );
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(
-        result.error?.formErrors?.join(", ") ||
-          result.error ||
-          "Не удалось сохранить разделы Jira",
-      );
-    }
+    await persistJiraWorkSections(project.id);
     await refreshProject(project.id);
     setNotice("Разделы Jira сохранены");
   } catch (saveError) {
