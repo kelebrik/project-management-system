@@ -25,10 +25,24 @@ export function ProjectJiraWorkPage() {
   const [expandedSections, setExpandedSections] = useState<Set<number>>(
     () => new Set(),
   );
+  const [expandedJqlSections, setExpandedJqlSections] = useState<Set<number>>(
+    () => new Set(),
+  );
   const [jiraMode, setJiraMode] = useState<JiraMode>("dev");
   const selectedJiraBaseUrl = jiraBaseUrls[jiraMode];
   const toggleSection = (sortOrder: number) => {
     setExpandedSections((current) => {
+      const next = new Set(current);
+      if (next.has(sortOrder)) {
+        next.delete(sortOrder);
+      } else {
+        next.add(sortOrder);
+      }
+      return next;
+    });
+  };
+  const toggleJqlSection = (sortOrder: number) => {
+    setExpandedJqlSections((current) => {
       const next = new Set(current);
       if (next.has(sortOrder)) {
         next.delete(sortOrder);
@@ -107,6 +121,8 @@ export function ProjectJiraWorkPage() {
               (entry) => entry.sortOrder === section.sortOrder,
             );
             const isCollapsed = !expandedSections.has(section.sortOrder);
+            const isJqlCollapsed = !expandedJqlSections.has(section.sortOrder);
+            const sectionIssues = syncedSection?.issues ?? [];
             return (
               <section
                 className={`jira-work-section ${isCollapsed ? "collapsed" : ""}`}
@@ -149,42 +165,107 @@ export function ProjectJiraWorkPage() {
 
                 {!isCollapsed && (
                   <div className="jira-work-section-body">
-                    <label className="jira-work-filter-field">
-                      <span>Jira filter</span>
-                      <input
-                        value={section.jql}
-                        onChange={(event) =>
-                          setJiraWorkSectionDrafts(
-                            jiraWorkSectionDrafts.map((entry) =>
-                              entry.sortOrder === section.sortOrder
-                                ? { ...entry, jql: event.target.value }
-                                : entry,
-                            ),
-                          )
-                        }
-                        placeholder="https://tasks.sberdevices.ru/issues/?filter=12345"
-                      />
-                    </label>
+                    <div
+                      className={`jira-work-jql-panel ${
+                        isJqlCollapsed ? "collapsed" : ""
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className="jira-work-jql-toggle"
+                        onClick={() => toggleJqlSection(section.sortOrder)}
+                        aria-expanded={!isJqlCollapsed}
+                      >
+                        {isJqlCollapsed ? (
+                          <ChevronRight size={18} />
+                        ) : (
+                          <ChevronDown size={18} />
+                        )}
+                        <span>JQL</span>
+                      </button>
+                      {!isJqlCollapsed && (
+                        <label className="jira-work-filter-field">
+                          <span>JQL</span>
+                          <textarea
+                            value={section.jql}
+                            onChange={(event) =>
+                              setJiraWorkSectionDrafts(
+                                jiraWorkSectionDrafts.map((entry) =>
+                                  entry.sortOrder === section.sortOrder
+                                    ? { ...entry, jql: event.target.value }
+                                    : entry,
+                                ),
+                              )
+                            }
+                            placeholder='labels = cvte968 AND status not in (Closed, Done) ORDER BY created DESC'
+                            rows={3}
+                          />
+                        </label>
+                      )}
+                    </div>
 
-                    <div className="jira-work-ticket-list">
-                      {(syncedSection?.issues ?? []).map(({ snapshot }) => (
-                        <a
-                          className="jira-work-ticket"
-                          key={snapshot.id}
-                          href={snapshot.issueUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <b>
-                            {snapshot.issueKey} / {snapshot.summary}
-                          </b>
-                          <span>
-                            {snapshot.status} / {snapshot.priority}
-                            {snapshot.assignee ? ` / ${snapshot.assignee}` : ""}
-                          </span>
-                        </a>
-                      ))}
-                      {(syncedSection?.issues ?? []).length === 0 && (
+                    <div className="jira-work-ticket-table-wrap">
+                      {sectionIssues.length > 0 ? (
+                        <table className="jira-work-ticket-table">
+                          <thead>
+                            <tr>
+                              <th>T</th>
+                              <th>Key</th>
+                              <th>Summary</th>
+                              <th>Assignee</th>
+                              <th>Reporter</th>
+                              <th>P</th>
+                              <th>Status</th>
+                              <th>Resolution</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sectionIssues.map(({ snapshot }) => (
+                              <tr key={snapshot.id}>
+                                <td>
+                                  <span
+                                    className="jira-work-type"
+                                    title={snapshot.issueType}
+                                  >
+                                    {snapshot.issueType.slice(0, 1).toUpperCase()}
+                                  </span>
+                                </td>
+                                <td>
+                                  <a
+                                    href={snapshot.issueUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {snapshot.issueKey}
+                                  </a>
+                                </td>
+                                <td>
+                                  <a
+                                    href={snapshot.issueUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {snapshot.summary}
+                                  </a>
+                                </td>
+                                <td>{snapshot.assignee || "Unassigned"}</td>
+                                <td>{snapshot.reporter || ""}</td>
+                                <td>
+                                  <span className="jira-work-priority">
+                                    {snapshot.priority}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className="jira-work-status">
+                                    {snapshot.status}
+                                  </span>
+                                </td>
+                                <td>{snapshot.resolution || "Unresolved"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
                         <p>Тикетов в разделе нет.</p>
                       )}
                     </div>

@@ -520,7 +520,7 @@ export const wikiGroups: WikiGroup[] = [
               "Jira credentials не задаются в админке. Backend читает JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN и JIRA_MAX_RESULTS из окружения контейнера.",
               "Если env-поля не заданы, sync возвращает Jira is not configured.",
               "Запрос идет Basic auth на /rest/api/3/search/jql, а если endpoint недоступен - fallback на /rest/api/2/search.",
-              "В Jira запрашиваются fields summary, status, priority, assignee, issuetype и updated.",
+              "В Jira запрашиваются fields summary, status, priority, assignee, reporter, issuetype, resolution и updated.",
             ],
           },
           {

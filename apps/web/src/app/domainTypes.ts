@@ -393,7 +393,9 @@ export type JiraIssueSnapshot = {
   status: string;
   priority: string;
   assignee: string | null;
+  reporter: string | null;
   issueType: string;
+  resolution: string | null;
   sprint: string | null;
   updatedAt: string;
   syncedAt: string;

@@ -420,11 +420,36 @@
   padding: 12px;
 }
 
+.jira-work-jql-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  overflow: hidden;
+}
+
+.jira-work-jql-panel.collapsed {
+  border-color: #edf2f7;
+}
+
+.jira-work-jql-toggle {
+  align-items: center;
+  background: #f8fafc;
+  border: 0;
+  border-radius: 0;
+  color: #1f2937;
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-start;
+  padding: 9px 10px;
+  width: 100%;
+}
+
 .jira-work-filter-field {
   align-items: start;
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(110px, 160px) minmax(320px, 1fr);
+  padding: 12px;
 }
 
 .jira-work-filter-field span {
@@ -434,41 +459,116 @@
   padding-top: 9px;
 }
 
-.jira-work-filter-field input {
+.jira-work-filter-field textarea {
+  line-height: 1.35;
+  min-height: 84px;
   min-width: 0;
+  resize: vertical;
 }
 
-.jira-work-ticket-list {
-  display: grid;
-  gap: 8px;
-}
-
-.jira-work-ticket {
-  background: #f8fafc;
+.jira-work-ticket-table-wrap {
   border: 1px solid #e2e8f0;
   border-radius: 6px;
-  color: inherit;
-  display: grid;
-  gap: 4px;
+  overflow: auto;
+}
+
+.jira-work-ticket-table {
+  border-collapse: collapse;
+  min-width: 1100px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.jira-work-ticket-table th,
+.jira-work-ticket-table td {
+  border-bottom: 1px solid #e2e8f0;
   padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.jira-work-ticket-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.jira-work-ticket-table th:nth-child(1),
+.jira-work-ticket-table td:nth-child(1),
+.jira-work-ticket-table th:nth-child(6),
+.jira-work-ticket-table td:nth-child(6) {
+  width: 54px;
+}
+
+.jira-work-ticket-table th:nth-child(2),
+.jira-work-ticket-table td:nth-child(2) {
+  width: 150px;
+}
+
+.jira-work-ticket-table th:nth-child(4),
+.jira-work-ticket-table td:nth-child(4),
+.jira-work-ticket-table th:nth-child(5),
+.jira-work-ticket-table td:nth-child(5) {
+  width: 180px;
+}
+
+.jira-work-ticket-table th:nth-child(7),
+.jira-work-ticket-table td:nth-child(7) {
+  width: 150px;
+}
+
+.jira-work-ticket-table th:nth-child(8),
+.jira-work-ticket-table td:nth-child(8) {
+  width: 150px;
+}
+
+.jira-work-ticket-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.jira-work-ticket-table a {
+  color: #1d4ed8;
+  font-weight: 700;
   text-decoration: none;
 }
 
-.jira-work-ticket:hover,
-.jira-work-ticket:focus-visible {
-  border-color: #93c5fd;
+.jira-work-ticket-table a:hover,
+.jira-work-ticket-table a:focus-visible {
+  text-decoration: underline;
 }
 
-.jira-work-ticket b {
-  color: #1f2937;
+.jira-work-type {
+  align-items: center;
+  background: #3b82f6;
+  border-radius: 4px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
 }
 
-.jira-work-ticket span,
-.jira-work-ticket-list p {
+.jira-work-priority,
+.jira-work-status {
+  background: #e8edf5;
+  border-radius: 4px;
+  color: #334155;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  padding: 3px 6px;
+}
+
+.jira-work-ticket-table-wrap p {
   color: #64748b;
   font-size: 12px;
   font-weight: 700;
   margin: 0;
+  padding: 12px;
 }
 
 @media (max-width: 860px) {
