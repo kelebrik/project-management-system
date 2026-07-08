@@ -328,6 +328,40 @@
   grid-column: 1 / -1;
 }
 
+.jira-env-switch {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.jira-env-switch button {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0;
+  color: #475569;
+  font-size: 12px;
+  min-width: 52px;
+  padding: 8px 10px;
+  text-transform: uppercase;
+}
+
+.jira-env-switch button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.jira-env-switch button:last-child {
+  border-radius: 0 6px 6px 0;
+  margin-left: -1px;
+}
+
+.jira-env-switch button.active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  position: relative;
+  z-index: 1;
+}
+
 .jira-work-sections {
   display: grid;
   gap: 16px;

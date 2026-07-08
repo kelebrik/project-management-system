@@ -719,6 +719,25 @@ export const openApiDocument = {
         parameters: [
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },
         ],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  baseUrl: {
+                    type: "string",
+                    enum: [
+                      "https://tasks.dev.sberdevices.ru",
+                      "https://tasks.sberdevices.ru",
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
         responses: {
           "200": { description: "Jira snapshots synchronized" },
           "404": { description: "Project not found" },

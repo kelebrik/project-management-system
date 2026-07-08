@@ -55,6 +55,25 @@ test('resolveJiraConfig accepts host-only Jira base URL from container env', () 
   });
 });
 
+test('resolveJiraConfig keeps explicit prod Jira base URL override', () => {
+  const config = resolveJiraConfig(
+    {
+      JIRA_BASE_URL: 'tasks.sberdevices.ru',
+      JIRA_EMAIL: 'tuz_starosfw_tvmngmt@sberdevices.ru',
+      JIRA_API_TOKEN: 'service-token',
+    },
+    { baseUrl: 'https://tasks.sberdevices.ru' },
+  );
+
+  assert.deepEqual(config, {
+    enabled: true,
+    baseUrl: 'https://tasks.sberdevices.ru',
+    email: 'tuz_starosfw_tvmngmt@sberdevices.ru',
+    token: 'service-token',
+    maxResults: 100,
+  });
+});
+
 test('resolveJiraConfig reads Jira max results from env', () => {
   const config = resolveJiraConfig({
     JIRA_BASE_URL: 'https://tasks.dev.sberdevices.ru',

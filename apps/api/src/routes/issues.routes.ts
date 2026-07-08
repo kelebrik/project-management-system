@@ -81,6 +81,12 @@ const jiraWorkSectionsSchema = z.object({
     .min(3),
 });
 
+const jiraSyncSchema = z.object({
+  baseUrl: z
+    .enum(['https://tasks.dev.sberdevices.ru', 'https://tasks.sberdevices.ru'])
+    .optional(),
+});
+
 router.put('/projects/:projectId/jira-integration', async (req, res) => {
   const parsed = jiraIntegrationSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -583,6 +589,12 @@ router.patch('/tasks/:taskId/jira-link', async (req, res) => {
 });
 
 router.post('/projects/:projectId/jira/sync', async (req, res) => {
+  const parsedSync = jiraSyncSchema.safeParse(req.body ?? {});
+  if (!parsedSync.success) {
+    res.status(400).json({ error: parsedSync.error.flatten() });
+    return;
+  }
+
   const project = await prisma.project.findUnique({
     where: { id: req.params.projectId },
     include: {
@@ -613,7 +625,9 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     }
 
     for (const section of sectionsWithFilter) {
-      const issues = await fetchJiraIssues(section.jiraQuery);
+      const issues = await fetchJiraIssues(section.jiraQuery, {
+        baseUrl: parsedSync.data.baseUrl,
+      });
       syncedIssues += issues.length;
       const snapshots = await Promise.all(
         issues.map((issue) =>
