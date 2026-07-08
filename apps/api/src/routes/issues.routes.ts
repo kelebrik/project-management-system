@@ -2,7 +2,7 @@ import { createIssueSchema, issueStatusUpdateSchema, updateIssueSchema } from '@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { fetchJiraIssues } from '../jira.js';
+import { fetchJiraIssuesWithMeta } from '../jira.js';
 import { logEvent } from '../server/logger.js';
 import {
   ensureDefaultJiraWorkSections,
@@ -623,18 +623,21 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       title: string;
       sortOrder: number;
       issues: number;
+      jiraUser: string | null;
     }> = [];
 
     for (const section of sectionsWithFilter) {
-      const issues = await fetchJiraIssues(section.jiraQuery, {
+      const jiraResult = await fetchJiraIssuesWithMeta(section.jiraQuery, {
         baseUrl: parsedSync.data.baseUrl,
       });
+      const issues = jiraResult.issues;
       syncedIssues += issues.length;
       sectionStats.push({
         id: section.id,
         title: section.title,
         sortOrder: section.sortOrder,
         issues: issues.length,
+        jiraUser: jiraResult.jiraUser,
       });
       await prisma.jiraWorkSectionIssue.deleteMany({
         where: { sectionId: section.id },
@@ -706,6 +709,9 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       synced: syncedIssues,
       configuredSections: sectionsWithFilter.length,
       totalSections: workSections.length,
+      jiraUsers: Array.from(
+        new Set(sectionStats.map((section) => section.jiraUser).filter(Boolean)),
+      ),
       sections: sectionStats,
     });
   } catch (error) {

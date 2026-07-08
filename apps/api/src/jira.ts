@@ -62,6 +62,26 @@ type JiraConfigOptions = {
   baseUrl?: string;
 };
 
+type JiraIssueFetchResult = {
+  issues: JiraIssue[];
+  jiraUser: string | null;
+};
+
+type JiraSearchResult = {
+  parsed: JiraSearchResponse | null;
+  status: number;
+  body: string;
+  jiraUser?: string;
+};
+
+type JiraCurrentUserResult = {
+  authenticated: boolean;
+  identity?: string;
+  identities?: string[];
+  status: number;
+  body: string;
+};
+
 export function isJiraConfigured() {
   const config = resolveJiraConfig();
   return Boolean(config.enabled && config.baseUrl && config.token);
@@ -100,6 +120,16 @@ function normalizedBaseUrl(
 function jiraLoginFromEmail(email: string) {
   const atIndex = email.indexOf('@');
   return atIndex > 0 ? email.slice(0, atIndex) : '';
+}
+
+function normalizeJiraIdentity(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function expectedJiraIdentities(email: string) {
+  return [email, jiraLoginFromEmail(email)]
+    .map((identity) => normalizeJiraIdentity(identity))
+    .filter(Boolean);
 }
 
 function jiraLoginCandidates(email: string) {
@@ -308,7 +338,7 @@ async function fetchJiraSearch(
   baseUrl: string,
   searchBody: string,
   authHeaders: Record<string, string>,
-) {
+): Promise<JiraSearchResult> {
   let lastErrorBody = '';
   let lastStatus = 0;
   const paths = jiraSearchPaths(baseUrl);
@@ -370,17 +400,21 @@ async function fetchJiraSearch(
   return { parsed: null, status: lastStatus, body: lastErrorBody };
 }
 
-function jiraUserIdentity(user: z.infer<typeof jiraCurrentUserResponseSchema>) {
-  return user.emailAddress ?? user.name ?? user.key ?? user.accountId ?? user.displayName ?? '';
+function jiraUserIdentities(user: z.infer<typeof jiraCurrentUserResponseSchema>) {
+  return [user.emailAddress, user.name, user.key, user.accountId, user.displayName]
+    .map((identity) => identity?.trim() ?? '')
+    .filter(Boolean);
 }
 
 async function fetchJiraCurrentUser(
   baseUrl: string,
   authHeaders: Record<string, string>,
-) {
+  expectedIdentities: string[],
+): Promise<JiraCurrentUserResult> {
   let lastErrorBody = '';
   let lastStatus = 0;
   const paths = jiraMyselfPaths(baseUrl);
+  const expectedIdentitySet = new Set(expectedIdentities);
 
   for (const [index, path] of paths.entries()) {
     const isLastPath = index === paths.length - 1;
@@ -406,12 +440,20 @@ async function fetchJiraCurrentUser(
 
       try {
         const user = jiraCurrentUserResponseSchema.parse(await response.json());
-        const identity = jiraUserIdentity(user);
+        const identities = jiraUserIdentities(user);
+        const matchedIdentity = identities.find((identity) =>
+          expectedIdentitySet.has(normalizeJiraIdentity(identity)),
+        );
         return {
-          authenticated: Boolean(identity),
-          identity,
+          authenticated: Boolean(matchedIdentity),
+          identity: matchedIdentity ?? identities[0],
+          identities,
           status: response.status,
-          body: identity ? '' : 'Jira current user response has no identity',
+          body: matchedIdentity
+            ? ''
+            : `Jira current user ${
+                identities.length > 0 ? identities.join(', ') : 'unknown'
+              } does not match expected ${expectedIdentities.join(', ')}`,
         };
       } catch (error) {
         return {
@@ -446,12 +488,18 @@ async function fetchJiraSearchWithVerifiedEmptyResult(
   baseUrl: string,
   searchBody: string,
   authHeaders: Record<string, string>,
-) {
+  expectedIdentities: string[],
+): Promise<JiraSearchResult> {
   const result = await fetchJiraSearch(baseUrl, searchBody, authHeaders);
   if (!result.parsed || result.parsed.issues.length > 0) return result;
 
-  const currentUser = await fetchJiraCurrentUser(baseUrl, authHeaders);
-  if (currentUser.authenticated) return result;
+  const currentUser = await fetchJiraCurrentUser(baseUrl, authHeaders, expectedIdentities);
+  if (currentUser.authenticated) {
+    return {
+      ...result,
+      jiraUser: currentUser.identity,
+    };
+  }
 
   return {
     parsed: null,
@@ -568,6 +616,13 @@ export async function fetchJiraIssues(
   jql: string,
   options: JiraConfigOptions = {},
 ): Promise<JiraIssue[]> {
+  return (await fetchJiraIssuesWithMeta(jql, options)).issues;
+}
+
+export async function fetchJiraIssuesWithMeta(
+  jql: string,
+  options: JiraConfigOptions = {},
+): Promise<JiraIssueFetchResult> {
   const { enabled, baseUrl, email, token, maxResults } = resolveJiraConfig(process.env, options);
 
   if (!enabled || !baseUrl || !token) {
@@ -581,7 +636,10 @@ export async function fetchJiraIssues(
   const attemptedMethods: string[] = [];
   let lastFailure: 'auth' | 'filter' = 'auth';
   let sawAnonymousSearch = false;
+  let authVerificationBody = '';
   let parsed: JiraSearchResponse | null = null;
+  let jiraUser: string | null = null;
+  const expectedIdentities = expectedJiraIdentities(email);
 
   for (const authAttempt of authAttempts) {
     attemptedMethods.push(authAttempt.label);
@@ -601,10 +659,15 @@ export async function fetchJiraIssues(
       baseUrl,
       jiraSearchBody(effectiveJql, maxResults),
       authAttempt.headers,
+      expectedIdentities,
     );
     parsed = result.parsed;
+    jiraUser = result.jiraUser ?? jiraUser;
     lastStatus = result.status;
     lastErrorBody = result.body;
+    if (isJiraAuthVerificationFailure(result.body)) {
+      authVerificationBody = result.body;
+    }
     sawAnonymousSearch ||=
       isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
     if (parsed) break;
@@ -636,10 +699,15 @@ export async function fetchJiraIssues(
         baseUrl,
         jiraSearchBody(effectiveJql, maxResults),
         { Cookie: session.cookie },
+        expectedIdentities,
       );
       parsed = result.parsed;
+      jiraUser = result.jiraUser ?? jiraUser;
       lastStatus = result.status;
       lastErrorBody = result.body;
+      if (isJiraAuthVerificationFailure(result.body)) {
+        authVerificationBody = result.body;
+      }
       sawAnonymousSearch ||=
         isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
       if (parsed) break;
@@ -672,10 +740,15 @@ export async function fetchJiraIssues(
         baseUrl,
         jiraSearchBody(effectiveJql, maxResults),
         { Cookie: login.cookie },
+        expectedIdentities,
       );
       parsed = result.parsed;
+      jiraUser = result.jiraUser ?? jiraUser;
       lastStatus = result.status;
       lastErrorBody = result.body;
+      if (isJiraAuthVerificationFailure(result.body)) {
+        authVerificationBody = result.body;
+      }
       sawAnonymousSearch ||=
         isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
       if (parsed) break;
@@ -688,8 +761,10 @@ export async function fetchJiraIssues(
       isAnonymousFieldVisibilityError(lastErrorBody) ||
       isJiraAuthVerificationFailure(lastErrorBody)
     ) {
+      const detailBody = authVerificationBody || lastErrorBody;
+      const detail = detailBody ? `: ${cleanJiraErrorBody(detailBody)}` : '';
       throw new Error(
-        `Jira did not authenticate ${email}; requests are still anonymous after auth methods: ${attemptedMethods.join(
+        `Jira did not authenticate ${email}${detail}; requests are anonymous or use an unexpected Jira user after auth methods: ${attemptedMethods.join(
           ', ',
         )}. Check JIRA_API_TOKEN for this service account.`,
       );
@@ -712,15 +787,18 @@ export async function fetchJiraIssues(
     );
   }
 
-  return parsed.issues.map((issue) => ({
-    key: issue.key,
-    url: `${baseUrl}/browse/${issue.key}`,
-    summary: issue.fields.summary ?? issue.key,
-    status: issue.fields.status?.name ?? 'Unknown',
-    priority: issue.fields.priority?.name ?? 'None',
-    assignee: issue.fields.assignee?.displayName ?? null,
-    issueType: issue.fields.issuetype?.name ?? 'Issue',
-    sprint: null,
-    updatedAt: new Date(issue.fields.updated),
-  }));
+  return {
+    issues: parsed.issues.map((issue) => ({
+      key: issue.key,
+      url: `${baseUrl}/browse/${issue.key}`,
+      summary: issue.fields.summary ?? issue.key,
+      status: issue.fields.status?.name ?? 'Unknown',
+      priority: issue.fields.priority?.name ?? 'None',
+      assignee: issue.fields.assignee?.displayName ?? null,
+      issueType: issue.fields.issuetype?.name ?? 'Issue',
+      sprint: null,
+      updatedAt: new Date(issue.fields.updated),
+    })),
+    jiraUser,
+  };
 }

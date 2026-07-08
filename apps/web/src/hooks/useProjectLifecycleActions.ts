@@ -131,14 +131,19 @@ async function syncJira(options: { baseUrl?: string } = {}) {
       typeof result.configuredSections === "number"
         ? result.configuredSections
         : 0;
+    const jiraUsers = Array.isArray(result.jiraUsers)
+      ? result.jiraUsers.filter((user): user is string => typeof user === "string" && user.length > 0)
+      : [];
+    const jiraUserText =
+      jiraUsers.length > 0 ? ` Запрос выполнен от: ${jiraUsers.join(", ")}.` : "";
     if (configuredSections === 0) {
       setNotice("Jira: нет разделов с заполненным фильтром");
     } else if (syncedCount === 0) {
       setNotice(
-        `Jira: синхронизация выполнена, тикетов не найдено. Проверь JQL и доступ ${options.baseUrl ?? "Jira"}`,
+        `Jira: синхронизация выполнена, тикетов не найдено.${jiraUserText} Проверь JQL и Browse-доступ сервисной учетки к ${options.baseUrl ?? "Jira"}`,
       );
     } else {
-      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}`);
+      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}.${jiraUserText}`);
     }
   } catch (syncError) {
     setError(
