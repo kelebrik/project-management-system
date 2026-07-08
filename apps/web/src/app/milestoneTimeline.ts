@@ -710,8 +710,6 @@ export function createMilestoneTimelineModel({
     laneById.set(fallbackLane.id, fallbackLane);
   }
 
-  let maxLaneLevel = 0;
-  const labelMinGap = 0.15;
   const modelLanes = Array.from(laneById.values()).filter(
     (lane) => lane.items.length > 0,
   );
@@ -720,13 +718,8 @@ export function createMilestoneTimelineModel({
     ...modelLanes.map((lane) => lane.items.length),
   );
   const trackWidth = Math.max(minTrackWidth, maxLaneMilestones * 150);
-  const labelHalfWidthOffset = 74 / trackWidth;
 
   modelLanes.forEach((lane) => {
-    const sideLevels: Record<"top" | "bottom", number[]> = {
-      top: [],
-      bottom: [],
-    };
     lane.items.sort(
       (left, right) =>
         String(left.milestone.dueDate ?? "").localeCompare(
@@ -735,139 +728,9 @@ export function createMilestoneTimelineModel({
     );
 
     lane.items.forEach((item, index) => {
-      const previous = index > 0 ? lane.items[index - 1] : null;
-      if (previous && item.offset - previous.offset < 0.018) {
-        item.offset = Math.min(0.985, previous.offset + 0.018);
-      }
-      const preferredSide = index % 2 === 0 ? "top" : "bottom";
-      const lastOffsets = sideLevels[preferredSide];
-      const reusableLevel = lastOffsets.findIndex(
-        (lastOffset) => item.offset - lastOffset >= labelMinGap,
-      );
-      const level = reusableLevel === -1 ? lastOffsets.length : reusableLevel;
-      if (level >= lastOffsets.length) {
-        lastOffsets.push(item.offset);
-      } else {
-        lastOffsets[level] = item.offset;
-      }
-      item.side = preferredSide;
-      item.level = level;
-      maxLaneLevel = Math.max(maxLaneLevel, level);
-    });
-
-    let clusterStart = 0;
-    const labelClusterGap = 0.062;
-    while (clusterStart < lane.items.length) {
-      let clusterEnd = clusterStart + 1;
-      while (
-        clusterEnd < lane.items.length &&
-        lane.items[clusterEnd].offset - lane.items[clusterEnd - 1].offset <
-          labelClusterGap
-      ) {
-        clusterEnd += 1;
-      }
-      const cluster = lane.items.slice(clusterStart, clusterEnd);
-      const clusterCenter =
-        cluster.reduce((sum, item) => sum + item.offset, 0) / cluster.length;
-      cluster.forEach((item, clusterIndex) => {
-        const isClustered = cluster.length > 1;
-        const isNearLeftEdge = item.offset < labelHalfWidthOffset + 0.025;
-        const isNearRightEdge = item.offset > 1 - labelHalfWidthOffset - 0.025;
-        const isRightSideTopLabel =
-          item.side === "top" &&
-          item.offset > 0.62 &&
-          item.offset < 1 - labelHalfWidthOffset - 0.015;
-        const shouldNudgeRightSideTopLabel =
-          isRightSideTopLabel && !isClustered;
-        const isNearToday =
-          timelineStart <= today &&
-          today <= timelineEnd &&
-          todayOffset !== null &&
-          Math.abs(item.offset - todayOffset) < labelHalfWidthOffset * 0.85;
-        const needsShift =
-          isClustered ||
-          isNearLeftEdge ||
-          isNearRightEdge ||
-          isNearToday ||
-          shouldNudgeRightSideTopLabel;
-        if (!needsShift) {
-          item.labelShiftPx = 0;
-          return;
-        }
-
-        let shiftDirection =
-          item.offset < clusterCenter
-            ? -1
-            : item.offset > clusterCenter
-              ? 1
-              : item.side === "top"
-                ? 1
-                : -1;
-        if (isNearLeftEdge) {
-          shiftDirection = 1;
-        } else if (isNearRightEdge) {
-          shiftDirection = -1;
-        } else if (isNearToday && todayOffset !== null) {
-          shiftDirection = item.offset >= todayOffset ? 1 : -1;
-        } else if (shouldNudgeRightSideTopLabel) {
-          shiftDirection = 1;
-        }
-
-        const clusterDistance = Math.abs(clusterIndex - (cluster.length - 1) / 2);
-        const rightSideTopBoost = shouldNudgeRightSideTopLabel
-          ? item.offset >= clusterCenter
-            ? 42
-            : 28
-          : 0;
-        const shiftAmount = Math.min(
-          isClustered ? 176 : 112,
-          (isClustered ? 42 + clusterDistance * 28 : 48) +
-            item.level * 18 +
-            rightSideTopBoost,
-        );
-        item.labelShiftPx = shiftDirection * shiftAmount;
-      });
-      clusterStart = clusterEnd;
-    }
-
-    lane.items.forEach((item) => {
-      if (item.side === "top" && item.offset > 0.68 && item.offset < 0.96) {
-        item.labelShiftPx -= item.offset > 0.82 ? 10 : 6;
-      }
-
-      const isCrowdedRightClusterLabel =
-        item.offset > 0.62 && item.offset < 0.92 && item.labelShiftPx < 0;
-      if (isCrowdedRightClusterLabel) {
-        const labelWidth = item.milestone.title.length > 12 ? 146 : 96;
-        const maxLeftShift =
-          item.side === "top"
-            ? -Math.round(labelWidth * 0.42)
-            : -Math.round(labelWidth * 0.52);
-        item.labelShiftPx = Math.max(item.labelShiftPx, maxLeftShift);
-      }
-    });
-
-    (["top", "bottom"] as const).forEach((side) => {
-      const sideItems = lane.items
-        .filter((item) => item.side === side)
-        .sort(
-          (left, right) =>
-            left.offset * trackWidth +
-            left.labelShiftPx -
-            (right.offset * trackWidth + right.labelShiftPx),
-        );
-      let previousRight = Number.NEGATIVE_INFINITY;
-      sideItems.forEach((item) => {
-        const labelWidth = item.milestone.title.length > 12 ? 146 : 96;
-        const center = item.offset * trackWidth + item.labelShiftPx;
-        const left = center - labelWidth / 2;
-        const minLeft = previousRight + (side === "top" ? 8 : 14);
-        if (left < minLeft) {
-          item.labelShiftPx += minLeft - left;
-        }
-        previousRight =
-          item.offset * trackWidth + item.labelShiftPx + labelWidth / 2;
-      });
+      item.side = index % 2 === 0 ? "top" : "bottom";
+      item.level = 0;
+      item.labelShiftPx = 0;
     });
   });
 
@@ -877,7 +740,7 @@ export function createMilestoneTimelineModel({
     endDate: new Date(maxTime).toISOString(),
     todayDate: today.toISOString(),
     trackWidth,
-    laneHeight: 146 + maxLaneLevel * 52,
+    laneHeight: 146,
     todayOffset,
     hasMilestonesOutsideRange: datedMilestones.length > visibleMilestones.length,
   };
