@@ -48,6 +48,10 @@ type JiraConfig = {
   maxResults: number;
 };
 
+type JiraConfigOptions = {
+  baseUrl?: string;
+};
+
 export function isJiraConfigured() {
   const config = resolveJiraConfig();
   return Boolean(config.enabled && config.baseUrl && config.token);
@@ -58,7 +62,10 @@ function nonEmpty(value: string | undefined) {
   return trimmed ? trimmed : undefined;
 }
 
-function normalizedBaseUrl(value: string | undefined) {
+function normalizedBaseUrl(
+  value: string | undefined,
+  { remapProdToDev = true }: { remapProdToDev?: boolean } = {},
+) {
   const trimmed = nonEmpty(value);
   if (!trimmed) return '';
 
@@ -68,7 +75,7 @@ function normalizedBaseUrl(value: string | undefined) {
 
   try {
     const url = new URL(withProtocol);
-    if (url.hostname.toLowerCase() === 'tasks.sberdevices.ru') {
+    if (remapProdToDev && url.hostname.toLowerCase() === 'tasks.sberdevices.ru') {
       url.hostname = 'tasks.dev.sberdevices.ru';
     }
     url.search = '';
@@ -414,7 +421,11 @@ async function fetchJiraWebLoginCookie(baseUrl: string, username: string, passwo
   };
 }
 
-export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraConfig {
+export function resolveJiraConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  options: JiraConfigOptions = {},
+): JiraConfig {
+  const overrideBaseUrl = nonEmpty(options.baseUrl);
   const envBaseUrl = nonEmpty(env.JIRA_BASE_URL);
   const envEmail = nonEmpty(env.JIRA_EMAIL);
   const envToken = nonEmpty(env.JIRA_API_TOKEN);
@@ -425,15 +436,20 @@ export function resolveJiraConfig(env: NodeJS.ProcessEnv = process.env): JiraCon
 
   return {
     enabled: true,
-    baseUrl: normalizedBaseUrl(envBaseUrl),
+    baseUrl: normalizedBaseUrl(overrideBaseUrl ?? envBaseUrl, {
+      remapProdToDev: !overrideBaseUrl,
+    }),
     email: envEmail ?? '',
     token: envToken ?? '',
     maxResults,
   };
 }
 
-export async function fetchJiraIssues(jql: string): Promise<JiraIssue[]> {
-  const { enabled, baseUrl, email, token, maxResults } = resolveJiraConfig();
+export async function fetchJiraIssues(
+  jql: string,
+  options: JiraConfigOptions = {},
+): Promise<JiraIssue[]> {
+  const { enabled, baseUrl, email, token, maxResults } = resolveJiraConfig(process.env, options);
 
   if (!enabled || !baseUrl || !token) {
     throw new Error('Jira is not configured');

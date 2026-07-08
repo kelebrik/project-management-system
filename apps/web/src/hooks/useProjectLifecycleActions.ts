@@ -101,7 +101,7 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
     wbsSort,
   } = deps;
 
-async function syncJira() {
+async function syncJira(options: { baseUrl?: string } = {}) {
   if (!project) return;
   setSyncing(true);
   setError(null);
@@ -111,6 +111,10 @@ async function syncJira() {
       `${apiBase}/api/projects/${project.id}/jira/sync`,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: options.baseUrl,
+        }),
       },
     );
     const result = await response.json();
