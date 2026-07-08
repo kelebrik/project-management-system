@@ -708,6 +708,64 @@ test('fetchJiraIssues falls back to Jira web login cookie auth', async () => {
   }
 });
 
+test('fetchJiraIssues rejects anonymous cookie from failed Jira web login', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+
+  process.env.JIRA_BASE_URL = 'tasks.sberdevices.ru';
+  process.env.JIRA_EMAIL = 'tuz_starosfw_tvmngmt@sberdevices.ru';
+  process.env.JIRA_API_TOKEN = 'bad-secret';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (url.endsWith('/login.jsp')) {
+      return new Response(
+        '<html><form id="login-form"><input name="os_username" /></form><p>Login failed</p></html>',
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/html',
+            'Set-Cookie': 'JSESSIONID=anonymous-session; Path=/; HttpOnly',
+          },
+        },
+      );
+    }
+
+    if (url.endsWith('/rest/auth/1/session')) {
+      return new Response(
+        JSON.stringify({ errorMessages: ['Login failed'], errors: {} }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        errorMessages: [
+          "Field 'labels' does not exist or this field cannot be viewed by anonymous users.",
+        ],
+        errors: {},
+      }),
+      {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssues('labels = tv'),
+      /Jira did not authenticate tuz_starosfw_tvmngmt@sberdevices\.ru/,
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
 test('fetchJiraIssues falls back to basic auth when bearer returns HTML login page', async () => {
   const previousEnv = snapshotJiraEnv();
   const previousFetch = globalThis.fetch;
