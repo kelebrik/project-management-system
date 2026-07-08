@@ -719,9 +719,59 @@ export const openApiDocument = {
         parameters: [
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },
         ],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  baseUrl: {
+                    type: "string",
+                    enum: [
+                      "https://tasks.dev.sberdevices.ru",
+                      "https://tasks.sberdevices.ru",
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
         responses: {
-          "200": { description: "Jira snapshots synchronized" },
-          "400": { description: "Jira integration is not configured for project" },
+          "200": {
+            description: "Jira snapshots synchronized",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    synced: { type: "number" },
+                    configuredSections: { type: "number" },
+                    totalSections: { type: "number" },
+                    jiraUsers: {
+                      type: "array",
+                      items: { type: "string" },
+                    },
+                    sections: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string" },
+                          title: { type: "string" },
+                          sortOrder: { type: "number" },
+                          issues: { type: "number" },
+                          jiraUser: { type: ["string", "null"] },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "404": { description: "Project not found" },
           "502": { description: "Jira request failed" },
         },
       },

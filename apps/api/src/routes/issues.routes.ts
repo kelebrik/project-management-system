@@ -2,7 +2,8 @@ import { createIssueSchema, issueStatusUpdateSchema, updateIssueSchema } from '@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { fetchJiraIssues } from '../jira.js';
+import { fetchJiraIssuesWithMeta } from '../jira.js';
+import { logEvent } from '../server/logger.js';
 import {
   ensureDefaultJiraWorkSections,
   jiraWorkSectionFilterToJql,
@@ -72,6 +73,12 @@ const jiraWorkSectionsSchema = z.object({
       }),
     )
     .min(3),
+});
+
+const jiraSyncSchema = z.object({
+  baseUrl: z
+    .enum(['https://tasks.dev.sberdevices.ru', 'https://tasks.sberdevices.ru'])
+    .optional(),
 });
 
 router.put('/projects/:projectId/jira-integration', async (req, res) => {
@@ -488,6 +495,12 @@ router.patch('/tasks/:taskId/jira-link', async (req, res) => {
 });
 
 router.post('/projects/:projectId/jira/sync', async (req, res) => {
+  const parsedSync = jiraSyncSchema.safeParse(req.body ?? {});
+  if (!parsedSync.success) {
+    res.status(400).json({ error: parsedSync.error.flatten() });
+    return;
+  }
+
   const project = await prisma.project.findUnique({
     where: { id: req.params.projectId },
     include: {
@@ -495,8 +508,8 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     },
   });
 
-  if (!project?.jiraIntegration) {
-    res.status(404).json({ error: 'Интеграция Jira не настроена для этого проекта' });
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
@@ -510,16 +523,30 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       .filter((section) => section.jiraQuery);
     const syncedAt = new Date();
     let syncedIssues = 0;
+    const sectionStats: Array<{
+      id: string;
+      title: string;
+      sortOrder: number;
+      issues: number;
+      jiraUser: string | null;
+    }> = [];
 
-    for (const section of workSections) {
+    for (const section of sectionsWithFilter) {
+      const jiraResult = await fetchJiraIssuesWithMeta(section.jiraQuery, {
+        baseUrl: parsedSync.data.baseUrl,
+      });
+      const issues = jiraResult.issues;
+      syncedIssues += issues.length;
+      sectionStats.push({
+        id: section.id,
+        title: section.title,
+        sortOrder: section.sortOrder,
+        issues: issues.length,
+        jiraUser: jiraResult.jiraUser,
+      });
       await prisma.jiraWorkSectionIssue.deleteMany({
         where: { sectionId: section.id },
       });
-    }
-
-    for (const section of sectionsWithFilter) {
-      const issues = await fetchJiraIssues(section.jiraQuery);
-      syncedIssues += issues.length;
       const snapshots = await Promise.all(
         issues.map((issue) =>
           prisma.jiraIssueSnapshot.upsert({
@@ -568,17 +595,37 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       }
     }
 
-    await prisma.jiraIntegration.update({
-      where: { id: project.jiraIntegration.id },
-      data: { syncStatus: 'OK', lastSyncedAt: syncedAt },
+    if (project.jiraIntegration) {
+      await prisma.jiraIntegration.update({
+        where: { id: project.jiraIntegration.id },
+        data: { syncStatus: 'OK', lastSyncedAt: syncedAt },
+      });
+    }
+
+    logEvent('info', 'jira.sync.completed', {
+      projectId: project.id,
+      baseUrl: parsedSync.data.baseUrl ?? 'env',
+      configuredSections: sectionsWithFilter.length,
+      syncedIssues,
+      sections: sectionStats,
     });
 
-    res.json({ synced: syncedIssues });
-  } catch (error) {
-    await prisma.jiraIntegration.update({
-      where: { id: project.jiraIntegration.id },
-      data: { syncStatus: 'ERROR' },
+    res.json({
+      synced: syncedIssues,
+      configuredSections: sectionsWithFilter.length,
+      totalSections: workSections.length,
+      jiraUsers: Array.from(
+        new Set(sectionStats.map((section) => section.jiraUser).filter(Boolean)),
+      ),
+      sections: sectionStats,
     });
+  } catch (error) {
+    if (project.jiraIntegration) {
+      await prisma.jiraIntegration.update({
+        where: { id: project.jiraIntegration.id },
+        data: { syncStatus: 'ERROR' },
+      });
+    }
     res.status(502).json({
       error: error instanceof Error ? error.message : 'Не удалось синхронизировать Jira',
     });

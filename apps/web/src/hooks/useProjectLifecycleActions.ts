@@ -101,15 +101,20 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
     wbsSort,
   } = deps;
 
-async function syncJira() {
+async function syncJira(options: { baseUrl?: string } = {}) {
   if (!project) return;
   setSyncing(true);
   setError(null);
   try {
+    await persistJiraWorkSections(project.id);
     const response = await authenticatedFetch(
       `${apiBase}/api/projects/${project.id}/jira/sync`,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: options.baseUrl,
+        }),
       },
     );
     const result = await response.json();
@@ -120,6 +125,26 @@ async function syncJira() {
       `${apiBase}/api/projects/${project.id}/overview`,
     );
     applyProject(await refreshed.json());
+    const syncedCount =
+      typeof result.synced === "number" ? result.synced : 0;
+    const configuredSections =
+      typeof result.configuredSections === "number"
+        ? result.configuredSections
+        : 0;
+    const jiraUsers = Array.isArray(result.jiraUsers)
+      ? result.jiraUsers.filter((user): user is string => typeof user === "string" && user.length > 0)
+      : [];
+    const jiraUserText =
+      jiraUsers.length > 0 ? ` Запрос выполнен от: ${jiraUsers.join(", ")}.` : "";
+    if (configuredSections === 0) {
+      setNotice("Jira: нет разделов с заполненным фильтром");
+    } else if (syncedCount === 0) {
+      setNotice(
+        `Jira: синхронизация выполнена, тикетов не найдено.${jiraUserText} Проверь JQL и Browse-доступ сервисной учетки к ${options.baseUrl ?? "Jira"}`,
+      );
+    } else {
+      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}.${jiraUserText}`);
+    }
   } catch (syncError) {
     setError(
       syncError instanceof Error
@@ -128,6 +153,36 @@ async function syncJira() {
     );
   } finally {
     setSyncing(false);
+  }
+}
+
+function jiraWorkSectionsPayload() {
+  return {
+    sections: jiraWorkSectionDrafts.map((section, index) => ({
+      id: section.id ?? undefined,
+      sortOrder: index,
+      title: section.title.trim() || `Раздел ${index + 1}`,
+      jql: section.jql.trim(),
+    })),
+  };
+}
+
+async function persistJiraWorkSections(projectId: string) {
+  const response = await authenticatedFetch(
+    `${apiBase}/api/projects/${projectId}/jira-work-sections`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(jiraWorkSectionsPayload()),
+    },
+  );
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      result.error?.formErrors?.join(", ") ||
+        result.error ||
+        "Не удалось сохранить разделы Jira",
+    );
   }
 }
 
@@ -492,29 +547,7 @@ async function saveJiraWorkSections(event: FormEvent<HTMLFormElement>) {
   setError(null);
   setNotice(null);
   try {
-    const response = await authenticatedFetch(
-      `${apiBase}/api/projects/${project.id}/jira-work-sections`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sections: jiraWorkSectionDrafts.map((section, index) => ({
-            id: section.id ?? undefined,
-            sortOrder: index,
-            title: section.title.trim() || `Раздел ${index + 1}`,
-            jql: section.jql.trim(),
-          })),
-        }),
-      },
-    );
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(
-        result.error?.formErrors?.join(", ") ||
-          result.error ||
-          "Не удалось сохранить разделы Jira",
-      );
-    }
+    await persistJiraWorkSections(project.id);
     await refreshProject(project.id);
     setNotice("Разделы Jira сохранены");
   } catch (saveError) {

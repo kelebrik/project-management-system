@@ -40,7 +40,7 @@ Optional for Jira sync:
 ```text
 JIRA_BASE_URL=https://your-company.atlassian.net
 JIRA_EMAIL=jira-integration-user@company.com
-JIRA_API_TOKEN=<secret>
+JIRA_API_TOKEN=<api-token-or-service-password>
 JIRA_MAX_RESULTS=100
 ```
 

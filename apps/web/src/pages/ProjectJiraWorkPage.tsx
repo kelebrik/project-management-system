@@ -4,6 +4,13 @@ import { type KeyboardEvent, useState } from "react";
 import { defaultJiraWorkSectionTitle } from "../app/jiraWorkSections";
 import { usePageContext } from "./PageContext";
 
+const jiraBaseUrls = {
+  dev: "https://tasks.dev.sberdevices.ru",
+  prod: "https://tasks.sberdevices.ru",
+} as const;
+
+type JiraMode = keyof typeof jiraBaseUrls;
+
 export function ProjectJiraWorkPage() {
   const ctx = usePageContext();
   const {
@@ -18,6 +25,8 @@ export function ProjectJiraWorkPage() {
   const [expandedSections, setExpandedSections] = useState<Set<number>>(
     () => new Set(),
   );
+  const [jiraMode, setJiraMode] = useState<JiraMode>("dev");
+  const selectedJiraBaseUrl = jiraBaseUrls[jiraMode];
   const toggleSection = (sortOrder: number) => {
     setExpandedSections((current) => {
       const next = new Set(current);
@@ -59,13 +68,27 @@ export function ProjectJiraWorkPage() {
             <p>Jira-фильтры проекта для отчетности и обзора</p>
           </div>
           <div className="panel-title-actions">
+            <div className="jira-env-switch" aria-label="Окружение Jira">
+              {(["dev", "prod"] as const).map((mode) => (
+                <button
+                  className={mode === jiraMode ? "active" : ""}
+                  key={mode}
+                  type="button"
+                  onClick={() => setJiraMode(mode)}
+                  title={jiraBaseUrls[mode]}
+                  aria-pressed={mode === jiraMode}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
             <button className="button" type="button" onClick={addSection}>
               Создать раздел
             </button>
             <button
               className="button"
               type="button"
-              onClick={syncJira}
+              onClick={() => syncJira({ baseUrl: selectedJiraBaseUrl })}
               disabled={syncing}
             >
               {syncing ? "Синхронизирую..." : "Синхронизировать"}
