@@ -170,6 +170,96 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
   }
 });
 
+test('fetchJiraIssues accepts an empty result only after Jira confirms current user', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+    const url = String(input);
+
+    if (url.endsWith('/rest/api/2/myself')) {
+      return new Response(JSON.stringify({ name: 'bot', displayName: 'Jira Bot' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ issues: [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('project = PMS');
+
+    assert.deepEqual(issues, []);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, 'https://jira.example/rest/api/2/search');
+    assert.equal(calls[1].url, 'https://jira.example/rest/api/2/myself');
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssues rejects empty anonymous search results', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'bad-secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+    const url = String(input);
+
+    if (url.endsWith('/rest/api/2/search')) {
+      return new Response(JSON.stringify({ issues: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (url.endsWith('/rest/auth/1/session')) {
+      return new Response(JSON.stringify({ errorMessages: ['Login failed'], errors: {} }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (url.endsWith('/login.jsp')) {
+      return new Response('<html><body><form id="login-form"></form></body></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+
+    return new Response(JSON.stringify({ errorMessages: ['Login failed'], errors: {} }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssues('project = PMS'),
+      /Jira did not authenticate bot@example\.com/,
+    );
+    assert.equal(calls[0].url, 'https://jira.example/rest/api/2/search');
+    assert.equal(calls[1].url, 'https://jira.example/rest/api/2/myself');
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
 test('fetchJiraIssues uses Jira Server search endpoint before Cloud endpoint', async () => {
   const previousEnv = snapshotJiraEnv();
   const previousFetch = globalThis.fetch;

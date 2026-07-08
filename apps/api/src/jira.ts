@@ -40,6 +40,16 @@ const jiraSessionResponseSchema = z.object({
   }),
 });
 
+const jiraCurrentUserResponseSchema = z
+  .object({
+    accountId: z.string().optional(),
+    name: z.string().optional(),
+    key: z.string().optional(),
+    emailAddress: z.string().optional(),
+    displayName: z.string().optional(),
+  })
+  .passthrough();
+
 type JiraConfig = {
   enabled: boolean;
   baseUrl: string;
@@ -158,6 +168,10 @@ function isAnonymousFieldVisibilityError(body: string) {
   return /cannot be viewed by anonymous users/i.test(body);
 }
 
+function isJiraAuthVerificationFailure(body: string) {
+  return /Jira authentication verification failed/i.test(body);
+}
+
 function isJiraLoginPage(body: string) {
   return /name=["']os_username["']|id=["']login-form["']|login failed/i.test(body);
 }
@@ -204,6 +218,19 @@ function jiraFilterPaths(baseUrl: string, filterId: string) {
   }
 
   return [`/rest/api/2/filter/${filterId}`, `/rest/api/3/filter/${filterId}`];
+}
+
+function jiraMyselfPaths(baseUrl: string) {
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    if (host.endsWith('atlassian.net')) {
+      return ['/rest/api/3/myself', '/rest/api/2/myself'];
+    }
+  } catch {
+    // Host-only values are normalized before use; keep Jira Server order as fallback.
+  }
+
+  return ['/rest/api/2/myself', '/rest/api/3/myself'];
 }
 
 function savedFilterIdFromJql(jql: string) {
@@ -343,6 +370,98 @@ async function fetchJiraSearch(
   return { parsed: null, status: lastStatus, body: lastErrorBody };
 }
 
+function jiraUserIdentity(user: z.infer<typeof jiraCurrentUserResponseSchema>) {
+  return user.emailAddress ?? user.name ?? user.key ?? user.accountId ?? user.displayName ?? '';
+}
+
+async function fetchJiraCurrentUser(
+  baseUrl: string,
+  authHeaders: Record<string, string>,
+) {
+  let lastErrorBody = '';
+  let lastStatus = 0;
+  const paths = jiraMyselfPaths(baseUrl);
+
+  for (const [index, path] of paths.entries()) {
+    const isLastPath = index === paths.length - 1;
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: {
+        ...authHeaders,
+        Accept: 'application/json',
+      },
+    });
+
+    lastStatus = response.status;
+
+    if (response.ok) {
+      if (!isJsonResponse(response)) {
+        return {
+          authenticated: false,
+          status: response.status,
+          body: await response.text(),
+        };
+      }
+
+      try {
+        const user = jiraCurrentUserResponseSchema.parse(await response.json());
+        const identity = jiraUserIdentity(user);
+        return {
+          authenticated: Boolean(identity),
+          identity,
+          status: response.status,
+          body: identity ? '' : 'Jira current user response has no identity',
+        };
+      } catch (error) {
+        return {
+          authenticated: false,
+          status: response.status,
+          body: error instanceof Error ? error.message : 'Jira current user response is not valid JSON',
+        };
+      }
+    }
+
+    lastErrorBody =
+      response.status >= 300 && response.status < 400
+        ? `Redirected to ${response.headers.get('location') ?? 'unknown location'}`
+        : await response.text();
+    if (![404, 405, 410].includes(response.status) || isLastPath) {
+      return {
+        authenticated: false,
+        status: lastStatus,
+        body: lastErrorBody,
+      };
+    }
+  }
+
+  return {
+    authenticated: false,
+    status: lastStatus,
+    body: lastErrorBody,
+  };
+}
+
+async function fetchJiraSearchWithVerifiedEmptyResult(
+  baseUrl: string,
+  searchBody: string,
+  authHeaders: Record<string, string>,
+) {
+  const result = await fetchJiraSearch(baseUrl, searchBody, authHeaders);
+  if (!result.parsed || result.parsed.issues.length > 0) return result;
+
+  const currentUser = await fetchJiraCurrentUser(baseUrl, authHeaders);
+  if (currentUser.authenticated) return result;
+
+  return {
+    parsed: null,
+    status: currentUser.status || result.status,
+    body: `Jira authentication verification failed: ${
+      currentUser.status || 'unknown'
+    } ${currentUser.body ? cleanJiraErrorBody(currentUser.body) : ''}`.trim(),
+  };
+}
+
 async function fetchJiraSessionCookie(baseUrl: string, username: string, password: string) {
   const response = await fetch(`${baseUrl}/rest/auth/1/session`, {
     method: 'POST',
@@ -478,7 +597,7 @@ export async function fetchJiraIssues(
       effectiveJql = filter.jql;
     }
 
-    const result = await fetchJiraSearch(
+    const result = await fetchJiraSearchWithVerifiedEmptyResult(
       baseUrl,
       jiraSearchBody(effectiveJql, maxResults),
       authAttempt.headers,
@@ -486,7 +605,8 @@ export async function fetchJiraIssues(
     parsed = result.parsed;
     lastStatus = result.status;
     lastErrorBody = result.body;
-    sawAnonymousSearch ||= isAnonymousFieldVisibilityError(result.body);
+    sawAnonymousSearch ||=
+      isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
     if (parsed) break;
   }
 
@@ -512,7 +632,7 @@ export async function fetchJiraIssues(
         effectiveJql = filter.jql;
       }
 
-      const result = await fetchJiraSearch(
+      const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
         jiraSearchBody(effectiveJql, maxResults),
         { Cookie: session.cookie },
@@ -520,7 +640,8 @@ export async function fetchJiraIssues(
       parsed = result.parsed;
       lastStatus = result.status;
       lastErrorBody = result.body;
-      sawAnonymousSearch ||= isAnonymousFieldVisibilityError(result.body);
+      sawAnonymousSearch ||=
+        isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
       if (parsed) break;
     }
   }
@@ -547,7 +668,7 @@ export async function fetchJiraIssues(
         effectiveJql = filter.jql;
       }
 
-      const result = await fetchJiraSearch(
+      const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
         jiraSearchBody(effectiveJql, maxResults),
         { Cookie: login.cookie },
@@ -555,13 +676,18 @@ export async function fetchJiraIssues(
       parsed = result.parsed;
       lastStatus = result.status;
       lastErrorBody = result.body;
-      sawAnonymousSearch ||= isAnonymousFieldVisibilityError(result.body);
+      sawAnonymousSearch ||=
+        isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
       if (parsed) break;
     }
   }
 
   if (!parsed) {
-    if (sawAnonymousSearch || isAnonymousFieldVisibilityError(lastErrorBody)) {
+    if (
+      sawAnonymousSearch ||
+      isAnonymousFieldVisibilityError(lastErrorBody) ||
+      isJiraAuthVerificationFailure(lastErrorBody)
+    ) {
       throw new Error(
         `Jira did not authenticate ${email}; requests are still anonymous after auth methods: ${attemptedMethods.join(
           ', ',
