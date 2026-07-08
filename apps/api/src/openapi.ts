@@ -749,6 +749,10 @@ export const openApiDocument = {
                     synced: { type: "number" },
                     configuredSections: { type: "number" },
                     totalSections: { type: "number" },
+                    jiraUsers: {
+                      type: "array",
+                      items: { type: "string" },
+                    },
                     sections: {
                       type: "array",
                       items: {
@@ -758,6 +762,7 @@ export const openApiDocument = {
                           title: { type: "string" },
                           sortOrder: { type: "number" },
                           issues: { type: "number" },
+                          jiraUser: { type: ["string", "null"] },
                         },
                       },
                     },
