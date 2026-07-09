@@ -1004,7 +1004,7 @@ test('fetchJiraIssues reports concise Jira auth failures without HTML payload', 
   try {
     await assert.rejects(
       () => fetchJiraIssues('project = PMS'),
-      /Jira authentication failed: 401 Basic Authentication Failure - Reason : AUTHENTICATED_FAILED/,
+      /Jira authentication failed: 401 HTML response from Jira/,
     );
   } finally {
     globalThis.fetch = previousFetch;
