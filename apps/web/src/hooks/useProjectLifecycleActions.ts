@@ -190,7 +190,10 @@ const applyProject = useCallback(
   (nextProject: ProjectDetails) => {
     projectRef.current = nextProject;
     const nextWbsDrafts = Object.fromEntries(
-      nextProject.wbsItems.map((item) => [item.id, wbsToForm(item)]),
+      nextProject.wbsItems.map((item) => [
+        item.id,
+        wbsToForm(item, nextProject.wbsDependencies),
+      ]),
     );
     wbsDraftsRef.current = nextWbsDrafts;
     setProject(nextProject);

@@ -5,8 +5,10 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 
 import type {
+  WbsDependency,
   WbsItemStatus,
   WbsItemType,
   WbsTreeItem,
@@ -22,9 +24,12 @@ import {
 } from "../app/editableFields";
 import {
   WBS_COLUMN_FIELDS,
+  WBS_PREDECESSOR_TYPE_BY_KEY,
   type ProjectCalendarCode,
   type WbsTableColumn,
   type WbsTableColumnKey,
+  type WbsPredecessorKey,
+  type WbsPredecessorTiming,
   type WbsSortState,
 } from "../app/wbsTable";
 import {
@@ -79,6 +84,7 @@ type UseWbsStructureTableControllerOptions = {
   toggleWbsCollapse: (itemId: string) => void;
   updateWbsDraft: (itemId: string, patch: Partial<WbsFormState>) => void;
   visibleStructureWbsTree: WbsTreeItem[];
+  wbsDependencies: WbsDependency[];
   wbsDrafts: Record<string, WbsFormState>;
   wbsDraftsRef: MutableRefObject<Record<string, WbsFormState>>;
   wbsSort: WbsSortState | null;
@@ -158,6 +164,7 @@ export function useWbsStructureTableController({
   toggleWbsCollapse,
   updateWbsDraft,
   visibleStructureWbsTree,
+  wbsDependencies,
   wbsDrafts,
   wbsDraftsRef,
   wbsSort,
@@ -175,7 +182,7 @@ export function useWbsStructureTableController({
         const currentItem = wbsTree.find((item) => item.id === itemId);
         if (!currentItem) return;
         setWbsDrafts(() => {
-          const source = wbsToForm(currentItem);
+          const source = wbsToForm(currentItem, wbsDependencies);
           const nextDrafts = {
             ...wbsDraftsRef.current,
             [itemId]: {
@@ -194,7 +201,7 @@ export function useWbsStructureTableController({
     item: WbsTreeItem,
     draft: WbsFormState,
   ) => {
-    const source = wbsToForm(item);
+    const source = wbsToForm(item, wbsDependencies);
     if (columnKey === "structure") {
       return (
         draft.title !== source.title ||
@@ -203,6 +210,21 @@ export function useWbsStructureTableController({
     }
     return WBS_COLUMN_FIELDS[columnKey].some(
       (field) => draft[field] !== source[field],
+    );
+  };
+
+  const setPredecessorTiming = (
+    itemId: string,
+    columnKey: WbsPredecessorKey,
+    timing: WbsPredecessorTiming,
+  ) => {
+    const timingKey = WBS_PREDECESSOR_TYPE_BY_KEY[columnKey];
+    const current = wbsDraftsRef.current[itemId] ?? wbsDrafts[itemId];
+    if (!current || current[timingKey] === timing) return;
+    saveWbsDraftPatch(
+      itemId,
+      { [timingKey]: timing },
+      { silent: true },
     );
   };
 
@@ -750,24 +772,63 @@ export function useWbsStructureTableController({
       case "predecessor3":
       case "predecessor4":
       case "predecessor5":
-      case "predecessor6":
-        return (
-          <input
-            value={resolveDraftPredecessorCode(
-              draft[columnKey],
-              wbsTree,
-              wbsDrafts,
-              draftWbsCodes,
-            )}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { [columnKey]: event.target.value })
-            }
-            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
-            placeholder="Код"
-          />
+      case "predecessor6": {
+        const predecessorCode = resolveDraftPredecessorCode(
+          draft[columnKey],
+          wbsTree,
+          wbsDrafts,
+          draftWbsCodes,
         );
+        const timing = draft[WBS_PREDECESSOR_TYPE_BY_KEY[columnKey]];
+        const hasPredecessor = predecessorCode.trim().length > 0;
+        return (
+          <div className="wbs-predecessor-editor">
+            <input
+              className="wbs-predecessor-input"
+              value={predecessorCode}
+              onChange={(event) =>
+                updateWbsDraft(item.id, { [columnKey]: event.target.value })
+              }
+              onFocus={(event) =>
+                rememberEditableInitialValue(event.currentTarget)
+              }
+              onKeyDown={wbsEditKeyHandler(item.id)}
+              onBlur={() => void saveWbsItem(item.id, { silent: true })}
+              placeholder="Код"
+            />
+            <div className="wbs-predecessor-timing" aria-label="Расчет срока">
+              <button
+                type="button"
+                className={`wbs-predecessor-timing-button ${
+                  timing === "SS" ? "active" : ""
+                }`}
+                disabled={!hasPredecessor}
+                aria-label="Считать от начала предшественника"
+                aria-pressed={timing === "SS"}
+                title="Считать от начала предшественника"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setPredecessorTiming(item.id, columnKey, "SS")}
+              >
+                <ArrowUp size={11} strokeWidth={2.8} />
+              </button>
+              <button
+                type="button"
+                className={`wbs-predecessor-timing-button ${
+                  timing === "FS" ? "active" : ""
+                }`}
+                disabled={!hasPredecessor}
+                aria-label="Считать от конца предшественника"
+                aria-pressed={timing === "FS"}
+                title="Считать от конца предшественника"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setPredecessorTiming(item.id, columnKey, "FS")}
+              >
+                <ArrowDown size={11} strokeWidth={2.8} />
+              </button>
+            </div>
+          </div>
+        );
+      }
       case "leadLag":
         return (
           <input
