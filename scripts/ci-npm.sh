@@ -3,7 +3,7 @@ set -eu
 
 . "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/ci-npm-env.sh"
 
-VERSION="${PMS_CI_NPM_VERSION:-10.8.2}"
+VERSION="${PMS_CI_NPM_VERSION:-11.18.0}"
 CACHE_DIR="${NPM_CONFIG_CACHE:-.npm}"
 NPM_HOME="${PMS_CI_NPM_HOME:-$CACHE_DIR/npm-cli-$VERSION}"
 NPM_CLI="$NPM_HOME/package/bin/npm-cli.js"
@@ -48,6 +48,45 @@ get(url, (response) => {
 NODE
 }
 
+bundled_npm_has_fixed_sigstore() {
+  node <<'NODE'
+const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+
+function atLeast(version, minimum) {
+  const actual = version.split(".").map(Number);
+  const required = minimum.split(".").map(Number);
+
+  for (let index = 0; index < required.length; index += 1) {
+    if ((actual[index] ?? 0) > required[index]) return true;
+    if ((actual[index] ?? 0) < required[index]) return false;
+  }
+
+  return true;
+}
+
+try {
+  const root = execFileSync("npm", ["root", "-g"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+  const packageJson = path.join(root, "npm", "node_modules", "sigstore", "package.json");
+  const { version } = JSON.parse(fs.readFileSync(packageJson, "utf8"));
+
+  if (atLeast(version, "4.1.1")) {
+    process.exit(0);
+  }
+
+  console.error(`Bundled npm contains sigstore ${version}; required >=4.1.1.`);
+  process.exit(1);
+} catch (error) {
+  console.error(`Could not verify bundled npm sigstore version: ${error.message}`);
+  process.exit(1);
+}
+NODE
+}
+
 if [ ! -f "$NPM_CLI" ]; then
   REGISTRY="$PMS_NPM_REGISTRY"
   TARBALL_URL="${PMS_CI_NPM_TARBALL_URL:-$REGISTRY/npm/-/npm-$VERSION.tgz}"
@@ -59,12 +98,12 @@ if [ ! -f "$NPM_CLI" ]; then
     :
   else
     rm -rf "$NPM_HOME" "$TARBALL"
-    if command -v npm >/dev/null 2>&1; then
-      echo "Could not bootstrap npm $VERSION; falling back to bundled npm $(npm --version)." >&2
+    if command -v npm >/dev/null 2>&1 && bundled_npm_has_fixed_sigstore; then
+      echo "Could not bootstrap npm $VERSION; falling back to bundled npm $(npm --version) with fixed sigstore." >&2
       echo "Set PMS_CI_NPM_TARBALL_URL or PMS_NPM_REGISTRY to an internal mirror for deterministic CI." >&2
       exec npm "$@"
     fi
-    echo "Could not bootstrap npm $VERSION and bundled npm is unavailable." >&2
+    echo "Could not bootstrap npm $VERSION and bundled npm does not include sigstore >=4.1.1." >&2
     exit 1
   fi
 fi

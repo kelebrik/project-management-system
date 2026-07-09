@@ -646,6 +646,22 @@ export const openApiDocument = {
     "/api/open-issues/{issueId}": {
       patch: securedOperation(["OpenIssues"], "Update open issue or close it", [issueIdParam]),
     },
+    "/api/open-issues/{issueId}/convert-to-problem": {
+      post: {
+        tags: ["OpenIssues", "Risks"],
+        summary: "Convert open issue to RAID problem",
+        security: [{ sessionCookie: [] }],
+        parameters: [issueIdParam],
+        responses: {
+          "201": { description: "Open issue converted to problem" },
+          "401": { description: "Authentication required" },
+          "403": { description: "Permission denied" },
+          "404": { description: "Resource not found" },
+          "409": { description: "Closed issue cannot be converted" },
+          "423": { description: "Project is closed and read-only" },
+        },
+      },
+    },
     "/api/open-issues/{issueId}/jira-links": {
       post: createOperation(["OpenIssues", "Jira"], "Attach Jira ticket to open issue", [
         issueIdParam,
