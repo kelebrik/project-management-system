@@ -92,20 +92,20 @@
 - Oracle Primavera Cloud dashboards: https://docs.oracle.com/cd/E80480_01/English/admin/p6_eppm_migration_guide/246426.htm
 - Oracle schedule health page: https://docs.oracle.com/cd/F37378_01/English/user/analytics_ref/85320.htm
 
-### 2.5 Jira / Jira Align
+### 2.5 Jira и enterprise agile portfolio
 
 Практики для заимствования:
 
 - Issue-centric execution, dashboards as gadget collections, agile/forecast/management reports.
 - Timeline с dependencies для визуализации сроков и блокеров.
-- Jira Align как пример enterprise слоя: связь стратегии, portfolio, program, dependencies, risks, roadmaps и team-level delivery.
+- Enterprise agile portfolio слой: связь стратегии, portfolio, program, dependencies, risks, roadmaps и team-level delivery.
 - Полезный паттерн: operational teams продолжают работать в привычных инструментах, а portfolio layer агрегирует статусы, риски, зависимости и результаты.
 
 Источники:
 
-- Jira reports and dashboards: https://www.atlassian.com/software/jira/guides/reports-dashboards/overview
-- Jira timeline guide: https://www.atlassian.com/software/jira/guides/basic-roadmaps
-- Jira Align: https://www.atlassian.com/software/jira/align
+- Jira reports and dashboards vendor documentation.
+- Jira timeline vendor documentation.
+- Enterprise agile portfolio vendor documentation.
 
 ### 2.6 Smartsheet
 
@@ -527,7 +527,7 @@ flowchart LR
 
 - Jira остается system of record для командной Kanban/Scrum-доски.
 - В системе должна быть ссылка на Jira board проекта и deep links на Jira tickets.
-- Встраивание готовой Jira board в iframe не является базовым требованием: у Jira Cloud/Data Center часто действуют политики безопасности, SSO и X-Frame restrictions. Базовый UX: кнопка “Открыть доску в Jira” + синхронизированная сводка по issues.
+- Встраивание готовой Jira board в iframe не является базовым требованием: у Jira-инсталляций часто действуют политики безопасности, SSO и X-Frame restrictions. Базовый UX: кнопка “Открыть доску в Jira” + синхронизированная сводка по issues.
 - Синхронизация выполняется через Jira REST API и JQL.
 - Для каждого проекта задаются:
   - Jira base URL;

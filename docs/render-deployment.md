@@ -38,7 +38,7 @@ DATABASE_URL=<Render PostgreSQL internal connection string>
 Optional for Jira sync:
 
 ```text
-JIRA_BASE_URL=https://jira.company.ru
+JIRA_BASE_URL=https://jira.company.example
 JIRA_EMAIL=jira-integration-user@company.com
 JIRA_API_TOKEN=<api-token-or-service-password>
 JIRA_MAX_RESULTS=100

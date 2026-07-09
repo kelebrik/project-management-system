@@ -313,7 +313,7 @@ test('fetchJiraIssues rejects empty results from unexpected Jira user', async ()
   }
 });
 
-test('fetchJiraIssues uses Jira Server search endpoint before Cloud endpoint', async () => {
+test('fetchJiraIssues uses Jira Server search endpoint before v3 fallback endpoint', async () => {
   const previousEnv = snapshotJiraEnv();
   const previousFetch = globalThis.fetch;
   const calls: Array<{ url: string; init?: RequestInit }> = [];
