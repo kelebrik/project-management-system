@@ -10,6 +10,8 @@ import {
   type MilestoneLabelScope,
 } from "../app/milestoneLabelLayout";
 import {
+  MILESTONE_PHASE_LABEL_OFFSET,
+  MILESTONE_PHASE_LANE_GRID_GAP,
   MILESTONE_SNAKE_PATH_D,
   buildSnakeMilestoneLayouts,
   buildSnakeMilestonePointLayouts,
@@ -30,6 +32,13 @@ type MilestonePointStyle = CSSProperties & {
   "--milestone-connector-angle": string;
   "--milestone-drag-x"?: string;
   "--milestone-drag-y"?: string;
+};
+
+type MilestoneTimelineStyle = CSSProperties & {
+  "--milestone-track-width": string;
+  "--milestone-lane-height": string;
+  "--milestone-label-offset": string;
+  "--milestone-lane-gap": string;
 };
 
 const PHASE_LABEL_MAX_WIDTH_PX = 320;
@@ -203,7 +212,9 @@ export function MilestoneTimelineSection({
           {
             "--milestone-track-width": `${timeline.trackWidth}px`,
             "--milestone-lane-height": `${timeline.laneHeight}px`,
-          } as CSSProperties
+            "--milestone-label-offset": `${MILESTONE_PHASE_LABEL_OFFSET}px`,
+            "--milestone-lane-gap": `${MILESTONE_PHASE_LANE_GRID_GAP}px`,
+          } as MilestoneTimelineStyle
         }
       >
         {timeline.lanes.length > 0 ? (

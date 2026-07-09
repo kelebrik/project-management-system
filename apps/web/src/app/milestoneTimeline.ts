@@ -174,7 +174,15 @@ export const MILESTONE_SNAKE_PATH_D = MILESTONE_SNAKE_PATH_POINTS.map((point, in
 ).join(" ");
 export const MILESTONE_SNAKE_START_PROGRESS = 0.018;
 export const MILESTONE_SNAKE_END_PROGRESS = 0.948;
-export const MILESTONE_PHASE_LANE_HEIGHT = 260;
+export const MILESTONE_PHASE_LABEL_OFFSET = 32;
+// Date row plus four title rows with the current caption typography.
+export const MILESTONE_PHASE_LABEL_MAX_HEIGHT = 82;
+export const MILESTONE_PHASE_LABEL_GAP = 12;
+export const MILESTONE_PHASE_LANE_GRID_GAP = 10;
+export const MILESTONE_PHASE_LANE_HEIGHT =
+  2 * (MILESTONE_PHASE_LABEL_OFFSET + MILESTONE_PHASE_LABEL_MAX_HEIGHT) +
+  MILESTONE_PHASE_LABEL_GAP -
+  MILESTONE_PHASE_LANE_GRID_GAP;
 
 export function mapSnakeTimelineOffset(offset: number) {
   const boundedOffset = Math.max(0, Math.min(1, offset));
