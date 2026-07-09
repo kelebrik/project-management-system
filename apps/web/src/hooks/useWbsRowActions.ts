@@ -632,7 +632,7 @@ export function useWbsRowActions({
         wbsDraftsRef.current,
         draftWbsCodes,
       ).trim(),
-      type: draft[WBS_PREDECESSOR_TYPE_BY_KEY[key]],
+      type: draft[WBS_PREDECESSOR_TYPE_BY_KEY[key]] ?? "FS",
     }))
       .filter(({ code }) => Boolean(code))
       .map(({ code, type }) => {
