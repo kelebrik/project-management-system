@@ -174,6 +174,7 @@ export const MILESTONE_SNAKE_PATH_D = MILESTONE_SNAKE_PATH_POINTS.map((point, in
 ).join(" ");
 export const MILESTONE_SNAKE_START_PROGRESS = 0.018;
 export const MILESTONE_SNAKE_END_PROGRESS = 0.948;
+export const MILESTONE_PHASE_LANE_HEIGHT = 260;
 
 export function mapSnakeTimelineOffset(offset: number) {
   const boundedOffset = Math.max(0, Math.min(1, offset));
@@ -740,7 +741,7 @@ export function createMilestoneTimelineModel({
     endDate: new Date(maxTime).toISOString(),
     todayDate: today.toISOString(),
     trackWidth,
-    laneHeight: 146,
+    laneHeight: MILESTONE_PHASE_LANE_HEIGHT,
     todayOffset,
     hasMilestonesOutsideRange: datedMilestones.length > visibleMilestones.length,
   };

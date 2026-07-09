@@ -198,8 +198,8 @@
 }
 
 .milestone-lane-canvas {
-  --milestone-axis-center: calc(var(--milestone-lane-height, 188px) / 2);
-  min-height: var(--milestone-lane-height, 188px);
+  --milestone-axis-center: calc(var(--milestone-lane-height, 260px) / 2);
+  min-height: var(--milestone-lane-height, 260px);
   padding: 0 42px 0 8px;
   position: relative;
 }
