@@ -486,7 +486,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     for (const item of project?.wbsItems ?? []) {
       const draft = wbsDrafts[item.id];
       if (!draft) continue;
-      const source = wbsToForm(item);
+      const source = wbsToForm(item, project?.wbsDependencies ?? []);
       const hasDirtyField = WBS_DIRTY_FIELDS.some(
         (field) => draft[field] !== source[field],
       );
@@ -495,7 +495,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
       }
     }
     return dirtyIds;
-  }, [draftWbsCodes, project?.wbsItems, wbsDrafts]);
+  }, [draftWbsCodes, project?.wbsDependencies, project?.wbsItems, wbsDrafts]);
   const activeGanttLinkIds = useMemo(() => {
     const sourceId = hoveredGanttItemId ?? activeWbsItemId;
     const predecessors = new Set<string>();

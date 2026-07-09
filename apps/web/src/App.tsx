@@ -763,6 +763,7 @@ function AppController() {
       toggleWbsCollapse,
       updateWbsDraft,
       visibleStructureWbsTree,
+      wbsDependencies: project?.wbsDependencies ?? [],
       wbsDrafts,
       wbsDraftsRef,
       wbsSort,

@@ -66,8 +66,10 @@ export function useWbsSnapshotActions({
       : currentProject;
     projectRef.current = nextProject;
     setProject(nextProject);
+    const nextWbsDependencies =
+      nextDependencies ?? currentProject?.wbsDependencies ?? [];
     const nextWbsDrafts = Object.fromEntries(
-      nextItems.map((item) => [item.id, wbsToForm(item)]),
+      nextItems.map((item) => [item.id, wbsToForm(item, nextWbsDependencies)]),
     );
     wbsDraftsRef.current = nextWbsDrafts;
     setWbsDrafts(nextWbsDrafts);
