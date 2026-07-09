@@ -36,6 +36,7 @@ docker run -d \
 ```bash
 docker build \
   --build-arg NODE_IMAGE=<approved-registry>/platform/node-pms-ci:24 \
+  --build-arg NPM_VERSION=11.18.0 \
   -t <approved-registry>/project-management-system/app:latest \
   .
 ```

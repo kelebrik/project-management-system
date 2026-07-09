@@ -32,7 +32,7 @@ include:
   VAULT_SECRET_PATH: starosfw/tuz_starosfw_glansbl
 
 variables:
-  PMS_CI_NPM_VERSION: "10.8.2"
+  PMS_CI_NPM_VERSION: "11.18.0"
   NPM_CONFIG_CACHE: "/tmp/pms-npm-cache"
   NPM_CONFIG_REGISTRY: "https://nexus.sberdevices.ru/repository/npm"
   NPM_CONFIG_STRICT_SSL: "false"
@@ -44,6 +44,7 @@ cache:
   key:
     files:
       - package-lock.json
+      - .gitlab-ci.yml
   paths:
     - .npm/
 
@@ -169,6 +170,7 @@ build_image:
     - |
       buildah build --ulimit nofile=65536:65536 \
         --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
+        --build-arg NPM_VERSION="${PMS_CI_NPM_VERSION}" \
         -t ${CI_REGISTRY_IMAGE} .
     - |
       if [[ "${CI_PIPELINE_SOURCE}" == "push" && "${CI_COMMIT_REF_NAME}" == "master" ]]; then
