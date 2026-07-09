@@ -8,7 +8,6 @@ import type {
   ProjectDetails,
   WbsCriticalPath,
   WbsDependency,
-  WbsDependencyType,
   WbsItem,
   WbsSnapshot,
   WbsSnapshotResponse,
@@ -18,6 +17,7 @@ import { wbsToForm, type WbsFormState } from "../app/formState";
 import { apiBase, authenticatedFetch, isHttpsUrl } from "../app/http";
 import {
   WBS_PREDECESSOR_KEYS,
+  WBS_PREDECESSOR_TYPE_BY_KEY,
 } from "../app/wbsTable";
 import {
   parentIdFromWbsLevel,
@@ -140,6 +140,19 @@ export function useWbsRowActions({
     return options.scheduleDriver
       ? { ...payload, scheduleDriver: options.scheduleDriver }
       : payload;
+  }
+
+  function wbsItemPatchPayload(payload: ReturnType<typeof wbsPayload>) {
+    const {
+      predecessor1Type,
+      predecessor2Type,
+      predecessor3Type,
+      predecessor4Type,
+      predecessor5Type,
+      predecessor6Type,
+      ...itemPayload
+    } = payload;
+    return itemPayload;
   }
 
   function isLatestWbsSave(itemId: string, saveSequence: number) {
@@ -382,7 +395,7 @@ export function useWbsRowActions({
       return;
     }
     const currentPayload = currentItem
-      ? wbsPayload(itemId, wbsToForm(currentItem))
+      ? wbsPayload(itemId, wbsToForm(currentItem, activeProject.wbsDependencies))
       : null;
     const scheduleDriver =
       options.scheduleDriver ??
@@ -393,10 +406,14 @@ export function useWbsRowActions({
       JSON.stringify(comparablePayload) !== JSON.stringify(currentPayload);
     const predecessorsChanged =
       currentItem !== undefined &&
-      (WBS_PREDECESSOR_KEYS.some(
-        (key) => comparablePayload[key] !== currentItem[key],
-      ) ||
-        comparablePayload.leadLagDays !== currentItem.leadLagDays);
+        (WBS_PREDECESSOR_KEYS.some((key) => {
+          const typeKey = WBS_PREDECESSOR_TYPE_BY_KEY[key];
+          return (
+            comparablePayload[key] !== currentItem[key] ||
+            comparablePayload[typeKey] !== currentPayload?.[typeKey]
+          );
+        }) ||
+          comparablePayload.leadLagDays !== currentItem.leadLagDays);
     const requiresRenumber =
       currentItem !== undefined &&
       (comparablePayload.wbsLevel !== currentItem.wbsLevel ||
@@ -413,7 +430,7 @@ export function useWbsRowActions({
     try {
       const patchResult = await apiClient.patch<WbsSnapshotResponse>(
         `/api/wbs-items/${itemId}`,
-        nextPayload,
+        wbsItemPatchPayload(nextPayload),
         "Не удалось сохранить элемент Структуры",
       );
       const predecessorResult = predecessorsChanged
@@ -598,33 +615,34 @@ export function useWbsRowActions({
     itemId: string,
     options: { remember?: boolean } = {},
   ) {
-    if (!project) return null;
-    const draft = wbsDrafts[itemId];
+    const activeProject = projectRef.current ?? project;
+    if (!activeProject) return null;
+    const draft = wbsDraftsRef.current[itemId] ?? wbsDrafts[itemId];
     if (!draft) return null;
     const wbsByCode = new Map<string, WbsItem>();
-    for (const item of project.wbsItems) {
+    for (const item of activeProject.wbsItems) {
       wbsByCode.set(item.code, item);
       const draftCode = draftWbsCodes.get(item.id);
       if (draftCode) wbsByCode.set(draftCode, item);
     }
-    const desiredPredecessors = WBS_PREDECESSOR_KEYS.map((key) =>
-      resolveDraftPredecessorCode(
+    const desiredPredecessors = WBS_PREDECESSOR_KEYS.map((key) => ({
+      code: resolveDraftPredecessorCode(
         draft[key],
         wbsTree,
-        wbsDrafts,
+        wbsDraftsRef.current,
         draftWbsCodes,
-      ),
-    )
-      .map((code) => code.trim())
-      .filter(Boolean)
-      .map((code) => {
+      ).trim(),
+      type: draft[WBS_PREDECESSOR_TYPE_BY_KEY[key]] ?? "FS",
+    }))
+      .filter(({ code }) => Boolean(code))
+      .map(({ code, type }) => {
         const predecessor = wbsByCode.get(code);
         if (!predecessor) {
           throw new Error(`Предшественник ${code} не найден в Структуре`);
         }
         return {
           predecessorId: predecessor.id,
-          type: "FS" as WbsDependencyType,
+          type,
           lagDays: Number(draft.leadLagDays),
         };
       });
@@ -638,7 +656,7 @@ export function useWbsRowActions({
       throw new Error("Элемент Структуры не может быть своим предшественником");
     }
 
-    const existingDependencies = project.wbsDependencies.filter(
+    const existingDependencies = activeProject.wbsDependencies.filter(
       (dependency) => dependency.successorId === itemId,
     );
     const dependenciesChanged =
@@ -662,9 +680,7 @@ export function useWbsRowActions({
     } | null = null;
     for (const dependency of existingDependencies) {
       const shouldKeep = desiredPredecessors.some(
-        (draft) =>
-          draft.predecessorId === dependency.predecessorId &&
-          draft.type === dependency.type,
+        (draft) => draft.predecessorId === dependency.predecessorId,
       );
       if (!shouldKeep) {
         const response = await authenticatedFetch(
@@ -681,7 +697,7 @@ export function useWbsRowActions({
 
     for (const draft of desiredPredecessors) {
       const response = await authenticatedFetch(
-        `${apiBase}/api/projects/${project.id}/wbs-dependencies`,
+        `${apiBase}/api/projects/${activeProject.id}/wbs-dependencies`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

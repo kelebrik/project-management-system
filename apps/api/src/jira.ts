@@ -228,42 +228,15 @@ function cookieHeaderFromResponse(response: Response) {
     .join('; ');
 }
 
-function jiraSearchPaths(baseUrl: string) {
-  try {
-    const host = new URL(baseUrl).hostname.toLowerCase();
-    if (host.endsWith('atlassian.net')) {
-      return ['/rest/api/3/search/jql', '/rest/api/2/search'];
-    }
-  } catch {
-    // Host-only values are normalized before use; keep Jira Server order as fallback.
-  }
-
+function jiraSearchPaths(_baseUrl: string) {
   return ['/rest/api/2/search', '/rest/api/3/search/jql'];
 }
 
-function jiraFilterPaths(baseUrl: string, filterId: string) {
-  try {
-    const host = new URL(baseUrl).hostname.toLowerCase();
-    if (host.endsWith('atlassian.net')) {
-      return [`/rest/api/3/filter/${filterId}`, `/rest/api/2/filter/${filterId}`];
-    }
-  } catch {
-    // Host-only values are normalized before use; keep Jira Server order as fallback.
-  }
-
+function jiraFilterPaths(_baseUrl: string, filterId: string) {
   return [`/rest/api/2/filter/${filterId}`, `/rest/api/3/filter/${filterId}`];
 }
 
-function jiraMyselfPaths(baseUrl: string) {
-  try {
-    const host = new URL(baseUrl).hostname.toLowerCase();
-    if (host.endsWith('atlassian.net')) {
-      return ['/rest/api/3/myself', '/rest/api/2/myself'];
-    }
-  } catch {
-    // Host-only values are normalized before use; keep Jira Server order as fallback.
-  }
-
+function jiraMyselfPaths(_baseUrl: string) {
   return ['/rest/api/2/myself', '/rest/api/3/myself'];
 }
 

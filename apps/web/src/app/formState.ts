@@ -16,12 +16,13 @@ import type {
   RaidItemStatus,
   RaidItemType,
   WbsItem,
+  WbsDependency,
   WbsItemStatus,
   WbsItemType,
 } from "./domainTypes";
 import { addMonths, date, isoDate } from "./dateUtils";
 import { projectHealthLabel, projectStatusLabel } from "./labels";
-import type { ProjectCalendarCode } from "./wbsTable";
+import type { ProjectCalendarCode, WbsPredecessorTiming } from "./wbsTable";
 
 export type ProjectFormState = {
   parentId: string;
@@ -74,6 +75,12 @@ export type WbsFormState = {
   predecessor4: string;
   predecessor5: string;
   predecessor6: string;
+  predecessor1Type: WbsPredecessorTiming;
+  predecessor2Type: WbsPredecessorTiming;
+  predecessor3Type: WbsPredecessorTiming;
+  predecessor4Type: WbsPredecessorTiming;
+  predecessor5Type: WbsPredecessorTiming;
+  predecessor6Type: WbsPredecessorTiming;
   leadLagDays: string;
   workDays: string;
   calendarDays: string;
@@ -389,7 +396,24 @@ export function issueToDraft(issue: Issue): IssueEditDraft {
   };
 }
 
-export function wbsToForm(item: WbsItem): WbsFormState {
+function predecessorTiming(
+  item: WbsItem,
+  predecessorCode: string | null,
+  dependencies: WbsDependency[],
+): WbsPredecessorTiming {
+  if (!predecessorCode) return "FS";
+  const dependency = dependencies.find(
+    (candidate) =>
+      candidate.successorId === item.id &&
+      candidate.predecessor.code === predecessorCode,
+  );
+  return dependency?.type === "SS" ? "SS" : "FS";
+}
+
+export function wbsToForm(
+  item: WbsItem,
+  dependencies: WbsDependency[] = [],
+): WbsFormState {
   return {
     parentId: item.parentId ?? "",
     code: item.code,
@@ -410,6 +434,12 @@ export function wbsToForm(item: WbsItem): WbsFormState {
     predecessor4: item.predecessor4 ?? "",
     predecessor5: item.predecessor5 ?? "",
     predecessor6: item.predecessor6 ?? "",
+    predecessor1Type: predecessorTiming(item, item.predecessor1, dependencies),
+    predecessor2Type: predecessorTiming(item, item.predecessor2, dependencies),
+    predecessor3Type: predecessorTiming(item, item.predecessor3, dependencies),
+    predecessor4Type: predecessorTiming(item, item.predecessor4, dependencies),
+    predecessor5Type: predecessorTiming(item, item.predecessor5, dependencies),
+    predecessor6Type: predecessorTiming(item, item.predecessor6, dependencies),
     leadLagDays: String(item.leadLagDays),
     workDays: item.workDays === null ? "" : String(item.workDays),
     calendarDays: item.calendarDays === null ? "" : String(item.calendarDays),

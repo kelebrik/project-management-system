@@ -1,3 +1,5 @@
+import type { WbsDependencyType } from "./domainTypes";
+
 export type ProjectCalendarCode = "RU" | "CN";
 
 export const WBS_LEVEL_MIN_WIDTH = 128;
@@ -16,12 +18,12 @@ export const WBS_TABLE_COLUMNS = [
   { key: "effortPercent", label: "Трудоемк., %", width: 112 },
   { key: "progress", label: "%", width: 72 },
   { key: "jiraTicketUrl", label: "Jira URL", width: 240 },
-  { key: "predecessor1", label: "Предшественник 1", width: 148 },
-  { key: "predecessor2", label: "Предшественник 2", width: 148 },
-  { key: "predecessor3", label: "Предшественник 3", width: 148 },
-  { key: "predecessor4", label: "Предшественник 4", width: 148 },
-  { key: "predecessor5", label: "Предшественник 5", width: 148 },
-  { key: "predecessor6", label: "Предшественник 6", width: 148 },
+  { key: "predecessor1", label: "Предшественник 1", width: 80 },
+  { key: "predecessor2", label: "Предшественник 2", width: 80 },
+  { key: "predecessor3", label: "Предшественник 3", width: 80 },
+  { key: "predecessor4", label: "Предшественник 4", width: 80 },
+  { key: "predecessor5", label: "Предшественник 5", width: 80 },
+  { key: "predecessor6", label: "Предшественник 6", width: 80 },
   { key: "leadLag", label: "Сдвиг", width: 92 },
 ] as const;
 
@@ -37,6 +39,23 @@ export const WBS_PREDECESSOR_KEYS = [
 export type WbsTableColumnKey = (typeof WBS_TABLE_COLUMNS)[number]["key"];
 export type WbsTableColumn = (typeof WBS_TABLE_COLUMNS)[number];
 export type WbsPredecessorKey = (typeof WBS_PREDECESSOR_KEYS)[number];
+export type WbsPredecessorTiming = Extract<WbsDependencyType, "FS" | "SS">;
+
+export const WBS_PREDECESSOR_TYPE_BY_KEY = {
+  predecessor1: "predecessor1Type",
+  predecessor2: "predecessor2Type",
+  predecessor3: "predecessor3Type",
+  predecessor4: "predecessor4Type",
+  predecessor5: "predecessor5Type",
+  predecessor6: "predecessor6Type",
+} as const;
+
+export const WBS_PREDECESSOR_TYPE_KEYS = Object.values(
+  WBS_PREDECESSOR_TYPE_BY_KEY,
+);
+
+export type WbsPredecessorTypeKey =
+  (typeof WBS_PREDECESSOR_TYPE_BY_KEY)[WbsPredecessorKey];
 
 export type WbsFormFieldKey =
   | "title"
@@ -52,6 +71,7 @@ export type WbsFormFieldKey =
   | "progress"
   | "jiraTicketUrl"
   | WbsPredecessorKey
+  | WbsPredecessorTypeKey
   | "leadLagDays"
   | "wbsLevel";
 
@@ -74,6 +94,12 @@ export const WBS_DIRTY_FIELDS: WbsFormFieldKey[] = [
   "predecessor4",
   "predecessor5",
   "predecessor6",
+  "predecessor1Type",
+  "predecessor2Type",
+  "predecessor3Type",
+  "predecessor4Type",
+  "predecessor5Type",
+  "predecessor6Type",
   "leadLagDays",
   "wbsLevel",
 ];
@@ -92,12 +118,12 @@ export const WBS_COLUMN_FIELDS: Record<WbsTableColumnKey, WbsFormFieldKey[]> = {
   effortPercent: ["effortPercent"],
   progress: ["progress"],
   jiraTicketUrl: ["jiraTicketUrl"],
-  predecessor1: ["predecessor1"],
-  predecessor2: ["predecessor2"],
-  predecessor3: ["predecessor3"],
-  predecessor4: ["predecessor4"],
-  predecessor5: ["predecessor5"],
-  predecessor6: ["predecessor6"],
+  predecessor1: ["predecessor1", "predecessor1Type"],
+  predecessor2: ["predecessor2", "predecessor2Type"],
+  predecessor3: ["predecessor3", "predecessor3Type"],
+  predecessor4: ["predecessor4", "predecessor4Type"],
+  predecessor5: ["predecessor5", "predecessor5Type"],
+  predecessor6: ["predecessor6", "predecessor6Type"],
   leadLag: ["leadLagDays"],
 };
 
