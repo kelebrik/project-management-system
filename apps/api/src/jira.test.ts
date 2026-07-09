@@ -1004,7 +1004,7 @@ test('fetchJiraIssues reports concise Jira auth failures without HTML payload', 
   try {
     await assert.rejects(
       () => fetchJiraIssues('project = PMS'),
-      /Jira authentication failed: 401 Basic Authentication Failure - Reason : AUTHENTICATED_FAILED/,
+      /Jira authentication failed: 401 HTML response from Jira/,
     );
   } finally {
     globalThis.fetch = previousFetch;
@@ -1012,7 +1012,7 @@ test('fetchJiraIssues reports concise Jira auth failures without HTML payload', 
   }
 });
 
-test('fetchJiraIssues strips script and style content from HTML Jira errors', async () => {
+test('fetchJiraIssues summarizes HTML Jira errors without parsing tag content', async () => {
   const previousEnv = snapshotJiraEnv();
   const previousFetch = globalThis.fetch;
 
@@ -1030,7 +1030,7 @@ test('fetchJiraIssues strips script and style content from HTML Jira errors', as
       () => fetchJiraIssues('project = PMS'),
       (error) => {
         assert(error instanceof Error);
-        assert.match(error.message, /Jira request failed: 500 Server failed & retry/);
+        assert.match(error.message, /Jira request failed: 500 HTML response from Jira/);
         assert.doesNotMatch(error.message, /alert|secret|hidden|<script|<style/i);
         return true;
       },

@@ -484,30 +484,26 @@ function decodeHtml(value: string | null | undefined) {
 }
 
 function stripHtml(value: string) {
-  return decodeHtml(stripHtmlTags(value)).trim();
-}
-
-function stripHtmlTags(value: string) {
-  let output = "";
+  let text = "";
   let insideTag = false;
 
-  for (const char of value) {
-    if (char === "<") {
+  for (const character of value) {
+    if (character === "<") {
       insideTag = true;
       continue;
     }
 
-    if (char === ">") {
+    if (insideTag && character === ">") {
       insideTag = false;
       continue;
     }
 
     if (!insideTag) {
-      output += char;
+      text += character;
     }
   }
 
-  return output;
+  return decodeHtml(text).trim();
 }
 
 export function createWbsEnglishTranslationHtml({
