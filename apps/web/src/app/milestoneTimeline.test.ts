@@ -7,6 +7,7 @@ import {
   createStructureMilestones,
 } from "./milestoneModels";
 import {
+  MILESTONE_PHASE_LANE_HEIGHT,
   createMilestoneTimelineModel,
   mapSnakeTimelineOffset,
 } from "./milestoneTimeline";
@@ -191,7 +192,7 @@ test("phase milestone timeline keeps fallback labels close to their markers", ()
       { side: "bottom", level: 0, labelShiftPx: 0 },
     ],
   );
-  assert.equal(model.laneHeight, 146);
+  assert.equal(model.laneHeight, MILESTONE_PHASE_LANE_HEIGHT);
 });
 
 test("phase milestone timeline hides phases completed more than three weeks ago", () => {
