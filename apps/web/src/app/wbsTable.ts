@@ -18,12 +18,12 @@ export const WBS_TABLE_COLUMNS = [
   { key: "effortPercent", label: "Трудоемк., %", width: 112 },
   { key: "progress", label: "%", width: 72 },
   { key: "jiraTicketUrl", label: "Jira URL", width: 240 },
-  { key: "predecessor1", label: "Предшественник 1", width: 148 },
-  { key: "predecessor2", label: "Предшественник 2", width: 148 },
-  { key: "predecessor3", label: "Предшественник 3", width: 148 },
-  { key: "predecessor4", label: "Предшественник 4", width: 148 },
-  { key: "predecessor5", label: "Предшественник 5", width: 148 },
-  { key: "predecessor6", label: "Предшественник 6", width: 148 },
+  { key: "predecessor1", label: "Предшественник 1", width: 80 },
+  { key: "predecessor2", label: "Предшественник 2", width: 80 },
+  { key: "predecessor3", label: "Предшественник 3", width: 80 },
+  { key: "predecessor4", label: "Предшественник 4", width: 80 },
+  { key: "predecessor5", label: "Предшественник 5", width: 80 },
+  { key: "predecessor6", label: "Предшественник 6", width: 80 },
   { key: "leadLag", label: "Сдвиг", width: 92 },
 ] as const;
 
