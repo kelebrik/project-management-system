@@ -136,7 +136,7 @@
 
 .milestone-lanes {
   display: grid;
-  gap: 10px;
+  gap: var(--milestone-lane-gap, 10px);
   min-width: var(--milestone-track-width, 960px);
   padding: 14px 12px 18px 0;
 }
@@ -198,8 +198,8 @@
 }
 
 .milestone-lane-canvas {
-  --milestone-axis-center: calc(var(--milestone-lane-height, 260px) / 2);
-  min-height: var(--milestone-lane-height, 260px);
+  --milestone-axis-center: calc(var(--milestone-lane-height, 230px) / 2);
+  min-height: var(--milestone-lane-height, 230px);
   padding: 0 42px 0 8px;
   position: relative;
 }
@@ -313,7 +313,7 @@
 .milestone-point::before {
   background: #94a3b8;
   content: "";
-  height: calc(34px + var(--milestone-label-level, 0) * 50px);
+  height: calc(60px + var(--milestone-label-level, 0) * 50px);
   left: 50%;
   position: absolute;
   width: 3px;
