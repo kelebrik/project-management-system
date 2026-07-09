@@ -313,7 +313,7 @@
 .milestone-point::before {
   background: #94a3b8;
   content: "";
-  height: calc(80px + var(--milestone-label-level, 0) * 50px);
+  height: calc(60px + var(--milestone-label-level, 0) * 50px);
   left: 50%;
   position: absolute;
   width: 3px;
