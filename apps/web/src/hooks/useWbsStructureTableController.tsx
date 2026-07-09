@@ -779,7 +779,7 @@ export function useWbsStructureTableController({
           wbsDrafts,
           draftWbsCodes,
         );
-        const timing = draft[WBS_PREDECESSOR_TYPE_BY_KEY[columnKey]];
+        const timing = draft[WBS_PREDECESSOR_TYPE_BY_KEY[columnKey]] ?? "FS";
         const hasPredecessor = predecessorCode.trim().length > 0;
         return (
           <div className="wbs-predecessor-editor">
