@@ -1011,3 +1011,32 @@ test('fetchJiraIssues reports concise Jira auth failures without HTML payload', 
     restoreJiraEnv(previousEnv);
   }
 });
+
+test('fetchJiraIssues strips script and style content from HTML Jira errors', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async () =>
+    new Response(
+      '<html><body><script>alert("secret")</script ><style>.hidden{display:none}</style ><p>Server failed &amp; retry</p></body></html>',
+      { status: 500 },
+    )) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssues('project = PMS'),
+      (error) => {
+        assert(error instanceof Error);
+        assert.match(error.message, /Jira request failed: 500 Server failed & retry/);
+        assert.doesNotMatch(error.message, /alert|secret|hidden|<script|<style/i);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});

@@ -186,16 +186,101 @@ function cleanJiraErrorBody(body: string) {
     return authFailure.replace(/\s+/g, ' ').trim();
   }
 
-  return body
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
+  return stripHtmlForErrorText(body)
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&amp;', '&')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 500);
+}
+
+function stripHtmlForErrorText(value: string) {
+  let output = '';
+  let index = 0;
+
+  while (index < value.length) {
+    if (value[index] !== '<') {
+      output += value[index];
+      index += 1;
+      continue;
+    }
+
+    const tagEnd = value.indexOf('>', index + 1);
+    if (tagEnd === -1) {
+      output += ' ';
+      break;
+    }
+
+    const tag = readHtmlTag(value, index + 1, tagEnd);
+    output += ' ';
+    index = tagEnd + 1;
+
+    if (tag && !tag.closing && (tag.name === 'script' || tag.name === 'style')) {
+      index = findClosingHtmlTagEnd(value, tag.name, index);
+      output += ' ';
+    }
+  }
+
+  return output;
+}
+
+function readHtmlTag(value: string, start: number, end: number) {
+  let index = start;
+  while (index < end && isAsciiWhitespace(value.charCodeAt(index))) index += 1;
+
+  let closing = false;
+  if (value[index] === '/') {
+    closing = true;
+    index += 1;
+    while (index < end && isAsciiWhitespace(value.charCodeAt(index))) index += 1;
+  }
+
+  if (value[index] === '!' || value[index] === '?') return null;
+
+  const nameStart = index;
+  while (index < end && isHtmlTagNameChar(value.charCodeAt(index))) index += 1;
+  if (index === nameStart) return null;
+
+  return {
+    closing,
+    name: value.slice(nameStart, index).toLowerCase(),
+  };
+}
+
+function findClosingHtmlTagEnd(value: string, tagName: string, start: number) {
+  let index = start;
+
+  while (index < value.length) {
+    const tagStart = value.indexOf('<', index);
+    if (tagStart === -1) return value.length;
+
+    const tagEnd = value.indexOf('>', tagStart + 1);
+    if (tagEnd === -1) return value.length;
+
+    const tag = readHtmlTag(value, tagStart + 1, tagEnd);
+    if (tag?.closing && tag.name === tagName) {
+      return tagEnd + 1;
+    }
+
+    index = tagEnd + 1;
+  }
+
+  return value.length;
+}
+
+function isHtmlTagNameChar(code: number) {
+  return (
+    (code >= 65 && code <= 90) ||
+    (code >= 97 && code <= 122) ||
+    (code >= 48 && code <= 57) ||
+    code === 45 ||
+    code === 58
+  );
+}
+
+function isAsciiWhitespace(code: number) {
+  return code === 9 || code === 10 || code === 12 || code === 13 || code === 32;
 }
 
 function isAnonymousFieldVisibilityError(body: string) {
