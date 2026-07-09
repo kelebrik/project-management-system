@@ -5,11 +5,17 @@
 }
 
 .milestone-point.top .milestone-caption {
-  bottom: calc(48px + var(--milestone-label-level, 0) * 50px);
+  bottom: calc(
+    var(--milestone-label-offset, 32px) +
+      var(--milestone-label-level, 0) * 50px
+  );
 }
 
 .milestone-point.bottom .milestone-caption {
-  top: calc(48px + var(--milestone-label-level, 0) * 50px);
+  top: calc(
+    var(--milestone-label-offset, 32px) +
+      var(--milestone-label-level, 0) * 50px
+  );
 }
 
 .milestone-point.top .milestone-label {
