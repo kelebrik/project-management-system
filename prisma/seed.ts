@@ -121,8 +121,8 @@ async function main() {
         'Проект сохраняет бизнес-цель, но требует решения по SLA внешнего API и временному контуру обмена данными.',
       jiraIntegration: {
         create: {
-          baseUrl: 'https://example.atlassian.net',
-          boardUrl: 'https://example.atlassian.net/jira/software/projects/ERP/boards/12',
+          baseUrl: 'https://jira.example',
+          boardUrl: 'https://jira.example/jira/software/projects/ERP/boards/12',
           projectKey: 'ERP',
           issuesJql: 'project = ERP ORDER BY updated DESC',
           openIssuesJql:
@@ -140,7 +140,7 @@ async function main() {
             priority: 'High',
             dueDate: new Date('2026-05-17T00:00:00.000Z'),
             jiraTicketKey: 'ERP-1842',
-            jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1842',
+            jiraTicketUrl: 'https://jira.example/browse/ERP-1842',
             jiraStatus: 'Blocked',
             jiraAssignee: 'Vendor',
             jiraPriority: 'High',
@@ -167,16 +167,16 @@ async function main() {
             decisionRequired: true,
             dueDate: new Date('2026-05-17T00:00:00.000Z'),
             jiraTicketKey: 'ERP-1842',
-            jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1842',
+            jiraTicketUrl: 'https://jira.example/browse/ERP-1842',
             jiraLinks: {
               create: [
                 {
                   jiraKey: 'ERP-1842',
-                  jiraUrl: 'https://example.atlassian.net/browse/ERP-1842',
+                  jiraUrl: 'https://jira.example/browse/ERP-1842',
                 },
                 {
                   jiraKey: 'ERP-1843',
-                  jiraUrl: 'https://example.atlassian.net/browse/ERP-1843',
+                  jiraUrl: 'https://jira.example/browse/ERP-1843',
                 },
               ],
             },
@@ -199,12 +199,12 @@ async function main() {
             impact: 'Может заблокировать старт UAT',
             decisionRequired: true,
             jiraTicketKey: 'ERP-1901',
-            jiraTicketUrl: 'https://example.atlassian.net/browse/ERP-1901',
+            jiraTicketUrl: 'https://jira.example/browse/ERP-1901',
             jiraLinks: {
               create: [
                 {
                   jiraKey: 'ERP-1901',
-                  jiraUrl: 'https://example.atlassian.net/browse/ERP-1901',
+                  jiraUrl: 'https://jira.example/browse/ERP-1901',
                 },
               ],
             },
@@ -215,7 +215,7 @@ async function main() {
         create: [
           {
             issueKey: 'ERP-1842',
-            issueUrl: 'https://example.atlassian.net/browse/ERP-1842',
+            issueUrl: 'https://jira.example/browse/ERP-1842',
             summary: 'API SLA не подтвержден поставщиком',
             status: 'Blocked',
             priority: 'High',
@@ -226,7 +226,7 @@ async function main() {
           },
           {
             issueKey: 'ERP-1877',
-            issueUrl: 'https://example.atlassian.net/browse/ERP-1877',
+            issueUrl: 'https://jira.example/browse/ERP-1877',
             summary: 'Интеграционные тесты HR',
             status: 'In Dev',
             priority: 'Medium',
@@ -237,7 +237,7 @@ async function main() {
           },
           {
             issueKey: 'ERP-1901',
-            issueUrl: 'https://example.atlassian.net/browse/ERP-1901',
+            issueUrl: 'https://jira.example/browse/ERP-1901',
             summary: 'Миграция справочников заблокирована',
             status: 'Open',
             priority: 'High',
