@@ -180,22 +180,42 @@ function jiraAuthAttempts(email: string, token: string) {
   return attempts;
 }
 
-function cleanJiraErrorBody(body: string) {
-  const authFailure = body.match(/Basic Authentication Failure[^<]*/i)?.[0];
-  if (authFailure) {
-    return authFailure.replace(/\s+/g, ' ').trim();
-  }
+function compactJiraErrorText(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
 
-  return body
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
+function decodeJiraErrorEntities(value: string) {
+  return value
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 500);
+    .replace(/&amp;/g, '&');
+}
+
+function looksLikeHtmlResponse(value: string) {
+  const prefix = value.trimStart().slice(0, 200).toLowerCase();
+  return (
+    prefix.startsWith('<!doctype html') ||
+    prefix.startsWith('<html') ||
+    prefix.startsWith('<body') ||
+    prefix.includes('<script') ||
+    prefix.includes('<style') ||
+    prefix.includes('<title') ||
+    prefix.includes('<form')
+  );
+}
+
+function cleanJiraErrorBody(body: string) {
+  if (looksLikeHtmlResponse(body)) {
+    return 'HTML response from Jira';
+  }
+
+  const compactBody = compactJiraErrorText(decodeJiraErrorEntities(body));
+  const authFailureIndex = compactBody.toLowerCase().indexOf('basic authentication failure');
+  if (authFailureIndex >= 0) {
+    return compactBody.slice(authFailureIndex, authFailureIndex + 500);
+  }
+
+  return compactBody.slice(0, 500);
 }
 
 function isAnonymousFieldVisibilityError(body: string) {
@@ -228,15 +248,15 @@ function cookieHeaderFromResponse(response: Response) {
     .join('; ');
 }
 
-function jiraSearchPaths(_baseUrl: string) {
+function jiraSearchPaths() {
   return ['/rest/api/2/search', '/rest/api/3/search/jql'];
 }
 
-function jiraFilterPaths(_baseUrl: string, filterId: string) {
+function jiraFilterPaths(filterId: string) {
   return [`/rest/api/2/filter/${filterId}`, `/rest/api/3/filter/${filterId}`];
 }
 
-function jiraMyselfPaths(_baseUrl: string) {
+function jiraMyselfPaths() {
   return ['/rest/api/2/myself', '/rest/api/3/myself'];
 }
 
@@ -268,7 +288,7 @@ async function fetchJiraFilterJql(
 ) {
   let lastErrorBody = '';
   let lastStatus = 0;
-  const paths = jiraFilterPaths(baseUrl, filterId);
+  const paths = jiraFilterPaths(filterId);
 
   for (const [index, path] of paths.entries()) {
     const isLastPath = index === paths.length - 1;
@@ -327,7 +347,7 @@ async function fetchJiraSearch(
 ): Promise<JiraSearchResult> {
   let lastErrorBody = '';
   let lastStatus = 0;
-  const paths = jiraSearchPaths(baseUrl);
+  const paths = jiraSearchPaths();
 
   for (const [index, path] of paths.entries()) {
     const isLastPath = index === paths.length - 1;
@@ -399,7 +419,7 @@ async function fetchJiraCurrentUser(
 ): Promise<JiraCurrentUserResult> {
   let lastErrorBody = '';
   let lastStatus = 0;
-  const paths = jiraMyselfPaths(baseUrl);
+  const paths = jiraMyselfPaths();
   const expectedIdentitySet = new Set(expectedIdentities);
 
   for (const [index, path] of paths.entries()) {

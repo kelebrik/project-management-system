@@ -484,7 +484,26 @@ function decodeHtml(value: string | null | undefined) {
 }
 
 function stripHtml(value: string) {
-  return decodeHtml(value.replace(/<[^>]*>/g, "")).trim();
+  let text = "";
+  let insideTag = false;
+
+  for (const character of value) {
+    if (character === "<") {
+      insideTag = true;
+      continue;
+    }
+
+    if (insideTag && character === ">") {
+      insideTag = false;
+      continue;
+    }
+
+    if (!insideTag) {
+      text += character;
+    }
+  }
+
+  return decodeHtml(text).trim();
 }
 
 export function createWbsEnglishTranslationHtml({

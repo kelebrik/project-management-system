@@ -313,7 +313,7 @@ test('fetchJiraIssues rejects empty results from unexpected Jira user', async ()
   }
 });
 
-test('fetchJiraIssues uses Jira Server search endpoint before Cloud endpoint', async () => {
+test('fetchJiraIssues uses Jira Server search endpoint before v3 fallback endpoint', async () => {
   const previousEnv = snapshotJiraEnv();
   const previousFetch = globalThis.fetch;
   const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -1004,7 +1004,7 @@ test('fetchJiraIssues reports concise Jira auth failures without HTML payload', 
   try {
     await assert.rejects(
       () => fetchJiraIssues('project = PMS'),
-      /Jira authentication failed: 401 Basic Authentication Failure - Reason : AUTHENTICATED_FAILED/,
+      /Jira authentication failed: 401 HTML response from Jira/,
     );
   } finally {
     globalThis.fetch = previousFetch;

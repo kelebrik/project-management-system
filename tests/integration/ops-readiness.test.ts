@@ -20,6 +20,8 @@ test("Docker runtime packages API, Web UI, startup migrations, and readiness pro
   assert.match(dockerfile, /ARG CI_JOB_TOKEN/, "Docker build must accept CI_JOB_TOKEN for authenticated engine downloads");
   assert.match(dockerfile, /debian-openssl-3\.0\.x/, "Docker build must target Debian Bookworm OpenSSL 3 engines");
   assert.match(dockerfile, /PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1/, "Docker build must skip prisma.sh checksum verification in isolated environments");
+  assert.match(dockerfile, /ARG NPM_VERSION=11\.18\.0/, "Docker build must pin npm with fixed bundled sigstore");
+  assert.match(dockerfile, /npm install -g --ignore-scripts "npm@\$\{NPM_VERSION\}"/, "Docker build must update bundled npm in image stages");
   assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) ci --include=dev --ignore-scripts|scripts\/ci-install\.sh/, "Docker build must install npm packages without prisma.sh postinstall downloads");
   assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) run build/, "Docker build must compile workspaces");
   assert.match(dockerfile, /apps\/web\/dist/, "Runtime image must include built Web UI");
@@ -132,10 +134,10 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   );
   assert.match(
     gitlabCi,
-    /\.mr_to_master:[\s\S]*CI_PIPELINE_SOURCE == "merge_request_event"[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/,
+    /\.rule_mr_to_master:[\s\S]*CI_PIPELINE_SOURCE == "merge_request_event"[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/,
     "CI must define merge-request-to-master rules for validation and test jobs",
   );
-  assert.match(gitlabCi, /\.mr_to_master:[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/, "CI must define merge-request-to-master rules for validation and test jobs");
+  assert.match(gitlabCi, /\.mr_to_master:[\s\S]*\*rule_mr_to_master/, "CI must define merge-request-to-master rules for validation and test jobs");
   assert.doesNotMatch(gitlabCi, /^\s*DATABASE_URL:/m, "CI must not define a runtime database URL in global variables");
   assert.match(ciPrismaGenerate, /DATABASE_URL="\$\{DATABASE_URL:-postgresql:\/\/ci:ci@127\.0\.0\.1:5432\/ci\?schema=public\}"/, "CI prisma generate must use a local stub DATABASE_URL when none is provided");
   assert.match(gitlabCi, /\.node_job:[\s\S]*ci-prisma-setup\.sh bootstrap[\s\S]*ci-prisma-generate\.sh/, "CI node jobs must bootstrap Prisma engines before npm install and run an isolated prisma generate");
@@ -146,12 +148,14 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   assert.match(gitlabCi, /unit-tests:[\s\S]*extends: \.node_job/, "unit-tests must run on merge requests to master");
   assert.match(gitlabCi, /integration-contracts:[\s\S]*extends: \.node_job/, "integration-contracts must run on merge requests to master");
   assert.match(gitlabCi, /\.node_job:[\s\S]*stage: check/, "validation and test jobs must run in the same parallel check stage");
-  assert.match(gitlabCi, /build_image:[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/, "build_image must run on merge requests to master");
+  assert.match(gitlabCi, /build_image:[\s\S]*extends: \.master_pipeline/, "build_image must run on merge requests to master and push to master");
   assert.match(gitlabCi, /build_image:[\s\S]*--build-arg CI_JOB_TOKEN="\$\{CI_JOB_TOKEN\}"/, "build_image must pass CI_JOB_TOKEN into the Docker build");
   assert.doesNotMatch(gitlabCi, /name:\s*"node:/, "CI must not default to public Docker Hub Node images");
   assert.match(gitlabCi, /PRISMA_ENGINES_BASE_URL:/, "CI must configure an internal Prisma engines package URL");
   assert.match(gitlabCi, /PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING:/, "CI must skip prisma.sh checksum verification in isolated environments");
-  assert.match(gitlabCi, /PMS_CI_NPM_VERSION:\s*"10\.8\.2"/, "CI must pin a known-good npm version");
+  assert.match(gitlabCi, /PMS_CI_NPM_VERSION:\s*"11\.18\.0"/, "CI must pin a known-good npm version");
+  assert.match(gitlabCi, /key:[\s\S]*files:[\s\S]*package-lock\.json[\s\S]*\.gitlab-ci\.yml/, "CI npm cache key must include CI config so pinned toolchain changes invalidate cached npm CLI tarballs");
+  assert.match(gitlabCi, /--build-arg NPM_VERSION="\$\{PMS_CI_NPM_VERSION\}"/, "Image build must use the same fixed npm version as CI");
   assert.match(gitlabCi, /NPM_CONFIG_CACHE:\s*"\/tmp\/pms-npm-cache"/, "CI must use an isolated npm cache outside the workspace");
   assert.match(gitlabCi, /build_image:[\s\S]*registry\.sberdevices\.ru/, "Container build must use an approved internal builder image");
   assert.match(gitlabCi, /kubernetes:\s*\n\s*user: "1000:1000"/, "CI jobs must request a non-root Kubernetes user");
@@ -173,7 +177,8 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   assert.doesNotMatch(ciNpm, /registry\.npmjs\.org/, "CI npm wrapper must not default to public npmjs registry");
   assert.match(ciInstall, /ci-npm-env\.sh/, "CI install wrapper must load shared npm registry settings");
   assert.match(ciNpm, /npm-\$VERSION\.tgz/, "CI npm wrapper must bootstrap npm from a tarball");
-  assert.match(ciNpm, /falling back to bundled npm/, "CI npm wrapper must not fail before npm ci when the npm tarball mirror is unavailable");
+  assert.match(ciNpm, /falling back to bundled npm/, "CI npm wrapper may use bundled npm when the npm tarball mirror is unavailable");
+  assert.match(ciNpm, /sigstore >=4\.1\.1/, "CI npm fallback must reject vulnerable bundled sigstore");
   assert.match(ciNpm, /require\("node:https"\)/, "CI npm wrapper must have a Node.js download fallback when curl/wget are unavailable");
   assert.match(gitignore, /^\.npm$/m, "Local npm cache must not be committed");
 

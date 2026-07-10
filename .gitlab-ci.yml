@@ -1,6 +1,8 @@
 stages:
   - check
   - build
+  - security
+  # - security-reports
   - approve
   - deploy
 
@@ -15,10 +17,25 @@ include:
       aud:
         - vault.dev.sberdevices.ru
 
+.vault_hydra: &vault_hydra
+  HYDRA_ENABLED: true
+  HYDRA_VERSION: 4.0.3
+  VAULT_ADDR: https://vault.dev.sberdevices.ru
+  VAULT_AUTH_ROLE: starosfw-deploy
+
+.service_tuz_vault: &service_tuz_vault
+  <<: *vault_hydra
+  VAULT_SECRET_PATH: starosfw/tuz_starosfw_tvmngmt
+
+.deploy_tuz_vault: &deploy_tuz_vault
+  <<: *vault_hydra
+  VAULT_SECRET_PATH: starosfw/tuz_starosfw_glansbl
+
 variables:
-  PMS_CI_NPM_VERSION: "10.8.2"
+  PMS_CI_NPM_VERSION: "11.18.0"
   NPM_CONFIG_CACHE: "/tmp/pms-npm-cache"
   NPM_CONFIG_REGISTRY: "https://nexus.sberdevices.ru/repository/npm"
+  NPM_CONFIG_STRICT_SSL: "false"
   PRISMA_CLI_BINARY_TARGETS: "debian-openssl-3.0.x"
   PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: "1"
   PRISMA_ENGINES_BASE_URL: "https://git.sberdevices.ru/api/v4/projects/134759/packages/generic/debian_openssl/3.0.x"
@@ -27,6 +44,7 @@ cache:
   key:
     files:
       - package-lock.json
+      - .gitlab-ci.yml
   paths:
     - .npm/
 
@@ -39,9 +57,20 @@ default:
     kubernetes:
       user: "1000:1000"
 
+.rule_mr_to_master: &rule_mr_to_master
+  if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+
+.rule_push_master: &rule_push_master
+  if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"
+
 .mr_to_master:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+    - <<: *rule_mr_to_master
+
+.master_pipeline:
+  rules:
+    - <<: *rule_mr_to_master
+    - <<: *rule_push_master
 
 .node_job:
   extends: .mr_to_master
@@ -54,6 +83,12 @@ default:
     - scripts/ci-npm.sh run build --workspace @pms/shared
     - scripts/ci-prisma-setup.sh link-node-modules
     - scripts/ci-prisma-generate.sh
+
+.reports_artifact: &reports_artifact
+  when: always
+  expire_in: 1 week
+  paths:
+    - reports/
 
 static-policy-check:
   extends: .node_job
@@ -71,37 +106,60 @@ unit-tests:
     - scripts/ci-npm.sh run test:unit:ci
   coverage: '/Lines\s*:\s*([\d\.]+)%/'
   artifacts:
-    when: always
-    expire_in: 1 week
+    <<: *reports_artifact
     reports:
       junit:
         - reports/junit-unit.xml
       coverage_report:
         coverage_format: cobertura
         path: reports/coverage/cobertura-coverage.xml
-    paths:
-      - reports/
 
 integration-contracts:
   extends: .node_job
   script:
     - scripts/ci-npm.sh run test:integration:ci
   artifacts:
-    when: always
-    expire_in: 1 week
+    <<: *reports_artifact
     reports:
       junit:
         - reports/junit-integration.xml
+
+.appsec_scan:
+  extends: .master_pipeline
+  stage: security
+  needs: []
+  tags:
+    - kaniko-lrg
+
+sast:
+  <<: *tokens
+  extends: .appsec_scan
+  image: registry.sberdevices.ru/appsec-public/containers/sast:stable
+  variables:
+    <<: *service_tuz_vault
+  script:
+    - source /opt/sast.sh
+  artifacts:
     paths:
-      - reports/
+      - sast-reports/*
+    reports:
+      sarif: sast-reports/codeql-javascript.sarif
+
+sca:
+  <<: *tokens
+  extends: .appsec_scan
+  image: registry.sberdevices.ru/appsec-public/containers/sca:stable
+  variables:
+    <<: *service_tuz_vault
+  script:
+    - source /opt/sca.sh
+  artifacts:
+    paths:
+      - sca-reports/*
 
 build_image:
+  extends: .master_pipeline
   stage: build
-  rules:
-    # merge-request event, just build is required
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
-    # push to master means that merge request was merged, build+push of images are required
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"
   tags:
     - buildah-std
   image: registry.sberdevices.ru/registry/tools/buildah/noenv:1.28.0
@@ -112,6 +170,7 @@ build_image:
     - |
       buildah build --ulimit nofile=65536:65536 \
         --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
+        --build-arg NPM_VERSION="${PMS_CI_NPM_VERSION}" \
         -t ${CI_REGISTRY_IMAGE} .
     - |
       if [[ "${CI_PIPELINE_SOURCE}" == "push" && "${CI_COMMIT_REF_NAME}" == "master" ]]; then
@@ -121,62 +180,52 @@ build_image:
         buildah tag ${CI_REGISTRY_IMAGE} ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
         buildah push ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
       else
-        echo "Pushing test image: ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
-        buildah tag ${CI_REGISTRY_IMAGE} ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}
-        buildah push ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}
+        echo "Pushing test image: ${CI_REGISTRY_IMAGE}:MR-${CI_MERGE_REQUEST_IID}"
+        buildah tag ${CI_REGISTRY_IMAGE} ${CI_REGISTRY_IMAGE}:MR-${CI_MERGE_REQUEST_IID}
+        buildah push ${CI_REGISTRY_IMAGE}:MR-${CI_MERGE_REQUEST_IID}
       fi
+
+container-security:
+  <<: *tokens
+  extends: .appsec_scan
+  tags:
+    - kubernetes-std
+  image: registry.sberdevices.ru/appsec-public/containers/container-security:stable
+  variables:
+    <<: *service_tuz_vault
+  rules:
+    - <<: *rule_mr_to_master
+      variables:
+        CLOUD_CONTAINER_SECURITY_IMAGE: "${CI_REGISTRY_IMAGE}:MR-${CI_MERGE_REQUEST_IID}"
+    - <<: *rule_push_master
+      variables:
+        CLOUD_CONTAINER_SECURITY_IMAGE: "${CI_REGISTRY_IMAGE}:latest"
+  when: always
+  needs:
+    - job: build_image
+    - job: sast
+    - job: sca
+
+  script:
+    - source /opt/container-security.sh
+  artifacts:
+    when: always
+    paths:
+      - container-security/*
 
 .deploy_awx:
   <<: *tokens
   stage: deploy
   needs:
-    - build_image
+    - job: build_image
+    - job: container-security
   tags:
     - kubernetes-std
-  image: registry.sberdevices.ru/rnd/infra/docker_images/awx-cli:latest
+  image: registry.sberdevices.ru/rnd/infra/docker_images/tools:latest
   variables:
+    <<: *deploy_tuz_vault
     PYTHONUNBUFFERED: "1"
-    HYDRA_ENABLED: true
-    HYDRA_VERSION: 4.0.3
-    SBER_CA_BUNDLE: ${CI_BUILDS_DIR}/.sberdevices-ca/${CI_PROJECT_ID}/ca-bundle.crt
-    VAULT_CA_PATH: ${CI_BUILDS_DIR}/.sberdevices-ca/${CI_PROJECT_ID}/ca-bundle.crt
-    VAULT_ADDR: https://vault.dev.sberdevices.ru
-    VAULT_AUTH_ROLE: starosfw-deploy
-    VAULT_SECRET_PATH:
-      starosfw/tuz_starosfw_glansbl
-    GIT_STRATEGY: fetch
-  hooks:
-    pre_get_sources_script:
-      - |
-        set -eu
-        cert_dir="$(dirname "${SBER_CA_BUNDLE}")"
-        mkdir -p "${cert_dir}"
-        : > "${SBER_CA_BUNDLE}"
-        echo "Sber CA bundle path: ${SBER_CA_BUNDLE}"
-        download_cert() {
-          cert_name="$1"
-          cert_path="${cert_dir}/${cert_name}"
-          cert_url="https://cdp.sberdevices.ru/pki/${cert_name}"
-          if command -v curl >/dev/null 2>&1; then
-            curl --fail --show-error --location --insecure "${cert_url}" -o "${cert_path}"
-          elif command -v wget >/dev/null 2>&1; then
-            wget --no-check-certificate -qO "${cert_path}" "${cert_url}"
-          else
-            echo "curl or wget is required to download Sber CA certificates" >&2
-            exit 1
-          fi
-          if ! grep -q "BEGIN CERTIFICATE" "${cert_path}"; then
-            echo "Downloaded file is not a PEM certificate: ${cert_url}" >&2
-            exit 1
-          fi
-          cat "${cert_path}" >> "${SBER_CA_BUNDLE}"
-          printf '\n' >> "${SBER_CA_BUNDLE}"
-        }
-        for cert in rootca_ssl_rsa2022.crt subca_ssl_rsa2024.crt mincifra_rootca.crt mincifra_subca.crt SberDevices_RCA.crt SberDevices_ICA.crt; do
-          download_cert "${cert}"
-        done
-        chmod 0644 "${SBER_CA_BUNDLE}" "${cert_dir}"/*.crt
-        echo "Sber CA bundle contains $(grep -c "BEGIN CERTIFICATE" "${SBER_CA_BUNDLE}") certificates"
+    GIT_STRATEGY: none
   script:
     - |
       awx job_templates launch 378 \
@@ -195,7 +244,7 @@ build_image:
 deploy:
   extends: .deploy_awx
   rules:
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"
+    - <<: *rule_push_master
   variables:
     IMAGE_TAG: latest
     DEPLOY_LIMIT: tvmanagement_prod
@@ -203,8 +252,8 @@ deploy:
 deploy:nt-01:
   extends: .deploy_awx
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+    - <<: *rule_mr_to_master
       when: manual
   variables:
-    IMAGE_TAG: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
+    IMAGE_TAG: MR-${CI_MERGE_REQUEST_IID}
     DEPLOY_LIMIT: tvmanagement_test

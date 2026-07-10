@@ -4,7 +4,7 @@
 
 ## Что уже подготовлено в репозитории
 
-- `Dockerfile` поддерживает подмену базового образа через `--build-arg NODE_IMAGE=...`.
+- `Dockerfile` поддерживает подмену базового образа через `--build-arg NODE_IMAGE=...` и фиксированной версии npm через `--build-arg NPM_VERSION=...`.
 - Runtime контейнер запускается от пользователя `node`, а не от `root`.
 - `.gitlab-ci.yml` не использует Docker-in-Docker и не поднимает service containers.
 - `deploy/k8s/project-management-system.yaml` использует `Deployment`, dedicated `ServiceAccount`, отключенный `automountServiceAccountToken`, `runAsNonRoot`, `allowPrivilegeEscalation: false`, `capabilities.drop: ALL`, `seccompProfile: RuntimeDefault`.
@@ -15,9 +15,9 @@ DevOps должен задать в настройках проекта или �
 
 ```text
 PMS_CI_NODE_IMAGE=<approved-registry>/platform/node-pms-ci:24
-PMS_CI_NPM_VERSION=10.8.2
+PMS_CI_NPM_VERSION=11.18.0
 NPM_CONFIG_REGISTRY=<approved-internal-npm-registry>
-PMS_CI_NPM_TARBALL_URL=<approved-internal-npm-registry>/npm/-/npm-10.8.2.tgz
+PMS_CI_NPM_TARBALL_URL=<approved-internal-npm-registry>/npm/-/npm-11.18.0.tgz
 PMS_CI_BUILDER_IMAGE=<approved-registry>/platform/kaniko-or-buildkit-rootless:latest
 PMS_CONTAINER_IMAGE=<approved-registry>/project-management-system/app:${CI_COMMIT_SHORT_SHA}
 CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
@@ -31,7 +31,7 @@ CORPORATE_IMAGE_BUILD_COMMAND=<approved build command>
 
 DevOps должен один раз собрать/загрузить CI-образ в разрешенный registry и переопределить `PMS_CI_NODE_IMAGE`. Образ должен уже содержать Node.js 24 LTS, npm, openssl, ca-certificates и curl. Pipeline намеренно не делает `apt-get`, потому что root package installation конфликтует с restricted cluster policy.
 
-Установка npm-зависимостей в CI идет через `scripts/ci-install.sh`: скрипт запускает `npm ci --include=dev` через `scripts/ci-npm.sh`, без `--prefer-offline`, отключает audit/fund/progress и один раз повторяет установку после `npm cache clean --force`. `scripts/ci-npm.sh` закрепляет npm на `PMS_CI_NPM_VERSION=10.8.2`, потому что bundled `npm 10.9.8` в `node:22.22.3` падал на runner-е с внутренней ошибкой `Exit handler never called!`. Если tarball `npm-10.8.2.tgz` недоступен из runner-а, wrapper пишет предупреждение и падает обратно на bundled npm из образа. Для стабильного CI DevOps должен задать `PMS_CI_NPM_TARBALL_URL` или `NPM_CONFIG_REGISTRY` на внутренний npm mirror. Иначе следующий шаг `npm ci` тоже может упасть при попытке скачать зависимости с публичного `registry.npmjs.org`.
+Установка npm-зависимостей в CI идет через `scripts/ci-install.sh`: скрипт запускает `npm ci --include=dev` через `scripts/ci-npm.sh`, без `--prefer-offline`, отключает audit/fund/progress и один раз повторяет установку после `npm cache clean --force`. `scripts/ci-npm.sh` закрепляет npm на `PMS_CI_NPM_VERSION=11.18.0`: эта версия совместима с Node.js 24 и содержит `sigstore@4.1.1` в bundled toolchain. Если tarball `npm-11.18.0.tgz` недоступен из runner-а, wrapper разрешает fallback на bundled npm только после проверки `sigstore>=4.1.1`; иначе job падает явно. Для стабильного CI DevOps должен задать `PMS_CI_NPM_TARBALL_URL` или `NPM_CONFIG_REGISTRY` на внутренний npm mirror. Иначе следующий шаг `npm ci` тоже может упасть при попытке скачать зависимости с публичного `registry.npmjs.org`.
 
 Пример bootstrap CI-образа:
 
@@ -60,6 +60,7 @@ PMS_CI_NODE_IMAGE=registry.sberdevices.ru/<approved-namespace>/node-pms-ci:24
   --context "$CI_PROJECT_DIR" \
   --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
   --build-arg NODE_IMAGE="$PMS_CI_NODE_IMAGE" \
+  --build-arg NPM_VERSION="$PMS_CI_NPM_VERSION" \
   --destination "$PMS_CONTAINER_IMAGE"
 ```
 
