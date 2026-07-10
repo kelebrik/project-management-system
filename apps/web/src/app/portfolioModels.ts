@@ -125,7 +125,7 @@ export type PortfolioRedRaidProject = {
   items: PortfolioRedRaidItem[];
 };
 
-export function projectHasOpenGoal(project: Pick<ProjectListItem, "wbsItems">) {
+function hasOpenGoal(project: ProjectListItem) {
   return (project.wbsItems ?? []).some(
     (item) => item.type === "GOAL" && item.status !== "DONE" && item.status !== "CANCELLED",
   );
@@ -174,7 +174,7 @@ export function createPortfolioGoalTimeline(
   }
 
   const activeProjectsWithOpenGoals = projects
-    .filter((project) => project.status !== "CLOSED" && projectHasOpenGoal(project))
+    .filter((project) => project.status !== "CLOSED" && hasOpenGoal(project))
     .sort(
       (left, right) =>
         left.portfolio.localeCompare(right.portfolio, "ru") ||

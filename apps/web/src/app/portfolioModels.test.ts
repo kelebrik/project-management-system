@@ -8,7 +8,6 @@ import {
   createPortfolioKeyRiskGroups,
   createPortfolioRedZoneProjectIds,
   createPortfolioSummary,
-  projectHasOpenGoal,
   visiblePortfolioBlockingProblemProjects,
   visiblePortfolioKeyRiskProjects,
 } from "./portfolioModels";
@@ -259,32 +258,6 @@ test("portfolio goal timeline keeps only projects with open goals", () => {
   assert.deepEqual(
     timeline.projectRows.map((row) => row.items.map((item) => item.id)),
     [[], ["goal-a"]],
-  );
-});
-
-test("projectHasOpenGoal ignores completed and cancelled goals", () => {
-  assert.equal(projectHasOpenGoal(project({ wbsItems: [] })), false);
-  assert.equal(
-    projectHasOpenGoal(
-      project({
-        wbsItems: [
-          wbsGoal({ id: "done-goal", status: "DONE" }),
-          wbsGoal({ id: "cancelled-goal", status: "CANCELLED" }),
-        ],
-      }),
-    ),
-    false,
-  );
-  assert.equal(
-    projectHasOpenGoal(
-      project({
-        wbsItems: [
-          wbsGoal({ id: "done-goal", status: "DONE" }),
-          wbsGoal({ id: "open-goal", status: "IN_PROGRESS" }),
-        ],
-      }),
-    ),
-    true,
   );
 });
 

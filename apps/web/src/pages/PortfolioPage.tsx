@@ -1,6 +1,5 @@
 import { signedDaysUntil } from "../app/dateUtils";
 import type { ProjectListItem } from "../app/domainTypes";
-import { projectHasOpenGoal } from "../app/portfolioModels";
 import type { PortfolioRedRaidItem, PortfolioRedRaidProject } from "../app/portfolioModels";
 import { usePageContext } from "./PageContext";
 import { ProjectsOverview } from "./ProjectsOverview";
@@ -33,17 +32,7 @@ export function PortfolioPage() {
     visiblePortfolioProblemProjects,
     visiblePortfolioRiskProjects,
   } = ctx;
-  const projectsById = new Map(
-    (projects as ProjectListItem[]).map((project) => [project.id, project]),
-  );
-  const timelineRows = portfolioGoalTimeline.projectRows.filter((row) => {
-    const project = projectsById.get(row.projectId);
-    return project
-      ? projectHasOpenGoal(project)
-      : row.items.some(
-          (item) => item.status !== "DONE" && item.status !== "CANCELLED",
-        );
-  });
+  const timelineRows = portfolioGoalTimeline.projectRows;
   const visibleProblemProjects = visiblePortfolioProblemProjects;
   const visibleRiskProjects = visiblePortfolioRiskProjects;
 
@@ -113,7 +102,7 @@ export function PortfolioPage() {
           <div className="panel-title">
             <div>
               <h2>Временные линии проектов</h2>
-              <p>Отдельная шкала непройденных целей ИСР для активных проектов</p>
+              <p>Отдельная шкала целей ИСР для каждого активного проекта</p>
             </div>
           </div>
           {timelineRows.length > 0 ? (
