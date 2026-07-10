@@ -125,6 +125,12 @@ export type PortfolioRedRaidProject = {
   items: PortfolioRedRaidItem[];
 };
 
+function hasOpenGoal(project: ProjectListItem) {
+  return (project.wbsItems ?? []).some(
+    (item) => item.type === "GOAL" && item.status !== "DONE" && item.status !== "CANCELLED",
+  );
+}
+
 function validDay(value: string | null | undefined) {
   if (!value) return null;
   const parsed = startOfDay(new Date(value));
@@ -167,8 +173,8 @@ export function createPortfolioGoalTimeline(
     });
   }
 
-  const activeProjects = projects
-    .filter((project) => project.status !== "CLOSED")
+  const activeProjectsWithOpenGoals = projects
+    .filter((project) => project.status !== "CLOSED" && hasOpenGoal(project))
     .sort(
       (left, right) =>
         left.portfolio.localeCompare(right.portfolio, "ru") ||
@@ -176,7 +182,7 @@ export function createPortfolioGoalTimeline(
         left.code.localeCompare(right.code, "ru") ||
         left.id.localeCompare(right.id, "ru"),
     );
-  const rawItems = activeProjects.flatMap((project) =>
+  const rawItems = activeProjectsWithOpenGoals.flatMap((project) =>
     (project.wbsItems ?? [])
       .filter((item) => item.type === "GOAL" && item.status !== "CANCELLED")
       .map((item) => {
@@ -238,7 +244,7 @@ export function createPortfolioGoalTimeline(
     todayOffset: offsetForDate(todayDate),
     monthTicks,
     items,
-    projectRows: activeProjects.map((project) => ({
+    projectRows: activeProjectsWithOpenGoals.map((project) => ({
       projectId: project.id,
       projectCode: project.code,
       projectName: project.name,

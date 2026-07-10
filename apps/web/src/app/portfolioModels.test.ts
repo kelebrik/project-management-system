@@ -208,7 +208,7 @@ test("portfolio goal timeline uses active project goals only", () => {
   assert.ok(timeline.monthTicks.length >= 12);
 });
 
-test("portfolio goal timeline keeps active project rows without visible goals", () => {
+test("portfolio goal timeline keeps only projects with open goals", () => {
   const timeline = createPortfolioGoalTimeline(
     [
       project({
@@ -226,6 +226,20 @@ test("portfolio goal timeline keeps active project rows without visible goals", 
         wbsItems: [],
       }),
       project({
+        id: "done-goals",
+        code: "D",
+        name: "Done goals",
+        portfolio: "TV",
+        wbsItems: [wbsGoal({ id: "done-goal", status: "DONE" })],
+      }),
+      project({
+        id: "open-goal-outside-window",
+        code: "E",
+        name: "Open goal outside window",
+        portfolio: "TV",
+        wbsItems: [wbsGoal({ id: "future-goal", dueDate: "2027-03-01" })],
+      }),
+      project({
         id: "closed",
         code: "C",
         name: "Closed",
@@ -239,11 +253,11 @@ test("portfolio goal timeline keeps active project rows without visible goals", 
 
   assert.deepEqual(
     timeline.projectRows.map((row) => row.projectId),
-    ["with-goal", "without-goal"],
+    ["open-goal-outside-window", "with-goal"],
   );
   assert.deepEqual(
     timeline.projectRows.map((row) => row.items.map((item) => item.id)),
-    [["goal-a"], []],
+    [[], ["goal-a"]],
   );
 });
 
