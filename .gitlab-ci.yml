@@ -32,6 +32,7 @@ include:
   VAULT_SECRET_PATH: starosfw/tuz_starosfw_glansbl
 
 variables:
+  PMS_CI_NODE_IMAGE: "docker.sberdevices.ru/skopeo/docker.io/node:24.16.0-bookworm-slim"
   PMS_CI_NPM_VERSION: "11.18.0"
   NPM_CONFIG_CACHE: "/tmp/pms-npm-cache"
   NPM_CONFIG_REGISTRY: "https://nexus.sberdevices.ru/repository/npm"
@@ -50,7 +51,7 @@ cache:
 
 default:
   image:
-    name: "docker.sberdevices.ru/skopeo/docker.io/node:24.16.0-bookworm-slim"
+    name: "$PMS_CI_NODE_IMAGE"
     pull_policy: if-not-present
     # Requires GitLab 18.0+ and GitLab Runner 17.11+.
     # If Sber Git uses an older version, move non-root securityContext to runner config.toml.
@@ -168,7 +169,19 @@ build_image:
   script:
     # increased ulimit otherwise buildah build fails with "too many open files"
     - |
+      for attempt in 1 2 3 4 5; do
+        if buildah pull "${PMS_CI_NODE_IMAGE}"; then
+          break
+        fi
+        if [[ "${attempt}" == "5" ]]; then
+          echo "Failed to pull ${PMS_CI_NODE_IMAGE} after ${attempt} attempts"
+          exit 1
+        fi
+        sleep $((attempt * 10))
+      done
+    - |
       buildah build --ulimit nofile=65536:65536 \
+        --build-arg NODE_IMAGE="${PMS_CI_NODE_IMAGE}" \
         --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
         --build-arg NPM_VERSION="${PMS_CI_NPM_VERSION}" \
         -t ${CI_REGISTRY_IMAGE} .
