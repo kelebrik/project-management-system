@@ -213,7 +213,7 @@ export function PortfolioPage() {
             </div>
           ) : (
             <div className="empty-state compact">
-              Активных проектов нет.
+              Активных проектов с непройденными целями нет.
             </div>
           )}
         </article>
