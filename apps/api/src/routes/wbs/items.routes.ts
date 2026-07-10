@@ -1,6 +1,8 @@
 import { wbsItemBaseSchema, wbsItemSchema } from '@pms/shared';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
+import { currentUser } from '../../server/auth.js';
+import { buildAuditFieldChanges, recordAuditEvent } from '../../services/audit.js';
 import {
   getProjectWbsSnapshot,
   recalculateProjectWbsHierarchyStatuses,
@@ -21,6 +23,47 @@ import { wbsBulkDeleteSchema } from './schemas.js';
 function wbsLevelFromItem(item: { code: string; wbsLevel: number | null }) {
   return Math.max(1, item.wbsLevel ?? item.code.split('.').filter(Boolean).length);
 }
+
+const wbsItemAuditFields = [
+  'parentId',
+  'code',
+  'title',
+  'type',
+  'status',
+  'owner',
+  'startDate',
+  'dueDate',
+  'baselineStartDate',
+  'baselineDueDate',
+  'forecastStartDate',
+  'forecastDueDate',
+  'wbsLevel',
+  'predecessor1',
+  'predecessor2',
+  'predecessor3',
+  'predecessor4',
+  'predecessor5',
+  'predecessor6',
+  'leadLagDays',
+  'workDays',
+  'calendarDays',
+  'excelStartDate',
+  'excelEndDate',
+  'planWorkDays',
+  'planCalendarDays',
+  'calendarCode',
+  'templateColor',
+  'priority',
+  'effortPercent',
+  'plannedCost',
+  'forecastCost',
+  'progress',
+  'jiraTicketKey',
+  'jiraTicketUrl',
+  'description',
+  'closedAt',
+  'sortOrder',
+];
 
 export function registerWbsItemRoutes(router: Router) {
   router.post('/projects/:projectId/wbs-items', async (req, res) => {
@@ -116,6 +159,17 @@ export function registerWbsItemRoutes(router: Router) {
     await recalculateProjectWbsSchedule(validation.project.id);
     await recalculateProjectWbsHierarchyStatuses(validation.project.id);
     const snapshot = await getProjectWbsSnapshot(validation.project.id);
+    const recalculatedItem = snapshot.wbsItems.find((wbsItem) => wbsItem.id === item.id) ?? item;
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'wbs_item.create',
+      objectType: 'WbsItem',
+      objectId: item.id,
+      projectId: validation.project.id,
+      afterValue: recalculatedItem,
+      changes: buildAuditFieldChanges({}, recalculatedItem, wbsItemAuditFields),
+    });
     await emitWebhookEvent({
       eventType: 'wbs.item.created',
       projectId: validation.project.id,
@@ -209,6 +263,19 @@ export function registerWbsItemRoutes(router: Router) {
       },
       beforeSnapshot: deletedItems,
       afterSnapshot: snapshot,
+    });
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'wbs_item.delete',
+      objectType: 'WbsItem',
+      projectId: req.params.projectId,
+      beforeValue: deletedItems,
+      metadata: {
+        action: 'bulk-delete',
+        itemIds,
+        deletedCount: deletedItems.length,
+      },
     });
 
     res.json({
@@ -360,6 +427,18 @@ export function registerWbsItemRoutes(router: Router) {
     const snapshot = await getProjectWbsSnapshot(existing.projectId);
     const recalculatedItem =
       snapshot.wbsItems.find((item) => item.id === existing.id) ?? updated;
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'wbs_item.update',
+      objectType: 'WbsItem',
+      objectId: existing.id,
+      projectId: existing.projectId,
+      beforeValue: existing,
+      afterValue: recalculatedItem,
+      metadata: { changedFields: Object.keys(parsed.data) },
+      changes: buildAuditFieldChanges(existing, recalculatedItem, wbsItemAuditFields),
+    });
     await emitWebhookEvent({
       eventType: 'wbs.item.updated',
       projectId: existing.projectId,
@@ -413,6 +492,15 @@ export function registerWbsItemRoutes(router: Router) {
       payload: { itemId: existing.id, code: existing.code, title: existing.title },
       beforeSnapshot: existing,
       afterSnapshot: snapshot,
+    });
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'wbs_item.delete',
+      objectType: 'WbsItem',
+      objectId: existing.id,
+      projectId: existing.projectId,
+      beforeValue: existing,
     });
 
     res.json(snapshot);

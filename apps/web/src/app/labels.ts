@@ -62,6 +62,9 @@ export function auditActionLabel(action: string) {
     "change_request.create": "Создание запроса на изменение",
     "change_request.update": "Изменение запроса на изменение",
     "change_request.delete": "Удаление запроса на изменение",
+    "wbs_item.create": "Создание элемента Структуры",
+    "wbs_item.update": "Изменение элемента Структуры",
+    "wbs_item.delete": "Удаление элемента Структуры",
     "overview.generate": "Генерация обзора",
     "overview.status": "Статус обзора",
     "overview.publish": "Публикация обзора",
@@ -82,11 +85,88 @@ export function auditObjectLabel(event: AuditEventLike) {
   if (event.objectType === "RaidItem") return "RAID-запись";
   if (event.objectType === "RaidItemStatusUpdate") return "Комментарий RAID";
   if (event.objectType === "ChangeRequest") return "Запрос на изменение";
+  if (event.objectType === "WbsItem") return "Элемент Структуры";
   if (event.objectType === "User") return "Пользователь";
   if (event.objectType === "RolePermission") return "Право роли";
   if (event.objectType === "DictionaryItem") return "Справочник";
   if (event.objectType === "SystemSetting") return "Системные настройки";
   return event.objectType;
+}
+
+export function auditFieldLabel(field: string) {
+  const labelsByField: Record<string, string> = {
+    affectedBaseline: "Затронутый baseline",
+    approvedAt: "Дата согласования",
+    approvalRoute: "Маршрут согласования",
+    baselineDueDate: "Базовый срок",
+    baselineStartDate: "Базовый старт",
+    budgetImpact: "Влияние на бюджет",
+    calendarCode: "Календарь",
+    calendarDays: "Календарные дни",
+    closedAt: "Дата закрытия",
+    closedDelayDays: "Просрочка закрытия",
+    code: "Код",
+    contingencyPlan: "План реагирования",
+    decisionRequired: "Требуется решение",
+    dependencyType: "Тип зависимости",
+    description: "Описание",
+    dueDate: "Срок",
+    effortPercent: "Загрузка",
+    escalationLevel: "Уровень эскалации",
+    excelEndDate: "Excel окончание",
+    excelStartDate: "Excel старт",
+    forecastCost: "Прогнозная стоимость",
+    forecastDueDate: "Прогнозный срок",
+    forecastStartDate: "Прогнозный старт",
+    impact: "Влияние",
+    impactAnalysis: "Анализ влияния",
+    implementationPlan: "План реализации",
+    initialDueDate: "Исходный срок",
+    jiraTicketKey: "Jira key",
+    jiraTicketUrl: "Jira URL",
+    jiraUrl: "Jira URL",
+    leadLagDays: "Lead/Lag",
+    linkedRiskId: "Связанный риск",
+    mitigationPlan: "План снижения",
+    newValue: "Новое значение",
+    oldValue: "Старое значение",
+    owner: "Ответственный",
+    parentId: "Родитель",
+    planCalendarDays: "План календарных дней",
+    plannedCost: "Плановая стоимость",
+    planWorkDays: "План рабочих дней",
+    predecessor: "Предшественник",
+    predecessor1: "Предшественник 1",
+    predecessor2: "Предшественник 2",
+    predecessor3: "Предшественник 3",
+    predecessor4: "Предшественник 4",
+    predecessor5: "Предшественник 5",
+    predecessor6: "Предшественник 6",
+    priority: "Приоритет",
+    probability: "Вероятность",
+    progress: "Прогресс",
+    residualRisk: "Остаточный риск",
+    riskScore: "Оценка риска",
+    scheduleImpactDays: "Влияние на сроки",
+    scopeImpact: "Влияние на объем",
+    severity: "Критичность",
+    sortOrder: "Порядок",
+    source: "Источник",
+    startDate: "Старт",
+    status: "Статус",
+    statusAt: "Дата комментария",
+    successor: "Последователь",
+    supplier: "Поставщик",
+    targetDate: "Целевая дата",
+    templateColor: "Цвет шаблона",
+    text: "Текст",
+    title: "Наименование",
+    type: "Тип",
+    validationDate: "Дата валидации",
+    wbsLevel: "Уровень",
+    workDays: "Рабочие дни",
+  };
+  return labelsByField[field] ?? field;
 }
 
 export function projectStatusLabel(status: ProjectStatus) {

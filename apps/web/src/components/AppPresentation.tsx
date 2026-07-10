@@ -24,6 +24,7 @@ import {
 import {
   artifactStatusLabel,
   auditActionLabel,
+  auditFieldLabel,
   auditObjectLabel,
   issuePrimaryJiraLink,
   issueSeverityLabel,
@@ -297,6 +298,7 @@ export function AppPresentation({
     adminPermissionOrder,
     artifactStatusLabel,
     auditActionLabel,
+    auditFieldLabel,
     auditObjectLabel,
     calendarDelayDays,
     calendarMonthDays,

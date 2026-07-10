@@ -10,6 +10,7 @@ export function AdminAuditPageContent() {
   const {
     auditActionLabel,
     auditEvents,
+    auditFieldLabel,
     auditObjectLabel,
     dateTime,
     reloadAuditEvents,
@@ -52,7 +53,7 @@ export function AdminAuditPageContent() {
                             <div className="audit-changes">
                               {event.changes.map((change) => (
                                 <span className="audit-change" key={change.id}>
-                                  <b>{change.field}</b>
+                                  <b>{auditFieldLabel(change.field)}</b>
                                   <em>{auditChangeText(change.oldText)}</em>
                                   <i aria-hidden="true">-&gt;</i>
                                   <em>{auditChangeText(change.newText)}</em>
