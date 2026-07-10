@@ -212,6 +212,7 @@ model User {
   wbsCommands  WbsCommand[]
   wbsBaselines WbsBaseline[]
   auditEvents  AuditEvent[]
+  auditEventChanges AuditEventChange[]
   savedViews   SavedView[]
   apiTokensCreated ApiToken[] @relation("ApiTokenCreatedBy")
   webhookEndpointsCreated WebhookEndpoint[] @relation("WebhookEndpointCreatedBy")
@@ -810,10 +811,34 @@ model AuditEvent {
   metadata    Json?
   createdAt   DateTime @default(now())
   actor       User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  changes     AuditEventChange[]
 
   @@index([createdAt])
   @@index([actorId, createdAt])
   @@index([objectType, objectId])
   @@index([projectId, createdAt])
   @@index([action, createdAt])
+}
+
+model AuditEventChange {
+  id           String     @id @default(cuid())
+  auditEventId String
+  actorId      String?
+  projectId    String?
+  objectType   String
+  objectId     String?
+  field        String
+  oldValue     Json?
+  newValue     Json?
+  oldText      String?
+  newText      String?
+  createdAt    DateTime   @default(now())
+  auditEvent   AuditEvent @relation(fields: [auditEventId], references: [id], onDelete: Cascade)
+  actor        User?      @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([auditEventId])
+  @@index([projectId, createdAt])
+  @@index([objectType, objectId, createdAt])
+  @@index([field, createdAt])
+  @@index([actorId, createdAt])
 }

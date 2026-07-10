@@ -11,6 +11,9 @@ export function registerAdminHealthRoutes(router: Router, context: AdminRoutesCo
     const events = await prisma.auditEvent.findMany({
       orderBy: { createdAt: 'desc' },
       take,
+      include: {
+        changes: { orderBy: { createdAt: 'asc' } },
+      },
     });
     res.json(events);
   });

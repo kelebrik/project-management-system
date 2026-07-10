@@ -68,6 +68,22 @@ export type AuditEvent = {
   afterValue: unknown;
   metadata: unknown;
   createdAt: string;
+  changes?: AuditEventChange[];
+};
+
+export type AuditEventChange = {
+  id: string;
+  auditEventId: string;
+  actorId: string | null;
+  projectId: string | null;
+  objectType: string;
+  objectId: string | null;
+  field: string;
+  oldValue: unknown;
+  newValue: unknown;
+  oldText: string | null;
+  newText: string | null;
+  createdAt: string;
 };
 
 export type RolePermission = {

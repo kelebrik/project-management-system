@@ -46,6 +46,22 @@ export function auditActionLabel(action: string) {
     "project.update": "Изменение проекта",
     "project.close": "Закрытие проекта",
     "project.delete": "Удаление проекта",
+    "project.target_date.update": "Изменение даты цели проекта",
+    "project.ui_state.update": "Изменение вида проекта",
+    "issue.create": "Создание открытого вопроса",
+    "issue.update": "Изменение открытого вопроса",
+    "issue.convert_to_problem": "Перевод вопроса в проблему",
+    "issue.status_update.create": "Комментарий к открытому вопросу",
+    "issue.jira_link.create": "Добавление Jira-связи",
+    "issue.jira_link.update": "Изменение Jira-связи",
+    "issue.jira_link.delete": "Удаление Jira-связи",
+    "raid_item.create": "Создание RAID-записи",
+    "raid_item.update": "Изменение RAID-записи",
+    "raid_item.delete": "Удаление RAID-записи",
+    "raid_item.status_update.create": "Комментарий к RAID-записи",
+    "change_request.create": "Создание запроса на изменение",
+    "change_request.update": "Изменение запроса на изменение",
+    "change_request.delete": "Удаление запроса на изменение",
     "overview.generate": "Генерация обзора",
     "overview.status": "Статус обзора",
     "overview.publish": "Публикация обзора",
@@ -60,6 +76,12 @@ export function auditActionLabel(action: string) {
 
 export function auditObjectLabel(event: AuditEventLike) {
   if (event.objectType === "Project" && event.projectId) return "Проект";
+  if (event.objectType === "Issue") return "Открытый вопрос";
+  if (event.objectType === "IssueStatusUpdate") return "Комментарий вопроса";
+  if (event.objectType === "IssueJiraLink") return "Jira-связь";
+  if (event.objectType === "RaidItem") return "RAID-запись";
+  if (event.objectType === "RaidItemStatusUpdate") return "Комментарий RAID";
+  if (event.objectType === "ChangeRequest") return "Запрос на изменение";
   if (event.objectType === "User") return "Пользователь";
   if (event.objectType === "RolePermission") return "Право роли";
   if (event.objectType === "DictionaryItem") return "Справочник";

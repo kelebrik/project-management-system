@@ -1,5 +1,10 @@
 import { usePageContext } from "./PageContext";
 
+function auditChangeText(value: string | null | undefined) {
+  if (!value) return "не задано";
+  return value.length > 120 ? `${value.slice(0, 117)}...` : value;
+}
+
 export function AdminAuditPageContent() {
   const ctx = usePageContext();
   const {
@@ -30,17 +35,31 @@ export function AdminAuditPageContent() {
                         <span>IP</span>
                       </div>
                       {auditEvents.map((event) => (
-                        <div className="audit-row" key={event.id}>
-                          <span>{dateTime(event.createdAt)}</span>
-                          <strong>{auditActionLabel(event.action)}</strong>
-                          <span>
-                            {event.actorName || event.actorEmail || "Система"}
-                          </span>
-                          <span>
-                            {auditObjectLabel(event)}
-                            {event.objectId ? `: ${event.objectId}` : ""}
-                          </span>
-                          <span>{event.ipAddress || "не задано"}</span>
+                        <div className="audit-entry" key={event.id}>
+                          <div className="audit-row">
+                            <span>{dateTime(event.createdAt)}</span>
+                            <strong>{auditActionLabel(event.action)}</strong>
+                            <span>
+                              {event.actorName || event.actorEmail || "Система"}
+                            </span>
+                            <span>
+                              {auditObjectLabel(event)}
+                              {event.objectId ? `: ${event.objectId}` : ""}
+                            </span>
+                            <span>{event.ipAddress || "не задано"}</span>
+                          </div>
+                          {event.changes && event.changes.length > 0 && (
+                            <div className="audit-changes">
+                              {event.changes.map((change) => (
+                                <span className="audit-change" key={change.id}>
+                                  <b>{change.field}</b>
+                                  <em>{auditChangeText(change.oldText)}</em>
+                                  <i aria-hidden="true">-&gt;</i>
+                                  <em>{auditChangeText(change.newText)}</em>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                       {auditEvents.length === 0 && (

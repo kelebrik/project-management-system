@@ -375,6 +375,57 @@
   font-size: 13px;
 }
 
+.audit-entry {
+  background: #fff;
+  border-top: 1px solid #dbe4ef;
+}
+
+.audit-entry .audit-row {
+  border-top: 0;
+}
+
+.audit-changes {
+  display: grid;
+  gap: 6px;
+  min-width: 1040px;
+  padding: 0 12px 12px 184px;
+}
+
+.audit-change {
+  align-items: center;
+  color: #475569;
+  display: grid;
+  font-size: 12px;
+  gap: 8px;
+  grid-template-columns: 180px minmax(180px, 1fr) 24px minmax(180px, 1fr);
+}
+
+.audit-change b,
+.audit-change em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-change b {
+  color: #334155;
+}
+
+.audit-change em {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-style: normal;
+  padding: 4px 8px;
+}
+
+.audit-change i {
+  color: #94a3b8;
+  font-style: normal;
+  text-align: center;
+}
+
 .checkbox-field {
   align-items: center;
   grid-template-columns: 1fr auto;
