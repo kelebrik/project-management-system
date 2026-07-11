@@ -12,7 +12,6 @@ import {
   type ReportTask,
 } from "../app/reportBuilder";
 import { wbsStatusLabel } from "../app/labels";
-import { SegmentedFilter } from "../components/SegmentedFilter";
 import { usePageContext } from "./PageContext";
 
 type ReportPeriodValue = "7" | "14" | "30";
@@ -153,12 +152,18 @@ export function ReportsPage() {
 
           <div className="report-control-field">
             <span>Период</span>
-            <SegmentedFilter<ReportPeriodValue>
-              ariaLabel="Период отчёта"
-              value={period}
-              onChange={setPeriod}
-              options={PERIOD_OPTIONS}
-            />
+            <div className="segmented-control" aria-label="Период отчёта">
+              {PERIOD_OPTIONS.map((item) => (
+                <button
+                  type="button"
+                  className={period === item.value ? "active" : ""}
+                  key={item.value}
+                  onClick={() => setPeriod(item.value)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <fieldset className="report-options">
