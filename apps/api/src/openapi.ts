@@ -518,6 +518,43 @@ export const openApiDocument = {
         "WBS snapshot after insert",
       ),
     },
+    "/api/projects/{projectId}/wbs-items/bulk": {
+      patch: {
+        ...securedOperation(
+          ["WBS"],
+          "Update multiple WBS items and recalculate the structure once",
+          [projectIdParam],
+          "WBS snapshot after bulk update",
+        ),
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  items: {
+                    type: "array",
+                    minItems: 1,
+                    maxItems: 500,
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        patch: { type: "object", additionalProperties: true },
+                      },
+                      required: ["id", "patch"],
+                    },
+                  },
+                  renumber: { type: "boolean", default: false },
+                },
+                required: ["items"],
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/projects/{projectId}/wbs-snapshot/restore": {
       post: securedOperation(
         ["WBS"],

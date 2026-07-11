@@ -16,7 +16,7 @@ import {
   validateWbsProjectAndParent,
   wouldCreateWbsCycle,
 } from './helpers.js';
-import { wbsBulkDeleteSchema } from './schemas.js';
+import { wbsBulkDeleteSchema, wbsBulkUpdateSchema } from './schemas.js';
 
 function wbsLevelFromItem(item: { code: string; wbsLevel: number | null }) {
   return Math.max(1, item.wbsLevel ?? item.code.split('.').filter(Boolean).length);
@@ -122,6 +122,166 @@ export function registerWbsItemRoutes(router: Router) {
       payload: { item, snapshot },
     }).catch(() => undefined);
     res.status(201).json({ item, ...snapshot });
+  });
+
+  router.patch('/projects/:projectId/wbs-items/bulk', async (req, res) => {
+    const parsed = wbsBulkUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.projectId },
+      include: { jiraIntegration: true },
+    });
+    if (!project) {
+      res.status(404).json({ error: 'Проект не найден' });
+      return;
+    }
+
+    const itemIds = parsed.data.items.map((item) => item.id);
+    if (new Set(itemIds).size !== itemIds.length) {
+      res.status(400).json({ error: 'Элементы Структуры в запросе не должны повторяться' });
+      return;
+    }
+
+    const projectItems = await prisma.wbsItem.findMany({
+      where: { projectId: project.id },
+    });
+    const requestedIds = new Set(itemIds);
+    const existingItems = projectItems.filter((item) => requestedIds.has(item.id));
+    const existingById = new Map(existingItems.map((item) => [item.id, item]));
+    const projectItemIds = new Set(projectItems.map((item) => item.id));
+    const missingIds = itemIds.filter((itemId) => !existingById.has(itemId));
+    if (missingIds.length > 0) {
+      res.status(404).json({ error: `Элементы Структуры не найдены: ${missingIds.join(', ')}` });
+      return;
+    }
+
+    const parentById = new Map(projectItems.map((item) => [item.id, item.parentId]));
+    for (const item of parsed.data.items) {
+      const existing = existingById.get(item.id)!;
+      if (item.patch.parentId === existing.id) {
+        res.status(400).json({ error: 'Элемент Структуры не может быть своим родителем' });
+        return;
+      }
+      const nextParentId = item.patch.parentId === undefined ? existing.parentId : item.patch.parentId;
+      const nextJiraUrl = item.patch.jiraTicketUrl === undefined ? existing.jiraTicketUrl : item.patch.jiraTicketUrl;
+      if (nextParentId && !projectItemIds.has(nextParentId)) {
+        res.status(400).json({ error: 'Родительский элемент Структуры не найден в этом проекте' });
+        return;
+      }
+      if (nextJiraUrl && !nextJiraUrl.startsWith('https://')) {
+        res.status(400).json({ error: 'Ссылка Jira должна начинаться с https://' });
+        return;
+      }
+      const jiraBaseUrl = project.jiraIntegration?.baseUrl;
+      if (jiraBaseUrl && nextJiraUrl && !nextJiraUrl.startsWith(jiraBaseUrl)) {
+        res.status(400).json({ error: `URL Jira должен начинаться с ${jiraBaseUrl}` });
+        return;
+      }
+      parentById.set(existing.id, nextParentId ?? null);
+    }
+
+    for (const itemId of itemIds) {
+      const seen = new Set([itemId]);
+      let parentId = parentById.get(itemId) ?? null;
+      while (parentId) {
+        if (seen.has(parentId)) {
+          res.status(400).json({ error: 'Изменения создают цикл в Структуре' });
+          return;
+        }
+        seen.add(parentId);
+        parentId = parentById.get(parentId) ?? null;
+      }
+    }
+
+    const updatedItems = await prisma.$transaction(async (tx) => {
+      const results = [];
+      for (const item of parsed.data.items) {
+        const existing = existingById.get(item.id)!;
+        const patch = item.patch;
+        const schedulePatch = resolveWbsSchedulePatch(patch, existing);
+        const scheduleDateWrites = resolveWbsScheduleDateWrites(patch, schedulePatch);
+        results.push(
+          await tx.wbsItem.update({
+            where: { id: existing.id },
+            data: {
+              parentId: patch.parentId === undefined ? undefined : patch.parentId || null,
+              code: undefined,
+              title: patch.title,
+              type: patch.type,
+              status: patch.status,
+              owner: patch.owner,
+              startDate: scheduleDateWrites.startDate === undefined ? undefined : scheduleDateWrites.startDate ? new Date(scheduleDateWrites.startDate) : null,
+              dueDate: scheduleDateWrites.dueDate === undefined ? undefined : scheduleDateWrites.dueDate ? new Date(scheduleDateWrites.dueDate) : null,
+              baselineStartDate: patch.baselineStartDate === undefined ? undefined : patch.baselineStartDate ? new Date(patch.baselineStartDate) : null,
+              baselineDueDate: patch.baselineDueDate === undefined ? undefined : patch.baselineDueDate ? new Date(patch.baselineDueDate) : null,
+              forecastStartDate: scheduleDateWrites.forecastStartDate === undefined ? undefined : scheduleDateWrites.forecastStartDate ? new Date(scheduleDateWrites.forecastStartDate) : null,
+              forecastDueDate: scheduleDateWrites.forecastDueDate === undefined ? undefined : scheduleDateWrites.forecastDueDate ? new Date(scheduleDateWrites.forecastDueDate) : null,
+              wbsLevel: patch.wbsLevel === undefined ? undefined : patch.wbsLevel ?? null,
+              predecessor1: patch.predecessor1 === undefined ? undefined : patch.predecessor1 || null,
+              predecessor2: patch.predecessor2 === undefined ? undefined : patch.predecessor2 || null,
+              predecessor3: patch.predecessor3 === undefined ? undefined : patch.predecessor3 || null,
+              predecessor4: patch.predecessor4 === undefined ? undefined : patch.predecessor4 || null,
+              predecessor5: patch.predecessor5 === undefined ? undefined : patch.predecessor5 || null,
+              predecessor6: patch.predecessor6 === undefined ? undefined : patch.predecessor6 || null,
+              leadLagDays: patch.leadLagDays,
+              workDays: !schedulePatch.writeWorkDays || patch.workDays === undefined ? undefined : patch.workDays ?? null,
+              calendarDays: !schedulePatch.writeCalendarDays || patch.calendarDays === undefined ? undefined : patch.calendarDays ?? null,
+              excelStartDate: patch.excelStartDate === undefined ? undefined : patch.excelStartDate ? new Date(patch.excelStartDate) : null,
+              excelEndDate: patch.excelEndDate === undefined ? undefined : patch.excelEndDate ? new Date(patch.excelEndDate) : null,
+              planWorkDays: patch.planWorkDays === undefined ? undefined : patch.planWorkDays ?? null,
+              planCalendarDays: patch.planCalendarDays === undefined ? undefined : patch.planCalendarDays ?? null,
+              calendarCode: patch.calendarCode,
+              templateColor: patch.templateColor === undefined ? undefined : patch.templateColor || null,
+              priority: patch.priority === undefined ? undefined : patch.priority || null,
+              effortPercent: patch.effortPercent,
+              plannedCost: patch.plannedCost,
+              forecastCost: patch.forecastCost,
+              progress: patch.progress,
+              jiraTicketKey: patch.jiraTicketKey === undefined ? undefined : patch.jiraTicketKey || null,
+              jiraTicketUrl: patch.jiraTicketUrl === undefined ? undefined : patch.jiraTicketUrl || null,
+              description: patch.description === undefined ? undefined : patch.description || null,
+              closedAt: closedAtForWbsStatus(patch.status, existing),
+              sortOrder: patch.sortOrder,
+            },
+          }),
+        );
+      }
+      return results;
+    });
+
+    if (parsed.data.renumber) {
+      await renumberProjectWbs(project.id);
+    }
+    await recalculateProjectWbsSchedule(project.id);
+    await recalculateProjectWbsHierarchyStatuses(project.id);
+    const snapshot = await getProjectWbsSnapshot(project.id);
+
+    await Promise.all(
+      updatedItems.map((updated) =>
+        recordWbsCommand({
+          projectId: project.id,
+          type: 'UPDATE',
+          payload: {
+            itemId: updated.id,
+            patch: parsed.data.items.find((item) => item.id === updated.id)?.patch,
+            bulk: true,
+          },
+          beforeSnapshot: existingById.get(updated.id),
+          afterSnapshot: snapshot.wbsItems.find((item) => item.id === updated.id) ?? updated,
+        }),
+      ),
+    );
+    await emitWebhookEvent({
+      eventType: 'wbs.items.updated',
+      projectId: project.id,
+      payload: { itemIds, snapshot },
+    }).catch(() => undefined);
+
+    res.json({ updatedCount: updatedItems.length, ...snapshot });
   });
 
   router.delete('/projects/:projectId/wbs-items', async (req, res) => {

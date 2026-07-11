@@ -156,10 +156,7 @@ export function useWbsRowActions({
   }
 
   function isLatestWbsSave(itemId: string, saveSequence: number) {
-    return (
-      wbsSaveSequenceRef.current === saveSequence &&
-      latestWbsSaveSequenceByItemRef.current[itemId] === saveSequence
-    );
+    return latestWbsSaveSequenceByItemRef.current[itemId] === saveSequence;
   }
 
   function updateWbsDraft(itemId: string, patch: Partial<WbsFormState>) {
@@ -188,20 +185,105 @@ export function useWbsRowActions({
 
   async function saveDirtyWbsItems() {
     if (dirtyWbsItemIds.size === 0) return;
-    setSavingWbsBulk(true);
+    const activeProject = projectRef.current ?? project;
+    if (!activeProject) return;
+
+    const dirtyIds = [...dirtyWbsItemIds];
+    let items: Array<{
+      id: string;
+      patch: ReturnType<typeof wbsItemPatchPayload>;
+      predecessorsChanged: boolean;
+      requiresRenumber: boolean;
+    }>;
     try {
-      for (const itemId of dirtyWbsItemIds) {
+      items = dirtyIds.map((itemId) => {
         const draft = wbsDraftsRef.current[itemId] ?? wbsDrafts[itemId];
-        await saveWbsItem(itemId, {
-          silent: true,
-          scheduleDriver:
-            draft?.status === "CANCELLED" && draft.workDays === "0"
-              ? "workDays"
-              : undefined,
+        const currentItem = activeProject.wbsItems.find((item) => item.id === itemId);
+        if (!draft || !currentItem) {
+          throw new Error("Не удалось подготовить изменения Структуры");
+        }
+        if (!isHttpsUrl(draft.jiraTicketUrl)) {
+          throw new Error("Ссылка Jira должна начинаться с https://");
+        }
+        const currentPayload = wbsPayload(
+          itemId,
+          wbsToForm(currentItem, activeProject.wbsDependencies),
+        );
+        const comparablePayload = wbsPayload(itemId, draft);
+        const scheduleDriver =
+          draft.status === "CANCELLED" && draft.workDays === "0"
+            ? "workDays"
+            : inferWbsScheduleDriver(currentPayload, comparablePayload);
+        const patch = wbsItemPatchPayload(
+          wbsPayload(itemId, draft, { scheduleDriver }),
+        );
+        const predecessorsChanged =
+          WBS_PREDECESSOR_KEYS.some((key) => {
+            const typeKey = WBS_PREDECESSOR_TYPE_BY_KEY[key];
+            return (
+              comparablePayload[key] !== currentItem[key] ||
+              comparablePayload[typeKey] !== currentPayload[typeKey]
+            );
+          }) || comparablePayload.leadLagDays !== currentItem.leadLagDays;
+        const requiresRenumber =
+          comparablePayload.wbsLevel !== currentItem.wbsLevel ||
+          comparablePayload.parentId !== currentItem.parentId ||
+          draftWbsCodes.get(itemId) !== currentItem.code;
+        return { id: itemId, patch, predecessorsChanged, requiresRenumber };
+      });
+    } catch (prepareError) {
+      setError(
+        prepareError instanceof Error
+          ? prepareError.message
+          : "Не удалось подготовить изменения Структуры",
+      );
+      return;
+    }
+
+    setSavingWbsBulk(true);
+    setError(null);
+    setNotice(null);
+    const saveSequence = wbsSaveSequenceRef.current + 1;
+    wbsSaveSequenceRef.current = saveSequence;
+    dirtyIds.forEach((itemId) => {
+      latestWbsSaveSequenceByItemRef.current[itemId] = saveSequence;
+    });
+    pendingWbsSaveCountRef.current += 1;
+    try {
+      let snapshotResult = await apiClient.patch<WbsSnapshotResponse>(
+        `/api/projects/${activeProject.id}/wbs-items/bulk`,
+        {
+          items: items.map(({ id, patch }) => ({ id, patch })),
+          renumber: items.some((item) => item.requiresRenumber),
+        },
+        "Не удалось сохранить изменения Структуры",
+      );
+
+      for (const item of items.filter((candidate) => candidate.predecessorsChanged)) {
+        const predecessorResult = await saveWbsPredecessors(item.id, {
+          remember: false,
         });
+        if (predecessorResult?.wbsItems) snapshotResult = predecessorResult;
       }
+
+      if (dirtyIds.some((itemId) => !isLatestWbsSave(itemId, saveSequence))) return;
+      applyWbsSnapshotResult(
+        snapshotResult.wbsItems,
+        snapshotResult.wbsDependencies,
+        snapshotResult.criticalPath,
+      );
       setNotice("Изменения Структуры сохранены");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить изменения Структуры",
+      );
     } finally {
+      pendingWbsSaveCountRef.current = Math.max(
+        0,
+        pendingWbsSaveCountRef.current - 1,
+      );
       setSavingWbsBulk(false);
     }
   }
@@ -432,6 +514,7 @@ export function useWbsRowActions({
         `/api/wbs-items/${itemId}`,
         wbsItemPatchPayload(nextPayload),
         "Не удалось сохранить элемент Структуры",
+        { "X-WBS-Project-ID": activeProject.id },
       );
       const predecessorResult = predecessorsChanged
         ? await saveWbsPredecessors(itemId, { remember: false })
@@ -685,7 +768,10 @@ export function useWbsRowActions({
       if (!shouldKeep) {
         const response = await authenticatedFetch(
           `${apiBase}/api/wbs-dependencies/${dependency.id}`,
-          { method: "DELETE" },
+          {
+            method: "DELETE",
+            headers: { "X-WBS-Project-ID": activeProject.id },
+          },
         );
         const result = await response.json().catch(() => null);
         if (!response.ok) {
@@ -700,7 +786,10 @@ export function useWbsRowActions({
         `${apiBase}/api/projects/${activeProject.id}/wbs-dependencies`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-WBS-Project-ID": activeProject.id,
+          },
           body: JSON.stringify({
             predecessorId: draft.predecessorId,
             successorId: itemId,
@@ -730,6 +819,7 @@ export function useWbsRowActions({
     try {
       const response = await authenticatedFetch(`${apiBase}/api/wbs-items/${itemId}`, {
         method: "DELETE",
+        headers: { "X-WBS-Project-ID": project?.id ?? "" },
       });
       const result = await response.json().catch(() => null);
       if (!response.ok) {

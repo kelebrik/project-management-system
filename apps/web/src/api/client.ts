@@ -88,12 +88,13 @@ export const apiClient = {
       fallback,
     );
   },
-  patch<T>(path: string, body: unknown, fallback?: string) {
+  patch<T>(path: string, body: unknown, fallback?: string, headers?: HeadersInit) {
     return request<T>(
       path,
       {
         method: "PATCH",
         body: JSON.stringify(body),
+        headers,
       },
       fallback,
     );
