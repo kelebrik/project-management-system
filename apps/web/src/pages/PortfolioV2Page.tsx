@@ -1,6 +1,6 @@
 import { signedDaysUntil } from "../app/dateUtils";
 import type { ProjectListItem, RaidItem } from "../app/domainTypes";
-import { projectHealthLabel, projectStatusLabel } from "../app/labels";
+import { projectHealthLabel } from "../app/labels";
 import type {
   PortfolioGoalTimelineItem,
   PortfolioGoalTimelineModel,
@@ -155,7 +155,7 @@ export function PortfolioV2Page() {
         </div>
       </div>
 
-      <div className="v2-attention-strip">
+      <div className="v2-attention-strip v2-summary-line">
         <div className="v2-attention-chip red">
           <strong>{portfolioSummary.redRiskCount + portfolioSummary.blockerCount}</strong>
           <span>красных сигналов</span>
@@ -172,14 +172,6 @@ export function PortfolioV2Page() {
           <strong>{portfolioSummary.projectCount}</strong>
           <span>активных проектов</span>
         </div>
-        <div className="v2-next-focus">
-          <span>Следующий фокус</span>
-          <b>
-            {redRaidItems[0]
-              ? `${redRaidItems[0].projectName} · ${redRaidItems[0].title}`
-              : topProject?.project.name ?? "Нет критичных сигналов"}
-          </b>
-        </div>
       </div>
 
       <div className="v2-portfolio-grid">
@@ -190,7 +182,7 @@ export function PortfolioV2Page() {
             </div>
           </div>
           <div className="v2-risk-list">
-            {projectRows.slice(0, 5).map(({ project, redCount, decisions, riskScore, scheduleImpact }) => (
+            {projectRows.slice(0, 7).map(({ project, redCount, decisions, riskScore, scheduleImpact }) => (
               <button
                 type="button"
                 className={`v2-risk-project risk-${project.rag.toLowerCase()}`}
@@ -205,9 +197,7 @@ export function PortfolioV2Page() {
                     {projectHealthLabel(project.rag)}
                   </small>
                 </span>
-                <span className="v2-risk-impact">
-                  {scheduleImpact > 0 ? `+${scheduleImpact} дн.` : date(project.targetDate)}
-                </span>
+                <span className="v2-risk-impact">{scheduleImpact > 0 ? `+${scheduleImpact} дн.` : date(project.targetDate)}</span>
               </button>
             ))}
           </div>
@@ -220,7 +210,7 @@ export function PortfolioV2Page() {
             </div>
           </div>
           <div className="v2-decision-list">
-            {decisionItems.slice(0, 4).map((item) => (
+            {decisionItems.slice(0, 5).map((item) => (
               <button
                 type="button"
                 className={`v2-decision-card ${dueTone(item.dueDate)}`}
@@ -241,38 +231,13 @@ export function PortfolioV2Page() {
           </div>
         </article>
 
-        <article className="v2-card v2-impact-card">
-          <div className="v2-card-title">
-            <div>
-              <h3>Impact on target</h3>
-              <p>Ближайшая цель и факторы влияния</p>
-            </div>
-          </div>
-          <div className="v2-target-date">
-            <strong>
-              {topProject?.nextGoal ? date(topProject.nextGoal.dueDate) : date(topProject?.project.targetDate ?? null)}
-            </strong>
-            <span>{topProject?.project.name ?? "Нет проекта"}</span>
-          </div>
-          {redRaidItems.slice(0, 2).map((item) => (
-            <button
-              type="button"
-              className={`v2-impact-row ${item.scheduleImpactDays > 0 ? "red" : "green"}`}
-              key={item.id}
-              onClick={() => openRaid(item)}
-            >
-              {item.scheduleImpactDays > 0 ? `+${item.scheduleImpactDays} дн.` : "без сдвига"} · {item.title}
-            </button>
-          ))}
-        </article>
       </div>
 
-      <div className="v2-portfolio-bottom">
-        <article className="v2-card v2-timeline-card">
+      <div className="v2-portfolio-bottom v2-portfolio-bottom-single">
+        <article className="v2-card v2-timeline-card v2-timeline-compact">
           <div className="v2-card-title">
             <div>
               <h3>Timeline goals</h3>
-              <p>Сравнение целей по проектам</p>
             </div>
           </div>
           <div className="v2-timeline">
@@ -305,39 +270,6 @@ export function PortfolioV2Page() {
             {timelineRows.length === 0 && (
               <div className="v2-empty">Целей в диапазоне шкалы нет.</div>
             )}
-          </div>
-        </article>
-
-        <article className="v2-card v2-portfolio-table-card">
-          <div className="v2-card-title">
-            <div>
-              <h3>Portfolio table</h3>
-              <p>Минимум паспорта, максимум сравнения</p>
-            </div>
-          </div>
-          <div className="v2-portfolio-table">
-            <div className="v2-portfolio-table-head">
-              <span>Проект</span>
-              <span>Риск</span>
-              <span>Цель</span>
-            </div>
-            {projectRows.slice(0, 6).map(({ project, riskScore }) => (
-              <button
-                type="button"
-                className="v2-portfolio-table-row"
-                key={project.id}
-                onClick={() => openProject(project.id)}
-              >
-                <span>
-                  <b>{project.name}</b>
-                  <small>{projectStatusLabel(project.status)}</small>
-                </span>
-                <em className={`risk-${project.rag.toLowerCase()}`}>
-                  {riskScore}
-                </em>
-                <strong>{date(project.targetDate)}</strong>
-              </button>
-            ))}
           </div>
         </article>
       </div>

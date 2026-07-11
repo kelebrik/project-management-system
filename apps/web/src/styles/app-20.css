@@ -913,3 +913,220 @@
     display: none;
   }
 }
+
+/* Compact development workspaces */
+.portfolio-v2-page,
+.pm-workspace-page {
+  gap: 8px;
+}
+
+.portfolio-v2-page .v2-compact-header,
+.pm-workspace-page .v2-compact-header {
+  min-height: 40px;
+  padding: 4px 2px 7px;
+}
+
+.portfolio-v2-page .v2-compact-header h2,
+.pm-workspace-page .v2-compact-header h2 {
+  font-size: 17px;
+}
+
+.portfolio-v2-page .v2-summary-line,
+.pm-workspace-page .v2-summary-line {
+  display: flex;
+  gap: 0;
+  min-height: 38px;
+  padding: 0 6px;
+}
+
+.portfolio-v2-page .v2-summary-line .v2-attention-chip,
+.pm-workspace-page .v2-summary-line .v2-attention-chip {
+  background: transparent;
+  border-radius: 0;
+  flex: 1 1 0;
+  justify-content: center;
+  min-height: 38px;
+  padding: 5px 10px;
+}
+
+.portfolio-v2-page .v2-summary-line .v2-attention-chip + .v2-attention-chip,
+.pm-workspace-page .v2-summary-line .v2-attention-chip + .v2-attention-chip {
+  border-left: 1px solid #e2e8f0;
+}
+
+.portfolio-v2-page .v2-summary-line .v2-attention-chip strong,
+.pm-workspace-page .v2-summary-line .v2-attention-chip strong {
+  font-size: 15px;
+}
+
+.v2-portfolio-grid {
+  gap: 8px;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+}
+
+.portfolio-v2-page .v2-card,
+.pm-workspace-page .v2-card {
+  gap: 6px;
+  padding: 8px;
+}
+
+.portfolio-v2-page .v2-risk-project {
+  min-height: 38px;
+  padding: 5px 8px;
+}
+
+.portfolio-v2-page .v2-decision-card {
+  gap: 1px;
+  min-height: 44px;
+  padding: 5px 8px;
+}
+
+.portfolio-v2-page .v2-risk-main small,
+.portfolio-v2-page .v2-decision-card small {
+  font-size: 10px;
+}
+
+.v2-portfolio-bottom-single {
+  display: block;
+}
+
+.v2-timeline-compact .v2-timeline-row {
+  min-height: 30px;
+}
+
+.v2-timeline-compact .v2-timeline-row > button {
+  padding: 3px 8px;
+}
+
+.pm-priority-line {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pm-priority-item {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d9e2ef;
+  border-left: 3px solid #94a3b8;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 36px;
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.pm-priority-item.red {
+  border-left-color: #ef4444;
+}
+
+.pm-priority-item.amber {
+  border-left-color: #f59e0b;
+}
+
+.pm-priority-item span,
+.pm-priority-item small {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.pm-priority-item b {
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-workspace-grid {
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.pm-gantt-card {
+  grid-column: auto;
+}
+
+.pm-toolbar {
+  gap: 4px;
+}
+
+.pm-toolbar button {
+  min-height: 27px;
+  padding: 4px 8px;
+}
+
+.pm-wbs-head,
+.pm-wbs-row {
+  grid-template-columns: 52px minmax(180px, 1fr) 82px 78px 96px;
+  padding: 6px 9px;
+}
+
+.pm-wbs-head {
+  min-height: 28px;
+}
+
+.pm-wbs-row {
+  min-height: 34px;
+}
+
+.pm-gantt {
+  grid-template-columns: 180px minmax(0, 1fr);
+  min-height: 170px;
+}
+
+.pm-gantt-labels,
+.pm-gantt-canvas {
+  grid-auto-rows: 28px;
+  padding-bottom: 6px;
+  padding-top: 6px;
+}
+
+.pm-gantt-labels {
+  padding-left: 9px;
+  padding-right: 9px;
+}
+
+.pm-gantt-labels button {
+  padding: 4px 0;
+}
+
+.pm-gantt-today {
+  bottom: 8px;
+  top: 34px;
+}
+
+.pm-gantt-bar {
+  height: 12px;
+}
+
+@media (max-width: 760px) {
+  .portfolio-v2-page .v2-summary-line,
+  .pm-workspace-page .v2-summary-line {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portfolio-v2-page .v2-summary-line .v2-attention-chip:nth-child(3),
+  .pm-workspace-page .v2-summary-line .v2-attention-chip:nth-child(3) {
+    border-left: 0;
+  }
+
+  .portfolio-v2-page .v2-summary-line .v2-attention-chip:nth-child(n + 3),
+  .pm-workspace-page .v2-summary-line .v2-attention-chip:nth-child(n + 3) {
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .pm-priority-line {
+    grid-template-columns: 1fr;
+  }
+
+  .pm-gantt {
+    grid-template-columns: 130px minmax(260px, 1fr);
+    overflow-x: auto;
+  }
+}
