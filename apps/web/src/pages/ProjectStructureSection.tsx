@@ -1,5 +1,5 @@
 import { FileDown, Languages, Maximize2, Minimize2 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { usePageContext } from "./PageContext";
 import type { WbsFormState } from "../app/formState";
@@ -111,6 +111,8 @@ export function ProjectStructureSection() {
   const englishProjectName = wbsEnglishProjectName(project.name);
   const englishPrintTitle = `${englishProjectName} - Structure`;
   const [showEnglishMenu, setShowEnglishMenu] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const previousDirtyCountRef = useRef(dirtyWbsItemIds.size);
   const translationImportInputRef = useRef<HTMLInputElement | null>(null);
   const [manualEnglishTranslations, setManualEnglishTranslations] = useState(
     () => loadWbsEnglishManualTranslations(),
@@ -118,6 +120,17 @@ export function ProjectStructureSection() {
   const [cachedEnglishTranslations] = useState(
     () => loadWbsEnglishTranslationCache(),
   );
+
+  useEffect(() => {
+    if (
+      previousDirtyCountRef.current > 0 &&
+      dirtyWbsItemIds.size === 0 &&
+      !savingWbsBulk
+    ) {
+      setLastSavedAt(new Date());
+    }
+    previousDirtyCountRef.current = dirtyWbsItemIds.size;
+  }, [dirtyWbsItemIds.size, savingWbsBulk]);
 
   const englishStructureRows = useMemo(
     () =>
@@ -466,11 +479,15 @@ export function ProjectStructureSection() {
                               ))}
                             </div>
                             <span
-                              className={`wbs-save-state ${dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
+                              className={`wbs-save-state ${savingWbsBulk ? "saving" : dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
                             >
-                              {dirtyWbsItemIds.size > 0
-                                ? `Не сохранено: ${dirtyWbsItemIds.size}`
-                                : "Сохранено"}
+                              {savingWbsBulk
+                                ? `Сохраняется: ${dirtyWbsItemIds.size}`
+                                : dirtyWbsItemIds.size > 0
+                                  ? `Есть изменения: ${dirtyWbsItemIds.size}`
+                                  : lastSavedAt
+                                    ? `Сохранено в ${lastSavedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`
+                                    : "Все изменения сохранены"}
                             </span>
                           </div>
                           {selectedWbsIds.size > 0 && (

@@ -119,13 +119,12 @@ export function ProjectPmWorkspacePage() {
 
   return (
     <section className="v2-page pm-workspace-page">
-      <div className="v2-hero pm-workspace-hero">
+      <div className="v2-compact-header pm-workspace-header">
         <div>
-          <span className="v2-eyebrow">Project workspace</span>
           <h2>Рабочий стол PM</h2>
-          <p>Единый экран для WBS, ближайших задач, критических рисков и решений.</p>
+          <span>{project.name}</span>
         </div>
-        <div className="pm-workspace-actions">
+        <div className="v2-compact-actions">
           <button type="button" onClick={() => selectedRaid && openRaidItemFromOverview(selectedRaid.id, selectedRaid.type)}>
             Открыть главный риск
           </button>
@@ -160,7 +159,6 @@ export function ProjectPmWorkspacePage() {
           <div className="v2-card-title">
             <div>
               <h3>Work queue</h3>
-              <p>Сегодня и ближайшая неделя</p>
             </div>
           </div>
           <div className="pm-queue-list">
@@ -203,7 +201,6 @@ export function ProjectPmWorkspacePage() {
           <div className="v2-card-title">
             <div>
               <h3>WBS spreadsheet</h3>
-              <p>Sticky код/название, активные фазы раскрыты по умолчанию</p>
             </div>
           </div>
           <div className="pm-toolbar">
