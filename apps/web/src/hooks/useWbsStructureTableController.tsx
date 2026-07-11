@@ -4,6 +4,8 @@ import {
   type KeyboardEventHandler,
   type MutableRefObject,
   type SetStateAction,
+  useEffect,
+  useRef,
 } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
@@ -170,12 +172,44 @@ export function useWbsStructureTableController({
   wbsSort,
   wbsTree,
 }: UseWbsStructureTableControllerOptions) {
+  const pendingSaveTimersRef = useRef<Record<string, number>>({});
+
+  const cancelScheduledWbsSave = (itemId: string) => {
+    const timerId = pendingSaveTimersRef.current[itemId];
+    if (timerId === undefined) return;
+    window.clearTimeout(timerId);
+    delete pendingSaveTimersRef.current[itemId];
+  };
+
+  const scheduleWbsSave = (
+    itemId: string,
+    options: { silent?: boolean; scheduleDriver?: WbsScheduleDriver } = {
+      silent: true,
+    },
+  ) => {
+    cancelScheduledWbsSave(itemId);
+    pendingSaveTimersRef.current[itemId] = window.setTimeout(() => {
+      delete pendingSaveTimersRef.current[itemId];
+      void saveWbsItem(itemId, options);
+    }, 650);
+  };
+
+  useEffect(
+    () => () => {
+      Object.values(pendingSaveTimersRef.current).forEach((timerId) =>
+        window.clearTimeout(timerId),
+      );
+    },
+    [],
+  );
+
   const wbsEditKeyHandler = (
     itemId: string,
     scheduleDriver?: WbsScheduleDriver,
   ): KeyboardEventHandler =>
     editableKeyHandler({
       onEnter: () => {
+        cancelScheduledWbsSave(itemId);
         void saveWbsItem(itemId, { silent: true, scheduleDriver });
       },
       onEscape: () => {
@@ -448,7 +482,7 @@ export function useWbsStructureTableController({
               }
               onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
               onKeyDown={wbsEditKeyHandler(item.id)}
-              onBlur={() => void saveWbsItem(item.id, { silent: true })}
+              onBlur={() => scheduleWbsSave(item.id)}
             />
           </div>
         );
@@ -503,7 +537,7 @@ export function useWbsStructureTableController({
               }
               onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
               onKeyDown={wbsEditKeyHandler(item.id)}
-              onBlur={() => void saveWbsItem(item.id, { silent: true })}
+              onBlur={() => scheduleWbsSave(item.id)}
             />
             <div className="wbs-row-controls">
               <button
@@ -602,7 +636,7 @@ export function useWbsStructureTableController({
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            onBlur={() => scheduleWbsSave(item.id)}
           >
             <option value="NOT_STARTED">{wbsStatusLabel("NOT_STARTED")}</option>
             <option value="IN_PROGRESS">{wbsStatusLabel("IN_PROGRESS")}</option>
@@ -622,7 +656,7 @@ export function useWbsStructureTableController({
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            onBlur={() => scheduleWbsSave(item.id)}
           />
         );
       case "start":
@@ -641,7 +675,7 @@ export function useWbsStructureTableController({
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id, "dates")}
             onBlur={() =>
-              void saveWbsItem(item.id, {
+              scheduleWbsSave(item.id, {
                 silent: true,
                 scheduleDriver: "dates",
               })
@@ -664,7 +698,7 @@ export function useWbsStructureTableController({
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id, "dates")}
             onBlur={() =>
-              void saveWbsItem(item.id, {
+              scheduleWbsSave(item.id, {
                 silent: true,
                 scheduleDriver: "dates",
               })
@@ -682,7 +716,7 @@ export function useWbsStructureTableController({
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id, "workDays")}
             onBlur={() =>
-              void saveWbsItem(item.id, {
+              scheduleWbsSave(item.id, {
                 silent: true,
                 scheduleDriver: "workDays",
               })
@@ -699,7 +733,7 @@ export function useWbsStructureTableController({
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            onBlur={() => scheduleWbsSave(item.id)}
           />
         );
       case "calendar":
@@ -713,7 +747,7 @@ export function useWbsStructureTableController({
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            onBlur={() => scheduleWbsSave(item.id)}
           >
             <option value="RU">RU</option>
             <option value="CN">CN</option>
@@ -731,7 +765,7 @@ export function useWbsStructureTableController({
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            onBlur={() => scheduleWbsSave(item.id)}
           />
         );
       case "progress":
@@ -746,7 +780,7 @@ export function useWbsStructureTableController({
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            onBlur={() => scheduleWbsSave(item.id)}
           />
         );
       case "jiraTicketUrl":
@@ -763,7 +797,7 @@ export function useWbsStructureTableController({
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            onBlur={() => scheduleWbsSave(item.id)}
             placeholder="https://..."
           />
         );
@@ -793,7 +827,7 @@ export function useWbsStructureTableController({
                 rememberEditableInitialValue(event.currentTarget)
               }
               onKeyDown={wbsEditKeyHandler(item.id)}
-              onBlur={() => void saveWbsItem(item.id, { silent: true })}
+              onBlur={() => scheduleWbsSave(item.id)}
               placeholder="Код"
             />
             <div className="wbs-predecessor-timing" aria-label="Расчет срока">
@@ -839,7 +873,7 @@ export function useWbsStructureTableController({
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => void saveWbsItem(item.id, { silent: true })}
+            onBlur={() => scheduleWbsSave(item.id)}
           />
         );
       default:

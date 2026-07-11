@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2 } from "lucide-react";
+import { LocateFixed, Maximize2, Minimize2, Redo2, Undo2 } from "lucide-react";
 
 import { usePageContext } from "./PageContext";
 import { ProjectGanttPanel } from "./ProjectGanttPanel";
@@ -68,7 +68,7 @@ export function ProjectGanttSection() {
                                 aria-label="Откатить последнее изменение Гантта"
                                 title="Назад"
                               >
-                                ← Назад
+                                <Undo2 size={15} />
                               </button>
                               <button
                                 type="button"
@@ -81,7 +81,7 @@ export function ProjectGanttSection() {
                                 aria-label="Вернуть отмененное изменение Гантта"
                                 title="Вперед"
                               >
-                                Вперед →
+                                <Redo2 size={15} />
                               </button>
                               <div className="segmented-control" aria-label="Масштаб Гантта">
                                 <button
@@ -118,7 +118,7 @@ export function ProjectGanttSection() {
                                     })
                                 }
                               >
-                                Сегодня
+                                <LocateFixed size={15} /> Сегодня
                               </button>
                               <details className="view-settings-menu">
                                 <summary>Настройки вида</summary>

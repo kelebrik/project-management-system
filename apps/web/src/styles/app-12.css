@@ -23,6 +23,16 @@
   color: #92400e;
 }
 
+.wbs-save-state.saving {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.wbs-row-stack {
+  content-visibility: auto;
+  contain-intrinsic-size: 44px;
+}
+
 .wbs-bulk-toolbar {
   align-items: center;
   background: #f8fafc;
