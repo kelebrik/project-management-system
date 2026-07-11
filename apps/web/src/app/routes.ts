@@ -3,6 +3,7 @@ export type AppView =
   | "portfolio-v2"
   | "decision-queue"
   | "projects"
+  | "reports"
   | "wiki"
   | "resources"
   | "resources-capacity"
@@ -146,6 +147,7 @@ export const appViewPaths: Record<AppView, string> = {
   "portfolio-v2": "/development/portfolio-v2",
   "decision-queue": "/development/decision-queue",
   projects: "/projects",
+  reports: "/reports",
   wiki: "/faq",
   resources: "/development/resources",
   "resources-capacity": "/development/resources/capacity",
@@ -212,6 +214,7 @@ export const appPathViews: Record<string, AppView> = {
   "/portfolio": "portfolio",
   "/portfolio-v2": "portfolio-v2",
   "/projects": "projects",
+  "/reports": "reports",
   "/faq": "wiki",
   "/wiki": "wiki",
   "/resources": "resources",
