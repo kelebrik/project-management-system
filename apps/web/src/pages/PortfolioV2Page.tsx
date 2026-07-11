@@ -139,16 +139,12 @@ export function PortfolioV2Page() {
 
   return (
     <section className="v2-page portfolio-v2-page">
-      <div className="v2-hero">
+      <div className="v2-compact-header">
         <div>
-          <span className="v2-eyebrow">Portfolio cockpit</span>
           <h2>Портфель_v2</h2>
-          <p>
-            Управленческий экран: риски, решения, ближайшие цели и проекты,
-            требующие внимания.
-          </p>
+          <span>{projectItems.length} активных проектов</span>
         </div>
-        <div className="v2-hero-actions">
+        <div className="v2-compact-actions">
           <button
             type="button"
             onClick={() => topProject && openProject(topProject.project.id)}
@@ -191,7 +187,6 @@ export function PortfolioV2Page() {
           <div className="v2-card-title">
             <div>
               <h3>Проекты по риску</h3>
-              <p>Сортировка по красным сигналам, решениям и влиянию на сроки</p>
             </div>
           </div>
           <div className="v2-risk-list">
@@ -222,7 +217,6 @@ export function PortfolioV2Page() {
           <div className="v2-card-title">
             <div>
               <h3>Decision queue</h3>
-              <p>Решения, которые двигают сроки и бюджет</p>
             </div>
           </div>
           <div className="v2-decision-list">

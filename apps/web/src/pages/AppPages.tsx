@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { AdminAuditPageContent } from "./AdminAuditPageContent";
 import { AdminBackupsPageContent, AdminConfigPageContent, AdminHealthPageContent } from "./AdminStatusPages";
 import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
@@ -10,7 +11,6 @@ import { AdminRolesPageContent } from "./AdminRolesPageContent";
 import { AdminUsersPageContent } from "./AdminUsersPageContent";
 import { ClosedProjectsPage } from "./ClosedProjectsPage";
 import { PortfolioPage } from "./PortfolioPage";
-import { PortfolioV2Page } from "./PortfolioV2Page";
 import { ProjectsPage } from "./ProjectsPage";
 import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
 import { ProjectBusinessRequirementsPage } from "./ProjectBusinessRequirementsPage";
@@ -21,7 +21,6 @@ import { ProjectJiraWorkPage } from "./ProjectJiraWorkPage";
 import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
 import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
 import { ProjectPassportPage } from "./ProjectPassportPage";
-import { ProjectPmWorkspacePage } from "./ProjectPmWorkspacePage";
 import { ProjectRaidPage } from "./ProjectRaidPage";
 import { ProjectBudgetPage, ProjectChangesPage } from "./ProjectSupportPages";
 import { ProjectWorkspacePage } from "./ProjectWorkspacePage";
@@ -32,6 +31,19 @@ import {
 import { usePageContext } from "./PageContext";
 import { WikiPage } from "./WikiPage";
 import { isDevelopmentSectionViewName } from "../app/routes";
+
+const PortfolioV2Page = lazy(() =>
+  import("./PortfolioV2Page").then((module) => ({ default: module.PortfolioV2Page })),
+);
+const ProjectPmWorkspacePage = lazy(() =>
+  import("./ProjectPmWorkspacePage").then((module) => ({
+    default: module.ProjectPmWorkspacePage,
+  })),
+);
+
+function DevelopmentPageFallback() {
+  return <div className="page-loading-skeleton" aria-label="Загрузка страницы" />;
+}
 
 export function AppPages() {
   const { activeView, isAdminSectionView, isAdminUser, project } =
@@ -45,7 +57,11 @@ export function AppPages() {
   return (
     <>
       {activeView === "portfolio" && <PortfolioPage />}
-      {isAdminUser && activeView === "portfolio-v2" && <PortfolioV2Page />}
+      {isAdminUser && activeView === "portfolio-v2" && (
+        <Suspense fallback={<DevelopmentPageFallback />}>
+          <PortfolioV2Page />
+        </Suspense>
+      )}
       {activeView === "projects" && <ProjectsPage />}
       {activeView === "wiki" && <WikiPage />}
       {project && activeView === "project-overview" && <ProjectOverviewSummaryPage />}
@@ -74,7 +90,11 @@ export function AppPages() {
         {project && activeView === "project-business-requirements" && <ProjectBusinessRequirementsPage />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
-        {isAdminUser && project && activeView === "project-pm-workspace" && <ProjectPmWorkspacePage />}
+        {isAdminUser && project && activeView === "project-pm-workspace" && (
+          <Suspense fallback={<DevelopmentPageFallback />}>
+            <ProjectPmWorkspacePage />
+          </Suspense>
+        )}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
         {project && activeView === "project-jira-work" && <ProjectJiraWorkPage />}

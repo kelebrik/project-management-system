@@ -8,6 +8,86 @@
   grid-column: 1 / -1;
 }
 
+.page-loading-skeleton {
+  animation: page-skeleton-pulse 1.2s ease-in-out infinite alternate;
+  background: #e8edf3;
+  border-radius: 6px;
+  min-height: 260px;
+}
+
+@keyframes page-skeleton-pulse {
+  to { background: #f4f6f8; }
+}
+
+.v2-compact-header {
+  align-items: center;
+  background: #fff;
+  border-bottom: 1px solid #d9e2ef;
+  display: flex;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 8px 2px 10px;
+}
+
+.v2-compact-header h2 {
+  color: #111827;
+  font-size: 20px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.v2-compact-header span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.v2-compact-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.v2-compact-actions button {
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
+.portfolio-v2-page .v2-attention-strip,
+.pm-workspace-page .v2-attention-strip {
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.portfolio-v2-page .v2-attention-chip,
+.pm-workspace-page .v2-attention-chip {
+  border-radius: 6px;
+  justify-content: flex-start;
+  padding: 8px 10px;
+}
+
+.portfolio-v2-page .v2-card,
+.pm-workspace-page .v2-card {
+  gap: 10px;
+  padding: 12px;
+}
+
+.portfolio-v2-page .v2-card-title h3,
+.pm-workspace-page .v2-card-title h3 {
+  font-size: 15px;
+}
+
+.portfolio-v2-page .v2-risk-list,
+.portfolio-v2-page .v2-decision-list,
+.pm-workspace-page .pm-queue-list {
+  gap: 6px;
+}
+
+.pm-workspace-grid {
+  grid-template-columns: 220px minmax(440px, 1fr) 238px;
+}
+
 .v2-hero,
 .v2-attention-strip,
 .v2-card {
