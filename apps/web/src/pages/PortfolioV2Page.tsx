@@ -58,6 +58,14 @@ export function PortfolioV2Page() {
   } = ctx;
   const portfolioTimeline =
     portfolioGoalTimeline as PortfolioGoalTimelineModel;
+  const [projectSort, setProjectSort] = useState<
+    "risk" | "decisions" | "schedule" | "name"
+  >(() => {
+    const saved = window.localStorage.getItem("pms:portfolio-v2-sort");
+    return saved === "decisions" || saved === "schedule" || saved === "name"
+      ? saved
+      : "risk";
+  });
   const projectItems = ((activeProjects as ProjectListItem[] | undefined) ??
     (projects as ProjectListItem[]).filter((project) => project.status !== "CLOSED"));
   const raidItems = collectPortfolioRaid(projectItems);
@@ -116,14 +124,24 @@ export function PortfolioV2Page() {
         nextGoal,
       };
     })
-    .sort(
-      (left, right) =>
+    .sort((left, right) => {
+      if (projectSort === "decisions") {
+        return right.decisions - left.decisions || right.riskScore - left.riskScore;
+      }
+      if (projectSort === "schedule") {
+        return right.scheduleImpact - left.scheduleImpact || right.riskScore - left.riskScore;
+      }
+      if (projectSort === "name") {
+        return left.project.name.localeCompare(right.project.name, "ru");
+      }
+      return (
         right.redCount - left.redCount ||
         right.riskScore - left.riskScore ||
         right.decisions - left.decisions ||
         right.scheduleImpact - left.scheduleImpact ||
-        left.project.name.localeCompare(right.project.name, "ru"),
-    );
+        left.project.name.localeCompare(right.project.name, "ru")
+      );
+    });
   const topProject = projectRows[0] ?? null;
   const timelineRows = portfolioTimeline.projectRows
     .filter((row) => row.items.length > 0)
@@ -145,6 +163,20 @@ export function PortfolioV2Page() {
           <span>{projectItems.length} активных проектов</span>
         </div>
         <div className="v2-compact-actions">
+          <select
+            aria-label="Сортировка проектов"
+            value={projectSort}
+            onChange={(event) => {
+              const value = event.target.value as typeof projectSort;
+              window.localStorage.setItem("pms:portfolio-v2-sort", value);
+              setProjectSort(value);
+            }}
+          >
+            <option value="risk">По риску</option>
+            <option value="decisions">По решениям</option>
+            <option value="schedule">По срокам</option>
+            <option value="name">По названию</option>
+          </select>
           <button
             type="button"
             onClick={() => topProject && openProject(topProject.project.id)}
@@ -344,3 +376,4 @@ export function PortfolioV2Page() {
     </section>
   );
 }
+import { useState } from "react";

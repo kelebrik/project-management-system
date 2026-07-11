@@ -49,6 +49,63 @@
   gap: 6px;
 }
 
+.v2-compact-actions select {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  min-height: 32px;
+  padding: 5px 8px;
+}
+
+.decision-queue-table {
+  background: #fff;
+  border: 1px solid #d9e2ef;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.decision-queue-head,
+.decision-queue-table > button {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(260px, 2fr) minmax(140px, 0.8fr) 110px;
+  padding: 10px 12px;
+}
+
+.decision-queue-head {
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.decision-queue-table > button {
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  color: #334155;
+  min-height: 44px;
+  text-align: left;
+  width: 100%;
+}
+
+.decision-queue-table > button + button {
+  border-top: 1px solid #e2e8f0;
+}
+
+.decision-queue-table > button.overdue {
+  background: #fff7f7;
+  box-shadow: inset 3px 0 #dc2626;
+}
+
+@media (max-width: 760px) {
+  .decision-queue-head { display: none; }
+  .decision-queue-table > button { grid-template-columns: 1fr; gap: 4px; }
+}
+
 .v2-compact-actions button {
   min-height: 32px;
   padding: 6px 10px;

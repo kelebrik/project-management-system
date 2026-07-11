@@ -281,6 +281,7 @@ export function registerWbsItemRoutes(router: Router) {
       payload: { itemIds, snapshot },
     }).catch(() => undefined);
 
+    res.setHeader('X-WBS-Updated-Count', String(updatedItems.length));
     res.json({ updatedCount: updatedItems.length, ...snapshot });
   });
 

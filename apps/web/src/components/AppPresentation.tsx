@@ -126,6 +126,7 @@ function createViewTitle(project: any): Record<AppView, string> {
   return {
     portfolio: "Портфель",
     "portfolio-v2": "Портфель_v2",
+    "decision-queue": "Очередь решений",
     projects: "Проекты",
     wiki: "FAQ",
     resources: "Управление ресурсами",

@@ -85,6 +85,29 @@
   position: relative;
 }
 
+.gantt-minimap {
+  background: #eef2f7;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  height: 22px;
+  margin: 6px 12px 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.gantt-minimap i {
+  background: #64748b;
+  height: 3px;
+  position: absolute;
+  top: 9px;
+}
+
+.gantt-minimap i.milestone {
+  background: #dc2626;
+  height: 6px;
+  top: 7px;
+}
+
 .view-settings-menu summary {
   background: #fff;
   border: 1px solid #cbd5e1;

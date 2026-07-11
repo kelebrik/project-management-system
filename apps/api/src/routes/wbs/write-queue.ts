@@ -30,6 +30,7 @@ export const wbsWriteQueueMiddleware: RequestHandler = (req, res, next) => {
   }
 
   const queueKey = wbsQueueKey(req);
+  const queuedAt = process.hrtime.bigint();
   const previous = wbsWriteQueues.get(queueKey) ?? Promise.resolve();
   let release!: () => void;
   const current = previous
@@ -45,6 +46,8 @@ export const wbsWriteQueueMiddleware: RequestHandler = (req, res, next) => {
   void previous
     .catch(() => undefined)
     .then(() => {
+      const queueWaitMs = Number(process.hrtime.bigint() - queuedAt) / 1_000_000;
+      res.setHeader('Server-Timing', `wbs-queue;dur=${queueWaitMs.toFixed(1)}`);
       let released = false;
       const done = () => {
         if (released) return;

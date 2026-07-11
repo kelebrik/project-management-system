@@ -4,6 +4,7 @@ import type {
   SetStateAction,
 } from "react";
 import { apiClient } from "../api/client";
+import { createChangedPatch } from "../app/changedPatch";
 import type {
   ProjectDetails,
   WbsCriticalPath,
@@ -142,7 +143,10 @@ export function useWbsRowActions({
       : payload;
   }
 
-  function wbsItemPatchPayload(payload: ReturnType<typeof wbsPayload>) {
+  function wbsItemPatchPayload(
+    payload: ReturnType<typeof wbsPayload>,
+    currentPayload?: ReturnType<typeof wbsPayload> | null,
+  ) {
     const {
       predecessor1Type,
       predecessor2Type,
@@ -152,7 +156,9 @@ export function useWbsRowActions({
       predecessor6Type,
       ...itemPayload
     } = payload;
-    return itemPayload;
+    if (!currentPayload) return itemPayload;
+
+    return createChangedPatch(itemPayload, currentPayload);
   }
 
   function isLatestWbsSave(itemId: string, saveSequence: number) {
@@ -216,6 +222,7 @@ export function useWbsRowActions({
             : inferWbsScheduleDriver(currentPayload, comparablePayload);
         const patch = wbsItemPatchPayload(
           wbsPayload(itemId, draft, { scheduleDriver }),
+          currentPayload,
         );
         const predecessorsChanged =
           WBS_PREDECESSOR_KEYS.some((key) => {
@@ -512,7 +519,7 @@ export function useWbsRowActions({
     try {
       const patchResult = await apiClient.patch<WbsSnapshotResponse>(
         `/api/wbs-items/${itemId}`,
-        wbsItemPatchPayload(nextPayload),
+        wbsItemPatchPayload(nextPayload, currentPayload),
         "Не удалось сохранить элемент Структуры",
         { "X-WBS-Project-ID": activeProject.id },
       );
