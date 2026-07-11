@@ -2,6 +2,8 @@ import { raidItemSchema, raidItemStatusUpdateSchema } from '@pms/shared';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
+import { currentUser } from '../server/auth.js';
+import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 
 export function createRisksRouter() {
@@ -30,6 +32,51 @@ function raidPayload(data: z.infer<typeof raidItemSchema>) {
     budgetImpact: data.budgetImpact,
   };
 }
+
+const raidAuditFields = [
+  'type',
+  'title',
+  'description',
+  'owner',
+  'status',
+  'probability',
+  'impact',
+  'riskScore',
+  'mitigationPlan',
+  'contingencyPlan',
+  'dueDate',
+  'residualRisk',
+  'validationDate',
+  'linkedRiskId',
+  'dependencyType',
+  'predecessor',
+  'successor',
+  'supplier',
+  'jiraTicketKey',
+  'jiraTicketUrl',
+  'decisionRequired',
+  'escalationLevel',
+  'scheduleImpactDays',
+  'budgetImpact',
+];
+
+const changeRequestAuditFields = [
+  'type',
+  'title',
+  'description',
+  'owner',
+  'status',
+  'impactAnalysis',
+  'affectedBaseline',
+  'implementationPlan',
+  'scheduleImpactDays',
+  'budgetImpact',
+  'scopeImpact',
+  'approvalRoute',
+  'decisionRequired',
+  'dueDate',
+  'approvedAt',
+];
 
 async function validateRaidItem(projectId: string, data: z.infer<typeof raidItemSchema>, itemId?: string) {
   const score = calculatedRiskScore(data.probability, data.impact);
@@ -86,6 +133,16 @@ router.post('/projects/:projectId/raid-items', async (req, res) => {
     },
   });
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'raid_item.create',
+    objectType: 'RaidItem',
+    objectId: raidItem.id,
+    projectId: project.id,
+    afterValue: raidItem,
+    changes: buildAuditFieldChanges({}, raidItem, raidAuditFields),
+  });
   await emitWebhookEvent({
     eventType: 'risk.created',
     projectId: project.id,
@@ -151,6 +208,18 @@ router.patch('/raid-items/:itemId', async (req, res) => {
     },
   });
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'raid_item.update',
+    objectType: 'RaidItem',
+    objectId: existing.id,
+    projectId: existing.projectId,
+    beforeValue: existing,
+    afterValue: updated,
+    metadata: { changedFields: Object.keys(parsed.data) },
+    changes: buildAuditFieldChanges(existing, updated, raidAuditFields),
+  });
   await emitWebhookEvent({
     eventType: 'risk.updated',
     projectId: existing.projectId,
@@ -186,6 +255,17 @@ router.post('/raid-items/:itemId/status-updates', async (req, res) => {
     },
   });
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'raid_item.status_update.create',
+    objectType: 'RaidItemStatusUpdate',
+    objectId: update.id,
+    projectId: existing.projectId,
+    afterValue: update,
+    metadata: { raidItemId: existing.id },
+    changes: buildAuditFieldChanges({}, update, ['statusAt', 'text']),
+  });
   await emitWebhookEvent({
     eventType: 'risk.status_updated',
     projectId: existing.projectId,
@@ -202,6 +282,15 @@ router.delete('/raid-items/:itemId', async (req, res) => {
   }
 
   await prisma.raidItem.delete({ where: { id: existing.id } });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'raid_item.delete',
+    objectType: 'RaidItem',
+    objectId: existing.id,
+    projectId: existing.projectId,
+    beforeValue: existing,
+  });
   await emitWebhookEvent({
     eventType: 'risk.deleted',
     projectId: existing.projectId,
@@ -258,6 +347,16 @@ router.post('/projects/:projectId/change-requests', async (req, res) => {
     },
   });
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'change_request.create',
+    objectType: 'ChangeRequest',
+    objectId: changeRequest.id,
+    projectId: project.id,
+    afterValue: changeRequest,
+    changes: buildAuditFieldChanges({}, changeRequest, changeRequestAuditFields),
+  });
   await emitWebhookEvent({
     eventType: 'change_request.created',
     projectId: project.id,
@@ -308,6 +407,18 @@ router.patch('/change-requests/:requestId', async (req, res) => {
     });
   }
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'change_request.update',
+    objectType: 'ChangeRequest',
+    objectId: existing.id,
+    projectId: existing.projectId,
+    beforeValue: existing,
+    afterValue: updated,
+    metadata: { changedFields: Object.keys(parsed.data) },
+    changes: buildAuditFieldChanges(existing, updated, changeRequestAuditFields),
+  });
   await emitWebhookEvent({
     eventType: 'change_request.updated',
     projectId: existing.projectId,
@@ -324,6 +435,15 @@ router.delete('/change-requests/:requestId', async (req, res) => {
   }
 
   await prisma.changeRequest.delete({ where: { id: existing.id } });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'change_request.delete',
+    objectType: 'ChangeRequest',
+    objectId: existing.id,
+    projectId: existing.projectId,
+    beforeValue: existing,
+  });
   await emitWebhookEvent({
     eventType: 'change_request.deleted',
     projectId: existing.projectId,

@@ -68,6 +68,39 @@ export type AuditEvent = {
   afterValue: unknown;
   metadata: unknown;
   createdAt: string;
+  changes?: AuditEventChange[];
+  wbsTombstone?: WbsTombstone | null;
+};
+
+export type AuditEventChange = {
+  id: string;
+  auditEventId: string;
+  actorId: string | null;
+  projectId: string | null;
+  objectType: string;
+  objectId: string | null;
+  field: string;
+  oldValue: unknown;
+  newValue: unknown;
+  oldText: string | null;
+  newText: string | null;
+  createdAt: string;
+};
+
+export type WbsTombstone = {
+  id: string;
+  projectId: string;
+  auditEventId: string | null;
+  deletedById: string | null;
+  restoredById: string | null;
+  itemIds: unknown;
+  itemCount: number;
+  items: unknown;
+  dependencies: unknown;
+  expiresAt: string;
+  restoredAt: string | null;
+  restoredRootId: string | null;
+  createdAt: string;
 };
 
 export type RolePermission = {

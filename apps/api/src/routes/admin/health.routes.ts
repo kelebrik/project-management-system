@@ -1,5 +1,6 @@
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
+import { pruneExpiredWbsTombstones } from '../../services/wbs-tombstones.js';
 import { adminBackupStatus, adminSystemHealth } from './system.js';
 import type { AdminRoutesContext } from './types.js';
 
@@ -7,10 +8,15 @@ export function registerAdminHealthRoutes(router: Router, context: AdminRoutesCo
   const { requireAdmin, startedAt } = context;
 
   router.get('/audit-events', requireAdmin, async (req, res) => {
+    await pruneExpiredWbsTombstones();
     const take = Math.min(200, Math.max(1, Number(req.query.limit ?? 100)));
     const events = await prisma.auditEvent.findMany({
       orderBy: { createdAt: 'desc' },
       take,
+      include: {
+        changes: { orderBy: { createdAt: 'asc' } },
+        wbsTombstone: true,
+      },
     });
     res.json(events);
   });

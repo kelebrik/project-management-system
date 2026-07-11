@@ -783,6 +783,30 @@ export function useAdminActionsController({
     ],
   );
 
+  const restoreWbsTombstone = useCallback(
+    async (tombstoneId: string) => {
+      setError(null);
+      setNotice(null);
+      try {
+        const result = await apiClient.post<{ restoredItemCount: number }>(
+          `/api/admin/wbs-tombstones/${tombstoneId}/restore`,
+          undefined,
+          "Не удалось восстановить элементы Структуры",
+        );
+        await reloadAuditEvents();
+        setNotice(`Элементы Структуры восстановлены: ${result.restoredItemCount}`);
+      } catch (restoreError) {
+        setError(
+          restoreError instanceof Error
+            ? restoreError.message
+            : "Не удалось восстановить элементы Структуры",
+        );
+        await reloadAuditEvents();
+      }
+    },
+    [reloadAuditEvents, setError, setNotice],
+  );
+
   const createApiToken = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -976,5 +1000,6 @@ export function useAdminActionsController({
     importAdminConfig,
     createUser,
     saveUser,
+    restoreWbsTombstone,
   };
 }

@@ -3,7 +3,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { fetchJiraIssuesWithMeta } from '../jira.js';
+import { currentUser } from '../server/auth.js';
 import { logEvent } from '../server/logger.js';
+import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   ensureDefaultJiraWorkSections,
   jiraWorkSectionFilterToJql,
@@ -42,6 +44,21 @@ function issueSeverityToRaidImpact(severity: string) {
   if (severity === 'MEDIUM') return 3;
   return 2;
 }
+
+const issueAuditFields = [
+  'source',
+  'title',
+  'severity',
+  'status',
+  'owner',
+  'impact',
+  'decisionRequired',
+  'dueDate',
+  'initialDueDate',
+  'closedDelayDays',
+  'jiraTicketKey',
+  'jiraTicketUrl',
+];
 
 const issueInclude = {
   jiraLinks: { orderBy: { createdAt: 'asc' as const } },
@@ -246,6 +263,16 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
     include: issueInclude,
   });
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'issue.create',
+    objectType: 'Issue',
+    objectId: issue.id,
+    projectId: project.id,
+    afterValue: issue,
+    changes: buildAuditFieldChanges({}, issue, issueAuditFields),
+  });
   await emitWebhookEvent({
     eventType: 'issue.created',
     projectId: project.id,
@@ -314,6 +341,18 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     include: issueInclude,
   });
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'issue.update',
+    objectType: 'Issue',
+    objectId: issue.id,
+    projectId: issue.projectId,
+    beforeValue: issue,
+    afterValue: updated,
+    metadata: { changedFields: Object.keys(parsed.data) },
+    changes: buildAuditFieldChanges(issue, updated, issueAuditFields),
+  });
   await emitWebhookEvent({
     eventType: 'issue.updated',
     projectId: issue.projectId,
@@ -401,6 +440,28 @@ router.post('/open-issues/:issueId/convert-to-problem', async (req, res) => {
     return { raidItem: createdRaidItem, updatedIssue: closedIssue };
   });
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'issue.convert_to_problem',
+    objectType: 'Issue',
+    objectId: issue.id,
+    projectId: issue.projectId,
+    beforeValue: issue,
+    afterValue: updatedIssue,
+    metadata: { raidItemId: raidItem.id },
+    changes: buildAuditFieldChanges(issue, updatedIssue, issueAuditFields),
+  });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'raid_item.create',
+    objectType: 'RaidItem',
+    objectId: raidItem.id,
+    projectId: issue.projectId,
+    afterValue: raidItem,
+    metadata: { convertedFromIssueId: issue.id },
+  });
   await emitWebhookEvent({
     eventType: 'issue.converted_to_problem',
     projectId: issue.projectId,
@@ -440,6 +501,17 @@ router.post('/open-issues/:issueId/status-updates', async (req, res) => {
     },
   });
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'issue.status_update.create',
+    objectType: 'IssueStatusUpdate',
+    objectId: statusUpdate.id,
+    projectId: issue.projectId,
+    afterValue: statusUpdate,
+    metadata: { issueId: issue.id },
+    changes: buildAuditFieldChanges({}, statusUpdate, ['statusAt', 'text']),
+  });
   await emitWebhookEvent({
     eventType: 'issue.status_updated',
     projectId: issue.projectId,
@@ -477,6 +549,14 @@ router.post('/open-issues/:issueId/jira-links', async (req, res) => {
     return;
   }
 
+  const previousLink = await prisma.issueJiraLink.findUnique({
+    where: {
+      issueId_jiraKey: {
+        issueId: issue.id,
+        jiraKey: parsed.data.jiraKey,
+      },
+    },
+  });
   const link = await prisma.issueJiraLink.upsert({
     where: {
       issueId_jiraKey: {
@@ -495,7 +575,7 @@ router.post('/open-issues/:issueId/jira-links', async (req, res) => {
   });
 
   if (!issue.jiraTicketKey || !issue.jiraTicketUrl) {
-    await prisma.issue.update({
+    const updatedIssue = await prisma.issue.update({
       where: { id: issue.id },
       data: {
         source: 'JIRA',
@@ -503,8 +583,36 @@ router.post('/open-issues/:issueId/jira-links', async (req, res) => {
         jiraTicketUrl: parsed.data.jiraUrl,
       },
     });
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'issue.update',
+      objectType: 'Issue',
+      objectId: issue.id,
+      projectId: issue.projectId,
+      beforeValue: issue,
+      afterValue: updatedIssue,
+      metadata: { changedFields: ['source', 'jiraTicketKey', 'jiraTicketUrl'] },
+      changes: buildAuditFieldChanges(issue, updatedIssue, [
+        'source',
+        'jiraTicketKey',
+        'jiraTicketUrl',
+      ]),
+    });
   }
 
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: previousLink ? 'issue.jira_link.update' : 'issue.jira_link.create',
+    objectType: 'IssueJiraLink',
+    objectId: link.id,
+    projectId: issue.projectId,
+    beforeValue: previousLink,
+    afterValue: link,
+    metadata: { issueId: issue.id },
+    changes: buildAuditFieldChanges(previousLink ?? {}, link, ['jiraKey', 'jiraUrl']),
+  });
   await emitWebhookEvent({
     eventType: 'issue.jira_link.updated',
     projectId: issue.projectId,
@@ -532,7 +640,10 @@ router.delete('/open-issues/:issueId/jira-links/:linkId', async (req, res) => {
     orderBy: { createdAt: 'asc' },
   });
 
-  await prisma.issue.update({
+  const beforeIssue = await prisma.issue.findUnique({
+    where: { id: req.params.issueId },
+  });
+  const updatedIssue = await prisma.issue.update({
     where: { id: req.params.issueId },
     data: {
       source: remainingLinks.length > 0 ? 'JIRA' : 'INTERNAL',
@@ -545,6 +656,34 @@ router.delete('/open-issues/:issueId/jira-links/:linkId', async (req, res) => {
     where: { id: req.params.issueId },
     select: { projectId: true },
   });
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'issue.jira_link.delete',
+    objectType: 'IssueJiraLink',
+    objectId: link.id,
+    projectId: issue?.projectId ?? null,
+    beforeValue: link,
+    metadata: { issueId: req.params.issueId },
+  });
+  if (beforeIssue) {
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'issue.update',
+      objectType: 'Issue',
+      objectId: beforeIssue.id,
+      projectId: beforeIssue.projectId,
+      beforeValue: beforeIssue,
+      afterValue: updatedIssue,
+      metadata: { changedFields: ['source', 'jiraTicketKey', 'jiraTicketUrl'] },
+      changes: buildAuditFieldChanges(beforeIssue, updatedIssue, [
+        'source',
+        'jiraTicketKey',
+        'jiraTicketUrl',
+      ]),
+    });
+  }
   await emitWebhookEvent({
     eventType: 'issue.jira_link.deleted',
     projectId: issue?.projectId ?? null,
