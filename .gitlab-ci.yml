@@ -225,46 +225,9 @@ container-security:
   variables:
     <<: *deploy_tuz_vault
     PYTHONUNBUFFERED: "1"
-    SBER_CA_BUNDLE: "/tmp/pms-sber-ca/${CI_PROJECT_ID}/ca-bundle.crt"
-    VAULT_CA_PATH: "/tmp/pms-sber-ca/${CI_PROJECT_ID}/ca-bundle.crt"
     GIT_STRATEGY: none
-  hooks:
-    pre_get_sources_script:
-      - |
-        set -eu
-        cert_dir="$(dirname "${SBER_CA_BUNDLE}")"
-        mkdir -p "${cert_dir}"
-        : > "${SBER_CA_BUNDLE}"
-        download_cert() {
-          cert_name="$1"
-          cert_path="${cert_dir}/${cert_name}"
-          cert_url="https://cdp.sberdevices.ru/pki/${cert_name}"
-          if command -v curl >/dev/null 2>&1; then
-            curl --fail --show-error --location --insecure "${cert_url}" -o "${cert_path}"
-          elif command -v wget >/dev/null 2>&1; then
-            wget --no-check-certificate -qO "${cert_path}" "${cert_url}"
-          else
-            echo "curl or wget is required to download Sber CA certificates" >&2
-            exit 1
-          fi
-          if ! grep -q "BEGIN CERTIFICATE" "${cert_path}"; then
-            echo "Downloaded file is not a PEM certificate: ${cert_url}" >&2
-            exit 1
-          fi
-          cat "${cert_path}" >> "${SBER_CA_BUNDLE}"
-          printf '\n' >> "${SBER_CA_BUNDLE}"
-        }
-        for cert in rootca_ssl_rsa2022.crt subca_ssl_rsa2024.crt mincifra_rootca.crt mincifra_subca.crt SberDevices_RCA.crt SberDevices_ICA.crt; do
-          download_cert "${cert}"
-        done
-        chmod 0644 "${SBER_CA_BUNDLE}" "${cert_dir}"/*.crt
-        echo "Hydra CA bundle contains $(grep -c "BEGIN CERTIFICATE" "${SBER_CA_BUNDLE}") certificates"
   script:
     - |
-      if [ -z "${USERNAME:-}" ] || [ -z "${PASSWORD:-}" ]; then
-        echo "Hydra did not inject AWX credentials from ${VAULT_SECRET_PATH}" >&2
-        exit 1
-      fi
       awx job_templates launch 378 \
         --conf.host "https://awx.rnd.dev.sberdevices.ru" \
         --conf.insecure \
