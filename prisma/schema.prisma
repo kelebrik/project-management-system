@@ -174,6 +174,7 @@ model Project {
   targetDateChanges ProjectTargetDateChange[]
   wbsCommands      WbsCommand[]
   wbsBaselines     WbsBaseline[]
+  wbsTombstones    WbsTombstone[]
   savedViews       SavedView[]
   projectAccesses  ProjectAccess[]
   businessRequirements ProjectBusinessRequirements?
@@ -213,6 +214,8 @@ model User {
   wbsBaselines WbsBaseline[]
   auditEvents  AuditEvent[]
   auditEventChanges AuditEventChange[]
+  wbsTombstonesDeleted WbsTombstone[] @relation("WbsTombstoneDeletedBy")
+  wbsTombstonesRestored WbsTombstone[] @relation("WbsTombstoneRestoredBy")
   savedViews   SavedView[]
   apiTokensCreated ApiToken[] @relation("ApiTokenCreatedBy")
   webhookEndpointsCreated WebhookEndpoint[] @relation("WebhookEndpointCreatedBy")
@@ -812,6 +815,7 @@ model AuditEvent {
   createdAt   DateTime @default(now())
   actor       User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
   changes     AuditEventChange[]
+  wbsTombstone WbsTombstone?
 
   @@index([createdAt])
   @@index([actorId, createdAt])
@@ -841,4 +845,30 @@ model AuditEventChange {
   @@index([objectType, objectId, createdAt])
   @@index([field, createdAt])
   @@index([actorId, createdAt])
+}
+
+model WbsTombstone {
+  id             String      @id @default(cuid())
+  projectId      String
+  auditEventId   String?     @unique
+  deletedById    String?
+  restoredById   String?
+  itemIds        Json
+  itemCount      Int
+  items          Json
+  dependencies   Json?
+  expiresAt      DateTime
+  restoredAt     DateTime?
+  restoredRootId String?
+  createdAt      DateTime    @default(now())
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  auditEvent     AuditEvent? @relation(fields: [auditEventId], references: [id], onDelete: SetNull)
+  deletedBy      User?       @relation("WbsTombstoneDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  restoredBy     User?       @relation("WbsTombstoneRestoredBy", fields: [restoredById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([expiresAt])
+  @@index([restoredAt])
+  @@index([deletedById, createdAt])
+  @@index([restoredById, restoredAt])
 }

@@ -65,6 +65,7 @@ export function auditActionLabel(action: string) {
     "wbs_item.create": "Создание элемента Структуры",
     "wbs_item.update": "Изменение элемента Структуры",
     "wbs_item.delete": "Удаление элемента Структуры",
+    "wbs_item.restore": "Восстановление элемента Структуры",
     "overview.generate": "Генерация обзора",
     "overview.status": "Статус обзора",
     "overview.publish": "Публикация обзора",
@@ -86,6 +87,7 @@ export function auditObjectLabel(event: AuditEventLike) {
   if (event.objectType === "RaidItemStatusUpdate") return "Комментарий RAID";
   if (event.objectType === "ChangeRequest") return "Запрос на изменение";
   if (event.objectType === "WbsItem") return "Элемент Структуры";
+  if (event.objectType === "WbsTombstone") return "Удаленный элемент Структуры";
   if (event.objectType === "User") return "Пользователь";
   if (event.objectType === "RolePermission") return "Право роли";
   if (event.objectType === "DictionaryItem") return "Справочник";

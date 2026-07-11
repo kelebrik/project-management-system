@@ -6,6 +6,7 @@ import { registerProjectAccessRoutes } from './admin/project-access.routes.js';
 import { registerProjectModuleRoutes } from './admin/project-modules.js';
 import type { AdminRoutesContext } from './admin/types.js';
 import { registerAdminUserRoutes } from './admin/users.routes.js';
+import { registerAdminWbsTombstoneRoutes } from './admin/wbs-tombstones.routes.js';
 
 export function createAdminRouter(context: AdminRoutesContext) {
   const router = Router();
@@ -16,6 +17,7 @@ export function createAdminRouter(context: AdminRoutesContext) {
   registerAdminIntegrationRoutes(router, context);
   registerAdminUserRoutes(router, context);
   registerProjectAccessRoutes(router, context);
+  registerAdminWbsTombstoneRoutes(router, context);
 
   return router;
 }

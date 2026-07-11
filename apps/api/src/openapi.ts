@@ -910,6 +910,25 @@ export const openApiDocument = {
     "/api/admin/backup-status": {
       get: securedOperation(["Admin"], "Backup and restore status for Admin Back Office"),
     },
+    "/api/admin/wbs-tombstones/{tombstoneId}/restore": {
+      post: {
+        ...securedOperation(
+          ["Admin", "Audit", "WBS"],
+          "Restore deleted WBS items from a 30-day tombstone",
+          [pathParam("tombstoneId")],
+          "WBS items restored into a new phase",
+        ),
+        responses: {
+          "200": { description: "WBS items restored into a new phase" },
+          "400": { description: "Tombstone payload cannot be restored" },
+          "401": { description: "Authentication required" },
+          "403": { description: "Admin role required" },
+          "404": { description: "Tombstone not found" },
+          "409": { description: "Tombstone already restored" },
+          "410": { description: "Tombstone retention period expired" },
+        },
+      },
+    },
     "/api/admin/config/export": {
       get: securedOperation(["Admin"], "Export admin configuration"),
     },

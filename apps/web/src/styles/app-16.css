@@ -568,6 +568,17 @@ html {
     padding: 0 0 10px;
   }
 
+  .audit-tombstone {
+    align-items: stretch;
+    flex-direction: column;
+    min-width: 0;
+    padding: 0 0 10px;
+  }
+
+  .audit-tombstone span {
+    white-space: normal;
+  }
+
   .audit-change {
     align-items: stretch;
     gap: 4px;

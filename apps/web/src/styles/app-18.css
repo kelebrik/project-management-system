@@ -426,6 +426,32 @@
   text-align: center;
 }
 
+.audit-tombstone {
+  align-items: center;
+  color: #475569;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 1040px;
+  padding: 0 12px 12px 184px;
+}
+
+.audit-tombstone span {
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-tombstone button {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+  min-height: 32px;
+  padding: 6px 12px;
+}
+
 .checkbox-field {
   align-items: center;
   grid-template-columns: 1fr auto;

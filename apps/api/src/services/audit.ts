@@ -97,7 +97,7 @@ export async function recordAuditEvent(input: {
   metadata?: unknown;
   changes?: AuditFieldChangeInput[];
 }) {
-  await prisma.auditEvent
+  return prisma.auditEvent
     .create({
       data: {
         actorId: input.actor?.id ?? null,
@@ -140,5 +140,6 @@ export async function recordAuditEvent(input: {
     })
     .catch((error) => {
       console.error("Не удалось записать audit event", error);
+      return null;
     });
 }

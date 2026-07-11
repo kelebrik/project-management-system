@@ -4,6 +4,10 @@ import { prisma } from '../../db.js';
 import { currentUser } from '../../server/auth.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../../services/audit.js';
 import {
+  attachAuditEventToWbsTombstone,
+  createWbsTombstone,
+} from '../../services/wbs-tombstones.js';
+import {
   getProjectWbsSnapshot,
   recalculateProjectWbsHierarchyStatuses,
   renumberProjectWbs,
@@ -197,6 +201,26 @@ export function registerWbsItemRoutes(router: Router) {
       return;
     }
 
+    const actor = currentUser(req);
+    const deletedFullItems = itemIds
+      .map((itemId) => itemsById.get(itemId))
+      .filter((item) => item !== undefined);
+    const deletedDependencies = await prisma.wbsDependency.findMany({
+      where: {
+        OR: [
+          { predecessorId: { in: itemIds } },
+          { successorId: { in: itemIds } },
+        ],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const tombstone = await createWbsTombstone({
+      projectId: req.params.projectId,
+      deletedById: actor?.id ?? null,
+      items: deletedFullItems,
+      dependencies: deletedDependencies,
+    });
+
     const deletedIdSet = new Set(itemIds);
     const levelUpdates = new Map<string, number>();
     const parentUpdates = new Map<string, string | null>();
@@ -264,9 +288,9 @@ export function registerWbsItemRoutes(router: Router) {
       beforeSnapshot: deletedItems,
       afterSnapshot: snapshot,
     });
-    await recordAuditEvent({
+    const auditEvent = await recordAuditEvent({
       req,
-      actor: currentUser(req),
+      actor,
       action: 'wbs_item.delete',
       objectType: 'WbsItem',
       projectId: req.params.projectId,
@@ -275,8 +299,13 @@ export function registerWbsItemRoutes(router: Router) {
         action: 'bulk-delete',
         itemIds,
         deletedCount: deletedItems.length,
+        tombstoneId: tombstone.id,
+        tombstoneExpiresAt: tombstone.expiresAt,
       },
     });
+    if (auditEvent) {
+      await attachAuditEventToWbsTombstone(tombstone.id, auditEvent.id);
+    }
 
     res.json({
       deletedCount: itemIds.length,
@@ -457,6 +486,20 @@ export function registerWbsItemRoutes(router: Router) {
       return;
     }
 
+    const actor = currentUser(req);
+    const deletedDependencies = await prisma.wbsDependency.findMany({
+      where: {
+        OR: [{ predecessorId: existing.id }, { successorId: existing.id }],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const tombstone = await createWbsTombstone({
+      projectId: existing.projectId,
+      deletedById: actor?.id ?? null,
+      items: [existing],
+      dependencies: deletedDependencies,
+    });
+
     const descendantUpdates = await collectDescendantLevelUpdates(existing);
     await prisma.$transaction(async (tx) => {
       await tx.wbsItem.updateMany({
@@ -493,15 +536,22 @@ export function registerWbsItemRoutes(router: Router) {
       beforeSnapshot: existing,
       afterSnapshot: snapshot,
     });
-    await recordAuditEvent({
+    const auditEvent = await recordAuditEvent({
       req,
-      actor: currentUser(req),
+      actor,
       action: 'wbs_item.delete',
       objectType: 'WbsItem',
       objectId: existing.id,
       projectId: existing.projectId,
       beforeValue: existing,
+      metadata: {
+        tombstoneId: tombstone.id,
+        tombstoneExpiresAt: tombstone.expiresAt,
+      },
     });
+    if (auditEvent) {
+      await attachAuditEventToWbsTombstone(tombstone.id, auditEvent.id);
+    }
 
     res.json(snapshot);
   });

@@ -5,6 +5,15 @@ function auditChangeText(value: string | null | undefined) {
   return value.length > 120 ? `${value.slice(0, 117)}...` : value;
 }
 
+function canRestoreTombstone(event: { wbsTombstone?: { restoredAt: string | null; expiresAt: string } | null }) {
+  const tombstone = event.wbsTombstone;
+  return Boolean(
+    tombstone &&
+      !tombstone.restoredAt &&
+      new Date(tombstone.expiresAt).getTime() > Date.now(),
+  );
+}
+
 export function AdminAuditPageContent() {
   const ctx = usePageContext();
   const {
@@ -14,6 +23,7 @@ export function AdminAuditPageContent() {
     auditObjectLabel,
     dateTime,
     reloadAuditEvents,
+    restoreWbsTombstone,
   } = ctx;
 
   return (
@@ -59,6 +69,23 @@ export function AdminAuditPageContent() {
                                   <em>{auditChangeText(change.newText)}</em>
                                 </span>
                               ))}
+                            </div>
+                          )}
+                          {event.wbsTombstone && (
+                            <div className="audit-tombstone">
+                              <span>
+                                {event.wbsTombstone.restoredAt
+                                  ? `Восстановлено: ${dateTime(event.wbsTombstone.restoredAt)}`
+                                  : `Удалено элементов: ${event.wbsTombstone.itemCount}; хранится до ${dateTime(event.wbsTombstone.expiresAt)}`}
+                              </span>
+                              {canRestoreTombstone(event) && (
+                                <button
+                                  type="button"
+                                  onClick={() => void restoreWbsTombstone(event.wbsTombstone!.id)}
+                                >
+                                  Восстановить
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
