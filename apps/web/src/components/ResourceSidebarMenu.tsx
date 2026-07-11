@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BarChart3, LayoutDashboard, Settings2, Users } from "lucide-react";
+import { BarChart3, CircleHelp, LayoutDashboard, Settings2, Users } from "lucide-react";
 
 import type { AppView } from "../app/routes";
 
@@ -27,6 +27,11 @@ const developmentNavItems: ResourceNavItem[] = [
     view: "project-pm-workspace",
     label: "Рабочий стол PM",
     icon: <LayoutDashboard size={17} />,
+  },
+  {
+    view: "decision-queue",
+    label: "Очередь решений",
+    icon: <CircleHelp size={17} />,
   },
 ];
 
@@ -61,7 +66,7 @@ export function ResourceSidebarMenu({
             {navLabel(item.icon, item.label)}
           </button>
         ))}
-        {activeView === "project-pm-workspace" && projectPicker}
+        {(activeView === "project-pm-workspace" || activeView === "decision-queue") && projectPicker}
         <button
           type="button"
           className={isResourceSectionView ? "active nested child" : "nested child"}

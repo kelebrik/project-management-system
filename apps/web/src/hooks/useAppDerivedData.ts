@@ -78,6 +78,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     dictionaryItems,
     ganttPanelHeight,
     ganttPanelWidth,
+    ganttRangeDays,
     ganttScale,
     ganttWbsWidth,
     hoveredGanttItemId,
@@ -103,6 +104,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     setError,
     setGanttPanelHeight,
     setGanttPanelWidth,
+    setGanttRangeDays,
     setGanttScale,
     setGanttWbsWidth,
     setNotice,
@@ -344,6 +346,8 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
       setShowStructureCriticalPath,
       ganttScale,
       setGanttScale,
+      ganttRangeDays,
+      setGanttRangeDays,
       showGanttDependencies,
       setShowGanttDependencies,
       showGanttCriticalPath,
@@ -453,8 +457,9 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
         visibleWbsTree,
         criticalPath: project?.criticalPath,
         wbsDependencies: project?.wbsDependencies ?? [],
+        rangeDays: ganttRangeDays,
       }),
-    [project?.criticalPath, project?.wbsDependencies, visibleWbsTree],
+    [ganttRangeDays, project?.criticalPath, project?.wbsDependencies, visibleWbsTree],
   );
   const wbsColumnsByKey = useMemo(
     () =>

@@ -33,6 +33,7 @@ export function useWbsWorkspaceState() {
   const [showStructureCriticalPath, setShowStructureCriticalPath] =
     useState(false);
   const [ganttScale, setGanttScale] = useState<GanttScale>("month");
+  const [ganttRangeDays, setGanttRangeDays] = useState<30 | 90 | 180 | null>(90);
   const [showWbsColumnMenu, setShowWbsColumnMenu] = useState(false);
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
   const [ganttPanelHeight, setGanttPanelHeight] = useState(
@@ -95,6 +96,8 @@ export function useWbsWorkspaceState() {
     setShowStructureCriticalPath,
     ganttScale,
     setGanttScale,
+    ganttRangeDays,
+    setGanttRangeDays,
     showWbsColumnMenu,
     setShowWbsColumnMenu,
     ganttWbsWidth,

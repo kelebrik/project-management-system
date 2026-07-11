@@ -38,6 +38,8 @@ type UseSavedViewsControllerOptions = {
   setShowStructureCriticalPath: Dispatch<SetStateAction<boolean>>;
   ganttScale: GanttScale;
   setGanttScale: Dispatch<SetStateAction<GanttScale>>;
+  ganttRangeDays: 30 | 90 | 180 | null;
+  setGanttRangeDays: Dispatch<SetStateAction<30 | 90 | 180 | null>>;
   showGanttDependencies: boolean;
   setShowGanttDependencies: Dispatch<SetStateAction<boolean>>;
   showGanttCriticalPath: boolean;
@@ -103,6 +105,8 @@ export function useSavedViewsController({
   setShowStructureCriticalPath,
   ganttScale,
   setGanttScale,
+  ganttRangeDays,
+  setGanttRangeDays,
   showGanttDependencies,
   setShowGanttDependencies,
   showGanttCriticalPath,
@@ -168,6 +172,7 @@ export function useSavedViewsController({
     if (activeView === "project-gantt") {
       return {
         ganttScale,
+        ganttRangeDays,
         activeWbsHierarchyLevel,
         showGanttDependencies,
         showGanttCriticalPath,
@@ -193,6 +198,7 @@ export function useSavedViewsController({
     ganttPanelHeight,
     ganttPanelWidth,
     ganttScale,
+    ganttRangeDays,
     ganttWbsWidth,
     raidDecisionOnly,
     raidHighOnly,
@@ -245,6 +251,14 @@ export function useSavedViewsController({
       ) {
         setGanttScale(config.ganttScale);
       }
+      if (
+        config.ganttRangeDays === null ||
+        config.ganttRangeDays === 30 ||
+        config.ganttRangeDays === 90 ||
+        config.ganttRangeDays === 180
+      ) {
+        setGanttRangeDays(config.ganttRangeDays as 30 | 90 | 180 | null);
+      }
       if (typeof config.showGanttDependencies === "boolean") {
         setShowGanttDependencies(config.showGanttDependencies);
       }
@@ -284,6 +298,7 @@ export function useSavedViewsController({
     [
       setGanttPanelHeight,
       setGanttPanelWidth,
+      setGanttRangeDays,
       setGanttScale,
       setGanttWbsWidth,
       setNotice,

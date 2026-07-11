@@ -9,11 +9,13 @@ export function ProjectGanttSection() {
     fullscreenWorkspaceView,
     GANTT_HIERARCHY_LEVELS,
     ganttScale,
+    ganttRangeDays,
     project,
     redoWbsChange,
     resetGanttPanelSize,
     restoringWbsSnapshot,
     setGanttScale,
+    setGanttRangeDays,
     setShowGanttBaseline,
     setShowGanttForecast,
     setWbsHierarchyLevel,
@@ -104,6 +106,25 @@ export function ProjectGanttSection() {
                                   onClick={() => setGanttScale("quarter")}
                                 >
                                   Кварталы
+                                </button>
+                              </div>
+                              <div className="segmented-control" aria-label="Диапазон Гантта">
+                                {([30, 90, 180] as const).map((days) => (
+                                  <button
+                                    type="button"
+                                    className={ganttRangeDays === days ? "active" : ""}
+                                    key={days}
+                                    onClick={() => setGanttRangeDays(days)}
+                                  >
+                                    {days} дн.
+                                  </button>
+                                ))}
+                                <button
+                                  type="button"
+                                  className={ganttRangeDays === null ? "active" : ""}
+                                  onClick={() => setGanttRangeDays(null)}
+                                >
+                                  Все
                                 </button>
                               </div>
                               <button

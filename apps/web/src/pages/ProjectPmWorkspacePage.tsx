@@ -1,11 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { signedDaysUntil } from "../app/dateUtils";
 import type { Issue, RaidItem, WbsItem } from "../app/domainTypes";
 import { wbsToForm, type WbsFormState } from "../app/formState";
 import { createWorkSummaryData } from "../app/workSummaryModel";
 import { usePageContext } from "./PageContext";
+import { SegmentedFilter } from "../components/SegmentedFilter";
 
 const DAY_MS = 86_400_000;
+type TaskFilter = "all" | "week" | "owner" | "critical" | "overdue";
 
 function openIssue(issue: Issue) {
   return issue.status !== "Closed" && issue.status !== "Resolved";
@@ -87,6 +89,7 @@ export function ProjectPmWorkspacePage() {
     () => (wbsDrafts ?? {}) as Record<string, WbsFormState>,
     [wbsDrafts],
   );
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>("week");
   const workSummary = useMemo(
     () => createWorkSummaryData(project.wbsItems as WbsItem[], draftMap),
     [draftMap, project.wbsItems],
@@ -102,12 +105,23 @@ export function ProjectPmWorkspacePage() {
   const delayedTasks = overviewDashboard.scheduleDelayItems.map(
     ({ item }: { item: WbsItem }) => item,
   );
-  const workspaceTasks = uniqueWbsItems([
+  const workspaceTaskSource = uniqueWbsItems([
     ...delayedTasks,
     ...(overviewDashboard.overdueItems as WbsItem[]),
     ...workSummary.currentTasks,
     ...workSummary.tasksStartingNextWeek,
-  ]).slice(0, 7);
+  ]);
+  const criticalIds = new Set(project.criticalPath?.criticalItemIds ?? []);
+  const workspaceTasks = workspaceTaskSource
+    .filter((item) => {
+      const days = signedDaysUntil(item.dueDate);
+      if (taskFilter === "owner") return item.owner === project.projectManager;
+      if (taskFilter === "critical") return criticalIds.has(item.id);
+      if (taskFilter === "overdue") return days !== null && days < 0;
+      if (taskFilter === "week") return days !== null && days >= -7 && days <= 7;
+      return true;
+    })
+    .slice(0, 7);
   const selectedRaid = redRaid[0] ?? (project.raidItems as RaidItem[]).find(activeRaid) ?? null;
   const selectedIssue = openDecisions[0] ?? null;
   const rangeStart = addDays(new Date(), -14);
@@ -176,10 +190,17 @@ export function ProjectPmWorkspacePage() {
             </div>
           </div>
           <div className="pm-toolbar">
-            <button type="button" className="active">Сейчас</button>
-            <button type="button">Неделя</button>
-            <button type="button">Критический</button>
-            <button type="button">Колонки</button>
+            <SegmentedFilter<TaskFilter>
+              ariaLabel="Фильтр задач рабочего стола"
+              value={taskFilter}
+              onChange={setTaskFilter}
+              options={[
+                { value: "all", label: "Все" },
+                { value: "week", label: "Неделя" },
+                { value: "critical", label: "Критический" },
+                { value: "overdue", label: "Просрочено" },
+              ]}
+            />
           </div>
           <div className="pm-wbs-table">
             <div className="pm-wbs-head">

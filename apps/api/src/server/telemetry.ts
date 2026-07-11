@@ -11,6 +11,7 @@ const requestMetrics = {
   total: 0,
   errors: 0,
   byRoute: new Map<string, number>(),
+  durationsByRoute: new Map<string, number[]>(),
 };
 const rateLimitBuckets = new Map<string, { windowStart: number; count: number }>();
 
@@ -46,6 +47,10 @@ export function httpMetricsMiddleware(req: Request, res: Response, next: NextFun
     requestMetrics.total += 1;
     if (res.statusCode >= 500) requestMetrics.errors += 1;
     requestMetrics.byRoute.set(route, (requestMetrics.byRoute.get(route) ?? 0) + 1);
+    const durations = requestMetrics.durationsByRoute.get(route) ?? [];
+    durations.push(durationMs);
+    if (durations.length > 200) durations.shift();
+    requestMetrics.durationsByRoute.set(route, durations);
     logEvent(res.statusCode >= 500 ? 'error' : 'info', 'http.request', {
       method: req.method,
       path: route,
@@ -106,6 +111,18 @@ export function metricsHandler(req: Request, res: Response) {
   const routeMetrics = [...requestMetrics.byRoute.entries()]
     .map(([route, count]) => `pms_http_requests_by_route_total{route="${route.replaceAll('"', '\\"')}"} ${count}`)
     .join('\n');
+  const routeDurationMetrics = [...requestMetrics.durationsByRoute.entries()]
+    .flatMap(([route, durations]) => {
+      const escapedRoute = route.replaceAll('"', '\\"');
+      const sorted = [...durations].sort((left, right) => left - right);
+      const average = durations.reduce((sum, value) => sum + value, 0) / durations.length;
+      const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] ?? 0;
+      return [
+        `pms_http_request_duration_ms{route="${escapedRoute}",stat="avg"} ${average.toFixed(2)}`,
+        `pms_http_request_duration_ms{route="${escapedRoute}",stat="p95"} ${p95.toFixed(2)}`,
+      ];
+    })
+    .join('\n');
   res.type('text/plain').send(
     [
       '# HELP pms_uptime_seconds Application uptime in seconds',
@@ -123,6 +140,9 @@ export function metricsHandler(req: Request, res: Response) {
       '# HELP pms_http_requests_by_route_total Total API requests by normalized route',
       '# TYPE pms_http_requests_by_route_total counter',
       routeMetrics,
+      '# HELP pms_http_request_duration_ms Recent API request duration by normalized route',
+      '# TYPE pms_http_request_duration_ms gauge',
+      routeDurationMetrics,
       '',
     ].join('\n'),
   );
