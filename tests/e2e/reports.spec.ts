@@ -83,6 +83,11 @@ test("report builder creates and filters a project status report", async ({ page
       baselineDueDate: isoDay(1),
       forecastDueDate: isoDay(3),
     }),
+    wbsItem("old-active", "BLOCKED", {
+      parentId: "package",
+      startDate: isoDay(-120),
+      dueDate: isoDay(-100),
+    }),
     wbsItem("next", "NOT_STARTED", {
       parentId: "package",
       startDate: isoDay(4),
@@ -208,6 +213,7 @@ test("report builder creates and filters a project status report", async ({ page
   await expect(page.getByRole("heading", { name: "Что предстоит сделать" })).toBeVisible();
   await expect(page.getByText("Задача done")).toBeVisible();
   await expect(page.getByText("Задача active")).toBeVisible();
+  await expect(page.getByText("Задача old-active")).toHaveCount(0);
   await expect(page.getByText("Задача next")).toBeVisible();
   await expect(page.getByText("Пакет работ").first()).toBeVisible();
   await expect(page.getByText("Дата начала").first()).toBeVisible();

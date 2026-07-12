@@ -86,6 +86,11 @@ test("report groups completed, active and upcoming WBS items", () => {
       task("old", { status: "DONE", closedAt: "2026-06-01" }),
       task("done-without-close-date", { status: "DONE", dueDate: "2026-07-08" }),
       task("active", { status: "IN_PROGRESS", dueDate: "2026-07-20" }),
+      task("old-active", {
+        status: "BLOCKED",
+        startDate: "2026-02-23",
+        dueDate: "2026-03-27",
+      }),
       task("structural", { type: "WORK_PACKAGE", status: "IN_PROGRESS" }),
       task("next", { status: "NOT_STARTED", startDate: "2026-07-15" }),
       task("later", { status: "NOT_STARTED", startDate: "2026-08-15" }),
