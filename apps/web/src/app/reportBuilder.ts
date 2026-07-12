@@ -54,6 +54,15 @@ function taskDate(item: WbsItem, preference: "start" | "due") {
   return item.forecastDueDate ?? item.dueDate;
 }
 
+function taskOverlapsPeriod(item: WbsItem, periodStart: Date, periodEnd: Date) {
+  const taskStart = parseDate(taskDate(item, "start"));
+  const taskEnd = parseDate(taskDate(item, "due"));
+  if (!taskStart && !taskEnd) return true;
+  if (taskStart && taskStart > periodEnd) return false;
+  if (taskEnd && taskEnd < periodStart) return false;
+  return true;
+}
+
 function workPackageFor(item: WbsItem, itemsById: Map<string, WbsItem>) {
   let current: WbsItem | undefined = item;
   const visited = new Set<string>();
@@ -130,7 +139,11 @@ export function createProjectReport(
     .map((item) => toReportTask(item, itemsById))
     .sort(byDueDate);
   const inProgress = tasks
-    .filter((item) => ACTIVE_WBS_STATUSES.has(item.status))
+    .filter(
+      (item) =>
+        ACTIVE_WBS_STATUSES.has(item.status) &&
+        taskOverlapsPeriod(item, pastStart, generatedAt),
+    )
     .map((item) => toReportTask(item, itemsById))
     .sort(byDueDate);
   const upcoming = tasks
