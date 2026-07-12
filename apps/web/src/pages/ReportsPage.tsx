@@ -7,7 +7,6 @@ import { printSectionAsPdf } from "../app/pdfPrint";
 import {
   createProjectReport,
   projectReportText,
-  scheduleDeltaLabel,
   type ReportOptions,
   type ReportPeriodDays,
   type ReportTask,
@@ -29,10 +28,9 @@ function ReportTaskList({ items }: { items: ReportTask[] }) {
     <div className="report-item-list">
       <div className="report-item report-item-head">
         <span>Пакет работ</span>
-        <span>Работа</span>
+        <span>Задача</span>
         <span>Дата начала</span>
         <span>Дата завершения</span>
-        <span>Отклонение</span>
         <span>Исполнитель</span>
       </div>
       {items.map((item) => (
@@ -47,17 +45,6 @@ function ReportTaskList({ items }: { items: ReportTask[] }) {
           </div>
           <time>{date(item.reportStartDate)}</time>
           <time>{date(item.reportEndDate)}</time>
-          <em className={
-            item.scheduleDeltaDays === null
-              ? "neutral"
-              : item.scheduleDeltaDays > 0
-                ? "late"
-                : item.scheduleDeltaDays < 0
-                  ? "early"
-                  : "on-time"
-          }>
-            {scheduleDeltaLabel(item.scheduleDeltaDays)}
-          </em>
           <span className="report-owner">{item.owner || "Не задан"}</span>
         </div>
       ))}

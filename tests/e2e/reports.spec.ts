@@ -23,7 +23,7 @@ function wbsItem(
     id,
     parentId: dates.parentId ?? null,
     code: `1.${id}`,
-    title: `Работа ${id}`,
+    title: `Задача ${id}`,
     type: "TASK",
     status,
     owner: "Руководитель проекта",
@@ -206,16 +206,14 @@ test("report builder creates and filters a project status report", async ({ page
   await expect(page.getByRole("heading", { name: "Что сделано" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Что в работе" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Что предстоит сделать" })).toBeVisible();
-  await expect(page.getByText("Работа done")).toBeVisible();
-  await expect(page.getByText("Работа active")).toBeVisible();
-  await expect(page.getByText("Работа next")).toBeVisible();
+  await expect(page.getByText("Задача done")).toBeVisible();
+  await expect(page.getByText("Задача active")).toBeVisible();
+  await expect(page.getByText("Задача next")).toBeVisible();
   await expect(page.getByText("Пакет работ").first()).toBeVisible();
   await expect(page.getByText("Дата начала").first()).toBeVisible();
   await expect(page.getByText("Дата завершения").first()).toBeVisible();
-  await expect(page.getByText("Отклонение").first()).toBeVisible();
   await expect(page.getByText("Исполнитель").first()).toBeVisible();
   await expect(page.getByText("Пакет интеграции").first()).toBeVisible();
-  await expect(page.getByText("Отставание +2 дн.")).toBeVisible();
   await expect(page.getByText("Риск поставки")).toBeVisible();
 
   await page.getByRole("button", { name: "Месяц" }).click();
