@@ -125,3 +125,37 @@ test("report options exclude optional sections", () => {
   assert.deepEqual(report.problems, []);
   assert.deepEqual(report.issues, []);
 });
+
+test("report resolves work package and schedule deviation", () => {
+  const project = {
+    wbsItems: [
+      task("package", {
+        code: "2.1",
+        title: "Поставка оборудования",
+        type: "WORK_PACKAGE",
+      }),
+      task("delivery", {
+        parentId: "package",
+        status: "IN_PROGRESS",
+        startDate: "2026-07-01",
+        baselineDueDate: "2026-07-15",
+        forecastDueDate: "2026-07-20",
+      }),
+    ],
+    raidItems: [],
+    issues: [],
+  } as unknown as ProjectDetails;
+
+  const report = createProjectReport(
+    project,
+    7,
+    { risks: false, problems: false, issues: false },
+    new Date("2026-07-11T12:00:00"),
+  );
+
+  assert.equal(report.inProgress[0].workPackage?.code, "2.1");
+  assert.equal(report.inProgress[0].workPackage?.title, "Поставка оборудования");
+  assert.equal(report.inProgress[0].reportStartDate, "2026-07-01");
+  assert.equal(report.inProgress[0].reportEndDate, "2026-07-20");
+  assert.equal(report.inProgress[0].scheduleDeltaDays, 5);
+});

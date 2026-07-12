@@ -10,11 +10,18 @@ function isoDay(offset: number) {
 function wbsItem(
   id: string,
   status: string,
-  dates: { startDate?: string | null; dueDate?: string | null; closedAt?: string | null },
+  dates: {
+    parentId?: string | null;
+    startDate?: string | null;
+    dueDate?: string | null;
+    baselineDueDate?: string | null;
+    forecastDueDate?: string | null;
+    closedAt?: string | null;
+  },
 ) {
   return {
     id,
-    parentId: null,
+    parentId: dates.parentId ?? null,
     code: `1.${id}`,
     title: `Работа ${id}`,
     type: "TASK",
@@ -23,9 +30,9 @@ function wbsItem(
     startDate: dates.startDate ?? null,
     dueDate: dates.dueDate ?? null,
     baselineStartDate: null,
-    baselineDueDate: null,
+    baselineDueDate: dates.baselineDueDate ?? null,
     forecastStartDate: null,
-    forecastDueDate: null,
+    forecastDueDate: dates.forecastDueDate ?? null,
     wbsLevel: 1,
     predecessor1: null,
     predecessor2: null,
@@ -57,9 +64,32 @@ function wbsItem(
 
 test("report builder creates and filters a project status report", async ({ page }) => {
   const wbsItems = [
-    wbsItem("done", "DONE", { dueDate: isoDay(-2), closedAt: isoDay(-2) }),
-    wbsItem("active", "IN_PROGRESS", { startDate: isoDay(-3), dueDate: isoDay(3) }),
-    wbsItem("next", "NOT_STARTED", { startDate: isoDay(4), dueDate: isoDay(6) }),
+    {
+      ...wbsItem("package", "IN_PROGRESS", { startDate: isoDay(-10), dueDate: isoDay(10) }),
+      code: "1",
+      title: "Пакет интеграции",
+      type: "WORK_PACKAGE",
+    },
+    wbsItem("done", "DONE", {
+      parentId: "package",
+      dueDate: isoDay(-2),
+      baselineDueDate: isoDay(-3),
+      closedAt: isoDay(-2),
+    }),
+    wbsItem("active", "IN_PROGRESS", {
+      parentId: "package",
+      startDate: isoDay(-3),
+      dueDate: isoDay(3),
+      baselineDueDate: isoDay(1),
+      forecastDueDate: isoDay(3),
+    }),
+    wbsItem("next", "NOT_STARTED", {
+      parentId: "package",
+      startDate: isoDay(4),
+      dueDate: isoDay(6),
+      baselineDueDate: isoDay(7),
+      forecastDueDate: isoDay(6),
+    }),
   ];
   const project = {
     id: "project-1",
@@ -179,6 +209,13 @@ test("report builder creates and filters a project status report", async ({ page
   await expect(page.getByText("Работа done")).toBeVisible();
   await expect(page.getByText("Работа active")).toBeVisible();
   await expect(page.getByText("Работа next")).toBeVisible();
+  await expect(page.getByText("Пакет работ").first()).toBeVisible();
+  await expect(page.getByText("Дата начала").first()).toBeVisible();
+  await expect(page.getByText("Дата завершения").first()).toBeVisible();
+  await expect(page.getByText("Отклонение").first()).toBeVisible();
+  await expect(page.getByText("Исполнитель").first()).toBeVisible();
+  await expect(page.getByText("Пакет интеграции").first()).toBeVisible();
+  await expect(page.getByText("Отставание +2 дн.")).toBeVisible();
   await expect(page.getByText("Риск поставки")).toBeVisible();
 
   await page.getByRole("button", { name: "Месяц" }).click();

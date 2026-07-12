@@ -231,6 +231,7 @@
 
 .report-item-list {
   border-top: 1px solid #e2e8f0;
+  overflow-x: auto;
 }
 
 .report-item {
@@ -238,8 +239,9 @@
   border-bottom: 1px solid #e2e8f0;
   display: grid;
   gap: 10px;
-  grid-template-columns: 70px minmax(0, 1fr) 92px 82px;
-  min-height: 38px;
+  grid-template-columns: minmax(120px, 150px) minmax(210px, 1fr) 82px 82px 126px minmax(100px, 130px);
+  min-height: 42px;
+  min-width: 850px;
   padding: 5px 3px;
 }
 
@@ -263,6 +265,60 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.report-item-head {
+  background: #f1f5f9;
+  min-height: 28px;
+}
+
+.report-item-head > span {
+  color: #475569;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.report-work-package,
+.report-work-title {
+  display: grid;
+  min-width: 0;
+}
+
+.report-work-package b {
+  color: #2563eb;
+}
+
+.report-item time,
+.report-owner {
+  color: #334155;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.report-item em {
+  border-radius: 4px;
+  padding: 3px 5px;
+  width: fit-content;
+}
+
+.report-item em.late {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.report-item em.early {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.report-item em.on-time {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.report-item em.neutral {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .report-register-row {
@@ -331,14 +387,6 @@
     padding: 10px;
   }
 
-  .report-item {
-    grid-template-columns: 52px minmax(0, 1fr) 74px;
-  }
-
-  .report-item time {
-    display: none;
-  }
-
   .report-register-row {
     grid-template-columns: minmax(0, 1fr) 90px;
   }
@@ -351,5 +399,10 @@
 @media print {
   body[data-print-target="project-status-report"] .report-section {
     break-inside: avoid;
+  }
+
+  body[data-print-target="project-status-report"] .report-item {
+    grid-template-columns: 110px minmax(180px, 1fr) 70px 70px 110px 100px;
+    min-width: 0;
   }
 }

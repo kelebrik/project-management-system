@@ -7,6 +7,7 @@ import { printSectionAsPdf } from "../app/pdfPrint";
 import {
   createProjectReport,
   projectReportText,
+  scheduleDeltaLabel,
   type ReportOptions,
   type ReportPeriodDays,
   type ReportTask,
@@ -26,15 +27,38 @@ function ReportTaskList({ items }: { items: ReportTask[] }) {
   if (items.length === 0) return <div className="report-empty">Нет данных за выбранный период</div>;
   return (
     <div className="report-item-list">
+      <div className="report-item report-item-head">
+        <span>Пакет работ</span>
+        <span>Работа</span>
+        <span>Дата начала</span>
+        <span>Дата завершения</span>
+        <span>Отклонение</span>
+        <span>Исполнитель</span>
+      </div>
       {items.map((item) => (
         <div className="report-item" key={item.id}>
-          <span>{item.code}</span>
-          <div>
-            <b>{item.title}</b>
-            <small>{item.owner || "Ответственный не задан"}</small>
+          <div className="report-work-package">
+            <b>{item.workPackage?.code ?? "-"}</b>
+            <small>{item.workPackage?.title ?? "Пакет не задан"}</small>
           </div>
-          <em>{wbsStatusLabel(item.status)}</em>
-          <time>{date(item.dueDate)}</time>
+          <div className="report-work-title">
+            <b>{item.code} · {item.title}</b>
+            <small>{wbsStatusLabel(item.status)}</small>
+          </div>
+          <time>{date(item.reportStartDate)}</time>
+          <time>{date(item.reportEndDate)}</time>
+          <em className={
+            item.scheduleDeltaDays === null
+              ? "neutral"
+              : item.scheduleDeltaDays > 0
+                ? "late"
+                : item.scheduleDeltaDays < 0
+                  ? "early"
+                  : "on-time"
+          }>
+            {scheduleDeltaLabel(item.scheduleDeltaDays)}
+          </em>
+          <span className="report-owner">{item.owner || "Не задан"}</span>
         </div>
       ))}
     </div>
