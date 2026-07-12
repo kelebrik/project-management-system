@@ -11,7 +11,6 @@ export type ReportOptions = {
 export type ReportTask = Pick<WbsItem, "id" | "code" | "title" | "owner" | "status"> & {
   reportStartDate: string | null;
   reportEndDate: string | null;
-  scheduleDeltaDays: number | null;
   workPackage: {
     code: string;
     title: string;
@@ -33,6 +32,7 @@ export type ProjectReport = {
 
 const DAY_MS = 86_400_000;
 const ACTIVE_WBS_STATUSES = new Set(["IN_PROGRESS", "IN_REVIEW", "AT_RISK", "BLOCKED"]);
+const REPORTABLE_WBS_TYPES = new Set(["TASK", "DELIVERABLE", "MILESTONE", "GOAL"]);
 
 function startOfDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
@@ -52,13 +52,6 @@ function inRange(value: string | null, start: Date, end: Date) {
 function taskDate(item: WbsItem, preference: "start" | "due") {
   if (preference === "start") return item.forecastStartDate ?? item.startDate;
   return item.forecastDueDate ?? item.dueDate;
-}
-
-function daysDifference(baseline: string | null, current: string | null) {
-  const baselineDate = parseDate(baseline);
-  const currentDate = parseDate(current);
-  if (!baselineDate || !currentDate) return null;
-  return Math.round((currentDate.getTime() - baselineDate.getTime()) / DAY_MS);
 }
 
 function workPackageFor(item: WbsItem, itemsById: Map<string, WbsItem>) {
@@ -88,7 +81,6 @@ function toReportTask(item: WbsItem, itemsById: Map<string, WbsItem>): ReportTas
     status: item.status,
     reportStartDate,
     reportEndDate,
-    scheduleDeltaDays: daysDifference(item.baselineDueDate, reportEndDate),
     workPackage: workPackageFor(item, itemsById),
   };
 }
@@ -98,7 +90,8 @@ function reportableWbsItems(items: WbsItem[]) {
   return items.filter(
     (item) =>
       item.status !== "CANCELLED" &&
-      (!parentIds.has(item.id) || item.type === "MILESTONE" || item.type === "GOAL"),
+      REPORTABLE_WBS_TYPES.has(item.type) &&
+      !parentIds.has(item.id),
   );
 }
 
@@ -132,8 +125,7 @@ export function createProjectReport(
     .filter(
       (item) =>
         item.status === "DONE" &&
-        (inRange(item.closedAt, pastStart, generatedAt) ||
-          (!item.closedAt && inRange(taskDate(item, "due"), pastStart, generatedAt))),
+        inRange(item.closedAt, pastStart, generatedAt),
     )
     .map((item) => toReportTask(item, itemsById))
     .sort(byDueDate);
@@ -178,15 +170,8 @@ function taskLines(items: ReportTask[]) {
   if (items.length === 0) return ["- Нет данных"];
   return items.map(
     (item) =>
-      `- ${item.code} ${item.title}; пакет: ${item.workPackage ? `${item.workPackage.code} ${item.workPackage.title}` : "не задан"}; начало: ${textDate(item.reportStartDate)}; завершение: ${textDate(item.reportEndDate)}; ${scheduleDeltaLabel(item.scheduleDeltaDays)}; исполнитель: ${item.owner || "не задан"}`,
+      `- ${item.code} ${item.title}; пакет: ${item.workPackage ? `${item.workPackage.code} ${item.workPackage.title}` : "не задан"}; начало: ${textDate(item.reportStartDate)}; завершение: ${textDate(item.reportEndDate)}; исполнитель: ${item.owner || "не задан"}`,
   );
-}
-
-export function scheduleDeltaLabel(value: number | null) {
-  if (value === null) return "Нет базового срока";
-  if (value > 0) return `Отставание +${value} дн.`;
-  if (value < 0) return `Опережение ${Math.abs(value)} дн.`;
-  return "По плану";
 }
 
 export function projectReportText(project: ProjectDetails, report: ProjectReport) {

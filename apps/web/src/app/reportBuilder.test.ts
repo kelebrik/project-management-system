@@ -84,7 +84,9 @@ test("report groups completed, active and upcoming WBS items", () => {
     wbsItems: [
       task("done", { status: "DONE", closedAt: "2026-07-08" }),
       task("old", { status: "DONE", closedAt: "2026-06-01" }),
+      task("done-without-close-date", { status: "DONE", dueDate: "2026-07-08" }),
       task("active", { status: "IN_PROGRESS", dueDate: "2026-07-20" }),
+      task("structural", { type: "WORK_PACKAGE", status: "IN_PROGRESS" }),
       task("next", { status: "NOT_STARTED", startDate: "2026-07-15" }),
       task("later", { status: "NOT_STARTED", startDate: "2026-08-15" }),
     ],
@@ -126,7 +128,7 @@ test("report options exclude optional sections", () => {
   assert.deepEqual(report.issues, []);
 });
 
-test("report resolves work package and schedule deviation", () => {
+test("report resolves work package and report dates", () => {
   const project = {
     wbsItems: [
       task("package", {
@@ -157,5 +159,4 @@ test("report resolves work package and schedule deviation", () => {
   assert.equal(report.inProgress[0].workPackage?.title, "Поставка оборудования");
   assert.equal(report.inProgress[0].reportStartDate, "2026-07-01");
   assert.equal(report.inProgress[0].reportEndDate, "2026-07-20");
-  assert.equal(report.inProgress[0].scheduleDeltaDays, 5);
 });
