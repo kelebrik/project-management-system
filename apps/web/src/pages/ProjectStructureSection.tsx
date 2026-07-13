@@ -82,11 +82,9 @@ export function ProjectStructureSection() {
     setActiveWbsItemId,
     setDraggedWbsColumn,
     setSelectedWbsIds,
-    setShowStructureCriticalPath,
     setShowWbsColumnMenu,
     setWbsDropTargetId,
     setWbsHierarchyLevel,
-    showStructureCriticalPath,
     showWbsColumnMenu,
     startWbsColumnDrag,
     startWbsColumnResize,
@@ -358,19 +356,6 @@ export function ProjectStructureSection() {
                                 </button>
                               </>
                             )}
-                            <button
-                              type="button"
-                              className={showStructureCriticalPath ? "active" : ""}
-                              onClick={() =>
-                                setShowStructureCriticalPath((current) => !current)
-                              }
-                              disabled={
-                                (project.criticalPath?.criticalItemIds.length ?? 0) === 0
-                              }
-                              title="Показать только задачи критического пути"
-                            >
-                              Критический путь
-                            </button>
                             <div className="column-menu">
                               <button
                                 type="button"

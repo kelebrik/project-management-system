@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ProjectDetails, RaidItem, WbsItem } from "./domainTypes";
-import { createProjectReport } from "./reportBuilder";
+import type { ProjectDetails, WbsItem } from "./domainTypes";
+import {
+  createProjectReport,
+  projectReportText,
+  reportFieldText,
+} from "./reportBuilder";
 
 function task(id: string, patch: Partial<WbsItem>): WbsItem {
   return {
@@ -48,37 +52,6 @@ function task(id: string, patch: Partial<WbsItem>): WbsItem {
   };
 }
 
-function raid(id: string, type: RaidItem["type"]): RaidItem {
-  return {
-    id,
-    type,
-    title: id,
-    description: "",
-    owner: "",
-    status: "OPEN",
-    probability: 1,
-    impact: 1,
-    riskScore: 1,
-    mitigationPlan: null,
-    contingencyPlan: null,
-    dueDate: null,
-    residualRisk: 0,
-    validationDate: null,
-    linkedRiskId: null,
-    dependencyType: null,
-    predecessor: null,
-    successor: null,
-    supplier: null,
-    jiraTicketKey: null,
-    jiraTicketUrl: null,
-    decisionRequired: false,
-    escalationLevel: "",
-    scheduleImpactDays: 0,
-    budgetImpact: "0",
-    statusUpdates: [],
-  };
-}
-
 test("report groups completed, active and upcoming WBS items", () => {
   const project = {
     wbsItems: [
@@ -95,42 +68,19 @@ test("report groups completed, active and upcoming WBS items", () => {
       task("next", { status: "NOT_STARTED", startDate: "2026-07-15" }),
       task("later", { status: "NOT_STARTED", startDate: "2026-08-15" }),
     ],
-    raidItems: [raid("risk", "RISK"), raid("problem", "DEPENDENCY")],
-    issues: [{ id: "issue", status: "Open" }],
+    raidItems: [],
+    issues: [],
   } as unknown as ProjectDetails;
 
   const report = createProjectReport(
     project,
     7,
-    { risks: true, problems: true, issues: true },
     new Date("2026-07-11T12:00:00"),
   );
 
   assert.deepEqual(report.done.map((item) => item.id), ["done"]);
   assert.deepEqual(report.inProgress.map((item) => item.id), ["active"]);
   assert.deepEqual(report.upcoming.map((item) => item.id), ["next"]);
-  assert.equal(report.risks.length, 1);
-  assert.equal(report.problems.length, 1);
-  assert.equal(report.issues.length, 1);
-});
-
-test("report options exclude optional sections", () => {
-  const project = {
-    wbsItems: [],
-    raidItems: [raid("risk", "RISK"), raid("problem", "DEPENDENCY")],
-    issues: [{ id: "issue", status: "Open" }],
-  } as unknown as ProjectDetails;
-
-  const report = createProjectReport(
-    project,
-    14,
-    { risks: false, problems: false, issues: false },
-    new Date("2026-07-11T12:00:00"),
-  );
-
-  assert.deepEqual(report.risks, []);
-  assert.deepEqual(report.problems, []);
-  assert.deepEqual(report.issues, []);
 });
 
 test("report resolves work package and report dates", () => {
@@ -156,7 +106,6 @@ test("report resolves work package and report dates", () => {
   const report = createProjectReport(
     project,
     7,
-    { risks: false, problems: false, issues: false },
     new Date("2026-07-11T12:00:00"),
   );
 
@@ -164,4 +113,102 @@ test("report resolves work package and report dates", () => {
   assert.equal(report.inProgress[0].workPackage?.title, "Поставка оборудования");
   assert.equal(report.inProgress[0].reportStartDate, "2026-07-01");
   assert.equal(report.inProgress[0].reportEndDate, "2026-07-20");
+});
+
+test("report includes only open risks, problems and questions", () => {
+  const project = {
+    wbsItems: [],
+    raidItems: [
+      { id: "risk", type: "RISK", status: "OPEN", title: "Риск", impact: 4 },
+      { id: "problem", type: "DEPENDENCY", status: "IN_PROGRESS", title: "Проблема", impact: 3 },
+      { id: "closed", type: "RISK", status: "CLOSED", title: "Закрытый риск", impact: 1 },
+    ],
+    issues: [
+      { id: "open", status: "Open", title: "Открытый вопрос" },
+      { id: "closed", status: "Closed", title: "Закрытый вопрос" },
+    ],
+  } as unknown as ProjectDetails;
+
+  const report = createProjectReport(project, 7, new Date("2026-07-11T12:00:00"));
+
+  assert.deepEqual(report.raidItems.map((item) => item.id), ["risk", "problem"]);
+  assert.deepEqual(report.openIssues.map((item) => item.id), ["open"]);
+});
+
+test("report separates records opened and closed during the last two weeks", () => {
+  const project = {
+    wbsItems: [],
+    raidItems: [
+      {
+        id: "recent-risk",
+        type: "RISK",
+        status: "OPEN",
+        createdAt: "2026-07-05",
+        statusUpdates: [],
+      },
+      {
+        id: "old-risk",
+        type: "RISK",
+        status: "OPEN",
+        createdAt: "2026-06-01",
+        statusUpdates: [],
+      },
+      {
+        id: "closed-problem",
+        type: "DEPENDENCY",
+        status: "CLOSED",
+        validationDate: "2026-07-07",
+        statusUpdates: [],
+      },
+    ],
+    issues: [
+      {
+        id: "recent-issue",
+        status: "Open",
+        createdAt: "2026-07-02",
+        statusUpdates: [],
+      },
+    ],
+    closedIssues: [
+      {
+        id: "closed-issue",
+        status: "Closed",
+        updatedAt: "2026-07-08",
+        statusUpdates: [],
+      },
+    ],
+  } as unknown as ProjectDetails;
+
+  const report = createProjectReport(project, 7, new Date("2026-07-11T12:00:00"));
+
+  assert.deepEqual(report.recentRaidItems.map((item) => item.id), ["recent-risk"]);
+  assert.deepEqual(report.closedRaidItems.map((item) => item.id), ["closed-problem"]);
+  assert.deepEqual(report.recentOpenIssues.map((item) => item.id), ["recent-issue"]);
+  assert.deepEqual(report.closedIssues.map((item) => item.id), ["closed-issue"]);
+});
+
+test("custom report text follows selected fields", () => {
+  const project = {
+    code: "TV-1",
+    name: "Проект",
+    wbsItems: [],
+    raidItems: [],
+    issues: [
+      {
+        id: "issue",
+        status: "Open",
+        title: "Нужно решение",
+        owner: "РП",
+        createdAt: "2026-07-05",
+        statusUpdates: [],
+      },
+    ],
+  } as unknown as ProjectDetails;
+  const report = createProjectReport(project, 7, new Date("2026-07-11T12:00:00"));
+  const text = projectReportText(project, report, "issues", ["title", "owner"]);
+
+  assert.match(text, /Вопрос: Нужно решение/);
+  assert.match(text, /Ответственный: РП/);
+  assert.doesNotMatch(text, /Критичность:/);
+  assert.equal(reportFieldText("issues", "decisionRequired", report.openIssues[0]), "Нет");
 });

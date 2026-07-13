@@ -349,6 +349,8 @@ export type RaidItem = {
   scheduleImpactDays: number;
   budgetImpact: string;
   statusUpdates: RaidItemStatusUpdate[];
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type IssueJiraLink = {
@@ -382,6 +384,8 @@ export type Issue = {
   jiraTicketUrl: string | null;
   jiraLinks: IssueJiraLink[];
   statusUpdates: IssueStatusUpdate[];
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type JiraIssueSnapshot = {
