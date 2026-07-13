@@ -213,12 +213,20 @@
 }
 
 .executive-overview-list {
+  --overview-list-gap: 8px;
+  --overview-list-max-height: 304px;
   display: grid;
-  gap: 8px;
+  gap: var(--overview-list-gap);
+  max-height: var(--overview-list-max-height);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .executive-overview-card.danger .executive-overview-list {
-  gap: 6px;
+  --overview-list-gap: 6px;
+  --overview-list-max-height: 270px;
 }
 
 .executive-overview-row {

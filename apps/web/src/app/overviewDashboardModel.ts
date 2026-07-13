@@ -47,7 +47,7 @@ export function createOverviewDashboard(
       entry.milestone.dueDate &&
       startOfDay(new Date(entry.milestone.dueDate)) >= today,
   );
-  const redZoneRisks = riskItems
+  const overviewRedZoneRisks = riskItems
     .filter(
       (item) =>
         (item.type === "RISK" || item.type === "DEPENDENCY") &&
@@ -57,8 +57,8 @@ export function createOverviewDashboard(
       (left, right) =>
         right.riskScore - left.riskScore ||
         left.title.localeCompare(right.title, "ru"),
-    )
-    .slice(0, 5);
+    );
+  const redZoneRisks = overviewRedZoneRisks.slice(0, 5);
   const blockingTickets =
     project?.jiraWorkSections
       .find((section) => section.sortOrder === 0)
@@ -76,13 +76,13 @@ export function createOverviewDashboard(
         syncedAt,
         source: "jira-work-section" as const,
       })) ?? [];
-  const openDecisionItems = decisionItems
+  const overviewOpenDecisionItems = decisionItems
     .sort((left, right) =>
       String(left.dueDate ?? "9999").localeCompare(
         String(right.dueDate ?? "9999"),
       ),
-    )
-    .slice(0, 5);
+    );
+  const openDecisionItems = overviewOpenDecisionItems.slice(0, 5);
   const criticalPathIds = new Set(project?.criticalPath?.criticalItemIds ?? []);
   const scheduleVarianceItems =
     criticalPathIds.size > 0
@@ -337,16 +337,16 @@ export function createOverviewDashboard(
       inheritedDelay: inheritedImpact,
     }))
     .slice(0, 5);
-  const scheduleDelayItems = scheduleDelayImpactItems
+  const overviewScheduleDelayItems = scheduleDelayImpactItems
     .map(({ item, impact, rawImpact, inheritedFrom, inheritedImpact }) => ({
       item,
       delay: impact,
       rawDelay: rawImpact,
       inheritedFrom,
       inheritedDelay: inheritedImpact,
-    }))
-    .slice(0, 3);
-  const scheduleAccelerationItems = allScheduleAccelerations
+    }));
+  const scheduleDelayItems = overviewScheduleDelayItems.slice(0, 3);
+  const overviewScheduleAccelerationItems = allScheduleAccelerations
     .filter(({ item }) => isScheduleImpactCandidate(item))
     .sort(
       (left, right) =>
@@ -354,8 +354,8 @@ export function createOverviewDashboard(
         left.item.code.localeCompare(right.item.code, undefined, {
           numeric: true,
         }),
-    )
-    .slice(0, 3);
+    );
+  const scheduleAccelerationItems = overviewScheduleAccelerationItems.slice(0, 3);
   const scheduleDelayImpactDays = scheduleDelayItems.reduce(
     (sum, entry) => sum + entry.delay,
     0,
@@ -402,6 +402,10 @@ export function createOverviewDashboard(
     redZoneRisks,
     blockingTickets,
     openDecisionItems,
+    overviewOpenDecisionItems,
+    overviewRedZoneRisks,
+    overviewScheduleAccelerationItems,
+    overviewScheduleDelayItems,
     scheduleAccelerationImpactDays,
     scheduleAccelerationItems,
     scheduleDelayImpactDays,
