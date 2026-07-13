@@ -196,6 +196,7 @@
 
 .wbs-work-cell.read-only-cell {
   gap: 8px;
+  grid-template-columns: auto auto max-content minmax(0, 1fr);
 }
 
 .wbs-code-readonly {

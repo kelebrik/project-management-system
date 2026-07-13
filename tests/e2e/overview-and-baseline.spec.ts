@@ -199,6 +199,23 @@ async function mockAdminProject(
   return project;
 }
 
+async function mockReadOnlyProject(page: Page) {
+  const project = projectFixture();
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ status: 401, json: { error: "Требуется вход в систему" } }),
+  );
+  await page.route("**/api/auth/setup-status", (route) =>
+    route.fulfill({ json: { needsSetup: false } }),
+  );
+  await page.route("**/api/auth/keycloak/status", (route) =>
+    route.fulfill({ json: { enabled: false, hostname: null } }),
+  );
+  await page.route(/\/api\/projects$/, (route) => route.fulfill({ json: [project] }));
+  await page.route("**/api/projects/project-1/overview", (route) =>
+    route.fulfill({ json: project }),
+  );
+}
+
 test("overview entries expand statuses and open the selected issue", async ({ page }) => {
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/overview");
@@ -292,4 +309,18 @@ test("inline WBS insert button stays above the following row", async ({ page }) 
       ),
     )
     .toBe(true);
+});
+
+test("read-only WBS title uses the available structure column width", async ({ page }) => {
+  await mockReadOnlyProject(page);
+  await page.goto("/TV-OVERVIEW/wbs");
+
+  const title = page.locator(".wbs-title-readonly").first();
+  await expect(title).toHaveText("Тестовая задача");
+  const dimensions = await title.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(dimensions.clientWidth).toBeGreaterThan(72);
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 });
