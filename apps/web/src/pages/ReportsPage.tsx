@@ -21,6 +21,7 @@ import {
   createProjectReport,
   projectReportText,
   reportFieldText,
+  type ReportActivity,
   type ProjectReport,
   type ReportFieldKey,
   type ReportKind,
@@ -35,6 +36,11 @@ type ReportDataItem = ReportTask | RaidItem | Issue;
 const PERIOD_OPTIONS: Array<{ value: ReportPeriodValue; label: string }> = [
   { value: "7", label: "Закрыто на этой неделе" },
   { value: "14", label: "Закрыто за две недели" },
+];
+
+const ACTIVITY_OPTIONS: Array<{ value: ReportActivity; label: string }> = [
+  { value: "closed", label: "Закрыто за две недели" },
+  { value: "opened", label: "Открыто за две недели" },
 ];
 
 const REPORT_KIND_OPTIONS: Array<{ value: ReportKind; label: string }> = [
@@ -236,6 +242,7 @@ export function ReportsPage() {
   );
   const effectiveProjectId = projectId || projectOptions[0]?.id || "";
   const [period, setPeriod] = useState<ReportPeriodValue>("7");
+  const [activity, setActivity] = useState<ReportActivity>("opened");
   const [reportKind, setReportKind] = useState<ReportKind>("tasks");
   const [fieldOrderByKind, setFieldOrderByKind] = useState(initialFieldOrder);
   const [selectedFieldsByKind, setSelectedFieldsByKind] = useState(initialSelectedFields);
@@ -288,8 +295,14 @@ export function ReportsPage() {
   const fieldOrder = fieldOrderByKind[reportKind];
   const selectedFields = selectedFieldsByKind[reportKind];
   const activeFields = fieldOrder.filter((field) => selectedFields.includes(field));
-  const risks = report?.raidItems.filter((item) => item.type === "RISK") ?? [];
-  const problems = report?.raidItems.filter((item) => item.type === "DEPENDENCY") ?? [];
+  const visibleRaidItems = report
+    ? activity === "closed" ? report.closedRaidItems : report.recentRaidItems
+    : [];
+  const visibleIssues = report
+    ? activity === "closed" ? report.closedIssues : report.recentOpenIssues
+    : [];
+  const risks = visibleRaidItems.filter((item) => item.type === "RISK");
+  const problems = visibleRaidItems.filter((item) => item.type === "DEPENDENCY");
 
   const toggleField = (field: ReportFieldKey) => {
     setSelectedFieldsByKind((current) => {
@@ -319,7 +332,7 @@ export function ReportsPage() {
   const copyReport = async () => {
     if (!project || !report) return;
     await navigator.clipboard.writeText(
-      projectReportText(project, report, reportKind, activeFields),
+      projectReportText(project, report, reportKind, activeFields, activity),
     );
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
@@ -370,27 +383,7 @@ export function ReportsPage() {
             </div>
           </label>
 
-          <div className={`report-control-field ${reportKind === "tasks" ? "" : "disabled"}`}>
-            <span>Период</span>
-            <div className="segmented-control report-period-control" aria-label="Период отчёта">
-              {PERIOD_OPTIONS.map((item) => (
-                <button
-                  type="button"
-                  className={period === item.value ? "active" : ""}
-                  aria-pressed={period === item.value}
-                  disabled={reportKind !== "tasks"}
-                  title={reportKind === "tasks" ? undefined : "Период применяется только к задачам"}
-                  key={item.value}
-                  onClick={() => setPeriod(item.value)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="report-constructor">
-            <span className="report-constructor-title">Конструктор</span>
             <label className="report-control-field">
               <span>Содержание</span>
               <div className="report-select-wrap">
@@ -408,6 +401,33 @@ export function ReportsPage() {
                 <ChevronDown size={17} strokeWidth={2.4} aria-hidden="true" />
               </div>
             </label>
+            <div className="report-control-field">
+              <span>Период</span>
+              <div className="segmented-control report-period-control" aria-label="Период отчёта">
+                {(reportKind === "tasks" ? PERIOD_OPTIONS : ACTIVITY_OPTIONS).map((item) => {
+                  const selected = reportKind === "tasks"
+                    ? period === item.value
+                    : activity === item.value;
+                  return (
+                    <button
+                      type="button"
+                      className={selected ? "active" : ""}
+                      aria-pressed={selected}
+                      key={item.value}
+                      onClick={() => {
+                        if (reportKind === "tasks") {
+                          setPeriod(item.value as ReportPeriodValue);
+                        } else {
+                          setActivity(item.value as ReportActivity);
+                        }
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <ReportFieldPicker
               kind={reportKind}
               fieldOrder={fieldOrder}
@@ -444,8 +464,8 @@ export function ReportsPage() {
                     </>
                   ) : (
                     <>
-                      <div><dt>Срез данных</dt><dd>{date(report.generatedAt)}</dd></div>
-                      <div><dt>Записей</dt><dd>{reportKind === "raid" ? report.raidItems.length : report.openIssues.length}</dd></div>
+                      <div><dt>Период</dt><dd>{date(report.activityStart)} - {date(report.generatedAt)}</dd></div>
+                      <div><dt>Записей</dt><dd>{reportKind === "raid" ? visibleRaidItems.length : visibleIssues.length}</dd></div>
                     </>
                   )}
                   <div><dt>РП</dt><dd>{project.projectManager || "не назначен"}</dd></div>
@@ -467,7 +487,7 @@ export function ReportsPage() {
                   </>
                 )}
                 {reportKind === "issues" && (
-                  <span><b>{report.openIssues.length}</b> открытых вопросов</span>
+                  <span><b>{visibleIssues.length}</b> {activity === "closed" ? "закрытых" : "открытых"} вопросов</span>
                 )}
               </div>
 
@@ -475,19 +495,19 @@ export function ReportsPage() {
               {reportKind === "raid" && (
                 <>
                   <section className="report-section tone-risk">
-                    <h4>Риски <span>{risks.length}</span></h4>
-                    <ReportDataTable kind="raid" fields={activeFields} items={risks} emptyText="Открытых рисков нет" />
+                    <h4>{activity === "closed" ? "Закрытые риски" : "Открытые риски"} <span>{risks.length}</span></h4>
+                    <ReportDataTable kind="raid" fields={activeFields} items={risks} emptyText={activity === "closed" ? "Закрытых рисков за две недели нет" : "Новых открытых рисков за две недели нет"} />
                   </section>
                   <section className="report-section tone-problem">
-                    <h4>Проблемы <span>{problems.length}</span></h4>
-                    <ReportDataTable kind="raid" fields={activeFields} items={problems} emptyText="Открытых проблем нет" />
+                    <h4>{activity === "closed" ? "Закрытые проблемы" : "Открытые проблемы"} <span>{problems.length}</span></h4>
+                    <ReportDataTable kind="raid" fields={activeFields} items={problems} emptyText={activity === "closed" ? "Закрытых проблем за две недели нет" : "Новых открытых проблем за две недели нет"} />
                   </section>
                 </>
               )}
               {reportKind === "issues" && (
                 <section className="report-section tone-issue">
-                  <h4>Открытые вопросы <span>{report.openIssues.length}</span></h4>
-                  <ReportDataTable kind="issues" fields={activeFields} items={report.openIssues} emptyText="Открытых вопросов нет" />
+                  <h4>{activity === "closed" ? "Закрытые вопросы" : "Открытые вопросы"} <span>{visibleIssues.length}</span></h4>
+                  <ReportDataTable kind="issues" fields={activeFields} items={visibleIssues} emptyText={activity === "closed" ? "Закрытых вопросов за две недели нет" : "Новых открытых вопросов за две недели нет"} />
                 </section>
               )}
             </>

@@ -9,6 +9,7 @@ import {
 
 export type ReportPeriodDays = 7 | 14;
 export type ReportKind = "tasks" | "raid" | "issues";
+export type ReportActivity = "opened" | "closed";
 export type ReportFieldKey =
   | "workPackage"
   | "task"
@@ -78,11 +79,16 @@ export type ProjectReport = {
   periodDays: ReportPeriodDays;
   pastStart: Date;
   futureEnd: Date;
+  activityStart: Date;
   done: ReportTask[];
   inProgress: ReportTask[];
   upcoming: ReportTask[];
   raidItems: RaidItem[];
   openIssues: Issue[];
+  recentRaidItems: RaidItem[];
+  closedRaidItems: RaidItem[];
+  recentOpenIssues: Issue[];
+  closedIssues: Issue[];
 };
 
 const DAY_MS = 86_400_000;
@@ -178,6 +184,39 @@ function isOpenIssue(item: Issue) {
   return status !== "closed" && status !== "resolved";
 }
 
+function isClosedRaidItem(item: RaidItem) {
+  return (
+    (item.type === "RISK" || item.type === "DEPENDENCY") &&
+    (item.status === "CLOSED" || item.status === "VALIDATED")
+  );
+}
+
+function latestStatusDate(item: RaidItem | Issue) {
+  return (item.statusUpdates ?? [])
+    .map((update) => parseDate(update.statusAt))
+    .filter((value): value is Date => value !== null)
+    .sort((left, right) => right.getTime() - left.getTime())[0] ?? null;
+}
+
+function createdDate(item: RaidItem | Issue) {
+  return parseDate(item.createdAt ?? null) ?? latestStatusDate(item);
+}
+
+function closedDate(item: RaidItem | Issue) {
+  if ("validationDate" in item) {
+    return (
+      parseDate(item.validationDate) ??
+      parseDate(item.updatedAt ?? null) ??
+      latestStatusDate(item)
+    );
+  }
+  return parseDate(item.updatedAt ?? null) ?? latestStatusDate(item);
+}
+
+function dateInRange(value: Date | null, start: Date, end: Date) {
+  return Boolean(value && value >= start && value <= end);
+}
+
 export function createProjectReport(
   project: ProjectDetails,
   periodDays: ReportPeriodDays,
@@ -186,6 +225,7 @@ export function createProjectReport(
   const generatedAt = startOfDay(now);
   const pastStart = new Date(generatedAt.getTime() - (periodDays - 1) * DAY_MS);
   const futureEnd = new Date(generatedAt.getTime() + periodDays * DAY_MS);
+  const activityStart = new Date(generatedAt.getTime() - 13 * DAY_MS);
   const tasks = reportableWbsItems(project.wbsItems);
   const itemsById = new Map(project.wbsItems.map((item) => [item.id, item]));
 
@@ -220,11 +260,24 @@ export function createProjectReport(
     periodDays,
     pastStart,
     futureEnd,
+    activityStart,
     done,
     inProgress,
     upcoming,
     raidItems: project.raidItems.filter(isOpenRaidItem),
     openIssues: project.issues.filter(isOpenIssue),
+    recentRaidItems: project.raidItems.filter(
+      (item) => isOpenRaidItem(item) && dateInRange(createdDate(item), activityStart, generatedAt),
+    ),
+    closedRaidItems: project.raidItems.filter(
+      (item) => isClosedRaidItem(item) && dateInRange(closedDate(item), activityStart, generatedAt),
+    ),
+    recentOpenIssues: project.issues.filter(
+      (item) => isOpenIssue(item) && dateInRange(createdDate(item), activityStart, generatedAt),
+    ),
+    closedIssues: (project.closedIssues ?? []).filter((item) =>
+      dateInRange(closedDate(item), activityStart, generatedAt),
+    ),
   };
 }
 
@@ -328,6 +381,7 @@ export function projectReportText(
   report: ProjectReport,
   kind: ReportKind = "tasks",
   fields: ReportFieldKey[] = DEFAULT_REPORT_FIELDS.tasks,
+  activity: ReportActivity = "opened",
 ) {
   const lines = [
     `Статус-отчёт: ${project.code} ${project.name}`,
@@ -347,18 +401,20 @@ export function projectReportText(
       ...customLines("tasks", fields, report.upcoming),
     );
   } else if (kind === "raid") {
+    const items = activity === "closed" ? report.closedRaidItems : report.recentRaidItems;
     lines.push(
-      `Срез на: ${textDate(report.generatedAt)}`,
+      `Период: ${textDate(report.activityStart)} - ${textDate(report.generatedAt)}`,
       "",
-      "Риски и проблемы",
-      ...customLines("raid", fields, report.raidItems),
+      activity === "closed" ? "Закрытые риски и проблемы" : "Открытые риски и проблемы",
+      ...customLines("raid", fields, items),
     );
   } else {
+    const items = activity === "closed" ? report.closedIssues : report.recentOpenIssues;
     lines.push(
-      `Срез на: ${textDate(report.generatedAt)}`,
+      `Период: ${textDate(report.activityStart)} - ${textDate(report.generatedAt)}`,
       "",
-      "Открытые вопросы",
-      ...customLines("issues", fields, report.openIssues),
+      activity === "closed" ? "Закрытые вопросы" : "Открытые вопросы",
+      ...customLines("issues", fields, items),
     );
   }
 
