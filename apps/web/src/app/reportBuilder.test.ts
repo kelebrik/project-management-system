@@ -135,6 +135,58 @@ test("report includes only open risks, problems and questions", () => {
   assert.deepEqual(report.openIssues.map((item) => item.id), ["open"]);
 });
 
+test("report separates records opened and closed during the last two weeks", () => {
+  const project = {
+    wbsItems: [],
+    raidItems: [
+      {
+        id: "recent-risk",
+        type: "RISK",
+        status: "OPEN",
+        createdAt: "2026-07-05",
+        statusUpdates: [],
+      },
+      {
+        id: "old-risk",
+        type: "RISK",
+        status: "OPEN",
+        createdAt: "2026-06-01",
+        statusUpdates: [],
+      },
+      {
+        id: "closed-problem",
+        type: "DEPENDENCY",
+        status: "CLOSED",
+        validationDate: "2026-07-07",
+        statusUpdates: [],
+      },
+    ],
+    issues: [
+      {
+        id: "recent-issue",
+        status: "Open",
+        createdAt: "2026-07-02",
+        statusUpdates: [],
+      },
+    ],
+    closedIssues: [
+      {
+        id: "closed-issue",
+        status: "Closed",
+        updatedAt: "2026-07-08",
+        statusUpdates: [],
+      },
+    ],
+  } as unknown as ProjectDetails;
+
+  const report = createProjectReport(project, 7, new Date("2026-07-11T12:00:00"));
+
+  assert.deepEqual(report.recentRaidItems.map((item) => item.id), ["recent-risk"]);
+  assert.deepEqual(report.closedRaidItems.map((item) => item.id), ["closed-problem"]);
+  assert.deepEqual(report.recentOpenIssues.map((item) => item.id), ["recent-issue"]);
+  assert.deepEqual(report.closedIssues.map((item) => item.id), ["closed-issue"]);
+});
+
 test("custom report text follows selected fields", () => {
   const project = {
     code: "TV-1",
@@ -147,6 +199,8 @@ test("custom report text follows selected fields", () => {
         status: "Open",
         title: "Нужно решение",
         owner: "РП",
+        createdAt: "2026-07-05",
+        statusUpdates: [],
       },
     ],
   } as unknown as ProjectDetails;

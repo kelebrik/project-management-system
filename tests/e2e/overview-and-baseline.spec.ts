@@ -262,6 +262,7 @@ test("administrator updates baseline only for selected WBS rows", async ({ page 
   page.on("dialog", (dialog) => void dialog.accept());
 
   await page.goto("/TV-OVERVIEW/wbs");
+  await expect(page.getByRole("button", { name: "Критический путь" })).toHaveCount(0);
   await page.getByRole("checkbox", { name: "Выбрать строку 1.1" }).check();
   await page.getByRole("button", { name: "Обновить базовый план" }).click();
 
