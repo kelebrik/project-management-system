@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ProjectDetails, WbsItem } from "./domainTypes";
-import { createProjectReport } from "./reportBuilder";
+import {
+  createProjectReport,
+  projectReportText,
+  reportFieldText,
+} from "./reportBuilder";
 
 function task(id: string, patch: Partial<WbsItem>): WbsItem {
   return {
@@ -109,4 +113,48 @@ test("report resolves work package and report dates", () => {
   assert.equal(report.inProgress[0].workPackage?.title, "Поставка оборудования");
   assert.equal(report.inProgress[0].reportStartDate, "2026-07-01");
   assert.equal(report.inProgress[0].reportEndDate, "2026-07-20");
+});
+
+test("report includes only open risks, problems and questions", () => {
+  const project = {
+    wbsItems: [],
+    raidItems: [
+      { id: "risk", type: "RISK", status: "OPEN", title: "Риск", impact: 4 },
+      { id: "problem", type: "DEPENDENCY", status: "IN_PROGRESS", title: "Проблема", impact: 3 },
+      { id: "closed", type: "RISK", status: "CLOSED", title: "Закрытый риск", impact: 1 },
+    ],
+    issues: [
+      { id: "open", status: "Open", title: "Открытый вопрос" },
+      { id: "closed", status: "Closed", title: "Закрытый вопрос" },
+    ],
+  } as unknown as ProjectDetails;
+
+  const report = createProjectReport(project, 7, new Date("2026-07-11T12:00:00"));
+
+  assert.deepEqual(report.raidItems.map((item) => item.id), ["risk", "problem"]);
+  assert.deepEqual(report.openIssues.map((item) => item.id), ["open"]);
+});
+
+test("custom report text follows selected fields", () => {
+  const project = {
+    code: "TV-1",
+    name: "Проект",
+    wbsItems: [],
+    raidItems: [],
+    issues: [
+      {
+        id: "issue",
+        status: "Open",
+        title: "Нужно решение",
+        owner: "РП",
+      },
+    ],
+  } as unknown as ProjectDetails;
+  const report = createProjectReport(project, 7, new Date("2026-07-11T12:00:00"));
+  const text = projectReportText(project, report, "issues", ["title", "owner"]);
+
+  assert.match(text, /Вопрос: Нужно решение/);
+  assert.match(text, /Ответственный: РП/);
+  assert.doesNotMatch(text, /Критичность:/);
+  assert.equal(reportFieldText("issues", "decisionRequired", report.openIssues[0]), "Нет");
 });

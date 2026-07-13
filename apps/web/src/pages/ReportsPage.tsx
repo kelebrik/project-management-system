@@ -1,52 +1,228 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, Copy, Printer } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+} from "react";
+import { Check, ChevronDown, Copy, GripVertical, Printer } from "lucide-react";
 import { apiClient } from "../api/client";
 import { date } from "../app/dateUtils";
-import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
+import type {
+  Issue,
+  ProjectDetails,
+  ProjectListItem,
+  RaidItem,
+} from "../app/domainTypes";
 import { printSectionAsPdf } from "../app/pdfPrint";
 import {
+  DEFAULT_REPORT_FIELDS,
+  REPORT_FIELDS,
   createProjectReport,
   projectReportText,
+  reportFieldText,
+  type ProjectReport,
+  type ReportFieldKey,
+  type ReportKind,
   type ReportPeriodDays,
   type ReportTask,
 } from "../app/reportBuilder";
-import { wbsStatusLabel } from "../app/labels";
 import { usePageContext } from "./PageContext";
 
 type ReportPeriodValue = "7" | "14";
+type ReportDataItem = ReportTask | RaidItem | Issue;
 
 const PERIOD_OPTIONS: Array<{ value: ReportPeriodValue; label: string }> = [
   { value: "7", label: "Закрыто на этой неделе" },
   { value: "14", label: "Закрыто за две недели" },
 ];
 
-function ReportTaskList({ items }: { items: ReportTask[] }) {
-  if (items.length === 0) return <div className="report-empty">Нет данных за выбранный период</div>;
+const REPORT_KIND_OPTIONS: Array<{ value: ReportKind; label: string }> = [
+  { value: "tasks", label: "Задачи" },
+  { value: "raid", label: "Риски и проблемы" },
+  { value: "issues", label: "Открытые вопросы" },
+];
+
+const FIELD_WIDTHS: Record<ReportFieldKey, string> = {
+  workPackage: "minmax(130px, 160px)",
+  task: "minmax(220px, 1fr)",
+  status: "minmax(105px, 130px)",
+  startDate: "100px",
+  endDate: "110px",
+  owner: "minmax(130px, 160px)",
+  type: "110px",
+  title: "minmax(240px, 1fr)",
+  riskScore: "80px",
+  dueDate: "100px",
+  impact: "minmax(180px, 1fr)",
+  severity: "110px",
+  decisionRequired: "120px",
+};
+
+const FIELD_MIN_WIDTHS: Record<ReportFieldKey, number> = {
+  workPackage: 130,
+  task: 220,
+  status: 105,
+  startDate: 100,
+  endDate: 110,
+  owner: 130,
+  type: 110,
+  title: 240,
+  riskScore: 80,
+  dueDate: 100,
+  impact: 180,
+  severity: 110,
+  decisionRequired: 120,
+};
+
+function initialFieldOrder(): Record<ReportKind, ReportFieldKey[]> {
+  return {
+    tasks: REPORT_FIELDS.tasks.map((field) => field.key),
+    raid: REPORT_FIELDS.raid.map((field) => field.key),
+    issues: REPORT_FIELDS.issues.map((field) => field.key),
+  };
+}
+
+function initialSelectedFields(): Record<ReportKind, ReportFieldKey[]> {
+  return {
+    tasks: [...DEFAULT_REPORT_FIELDS.tasks],
+    raid: [...DEFAULT_REPORT_FIELDS.raid],
+    issues: [...DEFAULT_REPORT_FIELDS.issues],
+  };
+}
+
+function reportGridStyle(fields: ReportFieldKey[]): CSSProperties {
+  const minWidth = fields.reduce((total, field) => total + FIELD_MIN_WIDTHS[field], 0);
+  return {
+    gridTemplateColumns: fields.map((field) => FIELD_WIDTHS[field]).join(" "),
+    minWidth: `${Math.max(360, minWidth)}px`,
+  };
+}
+
+function ReportDataTable({
+  kind,
+  fields,
+  items,
+  emptyText,
+}: {
+  kind: ReportKind;
+  fields: ReportFieldKey[];
+  items: ReportDataItem[];
+  emptyText: string;
+}) {
+  if (items.length === 0) return <div className="report-empty">{emptyText}</div>;
+  const fieldLabels = new Map(REPORT_FIELDS[kind].map((field) => [field.key, field.label]));
+  const gridStyle = reportGridStyle(fields);
+
   return (
-    <div className="report-item-list">
-      <div className="report-item report-item-head">
-        <span>Пакет работ</span>
-        <span>Задача</span>
-        <span>Дата начала</span>
-        <span>Дата завершения</span>
-        <span>Исполнитель</span>
+    <div className="report-data-list">
+      <div className="report-data-row report-data-head" style={gridStyle}>
+        {fields.map((field) => <span key={field}>{fieldLabels.get(field)}</span>)}
       </div>
       {items.map((item) => (
-        <div className="report-item" key={item.id}>
-          <div className="report-work-package">
-            <b>{item.workPackage?.code ?? "-"}</b>
-            <small>{item.workPackage?.title ?? "Пакет не задан"}</small>
-          </div>
-          <div className="report-work-title">
-            <b>{item.code} · {item.title}</b>
-            <small>{wbsStatusLabel(item.status)}</small>
-          </div>
-          <time>{date(item.reportStartDate)}</time>
-          <time>{date(item.reportEndDate)}</time>
-          <span className="report-owner">{item.owner || "Не задан"}</span>
+        <div className="report-data-row" key={item.id} style={gridStyle}>
+          {fields.map((field) => (
+            <span className={`report-data-cell field-${field}`} key={field}>
+              {reportFieldText(kind, field, item)}
+            </span>
+          ))}
         </div>
       ))}
     </div>
+  );
+}
+
+function ReportFieldPicker({
+  kind,
+  fieldOrder,
+  selectedFields,
+  draggedField,
+  onToggle,
+  onDragStart,
+  onDragEnd,
+  onDrop,
+}: {
+  kind: ReportKind;
+  fieldOrder: ReportFieldKey[];
+  selectedFields: ReportFieldKey[];
+  draggedField: ReportFieldKey | null;
+  onToggle: (field: ReportFieldKey) => void;
+  onDragStart: (field: ReportFieldKey, event: DragEvent<HTMLButtonElement>) => void;
+  onDragEnd: () => void;
+  onDrop: (field: ReportFieldKey) => void;
+}) {
+  const definitions = new Map(REPORT_FIELDS[kind].map((field) => [field.key, field]));
+  return (
+    <div className="report-field-picker">
+      <div className="report-field-picker-head">
+        <span>Поля</span>
+        <small>{selectedFields.length}/{fieldOrder.length}</small>
+      </div>
+      <div className="report-field-list">
+        {fieldOrder.map((field) => {
+          const definition = definitions.get(field);
+          if (!definition) return null;
+          const selected = selectedFields.includes(field);
+          return (
+            <div
+              className={`report-field-row ${draggedField === field ? "dragging" : ""}`}
+              key={field}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                onDrop(field);
+              }}
+            >
+              <button
+                type="button"
+                className="report-field-drag"
+                draggable
+                onDragStart={(event) => onDragStart(field, event)}
+                onDragEnd={onDragEnd}
+                aria-label={`Перетащить поле ${definition.label}`}
+                title={`Перетащить поле ${definition.label}`}
+              >
+                <GripVertical size={15} />
+              </button>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  disabled={selected && selectedFields.length === 1}
+                  onChange={() => onToggle(field)}
+                />
+                <span>{definition.label}</span>
+              </label>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TaskReportSections({
+  report,
+  fields,
+}: {
+  report: ProjectReport;
+  fields: ReportFieldKey[];
+}) {
+  return (
+    <>
+      <section className="report-section tone-done">
+        <h4>Что сделано <span>{report.done.length}</span></h4>
+        <ReportDataTable kind="tasks" fields={fields} items={report.done} emptyText="Нет закрытых задач за выбранный период" />
+      </section>
+      <section className="report-section tone-progress">
+        <h4>Что в работе <span>{report.inProgress.length}</span></h4>
+        <ReportDataTable kind="tasks" fields={fields} items={report.inProgress} emptyText="Нет задач в работе за выбранный период" />
+      </section>
+      <section className="report-section tone-upcoming">
+        <h4>Что предстоит сделать <span>{report.upcoming.length}</span></h4>
+        <ReportDataTable kind="tasks" fields={fields} items={report.upcoming} emptyText="Нет предстоящих задач в выбранном горизонте" />
+      </section>
+    </>
   );
 }
 
@@ -60,6 +236,10 @@ export function ReportsPage() {
   );
   const effectiveProjectId = projectId || projectOptions[0]?.id || "";
   const [period, setPeriod] = useState<ReportPeriodValue>("7");
+  const [reportKind, setReportKind] = useState<ReportKind>("tasks");
+  const [fieldOrderByKind, setFieldOrderByKind] = useState(initialFieldOrder);
+  const [selectedFieldsByKind, setSelectedFieldsByKind] = useState(initialSelectedFields);
+  const [draggedField, setDraggedField] = useState<ReportFieldKey | null>(null);
   const [loadedProject, setLoadedProject] = useState<{
     id: string;
     data: ProjectDetails | null;
@@ -101,15 +281,46 @@ export function ReportsPage() {
   const error = loadedProject.id === effectiveProjectId ? loadedProject.error : null;
   const loading = Boolean(effectiveProjectId && loadedProject.id !== effectiveProjectId);
   const periodDays = Number(period) as ReportPeriodDays;
-
   const report = useMemo(
     () => (project ? createProjectReport(project, periodDays) : null),
     [periodDays, project],
   );
+  const fieldOrder = fieldOrderByKind[reportKind];
+  const selectedFields = selectedFieldsByKind[reportKind];
+  const activeFields = fieldOrder.filter((field) => selectedFields.includes(field));
+  const risks = report?.raidItems.filter((item) => item.type === "RISK") ?? [];
+  const problems = report?.raidItems.filter((item) => item.type === "DEPENDENCY") ?? [];
+
+  const toggleField = (field: ReportFieldKey) => {
+    setSelectedFieldsByKind((current) => {
+      const selected = current[reportKind];
+      if (selected.includes(field)) {
+        if (selected.length === 1) return current;
+        return { ...current, [reportKind]: selected.filter((item) => item !== field) };
+      }
+      return { ...current, [reportKind]: [...selected, field] };
+    });
+  };
+
+  const dropField = (targetField: ReportFieldKey) => {
+    if (!draggedField || draggedField === targetField) return;
+    setFieldOrderByKind((current) => {
+      const order = [...current[reportKind]];
+      const sourceIndex = order.indexOf(draggedField);
+      const targetIndex = order.indexOf(targetField);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+      order.splice(sourceIndex, 1);
+      order.splice(targetIndex, 0, draggedField);
+      return { ...current, [reportKind]: order };
+    });
+    setDraggedField(null);
+  };
 
   const copyReport = async () => {
     if (!project || !report) return;
-    await navigator.clipboard.writeText(projectReportText(project, report));
+    await navigator.clipboard.writeText(
+      projectReportText(project, report, reportKind, activeFields),
+    );
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   };
@@ -144,7 +355,7 @@ export function ReportsPage() {
         <aside className="report-controls" aria-label="Настройки отчёта">
           <label className="report-control-field">
             <span>Проект</span>
-            <div className="report-project-select">
+            <div className="report-select-wrap">
               <select
                 value={effectiveProjectId}
                 onChange={(event) => setProjectId(event.target.value)}
@@ -159,7 +370,7 @@ export function ReportsPage() {
             </div>
           </label>
 
-          <div className="report-control-field">
+          <div className={`report-control-field ${reportKind === "tasks" ? "" : "disabled"}`}>
             <span>Период</span>
             <div className="segmented-control report-period-control" aria-label="Период отчёта">
               {PERIOD_OPTIONS.map((item) => (
@@ -167,6 +378,8 @@ export function ReportsPage() {
                   type="button"
                   className={period === item.value ? "active" : ""}
                   aria-pressed={period === item.value}
+                  disabled={reportKind !== "tasks"}
+                  title={reportKind === "tasks" ? undefined : "Период применяется только к задачам"}
                   key={item.value}
                   onClick={() => setPeriod(item.value)}
                 >
@@ -174,6 +387,41 @@ export function ReportsPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="report-constructor">
+            <span className="report-constructor-title">Конструктор</span>
+            <label className="report-control-field">
+              <span>Содержание</span>
+              <div className="report-select-wrap">
+                <select
+                  value={reportKind}
+                  onChange={(event) => {
+                    setReportKind(event.target.value as ReportKind);
+                    setDraggedField(null);
+                  }}
+                >
+                  {REPORT_KIND_OPTIONS.map((item) => (
+                    <option value={item.value} key={item.value}>{item.label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={17} strokeWidth={2.4} aria-hidden="true" />
+              </div>
+            </label>
+            <ReportFieldPicker
+              kind={reportKind}
+              fieldOrder={fieldOrder}
+              selectedFields={selectedFields}
+              draggedField={draggedField}
+              onToggle={toggleField}
+              onDragStart={(field, event) => {
+                setDraggedField(field);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/report-field", field);
+              }}
+              onDragEnd={() => setDraggedField(null)}
+              onDrop={dropField}
+            />
           </div>
         </aside>
 
@@ -186,32 +434,62 @@ export function ReportsPage() {
                 <div>
                   <span>{project.code}</span>
                   <h3>{project.name}</h3>
+                  <small>{REPORT_KIND_OPTIONS.find((item) => item.value === reportKind)?.label}</small>
                 </div>
                 <dl>
-                  <div><dt>Период</dt><dd>{date(report.pastStart)} - {date(report.generatedAt)}</dd></div>
-                  <div><dt>Следующий горизонт</dt><dd>до {date(report.futureEnd)}</dd></div>
+                  {reportKind === "tasks" ? (
+                    <>
+                      <div><dt>Период</dt><dd>{date(report.pastStart)} - {date(report.generatedAt)}</dd></div>
+                      <div><dt>Следующий горизонт</dt><dd>до {date(report.futureEnd)}</dd></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><dt>Срез данных</dt><dd>{date(report.generatedAt)}</dd></div>
+                      <div><dt>Записей</dt><dd>{reportKind === "raid" ? report.raidItems.length : report.openIssues.length}</dd></div>
+                    </>
+                  )}
                   <div><dt>РП</dt><dd>{project.projectManager || "не назначен"}</dd></div>
                 </dl>
               </div>
 
               <div className="report-summary-counts">
-                <span><b>{report.done.length}</b> сделано</span>
-                <span><b>{report.inProgress.length}</b> в работе</span>
-                <span><b>{report.upcoming.length}</b> предстоит</span>
+                {reportKind === "tasks" && (
+                  <>
+                    <span><b>{report.done.length}</b> сделано</span>
+                    <span><b>{report.inProgress.length}</b> в работе</span>
+                    <span><b>{report.upcoming.length}</b> предстоит</span>
+                  </>
+                )}
+                {reportKind === "raid" && (
+                  <>
+                    <span><b>{risks.length}</b> рисков</span>
+                    <span><b>{problems.length}</b> проблем</span>
+                  </>
+                )}
+                {reportKind === "issues" && (
+                  <span><b>{report.openIssues.length}</b> открытых вопросов</span>
+                )}
               </div>
 
-              <section className="report-section tone-done">
-                <h4>Что сделано <span>{report.done.length}</span></h4>
-                <ReportTaskList items={report.done} />
-              </section>
-              <section className="report-section tone-progress">
-                <h4>Что в работе <span>{report.inProgress.length}</span></h4>
-                <ReportTaskList items={report.inProgress} />
-              </section>
-              <section className="report-section tone-upcoming">
-                <h4>Что предстоит сделать <span>{report.upcoming.length}</span></h4>
-                <ReportTaskList items={report.upcoming} />
-              </section>
+              {reportKind === "tasks" && <TaskReportSections report={report} fields={activeFields} />}
+              {reportKind === "raid" && (
+                <>
+                  <section className="report-section tone-risk">
+                    <h4>Риски <span>{risks.length}</span></h4>
+                    <ReportDataTable kind="raid" fields={activeFields} items={risks} emptyText="Открытых рисков нет" />
+                  </section>
+                  <section className="report-section tone-problem">
+                    <h4>Проблемы <span>{problems.length}</span></h4>
+                    <ReportDataTable kind="raid" fields={activeFields} items={problems} emptyText="Открытых проблем нет" />
+                  </section>
+                </>
+              )}
+              {reportKind === "issues" && (
+                <section className="report-section tone-issue">
+                  <h4>Открытые вопросы <span>{report.openIssues.length}</span></h4>
+                  <ReportDataTable kind="issues" fields={activeFields} items={report.openIssues} emptyText="Открытых вопросов нет" />
+                </section>
+              )}
             </>
           )}
         </article>
