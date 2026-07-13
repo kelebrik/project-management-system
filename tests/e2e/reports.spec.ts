@@ -149,6 +149,34 @@ test("report builder creates and filters a project status report", async ({ page
         budgetImpact: "0",
         statusUpdates: [],
       },
+      {
+        id: "problem-1",
+        type: "DEPENDENCY",
+        title: "Проблема интеграции",
+        description: "Зависимость от поставщика",
+        owner: "РП",
+        status: "IN_PROGRESS",
+        probability: 2,
+        impact: 3,
+        riskScore: 6,
+        mitigationPlan: null,
+        contingencyPlan: null,
+        dueDate: isoDay(3),
+        residualRisk: 2,
+        validationDate: null,
+        linkedRiskId: null,
+        dependencyType: null,
+        predecessor: null,
+        successor: null,
+        supplier: null,
+        jiraTicketKey: null,
+        jiraTicketUrl: null,
+        decisionRequired: true,
+        escalationLevel: "",
+        scheduleImpactDays: 2,
+        budgetImpact: "0",
+        statusUpdates: [],
+      },
     ],
     currentUserAccessLevel: "VIEW",
     _count: { tasks: 3, issues: 1, jiraSnapshots: 0 },
@@ -221,10 +249,7 @@ test("report builder creates and filters a project status report", async ({ page
   await expect(page.getByText("Дата завершения").first()).toBeVisible();
   await expect(page.getByText("Исполнитель").first()).toBeVisible();
   await expect(page.getByText("Пакет интеграции").first()).toBeVisible();
-  await expect(page.getByText("Риск поставки")).toHaveCount(0);
-  await expect(page.getByText("Вопрос согласования")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Месяц" })).toHaveCount(0);
-  await expect(page.getByLabel("Риски")).toHaveCount(0);
 
   const currentWeek = page.getByRole("button", { name: "Закрыто на этой неделе" });
   const twoWeeks = page.getByRole("button", { name: "Закрыто за две недели" });
@@ -234,8 +259,46 @@ test("report builder creates and filters a project status report", async ({ page
   await expect(twoWeeks).toHaveAttribute("aria-pressed", "true");
   await expect(twoWeeks).toHaveClass(/active/);
   await expect(currentWeek).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".report-project-select svg")).toBeVisible();
+  await expect(page.locator(".report-select-wrap svg")).toHaveCount(2);
   await expect(page.getByRole("button", { name: "PDF", exact: true })).toBeVisible();
+
+  const ownerField = page.getByRole("checkbox", { name: "Исполнитель" });
+  await ownerField.uncheck();
+  await expect(page.locator(".report-data-head").first()).not.toContainText("Исполнитель");
+
+  const statusHandle = page.getByRole("button", { name: "Перетащить поле Статус" });
+  const packageHandle = page.getByRole("button", { name: "Перетащить поле Пакет работ" });
+  await statusHandle.dragTo(packageHandle.locator(".."));
+  await expect(page.locator(".report-data-head").first().locator("span").first()).toHaveText("Статус");
+
+  const contentSelect = page.getByLabel("Содержание");
+  await contentSelect.selectOption("raid");
+  await expect(page.getByRole("heading", { name: /^Риски/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Проблемы/ })).toBeVisible();
+  await expect(page.getByText("Риск поставки")).toBeVisible();
+  await expect(page.getByText("Проблема интеграции")).toBeVisible();
+  await expect(currentWeek).toBeDisabled();
+  await expect(page.getByRole("checkbox", { name: "Оценка" })).toBeChecked();
+
+  await contentSelect.selectOption("issues");
+  await expect(page.getByRole("heading", { name: /^Открытые вопросы/ })).toBeVisible();
+  await expect(page.getByText("Вопрос согласования")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Критичность" })).toBeChecked();
+
+  await contentSelect.selectOption("tasks");
+  await expect(ownerField).not.toBeChecked();
+  await expect(page.locator(".report-data-head").first().locator("span").first()).toHaveText("Статус");
+
+  const headerTerms = await page.locator(".report-document-header dt").all();
+  for (const term of headerTerms) {
+    const box = await term.boundingBox();
+    const textMetrics = await term.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+    expect(box).not.toBeNull();
+    expect(textMetrics.scrollWidth).toBeLessThanOrEqual(textMetrics.clientWidth);
+  }
   const pageWidth = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,

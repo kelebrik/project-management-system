@@ -1,6 +1,68 @@
-import type { ProjectDetails, WbsItem } from "./domainTypes";
+import type { Issue, ProjectDetails, RaidItem, WbsItem } from "./domainTypes";
+import {
+  issueSeverityLabel,
+  issueStatusLabel,
+  raidStatusLabel,
+  raidTypeLabel,
+  wbsStatusLabel,
+} from "./labels";
 
 export type ReportPeriodDays = 7 | 14;
+export type ReportKind = "tasks" | "raid" | "issues";
+export type ReportFieldKey =
+  | "workPackage"
+  | "task"
+  | "status"
+  | "startDate"
+  | "endDate"
+  | "owner"
+  | "type"
+  | "title"
+  | "riskScore"
+  | "dueDate"
+  | "impact"
+  | "severity"
+  | "decisionRequired";
+
+export type ReportFieldDefinition = {
+  key: ReportFieldKey;
+  label: string;
+};
+
+export const REPORT_FIELDS: Record<ReportKind, ReportFieldDefinition[]> = {
+  tasks: [
+    { key: "workPackage", label: "Пакет работ" },
+    { key: "task", label: "Задача" },
+    { key: "status", label: "Статус" },
+    { key: "startDate", label: "Дата начала" },
+    { key: "endDate", label: "Дата завершения" },
+    { key: "owner", label: "Исполнитель" },
+  ],
+  raid: [
+    { key: "type", label: "Тип" },
+    { key: "title", label: "Наименование" },
+    { key: "status", label: "Статус" },
+    { key: "owner", label: "Ответственный" },
+    { key: "riskScore", label: "Оценка" },
+    { key: "dueDate", label: "Срок" },
+    { key: "impact", label: "Влияние" },
+  ],
+  issues: [
+    { key: "title", label: "Вопрос" },
+    { key: "status", label: "Статус" },
+    { key: "severity", label: "Критичность" },
+    { key: "owner", label: "Ответственный" },
+    { key: "dueDate", label: "Срок" },
+    { key: "impact", label: "Влияние" },
+    { key: "decisionRequired", label: "Требуется решение" },
+  ],
+};
+
+export const DEFAULT_REPORT_FIELDS: Record<ReportKind, ReportFieldKey[]> = {
+  tasks: ["workPackage", "task", "status", "startDate", "endDate", "owner"],
+  raid: ["type", "title", "status", "owner", "riskScore", "dueDate"],
+  issues: ["title", "status", "severity", "owner", "dueDate"],
+};
 
 export type ReportTask = Pick<WbsItem, "id" | "code" | "title" | "owner" | "status"> & {
   reportStartDate: string | null;
@@ -19,6 +81,8 @@ export type ProjectReport = {
   done: ReportTask[];
   inProgress: ReportTask[];
   upcoming: ReportTask[];
+  raidItems: RaidItem[];
+  openIssues: Issue[];
 };
 
 const DAY_MS = 86_400_000;
@@ -101,6 +165,19 @@ function byDueDate(left: ReportTask, right: ReportTask) {
   return leftTime - rightTime || left.code.localeCompare(right.code, "ru");
 }
 
+function isOpenRaidItem(item: RaidItem) {
+  return (
+    (item.type === "RISK" || item.type === "DEPENDENCY") &&
+    item.status !== "CLOSED" &&
+    item.status !== "VALIDATED"
+  );
+}
+
+function isOpenIssue(item: Issue) {
+  const status = item.status.trim().toLowerCase();
+  return status !== "closed" && status !== "resolved";
+}
+
 export function createProjectReport(
   project: ProjectDetails,
   periodDays: ReportPeriodDays,
@@ -146,6 +223,8 @@ export function createProjectReport(
     done,
     inProgress,
     upcoming,
+    raidItems: project.raidItems.filter(isOpenRaidItem),
+    openIssues: project.issues.filter(isOpenIssue),
   };
 }
 
@@ -154,28 +233,134 @@ function textDate(value: Date | string | null) {
   return new Intl.DateTimeFormat("ru-RU").format(new Date(value));
 }
 
-function taskLines(items: ReportTask[]) {
-  if (items.length === 0) return ["- Нет данных"];
-  return items.map(
-    (item) =>
-      `- ${item.code} ${item.title}; пакет: ${item.workPackage ? `${item.workPackage.code} ${item.workPackage.title}` : "не задан"}; начало: ${textDate(item.reportStartDate)}; завершение: ${textDate(item.reportEndDate)}; исполнитель: ${item.owner || "не задан"}`,
-  );
+function fieldLabel(kind: ReportKind, field: ReportFieldKey) {
+  return REPORT_FIELDS[kind].find((item) => item.key === field)?.label ?? field;
 }
 
-export function projectReportText(project: ProjectDetails, report: ProjectReport) {
+export function reportFieldText(
+  kind: ReportKind,
+  field: ReportFieldKey,
+  item: ReportTask | RaidItem | Issue,
+) {
+  if (kind === "tasks") {
+    const task = item as ReportTask;
+    switch (field) {
+      case "workPackage":
+        return task.workPackage
+          ? `${task.workPackage.code} ${task.workPackage.title}`
+          : "не задан";
+      case "task":
+        return `${task.code} ${task.title}`;
+      case "status":
+        return wbsStatusLabel(task.status);
+      case "startDate":
+        return textDate(task.reportStartDate);
+      case "endDate":
+        return textDate(task.reportEndDate);
+      case "owner":
+        return task.owner || "не задан";
+      default:
+        return "—";
+    }
+  }
+
+  if (kind === "raid") {
+    const raid = item as RaidItem;
+    switch (field) {
+      case "type":
+        return raidTypeLabel(raid.type);
+      case "title":
+        return raid.title;
+      case "status":
+        return raidStatusLabel(raid.status);
+      case "owner":
+        return raid.owner || "не задан";
+      case "riskScore":
+        return String(raid.riskScore);
+      case "dueDate":
+        return textDate(raid.dueDate);
+      case "impact":
+        return String(raid.impact);
+      default:
+        return "—";
+    }
+  }
+
+  const issue = item as Issue;
+  switch (field) {
+    case "title":
+      return issue.title;
+    case "status":
+      return issueStatusLabel(issue.status);
+    case "severity":
+      return issueSeverityLabel(issue.severity);
+    case "owner":
+      return issue.owner || "не задан";
+    case "dueDate":
+      return textDate(issue.dueDate);
+    case "impact":
+      return issue.impact || "не задано";
+    case "decisionRequired":
+      return issue.decisionRequired ? "Да" : "Нет";
+    default:
+      return "—";
+  }
+}
+
+function customLines(
+  kind: ReportKind,
+  fields: ReportFieldKey[],
+  items: Array<ReportTask | RaidItem | Issue>,
+) {
+  if (items.length === 0) return ["- Нет данных"];
+  return items.map((item) =>
+    fields
+      .map((field) => {
+        const value = reportFieldText(kind, field, item);
+        return `${fieldLabel(kind, field)}: ${value}`;
+      })
+      .join("; "),
+  ).map((line) => `- ${line}`);
+}
+
+export function projectReportText(
+  project: ProjectDetails,
+  report: ProjectReport,
+  kind: ReportKind = "tasks",
+  fields: ReportFieldKey[] = DEFAULT_REPORT_FIELDS.tasks,
+) {
   const lines = [
     `Статус-отчёт: ${project.code} ${project.name}`,
-    `Период: ${textDate(report.pastStart)} - ${textDate(report.generatedAt)}`,
-    "",
-    "Что сделано",
-    ...taskLines(report.done),
-    "",
-    "Что в работе",
-    ...taskLines(report.inProgress),
-    "",
-    "Что предстоит сделать",
-    ...taskLines(report.upcoming),
   ];
+
+  if (kind === "tasks") {
+    lines.push(
+      `Период: ${textDate(report.pastStart)} - ${textDate(report.generatedAt)}`,
+      "",
+      "Что сделано",
+      ...customLines("tasks", fields, report.done),
+      "",
+      "Что в работе",
+      ...customLines("tasks", fields, report.inProgress),
+      "",
+      "Что предстоит сделать",
+      ...customLines("tasks", fields, report.upcoming),
+    );
+  } else if (kind === "raid") {
+    lines.push(
+      `Срез на: ${textDate(report.generatedAt)}`,
+      "",
+      "Риски и проблемы",
+      ...customLines("raid", fields, report.raidItems),
+    );
+  } else {
+    lines.push(
+      `Срез на: ${textDate(report.generatedAt)}`,
+      "",
+      "Открытые вопросы",
+      ...customLines("issues", fields, report.openIssues),
+    );
+  }
 
   return lines.join("\n");
 }
