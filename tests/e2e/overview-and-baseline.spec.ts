@@ -311,16 +311,24 @@ test("inline WBS insert button stays above the following row", async ({ page }) 
     .toBe(true);
 });
 
-test("read-only WBS title uses the available structure column width", async ({ page }) => {
+test("read-only WBS rows keep the editable table geometry", async ({ page }) => {
   await mockReadOnlyProject(page);
   await page.goto("/TV-OVERVIEW/wbs");
 
-  const title = page.locator(".wbs-title-readonly").first();
-  await expect(title).toHaveText("Тестовая задача");
+  const structureCell = page.locator(".wbs-work-cell.read-only-cell").first();
+  const title = structureCell.locator(".wbs-title-input");
+  await expect(title).toHaveValue("Тестовая задача");
   const dimensions = await title.evaluate((element) => ({
     clientWidth: element.clientWidth,
     scrollWidth: element.scrollWidth,
   }));
   expect(dimensions.clientWidth).toBeGreaterThan(72);
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+  await expect(structureCell.locator(".wbs-row-select")).toBeDisabled();
+  await expect(
+    page.locator(".wbs-level-cell.read-only-cell").first().locator("button").first(),
+  ).toBeDisabled();
+  await expect(
+    page.locator(".wbs-predecessor-editor.read-only-cell").first().locator("button"),
+  ).toHaveCount(2);
 });
