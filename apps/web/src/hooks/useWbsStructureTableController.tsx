@@ -348,6 +348,13 @@ export function useWbsStructureTableController({
             ) : (
               <span className="tree-spacer" />
             )}
+            <input
+              type="checkbox"
+              className="wbs-row-select wbs-readonly-control"
+              disabled
+              tabIndex={-1}
+              aria-label={`Строка ${draft.code} доступна только для просмотра`}
+            />
             <span
               className={`wbs-color-dot ${
                 item.type === "MILESTONE" || item.type === "GOAL"
@@ -355,21 +362,96 @@ export function useWbsStructureTableController({
                   : wbsToneClass(item)
               }`}
             />
-            <span className="wbs-code-readonly">
-              {draftWbsCodes.get(item.id) ?? draft.code}
-            </span>
-            <span className="wbs-title-readonly">
-              {emptyReadonlyValue(draft.title)}
-            </span>
+            <input
+              className="wbs-code-input wbs-readonly-control"
+              readOnly
+              tabIndex={-1}
+              value={draftWbsCodes.get(item.id) ?? draft.code}
+            />
+            <input
+              className="wbs-title-input wbs-readonly-control"
+              readOnly
+              tabIndex={-1}
+              value={emptyReadonlyValue(draft.title)}
+            />
+          </div>
+        );
+      }
+
+      if (columnKey === "level") {
+        return (
+          <div className="wbs-level-cell read-only-cell">
+            <div className="wbs-level-stepper" aria-hidden="true">
+              <button type="button" disabled tabIndex={-1}>
+                -
+              </button>
+              <button type="button" disabled tabIndex={-1}>
+                +
+              </button>
+            </div>
+            <input
+              className="wbs-level-input wbs-readonly-control"
+              readOnly
+              tabIndex={-1}
+              value={emptyReadonlyValue(draft.wbsLevel)}
+            />
+            <span className="wbs-readonly-row-controls" aria-hidden="true" />
+          </div>
+        );
+      }
+
+      if (
+        columnKey === "predecessor1" ||
+        columnKey === "predecessor2" ||
+        columnKey === "predecessor3" ||
+        columnKey === "predecessor4" ||
+        columnKey === "predecessor5" ||
+        columnKey === "predecessor6"
+      ) {
+        const predecessorCode = resolveDraftPredecessorCode(
+          draft[columnKey],
+          wbsTree,
+          wbsDrafts,
+          draftWbsCodes,
+        );
+        const timing = draft[WBS_PREDECESSOR_TYPE_BY_KEY[columnKey]] ?? "FS";
+        return (
+          <div className="wbs-predecessor-editor read-only-cell">
+            <input
+              className="wbs-predecessor-input wbs-readonly-control"
+              readOnly
+              tabIndex={-1}
+              value={predecessorCode}
+              placeholder="Код"
+            />
+            <div className="wbs-predecessor-timing" aria-hidden="true">
+              <button
+                type="button"
+                className={`wbs-predecessor-timing-button ${
+                  timing === "SS" ? "active" : ""
+                }`}
+                disabled
+                tabIndex={-1}
+              >
+                <ArrowUp size={11} strokeWidth={2.8} />
+              </button>
+              <button
+                type="button"
+                className={`wbs-predecessor-timing-button ${
+                  timing === "FS" ? "active" : ""
+                }`}
+                disabled
+                tabIndex={-1}
+              >
+                <ArrowDown size={11} strokeWidth={2.8} />
+              </button>
+            </div>
           </div>
         );
       }
 
       let value: string;
       switch (columnKey) {
-        case "level":
-          value = emptyReadonlyValue(draft.wbsLevel);
-          break;
         case "type":
           value = wbsTypeLabel(draft.type);
           break;
@@ -402,21 +484,6 @@ export function useWbsStructureTableController({
           break;
         case "jiraTicketUrl":
           value = emptyReadonlyValue(draft.jiraTicketUrl);
-          break;
-        case "predecessor1":
-        case "predecessor2":
-        case "predecessor3":
-        case "predecessor4":
-        case "predecessor5":
-        case "predecessor6":
-          value = emptyReadonlyValue(
-            resolveDraftPredecessorCode(
-              draft[columnKey],
-              wbsTree,
-              wbsDrafts,
-              draftWbsCodes,
-            ),
-          );
           break;
         case "leadLag":
           value = emptyReadonlyValue(draft.leadLagDays);
