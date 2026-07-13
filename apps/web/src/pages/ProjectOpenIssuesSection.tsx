@@ -82,7 +82,7 @@ export function ProjectOpenIssuesSection() {
                         );
                         const jiraLink = issuePrimaryJiraLink(issue);
                         return (
-                        <div className="issue-row" key={issue.id}>
+                        <div className="issue-row" id={`issue-item-${issue.id}`} key={issue.id}>
                           <div
                             className="issue-summary-row"
                             role="button"

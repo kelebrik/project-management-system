@@ -175,11 +175,14 @@ export function useWbsSnapshotActions({
     await restoreWbsSnapshot(snapshot, "redo");
   }
 
-  async function saveWbsBaseline() {
+  async function saveWbsBaseline(itemIds?: string[]) {
     if (!project) return;
+    const selectedCount = itemIds?.length ?? 0;
     if (
       !window.confirm(
-        "Зафиксировать текущую Структуру как базовый план? Текущие даты станут датами базового плана.",
+        selectedCount > 0
+          ? `Обновить базовый план для выбранных работ (${selectedCount})? Текущие даты старта и финиша станут базовыми.`
+          : "Зафиксировать текущую Структуру как базовый план? Текущие даты станут датами базового плана.",
       )
     ) {
       return;
@@ -190,7 +193,10 @@ export function useWbsSnapshotActions({
     try {
       const response = await authenticatedFetch(
         `${apiBase}/api/projects/${project.id}/wbs-baseline`,
-        { method: "POST" },
+        {
+          method: "POST",
+          ...(selectedCount > 0 ? { body: JSON.stringify({ itemIds }) } : {}),
+        },
       );
       const result = await response.json().catch(() => null);
       if (!response.ok) {
@@ -205,7 +211,11 @@ export function useWbsSnapshotActions({
       } else {
         await refreshProject(project.id);
       }
-      setNotice("Базовый план Структуры сохранен");
+      setNotice(
+        selectedCount > 0
+          ? `Базовый план обновлен для выбранных работ: ${selectedCount}`
+          : "Базовый план Структуры сохранен",
+      );
     } catch (baselineError) {
       setError(
         baselineError instanceof Error

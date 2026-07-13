@@ -64,6 +64,39 @@ export async function createWbsBaselineFromCurrentPlan(projectId: string) {
   });
 }
 
+export async function updateSelectedWbsBaselineFromCurrentPlan(
+  projectId: string,
+  requestedItemIds: string[],
+) {
+  const itemIds = [...new Set(requestedItemIds)];
+  return prisma.$transaction(async (tx) => {
+    const items = await tx.wbsItem.findMany({
+      where: { projectId, id: { in: itemIds } },
+      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+    });
+    const foundIds = new Set(items.map((item) => item.id));
+    const missingItemIds = itemIds.filter((itemId) => !foundIds.has(itemId));
+    if (missingItemIds.length > 0) {
+      return { updatedCount: 0, missingItemIds };
+    }
+
+    await Promise.all(
+      items.map((item) =>
+        tx.wbsItem.update({
+          where: { id: item.id },
+          data: {
+            baselineStartDate: item.startDate,
+            baselineDueDate: item.dueDate,
+            forecastStartDate: item.forecastStartDate ?? item.startDate,
+            forecastDueDate: item.forecastDueDate ?? item.dueDate,
+          },
+        }),
+      ),
+    );
+    return { updatedCount: items.length, missingItemIds: [] as string[] };
+  });
+}
+
 const predecessorFields = [
   "predecessor1",
   "predecessor2",
