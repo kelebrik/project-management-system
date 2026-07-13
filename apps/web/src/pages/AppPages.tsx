@@ -12,6 +12,7 @@ import { AdminUsersPageContent } from "./AdminUsersPageContent";
 import { ClosedProjectsPage } from "./ClosedProjectsPage";
 import { PortfolioPage } from "./PortfolioPage";
 import { ProjectsPage } from "./ProjectsPage";
+import { ReportsPage } from "./ReportsPage";
 import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
 import { ProjectBusinessRequirementsPage } from "./ProjectBusinessRequirementsPage";
 import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
@@ -50,7 +51,7 @@ export function AppPages() {
     usePageContext();
   const isDevelopmentSectionView = isDevelopmentSectionViewName(activeView);
 
-  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isDevelopmentSectionView))) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isDevelopmentSectionView))) {
     return null;
   }
 
@@ -63,6 +64,7 @@ export function AppPages() {
         </Suspense>
       )}
       {activeView === "projects" && <ProjectsPage />}
+      {activeView === "reports" && <ReportsPage />}
       {activeView === "wiki" && <WikiPage />}
       {project && activeView === "project-overview" && <ProjectOverviewSummaryPage />}
       {activeView === "closed-projects" && <ClosedProjectsPage />}

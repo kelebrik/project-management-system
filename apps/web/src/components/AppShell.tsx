@@ -20,6 +20,7 @@ import {
   KeyRound,
   LayoutDashboard,
   ListChecks,
+  NotebookText,
   Settings,
   ShieldAlert,
   ShieldCheck,
@@ -389,6 +390,14 @@ export function AppShell({
             }
             shouldShowProjectMenu={shouldShowProjectMenu}
           />
+          <button
+            type="button"
+            className={activeView === "reports" ? "active" : ""}
+            onClick={() => openView("reports")}
+            aria-label="Отчёты"
+          >
+            {navLabel(<NotebookText size={17} />, "Отчёты")}
+          </button>
           <button
             type="button"
             className={activeView === "closed-projects" ? "active" : ""}

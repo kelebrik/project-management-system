@@ -131,7 +131,7 @@ export function ProjectPmWorkspacePage() {
         </div>
       </div>
 
-      <div className="v2-attention-strip pm-health-strip">
+      <div className="v2-attention-strip pm-health-strip v2-summary-line">
         <div className="v2-attention-chip blue">
           <strong>{project.progress}%</strong>
           <span>прогресс</span>
@@ -148,55 +148,27 @@ export function ProjectPmWorkspacePage() {
           <strong>{redRaid.length}</strong>
           <span>RAID красной зоны</span>
         </div>
-        <div className="v2-next-focus">
-          <span>Ближайшая цель</span>
-          <b>{date(project.targetDate)} · {project.projectManager}</b>
-        </div>
+      </div>
+
+      <div className="pm-priority-line">
+        {delayedTasks[0] && (
+          <button type="button" className="pm-priority-item red" onClick={() => focusTask(delayedTasks[0])}>
+            <span>Просрочено</span><b>{delayedTasks[0].title}</b><small>{date(delayedTasks[0].dueDate)}</small>
+          </button>
+        )}
+        {selectedIssue && (
+          <button type="button" className="pm-priority-item amber">
+            <span>Нужно решение</span><b>{selectedIssue.title}</b><small>{date(selectedIssue.dueDate)}</small>
+          </button>
+        )}
+        {selectedRaid && (
+          <button type="button" className="pm-priority-item red" onClick={() => openRaidItemFromOverview(selectedRaid.id, selectedRaid.type)}>
+            <span>{raidTypeLabel(selectedRaid.type)} · {selectedRaid.riskScore}</span><b>{selectedRaid.title}</b><small>{raidStatusLabel(selectedRaid.status)}</small>
+          </button>
+        )}
       </div>
 
       <div className="pm-workspace-grid">
-        <aside className="v2-card pm-work-queue">
-          <div className="v2-card-title">
-            <div>
-              <h3>Work queue</h3>
-            </div>
-          </div>
-          <div className="pm-queue-list">
-            {delayedTasks[0] && (
-              <button type="button" className="pm-queue-card red" onClick={() => focusTask(delayedTasks[0])}>
-                <span>Просрочено</span>
-                <b>{delayedTasks[0].title}</b>
-                <small>{delayedTasks[0].owner || "исполнитель не задан"} · {date(delayedTasks[0].dueDate)}</small>
-              </button>
-            )}
-            {selectedIssue && (
-              <button type="button" className="pm-queue-card amber">
-                <span>Решение</span>
-                <b>{selectedIssue.title}</b>
-                <small>{selectedIssue.owner || "ответственный не задан"} · {date(selectedIssue.dueDate)}</small>
-              </button>
-            )}
-            {workSummary.tasksStartingNextWeek[0] && (
-              <button
-                type="button"
-                className="pm-queue-card blue"
-                onClick={() => focusTask(workSummary.tasksStartingNextWeek[0])}
-              >
-                <span>Старт на неделе</span>
-                <b>{workSummary.tasksStartingNextWeek[0].title}</b>
-                <small>{date(workSummary.tasksStartingNextWeek[0].startDate)} · {workSummary.tasksStartingNextWeek[0].owner}</small>
-              </button>
-            )}
-          </div>
-          <div className="pm-filter-set">
-            <span>Фильтры</span>
-            <button type="button" className="active">Неделя</button>
-            <button type="button">Owner</button>
-            <button type="button">Критический</button>
-            <button type="button">Просрочено</button>
-          </div>
-        </aside>
-
         <article className="v2-card pm-wbs-card">
           <div className="v2-card-title">
             <div>
@@ -240,45 +212,10 @@ export function ProjectPmWorkspacePage() {
           </div>
         </article>
 
-        <aside className="v2-card pm-selected-card">
-          <div className="v2-card-title">
-            <div>
-              <h3>Selected item</h3>
-              <p>Drawer вместо постоянной формы</p>
-            </div>
-          </div>
-          {selectedRaid ? (
-            <>
-              <button
-                type="button"
-                className="pm-selected-alert"
-                onClick={() => openRaidItemFromOverview(selectedRaid.id, selectedRaid.type)}
-              >
-                <span>{raidTypeLabel(selectedRaid.type)} · риск {selectedRaid.riskScore}</span>
-                <b>{selectedRaid.title}</b>
-                <small>
-                  {raidStatusLabel(selectedRaid.status)} · {date(selectedRaid.dueDate)}
-                </small>
-              </button>
-              <div className="pm-selected-plan">
-                <span>План действий</span>
-                <p>{selectedRaid.mitigationPlan || selectedRaid.contingencyPlan || "План действий пока не заполнен."}</p>
-              </div>
-              <div className="pm-selected-links">
-                <span>Связи</span>
-                <b>{selectedIssue ? selectedIssue.title : "Связанные вопросы не выбраны"}</b>
-              </div>
-            </>
-          ) : (
-            <div className="v2-empty">Нет выбранного риска.</div>
-          )}
-        </aside>
-
         <article className="v2-card pm-gantt-card">
           <div className="v2-card-title">
             <div>
               <h3>Gantt focused range</h3>
-              <p>90 дней, активные задачи и критический путь поверх графика</p>
             </div>
           </div>
           <div className="pm-gantt">
