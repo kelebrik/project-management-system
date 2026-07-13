@@ -644,8 +644,10 @@
   position: relative;
 }
 
-.wbs-row-stack:hover {
-  z-index: 14;
+.wbs-row-stack:hover,
+.wbs-row-stack:focus-within {
+  content-visibility: visible;
+  z-index: 25;
 }
 
 .wbs-row-stack.dragging {
