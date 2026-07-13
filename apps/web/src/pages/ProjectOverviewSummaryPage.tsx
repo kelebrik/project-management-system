@@ -102,10 +102,10 @@ export function ProjectOverviewSummaryPage() {
       <article className="executive-overview-card danger">
         <div className="executive-overview-card-title">
           <span>Ключевые риски и проблемы в красной зоне</span>
-          <strong>{overviewDashboard.redZoneRisks.length}</strong>
+          <strong>{overviewDashboard.overviewRedZoneRisks.length}</strong>
         </div>
         <div className="executive-overview-list">
-          {overviewDashboard.redZoneRisks.map((item) => (
+          {overviewDashboard.overviewRedZoneRisks.map((item) => (
             <div className="executive-overview-row" key={item.id}>
               <div className="executive-overview-row-main">
                 <button
@@ -144,7 +144,7 @@ export function ProjectOverviewSummaryPage() {
               )}
             </div>
           ))}
-          {overviewDashboard.redZoneRisks.length === 0 && (
+          {overviewDashboard.overviewRedZoneRisks.length === 0 && (
             <p>Рисков и проблем с оценкой 15+ нет.</p>
           )}
         </div>
@@ -156,7 +156,7 @@ export function ProjectOverviewSummaryPage() {
           <strong>{overviewDashboard.decisionItems}</strong>
         </div>
         <div className="executive-overview-list">
-          {overviewDashboard.openDecisionItems.map((issue) => (
+          {overviewDashboard.overviewOpenDecisionItems.map((issue) => (
             <div className="executive-overview-row" key={issue.id}>
               <div className="executive-overview-row-main">
                 <button
@@ -192,7 +192,7 @@ export function ProjectOverviewSummaryPage() {
               )}
             </div>
           ))}
-          {overviewDashboard.openDecisionItems.length === 0 && (
+          {overviewDashboard.overviewOpenDecisionItems.length === 0 && (
             <p>Открытых вопросов, требующих решения, нет.</p>
           )}
         </div>
@@ -268,10 +268,10 @@ export function ProjectOverviewSummaryPage() {
           className="executive-overview-list"
           id={`${SCHEDULE_VARIANCE_SECTION_ID}-content`}
         >
-          {overviewDashboard.scheduleDelayItems.length > 0 && (
+          {overviewDashboard.overviewScheduleDelayItems.length > 0 && (
             <div className="schedule-impact-group">
               <h4>Максимальное влияние на отставание</h4>
-              {overviewDashboard.scheduleDelayItems.map(({ item, delay }) => (
+              {overviewDashboard.overviewScheduleDelayItems.map(({ item, delay }) => (
                 <div className="executive-overview-row" key={`delay-${item.id}`}>
                   <b>
                     {item.jiraTicketKey ? `${item.jiraTicketKey} / ` : ""}
@@ -285,10 +285,10 @@ export function ProjectOverviewSummaryPage() {
               ))}
             </div>
           )}
-          {overviewDashboard.scheduleAccelerationItems.length > 0 && (
+          {overviewDashboard.overviewScheduleAccelerationItems.length > 0 && (
             <div className="schedule-impact-group acceleration">
               <h4>Максимальное влияние на опережение</h4>
-              {overviewDashboard.scheduleAccelerationItems.map(
+              {overviewDashboard.overviewScheduleAccelerationItems.map(
                 ({ item, acceleration }) => (
                   <div
                     className="executive-overview-row"
@@ -307,8 +307,8 @@ export function ProjectOverviewSummaryPage() {
               )}
             </div>
           )}
-          {overviewDashboard.scheduleDelayItems.length === 0 &&
-            overviewDashboard.scheduleAccelerationItems.length === 0 && (
+          {overviewDashboard.overviewScheduleDelayItems.length === 0 &&
+            overviewDashboard.overviewScheduleAccelerationItems.length === 0 && (
               <p>Отклонений от базового плана нет.</p>
             )}
         </div>
