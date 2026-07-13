@@ -1,12 +1,6 @@
-import type { Issue, ProjectDetails, RaidItem, WbsItem } from "./domainTypes";
+import type { ProjectDetails, WbsItem } from "./domainTypes";
 
-export type ReportPeriodDays = 7 | 14 | 30;
-
-export type ReportOptions = {
-  risks: boolean;
-  problems: boolean;
-  issues: boolean;
-};
+export type ReportPeriodDays = 7 | 14;
 
 export type ReportTask = Pick<WbsItem, "id" | "code" | "title" | "owner" | "status"> & {
   reportStartDate: string | null;
@@ -25,9 +19,6 @@ export type ProjectReport = {
   done: ReportTask[];
   inProgress: ReportTask[];
   upcoming: ReportTask[];
-  risks: RaidItem[];
-  problems: RaidItem[];
-  issues: Issue[];
 };
 
 const DAY_MS = 86_400_000;
@@ -110,18 +101,9 @@ function byDueDate(left: ReportTask, right: ReportTask) {
   return leftTime - rightTime || left.code.localeCompare(right.code, "ru");
 }
 
-function activeRaid(item: RaidItem) {
-  return item.status !== "CLOSED" && item.status !== "VALIDATED";
-}
-
-function openIssue(item: Issue) {
-  return item.status !== "Closed" && item.status !== "Resolved";
-}
-
 export function createProjectReport(
   project: ProjectDetails,
   periodDays: ReportPeriodDays,
-  options: ReportOptions,
   now = new Date(),
 ): ProjectReport {
   const generatedAt = startOfDay(now);
@@ -164,13 +146,6 @@ export function createProjectReport(
     done,
     inProgress,
     upcoming,
-    risks: options.risks
-      ? project.raidItems.filter((item) => item.type === "RISK" && activeRaid(item))
-      : [],
-    problems: options.problems
-      ? project.raidItems.filter((item) => item.type === "DEPENDENCY" && activeRaid(item))
-      : [],
-    issues: options.issues ? project.issues.filter(openIssue) : [],
   };
 }
 
@@ -202,14 +177,5 @@ export function projectReportText(project: ProjectDetails, report: ProjectReport
     ...taskLines(report.upcoming),
   ];
 
-  if (report.risks.length > 0) {
-    lines.push("", "Риски", ...report.risks.map((item) => `- ${item.title} (риск ${item.riskScore})`));
-  }
-  if (report.problems.length > 0) {
-    lines.push("", "Проблемы", ...report.problems.map((item) => `- ${item.title}`));
-  }
-  if (report.issues.length > 0) {
-    lines.push("", "Вопросы", ...report.issues.map((item) => `- ${item.title} (${item.status})`));
-  }
   return lines.join("\n");
 }

@@ -63,6 +63,7 @@ function wbsItem(
 }
 
 test("report builder creates and filters a project status report", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   const wbsItems = [
     {
       ...wbsItem("package", "IN_PROGRESS", { startDate: isoDay(-10), dueDate: isoDay(10) }),
@@ -220,11 +221,24 @@ test("report builder creates and filters a project status report", async ({ page
   await expect(page.getByText("Дата завершения").first()).toBeVisible();
   await expect(page.getByText("Исполнитель").first()).toBeVisible();
   await expect(page.getByText("Пакет интеграции").first()).toBeVisible();
-  await expect(page.getByText("Риск поставки")).toBeVisible();
+  await expect(page.getByText("Риск поставки")).toHaveCount(0);
+  await expect(page.getByText("Вопрос согласования")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Месяц" })).toHaveCount(0);
+  await expect(page.getByLabel("Риски")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Месяц" }).click();
-  await expect(page.getByRole("button", { name: "Месяц" })).toHaveClass(/active/);
-
-  await page.getByLabel("Риски").uncheck();
-  await expect(page.getByRole("heading", { name: /^Риски/ })).toHaveCount(0);
+  const currentWeek = page.getByRole("button", { name: "Закрыто на этой неделе" });
+  const twoWeeks = page.getByRole("button", { name: "Закрыто за две недели" });
+  await expect(currentWeek).toHaveAttribute("aria-pressed", "true");
+  await expect(currentWeek).toHaveClass(/active/);
+  await twoWeeks.click();
+  await expect(twoWeeks).toHaveAttribute("aria-pressed", "true");
+  await expect(twoWeeks).toHaveClass(/active/);
+  await expect(currentWeek).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".report-project-select svg")).toBeVisible();
+  await expect(page.getByRole("button", { name: "PDF", exact: true })).toBeVisible();
+  const pageWidth = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(pageWidth.scrollWidth).toBeLessThanOrEqual(pageWidth.clientWidth);
 });

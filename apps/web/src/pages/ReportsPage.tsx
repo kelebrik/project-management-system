@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Printer } from "lucide-react";
+import { Check, ChevronDown, Copy, Printer } from "lucide-react";
 import { apiClient } from "../api/client";
 import { date } from "../app/dateUtils";
 import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
@@ -7,19 +7,17 @@ import { printSectionAsPdf } from "../app/pdfPrint";
 import {
   createProjectReport,
   projectReportText,
-  type ReportOptions,
   type ReportPeriodDays,
   type ReportTask,
 } from "../app/reportBuilder";
 import { wbsStatusLabel } from "../app/labels";
 import { usePageContext } from "./PageContext";
 
-type ReportPeriodValue = "7" | "14" | "30";
+type ReportPeriodValue = "7" | "14";
 
 const PERIOD_OPTIONS: Array<{ value: ReportPeriodValue; label: string }> = [
-  { value: "7", label: "Неделя" },
-  { value: "14", label: "2 недели" },
-  { value: "30", label: "Месяц" },
+  { value: "7", label: "Закрыто на этой неделе" },
+  { value: "14", label: "Закрыто за две недели" },
 ];
 
 function ReportTaskList({ items }: { items: ReportTask[] }) {
@@ -62,11 +60,6 @@ export function ReportsPage() {
   );
   const effectiveProjectId = projectId || projectOptions[0]?.id || "";
   const [period, setPeriod] = useState<ReportPeriodValue>("7");
-  const [options, setOptions] = useState<ReportOptions>({
-    risks: true,
-    problems: true,
-    issues: true,
-  });
   const [loadedProject, setLoadedProject] = useState<{
     id: string;
     data: ProjectDetails | null;
@@ -110,13 +103,9 @@ export function ReportsPage() {
   const periodDays = Number(period) as ReportPeriodDays;
 
   const report = useMemo(
-    () => (project ? createProjectReport(project, periodDays, options) : null),
-    [options, periodDays, project],
+    () => (project ? createProjectReport(project, periodDays) : null),
+    [periodDays, project],
   );
-
-  const toggleOption = (key: keyof ReportOptions) => {
-    setOptions((current) => ({ ...current, [key]: !current[key] }));
-  };
 
   const copyReport = async () => {
     if (!project || !report) return;
@@ -139,7 +128,10 @@ export function ReportsPage() {
           </button>
           <button
             type="button"
-            onClick={() => project && printSectionAsPdf("project-status-report", `Отчёт ${project.code}`)}
+            onClick={() =>
+              project &&
+              printSectionAsPdf("project-status-report", `Отчёт ${project.code}`)
+            }
             disabled={!report}
           >
             <Printer size={16} />
@@ -152,22 +144,29 @@ export function ReportsPage() {
         <aside className="report-controls" aria-label="Настройки отчёта">
           <label className="report-control-field">
             <span>Проект</span>
-            <select value={effectiveProjectId} onChange={(event) => setProjectId(event.target.value)}>
-              {projectOptions.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.code} · {item.name}
-                </option>
-              ))}
-            </select>
+            <div className="report-project-select">
+              <select
+                value={effectiveProjectId}
+                onChange={(event) => setProjectId(event.target.value)}
+              >
+                {projectOptions.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.code} · {item.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={17} strokeWidth={2.4} aria-hidden="true" />
+            </div>
           </label>
 
           <div className="report-control-field">
             <span>Период</span>
-            <div className="segmented-control" aria-label="Период отчёта">
+            <div className="segmented-control report-period-control" aria-label="Период отчёта">
               {PERIOD_OPTIONS.map((item) => (
                 <button
                   type="button"
                   className={period === item.value ? "active" : ""}
+                  aria-pressed={period === item.value}
                   key={item.value}
                   onClick={() => setPeriod(item.value)}
                 >
@@ -176,22 +175,6 @@ export function ReportsPage() {
               ))}
             </div>
           </div>
-
-          <fieldset className="report-options">
-            <legend>Дополнительно включить</legend>
-            <label>
-              <input type="checkbox" checked={options.risks} onChange={() => toggleOption("risks")} />
-              <span>Риски</span>
-            </label>
-            <label>
-              <input type="checkbox" checked={options.problems} onChange={() => toggleOption("problems")} />
-              <span>Проблемы</span>
-            </label>
-            <label>
-              <input type="checkbox" checked={options.issues} onChange={() => toggleOption("issues")} />
-              <span>Вопросы</span>
-            </label>
-          </fieldset>
         </aside>
 
         <article className="report-preview" id="project-status-report">
@@ -229,40 +212,6 @@ export function ReportsPage() {
                 <h4>Что предстоит сделать <span>{report.upcoming.length}</span></h4>
                 <ReportTaskList items={report.upcoming} />
               </section>
-
-              {options.risks && (
-                <section className="report-section report-register tone-risk">
-                  <h4>Риски <span>{report.risks.length}</span></h4>
-                  {report.risks.map((item) => (
-                    <div className="report-register-row" key={item.id}>
-                      <b>{item.title}</b><span>{item.owner || "Ответственный не задан"}</span><em>Оценка {item.riskScore}</em>
-                    </div>
-                  ))}
-                  {report.risks.length === 0 && <div className="report-empty">Активных рисков нет</div>}
-                </section>
-              )}
-              {options.problems && (
-                <section className="report-section report-register tone-problem">
-                  <h4>Проблемы <span>{report.problems.length}</span></h4>
-                  {report.problems.map((item) => (
-                    <div className="report-register-row" key={item.id}>
-                      <b>{item.title}</b><span>{item.owner || "Ответственный не задан"}</span><em>{date(item.dueDate)}</em>
-                    </div>
-                  ))}
-                  {report.problems.length === 0 && <div className="report-empty">Активных проблем нет</div>}
-                </section>
-              )}
-              {options.issues && (
-                <section className="report-section report-register tone-issue">
-                  <h4>Вопросы <span>{report.issues.length}</span></h4>
-                  {report.issues.map((item) => (
-                    <div className="report-register-row" key={item.id}>
-                      <b>{item.title}</b><span>{item.owner || "Ответственный не задан"}</span><em>{item.status}</em>
-                    </div>
-                  ))}
-                  {report.issues.length === 0 && <div className="report-empty">Открытых вопросов нет</div>}
-                </section>
-              )}
             </>
           )}
         </article>
