@@ -169,8 +169,12 @@ function projectFixture() {
   };
 }
 
-async function mockAdminProject(page: Page) {
+async function mockAdminProject(
+  page: Page,
+  customize?: (project: ReturnType<typeof projectFixture>) => void,
+) {
   const project = projectFixture();
+  customize?.(project);
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       json: {
@@ -245,4 +249,47 @@ test("administrator updates baseline only for selected WBS rows", async ({ page 
   await page.getByRole("button", { name: "Обновить базовый план" }).click();
 
   await expect.poll(() => baselineBody).toEqual({ itemIds: ["wbs-1"] });
+});
+
+test("inline WBS insert button stays above the following row", async ({ page }) => {
+  await mockAdminProject(page, (project) => {
+    project.wbsItems.push({
+      ...project.wbsItems[0],
+      id: "wbs-2",
+      code: "1.2",
+      title: "Следующая задача",
+      sortOrder: 20,
+    });
+  });
+
+  await page.goto("/TV-OVERVIEW/wbs");
+  const firstRow = page.locator(".wbs-row-stack").first();
+  const insertButton = firstRow.getByRole("button", {
+    name: "Добавить строку Структуры ниже",
+  });
+  await firstRow.hover();
+  await expect(insertButton).toBeVisible();
+
+  const buttonBox = await insertButton.boundingBox();
+  const nextRowBox = await page.locator(".wbs-row-stack").nth(1).boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(nextRowBox).not.toBeNull();
+  if (!buttonBox || !nextRowBox) return;
+
+  const overlapPoint = {
+    x: buttonBox.x + buttonBox.width / 2,
+    y: Math.max(nextRowBox.y + 2, buttonBox.y + buttonBox.height - 2),
+  };
+  expect(overlapPoint.y).toBeLessThan(buttonBox.y + buttonBox.height);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ x, y }) =>
+          document
+            .elementFromPoint(x, y)
+            ?.closest(".wbs-inline-insert-button") !== null,
+        overlapPoint,
+      ),
+    )
+    .toBe(true);
 });
