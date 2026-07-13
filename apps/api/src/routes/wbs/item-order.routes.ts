@@ -7,10 +7,14 @@ import {
   renumberProjectWbs,
 } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
-import { createWbsBaselineFromCurrentPlan } from '../../services/wbs-baseline.js';
+import {
+  createWbsBaselineFromCurrentPlan,
+  updateSelectedWbsBaselineFromCurrentPlan,
+} from '../../services/wbs-baseline.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
-import { wbsInsertAfterSchema, wbsReorderSchema } from './schemas.js';
+import { currentUser } from '../../server/auth.js';
+import { wbsBaselineSchema, wbsInsertAfterSchema, wbsReorderSchema } from './schemas.js';
 
 export function registerWbsItemOrderRoutes(router: Router) {
   router.post('/projects/:projectId/wbs-items/insert-after', async (req, res) => {
@@ -150,12 +154,48 @@ export function registerWbsItemOrderRoutes(router: Router) {
   });
 
   router.post('/projects/:projectId/wbs-baseline', async (req, res) => {
+    const parsed = wbsBaselineSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
     const project = await prisma.project.findUnique({
       where: { id: req.params.projectId },
       select: { id: true },
     });
     if (!project) {
       res.status(404).json({ error: 'Проект не найден' });
+      return;
+    }
+
+    if (parsed.data.itemIds) {
+      if (currentUser(req)?.role !== 'ADMIN') {
+        res.status(403).json({ error: 'Выборочное обновление базового плана доступно только администратору' });
+        return;
+      }
+      const result = await updateSelectedWbsBaselineFromCurrentPlan(
+        project.id,
+        parsed.data.itemIds,
+      );
+      if (result.missingItemIds.length > 0) {
+        res.status(400).json({
+          error: 'Некоторые выбранные элементы Структуры не найдены в проекте',
+          missingItemIds: result.missingItemIds,
+        });
+        return;
+      }
+      const snapshot = await getProjectWbsSnapshot(project.id);
+      await recordWbsCommand({
+        projectId: project.id,
+        type: 'BASELINE',
+        payload: {
+          action: 'update-selected-baseline-from-current-dates',
+          itemIds: parsed.data.itemIds,
+          updatedCount: result.updatedCount,
+        },
+        afterSnapshot: snapshot,
+      });
+      res.json({ updatedCount: result.updatedCount, ...snapshot });
       return;
     }
 

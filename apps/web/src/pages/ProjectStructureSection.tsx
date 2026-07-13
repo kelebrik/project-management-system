@@ -1,4 +1,4 @@
-import { FileDown, Languages, Maximize2, Minimize2 } from "lucide-react";
+import { FileDown, Languages, Maximize2, Minimize2, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { usePageContext } from "./PageContext";
@@ -66,6 +66,7 @@ export function ProjectStructureSection() {
     handleWbsPaste,
     isWbsCellDirty,
     isReadOnly,
+    isAdminUser,
     orderedWbsColumns,
     project,
     printSectionAsPdf,
@@ -119,6 +120,13 @@ export function ProjectStructureSection() {
   );
   const [cachedEnglishTranslations] = useState(
     () => loadWbsEnglishTranslationCache(),
+  );
+  const selectedWbsItemIds = useMemo(
+    () => [...selectedWbsIds],
+    [selectedWbsIds],
+  );
+  const selectedBaselineHasUnsavedChanges = selectedWbsItemIds.some((itemId) =>
+    dirtyWbsItemIds.has(itemId),
   );
 
   useEffect(() => {
@@ -563,6 +571,27 @@ export function ProjectStructureSection() {
                             <option value="RU">RU</option>
                             <option value="CN">CN</option>
                           </select>
+                          {isAdminUser && !isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={() => void saveWbsBaseline(selectedWbsItemIds)}
+                              disabled={
+                                savingBaseline ||
+                                savingWbsBulk ||
+                                selectedBaselineHasUnsavedChanges
+                              }
+                              title={
+                                selectedBaselineHasUnsavedChanges
+                                  ? "Сначала сохраните изменения выбранных работ"
+                                  : "Зафиксировать текущие даты выбранных работ как базовые"
+                              }
+                            >
+                              <RefreshCw size={15} />
+                              {savingBaseline
+                                ? "Обновляю базовый план..."
+                                : "Обновить базовый план"}
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="danger-button"

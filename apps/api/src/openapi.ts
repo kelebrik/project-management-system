@@ -434,6 +434,24 @@ export const openApiDocument = {
         parameters: [
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },
         ],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  itemIds: {
+                    type: "array",
+                    minItems: 1,
+                    maxItems: 500,
+                    items: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+        },
         responses: {
           "200": { description: "Project details, WBS, issues, risks, critical path" },
           "404": { description: "Project not found" },
@@ -624,7 +642,7 @@ export const openApiDocument = {
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },
         ],
         responses: {
-          "201": { description: "Baseline created" },
+          "200": { description: "Baseline created or selected rows updated" },
         },
       },
     },
