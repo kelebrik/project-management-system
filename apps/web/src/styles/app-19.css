@@ -172,16 +172,25 @@
 }
 
 .wbs-work-cell.read-only-cell {
-  gap: 8px;
+  gap: 7px;
+  grid-template-columns: auto auto auto 72px minmax(0, 1fr);
 }
 
-.wbs-code-readonly {
-  color: #1d4ed8;
-  font-weight: 900;
-  min-width: 36px;
+.wbs-level-cell.read-only-cell .wbs-level-stepper button,
+.wbs-work-cell.read-only-cell .wbs-row-select {
+  cursor: default;
+  opacity: 0.55;
 }
 
-.wbs-title-readonly,
+.wbs-level-cell.read-only-cell .wbs-level-input {
+  color: #334155;
+  font-weight: 700;
+}
+
+.wbs-readonly-row-controls {
+  width: 44px;
+}
+
 .wbs-readonly-value,
 .work-summary-readonly {
   color: #1f2937;
@@ -204,6 +213,10 @@
 .read-only-mode .work-summary-row input,
 .read-only-mode .work-summary-row select {
   display: none;
+}
+
+.read-only-mode .wbs-table-row .wbs-readonly-control {
+  display: block;
 }
 
 .wiki-article {
