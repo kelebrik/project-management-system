@@ -80,7 +80,7 @@
   color: var(--text);
   display: grid;
   gap: 12px;
-  grid-template-columns: 10px minmax(240px, 0.9fr) minmax(180px, 0.7fr) minmax(360px, 1.5fr);
+  grid-template-columns: 10px minmax(220px, 0.9fr) minmax(170px, 0.7fr) minmax(170px, 0.65fr) minmax(320px, 1.4fr);
   min-height: 74px;
   padding: 10px 12px;
   text-align: left;
@@ -114,6 +114,7 @@
 
 .projects-overview-main,
 .projects-overview-meta,
+.projects-overview-work-progress,
 .projects-overview-passport,
 .projects-overview-passport span {
   min-width: 0;
@@ -141,6 +142,85 @@
   min-width: 0;
   overflow-wrap: normal;
   white-space: normal;
+}
+
+.projects-overview-work-progress {
+  --progress-active: #3b82f6;
+  --progress-future: #a8b1af;
+  display: grid;
+  gap: 6px;
+}
+
+.projects-overview-work-progress > em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.project-work-progress-bar {
+  background: var(--surface-3);
+  border-radius: 3px;
+  display: flex;
+  height: 9px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.project-work-progress-bar i {
+  display: block;
+  height: 100%;
+}
+
+.project-work-progress-bar .completed {
+  background: var(--success);
+}
+
+.project-work-progress-bar .in-progress {
+  background: var(--progress-active);
+}
+
+.project-work-progress-bar .not-started {
+  background: var(--progress-future);
+}
+
+.project-work-progress-legend {
+  display: flex;
+  gap: 8px;
+}
+
+.project-work-progress-legend span {
+  align-items: center;
+  color: var(--text-muted);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 4px;
+}
+
+.project-work-progress-legend span::before {
+  background: currentColor;
+  border-radius: 2px;
+  content: "";
+  height: 6px;
+  width: 6px;
+}
+
+.project-work-progress-legend .completed {
+  color: var(--success);
+}
+
+.project-work-progress-legend .in-progress {
+  color: var(--progress-active);
+}
+
+.project-work-progress-legend .not-started {
+  color: var(--progress-future);
+}
+
+.project-work-progress-empty {
+  color: var(--text-muted);
 }
 
 .projects-overview-code {

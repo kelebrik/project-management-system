@@ -240,6 +240,50 @@ test("overview entries expand statuses and open the selected issue", async ({ pa
   );
 });
 
+test("portfolio and projects show work-day weighted progress", async ({ page }) => {
+  await mockAdminProject(page, (project) => {
+    const source = project.wbsItems[0];
+    project.wbsItems = [
+      { ...source, id: "wbs-done", code: "1.1", status: "DONE", workDays: 4 },
+      {
+        ...source,
+        id: "wbs-active",
+        code: "1.2",
+        status: "IN_PROGRESS",
+        workDays: 3,
+      },
+      {
+        ...source,
+        id: "wbs-future",
+        code: "1.3",
+        status: "NOT_STARTED",
+        workDays: 3,
+      },
+    ];
+  });
+
+  const label =
+    "Прогресс: завершено 40%, в работе 30%, не начато 30%";
+
+  await page.goto("/projects");
+  await expect(page.getByLabel(label)).toBeVisible();
+  if (process.env.CAPTURE_PROGRESS === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-progress-projects.png",
+      fullPage: true,
+    });
+  }
+
+  await page.goto("/portfolio");
+  await expect(page.getByLabel(label)).toBeVisible();
+  if (process.env.CAPTURE_PROGRESS === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-progress-portfolio.png",
+      fullPage: true,
+    });
+  }
+});
+
 test("risk page keeps the color matrix visible", async ({ page }) => {
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/risks");
