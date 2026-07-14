@@ -5,7 +5,7 @@ import type { ProjectAccessLevel } from "../app/domainTypes";
 import { userRoleLabel } from "../app/adminHelpers";
 import type { UserRole } from "../app/adminTypes";
 import { usePageContext } from "./PageContext";
-import { useConfirm } from "../components/ConfirmDialog";
+import { useConfirm } from "../hooks/useConfirm";
 
 const projectAccessLevelLabels: Record<ProjectAccessLevel, string> = {
   VIEW: "Просмотр",

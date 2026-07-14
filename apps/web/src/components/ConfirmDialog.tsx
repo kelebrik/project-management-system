@@ -1,29 +1,16 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { AlertTriangle } from "lucide-react";
+import {
+  ConfirmContext,
+  type ConfirmFn,
+  type ConfirmOptions,
+} from "../hooks/useConfirm";
 import { useFocusTrap } from "../hooks/useFocusTrap";
-
-export type ConfirmOptions = {
-  title: string;
-  message?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  tone?: "danger" | "default";
-};
-
-type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
-
-const ConfirmContext = createContext<ConfirmFn>(async () => false);
-
-export function useConfirm(): ConfirmFn {
-  return useContext(ConfirmContext);
-}
 
 type PendingState = {
   options: ConfirmOptions;

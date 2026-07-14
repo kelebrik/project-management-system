@@ -1,5 +1,5 @@
 import { usePageContext } from "./PageContext";
-import { useConfirm } from "../components/ConfirmDialog";
+import { useConfirm } from "../hooks/useConfirm";
 
 export function ProjectPassportPage() {
   const ctx = usePageContext();

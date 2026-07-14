@@ -1,7 +1,7 @@
 import { Trash2 } from "lucide-react";
 
 import { usePageContext } from "./PageContext";
-import { useConfirm } from "../components/ConfirmDialog";
+import { useConfirm } from "../hooks/useConfirm";
 import type { ProjectRegistryDraft } from "../app/formState";
 import type { RagStatus } from "../app/domainTypes";
 

@@ -20,7 +20,7 @@ import {
   wbsToForm,
 } from "../app/formState";
 import { isHttpsUrl } from "../app/http";
-import { useConfirm } from "../components/ConfirmDialog";
+import { useConfirm } from "./useConfirm";
 import {
   editableKeyHandler,
   rememberEditableInitialValue,
