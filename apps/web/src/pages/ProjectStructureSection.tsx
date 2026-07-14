@@ -2,7 +2,7 @@ import { FileDown, Languages, Maximize2, Minimize2, RefreshCw } from "lucide-rea
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { usePageContext } from "./PageContext";
-import { useConfirm } from "../components/ConfirmDialog";
+import { useConfirm } from "../hooks/useConfirm";
 import type { WbsFormState } from "../app/formState";
 import { wbsToForm } from "../app/formState";
 import {

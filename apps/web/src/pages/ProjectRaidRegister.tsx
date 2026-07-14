@@ -1,5 +1,5 @@
 import { usePageContext } from "./PageContext";
-import { useConfirm } from "../components/ConfirmDialog";
+import { useConfirm } from "../hooks/useConfirm";
 import { X } from "lucide-react";
 import type { RaidItemStatus, RaidItemType } from "../app/domainTypes";
 import type { RaidTypeFilter } from "../app/raidModels";

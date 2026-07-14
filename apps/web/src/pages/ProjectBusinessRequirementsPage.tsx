@@ -8,7 +8,7 @@ import {
 } from "react";
 import { apiClient } from "../api/client";
 import { usePageContext } from "./PageContext";
-import { useConfirm } from "../components/ConfirmDialog";
+import { useConfirm } from "../hooks/useConfirm";
 
 type RequirementColumn = {
   id: string;
