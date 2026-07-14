@@ -254,6 +254,28 @@ test("risk page keeps the color matrix visible", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("gantt range controls switch the visible planning window", async ({ page }) => {
+  await mockAdminProject(page);
+  await page.goto("/TV-OVERVIEW/gantt");
+
+  const range = page.getByLabel("Диапазон Гантта");
+  await expect(range).toBeVisible();
+  await expect(range.getByRole("button")).toHaveText([
+    "30 дн.",
+    "90 дн.",
+    "180 дн.",
+    "Все",
+  ]);
+  await expect(range.getByRole("button", { name: "90 дн." })).toHaveClass(
+    /active/,
+  );
+
+  await range.getByRole("button", { name: "30 дн." }).click();
+  await expect(range.getByRole("button", { name: "30 дн." })).toHaveClass(
+    /active/,
+  );
+});
+
 test("overview sections scroll after six visible items", async ({ page }) => {
   await mockAdminProject(page, (project) => {
     const risk = project.raidItems[0];
