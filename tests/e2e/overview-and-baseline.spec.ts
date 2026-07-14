@@ -462,8 +462,31 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
       title: "Вторая тестовая задача",
       sortOrder: 20,
     });
+    project.wbsItems.push(
+      {
+        ...project.wbsItems[0],
+        id: "phase-1",
+        code: "2",
+        title: "Аппаратная часть",
+        type: "PHASE",
+        wbsLevel: 1,
+        sortOrder: 30,
+      },
+      {
+        ...project.wbsItems[0],
+        id: "milestone-1",
+        parentId: "phase-1",
+        code: "2.1",
+        title: "Образцы готовы",
+        type: "MILESTONE",
+        status: "NOT_STARTED",
+        startDate: isoDay(12),
+        dueDate: isoDay(12),
+        sortOrder: 40,
+      },
+    );
   });
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("/TV-OVERVIEW/gantt");
 
   const globalNav = page.locator(".app-global-header");
@@ -475,6 +498,26 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
     /active/,
   );
   await expect(projectNav.getByRole("button", { name: "Риски" })).toBeVisible();
+  const projectTabsFit = await projectNav.locator(".section-tabs").evaluate(
+    (element) => element.scrollWidth <= element.clientWidth + 1,
+  );
+  expect(projectTabsFit).toBe(true);
+
+  const ganttRange = page.getByLabel("Диапазон Гантта");
+  for (const days of [30, 90, 180]) {
+    await ganttRange.getByRole("button", { name: `${days} дн.` }).click();
+    const widths = await page.locator(".gantt-panel").evaluate((panel) => {
+      const panelBox = panel.getBoundingClientRect();
+      const timelineBox = panel
+        .querySelector(".gantt-timeline")
+        ?.getBoundingClientRect();
+      return {
+        panelRight: panelBox.right,
+        timelineRight: timelineBox?.right ?? 0,
+      };
+    });
+    expect(Math.abs(widths.panelRight - widths.timelineRight)).toBeLessThanOrEqual(2);
+  }
 
   for (const rowIndex of [0, 1]) {
     const labelBox = await page.locator(".gantt-label").nth(rowIndex).boundingBox();
@@ -487,7 +530,31 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
     }
   }
 
+  await page.goto("/TV-OVERVIEW/schedule");
+  const milestoneWidths = await page.locator(".milestone-timeline").evaluate(
+    (timeline) => {
+      const timelineBox = timeline.getBoundingClientRect();
+      const canvasBox = timeline
+        .querySelector(".milestone-lane-canvas")
+        ?.getBoundingClientRect();
+      return {
+        timelineRight: timelineBox.right,
+        canvasRight: canvasBox?.right ?? 0,
+      };
+    },
+  );
+  expect(
+    Math.abs(milestoneWidths.timelineRight - milestoneWidths.canvasRight),
+  ).toBeLessThanOrEqual(14);
+
+  await page.goto("/TV-OVERVIEW/wbs");
+  await expect(
+    page.locator('select:has(option[value="RU_CN"])').first(),
+  ).toBeVisible();
+
   if (process.env.CAPTURE_DESIGN_REFRESH === "1") {
+    await page.goto("/TV-OVERVIEW/gantt");
+    await expect(page.locator(".gantt-panel")).toBeVisible();
     await page.screenshot({
       path: "/private/tmp/pms-design-gantt-desktop.png",
       fullPage: true,

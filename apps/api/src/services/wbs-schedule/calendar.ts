@@ -33,13 +33,31 @@ function isDefaultWorkingDay(value: Date) {
   return day !== 0 && day !== 6;
 }
 
+type BaseCalendarCode = Exclude<ProjectCalendarCode, "RU_CN">;
+
+function baseCalendarCodes(
+  calendarCode: ProjectCalendarCode,
+): readonly BaseCalendarCode[] {
+  return calendarCode === "RU_CN" ? ["RU", "CN"] : [calendarCode];
+}
+
+function isBaseCalendarWorkingDay(
+  value: Date,
+  calendarCode: BaseCalendarCode,
+  overridesByKey: Map<string, boolean>,
+) {
+  const override = overridesByKey.get(calendarOverrideKey(calendarCode, value));
+  return override ?? isDefaultWorkingDay(value);
+}
+
 function isWorkingDay(
   value: Date,
   calendarCode: ProjectCalendarCode,
   overridesByKey: Map<string, boolean>,
 ) {
-  const override = overridesByKey.get(calendarOverrideKey(calendarCode, value));
-  return override ?? isDefaultWorkingDay(value);
+  return baseCalendarCodes(calendarCode).every((code) =>
+    isBaseCalendarWorkingDay(value, code, overridesByKey),
+  );
 }
 
 export function addWorkingDays(

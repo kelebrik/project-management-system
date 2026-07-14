@@ -557,6 +557,7 @@ export function ProjectStructureSection() {
                             <option value="">Календарь</option>
                             <option value="RU">RU</option>
                             <option value="CN">CN</option>
+                            <option value="RU_CN">RU+CN</option>
                           </select>
                           {isAdminUser && !isReadOnly && (
                             <button

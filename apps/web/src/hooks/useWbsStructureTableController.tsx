@@ -131,7 +131,10 @@ function normalizeWbsPasteValue(
     return matchedStatus ?? "NOT_STARTED";
   }
   if (field === "calendarCode") {
-    return trimmedValue.toUpperCase() === "CN" ? "CN" : "RU";
+    const calendarCode = trimmedValue.toUpperCase().replace("+", "_");
+    return calendarCode === "CN" || calendarCode === "RU_CN"
+      ? calendarCode
+      : "RU";
   }
   return trimmedValue;
 }
@@ -829,6 +832,7 @@ export function useWbsStructureTableController({
           >
             <option value="RU">RU</option>
             <option value="CN">CN</option>
+            <option value="RU_CN">RU+CN</option>
           </select>
         );
       case "effortPercent":

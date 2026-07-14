@@ -101,6 +101,7 @@ enum WbsDependencyType {
 enum ProjectCalendarCode {
   RU
   CN
+  RU_CN
 }
 
 enum UserRole {
