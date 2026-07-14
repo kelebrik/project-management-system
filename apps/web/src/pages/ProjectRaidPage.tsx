@@ -1,6 +1,7 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { ProjectRaidRegister } from "./ProjectRaidRegister";
+import { ProjectRaidMatrixCard } from "./ProjectRaidMatrixCard";
 import { ProjectRaidSidePanel } from "./ProjectRaidSidePanel";
 
 export function ProjectRaidPage() {
@@ -20,8 +21,9 @@ export function ProjectRaidPage() {
                         <Plus size={15} /> Новая запись
                       </button>
                   </div>
-                  <div className="raid-board raid-board-wide">
+                  <div className="raid-board raid-board-matrix">
                     <ProjectRaidRegister />
+                    <ProjectRaidMatrixCard />
                   </div>
                   {showCreatePanel && (
                     <div className="drawer-backdrop" onMouseDown={() => setShowCreatePanel(false)}>

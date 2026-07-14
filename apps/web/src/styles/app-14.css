@@ -28,8 +28,8 @@
   grid-row: 2;
 }
 
-.raid-board-wide {
-  grid-template-columns: minmax(0, 1fr);
+.raid-board.raid-board-matrix .raid-register {
+  grid-column: 1 / -1;
 }
 
 .drawer-backdrop {

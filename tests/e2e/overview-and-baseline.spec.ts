@@ -240,6 +240,20 @@ test("overview entries expand statuses and open the selected issue", async ({ pa
   );
 });
 
+test("risk page keeps the color matrix visible", async ({ page }) => {
+  await mockAdminProject(page);
+  await page.goto("/TV-OVERVIEW/risks");
+
+  const matrix = page.getByLabel("Матрица рисков");
+  await expect(matrix).toBeVisible();
+  await expect(matrix.locator(".risk-matrix-cell")).toHaveCount(25);
+  await expect(
+    page.getByLabel(
+      "Вероятность 4, влияние 4, высокий риск, записей: 1",
+    ),
+  ).toBeVisible();
+});
+
 test("overview sections scroll after six visible items", async ({ page }) => {
   await mockAdminProject(page, (project) => {
     const risk = project.raidItems[0];
