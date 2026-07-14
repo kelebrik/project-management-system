@@ -1,7 +1,9 @@
 import { usePageContext } from "./PageContext";
+import { useConfirm } from "../components/ConfirmDialog";
 
 export function ProjectPassportPage() {
   const ctx = usePageContext();
+  const confirm = useConfirm();
   const {
     addPassportRow,
     date,
@@ -108,7 +110,16 @@ export function ProjectPassportPage() {
                           <button
                             type="button"
                             className="wbs-row-delete-button"
-                            onClick={() => deletePassportRow(row.id)}
+                            onClick={async () => {
+                              if (
+                                await confirm({
+                                  title: "Удалить поле паспорта?",
+                                  confirmLabel: "Удалить",
+                                })
+                              ) {
+                                void deletePassportRow(row.id);
+                              }
+                            }}
                             aria-label="Удалить поле"
                             title="Удалить поле"
                           >

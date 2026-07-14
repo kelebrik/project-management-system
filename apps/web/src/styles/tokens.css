@@ -1,0 +1,171 @@
+/*
+ * Design tokens — единый источник цвета, типографики, отступов, радиусов и теней.
+ *
+ * В светлой теме (:root) каждая переменная резолвится в ТОТ ЖЕ hex, что был
+ * захардкожен раньше, поэтому светлый режим визуально не меняется. Тёмная тема
+ * ([data-theme="dark"]) переопределяет только значения токенов — верстка общая.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* --- Поверхности --- */
+  --bg: #f3f6fa;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #eef2f7;
+  --surface-3b: #f1f5f9;
+  --surface-tint: #eaf0f7;
+
+  /* --- Границы --- */
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-2: #d8e0eb;
+  --border-3: #dbe4ef;
+  --border-4: #dce3eb;
+  --border-5: #d9e2ef;
+  --border-6: #e5edf6;
+
+  /* --- Текст --- */
+  --text: #1f2937;
+  --text-strong: #111827;
+  --text-strongest: #0f172a;
+  --text-heading: #334155;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+
+  /* Тёмные «инвертированные» поверхности (тултипы, тёмные бейджи).
+     Отдельные токены, чтобы НЕ инвертировались вместе с текстом в тёмной теме. */
+  --inverse-surface: #111827;
+  --inverse-surface-2: #0f172a;
+  --on-inverse: #ffffff;
+
+  /* --- Бренд --- */
+  --brand: #1d4ed8;
+  --brand-600: #2563eb;
+  --brand-500: #477ff6;
+  --brand-soft: #eff6ff;
+  --brand-soft-2: #dbeafe;
+  --brand-border: #bfdbfe;
+  --brand-border-strong: #93c5fd;
+  --on-brand: #ffffff;
+
+  /* --- Опасность / RAG red --- */
+  --danger: #dc2626;
+  --danger-500: #ef4444;
+  --danger-700: #b91c1c;
+  --danger-800: #991b1b;
+  --danger-soft: #fee2e2;
+  --danger-border: #fecaca;
+  --danger-bg: #fef2f2;
+
+  /* --- Успех / RAG green --- */
+  --success: #16a34a;
+  --success-800: #166534;
+  --success-soft: #dcfce7;
+
+  /* --- Предупреждение / RAG amber --- */
+  --warning: #d97706;
+  --warning-500: #f59e0b;
+  --warning-alt: #f5a623;
+  --warning-soft: #fef3c7;
+  --warning-800: #92400e;
+  --warning-bg: #fff7ed;
+  --info-800: #075985;
+
+  /* --- Радиусы --- */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* --- Тени --- */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+  --shadow-lg: 0 18px 36px rgba(15, 23, 42, 0.16);
+
+  /* --- Отступы --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* --- Типографика (шкала для пункта №9: чуть крупнее мелкого текста) --- */
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+
+  /* Минимальная зона нажатия для иконочных кнопок */
+  --tap-min: 34px;
+}
+
+/* ============================ ТЁМНАЯ ТЕМА ============================ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0b1220;
+  --surface: #131c2b;
+  --surface-2: #172236;
+  --surface-3: #1d293d;
+  --surface-3b: #1a2437;
+  --surface-tint: #1c2942;
+
+  --border: #2a3852;
+  --border-strong: #3a4c6b;
+  --border-2: #2a3852;
+  --border-3: #33455f;
+  --border-4: #2a3852;
+  --border-5: #33455f;
+  --border-6: #33455f;
+
+  --text: #e5edf9;
+  --text-strong: #f4f8ff;
+  --text-strongest: #ffffff;
+  --text-heading: #dbe6f5;
+  --text-secondary: #b3c2d9;
+  --text-muted: #8ba0bd;
+  --text-faint: #6b7f9c;
+
+  /* инвертированные поверхности в тёмной теме становятся светлыми */
+  --inverse-surface: #e5edf9;
+  --inverse-surface-2: #f4f8ff;
+  --on-inverse: #0b1220;
+
+  --brand: #5b8bf5;
+  --brand-600: #6d99f7;
+  --brand-500: #7ea6f8;
+  --brand-soft: #182640;
+  --brand-soft-2: #1e3358;
+  --brand-border: #2c4a7d;
+  --brand-border-strong: #3a5f9e;
+  --on-brand: #ffffff;
+
+  --danger: #f0616a;
+  --danger-500: #f0616a;
+  --danger-700: #f47b82;
+  --danger-800: #f6949a;
+  --danger-soft: #3a1d22;
+  --danger-border: #5a2a30;
+  --danger-bg: #2a1518;
+
+  --success: #34c46f;
+  --success-800: #7ee0a3;
+  --success-soft: #14301f;
+
+  --warning: #e0912f;
+  --warning-500: #eaa64a;
+  --warning-alt: #eaa64a;
+  --warning-soft: #35280f;
+  --warning-800: #f0b968;
+  --warning-bg: #2a2012;
+  --info-800: #5fb0e0;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 18px 36px rgba(0, 0, 0, 0.5);
+}

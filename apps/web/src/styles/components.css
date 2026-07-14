@@ -1,0 +1,286 @@
+/* Стили новых UX-компонентов. Всё на токенах — работает в светлой и тёмной теме. */
+
+/* ---------------- Диалог подтверждения ---------------- */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.confirm-dialog {
+  width: min(440px, 100%);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 22px;
+  display: grid;
+  gap: 14px;
+}
+
+.confirm-dialog:focus {
+  outline: none;
+}
+
+.confirm-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.confirm-dialog-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: var(--danger-soft);
+  color: var(--danger);
+  flex: none;
+}
+
+.confirm-dialog h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.confirm-dialog-message {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.confirm-dialog-actions button {
+  min-height: var(--tap-min);
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.confirm-cancel {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.confirm-cancel:hover {
+  background: var(--surface-2);
+}
+
+.confirm-accept.danger {
+  background: var(--danger);
+  color: var(--on-brand);
+}
+
+.confirm-accept.danger:hover {
+  background: var(--danger-700);
+}
+
+.confirm-accept.default {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.confirm-accept.default:hover {
+  background: var(--brand-600);
+}
+
+.confirm-dialog-actions button:focus-visible {
+  outline: 3px solid var(--brand-border-strong);
+  outline-offset: 2px;
+}
+
+/* ---------------- Скелетоны загрузки ---------------- */
+.skeleton-block {
+  border-radius: var(--radius);
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 37%,
+    var(--surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+.skeleton-page {
+  display: grid;
+  gap: 14px;
+  padding: 4px 2px;
+}
+
+.app-loading {
+  padding: 28px;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+  }
+}
+
+/* ---------------- Липкие заголовки таблиц + скролл ---------------- */
+.table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.table-scroll table {
+  min-width: max-content;
+}
+
+.sticky-head thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-2);
+}
+
+/* сортируемые заголовки */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+th.sortable:hover {
+  color: var(--brand);
+}
+
+th.sortable .sort-caret {
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
+/* ---------------- Тулбар сортировки Портфеля ---------------- */
+.projects-overview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.projects-overview-toolbar > span {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.projects-overview-toolbar button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.projects-overview-toolbar button:hover {
+  background: var(--surface-2);
+}
+
+.projects-overview-toolbar button.active {
+  background: var(--brand-soft);
+  border-color: var(--brand-border);
+  color: var(--brand);
+}
+
+/* ---------------- Тумблер темы в сайдбаре ---------------- */
+.theme-toggle-nav {
+  margin-top: 6px;
+}
+
+/* ---------------- Зоны нажатия иконочных кнопок (пункт №9) ---------------- */
+.icon-button {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
+/* ---------------- Адаптив под ноутбуки 14"/16" (пункт №2) ---------------- */
+.workspace {
+  min-width: 0;
+}
+
+/* на 14" (≈1280–1512px) сужаем сайдбар, чтобы дать контенту больше места */
+@media (max-width: 1440px) {
+  .app-shell {
+    --sidebar-width: 244px;
+  }
+  .app-shell.sidebar-collapsed {
+    --sidebar-width: 72px;
+  }
+}
+
+/* страховка от горизонтального распирания сетки контента */
+.content-grid,
+.workspace > * {
+  min-width: 0;
+}
+
+/* контейнеры drawer c программным фокусом не показывают рамку */
+.side-drawer:focus,
+.raid-create-drawer:focus {
+  outline: none;
+}
+
+/* ---------------- Инлайн-валидация полей ---------------- */
+.field-invalid input,
+.field-invalid textarea,
+.field-invalid select,
+input.field-invalid,
+textarea.field-invalid,
+select.field-invalid {
+  border-color: var(--danger) !important;
+  background: var(--danger-bg);
+}
+
+.field-error-message {
+  display: block;
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}

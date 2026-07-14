@@ -1,4 +1,5 @@
 import { usePageContext } from "./PageContext";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import type { Issue } from "../app/domainTypes";
 
 export function IssueDrawer() {
@@ -19,7 +20,12 @@ export function IssueDrawer() {
     updateIssueFormLink,
   } = ctx;
 
-  if (activeView !== "project-issues" || !issueDrawerMode) {
+  const isOpen = activeView === "project-issues" && Boolean(issueDrawerMode);
+  const containerRef = useFocusTrap<HTMLElement>(isOpen, () =>
+    setIssueDrawerMode(null),
+  );
+
+  if (!isOpen) {
     return null;
   }
 
@@ -32,12 +38,16 @@ export function IssueDrawer() {
           >
             <aside
               className="side-drawer"
-              aria-label="Создать открытый вопрос"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="issue-drawer-title"
+              ref={containerRef}
+              tabIndex={-1}
               onClick={(event) => event.stopPropagation()}
             >
               <div className="drawer-title">
                 <div>
-                  <h2>Создать открытый вопрос</h2>
+                  <h2 id="issue-drawer-title">Создать открытый вопрос</h2>
                   <p>Срок, ответственный, влияние и связь с Jira</p>
                 </div>
                 <button

@@ -17,7 +17,7 @@
 
 .task-row,
 .decision {
-  background: #f8fafc;
+  background: var(--surface-2);
   border-radius: 6px;
   display: grid;
   gap: 14px;
@@ -31,21 +31,21 @@
 }
 
 .issue-row {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 6px;
   display: grid;
   overflow: hidden;
 }
 
 .issue-row.closed {
-  background: #f8fafc;
+  background: var(--surface-2);
 }
 
 .issue-row a,
 .table-row,
 .ticket {
-  color: #1d4ed8;
+  color: var(--brand);
   text-decoration: none;
 }
 
@@ -54,7 +54,7 @@
 }
 
 .closed-issues-section {
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border);
   display: grid;
   gap: 12px;
   margin-top: 18px;
@@ -74,17 +74,17 @@
 }
 
 .section-heading p {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   margin: 2px 0 0;
 }
 
 .section-heading > span {
-  background: #eef2f7;
-  border: 1px solid #d8e0eb;
+  background: var(--surface-3);
+  border: 1px solid var(--border-2);
   border-radius: 999px;
-  color: #475569;
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
   font-weight: 900;
   padding: 5px 9px;
 }
@@ -94,7 +94,7 @@
 }
 
 .issue-summary-row {
-  background: #fff;
+  background: var(--surface);
   border: 0;
   border-radius: 0;
   cursor: pointer;
@@ -105,7 +105,7 @@
 }
 
 .issue-row + .issue-row {
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border);
 }
 
 .closed-issue-list .issue-list-head,
@@ -115,12 +115,12 @@
 
 .issue-summary-row:hover,
 .issue-summary-row:focus-visible {
-  background: #f8fafc;
+  background: var(--surface-2);
 }
 
 .issue-summary-title {
-  color: #1f2937;
-  font-size: 12px;
+  color: var(--text);
+  font-size: 13px;
   font-weight: 900;
   min-width: 0;
   overflow: hidden;
@@ -132,8 +132,8 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: 4px;
-  color: #1f2937;
-  font-size: 12px;
+  color: var(--text);
+  font-size: 13px;
   font-weight: 900;
   min-width: 0;
   overflow: hidden;
@@ -144,8 +144,8 @@
 
 .issue-summary-title-input:hover:not(:disabled),
 .issue-summary-title-input:focus {
-  background: #fff;
-  border-color: #cbd5e1;
+  background: var(--surface);
+  border-color: var(--border-strong);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
   outline: none;
 }
@@ -155,8 +155,8 @@
 }
 
 .issue-summary-cell {
-  color: #475569;
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
   font-weight: 700;
   min-width: 0;
   overflow: hidden;
@@ -165,7 +165,7 @@
 }
 
 .issue-delay {
-  color: #b91c1c;
+  color: var(--danger-700);
   font-weight: 900;
 }
 
@@ -180,30 +180,30 @@
 
 .issue-severity-pill.critical,
 .issue-severity-pill.high {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--danger-soft);
+  color: var(--danger-800);
 }
 
 .issue-severity-pill.medium {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-soft);
+  color: var(--warning-800);
 }
 
 .issue-severity-pill.low {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-soft);
+  color: var(--success-800);
 }
 
 .issue-chevron {
   align-items: center;
-  color: #64748b;
+  color: var(--text-muted);
   display: inline-flex;
   justify-self: end;
 }
 
 .issue-details-panel {
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
   min-width: 0;
   padding: 14px;
 }
@@ -217,8 +217,8 @@
 
 .issue-work-card {
   align-content: start;
-  background: #fff;
-  border: 1px solid #dbe4ef;
+  background: var(--surface);
+  border: 1px solid var(--border-3);
   border-radius: 8px;
   display: grid;
   gap: 12px;
@@ -234,20 +234,20 @@
 }
 
 .issue-card-title span {
-  color: #1f2937;
+  color: var(--text);
   font-size: 13px;
   font-weight: 900;
 }
 
 .issue-card-title p {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 650;
   margin: 2px 0 0;
 }
 
 .issue-card-title.compact {
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border);
   padding-top: 12px;
 }
 
@@ -257,7 +257,7 @@
 
 .issue-status-add-card {
   background: #eef4ff;
-  border: 1px solid #bfdbfe;
+  border: 1px solid var(--brand-border);
   border-radius: 8px;
   display: grid;
   padding: 12px;
@@ -272,9 +272,9 @@
 
 .issue-status-add-grid label,
 .issue-edit-grid label {
-  color: #64748b;
+  color: var(--text-muted);
   display: grid;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   gap: 5px;
   min-width: 0;
@@ -303,7 +303,7 @@
 }
 
 .issue-status-timeline-item::before {
-  background: #dbe4ef;
+  background: var(--border-3);
   bottom: -2px;
   content: "";
   left: 8px;
@@ -317,10 +317,10 @@
 }
 
 .issue-status-marker {
-  background: #cbd5e1;
+  background: var(--border-strong);
   border: 3px solid #fff;
   border-radius: 999px;
-  box-shadow: 0 0 0 1px #cbd5e1;
+  box-shadow: 0 0 0 1px var(--border-strong);
   height: 12px;
   margin-top: 9px;
   position: relative;
@@ -329,13 +329,13 @@
 }
 
 .issue-status-timeline-item.current .issue-status-marker {
-  background: #2563eb;
-  box-shadow: 0 0 0 1px #2563eb;
+  background: var(--brand-600);
+  box-shadow: 0 0 0 1px var(--brand-600);
 }
 
 .issue-status-entry {
-  background: #fff;
-  border: 1px solid #dbe4ef;
+  background: var(--surface);
+  border: 1px solid var(--border-3);
   border-radius: 8px;
   display: grid;
   gap: 7px;
@@ -346,7 +346,7 @@
 
 .issue-status-timeline-item.current .issue-status-entry {
   background: #f8fbff;
-  border-color: #bfdbfe;
+  border-color: var(--brand-border);
 }
 
 .issue-status-entry-head {
@@ -356,23 +356,23 @@
 }
 
 .issue-status-entry-head span {
-  color: #64748b;
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 900;
 }
 
 .issue-status-entry-head b {
-  background: #dbeafe;
+  background: var(--brand-soft-2);
   border-radius: 999px;
-  color: #1d4ed8;
-  font-size: 10px;
+  color: var(--brand);
+  font-size: 11px;
   font-weight: 900;
   padding: 2px 7px;
 }
 
 .issue-status-entry p,
 .issue-status-empty p {
-  color: #1f2937;
+  color: var(--text);
   font-size: 13px;
   font-weight: 750;
   line-height: 1.38;
@@ -381,8 +381,8 @@
 }
 
 .issue-status-empty {
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
   border-radius: 8px;
   padding: 12px;
 }
@@ -396,17 +396,17 @@
 
 .issue-detail-meta span:not(.severity),
 .issue-detail-meta b {
-  background: #eef2f7;
+  background: var(--surface-3);
   border-radius: 999px;
-  color: #475569;
-  font-size: 11px;
+  color: var(--text-secondary);
+  font-size: 12px;
   font-weight: 800;
   padding: 4px 8px;
 }
 
 .issue-detail-meta b {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-soft);
+  color: var(--warning-800);
 }
 
 .field-error input,
@@ -417,20 +417,20 @@
 
 .field-error small,
 .field-error-text {
-  color: #b91c1c;
-  font-size: 11px;
+  color: var(--danger-700);
+  font-size: 12px;
   font-weight: 800;
 }
 
 .issue-impact {
-  color: #334155;
+  color: var(--text-heading);
   display: grid;
   gap: 4px;
 }
 
 .issue-impact span {
-  color: #64748b;
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -444,8 +444,8 @@
 
 .jira-chip {
   align-items: center;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-border);
   border-radius: 999px;
   display: inline-flex;
   gap: 6px;
@@ -457,20 +457,20 @@
   align-items: center;
   border-radius: 999px;
   display: inline-flex;
-  font-size: 10px;
+  font-size: 11px;
   justify-content: center;
   line-height: 1;
   padding: 3px;
 }
 
 .muted-inline {
-  color: #94a3b8;
-  font-size: 12px;
+  color: var(--text-faint);
+  font-size: 13px;
 }
 
 .issue-link-edit {
-  background: #fff;
-  border: 1px solid #dbe4ef;
+  background: var(--surface);
+  border: 1px solid var(--border-3);
   border-radius: 8px;
   display: grid;
   gap: 8px;
@@ -494,7 +494,7 @@
 .issue-status-add-grid input,
 .issue-status-add-grid textarea,
 .issue-status-add-grid button {
-  font-size: 12px;
+  font-size: 13px;
   padding: 7px 8px;
 }
 
@@ -524,7 +524,7 @@
 }
 
 .side-drawer {
-  background: #fff;
+  background: var(--surface);
   box-shadow: -18px 0 40px rgba(15, 23, 42, 0.18);
   display: grid;
   gap: 14px;
@@ -537,7 +537,7 @@
 
 .drawer-title {
   align-items: flex-start;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   display: flex;
   gap: 12px;
   justify-content: space-between;
@@ -557,8 +557,8 @@
 .compact-checkbox {
   align-items: center;
   align-content: center;
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -571,7 +571,7 @@
 
 .issue-link-edit input,
 .issue-link-edit button {
-  font-size: 12px;
+  font-size: 13px;
   padding: 7px 8px;
 }
 
@@ -591,10 +591,10 @@
 
 .issue-primary-jira {
   align-items: center;
-  background: #f8fafc;
-  border: 1px solid #dbe4ef;
+  background: var(--surface-2);
+  border: 1px solid var(--border-3);
   border-radius: 8px;
-  color: #475569;
+  color: var(--text-secondary);
   display: flex;
   gap: 8px;
   min-width: 0;
@@ -604,9 +604,9 @@
 .issue-primary-jira a,
 .issue-primary-jira span {
   align-items: center;
-  color: #1d4ed8;
+  color: var(--brand);
   display: inline-flex;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   gap: 6px;
   min-width: 0;
@@ -621,13 +621,13 @@
 }
 
 .subhead {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 800;
 }
 
 .milestone-table {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -641,36 +641,36 @@
 }
 
 .milestone-head {
-  background: #eef2f7;
-  color: #64748b;
-  font-size: 11px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 800;
   padding: 10px 12px;
   text-transform: uppercase;
 }
 
 .milestone-row {
-  background: #fff;
-  border-top: 1px solid #e2e8f0;
-  color: #334155;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  color: var(--text-heading);
   font-size: 13px;
   min-height: 48px;
   padding: 10px 12px;
 }
 
 .milestone-row:nth-child(odd) {
-  background: #f8fafc;
+  background: var(--surface-2);
 }
 
 .milestone-row b {
-  color: #075985;
+  color: var(--info-800);
   margin-right: 8px;
 }
 
 .milestone-state {
   border-radius: 999px;
   display: inline-flex;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   justify-content: center;
   padding: 5px 9px;

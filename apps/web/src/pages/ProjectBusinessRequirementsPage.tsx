@@ -8,6 +8,7 @@ import {
 } from "react";
 import { apiClient } from "../api/client";
 import { usePageContext } from "./PageContext";
+import { useConfirm } from "../components/ConfirmDialog";
 
 type RequirementColumn = {
   id: string;
@@ -71,6 +72,7 @@ function parseClipboardGrid(text: string) {
 
 export function ProjectBusinessRequirementsPage() {
   const { isReadOnly, project, setError, setNotice } = usePageContext();
+  const confirm = useConfirm();
   const [{ columns, rows }, setTable] = useState(() => normalizeTable(null));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -299,7 +301,17 @@ export function ProjectBusinessRequirementsPage() {
                   type="button"
                   title="Удалить столбец"
                   aria-label={`Удалить столбец ${column.title}`}
-                  onClick={() => deleteColumn(column.id)}
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: "Удалить столбец?",
+                        message: "Столбец и его значения будут удалены.",
+                        confirmLabel: "Удалить",
+                      })
+                    ) {
+                      deleteColumn(column.id);
+                    }
+                  }}
                   disabled={!canEdit || columns.length <= 1}
                 >
                   <Trash2 size={14} />
@@ -315,7 +327,16 @@ export function ProjectBusinessRequirementsPage() {
                   type="button"
                   title="Удалить строку"
                   aria-label={`Удалить строку ${rowIndex + 1}`}
-                  onClick={() => deleteRow(row.id)}
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: "Удалить строку?",
+                        confirmLabel: "Удалить",
+                      })
+                    ) {
+                      deleteRow(row.id);
+                    }
+                  }}
                   disabled={!canEdit || rows.length <= 1}
                 >
                   <Trash2 size={14} />

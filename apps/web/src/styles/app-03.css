@@ -1,9 +1,9 @@
 
 .notice {
-  background: #dcfce7;
+  background: var(--success-soft);
   border: 1px solid #bbf7d0;
   border-radius: 8px;
-  color: #166534;
+  color: var(--success-800);
   margin-bottom: 18px;
   padding: 12px 14px;
 }
@@ -28,24 +28,24 @@
 }
 
 .toast.success {
-  background: #dcfce7;
+  background: var(--success-soft);
   border: 1px solid #86efac;
-  color: #166534;
+  color: var(--success-800);
 }
 
 .toast.error {
-  background: #fee2e2;
+  background: var(--danger-soft);
   border: 1px solid #fca5a5;
-  color: #991b1b;
+  color: var(--danger-800);
 }
 
 .toast strong {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .toast p {
   color: inherit;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .toast button {
@@ -55,7 +55,7 @@
   border-radius: 999px;
   color: inherit;
   display: inline-flex;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
   height: 22px;
   justify-content: center;
@@ -75,8 +75,8 @@
 
 .metric,
 .panel {
-  background: #fff;
-  border: 1px solid #dce3eb;
+  background: var(--surface);
+  border: 1px solid var(--border-4);
   border-radius: 8px;
 }
 
@@ -94,7 +94,7 @@
 
 .metric-button:hover,
 .metric-button:focus-visible {
-  border-color: #93c5fd;
+  border-color: var(--brand-border-strong);
   box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.22);
   outline: none;
 }
@@ -104,8 +104,8 @@
 .panel p,
 .details dt,
 .jql span {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .metric strong {
@@ -122,8 +122,8 @@
 
 .executive-overview-card {
   align-content: start;
-  background: #fff;
-  border: 1px solid #dce3eb;
+  background: var(--surface);
+  border: 1px solid var(--border-4);
   border-radius: 8px;
   display: grid;
   gap: 12px;
@@ -133,7 +133,7 @@
 }
 
 .executive-overview-card.danger {
-  border-color: #fecaca;
+  border-color: var(--danger-border);
   gap: 8px;
   padding: 12px;
 }
@@ -150,14 +150,14 @@
 }
 
 .executive-overview-card-title span {
-  color: #64748b;
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
 }
 
 .executive-overview-card-title strong {
-  color: #1f2937;
+  color: var(--text);
   font-size: 24px;
   line-height: 1.15;
 }
@@ -173,7 +173,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: #64748b;
+  color: var(--text-muted);
   cursor: pointer;
   display: inline-flex;
   gap: 6px;
@@ -184,14 +184,14 @@
 
 .executive-overview-card-toggle:hover span,
 .executive-overview-card-toggle:focus-visible span {
-  color: #1d4ed8;
+  color: var(--brand);
 }
 
 .overview-section-link {
   align-items: center;
-  border: 1px solid #d8e0eb;
+  border: 1px solid var(--border-2);
   border-radius: 6px;
-  color: #64748b;
+  color: var(--text-muted);
   display: inline-flex;
   height: 28px;
   justify-content: center;
@@ -200,8 +200,8 @@
 
 .overview-section-link:hover,
 .overview-section-link:focus-visible {
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  border-color: var(--brand-border-strong);
+  color: var(--brand);
 }
 
 .executive-overview-card.collapsed {
@@ -209,7 +209,7 @@
 }
 
 .executive-overview-card.danger .executive-overview-card-title strong {
-  color: #b91c1c;
+  color: var(--danger-700);
 }
 
 .executive-overview-list {
@@ -230,8 +230,8 @@
 }
 
 .executive-overview-row {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 6px;
   display: grid;
   gap: 4px;
@@ -260,7 +260,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: #64748b;
+  color: var(--text-muted);
   cursor: pointer;
   display: inline-flex;
   height: 24px;
@@ -271,7 +271,7 @@
 
 .executive-overview-expand:hover,
 .executive-overview-expand:focus-visible {
-  color: #1d4ed8;
+  color: var(--brand);
 }
 
 .overview-status-history {
@@ -285,22 +285,22 @@
 }
 
 .overview-status-history-row {
-  border-left: 3px solid #cbd5e1;
+  border-left: 3px solid var(--border-strong);
   display: grid;
   gap: 2px;
   padding-left: 8px;
 }
 
 .overview-status-history-row time {
-  color: #64748b;
-  font-size: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
   font-weight: 900;
 }
 
 .overview-status-history-row p,
 .executive-overview-list .overview-status-empty {
-  color: #334155;
-  font-size: 11px;
+  color: var(--text-heading);
+  font-size: 12px;
   line-height: 1.35;
   margin: 0;
 }
@@ -328,7 +328,7 @@
 }
 
 .executive-overview-list b {
-  color: #1f2937;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -337,7 +337,7 @@
 .executive-overview-risk-link {
   background: transparent;
   border: 0;
-  color: #1f2937;
+  color: var(--text);
   cursor: pointer;
   font: inherit;
   font-weight: 900;
@@ -351,20 +351,20 @@
 
 .executive-overview-risk-link:hover,
 .executive-overview-risk-link:focus-visible {
-  color: #1d4ed8;
+  color: var(--brand);
   text-decoration: underline;
 }
 
 .executive-overview-list span,
 .executive-overview-list p {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 700;
   margin: 0;
 }
 
 .executive-overview-list .executive-status-text {
-  color: #334155;
+  color: var(--text-heading);
   display: -webkit-box;
   font-weight: 800;
   line-height: 1.35;
@@ -384,8 +384,8 @@
 }
 
 .schedule-impact-group h4 {
-  color: #64748b;
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 900;
   margin: 2px 0 0;
   text-transform: uppercase;
@@ -397,7 +397,7 @@
 }
 
 .executive-overview-list a {
-  color: #1d4ed8;
+  color: var(--brand);
   font-weight: 900;
   text-decoration: none;
 }
@@ -425,11 +425,11 @@
 }
 
 .jira-env-switch button {
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 0;
-  color: #475569;
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
   min-width: 52px;
   padding: 8px 10px;
   text-transform: uppercase;
@@ -445,9 +445,9 @@
 }
 
 .jira-env-switch button.active {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: var(--brand-soft);
+  border-color: var(--brand-border-strong);
+  color: var(--brand);
   position: relative;
   z-index: 1;
 }
@@ -467,7 +467,7 @@
 
 .jira-work-section-head {
   align-items: center;
-  background: #f8fafc;
+  background: var(--surface-2);
   display: grid;
   gap: 8px;
   grid-template-columns: 30px minmax(180px, 420px);
@@ -478,7 +478,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: #334155;
+  color: var(--text-heading);
   cursor: pointer;
   display: inline-flex;
   height: 28px;
@@ -490,7 +490,7 @@
 .jira-work-section-title input {
   background: transparent;
   border: 0;
-  color: #1f2937;
+  color: var(--text);
   font-size: 15px;
   font-weight: 400;
   padding: 6px 4px;
@@ -498,9 +498,9 @@
 }
 
 .jira-work-section-title input:focus {
-  background: #fff;
+  background: var(--surface);
   border-radius: 6px;
-  box-shadow: 0 0 0 2px #bfdbfe;
+  box-shadow: 0 0 0 2px var(--brand-border);
   outline: none;
 }
 
@@ -511,7 +511,7 @@
 }
 
 .jira-work-jql-panel {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 6px;
   display: grid;
   overflow: hidden;
@@ -523,10 +523,10 @@
 
 .jira-work-jql-toggle {
   align-items: center;
-  background: #f8fafc;
+  background: var(--surface-2);
   border: 0;
   border-radius: 0;
-  color: #1f2937;
+  color: var(--text);
   display: inline-flex;
   gap: 8px;
   justify-content: flex-start;
@@ -543,7 +543,7 @@
 }
 
 .jira-work-filter-field span {
-  color: #1f2937;
+  color: var(--text);
   font-size: 14px;
   font-weight: 400;
   padding-top: 9px;
@@ -557,7 +557,7 @@
 }
 
 .jira-work-ticket-table-wrap {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 6px;
   overflow: auto;
 }
@@ -571,16 +571,16 @@
 
 .jira-work-ticket-table th,
 .jira-work-ticket-table td {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   padding: 10px 12px;
   text-align: left;
   vertical-align: top;
 }
 
 .jira-work-ticket-table th {
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 12px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -614,11 +614,11 @@
 }
 
 .jira-work-ticket-table tbody tr:hover {
-  background: #f8fafc;
+  background: var(--surface-2);
 }
 
 .jira-work-ticket-table a {
-  color: #1d4ed8;
+  color: var(--brand);
   font-weight: 700;
   text-decoration: none;
 }
@@ -634,7 +634,7 @@
   border-radius: 4px;
   color: #fff;
   display: inline-flex;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   height: 22px;
   justify-content: center;
@@ -645,17 +645,17 @@
 .jira-work-status {
   background: #e8edf5;
   border-radius: 4px;
-  color: #334155;
+  color: var(--text-heading);
   display: inline-flex;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.2;
   padding: 3px 6px;
 }
 
 .jira-work-ticket-table-wrap p {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 700;
   margin: 0;
   padding: 12px;
@@ -682,7 +682,7 @@
 }
 
 .overview-version-list {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 8px;
   display: grid;
   gap: 0;
@@ -691,7 +691,7 @@
 
 .overview-version-list button {
   border: 0;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
   display: grid;
   gap: 4px;
@@ -705,15 +705,15 @@
 }
 
 .overview-version-list button.active {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 .overview-version-list span,
 .overview-version-list small,
 .overview-version-toolbar span {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -734,7 +734,7 @@
   background: #eef2ff;
   border: 1px solid #c7d2fe;
   border-radius: 999px;
-  color: #1d4ed8 !important;
+  color: var(--brand) !important;
   padding: 6px 10px;
 }
 
@@ -746,9 +746,9 @@
 }
 
 .overview-summary-text {
-  background: #0f172a;
+  background: var(--inverse-surface-2);
   border-radius: 8px;
-  color: #f8fafc !important;
+  color: var(--surface-2) !important;
   font-size: 14px !important;
   line-height: 1.55;
   padding: 14px;

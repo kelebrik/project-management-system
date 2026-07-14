@@ -1,17 +1,17 @@
 
 .milestone-state.green {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-soft);
+  color: var(--success-800);
 }
 
 .milestone-state.amber {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-soft);
+  color: var(--warning-800);
 }
 
 .milestone-state.red {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--danger-soft);
+  color: var(--danger-800);
 }
 
 .milestone-state.pink {
@@ -25,8 +25,8 @@
 }
 
 .milestone-section {
-  background: #fff;
-  border: 1px solid #dce3eb;
+  background: var(--surface);
+  border: 1px solid var(--border-4);
   border-radius: 8px;
   display: grid;
   gap: 10px;
@@ -55,8 +55,8 @@
 
 .milestone-section-actions {
   align-items: center;
-  background: #f8fafc;
-  border: 1px solid #d8e0eb;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
   border-radius: 8px;
   display: flex;
   flex-wrap: wrap;
@@ -66,27 +66,27 @@
 }
 
 .milestone-section-actions button {
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: #334155;
-  font-size: 12px;
+  color: var(--text-heading);
+  font-size: 13px;
   font-weight: 800;
   padding: 8px 10px;
 }
 
 .milestone-section-actions button:hover {
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  border-color: var(--brand-border-strong);
+  color: var(--brand);
 }
 
 .milestone-legend {
   align-items: center;
-  color: #64748b;
+  color: var(--text-muted);
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -105,30 +105,30 @@
 }
 
 .milestone-legend i.green {
-  background: #16a34a;
+  background: var(--success);
 }
 
 .milestone-legend i.blue {
-  background: #2563eb;
+  background: var(--brand-600);
 }
 
 .milestone-legend i.red {
-  background: #dc2626;
+  background: var(--danger);
 }
 
 .milestone-legend i.gray {
-  background: #94a3b8;
+  background: var(--text-faint);
 }
 
 .milestone-legend i.today {
   background: transparent;
-  border-left: 2px dashed #ef4444;
+  border-left: 2px dashed var(--danger-500);
   border-radius: 0;
   width: 0;
 }
 
 .milestone-timeline {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: auto;
   padding: 0;
@@ -148,9 +148,9 @@
 }
 
 .milestone-scale {
-  color: #64748b;
+  color: var(--text-muted);
   position: relative;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   height: 18px;
   text-transform: uppercase;
@@ -181,7 +181,7 @@
 
 .milestone-lane-title > span {
   color: #00608a;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0;
 }
@@ -207,7 +207,7 @@
 .milestone-axis-title {
   align-items: center;
   box-sizing: border-box;
-  color: #f8fafc;
+  color: var(--surface-2);
   display: flex;
   gap: 8px;
   height: 32px;
@@ -227,7 +227,7 @@
   border-radius: 4px;
   color: #e0f2fe;
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   line-height: 1;
   padding: 4px 5px;
@@ -242,8 +242,8 @@
 }
 
 .milestone-axis {
-  background: #64748b;
-  border: 1px solid #475569;
+  background: var(--text-muted);
+  border: 1px solid var(--text-secondary);
   box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.18);
   height: 32px;
   left: 8px;
@@ -254,7 +254,7 @@
 
 .milestone-axis-arrow {
   border-bottom: 27px solid transparent;
-  border-left: 32px solid #64748b;
+  border-left: 32px solid var(--text-muted);
   border-top: 27px solid transparent;
   height: 0;
   position: absolute;
@@ -264,7 +264,7 @@
 }
 
 .milestone-today {
-  border-left: 2px dashed #ef4444;
+  border-left: 2px dashed var(--danger-500);
   bottom: 8px;
   position: absolute;
   top: 8px;
@@ -274,7 +274,7 @@
 .milestone-point {
   background: transparent;
   border: 0;
-  color: #111827;
+  color: var(--text-strong);
   display: block;
   height: 1px;
   padding: 0;
@@ -294,7 +294,7 @@
 
 .milestone-point:hover .milestone-label,
 .milestone-point:focus-visible .milestone-label {
-  color: #1d4ed8;
+  color: var(--brand);
   text-decoration: underline;
 }
 
@@ -311,7 +311,7 @@
 }
 
 .milestone-point::before {
-  background: #94a3b8;
+  background: var(--text-faint);
   content: "";
   height: calc(60px + var(--milestone-label-level, 0) * 50px);
   left: 50%;
@@ -333,19 +333,19 @@
 }
 
 .milestone-point.green::before {
-  background: #16a34a;
+  background: var(--success);
 }
 
 .milestone-point.blue::before {
-  background: #2563eb;
+  background: var(--brand-600);
 }
 
 .milestone-point.red::before {
-  background: #dc2626;
+  background: var(--danger);
 }
 
 .milestone-point.gray::before {
-  background: #94a3b8;
+  background: var(--text-faint);
 }
 
 .milestone-marker {
@@ -376,25 +376,25 @@
 }
 
 .milestone-point.green .milestone-marker {
-  background: #16a34a;
+  background: var(--success);
 }
 
 .milestone-point.blue .milestone-marker {
-  background: #2563eb;
+  background: var(--brand-600);
 }
 
 .milestone-point.red .milestone-marker {
-  background: #dc2626;
+  background: var(--danger);
 }
 
 .milestone-point.gray .milestone-marker {
-  background: #94a3b8;
+  background: var(--text-faint);
 }
 
 .milestone-caption {
   align-items: flex-start;
   background: rgba(255, 255, 255, 0.94);
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
   box-sizing: border-box;
@@ -432,8 +432,8 @@
 }
 
 .draggable-milestone-label.is-dragging {
-  background: #dc2626;
-  border-color: #b91c1c;
+  background: var(--danger);
+  border-color: var(--danger-700);
   box-shadow: 0 12px 26px rgba(220, 38, 38, 0.28);
   cursor: grabbing;
 }
@@ -445,7 +445,7 @@
 }
 
 .milestone-label-grip {
-  color: #94a3b8;
+  color: var(--text-faint);
   font-size: 13px;
   font-weight: 900;
   letter-spacing: -2px;
@@ -457,11 +457,11 @@
 }
 
 .draggable-milestone-label:hover .milestone-label-grip {
-  color: #2563eb;
+  color: var(--brand-600);
 }
 
 .milestone-label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.16;
 }

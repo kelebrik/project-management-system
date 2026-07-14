@@ -2,6 +2,7 @@ import { FileDown, Languages, Maximize2, Minimize2, RefreshCw } from "lucide-rea
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { usePageContext } from "./PageContext";
+import { useConfirm } from "../components/ConfirmDialog";
 import type { WbsFormState } from "../app/formState";
 import { wbsToForm } from "../app/formState";
 import {
@@ -106,6 +107,7 @@ export function ProjectStructureSection() {
     wbsTree,
     wbsUndoStack,
   } = usePageContext();
+  const confirm = useConfirm();
 
   const englishProjectName = wbsEnglishProjectName(project.name);
   const englishPrintTitle = `${englishProjectName} - Structure`;
@@ -580,7 +582,18 @@ export function ProjectStructureSection() {
                           <button
                             type="button"
                             className="danger-button"
-                            onClick={() => void deleteSelectedWbsItems()}
+                            onClick={async () => {
+                              if (
+                                await confirm({
+                                  title: "Удалить выбранные элементы?",
+                                  message:
+                                    "Выбранные строки Структуры будут удалены безвозвратно.",
+                                  confirmLabel: "Удалить",
+                                })
+                              ) {
+                                void deleteSelectedWbsItems();
+                              }
+                            }}
                             disabled={savingWbsBulk}
                           >
                             Удалить выбранные

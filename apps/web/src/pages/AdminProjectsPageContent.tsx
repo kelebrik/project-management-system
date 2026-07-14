@@ -1,11 +1,13 @@
 import { Trash2 } from "lucide-react";
 
 import { usePageContext } from "./PageContext";
+import { useConfirm } from "../components/ConfirmDialog";
 import type { ProjectRegistryDraft } from "../app/formState";
 import type { RagStatus } from "../app/domainTypes";
 
 export function AdminProjectsPageContent() {
   const ctx = usePageContext();
+  const confirm = useConfirm();
   const {
     activeProjectTree,
     closeProject,
@@ -256,7 +258,18 @@ export function AdminProjectsPageContent() {
                                   <button
                                     type="button"
                                     className="danger-button"
-                                    onClick={() => void deleteProject(item.id)}
+                                    onClick={async () => {
+                                      if (
+                                        await confirm({
+                                          title: "Удалить проект?",
+                                          message:
+                                            "Проект и все связанные данные будут удалены безвозвратно.",
+                                          confirmLabel: "Удалить",
+                                        })
+                                      ) {
+                                        void deleteProject(item.id);
+                                      }
+                                    }}
                                     disabled={savingProjectRegistryId === item.id}
                                     title="Удалить проект и все связанные данные"
                                   >

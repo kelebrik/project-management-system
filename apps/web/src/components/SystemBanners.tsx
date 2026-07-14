@@ -1,53 +1,68 @@
-import { Archive, KeyRound } from "lucide-react";
+import { useEffect } from "react";
+import { Archive, KeyRound, X } from "lucide-react";
+import type { Toast } from "../hooks/useAppFeedbackState";
 
 type SystemBannersProps = {
-  error: string | null;
+  toasts: Toast[];
   isAuthenticated: boolean;
   isClosedProject: boolean;
-  notice: string | null;
-  onErrorDismiss: () => void;
+  onDismissToast: (id: number) => void;
   onLogin: () => void;
-  onNoticeDismiss: () => void;
 };
 
+const AUTO_DISMISS_MS: Record<Toast["tone"], number> = {
+  success: 4500,
+  error: 8000,
+};
+
+function ToastItem({
+  toast,
+  onDismiss,
+}: {
+  toast: Toast;
+  onDismiss: (id: number) => void;
+}) {
+  useEffect(() => {
+    const timeoutId = window.setTimeout(
+      () => onDismiss(toast.id),
+      AUTO_DISMISS_MS[toast.tone],
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [toast.id, toast.tone, onDismiss]);
+
+  return (
+    <div className={`toast ${toast.tone}`} role="status">
+      <button
+        type="button"
+        aria-label="Закрыть уведомление"
+        onClick={() => onDismiss(toast.id)}
+      >
+        <X size={14} />
+      </button>
+      <strong>{toast.tone === "error" ? "Ошибка" : "Готово"}</strong>
+      <p>{toast.message}</p>
+    </div>
+  );
+}
+
 export function SystemBanners({
-  error,
+  toasts,
   isAuthenticated,
   isClosedProject,
-  notice,
-  onErrorDismiss,
+  onDismissToast,
   onLogin,
-  onNoticeDismiss,
 }: SystemBannersProps) {
   return (
     <>
-      <div className="toast-stack" aria-live="polite">
-        {error && (
-          <div className="toast error">
-            <button
-              type="button"
-              aria-label="Закрыть уведомление об ошибке"
-              onClick={onErrorDismiss}
-            >
-              x
-            </button>
-            <strong>Ошибка</strong>
-            <p>{error}</p>
-          </div>
-        )}
-        {notice && (
-          <div className="toast success">
-            <button
-              type="button"
-              aria-label="Закрыть уведомление"
-              onClick={onNoticeDismiss}
-            >
-              x
-            </button>
-            <strong>Готово</strong>
-            <p>{notice}</p>
-          </div>
-        )}
+      <div
+        className="toast-stack"
+        aria-live="assertive"
+        aria-atomic="false"
+        role="log"
+      >
+        {toasts.map((toast) => (
+          <ToastItem key={toast.id} toast={toast} onDismiss={onDismissToast} />
+        ))}
       </div>
       {!isAuthenticated && (
         <div className="readonly-banner main-readonly-banner">
