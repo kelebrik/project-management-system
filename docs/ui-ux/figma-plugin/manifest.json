@@ -1,0 +1,7 @@
+{
+  "name": "PMS UI UX Concepts",
+  "id": "pms-ui-ux-concepts",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figma"]
+}

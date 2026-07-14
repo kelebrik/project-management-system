@@ -28,6 +28,7 @@ import {
   Users,
 } from "lucide-react";
 
+import type { Toast } from "../hooks/useAppFeedbackState";
 import type { CurrentUser } from "../app/adminTypes";
 import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
 import type { ProjectModuleKey } from "../app/projectModules";
@@ -49,6 +50,7 @@ import {
 import { ResourceSidebarMenu } from "./ResourceSidebarMenu";
 import { SidebarIdentity } from "./SidebarIdentity";
 import { SystemBanners } from "./SystemBanners";
+import { ThemeToggle } from "./ThemeToggle";
 
 type ScheduleHealth = {
   tone: string;
@@ -63,7 +65,8 @@ type OpenView = (
 type AppShellProps = {
   activeView: AppView;
   currentUser: CurrentUser | null;
-  error: string | null;
+  toasts: Toast[];
+  onDismissToast: (id: number) => void;
   filteredProjectOptions: ProjectListItem[];
   firstEnabledProjectView: ProjectSectionView;
   handleEditableFocus: FocusEventHandler<HTMLDivElement>;
@@ -79,7 +82,6 @@ type AppShellProps = {
   isResourceSectionView: boolean;
   isReadOnly: boolean;
   logout: () => void;
-  notice: string | null;
   onAuthModeChange: (mode: "login") => void;
   onErrorChange: (value: string | null) => void;
   onNoticeChange: (value: string | null) => void;
@@ -278,7 +280,8 @@ const adminNavItems: AdminNavItem[] = [
 export function AppShell({
   activeView,
   currentUser,
-  error,
+  toasts,
+  onDismissToast,
   filteredProjectOptions,
   firstEnabledProjectView,
   handleEditableFocus,
@@ -294,7 +297,6 @@ export function AppShell({
   isResourceSectionView,
   isReadOnly,
   logout,
-  notice,
   onAuthModeChange,
   onErrorChange,
   onNoticeChange,
@@ -504,6 +506,7 @@ export function AppShell({
               </div>
             </div>
           )}
+          <ThemeToggle sidebarCollapsed={sidebarCollapsed} />
         </nav>
       </aside>
 
@@ -519,17 +522,15 @@ export function AppShell({
           viewTitle={viewTitle}
         />
         <SystemBanners
-          error={error}
+          toasts={toasts}
           isAuthenticated={isAuthenticated}
           isClosedProject={isClosedProject}
-          notice={notice}
-          onErrorDismiss={() => onErrorChange(null)}
+          onDismissToast={onDismissToast}
           onLogin={() => {
             onAuthModeChange("login");
             onErrorChange(null);
             onNoticeChange(null);
           }}
-          onNoticeDismiss={() => onNoticeChange(null)}
         />
 
         <PageContextProvider value={pageContext}>

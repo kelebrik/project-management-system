@@ -1,7 +1,7 @@
 
 .auth-page {
   align-items: center;
-  background: #f3f6fa;
+  background: var(--bg);
   display: grid;
   min-height: 100vh;
   padding: 24px;
@@ -9,8 +9,8 @@
 }
 
 .auth-card {
-  background: #fff;
-  border: 1px solid #dbe4ef;
+  background: var(--surface);
+  border: 1px solid var(--border-3);
   border-radius: 10px;
   box-shadow: 0 18px 44px rgba(15, 23, 42, 0.12);
   display: grid;
@@ -21,14 +21,14 @@
 }
 
 .auth-brand {
-  border-bottom: 1px solid #e5edf6;
+  border-bottom: 1px solid var(--border-6);
   margin: 0;
   padding: 0 0 16px;
 }
 
 .auth-brand .logo {
   align-items: center;
-  background: #1d4ed8;
+  background: var(--brand);
   border-radius: 8px;
   color: #fff;
   display: inline-flex;
@@ -46,7 +46,7 @@
 }
 
 .auth-title svg {
-  color: #1d4ed8;
+  color: var(--brand);
   margin-top: 6px;
 }
 
@@ -56,7 +56,7 @@
 }
 
 .auth-title p {
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 13px;
   margin: 0;
 }
@@ -67,9 +67,9 @@
 }
 
 .auth-form label {
-  color: #64748b;
+  color: var(--text-muted);
   display: grid;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   gap: 6px;
 }
@@ -80,9 +80,9 @@
 
 .auth-divider {
   align-items: center;
-  color: #94a3b8;
+  color: var(--text-faint);
   display: grid;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   grid-template-columns: 1fr auto 1fr;
   gap: 10px;
@@ -91,23 +91,23 @@
 
 .auth-divider::before,
 .auth-divider::after {
-  background: #e2e8f0;
+  background: var(--border);
   content: "";
   height: 1px;
 }
 
 .auth-error {
-  background: #fee2e2;
+  background: var(--danger-soft);
   border: 1px solid #fca5a5;
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--danger-800);
   display: grid;
   gap: 4px;
   padding: 10px 12px;
 }
 
 .auth-error strong {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .auth-error span {
@@ -135,14 +135,14 @@ html {
 }
 
 .wiki-header h2 {
-  color: #111827;
+  color: var(--text-strong);
   font-size: 26px;
   line-height: 1.15;
   margin: 0;
 }
 
 .wiki-header p {
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 14px;
   font-weight: 700;
   margin: 6px 0 0;
@@ -150,8 +150,8 @@ html {
 
 .wiki-search {
   align-items: center;
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   display: grid;
   gap: 8px;
@@ -161,12 +161,12 @@ html {
 }
 
 .wiki-search svg {
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .wiki-search input {
   border: 0;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 14px;
   font-weight: 700;
   min-width: 0;
@@ -174,14 +174,14 @@ html {
 }
 
 .wiki-result-count {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 900;
   text-transform: uppercase;
 }
 
 .wiki-sidebar-group {
-  border-left: 1px solid #dbe4ef;
+  border-left: 1px solid var(--border-3);
   margin-left: 10px;
   max-height: min(52vh, 520px);
   overflow: auto;
@@ -189,8 +189,8 @@ html {
 }
 
 .wiki-sidebar-title {
-  color: #64748b;
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 900;
   margin: 0 0 6px 4px;
   text-transform: uppercase;
@@ -206,10 +206,10 @@ html {
 
 .wiki-sidebar-link {
   border-radius: 7px;
-  color: #334155;
+  color: var(--text-heading);
   cursor: pointer;
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   line-height: 1.25;
   padding: 6px 8px;
@@ -219,13 +219,13 @@ html {
 .wiki-sidebar-link:hover,
 .wiki-sidebar-link:focus-visible {
   background: #e0f2fe;
-  color: #075985;
+  color: var(--info-800);
   outline: none;
 }
 
 .wiki-sidebar-link.article {
-  color: #64748b;
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 800;
   margin-left: 10px;
   padding-bottom: 5px;
@@ -237,28 +237,28 @@ html {
 }
 
 .wiki-group-title {
-  border-bottom: 1px solid #dbe4ef;
+  border-bottom: 1px solid var(--border-3);
   margin-bottom: 12px;
   padding-bottom: 10px;
 }
 
 .wiki-group-title h3 {
-  color: #111827;
+  color: var(--text-strong);
   font-size: 21px;
   line-height: 1.2;
   margin: 0;
 }
 
 .wiki-group-title p {
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
   margin: 4px 0 0;
 }
 
 .wiki-article {
-  background: #fff;
-  border: 1px solid #dbe4ef;
+  background: var(--surface);
+  border: 1px solid var(--border-3);
   border-radius: 8px;
   display: grid;
   gap: 12px;
@@ -274,14 +274,14 @@ html {
 }
 
 .wiki-article h4 {
-  color: #111827;
+  color: var(--text-strong);
   font-size: 17px;
   line-height: 1.25;
   margin: 0;
 }
 
 .wiki-article p {
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.45;
@@ -294,8 +294,8 @@ html {
 }
 
 .wiki-article-section {
-  background: #f8fafc;
-  border: 1px solid #e5edf6;
+  background: var(--surface-2);
+  border: 1px solid var(--border-6);
   border-radius: 8px;
   display: grid;
   gap: 8px;
@@ -303,7 +303,7 @@ html {
 }
 
 .wiki-article-section h5 {
-  color: #1f2937;
+  color: var(--text);
   font-size: 14px;
   line-height: 1.25;
   margin: 0;
@@ -317,7 +317,7 @@ html {
 }
 
 .wiki-article li {
-  color: #334155;
+  color: var(--text-heading);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.45;
@@ -403,6 +403,13 @@ html {
 
   .resource-heatmap-panel {
     overflow-x: auto;
+  }
+
+  .raid-board .raid-kpis,
+  .raid-board .risk-matrix-card,
+  .raid-board .raid-register {
+    grid-column: 1;
+    grid-row: auto;
   }
 
   .resource-panel-head,
@@ -515,7 +522,7 @@ html {
   .project-access-row,
   .permission-row,
   .dictionary-row {
-    border: 1px solid #dbe4ef;
+    border: 1px solid var(--border-3);
     border-radius: 8px;
     margin-bottom: 10px;
     min-width: 0;
@@ -558,7 +565,7 @@ html {
   }
 
   .audit-row {
-    border: 1px solid #dbe4ef;
+    border: 1px solid var(--border-3);
     border-radius: 8px;
     min-width: 0;
   }

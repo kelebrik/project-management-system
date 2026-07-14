@@ -1,4 +1,6 @@
 import { usePageContext } from "./PageContext";
+import { useConfirm } from "../hooks/useConfirm";
+import { X } from "lucide-react";
 import type { RaidItemStatus, RaidItemType } from "../app/domainTypes";
 import type { RaidTypeFilter } from "../app/raidModels";
 
@@ -34,6 +36,7 @@ export function ProjectRaidRegister() {
     updateRaidDraft,
     updateRaidStatusDraft,
   } = usePageContext();
+  const confirm = useConfirm();
 
   return <div className="raid-main-column">
                     <div className="wbs-kpis raid-kpis">
@@ -190,6 +193,20 @@ export function ProjectRaidRegister() {
                             </div>
                             {expandedRaidId === item.id && raidDrafts[item.id] && (
                               <div className="raid-details">
+                                <div className="raid-edit-drawer-header">
+                                  <div>
+                                    <strong>{item.title}</strong>
+                                    <span>{item.owner || "ответственный не задан"}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    aria-label="Закрыть редактирование"
+                                    title="Закрыть"
+                                    onClick={() => setExpandedRaidId(null)}
+                                  >
+                                    <X size={17} />
+                                  </button>
+                                </div>
                                 {(() => {
                                   const latestStatus = latestRaidStatusUpdate(item);
                                   const statusHistory = [...(item.statusUpdates ?? [])]
@@ -492,7 +509,18 @@ export function ProjectRaidRegister() {
                                     <button
                                       type="button"
                                       className="danger-button"
-                                      onClick={() => deleteRaidItem(item.id)}
+                                      onClick={async () => {
+                                        if (
+                                          await confirm({
+                                            title: "Удалить запись RAID?",
+                                            message:
+                                              "Запись будет удалена безвозвратно.",
+                                            confirmLabel: "Удалить",
+                                          })
+                                        ) {
+                                          void deleteRaidItem(item.id);
+                                        }
+                                      }}
                                     >
                                       Удалить
                                     </button>

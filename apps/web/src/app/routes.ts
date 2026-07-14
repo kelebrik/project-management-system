@@ -1,6 +1,7 @@
 export type AppView =
   | "portfolio"
   | "portfolio-v2"
+  | "decision-queue"
   | "projects"
   | "reports"
   | "wiki"
@@ -83,6 +84,7 @@ export type ResourceSectionView = Extract<
 export type DevelopmentSectionView = Extract<
   AppView,
   | "portfolio-v2"
+  | "decision-queue"
   | "project-pm-workspace"
   | ResourceSectionView
 >;
@@ -112,6 +114,7 @@ export const adminSectionViews: AdminSectionView[] = [
 
 export const developmentSectionViews: DevelopmentSectionView[] = [
   "portfolio-v2",
+  "decision-queue",
   "project-pm-workspace",
   "resources",
   "resources-capacity",
@@ -142,6 +145,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
   "portfolio-v2": "/development/portfolio-v2",
+  "decision-queue": "/development/decision-queue",
   projects: "/projects",
   reports: "/reports",
   wiki: "/faq",
@@ -225,6 +229,7 @@ export const appPathViews: Record<string, AppView> = {
   "/resources/settings": "resources-capacity",
   "/development": "resources",
   "/development/portfolio-v2": "portfolio-v2",
+  "/development/decision-queue": "decision-queue",
   "/development/pm-workspace": "project-pm-workspace",
   "/development/workspace": "project-pm-workspace",
   "/development/resources": "resources",

@@ -29,11 +29,11 @@
 }
 
 .global-search kbd {
-  background: #f1f5f9;
-  border: 1px solid #d8e0eb;
+  background: var(--surface-3b);
+  border: 1px solid var(--border-2);
   border-radius: 5px;
-  color: #64748b;
-  font-size: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
   font-weight: 900;
   padding: 2px 5px;
   white-space: nowrap;
@@ -46,8 +46,8 @@
 }
 
 .search-result-group {
-  color: #64748b;
-  font-size: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
   font-weight: 900;
   padding: 4px 8px 0;
   text-transform: uppercase;
@@ -55,12 +55,12 @@
 
 .global-search-popover button.active,
 .global-search-popover button:focus-visible {
-  background: #eff6ff;
+  background: var(--brand-soft);
   outline: none;
 }
 
 .search-scope-tabs {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   display: flex;
   gap: 4px;
   overflow-x: auto;
@@ -71,27 +71,50 @@
   border: 0;
   border-radius: 5px;
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 12px;
   min-height: 28px;
   padding: 5px 8px;
 }
 
 .search-scope-tabs button.active {
   background: #e0ecff;
-  color: #1d4ed8;
+  color: var(--brand);
 }
 
 .view-settings-menu {
   position: relative;
 }
 
+.gantt-minimap {
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  height: 22px;
+  margin: 6px 12px 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.gantt-minimap i {
+  background: var(--text-muted);
+  height: 3px;
+  position: absolute;
+  top: 9px;
+}
+
+.gantt-minimap i.milestone {
+  background: var(--danger);
+  height: 6px;
+  top: 7px;
+}
+
 .view-settings-menu summary {
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: #334155;
+  color: var(--text-heading);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   list-style: none;
   padding: 7px 10px;
@@ -102,14 +125,14 @@
 }
 
 .view-settings-menu[open] summary {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: var(--brand-soft);
+  border-color: var(--brand-border-strong);
+  color: var(--brand);
 }
 
 .view-settings-popover {
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
   display: grid;
@@ -183,7 +206,7 @@
 }
 
 .wbs-level-cell.read-only-cell .wbs-level-input {
-  color: #334155;
+  color: var(--text-heading);
   font-weight: 700;
 }
 
@@ -193,9 +216,9 @@
 
 .wbs-readonly-value,
 .work-summary-readonly {
-  color: #1f2937;
+  color: var(--text);
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   min-width: 0;
   overflow: hidden;
@@ -235,9 +258,9 @@
 }
 
 .wiki-article-head::after {
-  color: #64748b;
+  color: var(--text-muted);
   content: "Развернуть";
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -247,18 +270,18 @@
 }
 
 .wiki-article-sections {
-  border-top: 1px solid #e5edf6;
+  border-top: 1px solid var(--border-6);
   padding: 12px 14px 14px;
 }
 
 .wiki-sidebar-link.active-anchor {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--brand-soft-2);
+  color: var(--brand);
 }
 
 .wiki-article mark,
 .wiki-group-title mark {
-  background: #fef3c7;
+  background: var(--warning-soft);
   border-radius: 3px;
   color: inherit;
   padding: 0 2px;

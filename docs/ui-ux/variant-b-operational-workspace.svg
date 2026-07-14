@@ -1,0 +1,160 @@
+<svg width="1440" height="1024" viewBox="0 0 1440 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="1024" fill="#F4F7FB"/>
+  <rect x="0" y="0" width="248" height="1024" fill="#FFFFFF"/>
+  <rect x="247" y="0" width="1" height="1024" fill="#D9E2EF"/>
+
+  <rect x="24" y="24" width="40" height="40" rx="10" fill="#1D4ED8"/>
+  <text x="44" y="50" text-anchor="middle" font-family="Inter, Arial" font-size="16" font-weight="800" fill="#FFFFFF">УП</text>
+  <text x="76" y="39" font-family="Inter, Arial" font-size="16" font-weight="800" fill="#111827">Система УП</text>
+  <text x="76" y="58" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Project workspace</text>
+
+  <rect x="20" y="92" width="208" height="38" rx="8" fill="#F8FAFC" stroke="#D8E0EB"/>
+  <text x="40" y="116" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">DEMO-001 · Орбита</text>
+  <rect x="20" y="146" width="208" height="42" rx="8" fill="#FFFFFF"/>
+  <text x="40" y="172" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">Cockpit</text>
+  <rect x="20" y="198" width="208" height="42" rx="8" fill="#EEF6FF" stroke="#BFDBFE"/>
+  <rect x="20" y="212" width="4" height="16" rx="2" fill="#2563EB"/>
+  <text x="40" y="224" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#1D4ED8">Рабочий стол PM</text>
+  <rect x="20" y="250" width="208" height="42" rx="8" fill="#FFFFFF"/>
+  <text x="40" y="276" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">Структура и Гантт</text>
+  <rect x="20" y="302" width="208" height="42" rx="8" fill="#FFFFFF"/>
+  <text x="40" y="328" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">Открытые вопросы</text>
+  <rect x="20" y="354" width="208" height="42" rx="8" fill="#FFFFFF"/>
+  <text x="40" y="380" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">Риски и проблемы</text>
+
+  <text x="24" y="448" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">МОИ ВИДЫ</text>
+  <rect x="20" y="464" width="208" height="36" rx="8" fill="#FEF2F2" stroke="#FECACA"/>
+  <text x="40" y="487" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#991B1B">Просрочено сегодня · 8</text>
+  <rect x="20" y="508" width="208" height="36" rx="8" fill="#FFF7ED" stroke="#FED7AA"/>
+  <text x="40" y="531" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#9A3412">Критический путь · 12</text>
+  <rect x="20" y="552" width="208" height="36" rx="8" fill="#F8FAFC" stroke="#D8E0EB"/>
+  <text x="40" y="575" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Старт на неделе · 5</text>
+
+  <rect x="280" y="20" width="1132" height="76" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="304" y="52" font-family="Inter, Arial" font-size="24" font-weight="900" fill="#1F2937">Демо-проект Орбита</text>
+  <text x="304" y="75" font-family="Inter, Arial" font-size="13" font-weight="700" fill="#64748B">PM workspace · WBS, Гантт, RAID и вопросы в одном режиме</text>
+  <rect x="726" y="34" width="320" height="42" rx="9" fill="#F8FAFC" stroke="#CBD5E1"/>
+  <text x="750" y="60" font-family="Inter, Arial" font-size="13" font-weight="700" fill="#64748B">Найти задачу, риск или владельца</text>
+  <rect x="1060" y="34" width="96" height="42" rx="9" fill="#DCFCE7"/>
+  <text x="1080" y="60" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#166534">Сохранено</text>
+  <rect x="1168" y="34" width="102" height="42" rx="9" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="1192" y="60" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#334155">Экспорт</text>
+  <rect x="1282" y="34" width="110" height="42" rx="9" fill="#1D4ED8"/>
+  <text x="1310" y="60" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#FFFFFF">Изменить</text>
+
+  <rect x="280" y="116" width="1132" height="64" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <rect x="304" y="132" width="146" height="32" rx="16" fill="#EEF6FF"/>
+  <text x="326" y="153" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#1D4ED8">Статус Активен</text>
+  <rect x="462" y="132" width="160" height="32" rx="16" fill="#ECFDF5"/>
+  <text x="484" y="153" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#047857">Опережение 1 дн.</text>
+  <rect x="634" y="132" width="174" height="32" rx="16" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="656" y="153" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Цель 03.09.2026</text>
+  <rect x="820" y="132" width="218" height="32" rx="16" fill="#FFF7ED"/>
+  <text x="842" y="153" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#9A3412">3 решения ожидают</text>
+  <rect x="1050" y="132" width="188" height="32" rx="16" fill="#FEF2F2"/>
+  <text x="1072" y="153" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#991B1B">2 RAID красной зоны</text>
+  <rect x="1250" y="132" width="134" height="32" rx="16" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="1272" y="153" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">РП Новикова</text>
+
+  <rect x="280" y="200" width="252" height="780" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="304" y="230" font-family="Inter, Arial" font-size="18" font-weight="900" fill="#1F2937">Work queue</text>
+  <text x="304" y="251" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Сегодня и ближайшая неделя</text>
+  <rect x="304" y="276" width="204" height="72" rx="10" fill="#FEF2F2" stroke="#FECACA"/>
+  <text x="324" y="300" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#991B1B">Просрочено</text>
+  <text x="324" y="324" font-family="Inter, Arial" font-size="15" font-weight="900" fill="#111827">Демо-задача 107</text>
+  <text x="324" y="342" font-family="Inter, Arial" font-size="11" font-weight="800" fill="#64748B">Ольга · +94 дн.</text>
+  <rect x="304" y="360" width="204" height="72" rx="10" fill="#FFF7ED" stroke="#FED7AA"/>
+  <text x="324" y="384" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#9A3412">Решение</text>
+  <text x="324" y="408" font-family="Inter, Arial" font-size="15" font-weight="900" fill="#111827">Вопрос 13</text>
+  <text x="324" y="426" font-family="Inter, Arial" font-size="11" font-weight="800" fill="#64748B">Мария · до 10.07</text>
+  <rect x="304" y="444" width="204" height="72" rx="10" fill="#EFF6FF" stroke="#BFDBFE"/>
+  <text x="324" y="468" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#1D4ED8">Старт на неделе</text>
+  <text x="324" y="492" font-family="Inter, Arial" font-size="15" font-weight="900" fill="#111827">Демо-задача 67</text>
+  <text x="324" y="510" font-family="Inter, Arial" font-size="11" font-weight="800" fill="#64748B">15.07 · не начата</text>
+  <text x="304" y="560" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#64748B">ФИЛЬТРЫ</text>
+  <rect x="304" y="578" width="82" height="32" rx="16" fill="#1D4ED8"/>
+  <text x="328" y="599" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#FFFFFF">Неделя</text>
+  <rect x="394" y="578" width="84" height="32" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="416" y="599" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Owner</text>
+  <rect x="304" y="622" width="120" height="32" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="326" y="643" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Критический</text>
+  <rect x="304" y="666" width="116" height="32" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="326" y="687" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Просрочено</text>
+
+  <rect x="552" y="200" width="580" height="412" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="576" y="230" font-family="Inter, Arial" font-size="18" font-weight="900" fill="#1F2937">WBS spreadsheet</text>
+  <text x="576" y="251" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Sticky код/название, активные фазы раскрыты по умолчанию</text>
+  <rect x="576" y="276" width="74" height="32" rx="8" fill="#1D4ED8"/>
+  <text x="596" y="297" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#FFFFFF">Сейчас</text>
+  <rect x="658" y="276" width="78" height="32" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="678" y="297" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Неделя</text>
+  <rect x="744" y="276" width="118" height="32" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="764" y="297" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Критический</text>
+  <rect x="870" y="276" width="86" height="32" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="890" y="297" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Колонки</text>
+  <rect x="576" y="326" width="532" height="40" fill="#EAF0F7"/>
+  <text x="592" y="351" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">КОД</text>
+  <text x="652" y="351" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">НАИМЕНОВАНИЕ</text>
+  <text x="850" y="351" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">СТАТУС</text>
+  <text x="948" y="351" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">СРОК</text>
+  <text x="1034" y="351" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">OWNER</text>
+  <g font-family="Inter, Arial" font-size="12" font-weight="900">
+    <rect x="576" y="366" width="532" height="42" fill="#FFFFFF"/>
+    <text x="592" y="392" fill="#1D4ED8">2.6</text><text x="652" y="392" fill="#111827">Демо-задача 24</text><text x="850" y="392" fill="#111827">В работе</text><text x="948" y="392" fill="#111827">01.07</text><text x="1034" y="392" fill="#111827">Мария</text>
+    <line x1="576" y1="408" x2="1108" y2="408" stroke="#E2E8F0"/>
+    <rect x="576" y="408" width="532" height="42" fill="#FEF2F2"/>
+    <text x="592" y="434" fill="#1D4ED8">4.3.2</text><text x="652" y="434" fill="#111827">Демо-задача 107</text><text x="850" y="434" fill="#991B1B">Риск</text><text x="948" y="434" fill="#991B1B">12.10</text><text x="1034" y="434" fill="#111827">Ольга</text>
+    <line x1="576" y1="450" x2="1108" y2="450" stroke="#E2E8F0"/>
+    <rect x="576" y="450" width="532" height="42" fill="#FFFFFF"/>
+    <text x="592" y="476" fill="#1D4ED8">4.8.1</text><text x="652" y="476" fill="#111827">Демо-задача 134</text><text x="850" y="476" fill="#047857">Опереж.</text><text x="948" y="476" fill="#111827">03.08</text><text x="1034" y="476" fill="#111827">Михаил</text>
+    <line x1="576" y1="492" x2="1108" y2="492" stroke="#E2E8F0"/>
+    <rect x="576" y="492" width="532" height="42" fill="#FFFFFF"/>
+    <text x="592" y="518" fill="#1D4ED8">7.2.3</text><text x="652" y="518" fill="#111827">Демо-задача 164</text><text x="850" y="518" fill="#111827">Не начата</text><text x="948" y="518" fill="#111827">29.07</text><text x="1034" y="518" fill="#111827">Павел</text>
+    <line x1="576" y1="534" x2="1108" y2="534" stroke="#E2E8F0"/>
+    <rect x="576" y="534" width="532" height="42" fill="#FFFFFF"/>
+    <text x="592" y="560" fill="#1D4ED8">3.4.1</text><text x="652" y="560" fill="#111827">Демо-задача 67</text><text x="850" y="560" fill="#111827">Не начата</text><text x="948" y="560" fill="#111827">15.07</text><text x="1034" y="560" fill="#111827">Мария</text>
+  </g>
+
+  <rect x="552" y="632" width="860" height="348" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="576" y="662" font-family="Inter, Arial" font-size="18" font-weight="900" fill="#1F2937">Gantt focused range</text>
+  <text x="576" y="683" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">90 дней, активные фазы раскрыты, критический путь поверх графика</text>
+  <rect x="576" y="706" width="812" height="230" rx="8" fill="#F8FAFC" stroke="#D9E2EF"/>
+  <rect x="576" y="706" width="190" height="230" rx="8" fill="#FFFFFF"/>
+  <text x="592" y="732" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">СТРУКТУРА</text>
+  <text x="784" y="732" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">ИЮЛЬ</text>
+  <text x="948" y="732" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">АВГУСТ</text>
+  <text x="1120" y="732" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">СЕНТЯБРЬ</text>
+  <line x1="766" y1="748" x2="1388" y2="748" stroke="#E2E8F0"/>
+  <line x1="766" y1="790" x2="1388" y2="790" stroke="#E2E8F0"/>
+  <line x1="766" y1="832" x2="1388" y2="832" stroke="#E2E8F0"/>
+  <line x1="766" y1="874" x2="1388" y2="874" stroke="#E2E8F0"/>
+  <line x1="840" y1="748" x2="840" y2="920" stroke="#EF4444" stroke-width="2"/>
+  <text x="592" y="774" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#111827">4.3.2 Задача 107</text>
+  <text x="592" y="816" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#111827">4.8.1 Задача 134</text>
+  <text x="592" y="858" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#111827">3.4.1 Задача 67</text>
+  <text x="592" y="900" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#111827">7.2.3 Задача 164</text>
+  <rect x="930" y="760" width="320" height="18" rx="9" fill="#EF4444"/>
+  <rect x="810" y="802" width="160" height="18" rx="9" fill="#22C55E"/>
+  <rect x="880" y="844" width="120" height="18" rx="9" fill="#3B82F6"/>
+  <rect x="1010" y="886" width="160" height="18" rx="9" fill="#94A3B8"/>
+  <rect x="576" y="948" width="812" height="12" rx="6" fill="#E2E8F0"/>
+  <rect x="780" y="948" width="340" height="12" rx="6" fill="#1D4ED8"/>
+
+  <rect x="1152" y="200" width="260" height="412" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="1176" y="230" font-family="Inter, Arial" font-size="18" font-weight="900" fill="#1F2937">Selected item</text>
+  <text x="1176" y="251" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Drawer вместо постоянной формы</text>
+  <rect x="1176" y="278" width="212" height="72" rx="10" fill="#FEF2F2" stroke="#FECACA"/>
+  <text x="1196" y="302" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#991B1B">RAID · риск 16</text>
+  <text x="1196" y="326" font-family="Inter, Arial" font-size="15" font-weight="900" fill="#111827">Демо-элемент RAID 3</text>
+  <text x="1196" y="344" font-family="Inter, Arial" font-size="11" font-weight="800" fill="#64748B">срок 26.06 · Ольга</text>
+  <text x="1176" y="386" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">ПЛАН ДЕЙСТВИЙ</text>
+  <rect x="1176" y="402" width="212" height="82" rx="8" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="1196" y="430" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#334155">Подтвердить SLA и</text>
+  <text x="1196" y="450" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#334155">обновить прогноз UAT.</text>
+  <rect x="1176" y="502" width="96" height="34" rx="8" fill="#1D4ED8"/>
+  <text x="1200" y="524" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#FFFFFF">Обновить</text>
+  <rect x="1282" y="502" width="106" height="34" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="1308" y="524" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Открыть</text>
+  <text x="1176" y="572" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">СВЯЗИ</text>
+  <text x="1176" y="596" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#334155">Задача 107 · Вопрос 13</text>
+</svg>

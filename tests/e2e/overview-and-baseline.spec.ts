@@ -240,6 +240,79 @@ test("overview entries expand statuses and open the selected issue", async ({ pa
   );
 });
 
+test("risk page keeps the color matrix visible", async ({ page }) => {
+  await mockAdminProject(page);
+  await page.goto("/TV-OVERVIEW/risks");
+
+  const matrix = page.getByLabel("Матрица рисков");
+  await expect(matrix).toBeVisible();
+  await expect(matrix.locator(".risk-matrix-cell")).toHaveCount(25);
+  await expect(
+    page.getByLabel(
+      "Вероятность 4, влияние 4, высокий риск, записей: 1",
+    ),
+  ).toBeVisible();
+});
+
+test("gantt range controls switch the visible planning window", async ({ page }) => {
+  await mockAdminProject(page);
+  await page.goto("/TV-OVERVIEW/gantt");
+
+  const range = page.getByLabel("Диапазон Гантта");
+  await expect(range).toBeVisible();
+  await expect(range.getByRole("button")).toHaveText([
+    "30 дн.",
+    "90 дн.",
+    "180 дн.",
+    "Все",
+  ]);
+  await expect(range.getByRole("button", { name: "90 дн." })).toHaveClass(
+    /active/,
+  );
+
+  await range.getByRole("button", { name: "30 дн." }).click();
+  await expect(range.getByRole("button", { name: "30 дн." })).toHaveClass(
+    /active/,
+  );
+});
+
+test("overview sections scroll after six visible items", async ({ page }) => {
+  await mockAdminProject(page, (project) => {
+    const risk = project.raidItems[0];
+    project.raidItems = Array.from({ length: 7 }, (_, index) => ({
+      ...risk,
+      id: `risk-${index + 1}`,
+      title: `Риск ${index + 1}`,
+      statusUpdates: [],
+    }));
+  });
+
+  await page.goto("/TV-OVERVIEW/overview");
+
+  const card = page.locator(".executive-overview-card.danger");
+  const list = card.locator(".executive-overview-list");
+  await expect(card.locator(".executive-overview-card-title strong")).toHaveText("7");
+  await expect(list.locator(".executive-overview-row")).toHaveCount(7);
+
+  const metrics = await list.evaluate((element) => {
+    const listBox = element.getBoundingClientRect();
+    const visibleRows = [...element.querySelectorAll(".executive-overview-row")].filter(
+      (row) => {
+        const rowBox = row.getBoundingClientRect();
+        return rowBox.top >= listBox.top && rowBox.bottom <= listBox.bottom;
+      },
+    ).length;
+    return {
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      visibleRows,
+    };
+  });
+
+  expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+  expect(metrics.visibleRows).toBeLessThanOrEqual(6);
+});
+
 test("administrator updates baseline only for selected WBS rows", async ({ page }) => {
   const project = await mockAdminProject(page);
   let baselineBody: unknown = null;

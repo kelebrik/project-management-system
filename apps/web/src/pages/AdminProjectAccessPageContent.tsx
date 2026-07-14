@@ -5,6 +5,7 @@ import type { ProjectAccessLevel } from "../app/domainTypes";
 import { userRoleLabel } from "../app/adminHelpers";
 import type { UserRole } from "../app/adminTypes";
 import { usePageContext } from "./PageContext";
+import { useConfirm } from "../hooks/useConfirm";
 
 const projectAccessLevelLabels: Record<ProjectAccessLevel, string> = {
   VIEW: "Просмотр",
@@ -52,6 +53,7 @@ export function AdminProjectAccessPageContent() {
     updateProjectAccessLevel,
     users,
   } = usePageContext();
+  const confirm = useConfirm();
 
   const [userSearch, setUserSearch] = useState("");
   const [projectSearch, setProjectSearch] = useState("");
@@ -274,7 +276,17 @@ export function AdminProjectAccessPageContent() {
                 className="ghost-button icon-button"
                 aria-label="Удалить доступ"
                 disabled={savingProjectAccess}
-                onClick={() => deleteProjectAccess(access.id)}
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: "Удалить доступ?",
+                      message: "Пользователь потеряет доступ к проекту.",
+                      confirmLabel: "Удалить",
+                    })
+                  ) {
+                    void deleteProjectAccess(access.id);
+                  }
+                }}
               >
                 <Trash2 size={17} />
               </button>

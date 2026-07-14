@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { PageSkeleton } from "../components/Skeleton";
 import { AdminAuditPageContent } from "./AdminAuditPageContent";
 import { AdminBackupsPageContent, AdminConfigPageContent, AdminHealthPageContent } from "./AdminStatusPages";
 import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
@@ -41,9 +42,18 @@ const ProjectPmWorkspacePage = lazy(() =>
     default: module.ProjectPmWorkspacePage,
   })),
 );
+const DecisionQueuePage = lazy(() =>
+  import("./DecisionQueuePage").then((module) => ({
+    default: module.DecisionQueuePage,
+  })),
+);
 
 function DevelopmentPageFallback() {
-  return <div className="page-loading-skeleton" aria-label="Загрузка страницы" />;
+  return (
+    <div className="page-loading-skeleton" aria-label="Загрузка страницы">
+      <PageSkeleton label="Загрузка страницы" />
+    </div>
+  );
 }
 
 export function AppPages() {
@@ -61,6 +71,11 @@ export function AppPages() {
       {isAdminUser && activeView === "portfolio-v2" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <PortfolioV2Page />
+        </Suspense>
+      )}
+      {isAdminUser && activeView === "decision-queue" && (
+        <Suspense fallback={<DevelopmentPageFallback />}>
+          <DecisionQueuePage />
         </Suspense>
       )}
       {activeView === "projects" && <ProjectsPage />}

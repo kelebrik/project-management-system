@@ -1,0 +1,157 @@
+<svg width="1440" height="1024" viewBox="0 0 1440 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="1024" fill="#F4F7FB"/>
+  <rect x="0" y="0" width="248" height="1024" fill="#FFFFFF"/>
+  <rect x="247" y="0" width="1" height="1024" fill="#D9E2EF"/>
+
+  <rect x="24" y="24" width="40" height="40" rx="10" fill="#1D4ED8"/>
+  <text x="44" y="50" text-anchor="middle" font-family="Inter, Arial" font-size="16" font-weight="800" fill="#FFFFFF">УП</text>
+  <text x="76" y="39" font-family="Inter, Arial" font-size="16" font-weight="800" fill="#111827">Система УП</text>
+  <text x="76" y="58" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Executive cockpit</text>
+
+  <rect x="20" y="88" width="208" height="42" rx="8" fill="#F8FAFC" stroke="#D8E0EB"/>
+  <text x="40" y="114" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#334155">Портфель</text>
+  <rect x="20" y="140" width="208" height="42" rx="8" fill="#EEF6FF" stroke="#BFDBFE"/>
+  <rect x="20" y="154" width="4" height="16" rx="2" fill="#2563EB"/>
+  <text x="40" y="166" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#1D4ED8">Cockpit</text>
+  <rect x="20" y="192" width="208" height="42" rx="8" fill="#FFFFFF"/>
+  <text x="40" y="218" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">Проекты</text>
+  <rect x="20" y="244" width="208" height="42" rx="8" fill="#FFFFFF"/>
+  <text x="40" y="270" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">Решения</text>
+  <rect x="20" y="296" width="208" height="42" rx="8" fill="#FFFFFF"/>
+  <text x="40" y="322" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">RAID</text>
+  <rect x="20" y="348" width="208" height="42" rx="8" fill="#FFFFFF"/>
+  <text x="40" y="374" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">Отчеты</text>
+
+  <rect x="20" y="880" width="208" height="58" rx="10" fill="#FFF7ED" stroke="#FDBA74"/>
+  <text x="40" y="905" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#9A3412">Только просмотр</text>
+  <text x="40" y="923" font-family="Inter, Arial" font-size="11" font-weight="700" fill="#9A3412">Редактирование после входа</text>
+
+  <rect x="280" y="20" width="1132" height="76" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="304" y="52" font-family="Inter, Arial" font-size="26" font-weight="900" fill="#1F2937">Портфель проектов</text>
+  <text x="304" y="75" font-family="Inter, Arial" font-size="13" font-weight="700" fill="#64748B">6 активных проектов · обновлено сегодня, 06.07.2026</text>
+  <rect x="726" y="34" width="372" height="42" rx="9" fill="#F8FAFC" stroke="#CBD5E1"/>
+  <text x="750" y="60" font-family="Inter, Arial" font-size="13" font-weight="700" fill="#64748B">Поиск, команда или переход к проекту</text>
+  <rect x="1114" y="34" width="92" height="42" rx="9" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="1137" y="60" font-family="Inter, Arial" font-size="13" font-weight="800" fill="#334155">Фильтры</text>
+  <rect x="1216" y="34" width="176" height="42" rx="9" fill="#1D4ED8"/>
+  <text x="1260" y="60" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#FFFFFF">Создать статус-отчет</text>
+
+  <rect x="280" y="116" width="1132" height="96" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="304" y="142" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#64748B">СВОДКА ВНИМАНИЯ</text>
+  <rect x="304" y="158" width="170" height="38" rx="19" fill="#FEE2E2"/>
+  <text x="322" y="182" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#991B1B">2 красных сигнала</text>
+  <rect x="488" y="158" width="190" height="38" rx="19" fill="#FEF3C7"/>
+  <text x="506" y="182" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#92400E">3 решения ожидают</text>
+  <rect x="692" y="158" width="190" height="38" rx="19" fill="#DBEAFE"/>
+  <text x="710" y="182" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#1D4ED8">5 целей в окне</text>
+  <rect x="896" y="158" width="170" height="38" rx="19" fill="#DCFCE7"/>
+  <text x="914" y="182" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#166534">-1 день прогноз</text>
+  <rect x="1080" y="150" width="304" height="54" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="1100" y="173" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#64748B">СЛЕДУЮЩИЙ ФОКУС</text>
+  <text x="1100" y="192" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#111827">DEMO-001 Орбита · RAID 13</text>
+
+  <rect x="280" y="232" width="348" height="356" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="304" y="262" font-family="Inter, Arial" font-size="18" font-weight="900" fill="#1F2937">Проекты по риску</text>
+  <text x="304" y="283" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Сортировка по влиянию на срок и решения</text>
+  <rect x="304" y="306" width="300" height="74" rx="10" fill="#FFF1F2" stroke="#FDA4AF"/>
+  <circle cx="326" cy="335" r="12" fill="#EF4444"/>
+  <text x="326" y="340" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#FFFFFF">16</text>
+  <text x="348" y="330" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#111827">Демо-проект Орбита</text>
+  <text x="348" y="350" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">2 красных RAID · 3 решения</text>
+  <rect x="514" y="322" width="72" height="28" rx="14" fill="#FEE2E2"/>
+  <text x="550" y="340" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#B91C1C">+94 дн.</text>
+  <rect x="304" y="392" width="300" height="62" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <circle cx="326" cy="423" r="9" fill="#22C55E"/>
+  <text x="348" y="418" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#111827">Демо-проект Север</text>
+  <text x="348" y="438" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">1 цель · без блокеров</text>
+  <rect x="304" y="464" width="300" height="62" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <circle cx="326" cy="495" r="9" fill="#22C55E"/>
+  <text x="348" y="490" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#111827">Демо-проект Горизонт</text>
+  <text x="348" y="510" font-family="Inter, Arial" font-size="12" font-weight="800" fill="#64748B">1 цель · прогноз 03.11</text>
+  <rect x="304" y="536" width="300" height="34" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="398" y="558" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Открыть полный реестр</text>
+
+  <rect x="648" y="232" width="396" height="356" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="672" y="262" font-family="Inter, Arial" font-size="18" font-weight="900" fill="#1F2937">Decision queue</text>
+  <text x="672" y="283" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Решения, которые двигают сроки и бюджет</text>
+  <rect x="672" y="306" width="348" height="76" rx="10" fill="#FEF2F2" stroke="#FECACA"/>
+  <text x="692" y="330" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#991B1B">Просрочено 10 дней</text>
+  <text x="692" y="352" font-family="Inter, Arial" font-size="15" font-weight="900" fill="#111827">Подтвердить поставщика SLA</text>
+  <text x="692" y="372" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Орбита · Ольга Лебедева · риск 16</text>
+  <rect x="672" y="394" width="348" height="68" rx="10" fill="#FFF7ED" stroke="#FED7AA"/>
+  <text x="692" y="418" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#9A3412">До 10.07.2026</text>
+  <text x="692" y="440" font-family="Inter, Arial" font-size="15" font-weight="900" fill="#111827">Закрыть демо-вопрос 13</text>
+  <rect x="672" y="474" width="348" height="68" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="692" y="498" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#475569">До 10.07.2026</text>
+  <text x="692" y="520" font-family="Inter, Arial" font-size="15" font-weight="900" fill="#111827">Закрыть демо-вопрос 14</text>
+  <rect x="672" y="554" width="150" height="34" rx="8" fill="#1D4ED8"/>
+  <text x="700" y="576" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#FFFFFF">Собрать пакет</text>
+
+  <rect x="1064" y="232" width="348" height="356" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="1088" y="262" font-family="Inter, Arial" font-size="18" font-weight="900" fill="#1F2937">Impact on target</text>
+  <text x="1088" y="283" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Что влияет на ближайшую цель</text>
+  <rect x="1088" y="310" width="300" height="96" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="1110" y="338" font-family="Inter, Arial" font-size="36" font-weight="900" fill="#111827">03.09</text>
+  <text x="1220" y="334" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#166534">Опережение 1 дн.</text>
+  <text x="1110" y="370" font-family="Inter, Arial" font-size="13" font-weight="800" fill="#64748B">Демо-цель 149 · прогноз по WBS</text>
+  <rect x="1088" y="426" width="300" height="44" rx="8" fill="#FEF2F2"/>
+  <text x="1110" y="454" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#991B1B">+94 дн. · Демо-задача 107</text>
+  <rect x="1088" y="480" width="300" height="44" rx="8" fill="#ECFDF5"/>
+  <text x="1110" y="508" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#047857">-41 дн. · Демо-задача 134</text>
+  <rect x="1088" y="538" width="300" height="34" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="1168" y="560" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#334155">Открыть Гантт</text>
+
+  <rect x="280" y="608" width="760" height="372" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="304" y="638" font-family="Inter, Arial" font-size="18" font-weight="900" fill="#1F2937">Timeline goals</text>
+  <text x="304" y="659" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Сравнение целей по проектам, не длинный список отдельных карточек</text>
+  <line x1="440" y1="720" x2="998" y2="720" stroke="#CBD5E1" stroke-width="3"/>
+  <line x1="440" y1="790" x2="998" y2="790" stroke="#CBD5E1" stroke-width="3"/>
+  <line x1="440" y1="860" x2="998" y2="860" stroke="#CBD5E1" stroke-width="3"/>
+  <line x1="706" y1="690" x2="706" y2="920" stroke="#EF4444" stroke-width="2"/>
+  <text x="686" y="684" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#DC2626">сегодня</text>
+  <text x="304" y="724" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#111827">Орбита</text>
+  <text x="304" y="794" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#111827">Север</text>
+  <text x="304" y="864" font-family="Inter, Arial" font-size="14" font-weight="900" fill="#111827">Горизонт</text>
+  <circle cx="630" cy="720" r="13" fill="#22C55E"/>
+  <text x="630" y="725" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#FFFFFF">1</text>
+  <circle cx="790" cy="720" r="13" fill="#22C55E"/>
+  <text x="790" y="725" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#FFFFFF">2</text>
+  <circle cx="890" cy="720" r="13" fill="#8B5CF6"/>
+  <text x="890" y="725" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#FFFFFF">3</text>
+  <circle cx="650" cy="790" r="13" fill="#8B5CF6"/>
+  <text x="650" y="795" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#FFFFFF">1</text>
+  <circle cx="950" cy="860" r="13" fill="#8B5CF6"/>
+  <text x="950" y="865" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#FFFFFF">1</text>
+  <text x="438" y="940" font-family="Inter, Arial" font-size="11" font-weight="800" fill="#64748B">март</text>
+  <text x="570" y="940" font-family="Inter, Arial" font-size="11" font-weight="800" fill="#64748B">май</text>
+  <text x="704" y="940" font-family="Inter, Arial" font-size="11" font-weight="800" fill="#64748B">июль</text>
+  <text x="838" y="940" font-family="Inter, Arial" font-size="11" font-weight="800" fill="#64748B">сент.</text>
+  <text x="970" y="940" font-family="Inter, Arial" font-size="11" font-weight="800" fill="#64748B">нояб.</text>
+
+  <rect x="1064" y="608" width="348" height="372" rx="10" fill="#FFFFFF" stroke="#D9E2EF"/>
+  <text x="1088" y="638" font-family="Inter, Arial" font-size="18" font-weight="900" fill="#1F2937">Portfolio table</text>
+  <text x="1088" y="659" font-family="Inter, Arial" font-size="12" font-weight="700" fill="#64748B">Минимум паспортных полей, максимум сравнения</text>
+  <rect x="1088" y="684" width="300" height="42" rx="8" fill="#EFF6FF"/>
+  <text x="1104" y="710" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#1D4ED8">Проект</text>
+  <text x="1210" y="710" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#1D4ED8">Риск</text>
+  <text x="1300" y="710" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#1D4ED8">Цель</text>
+  <text x="1104" y="758" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#111827">Орбита</text>
+  <rect x="1210" y="740" width="46" height="26" rx="13" fill="#FEE2E2"/>
+  <text x="1233" y="758" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#B91C1C">16</text>
+  <text x="1300" y="758" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#111827">03.09</text>
+  <line x1="1088" y1="782" x2="1388" y2="782" stroke="#E2E8F0"/>
+  <text x="1104" y="814" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#111827">Север</text>
+  <rect x="1210" y="796" width="46" height="26" rx="13" fill="#DCFCE7"/>
+  <text x="1233" y="814" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#166534">1</text>
+  <text x="1300" y="814" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#111827">30.10</text>
+  <line x1="1088" y1="838" x2="1388" y2="838" stroke="#E2E8F0"/>
+  <text x="1104" y="870" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#111827">Атлас</text>
+  <rect x="1210" y="852" width="46" height="26" rx="13" fill="#DCFCE7"/>
+  <text x="1233" y="870" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#166534">0</text>
+  <text x="1300" y="870" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#111827">31.12</text>
+  <line x1="1088" y1="894" x2="1388" y2="894" stroke="#E2E8F0"/>
+  <text x="1104" y="926" font-family="Inter, Arial" font-size="13" font-weight="900" fill="#111827">Пульс</text>
+  <rect x="1210" y="908" width="46" height="26" rx="13" fill="#DCFCE7"/>
+  <text x="1233" y="926" text-anchor="middle" font-family="Inter, Arial" font-size="11" font-weight="900" fill="#166534">0</text>
+  <text x="1300" y="926" font-family="Inter, Arial" font-size="12" font-weight="900" fill="#111827">14.08</text>
+</svg>

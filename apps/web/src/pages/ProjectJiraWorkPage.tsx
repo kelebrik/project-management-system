@@ -204,9 +204,9 @@ export function ProjectJiraWorkPage() {
                       )}
                     </div>
 
-                    <div className="jira-work-ticket-table-wrap">
+                    <div className="jira-work-ticket-table-wrap table-scroll">
                       {sectionIssues.length > 0 ? (
-                        <table className="jira-work-ticket-table">
+                        <table className="jira-work-ticket-table sticky-head">
                           <thead>
                             <tr>
                               <th>T</th>

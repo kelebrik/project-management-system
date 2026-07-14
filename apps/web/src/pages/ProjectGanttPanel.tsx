@@ -463,6 +463,17 @@ export function ProjectGanttPanel() {
                         </div>
                       )}
                           </div>
+                          {wbsGantt.items.length > 0 && (
+                            <div className="gantt-minimap" aria-label="Обзор диапазона Гантта">
+                              {wbsGantt.items.slice(0, 80).map(({ item, offset, width, milestone }) => (
+                                <i
+                                  key={item.id}
+                                  className={milestone ? "milestone" : ""}
+                                  style={{ left: `${offset}%`, width: `${milestone ? 0.8 : Math.max(width, 0.8)}%` }}
+                                />
+                              ))}
+                            </div>
+                          )}
                       <button
                         type="button"
                         className="gantt-panel-resizer horizontal"

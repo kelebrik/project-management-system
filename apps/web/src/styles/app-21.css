@@ -6,21 +6,21 @@
 
 .reports-header {
   align-items: center;
-  border-bottom: 1px solid #d9e2ef;
+  border-bottom: 1px solid var(--border-5);
   display: flex;
   justify-content: space-between;
   padding: 2px 0 10px;
 }
 
 .reports-header h2 {
-  color: #111827;
+  color: var(--text-strong);
   font-size: 20px;
   margin: 0;
 }
 
 .reports-header p {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 700;
   margin: 3px 0 0;
 }
@@ -33,12 +33,12 @@
 
 .reports-actions button {
   align-items: center;
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: #334155;
+  color: var(--text-heading);
   display: inline-flex;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   gap: 6px;
   min-height: 32px;
@@ -60,8 +60,8 @@
 
 .report-controls,
 .report-preview {
-  background: #fff;
-  border: 1px solid #d9e2ef;
+  background: var(--surface);
+  border: 1px solid var(--border-5);
   border-radius: 8px;
 }
 
@@ -80,19 +80,19 @@
 }
 
 .report-control-field > span {
-  color: #475569;
-  font-size: 11px;
+  color: var(--text-secondary);
+  font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
 }
 
 .report-control-field select {
   appearance: none;
-  background-color: #fff;
+  background-color: var(--surface);
   background-image: none;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  color: #111827;
+  color: var(--text-strong);
   min-height: 36px;
   padding: 6px 34px 6px 8px;
   width: 100%;
@@ -104,7 +104,7 @@
 }
 
 .report-select-wrap > svg {
-  color: #475569;
+  color: var(--text-secondary);
   pointer-events: none;
   position: absolute;
   right: 10px;
@@ -121,11 +121,11 @@
 
 .report-period-control button {
   align-items: center;
-  background: #fff;
-  border-color: #cbd5e1;
-  color: #334155;
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text-heading);
   display: flex;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   justify-content: center;
   line-height: 1.25;
@@ -136,9 +136,9 @@
 }
 
 .report-period-control button.active {
-  background: #2563eb;
-  border-color: #1d4ed8;
-  box-shadow: inset 0 0 0 1px #1d4ed8;
+  background: var(--brand-600);
+  border-color: var(--brand);
+  box-shadow: inset 0 0 0 1px var(--brand);
   color: #fff;
 }
 
@@ -147,15 +147,15 @@
 }
 
 .report-constructor {
-  border-top: 1px solid #d9e2ef;
+  border-top: 1px solid var(--border-5);
   display: grid;
   gap: 10px;
   padding-top: 14px;
 }
 
 .report-field-picker-head > span {
-  color: #334155;
-  font-size: 11px;
+  color: var(--text-heading);
+  font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -172,21 +172,21 @@
 }
 
 .report-field-picker-head small {
-  color: #64748b;
-  font-size: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
   font-weight: 800;
 }
 
 .report-field-list {
-  border: 1px solid #d9e2ef;
+  border: 1px solid var(--border-5);
   border-radius: 6px;
   overflow: hidden;
 }
 
 .report-field-row {
   align-items: center;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
   min-height: 34px;
@@ -198,7 +198,7 @@
 }
 
 .report-field-row.dragging {
-  background: #eff6ff;
+  background: var(--brand-soft);
   opacity: 0.65;
 }
 
@@ -207,7 +207,7 @@
   align-self: stretch;
   background: transparent;
   border: 0;
-  color: #64748b;
+  color: var(--text-muted);
   cursor: grab;
   display: inline-flex;
   justify-content: center;
@@ -223,7 +223,7 @@
 .report-field-row label {
   align-items: center;
   display: flex;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   gap: 7px;
   min-width: 0;
@@ -249,7 +249,7 @@
 
 .report-document-header {
   align-items: start;
-  border-bottom: 2px solid #1f2937;
+  border-bottom: 2px solid var(--text);
   display: grid;
   gap: 24px;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -257,21 +257,21 @@
 }
 
 .report-document-header > div > span {
-  color: #2563eb;
-  font-size: 12px;
+  color: var(--brand-600);
+  font-size: 13px;
   font-weight: 900;
 }
 
 .report-document-header h3 {
-  color: #111827;
+  color: var(--text-strong);
   font-size: 20px;
   margin: 3px 0 0;
 }
 
 .report-document-header > div > small {
-  color: #64748b;
+  color: var(--text-muted);
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   margin-top: 4px;
 }
@@ -291,57 +291,57 @@
 
 .report-document-header dt,
 .report-document-header dd {
-  font-size: 11px;
+  font-size: 12px;
   margin: 0;
   white-space: nowrap;
 }
 
 .report-document-header dt {
-  color: #64748b;
+  color: var(--text-muted);
   font-weight: 800;
 }
 
 .report-document-header dd {
-  color: #111827;
+  color: var(--text-strong);
   font-weight: 800;
 }
 
 .report-summary-counts {
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
   display: flex;
   gap: 24px;
   padding: 8px 10px;
 }
 
 .report-summary-counts span {
-  color: #475569;
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
   font-weight: 800;
 }
 
 .report-summary-counts b {
-  color: #111827;
+  color: var(--text-strong);
   font-size: 15px;
 }
 
 .report-section {
-  border-top: 4px solid #94a3b8;
+  border-top: 4px solid var(--text-faint);
   margin-top: 22px;
 }
 
-.report-section.tone-done { border-top-color: #16a34a; }
-.report-section.tone-progress { border-top-color: #2563eb; }
-.report-section.tone-upcoming { border-top-color: #64748b; }
-.report-section.tone-risk { border-top-color: #dc2626; }
-.report-section.tone-problem { border-top-color: #d97706; }
+.report-section.tone-done { border-top-color: var(--success); }
+.report-section.tone-progress { border-top-color: var(--brand-600); }
+.report-section.tone-upcoming { border-top-color: var(--text-muted); }
+.report-section.tone-risk { border-top-color: var(--danger); }
+.report-section.tone-problem { border-top-color: var(--warning); }
 .report-section.tone-issue { border-top-color: #0891b2; }
 
 .report-section h4 {
   align-items: center;
-  background: #f8fafc;
+  background: var(--surface-2);
   border-bottom: 1px solid #dbe3ee;
-  color: #111827;
+  color: var(--text-strong);
   display: flex;
   font-size: 15px;
   gap: 7px;
@@ -350,17 +350,17 @@
 }
 
 .report-section.tone-done h4 { background: #f0fdf4; }
-.report-section.tone-progress h4 { background: #eff6ff; }
-.report-section.tone-upcoming h4 { background: #f1f5f9; }
-.report-section.tone-risk h4 { background: #fef2f2; }
+.report-section.tone-progress h4 { background: var(--brand-soft); }
+.report-section.tone-upcoming h4 { background: var(--surface-3b); }
+.report-section.tone-risk h4 { background: var(--danger-bg); }
 .report-section.tone-problem h4 { background: #fffbeb; }
 .report-section.tone-issue h4 { background: #ecfeff; }
 
 .report-section h4 span {
-  background: #e2e8f0;
+  background: var(--border);
   border-radius: 999px;
-  color: #475569;
-  font-size: 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
   min-width: 20px;
   padding: 2px 6px;
   text-align: center;
@@ -372,7 +372,7 @@
 
 .report-data-row {
   align-items: center;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   display: grid;
   gap: 10px;
   min-height: 42px;
@@ -380,8 +380,8 @@
 }
 
 .report-data-cell {
-  color: #334155;
-  font-size: 11px;
+  color: var(--text-heading);
+  font-size: 12px;
   font-weight: 800;
   min-width: 0;
   overflow: hidden;
@@ -391,21 +391,21 @@
 
 .report-data-cell.field-task,
 .report-data-cell.field-title {
-  color: #111827;
-  font-size: 12px;
+  color: var(--text-strong);
+  font-size: 13px;
 }
 
 .report-data-cell.field-workPackage {
-  color: #2563eb;
+  color: var(--brand-600);
 }
 
 .report-data-head {
-  background: #f1f5f9;
+  background: var(--surface-3b);
   min-height: 28px;
 }
 
 .report-data-head > span {
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 9px;
   font-weight: 900;
   text-transform: uppercase;
@@ -414,14 +414,14 @@
 .report-empty,
 .report-loading,
 .report-error {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 700;
   padding: 9px 3px;
 }
 
 .report-error {
-  color: #b91c1c;
+  color: var(--danger-700);
 }
 
 @media (max-width: 900px) {

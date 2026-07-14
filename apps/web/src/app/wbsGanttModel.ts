@@ -69,6 +69,7 @@ type WbsGanttOptions = {
   visibleWbsTree: WbsTreeItem[];
   criticalPath: WbsCriticalPath | null | undefined;
   wbsDependencies: WbsDependency[];
+  rangeDays?: 30 | 90 | 180 | null;
 };
 
 function validDate(value: string | null) {
@@ -96,7 +97,14 @@ export function createWbsGantt({
   visibleWbsTree,
   criticalPath,
   wbsDependencies,
+  rangeDays = null,
 }: WbsGanttOptions) {
+  const rangeStart = rangeDays
+    ? new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 14)
+    : null;
+  const rangeEnd = rangeStart && rangeDays
+    ? new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate() + rangeDays + 14)
+    : null;
   const datedItems = visibleWbsTree
     .filter((item) => item.status !== "CANCELLED")
     .map((item) => {
@@ -115,7 +123,8 @@ export function createWbsGantt({
         forecastEnd: validDate(item.forecastDueDate),
       };
     })
-    .filter((item): item is DatedWbsItem => item !== null);
+    .filter((item): item is DatedWbsItem => item !== null)
+    .filter((entry) => !rangeStart || !rangeEnd || (entry.end >= rangeStart && entry.start <= rangeEnd));
 
   if (datedItems.length === 0) {
     return createEmptyWbsGantt();
@@ -131,12 +140,8 @@ export function createWbsGantt({
       entry.forecastEnd,
     ].filter((dateValue): dateValue is Date => dateValue !== null),
   );
-  const rawStart = new Date(
-    Math.min(...timelineDates.map((item) => item.getTime())),
-  );
-  const rawEnd = new Date(
-    Math.max(...timelineDates.map((item) => item.getTime())),
-  );
+  const rawStart = rangeStart ?? new Date(Math.min(...timelineDates.map((item) => item.getTime())));
+  const rawEnd = rangeEnd ?? new Date(Math.max(...timelineDates.map((item) => item.getTime())));
   const start = startOfMonth(rawStart);
   const end = addMonths(startOfMonth(rawEnd), 1);
   const totalDays = Math.max(1, daysBetween(start, end));

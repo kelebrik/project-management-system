@@ -1,5 +1,6 @@
 import { usePageContext } from "./PageContext";
 import type { RaidItemType } from "../app/domainTypes";
+import { ProjectRaidMatrixCard } from "./ProjectRaidMatrixCard";
 
 type ProjectRaidSidePanelProps = {
   showMatrix?: boolean;
@@ -10,33 +11,11 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
     createRaidItem,
     raidForm,
     raidTypeLabel,
-    riskMatrix,
-    riskTone,
     setRaidForm,
   } = usePageContext();
 
   return <div className="raid-side-column">
-                      {showMatrix && <section className="risk-matrix-card">
-                        <div className="subhead">Матрица рисков</div>
-                        <div className="risk-matrix" aria-label="Матрица рисков">
-                          {[5, 4, 3, 2, 1].map((impact) =>
-                            [1, 2, 3, 4, 5].map((probability) => {
-                              const count =
-                                riskMatrix.get(`${probability}:${impact}`) ?? 0;
-                              const score = probability * impact;
-                              return (
-                                <span
-                                  className={`risk-matrix-cell ${riskTone(score)}`}
-                                  key={`${probability}-${impact}`}
-                                  title={`Вероятность ${probability}, влияние ${impact}`}
-                                >
-                                  {count > 0 ? count : ""}
-                                </span>
-                              );
-                            }),
-                          )}
-                        </div>
-                      </section>}
+                      {showMatrix && <ProjectRaidMatrixCard />}
                         <form className="raid-form stack-form" onSubmit={createRaidItem}>
                           <h3>Новая запись</h3>
                         <div className="form-section-title">Основное</div>

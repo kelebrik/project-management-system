@@ -1,13 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { projectPagePath } from "./project-routes";
 
-test("overview milestone PDF sections fit one A4 landscape page", async ({ page }) => {
-  await page.goto(await projectPagePath(page, "overview"));
-  await expect(page).toHaveURL(/\/[^/]+\/overview$/);
+test("schedule milestone PDF fits one A4 landscape page", async ({ page }) => {
+  await page.goto(await projectPagePath(page, "schedule"));
+  await expect(page).toHaveURL(/\/[^/]+\/schedule$/);
   await expect(page.locator("#milestones-by-phase")).toBeVisible();
-  await expect(page.locator("#milestones-all")).toBeVisible();
 
-  for (const sectionId of ["milestones-by-phase", "milestones-all"]) {
+  for (const sectionId of ["milestones-by-phase"]) {
     await page.evaluate((target) => {
       document.body.dataset.printTarget = target;
     }, sectionId);
@@ -59,11 +58,11 @@ test("overview milestone PDF sections fit one A4 landscape page", async ({ page 
   }
 });
 
-test("overview does not expose horizontal overflow on desktop", async ({ page }) => {
+test("schedule does not expose horizontal overflow on desktop", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(await projectPagePath(page, "overview"));
-  await expect(page).toHaveURL(/\/[^/]+\/overview$/);
-  await expect(page.locator("#milestones-all")).toBeVisible();
+  await page.goto(await projectPagePath(page, "schedule"));
+  await expect(page).toHaveURL(/\/[^/]+\/schedule$/);
+  await expect(page.locator("#milestones-by-phase")).toBeVisible();
 
   const overflow = await page.evaluate(() => {
     const root = document.scrollingElement ?? document.documentElement;
