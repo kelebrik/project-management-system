@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { AppView } from "../app/routes";
 import type { ProjectDetails } from "../app/domainTypes";
 import { date } from "../app/dateUtils";
@@ -25,7 +24,6 @@ type AppTopbarProps = {
   isProjectView: boolean;
   project: ProjectDetails | null;
   projectTargetSummary: ProjectTargetSummary;
-  search: ReactNode;
   scheduleHealth: ScheduleHealth;
   signedDaysLabel: (value: number | null) => string;
   viewTitle: Record<AppView, string>;
@@ -36,7 +34,6 @@ export function AppTopbar({
   isProjectView,
   project,
   projectTargetSummary,
-  search,
   scheduleHealth,
   signedDaysLabel,
   viewTitle,
@@ -75,7 +72,6 @@ export function AppTopbar({
           <h1>{viewTitle[activeView]}</h1>
         )}
       </div>
-      <div className="topbar-search">{search}</div>
       {showProjectBadges && (
         <div className="topbar-project topbar-project-compact">
           <span>Статус: {projectStatusLabel(project.status)}</span>

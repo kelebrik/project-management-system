@@ -10,16 +10,16 @@
   color-scheme: light;
 
   /* --- Поверхности --- */
-  --bg: #f3f6fa;
+  --bg: #f4f6f7;
   --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --surface-3: #eef2f7;
-  --surface-3b: #f1f5f9;
-  --surface-tint: #eaf0f7;
+  --surface-2: #f8faf9;
+  --surface-3: #eef2f1;
+  --surface-3b: #f1f4f3;
+  --surface-tint: #e9efed;
 
   /* --- Границы --- */
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --border: #dfe5e4;
+  --border-strong: #c7d1cf;
   --border-2: #d8e0eb;
   --border-3: #dbe4ef;
   --border-4: #dce3eb;
@@ -27,13 +27,13 @@
   --border-6: #e5edf6;
 
   /* --- Текст --- */
-  --text: #1f2937;
-  --text-strong: #111827;
-  --text-strongest: #0f172a;
-  --text-heading: #334155;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
-  --text-faint: #94a3b8;
+  --text: #17212b;
+  --text-strong: #111a22;
+  --text-strongest: #0d151c;
+  --text-heading: #293633;
+  --text-secondary: #475652;
+  --text-muted: #64716f;
+  --text-faint: #8b9694;
 
   /* Тёмные «инвертированные» поверхности (тултипы, тёмные бейджи).
      Отдельные токены, чтобы НЕ инвертировались вместе с текстом в тёмной теме. */
@@ -42,13 +42,13 @@
   --on-inverse: #ffffff;
 
   /* --- Бренд --- */
-  --brand: #1d4ed8;
-  --brand-600: #2563eb;
-  --brand-500: #477ff6;
-  --brand-soft: #eff6ff;
-  --brand-soft-2: #dbeafe;
-  --brand-border: #bfdbfe;
-  --brand-border-strong: #93c5fd;
+  --brand: #0f766e;
+  --brand-600: #0d8177;
+  --brand-500: #168f83;
+  --brand-soft: #e5f4f1;
+  --brand-soft-2: #d4ece8;
+  --brand-border: #a9d8d1;
+  --brand-border-strong: #74bdb4;
   --on-brand: #ffffff;
 
   /* --- Опасность / RAG red --- */
@@ -136,13 +136,13 @@
   --inverse-surface-2: #f4f8ff;
   --on-inverse: #0b1220;
 
-  --brand: #5b8bf5;
-  --brand-600: #6d99f7;
-  --brand-500: #7ea6f8;
-  --brand-soft: #182640;
-  --brand-soft-2: #1e3358;
-  --brand-border: #2c4a7d;
-  --brand-border-strong: #3a5f9e;
+  --brand: #57c8ba;
+  --brand-600: #46b8ab;
+  --brand-500: #6bd4c7;
+  --brand-soft: #163632;
+  --brand-soft-2: #1d4742;
+  --brand-border: #28655e;
+  --brand-border-strong: #38877e;
   --on-brand: #ffffff;
 
   --danger: #f0616a;

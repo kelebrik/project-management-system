@@ -384,3 +384,79 @@ test("read-only WBS rows keep the editable table geometry", async ({ page }) => 
     page.locator(".wbs-predecessor-editor.read-only-cell").first().locator("button"),
   ).toHaveCount(2);
 });
+
+test("visual refresh keeps two-level navigation and Gantt rows aligned", async ({
+  page,
+}) => {
+  await mockAdminProject(page, (project) => {
+    project.wbsItems.push({
+      ...project.wbsItems[0],
+      id: "wbs-2",
+      code: "1.2",
+      title: "Вторая тестовая задача",
+      sortOrder: 20,
+    });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/TV-OVERVIEW/gantt");
+
+  const globalNav = page.locator(".app-global-header");
+  const projectNav = page.locator(".project-section-navigation");
+  await expect(globalNav).toBeVisible();
+  await expect(projectNav).toBeVisible();
+  await expect(globalNav.getByRole("button", { name: "Проекты" })).toBeVisible();
+  await expect(projectNav.getByRole("button", { name: "Гантт" })).toHaveClass(
+    /active/,
+  );
+  await expect(projectNav.getByRole("button", { name: "Риски" })).toBeVisible();
+
+  for (const rowIndex of [0, 1]) {
+    const labelBox = await page.locator(".gantt-label").nth(rowIndex).boundingBox();
+    const trackBox = await page.locator(".gantt-track-row").nth(rowIndex).boundingBox();
+    expect(labelBox).not.toBeNull();
+    expect(trackBox).not.toBeNull();
+    if (labelBox && trackBox) {
+      expect(Math.abs(labelBox.y - trackBox.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(labelBox.height - trackBox.height)).toBeLessThanOrEqual(1);
+    }
+  }
+
+  if (process.env.CAPTURE_DESIGN_REFRESH === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-design-gantt-desktop.png",
+      fullPage: true,
+    });
+    await page.goto("/TV-OVERVIEW/overview");
+    await expect(page.locator(".executive-overview-card").first()).toBeVisible();
+    await page.screenshot({
+      path: "/private/tmp/pms-design-overview-desktop.png",
+      fullPage: true,
+    });
+    await page.goto("/TV-OVERVIEW/risks");
+    await expect(page.getByLabel("Матрица рисков")).toBeVisible();
+    await page.screenshot({
+      path: "/private/tmp/pms-design-raid-desktop.png",
+      fullPage: true,
+    });
+    await page.goto("/projects");
+    await expect(page.locator(".projects-overview-card").first()).toBeVisible();
+    await page.screenshot({
+      path: "/private/tmp/pms-design-projects-desktop.png",
+      fullPage: true,
+    });
+    await page.goto("/TV-OVERVIEW/gantt");
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(globalNav).toBeVisible();
+  await expect(projectNav).toBeVisible();
+  await expect(page.locator(".global-header-search")).toBeHidden();
+  await expect(projectNav.getByRole("button", { name: "Гантт" })).toBeVisible();
+
+  if (process.env.CAPTURE_DESIGN_REFRESH === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-design-gantt-mobile.png",
+      fullPage: true,
+    });
+  }
+});

@@ -396,7 +396,7 @@
 }
 
 .gantt-track-row.active .gantt-bar {
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.28), 0 2px 5px rgba(32, 52, 89, 0.18);
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.28), 0 2px 5px rgba(23, 33, 43, 0.18);
 }
 
 .gantt-timeline {

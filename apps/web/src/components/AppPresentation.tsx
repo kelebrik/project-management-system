@@ -216,8 +216,6 @@ export function AppPresentation({
   setSavedViewName,
   setShowProjectPicker,
   showProjectPicker,
-  sidebarCollapsed,
-  toggleSidebar,
   topbarScheduleHealth,
 }: AppPresentationProps) {
   const activeView = context.activeView as AppView;
@@ -374,7 +372,6 @@ export function AppPresentation({
       isProjectModuleEnabled={isProjectModuleEnabled}
       isProjectSectionView={isProjectSectionView}
       isProjectView={isProjectView}
-      isResourceSectionView={isResourceSectionView}
       isReadOnly={isReadOnly}
       logout={logout}
       onAuthModeChange={() => onAuthModeChange("login")}
@@ -397,9 +394,7 @@ export function AppPresentation({
       shouldShowDevelopmentMenu={shouldShowDevelopmentMenu}
       shouldShowProjectMenu={shouldShowProjectMenu}
       showProjectPicker={showProjectPicker}
-      sidebarCollapsed={sidebarCollapsed}
       signedDaysLabel={signedDaysLabel}
-      toggleSidebar={toggleSidebar}
       viewTitle={viewTitle}
     />
   );
