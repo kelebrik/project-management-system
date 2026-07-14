@@ -35,6 +35,7 @@ import {
   type ProjectModule,
   type ProjectModuleKey,
 } from "../app/projectModules";
+import { useConfirm } from "./useConfirm";
 
 type UseAdminActionsControllerOptions = {
   users: SystemUser[];
@@ -137,6 +138,7 @@ export function useAdminActionsController({
   setError,
   setNotice,
 }: UseAdminActionsControllerOptions) {
+  const confirm = useConfirm();
   void _rolePermissions;
 
   const replaceUser = useCallback(
@@ -659,6 +661,15 @@ export function useAdminActionsController({
   }, [setConfigTransferText, setError, setNotice]);
 
   const importAdminConfig = useCallback(async () => {
+    if (
+      !(await confirm({
+        title: "Импортировать конфигурацию?",
+        message:
+          "Роли, справочники, модули и системные настройки будут обновлены данными из JSON.",
+        confirmLabel: "Импортировать",
+        tone: "default",
+      }))
+    ) return;
     setImportingConfig(true);
     setError(null);
     setNotice(null);
@@ -682,6 +693,7 @@ export function useAdminActionsController({
       setImportingConfig(false);
     }
   }, [
+    confirm,
     configTransferText,
     reloadAdminConfig,
     reloadAuditEvents,

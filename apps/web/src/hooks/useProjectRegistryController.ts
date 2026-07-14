@@ -16,6 +16,7 @@ import {
 } from "../app/formState";
 import { apiBase, authenticatedFetch } from "../app/http";
 import type { AppView } from "../app/routes";
+import { useConfirm } from "./useConfirm";
 
 type OpenView = (
   nextView: AppView,
@@ -63,6 +64,7 @@ export function useProjectRegistryController({
   setError,
   setNotice,
 }: UseProjectRegistryControllerOptions) {
+  const confirm = useConfirm();
   const currentProjectId = project?.id ?? null;
 
   const applyProjectMasterRecord = useCallback(
@@ -383,9 +385,12 @@ export function useProjectRegistryController({
       const sourceProject = projects.find((item) => item.id === projectId);
       if (!sourceProject) return;
       if (
-        !window.confirm(
-          `Закрыть проект ${sourceProject.code}? После закрытия проект будет доступен только для чтения даже администратору.`,
-        )
+        !(await confirm({
+          title: "Закрыть проект?",
+          message: `Проект ${sourceProject.code} станет доступен только для чтения, в том числе для администраторов.`,
+          confirmLabel: "Закрыть",
+          tone: "default",
+        }))
       ) {
         return;
       }
@@ -425,6 +430,7 @@ export function useProjectRegistryController({
       }
     },
     [
+      confirm,
       openView,
       projects,
       reloadAuditEvents,

@@ -9,6 +9,7 @@ import type {
 import { wbsToForm } from "../app/formState";
 import { apiBase, authenticatedFetch } from "../app/http";
 import { wbsSnapshotsEqual } from "../app/wbsTree";
+import { useConfirm } from "./useConfirm";
 
 type WbsSnapshotActionDeps = {
   project: ProjectDetails | null;
@@ -47,6 +48,7 @@ export function useWbsSnapshotActions({
   wbsRedoStackRef,
   wbsUndoStackRef,
 }: WbsSnapshotActionDeps) {
+  const confirm = useConfirm();
   function applyWbsSnapshotResult(
     nextItems: WbsItem[],
     nextDependencies?: WbsDependency[],
@@ -179,11 +181,18 @@ export function useWbsSnapshotActions({
     if (!project) return;
     const selectedCount = itemIds?.length ?? 0;
     if (
-      !window.confirm(
-        selectedCount > 0
-          ? `Обновить базовый план для выбранных работ (${selectedCount})? Текущие даты старта и финиша станут базовыми.`
-          : "Зафиксировать текущую Структуру как базовый план? Текущие даты станут датами базового плана.",
-      )
+      !(await confirm({
+        title:
+          selectedCount > 0
+            ? "Обновить базовый план?"
+            : "Зафиксировать базовый план?",
+        message:
+          selectedCount > 0
+            ? `Текущие даты старта и финиша выбранных работ (${selectedCount}) заменят их базовые даты.`
+            : "Текущие даты всей Структуры станут датами базового плана.",
+        confirmLabel: selectedCount > 0 ? "Обновить" : "Зафиксировать",
+        tone: "default",
+      }))
     ) {
       return;
     }
