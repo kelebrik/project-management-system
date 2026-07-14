@@ -441,13 +441,6 @@ export function useProjectRegistryController({
     async (projectId: string) => {
       const sourceProject = projects.find((item) => item.id === projectId);
       if (!sourceProject) return;
-      if (
-        !window.confirm(
-          `Удалить проект ${sourceProject.code} и все его данные? Это действие нельзя отменить.`,
-        )
-      ) {
-        return;
-      }
       setSavingProjectRegistryId(projectId);
       setError(null);
       setNotice(null);
