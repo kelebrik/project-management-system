@@ -797,6 +797,15 @@ export function useAdminActionsController({
 
   const restoreWbsTombstone = useCallback(
     async (tombstoneId: string) => {
+      if (
+        !(await confirm({
+          title: "Восстановить элементы Структуры?",
+          message:
+            "Удалённые элементы будут возвращены, после чего Структура и зависимости могут быть перенумерованы.",
+          confirmLabel: "Восстановить",
+          tone: "default",
+        }))
+      ) return;
       setError(null);
       setNotice(null);
       try {
@@ -816,7 +825,7 @@ export function useAdminActionsController({
         await reloadAuditEvents();
       }
     },
-    [reloadAuditEvents, setError, setNotice],
+    [confirm, reloadAuditEvents, setError, setNotice],
   );
 
   const createApiToken = useCallback(
