@@ -1,4 +1,6 @@
+import { useState, type FormEvent } from "react";
 import { usePageContext } from "./PageContext";
+import { FieldError } from "../components/FieldError";
 import type { RagStatus } from "../app/domainTypes";
 
 export function ProjectCreatePage() {
@@ -11,6 +13,25 @@ export function ProjectCreatePage() {
     setNewProjectForm,
   } = ctx;
 
+  const [formErrors, setFormErrors] = useState<{
+    code?: string;
+    name?: string;
+  }>({});
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const nextErrors: { code?: string; name?: string } = {};
+    if (!newProjectForm.code.trim()) nextErrors.code = "Укажите код проекта";
+    if (!newProjectForm.name.trim())
+      nextErrors.name = "Укажите наименование проекта";
+    if (nextErrors.code || nextErrors.name) {
+      event.preventDefault();
+      setFormErrors(nextErrors);
+      return;
+    }
+    setFormErrors({});
+    createProject(event);
+  };
+
   return (
                 <article className="panel project-card">
                   <div className="panel-title">
@@ -21,33 +42,62 @@ export function ProjectCreatePage() {
                   </div>
                     <form
                       className="form-grid compact-form"
-                      onSubmit={createProject}
+                      onSubmit={handleSubmit}
+                      noValidate
                     >
                       <div className="form-section-title span-2">Основное</div>
                       <label>
                         Код
                       <input
+                        className={formErrors.code ? "field-invalid" : ""}
+                        aria-invalid={formErrors.code ? true : undefined}
+                        aria-describedby={
+                          formErrors.code ? "new-project-code-error" : undefined
+                        }
                         value={newProjectForm.code}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          if (formErrors.code)
+                            setFormErrors((current) => ({
+                              ...current,
+                              code: undefined,
+                            }));
                           setNewProjectForm({
                             ...newProjectForm,
                             code: event.target.value,
-                          })
-                        }
+                          });
+                        }}
                         placeholder="CRM"
+                      />
+                      <FieldError
+                        id="new-project-code-error"
+                        message={formErrors.code}
                       />
                     </label>
                     <label>
                       Наименование
                       <input
+                        className={formErrors.name ? "field-invalid" : ""}
+                        aria-invalid={formErrors.name ? true : undefined}
+                        aria-describedby={
+                          formErrors.name ? "new-project-name-error" : undefined
+                        }
                         value={newProjectForm.name}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          if (formErrors.name)
+                            setFormErrors((current) => ({
+                              ...current,
+                              name: undefined,
+                            }));
                           setNewProjectForm({
                             ...newProjectForm,
                             name: event.target.value,
-                          })
-                        }
+                          });
+                        }}
                         placeholder="Миграция CRM"
+                      />
+                      <FieldError
+                        id="new-project-name-error"
+                        message={formErrors.name}
                       />
                     </label>
                     <div className="form-section-title span-2">Базовый план</div>

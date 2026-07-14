@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { PageSkeleton } from "../components/Skeleton";
 import { AdminAuditPageContent } from "./AdminAuditPageContent";
 import { AdminBackupsPageContent, AdminConfigPageContent, AdminHealthPageContent } from "./AdminStatusPages";
 import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
@@ -48,7 +49,11 @@ const DecisionQueuePage = lazy(() =>
 );
 
 function DevelopmentPageFallback() {
-  return <div className="page-loading-skeleton" aria-label="Загрузка страницы" />;
+  return (
+    <div className="page-loading-skeleton" aria-label="Загрузка страницы">
+      <PageSkeleton label="Загрузка страницы" />
+    </div>
+  );
 }
 
 export function AppPages() {

@@ -1,5 +1,7 @@
 import type { FocusEventHandler, KeyboardEventHandler } from "react";
 import type { AuthMode } from "../app/adminTypes";
+import type { Toast } from "../hooks/useAppFeedbackState";
+import { PageSkeleton } from "./Skeleton";
 import {
   adminDictionaryLabels,
   adminPermissionLabel,
@@ -78,6 +80,8 @@ type AppPresentationProps = {
   context: Record<string, any>;
   currentUser: any;
   error: string | null;
+  toasts: Toast[];
+  onDismissToast: (id: number) => void;
   filteredProjectOptions: any[];
   firstEnabledProjectView: any;
   globalSearch: any;
@@ -91,7 +95,6 @@ type AppPresentationProps = {
   keycloakEnabled: boolean;
   loading: boolean;
   logout: () => void;
-  notice: string | null;
   onAuthFormChange: (value: any) => void;
   onAuthModeChange: (mode: "login" | "ready") => void;
   onErrorChange: (value: string | null) => void;
@@ -173,6 +176,8 @@ export function AppPresentation({
   context,
   currentUser,
   error,
+  toasts,
+  onDismissToast,
   filteredProjectOptions,
   firstEnabledProjectView,
   globalSearch,
@@ -186,7 +191,6 @@ export function AppPresentation({
   keycloakEnabled,
   loading,
   logout,
-  notice,
   onAuthFormChange,
   onAuthModeChange,
   onErrorChange,
@@ -268,7 +272,11 @@ export function AppPresentation({
   };
 
   if (loading) {
-    return <main className="loading">Загрузка системы управления проектами...</main>;
+    return (
+      <main className="app-loading" aria-busy="true">
+        <PageSkeleton label="Загрузка системы управления проектами" />
+      </main>
+    );
   }
 
   if (authMode === "setup" || authMode === "login") {
@@ -352,7 +360,8 @@ export function AppPresentation({
     <AppShell
       activeView={activeView}
       currentUser={currentUser}
-      error={error}
+      toasts={toasts}
+      onDismissToast={onDismissToast}
       filteredProjectOptions={filteredProjectOptions}
       firstEnabledProjectView={firstEnabledProjectView}
       handleEditableFocus={handleEditableFocus}
@@ -368,7 +377,6 @@ export function AppPresentation({
       isResourceSectionView={isResourceSectionView}
       isReadOnly={isReadOnly}
       logout={logout}
-      notice={notice}
       onAuthModeChange={() => onAuthModeChange("login")}
       onErrorChange={onErrorChange}
       onNoticeChange={onNoticeChange}

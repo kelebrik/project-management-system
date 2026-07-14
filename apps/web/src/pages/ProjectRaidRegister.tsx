@@ -1,4 +1,5 @@
 import { usePageContext } from "./PageContext";
+import { useConfirm } from "../components/ConfirmDialog";
 import { X } from "lucide-react";
 import type { RaidItemStatus, RaidItemType } from "../app/domainTypes";
 import type { RaidTypeFilter } from "../app/raidModels";
@@ -35,6 +36,7 @@ export function ProjectRaidRegister() {
     updateRaidDraft,
     updateRaidStatusDraft,
   } = usePageContext();
+  const confirm = useConfirm();
 
   return <div className="raid-main-column">
                     <div className="wbs-kpis raid-kpis">
@@ -507,7 +509,18 @@ export function ProjectRaidRegister() {
                                     <button
                                       type="button"
                                       className="danger-button"
-                                      onClick={() => deleteRaidItem(item.id)}
+                                      onClick={async () => {
+                                        if (
+                                          await confirm({
+                                            title: "Удалить запись RAID?",
+                                            message:
+                                              "Запись будет удалена безвозвратно.",
+                                            confirmLabel: "Удалить",
+                                          })
+                                        ) {
+                                          void deleteRaidItem(item.id);
+                                        }
+                                      }}
                                     >
                                       Удалить
                                     </button>

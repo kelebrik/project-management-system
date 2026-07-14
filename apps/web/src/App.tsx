@@ -58,8 +58,16 @@ function AppController() {
     authSubmitting,
     setAuthSubmitting,
   } = useAuthState();
-  const { loading, setLoading, error, setError, notice, setNotice } =
-    useAppFeedbackState();
+  const {
+    loading,
+    setLoading,
+    error,
+    setError,
+    notice,
+    setNotice,
+    toasts,
+    dismissToast,
+  } = useAppFeedbackState();
   const {
     projects,
     setProjects,
@@ -901,6 +909,8 @@ function AppController() {
       context={presentationContext}
       currentUser={currentUser}
       error={error}
+      toasts={toasts}
+      onDismissToast={dismissToast}
       filteredProjectOptions={filteredProjectOptions}
       firstEnabledProjectView={firstEnabledProjectView}
       globalSearch={globalSearch}
@@ -914,7 +924,6 @@ function AppController() {
       keycloakEnabled={keycloakStatus.enabled}
       loading={loading}
       logout={logout}
-      notice={notice}
       onAuthFormChange={setAuthForm}
       onKeycloakLogin={loginWithKeycloak}
       onAuthModeChange={setAuthMode}

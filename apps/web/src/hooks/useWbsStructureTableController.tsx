@@ -20,6 +20,7 @@ import {
   wbsToForm,
 } from "../app/formState";
 import { isHttpsUrl } from "../app/http";
+import { useConfirm } from "../components/ConfirmDialog";
 import {
   editableKeyHandler,
   rememberEditableInitialValue,
@@ -172,6 +173,7 @@ export function useWbsStructureTableController({
   wbsSort,
   wbsTree,
 }: UseWbsStructureTableControllerOptions) {
+  const confirm = useConfirm();
   const pendingSaveTimersRef = useRef<Record<string, number>>({});
 
   const cancelScheduledWbsSave = (itemId: string) => {
@@ -640,7 +642,16 @@ export function useWbsStructureTableController({
               <button
                 type="button"
                 className="wbs-row-delete-button"
-                onClick={() => deleteWbsItem(item.id)}
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: "Удалить строку Структуры?",
+                      confirmLabel: "Удалить",
+                    })
+                  ) {
+                    void deleteWbsItem(item.id);
+                  }
+                }}
                 aria-label="Удалить строку Структуры"
               >
                 x

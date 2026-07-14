@@ -1,6 +1,16 @@
+import { useMemo, useState } from "react";
 import type { ProjectListItem } from "../app/domainTypes";
 import { projectHealthLabel, projectStatusLabel } from "../app/labels";
 import type { ProjectSectionView } from "../app/routes";
+
+type SortKey = "code" | "name" | "status" | "target";
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "code", label: "Код" },
+  { key: "name", label: "Название" },
+  { key: "status", label: "Статус" },
+  { key: "target", label: "Цель" },
+];
 
 const MAX_PASSPORT_FIELDS = 5;
 
@@ -40,15 +50,69 @@ export function ProjectsOverview({
   projects,
   selectProject,
 }: ProjectsOverviewProps) {
-  const projectItems = projects.filter((project) => project.status !== "CLOSED");
+  const [sortKey, setSortKey] = useState<SortKey>("code");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  if (projectItems.length === 0) {
+  const sortedItems = useMemo(() => {
+    const items = projects.filter((project) => project.status !== "CLOSED");
+    const direction = sortDir === "asc" ? 1 : -1;
+    const valueOf = (project: ProjectListItem) => {
+      switch (sortKey) {
+        case "name":
+          return (project.name ?? "").toLowerCase();
+        case "status":
+          return project.status ?? "";
+        case "target":
+          return project.targetDate ?? "";
+        default:
+          return (project.code ?? "").toLowerCase();
+      }
+    };
+    return [...items].sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (av < bv) return -1 * direction;
+      if (av > bv) return 1 * direction;
+      return 0;
+    });
+  }, [projects, sortKey, sortDir]);
+
+  if (sortedItems.length === 0) {
     return <div className="empty-state compact">Активных проектов нет.</div>;
   }
 
+  const onSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((current) => (current === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
   return (
-    <div className="projects-overview-grid">
-      {projectItems.map((project) => {
+    <>
+      <div
+        className="projects-overview-toolbar"
+        role="group"
+        aria-label="Сортировка проектов"
+      >
+        <span>Сортировать:</span>
+        {SORT_OPTIONS.map((option) => (
+          <button
+            type="button"
+            key={option.key}
+            className={sortKey === option.key ? "active" : ""}
+            aria-pressed={sortKey === option.key}
+            onClick={() => onSort(option.key)}
+          >
+            {option.label}
+            {sortKey === option.key ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+          </button>
+        ))}
+      </div>
+      <div className="projects-overview-grid">
+        {sortedItems.map((project) => {
         const passportRows = compactPassportRows(project);
         return (
           <button
@@ -84,7 +148,8 @@ export function ProjectsOverview({
             </span>
           </button>
         );
-      })}
-    </div>
+        })}
+      </div>
+    </>
   );
 }

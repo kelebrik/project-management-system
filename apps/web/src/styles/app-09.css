@@ -1,5 +1,5 @@
 .milestone-date {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1.1;
 }
@@ -36,9 +36,9 @@
 
 .milestone-range {
   bottom: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   display: flex;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   justify-content: space-between;
   left: 24px;
@@ -55,8 +55,8 @@
 
 .milestone-snake-shell {
   align-items: stretch;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 8px;
   display: flex;
   justify-content: center;
@@ -67,8 +67,8 @@
 
 .milestone-snake-svg {
   aspect-ratio: 1.414 / 1;
-  background: #fff;
-  border: 1px solid #d8e0eb;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
   border-radius: 8px;
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
   display: block;
@@ -81,21 +81,21 @@
 .milestone-snake-axis {
   fill: none;
   marker-end: url("#milestoneSnakeArrow");
-  stroke: #64748b;
+  stroke: var(--text-muted);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 6;
 }
 
 .milestone-snake-tick {
-  stroke: #cbd5e1;
+  stroke: var(--border-strong);
   stroke-linecap: round;
   stroke-width: 2;
 }
 
 .milestone-snake-month {
   fill: #1e293b;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   paint-order: stroke;
   stroke: #fff;
@@ -105,21 +105,21 @@
 }
 
 .milestone-snake-today {
-  stroke: #ef4444;
+  stroke: var(--danger-500);
   stroke-dasharray: 6 5;
   stroke-linecap: round;
   stroke-width: 3;
 }
 
 .milestone-snake-today-label {
-  fill: #b91c1c;
-  font-size: 11px;
+  fill: var(--danger-700);
+  font-size: 12px;
   font-weight: 900;
   pointer-events: none;
 }
 
 .milestone-snake-today-connector {
-  stroke: #ef4444;
+  stroke: var(--danger-500);
   stroke-dasharray: 6 5;
   stroke-linecap: round;
   stroke-width: 2;
@@ -162,13 +162,13 @@
 }
 
 .milestone-snake-connector {
-  stroke: #94a3b8;
+  stroke: var(--text-faint);
   stroke-linecap: round;
   stroke-width: 2;
 }
 
 .milestone-snake-marker {
-  fill: #94a3b8;
+  fill: var(--text-faint);
   stroke: #fff;
   stroke-width: 4;
   filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.24));
@@ -190,8 +190,8 @@
 
 .milestone-snake-item.blue .milestone-snake-marker,
 .milestone-snake-item.blue .milestone-snake-connector {
-  fill: #1d4ed8;
-  stroke: #1d4ed8;
+  fill: var(--brand);
+  stroke: var(--brand);
 }
 
 .milestone-snake-item.red .milestone-snake-marker,
@@ -214,8 +214,8 @@
 }
 
 .milestone-snake-label-box {
-  fill: #f8fafc;
-  stroke: #cbd5e1;
+  fill: var(--surface-2);
+  stroke: var(--border-strong);
   stroke-width: 1.5;
 }
 
@@ -230,33 +230,33 @@
 }
 
 .milestone-snake-label-grip {
-  fill: #e2e8f0;
-  stroke: #cbd5e1;
+  fill: var(--border);
+  stroke: var(--border-strong);
   stroke-width: 1;
 }
 
 .milestone-snake-label-draggable:hover .milestone-snake-label-grip {
-  fill: #dbeafe;
+  fill: var(--brand-soft-2);
   stroke: #60a5fa;
 }
 
 .milestone-snake-drag-dot {
-  fill: #94a3b8;
+  fill: var(--text-faint);
 }
 
 .milestone-snake-label-draggable:hover .milestone-snake-drag-dot {
-  fill: #2563eb;
+  fill: var(--brand-600);
 }
 
 .milestone-snake-title {
-  fill: #111827;
-  font-size: 11px;
+  fill: var(--text-strong);
+  font-size: 12px;
   font-weight: 900;
 }
 
 .milestone-snake-date {
-  fill: #475569;
-  font-size: 11px;
+  fill: var(--text-secondary);
+  font-size: 12px;
   font-weight: 900;
 }
 
@@ -292,7 +292,7 @@ body.milestone-label-dragging * {
   }
 
   body[data-print-target] {
-    background: #fff;
+    background: var(--surface);
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
@@ -406,7 +406,7 @@ body.milestone-label-dragging * {
   body[data-print-target="project-structure-print"] .wbs-table-row input,
   body[data-print-target="project-structure-print"] .wbs-table-row select {
     appearance: none !important;
-    color: #1f2937 !important;
+    color: var(--text) !important;
     font-size: 8pt !important;
     min-height: 0 !important;
     padding: 2mm 1.5mm !important;

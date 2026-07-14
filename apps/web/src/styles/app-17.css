@@ -127,7 +127,7 @@
 }
 
 .details div {
-  background: #f8fafc;
+  background: var(--surface-2);
   border-radius: 6px;
   padding: 12px;
 }
@@ -138,7 +138,7 @@
 }
 
 .jql {
-  background: #f8fafc;
+  background: var(--surface-2);
   border-radius: 6px;
   display: grid;
   gap: 8px;
@@ -146,9 +146,9 @@
 }
 
 code {
-  color: #334155;
+  color: var(--text-heading);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
+  font-size: 13px;
   overflow-wrap: anywhere;
   white-space: normal;
 }
@@ -159,7 +159,7 @@ code {
 }
 
 .issue-list {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 6px;
   display: grid;
   gap: 0;
@@ -175,9 +175,9 @@ code {
 }
 
 .issue-list-head {
-  background: #eef2f7;
-  color: #64748b;
-  font-size: 11px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: 12px;
   font-weight: 800;
   padding: 9px 12px;
   text-transform: uppercase;
@@ -204,24 +204,24 @@ code {
 
 .form-grid label,
 .stack-form label {
-  color: #64748b;
+  color: var(--text-muted);
   display: grid;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   gap: 6px;
 }
 
 .form-note {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
 }
 
 .form-section-title {
-  border-top: 1px solid #dbe4ef;
-  color: #334155;
-  font-size: 11px;
+  border-top: 1px solid var(--border-3);
+  color: var(--text-heading);
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0;
   margin-top: 4px;

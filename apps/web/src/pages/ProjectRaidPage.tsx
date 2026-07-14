@@ -2,9 +2,13 @@ import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { ProjectRaidRegister } from "./ProjectRaidRegister";
 import { ProjectRaidSidePanel } from "./ProjectRaidSidePanel";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 export function ProjectRaidPage() {
   const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const drawerRef = useFocusTrap<HTMLElement>(showCreatePanel, () =>
+    setShowCreatePanel(false),
+  );
 
   return (
                   <article className="panel overview-panel">
@@ -27,7 +31,11 @@ export function ProjectRaidPage() {
                     <div className="drawer-backdrop" onMouseDown={() => setShowCreatePanel(false)}>
                       <aside
                         className="raid-create-drawer"
+                        role="dialog"
+                        aria-modal="true"
                         aria-label="Создание записи RAID"
+                        ref={drawerRef}
+                        tabIndex={-1}
                         onMouseDown={(event) => event.stopPropagation()}
                       >
                         <div className="drawer-header">
