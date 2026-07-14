@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Management System - visual design concepts</title>
+    <link rel="stylesheet" href="./mockups.css" />
+  </head>
+  <body>
+    <main class="gallery">
+      <section class="artboard" data-screen="projects">
+        <header class="global-bar">
+          <div class="brand-mark">PM</div>
+          <nav class="global-nav"><b>Портфель</b><span>Проекты</span><span>Отчеты</span><span>Ресурсы</span></nav>
+          <div class="global-actions"><button class="search">Поиск по системе <kbd>/</kbd></button><button class="icon">?</button><div class="avatar">СГ</div></div>
+        </header>
+        <div class="page-heading">
+          <div><div class="eyebrow">ПОРТФЕЛЬ / ОСНОВНОЙ</div><h1>Проекты</h1><p>12 активных проектов · обновлено сегодня в 10:42</p></div>
+          <button class="primary">+ Новый проект</button>
+        </div>
+        <div class="toolbar band">
+          <div class="segmented"><button class="active">Все <i>12</i></button><button>Красная зона <i>3</i></button><button>Завершаются <i>4</i></button></div>
+          <div class="toolbar-right"><label class="field">Руководитель <span>Все</span></label><label class="field">Сортировка <span>По риску ↓</span></label><button class="icon">⋯</button></div>
+        </div>
+        <section class="project-table band">
+          <div class="table-row table-head"><span>Проект</span><span>Состояние</span><span>Прогресс</span><span>Ближайшая цель</span><span>Руководитель</span><span></span></div>
+          <div class="table-row selected"><span class="project-name"><em class="rag red"></em><b>TV-PLATFORM</b><small>Развитие телевизионной платформы</small></span><span><strong class="status danger">Требует внимания</strong><small>+18 дней к плану</small></span><span><b>64%</b><span class="progress"><i style="width:64%"></i></span></span><span><b>Запуск серийного ПО</b><small>26 авг · через 43 дня</small></span><span><b>Сергей Орлов</b><small>Core TV</small></span><button class="row-action">›</button></div>
+          <div class="table-row"><span class="project-name"><em class="rag amber"></em><b>VOICE-2026</b><small>Голосовой ассистент нового поколения</small></span><span><strong class="status warning">Есть риски</strong><small>2 открытых решения</small></span><span><b>48%</b><span class="progress amber"><i style="width:48%"></i></span></span><span><b>Приемочные испытания</b><small>04 сен · через 52 дня</small></span><span><b>Анна Волкова</b><small>Voice</small></span><button class="row-action">›</button></div>
+          <div class="table-row"><span class="project-name"><em class="rag green"></em><b>SMART-HOME</b><small>Единый контур умного дома</small></span><span><strong class="status success">По плану</strong><small>отклонений нет</small></span><span><b>82%</b><span class="progress green"><i style="width:82%"></i></span></span><span><b>Промышленная эксплуатация</b><small>01 авг · через 18 дней</small></span><span><b>Мария Белова</b><small>IoT</small></span><button class="row-action">›</button></div>
+          <div class="table-row"><span class="project-name"><em class="rag green"></em><b>MEDIA-CORE</b><small>Медиаплатформа и каталог</small></span><span><strong class="status success">По плану</strong><small>резерв 6 дней</small></span><span><b>71%</b><span class="progress green"><i style="width:71%"></i></span></span><span><b>Миграция каталога</b><small>19 авг · через 36 дней</small></span><span><b>Илья Соколов</b><small>Media</small></span><button class="row-action">›</button></div>
+        </section>
+        <footer class="pagination"><span>Показано 4 из 12</span><div><button disabled>‹</button><button class="active">1</button><button>2</button><button>3</button><button>›</button></div></footer>
+      </section>
+
+      <section class="artboard" data-screen="overview">
+        <header class="global-bar">
+          <div class="brand-mark">PM</div>
+          <nav class="global-nav"><span>Портфель</span><b>Проекты</b><span>Отчеты</span><span>Ресурсы</span></nav>
+          <div class="global-actions"><button class="search">Поиск по системе <kbd>/</kbd></button><button class="icon">?</button><div class="avatar">СГ</div></div>
+        </header>
+        <div class="project-bar"><div class="project-id"><span class="rag red"></span><div><b>TV-PLATFORM</b><small>Развитие телевизионной платформы</small></div></div><nav><b>Состояние</b><span>График</span><span>Структура</span><span>Гантт</span><span>Вопросы</span><span>Риски</span><span>Изменения</span></nav><button class="icon">⋯</button></div>
+        <div class="content overview-content">
+          <div class="page-title-row"><div><h1>Состояние проекта</h1><p>Данные на 14 июля 2026 · обновлены 18 минут назад</p></div><div class="actions"><button>Экспорт</button><button class="primary">Обновить статус</button></div></div>
+          <div class="kpi-strip band"><div><span>Прогресс</span><b>64%</b><small class="good">+4% за месяц</small></div><div><span>Прогноз завершения</span><b>12.09.2026</b><small class="bad">+18 дней к цели</small></div><div><span>Красная зона</span><b>3</b><small>2 риска · 1 проблема</small></div><div><span>Требуют решения</span><b>2</b><small class="bad">1 просрочено</small></div></div>
+          <div class="overview-grid">
+            <section class="data-section priority"><header><div><h2>Ключевые риски и проблемы</h2><p>Оценка 15+ или влияние на дату цели</p></div><span class="count danger">3</span></header><div class="data-list"><div class="data-item"><span class="severity red"></span><div><b>Задержка поставки чипсета</b><p>Последний статус: поставщик подтвердил перенос на 3 недели</p></div><div class="meta"><strong>20</strong><small>Риск · 18 июл</small></div><button class="row-action">›</button></div><div class="data-item"><span class="severity amber"></span><div><b>Не согласован объем сертификации</b><p>Требуется решение архитектурного комитета</p></div><div class="meta"><strong>16</strong><small>Проблема · сегодня</small></div><button class="row-action">›</button></div><div class="data-item"><span class="severity amber"></span><div><b>Нестабильность OTA на пилотной группе</b><p>Диагностика продолжается, назначен владелец</p></div><div class="meta"><strong>15</strong><small>Риск · 21 июл</small></div><button class="row-action">›</button></div></div></section>
+            <section class="data-section decisions"><header><div><h2>Открытые решения</h2><p>Вопросы, требующие управленческого решения</p></div><span class="count warning">2</span></header><div class="data-list"><div class="decision-item"><div><span class="due overdue">Просрочено 2 дня</span><b>Выбрать вариант резервной поставки</b><p>Владелец: Сергей Орлов · Комитет продукта</p></div><button>Открыть</button></div><div class="decision-item"><div><span class="due">Срок завтра</span><b>Подтвердить состав пилотной группы</b><p>Владелец: Анна Волкова · PMO</p></div><button>Открыть</button></div></div></section>
+            <section class="data-section lower"><header><div><h2>Отклонение сроков</h2><p>Вклад работ критического пути</p></div><b class="delta">+18 дн.</b></header><div class="variance"><div><span>Интеграция DRM</span><b>+9</b></div><div><span>Сертификация устройств</span><b>+6</b></div><div><span>Поставка тестовой партии</span><b>+3</b></div></div></section>
+            <section class="data-section lower"><header><div><h2>Тикеты под риском</h2><p>Jira первой рабочей секции</p></div><span class="count neutral">1</span></header><div class="compact-ticket"><span>TV-1842</span><b>OTA update fails on low bandwidth</b><small>High · In progress · П. Иванов</small></div></section>
+          </div>
+        </div>
+      </section>
+
+      <section class="artboard" data-screen="gantt">
+        <header class="global-bar"><div class="brand-mark">PM</div><nav class="global-nav"><span>Портфель</span><b>Проекты</b><span>Отчеты</span><span>Ресурсы</span></nav><div class="global-actions"><button class="search">Поиск по системе <kbd>/</kbd></button><button class="icon">?</button><div class="avatar">СГ</div></div></header>
+        <div class="project-bar"><div class="project-id"><span class="rag red"></span><div><b>TV-PLATFORM</b><small>Развитие телевизионной платформы</small></div></div><nav><span>Состояние</span><span>График</span><span>Структура</span><b>Гантт</b><span>Вопросы</span><span>Риски</span><span>Изменения</span></nav><button class="icon">⋯</button></div>
+        <div class="gantt-page">
+          <div class="gantt-title"><div><h1>Гантт</h1><p>92 элемента · 6 фаз · обновлено 4 минуты назад</p></div><div class="save-state"><i></i>Все изменения сохранены</div></div>
+          <div class="gantt-toolbar band"><div class="tool-group"><button class="icon">↶</button><button class="icon disabled">↷</button></div><div class="tool-group segmented"><button>Недели</button><button class="active">Месяцы</button><button>Кварталы</button></div><div class="tool-group segmented"><button>30</button><button class="active">90</button><button>180</button><button>Все</button></div><div class="tool-group"><button>Сегодня</button><button>Критический путь</button><button>Связи</button></div><div class="grow"></div><button>Колонки</button><button>Экспорт</button><button class="icon">⛶</button></div>
+          <section class="gantt-shell band">
+            <div class="tree-pane"><div class="gantt-head tree-head"><span>Код</span><span>Работа</span><span>Статус</span></div><div class="g-row phase"><span>⌄ 1</span><b>Разработка платформы</b><em>62%</em></div><div class="g-row selected"><span>1.1</span><b>Интеграция DRM</b><em class="bad">Риск</em></div><div class="g-row"><span>1.2</span><b>Сервис обновлений OTA</b><em>В работе</em></div><div class="g-row"><span>1.3</span><b>Медиаплеер</b><em class="good">Готово</em></div><div class="g-row phase"><span>⌄ 2</span><b>Верификация</b><em>35%</em></div><div class="g-row"><span>2.1</span><b>Системное тестирование</b><em>В работе</em></div><div class="g-row"><span>2.2</span><b>Сертификация устройств</b><em class="bad">Риск</em></div><div class="g-row phase"><span>› 3</span><b>Запуск</b><em>0%</em></div></div>
+            <div class="timeline-pane"><div class="gantt-head months"><span>Июль</span><span>Август</span><span>Сентябрь</span></div><div class="grid-lines"></div><div class="today-line"><small>14 июл</small></div><div class="timeline-row phase-line"><i style="left:2%;width:72%"></i></div><div class="timeline-row selected"><i class="bar danger" style="left:6%;width:38%"><b>+9 дн.</b></i></div><div class="timeline-row"><i class="bar" style="left:20%;width:42%"></i></div><div class="timeline-row"><i class="bar done" style="left:0%;width:27%"></i></div><div class="timeline-row phase-line"><i style="left:42%;width:48%"></i></div><div class="timeline-row"><i class="bar" style="left:44%;width:34%"></i></div><div class="timeline-row"><i class="bar warning" style="left:58%;width:34%"><b>+6 дн.</b></i></div><div class="timeline-row phase-line"><i style="left:82%;width:16%"></i></div></div>
+          </section>
+          <div class="gantt-footer"><span>Показаны активные фазы · диапазон 90 дней</span><div class="legend"><i class="l-normal"></i>В работе <i class="l-risk"></i>Риск <i class="l-done"></i>Готово <i class="l-today"></i>Сегодня</div></div>
+        </div>
+      </section>
+
+      <section class="artboard" data-screen="raid">
+        <header class="global-bar"><div class="brand-mark">PM</div><nav class="global-nav"><span>Портфель</span><b>Проекты</b><span>Отчеты</span><span>Ресурсы</span></nav><div class="global-actions"><button class="search">Поиск по системе <kbd>/</kbd></button><button class="icon">?</button><div class="avatar">СГ</div></div></header>
+        <div class="project-bar"><div class="project-id"><span class="rag red"></span><div><b>TV-PLATFORM</b><small>Развитие телевизионной платформы</small></div></div><nav><span>Состояние</span><span>График</span><span>Структура</span><span>Гантт</span><span>Вопросы</span><b>Риски</b><span>Изменения</span></nav><button class="icon">⋯</button></div>
+        <div class="content raid-content"><div class="page-title-row"><div><h1>Риски и проблемы</h1><p>15 активных записей · 3 требуют решения</p></div><button class="primary">+ Новая запись</button></div>
+          <section class="raid-summary band"><div class="raid-metrics"><div><span>Активные</span><b>15</b></div><div><span>Высокий риск</span><b class="bad">3</b></div><div><span>Проблемы</span><b>4</b></div><div><span>Допущения</span><b>2</b></div></div><div class="matrix-wrap"><div><h2>Матрица рисков</h2><p>Вероятность × влияние</p></div><div class="matrix"> <i class="m-a"></i><i class="m-a"></i><i class="m-b"></i><i class="m-c">2</i><i class="m-c"></i><i class="m-a"></i><i class="m-a">1</i><i class="m-b"></i><i class="m-c">1</i><i class="m-c"></i><i class="m-a"></i><i class="m-a"></i><i class="m-b">2</i><i class="m-b"></i><i class="m-c"></i><i class="m-a"></i><i class="m-a"></i><i class="m-a"></i><i class="m-b"></i><i class="m-b"></i><i class="m-a">3</i><i class="m-a"></i><i class="m-a"></i><i class="m-a"></i><i class="m-b"></i></div></div></section>
+          <section class="raid-workspace band"><div class="register"><header class="register-head"><div class="segmented"><button class="active">Все <i>15</i></button><button>Риски <i>9</i></button><button>Проблемы <i>4</i></button><button>Допущения <i>2</i></button></div><div class="filter-actions"><button>Требуют решения</button><button>Просрочены</button><button>Высокий риск</button><button class="icon">≡</button></div></header><div class="raid-table-row raid-table-head"><span>Запись</span><span>Тип</span><span>Оценка</span><span>Срок</span><span>Ответственный</span></div><div class="raid-table-row active"><span><b>Задержка поставки чипсета</b><small>Поставщик подтвердил перенос на 3 недели</small></span><span><strong class="status danger">Риск</strong></span><span><b class="score red">20</b></span><span><b>18 июл</b><small class="bad">через 4 дня</small></span><span><b>С. Орлов</b><small>Core TV</small></span></div><div class="raid-table-row"><span><b>Не согласован объем сертификации</b><small>Ожидается решение архитектурного комитета</small></span><span><strong class="status warning">Проблема</strong></span><span><b class="score amber">16</b></span><span><b>14 июл</b><small class="bad">сегодня</small></span><span><b>А. Волкова</b><small>PMO</small></span></div><div class="raid-table-row"><span><b>Резервный поставщик готов к пилоту</b><small>Требуется подтвердить объем тестовой партии</small></span><span><strong class="status neutral">Допущение</strong></span><span><b class="score green">8</b></span><span><b>24 июл</b><small>через 10 дней</small></span><span><b>И. Соколов</b><small>Supply</small></span></div><div class="raid-table-row"><span><b>Нестабильность OTA на пилотной группе</b><small>Диагностика продолжается</small></span><span><strong class="status danger">Риск</strong></span><span><b class="score amber">15</b></span><span><b>21 июл</b><small>через 7 дней</small></span><span><b>П. Иванов</b><small>QA</small></span></div></div>
+            <aside class="detail-panel"><header><div><span class="status danger">Риск · 20</span><h2>Задержка поставки чипсета</h2><p>Сергей Орлов · срок 18 июля</p></div><button class="icon">×</button></header><div class="detail-block"><span>Последний статус · сегодня</span><p>Поставщик подтвердил перенос отгрузки тестовой партии на три недели.</p></div><div class="detail-block"><span>План снижения риска</span><p>Запустить квалификацию резервного поставщика и перенести интеграционные тесты вперед.</p></div><div class="detail-grid"><label>Вероятность <b>4 / 5</b></label><label>Влияние <b>5 / 5</b></label><label>Остаточный риск <b>12</b></label><label>Jira <b>TV-1842</b></label></div><footer><button>Закрыть риск</button><button class="primary">Редактировать</button></footer></aside>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
