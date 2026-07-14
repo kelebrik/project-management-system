@@ -76,7 +76,6 @@ export function useArtifactsController({
 
   const deleteArtifact = useCallback(
     async (artifactId: string) => {
-      if (!window.confirm("Удалить артефакт проекта?")) return;
       setError(null);
       setNotice(null);
       try {

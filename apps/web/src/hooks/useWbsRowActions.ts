@@ -819,7 +819,6 @@ export function useWbsRowActions({
   }
 
   async function deleteWbsItem(itemId: string) {
-    if (!window.confirm("Удалить только выбранную строку Структуры?")) return;
     setError(null);
     setNotice(null);
     rememberWbsSnapshot();
@@ -860,8 +859,6 @@ export function useWbsRowActions({
       setSelectedWbsIds(new Set());
       return;
     }
-    if (!window.confirm(`Удалить выбранные строки Структуры: ${itemIds.length}?`)) return;
-
     setError(null);
     setNotice(null);
     setSavingWbsBulk(true);

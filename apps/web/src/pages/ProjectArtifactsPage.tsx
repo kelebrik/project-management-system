@@ -1,7 +1,9 @@
 import { usePageContext } from "./PageContext";
 import type { ArtifactStatus } from "../app/domainTypes";
+import { useConfirm } from "../hooks/useConfirm";
 
 export function ProjectArtifactsPage() {
+  const confirm = useConfirm();
   const ctx = usePageContext();
   const {
     artifactDrafts,
@@ -15,6 +17,17 @@ export function ProjectArtifactsPage() {
     setExpandedArtifactId,
     updateArtifactDraft,
   } = ctx;
+  const confirmArtifactDeletion = async (artifactId: string) => {
+    if (
+      await confirm({
+        title: "Удалить артефакт?",
+        message: "Артефакт проекта будет удалён безвозвратно.",
+        confirmLabel: "Удалить",
+      })
+    ) {
+      void deleteArtifact(artifactId);
+    }
+  };
 
   return (
                   <article className="panel project-card">
@@ -107,7 +120,7 @@ export function ProjectArtifactsPage() {
                               className="wbs-row-delete-button"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                void deleteArtifact(artifact.id);
+                                void confirmArtifactDeletion(artifact.id);
                               }}
                               title="Удалить"
                             >
@@ -263,7 +276,7 @@ export function ProjectArtifactsPage() {
                                       type="button"
                                       className="danger-button"
                                       onClick={() =>
-                                        deleteArtifact(artifact.id)
+                                        void confirmArtifactDeletion(artifact.id)
                                       }
                                     >
                                       Удалить

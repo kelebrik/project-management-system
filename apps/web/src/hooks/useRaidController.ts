@@ -262,7 +262,6 @@ export function useRaidController({
 
   const deleteRaidItem = useCallback(
     async (itemId: string) => {
-      if (!window.confirm("Удалить запись о риске?")) return;
       setError(null);
       setNotice(null);
       try {

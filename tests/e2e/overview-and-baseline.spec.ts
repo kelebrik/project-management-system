@@ -386,6 +386,44 @@ test("administrator updates baseline only for selected WBS rows", async ({ page 
   await expect.poll(() => baselineBody).toEqual({ itemIds: ["wbs-1"] });
 });
 
+test("WBS deletion uses one in-app confirmation without a browser dialog", async ({
+  page,
+}) => {
+  await mockAdminProject(page);
+  let deleteRequests = 0;
+  let browserDialogs = 0;
+  page.on("dialog", async (dialog) => {
+    browserDialogs += 1;
+    await dialog.dismiss();
+  });
+  await page.route("**/api/wbs-items/wbs-1", async (route) => {
+    deleteRequests += 1;
+    await route.fulfill({
+      json: {
+        wbsItems: [],
+        wbsDependencies: [],
+        criticalPath: null,
+      },
+    });
+  });
+
+  await page.goto("/TV-OVERVIEW/wbs");
+  await page
+    .getByRole("button", { name: "Удалить строку Структуры" })
+    .click({ force: true });
+
+  const confirmation = page.getByRole("dialog", {
+    name: "Удалить строку Структуры?",
+  });
+  await expect(confirmation).toBeVisible();
+  expect(browserDialogs).toBe(0);
+
+  await confirmation.getByRole("button", { name: "Удалить" }).click();
+  await expect(confirmation).toBeHidden();
+  await expect.poll(() => deleteRequests).toBe(1);
+  expect(browserDialogs).toBe(0);
+});
+
 test("inline WBS insert button stays above the following row", async ({ page }) => {
   await mockAdminProject(page, (project) => {
     project.wbsItems.push({
