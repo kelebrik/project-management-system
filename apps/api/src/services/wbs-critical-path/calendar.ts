@@ -16,6 +16,23 @@ function isDefaultWorkingDay(value: Date) {
   return day !== 0 && day !== 6;
 }
 
+type BaseCalendarCode = Exclude<ProjectCalendarCode, "RU_CN">;
+
+function baseCalendarCodes(
+  calendarCode: ProjectCalendarCode,
+): readonly BaseCalendarCode[] {
+  return calendarCode === "RU_CN" ? ["RU", "CN"] : [calendarCode];
+}
+
+function isBaseCalendarWorkingDay(
+  value: Date,
+  calendarCode: BaseCalendarCode,
+  overridesByKey: Map<string, boolean>,
+) {
+  const override = overridesByKey.get(calendarOverrideKey(calendarCode, value));
+  return override ?? isDefaultWorkingDay(value);
+}
+
 function addCalendarDays(value: Date, days: number) {
   const result = startOfUtcDay(value);
   result.setUTCDate(result.getUTCDate() + days);
@@ -51,19 +68,30 @@ function overrideAdjustmentInclusive(
 ) {
   const startTime = startOfUtcDay(startDate).getTime();
   const dueTime = startOfUtcDay(dueDate).getTime();
+  const selectedCodes = new Set(baseCalendarCodes(calendarCode));
+  const overrideDates = new Set<string>();
   let adjustment = 0;
 
-  for (const [key, isOverrideWorkingDay] of overridesByKey.entries()) {
-    if (!key.startsWith(`${calendarCode}:`)) continue;
-    const overrideDate = startOfUtcDay(
-      new Date(`${key.slice(calendarCode.length + 1)}T00:00:00.000Z`),
-    );
+  for (const key of overridesByKey.keys()) {
+    const separatorIndex = key.indexOf(":");
+    const code = key.slice(0, separatorIndex) as BaseCalendarCode;
+    if (separatorIndex < 0 || !selectedCodes.has(code)) continue;
+    overrideDates.add(key.slice(separatorIndex + 1));
+  }
+
+  for (const date of overrideDates) {
+    const overrideDate = startOfUtcDay(new Date(`${date}T00:00:00.000Z`));
     const overrideTime = overrideDate.getTime();
     if (overrideTime < startTime || overrideTime > dueTime) continue;
 
     const isNormallyWorkingDay = isDefaultWorkingDay(overrideDate);
-    if (isOverrideWorkingDay !== isNormallyWorkingDay) {
-      adjustment += isOverrideWorkingDay ? 1 : -1;
+    const isCombinedWorkingDay = isWorkingDay(
+      overrideDate,
+      calendarCode,
+      overridesByKey,
+    );
+    if (isCombinedWorkingDay !== isNormallyWorkingDay) {
+      adjustment += isCombinedWorkingDay ? 1 : -1;
     }
   }
 
@@ -94,8 +122,9 @@ export function isWorkingDay(
   calendarCode: ProjectCalendarCode,
   overridesByKey: Map<string, boolean>,
 ) {
-  const override = overridesByKey.get(calendarOverrideKey(calendarCode, value));
-  return override ?? isDefaultWorkingDay(value);
+  return baseCalendarCodes(calendarCode).every((code) =>
+    isBaseCalendarWorkingDay(value, code, overridesByKey),
+  );
 }
 
 export function addWorkingDays(

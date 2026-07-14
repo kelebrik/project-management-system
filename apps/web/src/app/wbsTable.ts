@@ -1,6 +1,6 @@
 import type { WbsDependencyType } from "./domainTypes";
 
-export type ProjectCalendarCode = "RU" | "CN";
+export type ProjectCalendarCode = "RU" | "CN" | "RU_CN";
 
 export const WBS_LEVEL_MIN_WIDTH = 128;
 
@@ -130,6 +130,7 @@ export const WBS_COLUMN_FIELDS: Record<WbsTableColumnKey, WbsFormFieldKey[]> = {
 export const PROJECT_CALENDAR_LABELS: Record<ProjectCalendarCode, string> = {
   RU: "RU календарь",
   CN: "CN календарь",
+  RU_CN: "RU+CN календарь",
 };
 
 export type WbsSortDirection = "asc" | "desc";

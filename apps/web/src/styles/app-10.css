@@ -262,7 +262,7 @@
 .gantt-head {
   background: #f7f9fc;
   display: grid;
-  grid-template-columns: var(--gantt-wbs-width, 360px) 8px var(--gantt-timeline-width, 520px);
+  grid-template-columns: var(--gantt-wbs-width, 360px) 8px minmax(var(--gantt-timeline-width, 520px), 1fr);
   min-width: calc(var(--gantt-wbs-width, 360px) + 8px + var(--gantt-timeline-width, 520px));
   position: sticky;
   top: 0;
@@ -312,7 +312,7 @@
 
 .gantt-body {
   display: grid;
-  grid-template-columns: var(--gantt-wbs-width, 360px) 8px var(--gantt-timeline-width, 520px);
+  grid-template-columns: var(--gantt-wbs-width, 360px) 8px minmax(var(--gantt-timeline-width, 520px), 1fr);
   min-width: calc(var(--gantt-wbs-width, 360px) + 8px + var(--gantt-timeline-width, 520px));
   position: relative;
 }
