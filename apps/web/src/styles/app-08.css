@@ -139,12 +139,13 @@
   gap: var(--milestone-lane-gap, 10px);
   min-width: var(--milestone-track-width, 960px);
   padding: 14px 12px 18px 0;
+  width: 100%;
 }
 
 .milestone-scale,
 .milestone-lane {
   display: grid;
-  grid-template-columns: var(--milestone-track-width, 960px);
+  grid-template-columns: minmax(var(--milestone-track-width, 960px), 1fr);
 }
 
 .milestone-scale {

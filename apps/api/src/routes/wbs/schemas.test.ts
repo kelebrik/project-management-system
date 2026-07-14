@@ -18,6 +18,14 @@ test('wbsBulkUpdateSchema accepts multiple partial row patches', () => {
   }
 });
 
+test('wbsBulkUpdateSchema accepts the combined RU+CN calendar', () => {
+  const result = wbsBulkUpdateSchema.safeParse({
+    items: [{ id: 'item-1', patch: { calendarCode: 'RU_CN' } }],
+  });
+
+  assert.equal(result.success, true);
+});
+
 test('wbsBulkUpdateSchema rejects empty and oversized batches', () => {
   assert.equal(wbsBulkUpdateSchema.safeParse({ items: [] }).success, false);
   assert.equal(

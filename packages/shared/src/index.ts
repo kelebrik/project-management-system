@@ -28,7 +28,7 @@ export const raidItemStatuses = [
   "BREACHED",
   "CLOSED",
 ] as const;
-export const projectCalendarCodes = ["RU", "CN"] as const;
+export const projectCalendarCodes = ["RU", "CN", "RU_CN"] as const;
 export const userRoles = [
   "ADMIN",
   "PROJECT_MANAGER",
