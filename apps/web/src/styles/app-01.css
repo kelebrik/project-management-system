@@ -301,7 +301,7 @@
 .sidebar-toggle:focus-visible {
   background: var(--brand-soft);
   border-color: var(--brand-border-strong);
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);
   color: var(--brand);
 }
 

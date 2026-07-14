@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ProjectListItem } from "../app/domainTypes";
 import { projectHealthLabel, projectStatusLabel } from "../app/labels";
+import { createProjectWorkProgress } from "../app/projectWorkProgress";
 import type { ProjectSectionView } from "../app/routes";
 
 type SortKey = "code" | "name" | "status" | "target";
@@ -114,6 +115,10 @@ export function ProjectsOverview({
       <div className="projects-overview-grid">
         {sortedItems.map((project) => {
         const passportRows = compactPassportRows(project);
+        const workProgress = createProjectWorkProgress(project.wbsItems ?? []);
+        const progressLabel = workProgress.totalDays > 0
+          ? `Прогресс: завершено ${workProgress.completedPercent}%, в работе ${workProgress.inProgressPercent}%, не начато ${workProgress.notStartedPercent}%`
+          : "Прогресс: рабочие дни не заданы";
         return (
           <button
             type="button"
@@ -131,6 +136,39 @@ export function ProjectsOverview({
               <span>{projectStatusLabel(project.status)}</span>
               <span>{project.projectManager}</span>
               <span>Цель {date(project.targetDate)}</span>
+            </span>
+            <span className="projects-overview-work-progress">
+              <em>Прогресс</em>
+              {workProgress.totalDays > 0 ? (
+                <>
+                  <span
+                    className="project-work-progress-bar"
+                    role="img"
+                    aria-label={progressLabel}
+                    title={progressLabel}
+                  >
+                    <i
+                      className="completed"
+                      style={{ width: `${workProgress.completedPercent}%` }}
+                    />
+                    <i
+                      className="in-progress"
+                      style={{ width: `${workProgress.inProgressPercent}%` }}
+                    />
+                    <i
+                      className="not-started"
+                      style={{ width: `${workProgress.notStartedPercent}%` }}
+                    />
+                  </span>
+                  <small className="project-work-progress-legend">
+                    <span className="completed">{workProgress.completedPercent}%</span>
+                    <span className="in-progress">{workProgress.inProgressPercent}%</span>
+                    <span className="not-started">{workProgress.notStartedPercent}%</span>
+                  </small>
+                </>
+              ) : (
+                <small className="project-work-progress-empty">нет данных</small>
+              )}
             </span>
             <span className="projects-overview-passport">
               {passportRows.map((row) => (

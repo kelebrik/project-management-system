@@ -445,8 +445,8 @@
 }
 
 .audit-tombstone button {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+  background: var(--brand);
+  border-color: var(--brand);
   color: #fff;
   min-height: 32px;
   padding: 6px 12px;

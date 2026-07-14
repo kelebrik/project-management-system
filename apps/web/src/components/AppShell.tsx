@@ -5,8 +5,7 @@ import {
   BookOpen,
   BriefcaseBusiness,
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
+  CircleHelp,
   FileArchive,
   FileSpreadsheet,
   FileText,
@@ -21,7 +20,9 @@ import {
   LayoutDashboard,
   ListChecks,
   NotebookText,
+  Plus,
   Settings,
+  Settings2,
   ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
@@ -41,13 +42,8 @@ import { wikiGroups } from "../app/wikiContent";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
 import { PageContextProvider, type PageContextValue } from "../pages/PageContext";
 import { AppTopbar } from "./AppTopbar";
-import { NavLabel } from "./NavLabel";
 import { ProjectPicker } from "./ProjectPicker";
-import {
-  ProjectSidebarMenu,
-  type ProjectNavItem,
-} from "./ProjectSidebarMenu";
-import { ResourceSidebarMenu } from "./ResourceSidebarMenu";
+import type { ProjectNavItem } from "./ProjectSidebarMenu";
 import { SidebarIdentity } from "./SidebarIdentity";
 import { SystemBanners } from "./SystemBanners";
 import { ThemeToggle } from "./ThemeToggle";
@@ -79,7 +75,6 @@ type AppShellProps = {
   isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   isProjectSectionView: boolean;
   isProjectView: boolean;
-  isResourceSectionView: boolean;
   isReadOnly: boolean;
   logout: () => void;
   onAuthModeChange: (mode: "login") => void;
@@ -111,9 +106,7 @@ type AppShellProps = {
   shouldShowDevelopmentMenu: boolean;
   shouldShowProjectMenu: boolean;
   showProjectPicker: boolean;
-  sidebarCollapsed: boolean;
   signedDaysLabel: (value: number | null) => string;
-  toggleSidebar: () => void;
   viewTitle: Record<AppView, string>;
 };
 
@@ -277,6 +270,50 @@ const adminNavItems: AdminNavItem[] = [
   },
 ];
 
+const developmentNavItems: AdminNavItem[] = [
+  {
+    view: "portfolio-v2",
+    label: "Портфель_v2",
+    icon: <BarChart3 size={15} />,
+  },
+  {
+    view: "project-pm-workspace",
+    label: "Рабочий стол PM",
+    icon: <LayoutDashboard size={15} />,
+  },
+  {
+    view: "decision-queue",
+    label: "Очередь решений",
+    icon: <CircleHelp size={15} />,
+  },
+  {
+    view: "resources",
+    label: "Управление ресурсами",
+    icon: <Users size={15} />,
+  },
+  {
+    view: "resources-capacity",
+    label: "Параметры ресурсов",
+    icon: <Settings2 size={15} />,
+  },
+];
+
+const projectNavShortLabels: Partial<Record<ProjectSectionView, string>> = {
+  "project-overview": "Состояние",
+  "project-schedule": "График",
+  "project-passport": "Паспорт",
+  "project-business-requirements": "Требования",
+  "project-structure": "Структура",
+  "project-gantt": "Гантт",
+  "project-jira-work": "Работы Jira",
+  "project-issues": "Вопросы",
+  "project-raid": "Риски",
+  "project-changes": "Изменения",
+  "project-budget": "Бюджет",
+  "project-calendars": "Календари",
+  "project-artifacts": "Артефакты",
+};
+
 export function AppShell({
   activeView,
   currentUser,
@@ -294,7 +331,6 @@ export function AppShell({
   isProjectModuleEnabled,
   isProjectSectionView,
   isProjectView,
-  isResourceSectionView,
   isReadOnly,
   logout,
   onAuthModeChange,
@@ -317,198 +353,195 @@ export function AppShell({
   shouldShowDevelopmentMenu,
   shouldShowProjectMenu,
   showProjectPicker,
-  sidebarCollapsed,
   signedDaysLabel,
-  toggleSidebar,
   viewTitle,
 }: AppShellProps) {
-  const navLabel = (icon: ReactNode, label: string) => (
-    <NavLabel icon={icon} label={label} sidebarCollapsed={sidebarCollapsed} />
+  const login = () => {
+    onAuthModeChange("login");
+    onErrorChange(null);
+    onNoticeChange(null);
+  };
+  const projectPicker = (targetView: AppView = firstEnabledProjectView) => (
+    <ProjectPicker
+      filteredProjects={filteredProjectOptions}
+      isOpen={showProjectPicker}
+      onOpenChange={setShowProjectPicker}
+      onProjectSearchChange={setProjectSearch}
+      onProjectSelect={selectProject}
+      projectSearch={projectSearch}
+      recentProjects={recentProjects}
+      selectedProject={selectedProjectListItem}
+      selectedProjectId={selectedProjectId}
+      targetView={targetView}
+    />
   );
-  const shouldShowWikiToc = activeView === "wiki" && !sidebarCollapsed;
+  const projectsActive =
+    activeView === "projects" ||
+    activeView === "project-create" ||
+    isProjectSectionView;
 
   return (
     <div
-      className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${isReadOnly ? "read-only-mode" : ""}`}
+      className={`app-shell top-navigation-shell ${isReadOnly ? "read-only-mode" : ""}`}
       onFocusCapture={handleEditableFocus}
       onKeyDownCapture={handleEditableKeyDown}
     >
-      <button
-        type="button"
-        className="sidebar-toggle"
-        onClick={toggleSidebar}
-        aria-label={
-          sidebarCollapsed
-            ? "Развернуть боковую панель"
-            : "Свернуть боковую панель"
-        }
-        title={
-          sidebarCollapsed
-            ? "Развернуть боковую панель"
-            : "Свернуть боковую панель"
-        }
-      >
-        {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-      </button>
-      <aside className="sidebar">
+      <header className="app-global-header">
         <SidebarIdentity
           currentUser={currentUser}
-          onLogin={() => {
-            onAuthModeChange("login");
-            onErrorChange(null);
-            onNoticeChange(null);
-          }}
+          onLogin={login}
           onLogout={logout}
         />
-        <nav>
+        <nav className="global-section-nav" aria-label="Основные разделы">
           <button
             type="button"
             className={activeView === "portfolio" ? "active" : ""}
             onClick={() => openView("portfolio")}
-            aria-label="Портфель"
           >
-            {navLabel(<BriefcaseBusiness size={17} />, "Портфель")}
+            <BriefcaseBusiness size={15} /> Портфель
           </button>
-          <ProjectSidebarMenu
-            activeView={activeView}
-            isProjectModuleEnabled={isProjectModuleEnabled}
-            isProjectSectionView={isProjectSectionView}
-            navLabel={navLabel}
-            onOpenView={openView}
-            projectNavItems={projectNavItems}
-            projectPicker={
-              <ProjectPicker
-                filteredProjects={filteredProjectOptions}
-                isOpen={showProjectPicker}
-                onOpenChange={setShowProjectPicker}
-                onProjectSearchChange={setProjectSearch}
-                onProjectSelect={selectProject}
-                projectSearch={projectSearch}
-                recentProjects={recentProjects}
-                selectedProject={selectedProjectListItem}
-                selectedProjectId={selectedProjectId}
-                targetView={firstEnabledProjectView}
-              />
-            }
-            shouldShowProjectMenu={shouldShowProjectMenu}
-          />
+          <button
+            type="button"
+            className={projectsActive ? "active" : ""}
+            onClick={() => openView("projects")}
+          >
+            <FolderTree size={15} /> Проекты
+          </button>
           <button
             type="button"
             className={activeView === "reports" ? "active" : ""}
             onClick={() => openView("reports")}
-            aria-label="Отчёты"
           >
-            {navLabel(<NotebookText size={17} />, "Отчёты")}
+            <NotebookText size={15} /> Отчёты
           </button>
           <button
             type="button"
             className={activeView === "closed-projects" ? "active" : ""}
             onClick={() => openView("closed-projects")}
-            aria-label="Закрытые проекты"
           >
-            {navLabel(<Archive size={17} />, "Закрытые проекты")}
+            <Archive size={15} /> Архив
           </button>
           {isAdminUser && (
-            <>
-              <button
-                type="button"
-                className={isAdminSectionView ? "active" : ""}
-                onClick={() => openView("admin-projects")}
-                aria-label="Администрирование"
-              >
-                {navLabel(<Settings size={17} />, "Администрирование")}
-              </button>
-              {shouldShowAdminMenu && (
-                <div className="sidebar-group">
-                  <div className="project-menu">
-                    {adminNavItems.map((item) => (
-                      <button
-                        type="button"
-                        key={item.view}
-                        className={
-                          activeView === item.view
-                            ? "active nested child"
-                            : "nested child"
-                        }
-                        onClick={() => openView(item.view)}
-                        aria-label={item.label}
-                      >
-                        {navLabel(item.icon, item.label)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+            <button
+              type="button"
+              className={isAdminSectionView ? "active" : ""}
+              onClick={() => openView("admin-projects")}
+            >
+              <Settings size={15} /> Администрирование
+            </button>
           )}
           {isAdminUser && (
-            <>
-              <button
-                type="button"
-                className={isDevelopmentSectionView ? "active" : ""}
-                onClick={() => openView("resources")}
-                aria-label="Разработка"
-              >
-                {navLabel(<Code2 size={17} />, "Разработка")}
-              </button>
-              {shouldShowDevelopmentMenu && (
-                <ResourceSidebarMenu
-                  activeView={activeView}
-                  isResourceSectionView={isResourceSectionView}
-                  navLabel={navLabel}
-                  onOpenView={openView}
-                  projectPicker={
-                    <ProjectPicker
-                      filteredProjects={filteredProjectOptions}
-                      isOpen={showProjectPicker}
-                      onOpenChange={setShowProjectPicker}
-                      onProjectSearchChange={setProjectSearch}
-                      onProjectSelect={selectProject}
-                      projectSearch={projectSearch}
-                      recentProjects={recentProjects}
-                      selectedProject={selectedProjectListItem}
-                      selectedProjectId={selectedProjectId}
-                      targetView="project-pm-workspace"
-                    />
-                  }
-                />
-              )}
-            </>
+            <button
+              type="button"
+              className={isDevelopmentSectionView ? "active" : ""}
+              onClick={() => openView("resources")}
+            >
+              <Code2 size={15} /> Разработка
+            </button>
           )}
           <button
             type="button"
             className={activeView === "wiki" ? "active" : ""}
             onClick={() => openView("wiki")}
-            aria-label="FAQ"
           >
-            {navLabel(<BookOpen size={17} />, "FAQ")}
+            <BookOpen size={15} /> FAQ
           </button>
-          {shouldShowWikiToc && (
-            <div className="sidebar-group wiki-sidebar-group">
-              <div className="wiki-sidebar-title">Оглавление</div>
-              <div className="wiki-sidebar-menu">
-                {wikiGroups.map((group) => (
-                  <section key={group.id}>
-                    <a className="wiki-sidebar-link" href={`#${group.id}`}>
-                      {group.title}
-                    </a>
-                    {group.articles.map((article) => (
-                      <a
-                        className="wiki-sidebar-link article"
-                        href={`#${article.id}`}
-                        key={article.id}
-                      >
-                        {article.title}
-                      </a>
-                    ))}
-                  </section>
-                ))}
-              </div>
-            </div>
-          )}
-          <ThemeToggle sidebarCollapsed={sidebarCollapsed} />
         </nav>
-      </aside>
+        <div className="global-header-search">
+          {renderGlobalSearch("global-search-topbar")}
+        </div>
+        <ThemeToggle sidebarCollapsed />
+      </header>
+
+      {shouldShowProjectMenu && (
+        <div className="section-navigation project-section-navigation">
+          <div className="section-project-picker">
+            {projectPicker(firstEnabledProjectView)}
+          </div>
+          <nav className="section-tabs" aria-label="Разделы проекта">
+            <button
+              type="button"
+              className={activeView === "projects" ? "active" : ""}
+              onClick={() => openView("projects")}
+            >
+              <FolderTree size={15} /> Реестр
+            </button>
+            {projectNavItems
+              .filter((item) => isProjectModuleEnabled(item.key))
+              .map((item) => (
+                <button
+                  type="button"
+                  key={item.view}
+                  className={activeView === item.view ? "active" : ""}
+                  onClick={() => openView(item.view)}
+                  title={item.label}
+                >
+                  {item.icon}
+                  {projectNavShortLabels[item.view] ?? item.label}
+                </button>
+              ))}
+            <button
+              type="button"
+              className={activeView === "project-create" ? "active" : ""}
+              onClick={() => openView("project-create")}
+            >
+              <Plus size={15} /> Создать
+            </button>
+          </nav>
+        </div>
+      )}
+
+      {shouldShowAdminMenu && (
+        <nav className="section-navigation section-tabs" aria-label="Администрирование">
+          {adminNavItems.map((item) => (
+            <button
+              type="button"
+              key={item.view}
+              className={activeView === item.view ? "active" : ""}
+              onClick={() => openView(item.view)}
+            >
+              {item.icon} {item.label}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {shouldShowDevelopmentMenu && (
+        <div className="section-navigation development-section-navigation">
+          {(activeView === "project-pm-workspace" || activeView === "decision-queue") && (
+            <div className="section-project-picker">{projectPicker("project-pm-workspace")}</div>
+          )}
+          <nav className="section-tabs" aria-label="Разработка">
+            {developmentNavItems.map((item) => (
+              <button
+                type="button"
+                key={item.view}
+                className={activeView === item.view ? "active" : ""}
+                onClick={() => openView(item.view)}
+              >
+                {item.icon} {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
+
+      {activeView === "wiki" && (
+        <nav className="section-navigation section-tabs wiki-section-tabs" aria-label="Оглавление FAQ">
+          {wikiGroups.flatMap((group) => [
+            <a href={`#${group.id}`} key={group.id}>{group.title}</a>,
+            ...group.articles.map((article) => (
+              <a
+                className="wiki-article-tab"
+                href={`#${article.id}`}
+                key={article.id}
+              >
+                {article.title}
+              </a>
+            )),
+          ])}
+        </nav>
+      )}
 
       <main className="workspace">
         <AppTopbar
@@ -517,7 +550,6 @@ export function AppShell({
           project={project}
           projectTargetSummary={projectTargetSummary}
           scheduleHealth={scheduleHealth}
-          search={renderGlobalSearch("global-search-topbar")}
           signedDaysLabel={signedDaysLabel}
           viewTitle={viewTitle}
         />
@@ -526,11 +558,7 @@ export function AppShell({
           isAuthenticated={isAuthenticated}
           isClosedProject={isClosedProject}
           onDismissToast={onDismissToast}
-          onLogin={() => {
-            onAuthModeChange("login");
-            onErrorChange(null);
-            onNoticeChange(null);
-          }}
+          onLogin={login}
         />
 
         <PageContextProvider value={pageContext}>
