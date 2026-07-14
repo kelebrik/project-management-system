@@ -7,6 +7,7 @@ import {
 import { emptyIssueForm, type IssueEditDraft, type IssueFormState, type JiraLinkDraft, type TaskJiraDraft } from "../app/formState";
 import { apiBase, authenticatedFetch, responseErrorMessage } from "../app/http";
 import { isoDate } from "../app/dateUtils";
+import { useConfirm } from "./useConfirm";
 
 type IssueStatusDraft = { statusAt: string; text: string };
 
@@ -47,6 +48,7 @@ export function useIssueController({
   setError,
   setNotice,
 }: UseIssueControllerOptions) {
+  const confirm = useConfirm();
   const createOpenIssue = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -332,6 +334,15 @@ export function useIssueController({
     async (issueId: string) => {
       const current = issueEditDrafts[issueId];
       if (!current) return;
+      if (
+        !(await confirm({
+          title: "Закрыть открытый вопрос?",
+          message:
+            "Вопрос получит статус «Решён» и будет исключён из активного списка.",
+          confirmLabel: "Закрыть",
+          tone: "default",
+        }))
+      ) return;
       setIssueEditDrafts({
         ...issueEditDrafts,
         [issueId]: { ...current, status: "Resolved", decisionRequired: false },
@@ -341,12 +352,20 @@ export function useIssueController({
         decisionRequired: false,
       });
     },
-    [issueEditDrafts, saveOpenIssueWithPayload, setIssueEditDrafts],
+    [confirm, issueEditDrafts, saveOpenIssueWithPayload, setIssueEditDrafts],
   );
 
   const convertIssueToProblem = useCallback(
     async (issueId: string) => {
-      if (!window.confirm("Перевести открытый вопрос в проблему?")) return;
+      if (
+        !(await confirm({
+          title: "Перевести вопрос в проблему?",
+          message:
+            "На основе вопроса будет создана проблема RAID, а исходный вопрос изменит статус.",
+          confirmLabel: "Перевести",
+          tone: "default",
+        }))
+      ) return;
       setError(null);
       setNotice(null);
       try {
@@ -370,7 +389,7 @@ export function useIssueController({
         );
       }
     },
-    [refreshProject, setError, setNotice],
+    [confirm, refreshProject, setError, setNotice],
   );
 
   const addIssueStatusUpdate = useCallback(

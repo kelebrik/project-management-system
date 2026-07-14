@@ -11,6 +11,7 @@ import {
 } from "../app/formState";
 import { apiBase, authenticatedFetch } from "../app/http";
 import { isoDate } from "../app/dateUtils";
+import { useConfirm } from "./useConfirm";
 
 type RaidStatusDraft = { statusAt: string; text: string };
 
@@ -41,6 +42,7 @@ export function useRaidController({
   setError,
   setNotice,
 }: UseRaidControllerOptions) {
+  const confirm = useConfirm();
   const updateRaidDraft = useCallback(
     (itemId: string, patch: Partial<RaidFormState>) => {
       const current = raidDrafts[itemId];
@@ -176,7 +178,14 @@ export function useRaidController({
 
   const convertRiskToProblem = useCallback(
     async (itemId: string) => {
-      if (!window.confirm("Перевести риск в проблему?")) return;
+      if (
+        !(await confirm({
+          title: "Перевести риск в проблему?",
+          message: "Тип записи изменится, и риск будет учитываться как проблема.",
+          confirmLabel: "Перевести",
+          tone: "default",
+        }))
+      ) return;
       await patchRaidItem(
         itemId,
         { type: "DEPENDENCY" },
@@ -184,12 +193,20 @@ export function useRaidController({
         "Не удалось перевести риск в проблему",
       );
     },
-    [patchRaidItem],
+    [confirm, patchRaidItem],
   );
 
   const convertRiskToAssumption = useCallback(
     async (itemId: string) => {
-      if (!window.confirm("Перевести риск в допущение?")) return;
+      if (
+        !(await confirm({
+          title: "Перевести риск в допущение?",
+          message:
+            "Тип записи изменится на допущение, связь с исходным риском будет очищена.",
+          confirmLabel: "Перевести",
+          tone: "default",
+        }))
+      ) return;
       await patchRaidItem(
         itemId,
         { type: "ASSUMPTION", linkedRiskId: null },
@@ -197,12 +214,19 @@ export function useRaidController({
         "Не удалось перевести риск в допущение",
       );
     },
-    [patchRaidItem],
+    [confirm, patchRaidItem],
   );
 
   const closeRaidItem = useCallback(
     async (itemId: string) => {
-      if (!window.confirm("Закрыть запись без удаления?")) return;
+      if (
+        !(await confirm({
+          title: "Закрыть запись RAID?",
+          message: "Запись будет исключена из активного реестра без удаления истории.",
+          confirmLabel: "Закрыть",
+          tone: "default",
+        }))
+      ) return;
       await patchRaidItem(
         itemId,
         { status: "CLOSED" },
@@ -210,7 +234,7 @@ export function useRaidController({
         "Не удалось закрыть запись",
       );
     },
-    [patchRaidItem],
+    [confirm, patchRaidItem],
   );
 
   const addRaidStatusUpdate = useCallback(
