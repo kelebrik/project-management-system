@@ -103,8 +103,10 @@ function wbsStatus(value: unknown): WbsItemStatus {
   return (typeof value === 'string' && allowed.has(value) ? value : 'NOT_STARTED') as WbsItemStatus;
 }
 
-function calendarCode(value: unknown): ProjectCalendarCode {
-  return value === 'CN' ? 'CN' : 'RU';
+export function normalizeWbsTombstoneCalendarCode(
+  value: unknown,
+): ProjectCalendarCode {
+  return value === 'CN' || value === 'RU_CN' ? value : 'RU';
 }
 
 function dependencyType(value: unknown): WbsDependencyType {
@@ -164,7 +166,7 @@ function restoreItemData(
     excelEndDate: nullableDate(item.excelEndDate),
     planWorkDays: nullableNumber(item.planWorkDays),
     planCalendarDays: nullableNumber(item.planCalendarDays),
-    calendarCode: calendarCode(item.calendarCode),
+    calendarCode: normalizeWbsTombstoneCalendarCode(item.calendarCode),
     templateColor: nullableString(item.templateColor),
     priority: nullableString(item.priority),
     effortPercent: numberValue(item.effortPercent),
