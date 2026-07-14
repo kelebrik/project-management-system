@@ -405,6 +405,13 @@ html {
     overflow-x: auto;
   }
 
+  .raid-board .raid-kpis,
+  .raid-board .risk-matrix-card,
+  .raid-board .raid-register {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
   .resource-panel-head,
   .resource-profile-title,
   .resource-schedule-owner {
