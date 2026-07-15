@@ -38,6 +38,7 @@ export function BusinessUnitSwitcher() {
           if (!fallback) return;
           window.localStorage.setItem(BUSINESS_UNIT_STORAGE_KEY, fallback.id);
           setSelectedId(fallback.id);
+          window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
         })
         .catch(() => {
           if (!cancelled) setUnits([]);
@@ -64,6 +65,7 @@ export function BusinessUnitSwitcher() {
             const nextId = event.currentTarget.value;
             window.localStorage.setItem(BUSINESS_UNIT_STORAGE_KEY, nextId);
             setSelectedId(nextId);
+            window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
             window.location.assign('/portfolio');
           }}
         >

@@ -154,7 +154,7 @@ export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRo
     }
     const before = await prisma.businessUnitMembership.findUnique({ where: { id: membershipId } });
     if (!before) {
-      res.status(404).json({ error: 'Участник бизнес-юнита не найден' });
+      res.status(204).end();
       return;
     }
     if (before.role !== 'ADMIN') {

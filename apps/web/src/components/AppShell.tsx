@@ -207,6 +207,11 @@ const adminNavItems: AdminNavItem[] = [
     icon: <FolderTree size={17} />,
   },
   {
+    view: "admin-business-units",
+    label: "Бизнес-юниты",
+    icon: <BriefcaseBusiness size={17} />,
+  },
+  {
     view: "admin-modules",
     label: "Управление модулями",
     icon: <SlidersHorizontal size={17} />,

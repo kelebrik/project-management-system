@@ -10,6 +10,7 @@ const projectManager: CurrentUser = {
   role: 'PROJECT_MANAGER',
   isActive: true,
   lastLoginAt: null,
+  businessUnitAdminIds: [],
 };
 
 test('project write requires project access even when role permission allows writes', async () => {

@@ -1,11 +1,8 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Building2, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { apiClient } from "../api/client";
-import {
-  BUSINESS_UNITS_CHANGED_EVENT,
-  selectedBusinessUnitId,
-} from "../app/businessUnitContext";
+import { BUSINESS_UNITS_CHANGED_EVENT } from "../app/businessUnitContext";
 import type { SystemUser } from "../app/adminTypes";
 import { useConfirm } from "../hooks/useConfirm";
 
@@ -19,6 +16,7 @@ type BusinessUnit = {
     role: "ADMIN" | "PROJECT_MANAGER" | "VIEWER";
     user: Pick<SystemUser, "id" | "name" | "email" | "isActive">;
   }>;
+  _count: { projects: number };
 };
 
 export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
@@ -27,7 +25,7 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
   const [unitDraft, setUnitDraft] = useState({ code: "", name: "" });
-  const [administratorId, setAdministratorId] = useState("");
+  const [assignment, setAssignment] = useState({ businessUnitId: "", userId: "" });
 
   async function loadUnits() {
     const data = await apiClient.get<BusinessUnit[]>(
@@ -35,6 +33,12 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
       "Не удалось загрузить бизнес-юниты",
     );
     setUnits(data);
+    setAssignment((current) => ({
+      ...current,
+      businessUnitId: data.some((unit) => unit.id === current.businessUnitId)
+        ? current.businessUnitId
+        : data[0]?.id ?? "",
+    }));
     setError("");
   }
 
@@ -46,7 +50,12 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
         "Не удалось загрузить бизнес-юниты",
       )
       .then((data) => {
-        if (!cancelled) setUnits(data);
+        if (cancelled) return;
+        setUnits(data);
+        setAssignment((current) => ({
+          ...current,
+          businessUnitId: current.businessUnitId || data[0]?.id || "",
+        }));
       })
       .catch((loadError) => {
         if (!cancelled) {
@@ -58,18 +67,17 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
     };
   }, []);
 
-  const selectedUnit = useMemo(() => {
-    const selectedId = selectedBusinessUnitId();
-    return units.find((unit) => unit.id === selectedId) ??
-      units.find((unit) => unit.isDefault) ??
-      units[0] ?? null;
-  }, [units]);
-  const administrators = selectedUnit?.memberships.filter((item) => item.role === "ADMIN") ?? [];
+  const selectedUnit = units.find((unit) => unit.id === assignment.businessUnitId) ?? null;
+  const selectedAdministratorIds = useMemo(
+    () => new Set(
+      selectedUnit?.memberships
+        .filter((membership) => membership.role === "ADMIN")
+        .map((membership) => membership.user.id) ?? [],
+    ),
+    [selectedUnit],
+  );
   const availableUsers = users.filter(
-    (user) =>
-      user.isActive &&
-      user.role !== "ADMIN" &&
-      !administrators.some((item) => item.user.id === user.id),
+    (user) => user.isActive && user.role !== "ADMIN" && !selectedAdministratorIds.has(user.id),
   );
 
   async function createUnit(event: FormEvent) {
@@ -90,15 +98,15 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
 
   async function assignAdministrator(event: FormEvent) {
     event.preventDefault();
-    if (!selectedUnit || !administratorId) return;
+    if (!assignment.businessUnitId || !assignment.userId) return;
     setError("");
     try {
       await apiClient.post(
-        `/api/admin/business-units/${selectedUnit.id}/memberships`,
-        { userId: administratorId, role: "ADMIN" },
+        `/api/admin/business-units/${assignment.businessUnitId}/memberships`,
+        { userId: assignment.userId, role: "ADMIN" },
         "Не удалось назначить администратора БЮ",
       );
-      setAdministratorId("");
+      setAssignment((current) => ({ ...current, userId: "" }));
       await loadUnits();
       window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
     } catch (saveError) {
@@ -106,12 +114,30 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
     }
   }
 
+  async function removeAdministrator(unit: BusinessUnit, membershipId: string, userName: string) {
+    if (!(await confirm({
+      title: "Снять роль администратора БЮ?",
+      message: `${userName} потеряет административные права в БЮ «${unit.name}».`,
+      confirmLabel: "Снять роль",
+    }))) return;
+    try {
+      await apiClient.delete(
+        `/api/admin/business-unit-memberships/${membershipId}`,
+        "Не удалось снять роль администратора БЮ",
+      );
+      await loadUnits();
+      window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Не удалось снять роль");
+    }
+  }
+
   return (
-    <section className="business-unit-admin business-unit-registry-settings" aria-labelledby="business-unit-settings-heading">
+    <section className="business-unit-admin" aria-labelledby="business-unit-settings-heading">
       <div className="business-unit-admin-heading">
         <div>
-          <h3 id="business-unit-settings-heading">Настройки бизнес-юнита</h3>
-          <p>Создание бизнес-юнитов и назначение администраторов. Доступно только администратору системы.</p>
+          <h2 id="business-unit-settings-heading"><Building2 size={20} /> Реестр бизнес-юнитов</h2>
+          <p>Создание бизнес-юнитов и назначение их администраторов.</p>
         </div>
         <form className="business-unit-create" onSubmit={createUnit}>
           <input
@@ -139,63 +165,65 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
       </div>
 
       {error && <p className="business-unit-error">{error}</p>}
-      {selectedUnit && (
-        <div className="business-unit-registry-admins">
-          <div className="business-unit-name">
-            <b>{selectedUnit.name}</b>
-            <small>{selectedUnit.code} · администраторы БЮ</small>
-          </div>
-          <div className="business-unit-members">
-            {administrators.map((membership) => (
-              <span className="business-unit-member" key={membership.id}>
-                <span>
-                  <b>{membership.user.name}</b>
-                  <small>{membership.user.email}</small>
-                </span>
-                <button
-                  type="button"
-                  className="ghost-button icon-button"
-                  aria-label={`Снять роль администратора БЮ с ${membership.user.name}`}
-                  onClick={async () => {
-                    if (!(await confirm({
-                      title: "Снять роль администратора БЮ?",
-                      message: `${membership.user.name} потеряет административные права в БЮ «${selectedUnit.name}».`,
-                      confirmLabel: "Снять роль",
-                    }))) return;
-                    try {
-                      await apiClient.delete(
-                        `/api/admin/business-unit-memberships/${membership.id}`,
-                        "Не удалось снять роль администратора БЮ",
-                      );
-                      await loadUnits();
-                      window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
-                    } catch (deleteError) {
-                      setError(deleteError instanceof Error ? deleteError.message : "Не удалось снять роль");
-                    }
-                  }}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </span>
-            ))}
-            {administrators.length === 0 && <small>Администратор БЮ не назначен</small>}
-          </div>
-          <form className="business-unit-admin-assignment" onSubmit={assignAdministrator}>
-            <select
-              aria-label="Новый администратор БЮ"
-              value={administratorId}
-              onChange={(event) => setAdministratorId(event.currentTarget.value)}
-              required
-            >
-              <option value="">Выберите администратора БЮ</option>
-              {availableUsers.map((user) => (
-                <option key={user.id} value={user.id}>{user.name} · {user.email}</option>
-              ))}
-            </select>
-            <button type="submit">Назначить</button>
-          </form>
-        </div>
-      )}
+
+      <form className="business-unit-membership-form" onSubmit={assignAdministrator}>
+        <select
+          aria-label="Бизнес-юнит для назначения администратора"
+          value={assignment.businessUnitId}
+          onChange={(event) => setAssignment({
+            businessUnitId: event.currentTarget.value,
+            userId: "",
+          })}
+          required
+        >
+          {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+        </select>
+        <select
+          aria-label="Новый администратор БЮ"
+          value={assignment.userId}
+          onChange={(event) => setAssignment({ ...assignment, userId: event.currentTarget.value })}
+          required
+        >
+          <option value="">Выберите администратора БЮ</option>
+          {availableUsers.map((user) => (
+            <option key={user.id} value={user.id}>{user.name} · {user.email}</option>
+          ))}
+        </select>
+        <button type="submit">Назначить</button>
+      </form>
+
+      <div className="business-unit-list">
+        {units.map((unit) => {
+          const administrators = unit.memberships.filter((membership) => membership.role === "ADMIN");
+          return (
+            <div className="business-unit-row" key={unit.id}>
+              <div className="business-unit-name">
+                <b>{unit.name}</b>
+                <small>{unit.code} · проектов: {unit._count.projects}{unit.isDefault ? " · основной" : ""}</small>
+              </div>
+              <div className="business-unit-members">
+                {administrators.map((membership) => (
+                  <span className="business-unit-member" key={membership.id}>
+                    <span>
+                      <b>{membership.user.name}</b>
+                      <small>{membership.user.email}</small>
+                    </span>
+                    <button
+                      type="button"
+                      className="ghost-button icon-button"
+                      aria-label={`Снять роль администратора БЮ с ${membership.user.name}`}
+                      onClick={() => void removeAdministrator(unit, membership.id, membership.user.name)}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </span>
+                ))}
+                {administrators.length === 0 && <small>Администратор БЮ не назначен</small>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

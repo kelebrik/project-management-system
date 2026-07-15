@@ -4,7 +4,6 @@ import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
 import type { ProjectRegistryDraft } from "../app/formState";
 import type { RagStatus } from "../app/domainTypes";
-import { BusinessUnitSystemSettings } from "../components/BusinessUnitSystemSettings";
 
 export function AdminProjectsPageContent() {
   const ctx = usePageContext();
@@ -55,9 +54,6 @@ export function AdminProjectsPageContent() {
 
   return (
                     <article className="panel project-card">
-                      {currentUser?.role === "ADMIN" && (
-                        <BusinessUnitSystemSettings users={ctx.users} />
-                      )}
                       <div className="panel-title">
                         <div>
                           <h2>Администрирование: реестр проектов</h2>

@@ -1,60 +1,60 @@
 import { useEffect, useState } from "react";
-
-import { apiClient } from "../api/client";
 import type { CurrentUser } from "../app/adminTypes";
 import {
+  BUSINESS_UNIT_STORAGE_KEY,
   BUSINESS_UNITS_CHANGED_EVENT,
   selectedBusinessUnitId,
 } from "../app/businessUnitContext";
 
-type BusinessUnitAccess = {
-  id: string;
-  isDefault: boolean;
-  canManage: boolean;
-};
+export function isBusinessUnitAdminForSelectedUnit(
+  businessUnitAdminIds: string[],
+  businessUnitId: string | null,
+) {
+  return Boolean(businessUnitId && businessUnitAdminIds.includes(businessUnitId));
+}
 
 export function useBusinessUnitAdminStatus(
   currentUser: CurrentUser | null,
   authReady: boolean,
 ) {
-  const [status, setStatus] = useState<boolean | null>(null);
+  const [businessUnitId, setBusinessUnitId] = useState(selectedBusinessUnitId);
 
   useEffect(() => {
-    if (!authReady || !currentUser || currentUser.role === "ADMIN") return;
-    let cancelled = false;
-    const resetId = window.setTimeout(() => {
-      if (!cancelled) setStatus(null);
-    }, 0);
-    const load = () => {
-      void apiClient
-        .get<BusinessUnitAccess[]>("/api/business-units", "Не удалось проверить роль в БЮ")
-        .then((units) => {
-          if (cancelled) return;
-          const selectedId = selectedBusinessUnitId();
-          const selected =
-            units.find((unit) => unit.id === selectedId) ??
-            units.find((unit) => unit.isDefault) ??
-            units[0];
-          setStatus(selected?.canManage ?? false);
-        })
-        .catch(() => {
-          if (!cancelled) setStatus(false);
-        });
+    const syncSelection = () => setBusinessUnitId(selectedBusinessUnitId());
+    const syncStorageSelection = (event: StorageEvent) => {
+      if (event.key === null || event.key === BUSINESS_UNIT_STORAGE_KEY) syncSelection();
     };
-    load();
-    window.addEventListener(BUSINESS_UNITS_CHANGED_EVENT, load);
+    syncSelection();
+    window.addEventListener(BUSINESS_UNITS_CHANGED_EVENT, syncSelection);
+    window.addEventListener("storage", syncStorageSelection);
     return () => {
-      cancelled = true;
-      window.clearTimeout(resetId);
-      window.removeEventListener(BUSINESS_UNITS_CHANGED_EVENT, load);
+      window.removeEventListener(BUSINESS_UNITS_CHANGED_EVENT, syncSelection);
+      window.removeEventListener("storage", syncStorageSelection);
     };
-  }, [authReady, currentUser]);
+  }, []);
+
+  useEffect(() => {
+    if (
+      !authReady ||
+      !currentUser ||
+      currentUser.role === "ADMIN" ||
+      businessUnitId ||
+      !currentUser.businessUnitAdminIds?.length
+    ) return;
+    const initialBusinessUnitId = currentUser.businessUnitAdminIds[0];
+    window.localStorage.setItem(BUSINESS_UNIT_STORAGE_KEY, initialBusinessUnitId);
+    window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
+  }, [authReady, businessUnitId, currentUser]);
 
   if (!authReady || !currentUser || currentUser.role === "ADMIN") {
     return { isBusinessUnitAdmin: false, isBusinessUnitAdminResolved: true };
   }
   return {
-    isBusinessUnitAdmin: status === true,
-    isBusinessUnitAdminResolved: status !== null,
+    isBusinessUnitAdmin: isBusinessUnitAdminForSelectedUnit(
+      currentUser.businessUnitAdminIds ?? [],
+      businessUnitId,
+    ),
+    isBusinessUnitAdminResolved:
+      businessUnitId !== null || (currentUser.businessUnitAdminIds?.length ?? 0) === 0,
   };
 }

@@ -141,6 +141,25 @@ export function useAuthController({
   }, [setAuthMode, setCurrentUser, setError, setLoading]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+    const refreshCurrentUser = () => {
+      void apiClient
+        .get<{ user: CurrentUser }>("/api/auth/me", "Не удалось обновить сессию")
+        .then((result) => setCurrentUser(result.user))
+        .catch(() => undefined);
+    };
+    const refreshVisibleSession = () => {
+      if (document.visibilityState === "visible") refreshCurrentUser();
+    };
+    window.addEventListener("focus", refreshCurrentUser);
+    document.addEventListener("visibilitychange", refreshVisibleSession);
+    return () => {
+      window.removeEventListener("focus", refreshCurrentUser);
+      document.removeEventListener("visibilitychange", refreshVisibleSession);
+    };
+  }, [isAuthenticated, setCurrentUser]);
+
+  useEffect(() => {
     let cancelled = false;
     apiClient
       .get<KeycloakAuthStatus>("/api/auth/keycloak/status")
