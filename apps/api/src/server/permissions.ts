@@ -31,7 +31,11 @@ export function writePermissionForPath(pathname: string, method: string): Permis
   if (pathname.startsWith('/admin/project-modules')) {
     return 'admin.modules';
   }
-  if (pathname.startsWith('/admin/project-access')) {
+  if (
+    pathname.startsWith('/admin/project-access') ||
+    pathname.startsWith('/admin/business-units') ||
+    pathname.startsWith('/admin/business-unit-memberships')
+  ) {
     return 'admin.project_access';
   }
   if (pathname.startsWith('/admin/config/import')) {

@@ -42,6 +42,16 @@ export const projectAccessPatchSchema = z.object({
   level: z.enum(['VIEW', 'EDIT', 'ADMIN']),
 });
 
+export const businessUnitSchema = z.object({
+  code: z.string().trim().min(2).max(32).regex(/^[a-z0-9-]+$/),
+  name: z.string().trim().min(2).max(120),
+});
+
+export const businessUnitMembershipSchema = z.object({
+  userId: z.string().trim().min(1),
+  role: z.enum(['ADMIN', 'PROJECT_MANAGER', 'VIEWER']),
+});
+
 export const adminConfigImportSchema = z.object({
   rolePermissions: z
     .array(

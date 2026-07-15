@@ -22,3 +22,164 @@ body {
   background: var(--bg);
   color: var(--text);
 }
+.business-unit-switcher {
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  display: flex;
+  flex: 0 1 190px;
+  gap: 6px;
+  min-width: 130px;
+  padding: 0 7px;
+}
+
+.business-unit-switcher select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  height: 34px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.business-unit-switcher select:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+}
+
+.business-unit-admin {
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  margin: 8px 0 24px;
+  padding: 18px 0;
+}
+
+.business-unit-admin-heading,
+.business-unit-membership-form,
+.business-unit-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.business-unit-admin-heading h3 {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  margin: 0 0 4px;
+}
+
+.business-unit-admin-heading p,
+.business-unit-name small,
+.business-unit-member small {
+  color: var(--text-muted);
+  display: block;
+  font-size: 11px;
+  margin: 0;
+}
+
+.business-unit-create,
+.business-unit-membership-form {
+  display: flex;
+  gap: 8px;
+}
+
+.business-unit-create input,
+.business-unit-membership-form select {
+  min-height: 36px;
+}
+
+.business-unit-create input {
+  min-width: 150px;
+}
+
+.business-unit-membership-form {
+  background: var(--surface-2);
+  border-radius: 6px;
+  justify-content: flex-start;
+  margin-top: 16px;
+  padding: 10px;
+}
+
+.business-unit-membership-form select:nth-child(2) {
+  min-width: 260px;
+}
+
+.business-unit-list {
+  margin-top: 10px;
+}
+
+.business-unit-row {
+  align-items: flex-start;
+  border-top: 1px solid var(--border);
+  padding: 12px 4px;
+}
+
+.business-unit-name {
+  flex: 0 0 220px;
+}
+
+.business-unit-members {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.business-unit-member {
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  display: flex;
+  gap: 6px;
+  padding: 5px 5px 5px 9px;
+}
+
+.app-global-header .business-unit-switcher {
+  background: #263330;
+  border-color: #3a4946;
+  color: #d8e1df;
+  flex-basis: 160px;
+  order: 1;
+}
+
+.business-unit-member .icon-button {
+  height: 26px;
+  min-height: 26px;
+  width: 26px;
+}
+
+.business-unit-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+
+@media (max-width: 1100px) {
+  .business-unit-admin-heading,
+  .business-unit-membership-form,
+  .business-unit-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .business-unit-create {
+    flex-wrap: wrap;
+  }
+
+  .business-unit-name {
+    flex-basis: auto;
+  }
+}

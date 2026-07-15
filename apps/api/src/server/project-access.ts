@@ -7,15 +7,26 @@ const writeLevels: ProjectAccessLevel[] = ['EDIT', 'ADMIN'];
 const adminLevels: ProjectAccessLevel[] = ['ADMIN'];
 
 export async function userProjectAccessLevel(userId: string, projectId: string) {
-  const access = await prisma.projectAccess.findUnique({
-    where: {
-      projectId_userId: {
-        projectId,
-        userId,
+  const [access, unitAdmin] = await Promise.all([
+    prisma.projectAccess.findUnique({
+      where: {
+        projectId_userId: {
+          projectId,
+          userId,
+        },
       },
-    },
-    select: { level: true },
-  });
+      select: { level: true },
+    }),
+    prisma.businessUnitMembership.findFirst({
+      where: {
+        userId,
+        role: 'ADMIN',
+        businessUnit: { projects: { some: { id: projectId } } },
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (unitAdmin) return 'ADMIN';
   return access?.level ?? null;
 }
 
@@ -30,17 +41,25 @@ export async function userCanAdminProject(userId: string, projectId: string) {
 }
 
 export async function userProjectAccessLevelMap(userId: string, projectIds?: string[]) {
-  const accesses = await prisma.projectAccess.findMany({
-    where: {
-      userId,
-      ...(projectIds ? { projectId: { in: projectIds } } : {}),
-    },
-    select: {
-      projectId: true,
-      level: true,
-    },
-  });
-  return new Map(accesses.map((access) => [access.projectId, access.level]));
+  const [accesses, unitAdminProjects] = await Promise.all([
+    prisma.projectAccess.findMany({
+      where: {
+        userId,
+        ...(projectIds ? { projectId: { in: projectIds } } : {}),
+      },
+      select: { projectId: true, level: true },
+    }),
+    prisma.project.findMany({
+      where: {
+        ...(projectIds ? { id: { in: projectIds } } : {}),
+        businessUnit: { memberships: { some: { userId, role: 'ADMIN' } } },
+      },
+      select: { id: true },
+    }),
+  ]);
+  const result = new Map(accesses.map((access) => [access.projectId, access.level]));
+  unitAdminProjects.forEach((project) => result.set(project.id, 'ADMIN'));
+  return result;
 }
 
 export async function ensureProjectWriteAccess(projectId: string, req: Request, res: Response) {

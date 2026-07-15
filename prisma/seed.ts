@@ -3,6 +3,16 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
+  const defaultBusinessUnit = await prisma.businessUnit.upsert({
+    where: { code: 'main' },
+    update: { name: 'Основной бизнес-юнит', isDefault: true, isActive: true },
+    create: {
+      id: 'business-unit-default',
+      code: 'main',
+      name: 'Основной бизнес-юнит',
+      isDefault: true,
+    },
+  });
   const demoProjects = [
     {
       code: 'TEST-002',
@@ -56,6 +66,7 @@ async function main() {
       prisma.project.upsert({
         where: { code: item.code },
         update: {
+          businessUnitId: defaultBusinessUnit.id,
           parentId: null,
           name: item.name,
           portfolio: 'Project Management',
@@ -74,6 +85,7 @@ async function main() {
           sortOrder: item.sortOrder,
         },
         create: {
+          businessUnitId: defaultBusinessUnit.id,
           code: item.code,
           name: item.name,
           portfolio: 'Project Management',
@@ -98,10 +110,12 @@ async function main() {
   const project = await prisma.project.upsert({
     where: { code: 'ERP' },
     update: {
+      businessUnitId: defaultBusinessUnit.id,
       parentId: null,
       sortOrder: 10,
     },
     create: {
+      businessUnitId: defaultBusinessUnit.id,
       parentId: null,
       code: 'ERP',
       name: 'ERP rollout',

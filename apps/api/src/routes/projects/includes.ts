@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 export const projectInclude = {
+  businessUnit: { select: { id: true, code: true, name: true } },
   jiraIntegration: true,
   wbsItems: {
     where: { type: { in: ['GOAL', 'TASK', 'DELIVERABLE'] } },
@@ -32,6 +33,7 @@ export const projectInclude = {
 } satisfies Prisma.ProjectInclude;
 
 export const projectDetailsInclude = {
+  businessUnit: { select: { id: true, code: true, name: true } },
   jiraIntegration: true,
   targetDateChanges: {
     orderBy: { createdAt: 'desc' },

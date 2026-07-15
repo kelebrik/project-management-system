@@ -5,6 +5,7 @@ import { prisma } from '../db.js';
 import { isJiraConfigured } from '../jira.js';
 import { openApiDocument } from '../openapi.js';
 import { createAdminRouter } from '../routes/admin.routes.js';
+import { createBusinessUnitsRouter } from '../routes/business-units.routes.js';
 import { createIssuesRouter } from '../routes/issues.routes.js';
 import { createProjectsRouter } from '../routes/projects.routes.js';
 import { createRisksRouter } from '../routes/risks.routes.js';
@@ -12,6 +13,7 @@ import { createSavedViewsRouter } from '../routes/saved-views.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
 import { createWbsRouter } from '../routes/wbs.routes.js';
 import { attachAuth, currentUser, hashPassword, requireAdmin, requireAuth, requireAuthForWrites, userResponse, wouldRemoveLastAdmin } from './auth.js';
+import { businessUnitReadMiddleware } from './business-units.js';
 import { registerAuthRoutes } from './auth-routes.js';
 import { serverErrorMessage } from './errors.js';
 import { registerKeycloakAuthRoutes } from './keycloak-auth.js';
@@ -97,6 +99,8 @@ export function createApp() {
   registerAuthRoutes(app);
   registerKeycloakAuthRoutes(app);
 
+  app.use('/api', createBusinessUnitsRouter());
+  app.use('/api', businessUnitReadMiddleware);
   app.use('/api', createSearchRouter());
   app.use('/api', createSavedViewsRouter({ currentUser, requireAuth }));
 

@@ -1,6 +1,7 @@
 import type { Express, Request } from 'express';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { prisma } from '../db.js';
+import { ensureDefaultBusinessUnitMembership } from './business-units.js';
 import { recordAuditEvent } from '../services/audit.js';
 import { AUTH_COOKIE_SECURE, createSession } from './auth.js';
 import { logEvent } from './logger.js';
@@ -212,7 +213,7 @@ async function upsertKeycloakUser(profile: KeycloakProfile) {
   });
   const shouldBootstrapAdmin = activeAdminCount === 0;
   if (existing) {
-    return prisma.user.update({
+    const user = await prisma.user.update({
       where: { id: existing.id },
       data: {
         name: existing.name?.trim() ? existing.name : profile.name,
@@ -229,8 +230,10 @@ async function upsertKeycloakUser(profile: KeycloakProfile) {
         lastLoginAt: true,
       },
     });
+    await ensureDefaultBusinessUnitMembership(user.id, user.role);
+    return user;
   }
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       email: profile.email,
       name: profile.name,
@@ -247,6 +250,8 @@ async function upsertKeycloakUser(profile: KeycloakProfile) {
       lastLoginAt: true,
     },
   });
+  await ensureDefaultBusinessUnitMembership(user.id, user.role);
+  return user;
 }
 
 export function registerKeycloakAuthRoutes(app: Express) {

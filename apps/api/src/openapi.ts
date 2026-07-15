@@ -236,6 +236,15 @@ export const openApiDocument = {
     },
   },
   paths: {
+    "/api/business-units": {
+      get: {
+        tags: ["Projects"],
+        summary: "List business units available in the current user context",
+        responses: {
+          "200": { description: "Available business units" },
+        },
+      },
+    },
     "/api/health": {
       get: {
         tags: ["Health"],

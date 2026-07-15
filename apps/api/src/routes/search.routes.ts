@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
+import { readableProjectWhere } from '../server/business-units.js';
 
 const searchQuerySchema = z.object({
   q: z.string().trim().min(2),
@@ -53,11 +54,22 @@ export function createSearchRouter() {
     const { q, projectId, limit } = parsed.data;
     const types = allowedTypes(parsed.data.types);
     const results: SearchResult[] = [];
+    const projectScope = await readableProjectWhere(req);
+    if (projectId) {
+      const readable = await prisma.project.findFirst({
+        where: { AND: [{ id: projectId }, projectScope] },
+        select: { id: true },
+      });
+      if (!readable) {
+        res.json([]);
+        return;
+      }
+    }
 
     if (types.has('project')) {
       const projects = await prisma.project.findMany({
         where: {
-          ...(projectId ? { id: projectId } : {}),
+          AND: [projectScope, ...(projectId ? [{ id: projectId }] : [])],
           OR: [
             { code: contains(q) },
             { name: contains(q) },
@@ -89,6 +101,7 @@ export function createSearchRouter() {
       const items = await prisma.wbsItem.findMany({
         where: {
           ...(projectId ? { projectId } : {}),
+          project: projectScope,
           OR: [
             { code: contains(q) },
             { title: contains(q) },
@@ -121,6 +134,7 @@ export function createSearchRouter() {
       const issues = await prisma.issue.findMany({
         where: {
           ...(projectId ? { projectId } : {}),
+          project: projectScope,
           ...(types.has('decision') && !types.has('issue') ? { decisionRequired: true } : {}),
           OR: [
             { title: contains(q) },
@@ -154,6 +168,7 @@ export function createSearchRouter() {
       const risks = await prisma.raidItem.findMany({
         where: {
           ...(projectId ? { projectId } : {}),
+          project: projectScope,
           OR: [
             { title: contains(q) },
             { description: contains(q) },
@@ -187,6 +202,7 @@ export function createSearchRouter() {
       const artifacts = await prisma.projectArtifact.findMany({
         where: {
           ...(projectId ? { projectId } : {}),
+          project: projectScope,
           OR: [
             { title: contains(q) },
             { type: contains(q) },
@@ -219,6 +235,7 @@ export function createSearchRouter() {
       const overviews = await prisma.executiveOverview.findMany({
         where: {
           ...(projectId ? { projectId } : {}),
+          project: projectScope,
           executiveSummary: contains(q),
         },
         include: { project: { select: { code: true, name: true } } },

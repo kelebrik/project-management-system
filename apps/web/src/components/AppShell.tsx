@@ -42,6 +42,7 @@ import { wikiGroups } from "../app/wikiContent";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
 import { PageContextProvider, type PageContextValue } from "../pages/PageContext";
 import { AppTopbar } from "./AppTopbar";
+import { BusinessUnitSwitcher } from "./BusinessUnitSwitcher";
 import { ProjectPicker } from "./ProjectPicker";
 import type { ProjectNavItem } from "./ProjectSidebarMenu";
 import { SidebarIdentity } from "./SidebarIdentity";
@@ -392,6 +393,7 @@ export function AppShell({
           onLogin={login}
           onLogout={logout}
         />
+        <BusinessUnitSwitcher />
         <nav className="global-section-nav" aria-label="Основные разделы">
           <button
             type="button"
