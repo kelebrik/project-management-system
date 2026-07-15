@@ -99,13 +99,20 @@ test('bulk WBS delete requires delete permission', () => {
   assert.equal(writePermissionForPath('/projects/project-1/wbs-items', 'DELETE'), 'wbs.delete');
 });
 
-test('business unit membership writes use route-level scoped authorization', () => {
+test('business unit role writes require system administration permission', () => {
   assert.equal(
     writePermissionForPath('/admin/business-units/unit-1/memberships', 'POST'),
-    null,
+    'admin.config',
   );
   assert.equal(
     writePermissionForPath('/admin/business-unit-memberships/membership-1', 'DELETE'),
+    'admin.config',
+  );
+});
+
+test('project access writes use route-level business unit authorization', () => {
+  assert.equal(
+    writePermissionForPath('/admin/project-access', 'POST'),
     null,
   );
 });

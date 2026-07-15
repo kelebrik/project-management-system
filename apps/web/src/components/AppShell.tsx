@@ -34,6 +34,7 @@ import type { CurrentUser } from "../app/adminTypes";
 import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
 import type { ProjectModuleKey } from "../app/projectModules";
 import {
+  canAccessAdminView,
   isAdminSectionViewName,
   type AppView,
   type ProjectSectionView,
@@ -70,6 +71,7 @@ type AppShellProps = {
   handleEditableKeyDown: KeyboardEventHandler<HTMLDivElement>;
   isAdminSectionView: boolean;
   isAdminUser: boolean;
+  isBusinessUnitAdmin: boolean;
   isAuthenticated: boolean;
   isClosedProject: boolean;
   isDevelopmentSectionView: boolean;
@@ -210,11 +212,6 @@ const adminNavItems: AdminNavItem[] = [
     icon: <SlidersHorizontal size={17} />,
   },
   {
-    view: "admin-business-units",
-    label: "Бизнес-юниты",
-    icon: <BriefcaseBusiness size={17} />,
-  },
-  {
     view: "admin-project-access",
     label: "Доступы",
     icon: <ShieldCheck size={17} />,
@@ -331,6 +328,7 @@ export function AppShell({
   handleEditableKeyDown,
   isAdminSectionView,
   isAdminUser,
+  isBusinessUnitAdmin,
   isAuthenticated,
   isClosedProject,
   isDevelopmentSectionView,
@@ -398,10 +396,7 @@ export function AppShell({
           onLogin={login}
           onLogout={logout}
         />
-        <BusinessUnitSwitcher
-          canManage={isAdminUser}
-          onManage={() => openView("admin-business-units")}
-        />
+        <BusinessUnitSwitcher />
         <nav className="global-section-nav" aria-label="Основные разделы">
           <button
             type="button"
@@ -431,7 +426,7 @@ export function AppShell({
           >
             <Archive size={15} /> Архив
           </button>
-          {isAdminUser && (
+          {(isAdminUser || isBusinessUnitAdmin) && (
             <button
               type="button"
               className={isAdminSectionView ? "active" : ""}
@@ -503,7 +498,12 @@ export function AppShell({
 
       {shouldShowAdminMenu && (
         <nav className="section-navigation section-tabs" aria-label="Администрирование">
-          {adminNavItems.map((item) => (
+          {adminNavItems
+            .filter((item) =>
+              !isAdminSectionViewName(item.view) ||
+              canAccessAdminView(item.view, isAdminUser, isBusinessUnitAdmin),
+            )
+            .map((item) => (
             <button
               type="button"
               key={item.view}
@@ -512,7 +512,7 @@ export function AppShell({
             >
               {item.icon} {item.label}
             </button>
-          ))}
+            ))}
         </nav>
       )}
 

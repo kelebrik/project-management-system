@@ -88,6 +88,7 @@ type AppPresentationProps = {
   handleEditableFocus: FocusEventHandler<HTMLDivElement>;
   handleEditableKeyDown: KeyboardEventHandler<HTMLDivElement>;
   isAdminUser: boolean;
+  isBusinessUnitAdmin: boolean;
   isAuthenticated: boolean;
   isClosedProject: boolean;
   isProjectModuleEnabled: (key: any) => boolean;
@@ -164,7 +165,6 @@ function createViewTitle(project: any): Record<AppView, string> {
     "admin-config": "Администрирование: import/export",
     "admin-projects": "Администрирование: реестр проектов",
     "admin-modules": "Администрирование: управление модулями",
-    "admin-business-units": "Администрирование: бизнес-юниты",
     "admin-project-access": "Администрирование: доступы",
     "admin-audit": "Администрирование: журнал аудита",
   };
@@ -185,6 +185,7 @@ export function AppPresentation({
   handleEditableFocus,
   handleEditableKeyDown,
   isAdminUser,
+  isBusinessUnitAdmin,
   isAuthenticated,
   isClosedProject,
   isProjectModuleEnabled,
@@ -237,7 +238,9 @@ export function AppPresentation({
       activeView === "project-create" ||
       (selectedProjectListItem && isProjectSectionView),
   );
-  const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
+  const shouldShowAdminMenu = Boolean(
+    (isAdminUser || isBusinessUnitAdmin) && isAdminSectionView,
+  );
   const shouldShowDevelopmentMenu = Boolean(
     isAdminUser && isDevelopmentSectionView,
   );
@@ -367,6 +370,7 @@ export function AppPresentation({
       handleEditableKeyDown={handleEditableKeyDown}
       isAdminSectionView={isAdminSectionView}
       isAdminUser={isAdminUser}
+      isBusinessUnitAdmin={isBusinessUnitAdmin}
       isAuthenticated={isAuthenticated}
       isClosedProject={shouldShowClosedProjectBanner}
       isDevelopmentSectionView={isDevelopmentSectionView}

@@ -37,6 +37,7 @@ import { useIssueState } from "./hooks/useIssueState";
 import { usePassportController } from "./hooks/usePassportController";
 import { useProjectCoreState } from "./hooks/useProjectCoreState";
 import { useProjectRegistryController } from "./hooks/useProjectRegistryController";
+import { useBusinessUnitAdminStatus } from "./hooks/useBusinessUnitAdminStatus";
 import { useRaidController } from "./hooks/useRaidController";
 import { useRaidState } from "./hooks/useRaidState";
 import { useSavedViewsState } from "./hooks/useSavedViewsState";
@@ -305,6 +306,10 @@ function AppController() {
     useSavedViewsState();
   const isAuthenticated = Boolean(currentUser);
   const isAdminUser = currentUser?.role === "ADMIN";
+  const { isBusinessUnitAdmin, isBusinessUnitAdminResolved } = useBusinessUnitAdminStatus(
+    currentUser,
+    authMode === "ready",
+  );
   const isClosedProject = project?.status === "CLOSED";
   const globalSearch = useGlobalSearch();
   const {
@@ -318,6 +323,7 @@ function AppController() {
     activeView,
     authReady: authMode === "ready",
     currentUser,
+    isBusinessUnitAdmin,
     setUsers,
     setUserDrafts,
     setAuditEvents,
@@ -361,6 +367,7 @@ function AppController() {
     authMode,
     firstEnabledProjectView,
     isAdminUser,
+    isBusinessUnitAdmin,
     isAuthenticated,
     isProjectModuleEnabled,
     project,
@@ -391,6 +398,8 @@ function AppController() {
     projectModules,
     isAuthenticated,
     isAdminUser,
+    isBusinessUnitAdmin,
+    isBusinessUnitAdminResolved,
     firstEnabledProjectView,
     openView,
     resetAdminState,
@@ -918,6 +927,7 @@ function AppController() {
       handleEditableFocus={handleEditableFocus}
       handleEditableKeyDown={handleEditableKeyDown}
       isAdminUser={isAdminUser}
+      isBusinessUnitAdmin={isBusinessUnitAdmin}
       isAuthenticated={isAuthenticated}
       isClosedProject={isClosedProject}
       isProjectModuleEnabled={isProjectModuleEnabled}

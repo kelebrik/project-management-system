@@ -1,4 +1,4 @@
-import { Building2, Plus, Settings } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import {
@@ -17,12 +17,7 @@ type BusinessUnitOption = {
   projectCount: number;
 };
 
-type BusinessUnitSwitcherProps = {
-  canManage?: boolean;
-  onManage?: () => void;
-};
-
-export function BusinessUnitSwitcher({ canManage = false, onManage }: BusinessUnitSwitcherProps) {
+export function BusinessUnitSwitcher() {
   const [units, setUnits] = useState<BusinessUnitOption[]>([]);
   const [selectedId, setSelectedId] = useState(selectedBusinessUnitId() ?? '');
 
@@ -79,17 +74,6 @@ export function BusinessUnitSwitcher({ canManage = false, onManage }: BusinessUn
           ))}
         </select>
       </label>
-      {(canManage || units.find((unit) => unit.id === selectedId)?.canManage) && onManage && (
-        <button
-          type="button"
-          className="business-unit-manage-button"
-          aria-label={canManage ? 'Создать бизнес-юнит' : 'Управлять бизнес-юнитом'}
-          title={canManage ? 'Создать бизнес-юнит' : 'Управлять бизнес-юнитом'}
-          onClick={onManage}
-        >
-          {canManage ? <Plus size={16} aria-hidden="true" /> : <Settings size={16} aria-hidden="true" />}
-        </button>
-      )}
     </div>
   );
 }

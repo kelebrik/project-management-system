@@ -212,6 +212,30 @@ body {
   margin: 10px 0 0;
 }
 
+.business-unit-registry-settings {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+}
+
+.business-unit-registry-admins {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1.4fr) minmax(280px, 1fr);
+  margin-top: 14px;
+}
+
+.business-unit-admin-assignment {
+  display: flex;
+  gap: 8px;
+}
+
+.business-unit-admin-assignment select {
+  min-width: 0;
+  width: 100%;
+}
+
 @media (max-width: 1100px) {
   .business-unit-admin-heading,
   .business-unit-membership-form,
@@ -226,5 +250,9 @@ body {
 
   .business-unit-name {
     flex-basis: auto;
+  }
+
+  .business-unit-registry-admins {
+    grid-template-columns: 1fr;
   }
 }

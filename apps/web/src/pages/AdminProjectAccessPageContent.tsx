@@ -58,6 +58,7 @@ export function AdminProjectAccessPageContent() {
 
   const [userSearch, setUserSearch] = useState("");
   const [projectSearch, setProjectSearch] = useState("");
+  const grantLevels: ProjectAccessLevel[] = isAdminUser ? ["EDIT", "ADMIN"] : ["EDIT"];
   const activeUsers = useMemo(
     () => (users as AccessUser[]).filter((user) => user.isActive),
     [users],
@@ -107,11 +108,13 @@ export function AdminProjectAccessPageContent() {
 
   return (
     <article className="panel project-card admin-project-access">
-      {isAdminUser && <>
       <div className="project-access-section-title">
         <div>
           <h2>Доступы к проектам</h2>
-          <p>Все пользователи уже видят все проекты. Здесь назначаются только права изменения и администрирования.</p>
+          <p>
+            Все пользователи уже видят все проекты. Администратор БЮ может выдавать
+            право изменения только в выбранном бизнес-юните.
+          </p>
         </div>
       </div>
       <form className="project-access-grant" onSubmit={grantProjectAccess}>
@@ -194,7 +197,7 @@ export function AdminProjectAccessPageContent() {
           <div>
             <h3>Уровень доступа</h3>
             <div className="project-access-levels">
-              {(["EDIT", "ADMIN"] as ProjectAccessLevel[]).map((level) => (
+              {grantLevels.map((level) => (
                 <button
                   type="button"
                   className={projectAccessDraft.level === level ? "active" : ""}
@@ -259,9 +262,11 @@ export function AdminProjectAccessPageContent() {
                     )
                   }
                 >
-                  <option value="VIEW" disabled>{projectAccessLevelLabels.VIEW} (уже есть у всех)</option>
+                  {isAdminUser && (
+                    <option value="VIEW" disabled>{projectAccessLevelLabels.VIEW} (уже есть у всех)</option>
+                  )}
                   <option value="EDIT">{projectAccessLevelLabels.EDIT}</option>
-                  <option value="ADMIN">{projectAccessLevelLabels.ADMIN}</option>
+                  {isAdminUser && <option value="ADMIN">{projectAccessLevelLabels.ADMIN}</option>}
                 </select>
               </label>
               <span>{userRoleLabel(access.user.role)}</span>
@@ -295,7 +300,6 @@ export function AdminProjectAccessPageContent() {
           <p className="project-access-empty">Назначенных доступов пока нет.</p>
         )}
       </div>
-      </>}
     </article>
   );
 }

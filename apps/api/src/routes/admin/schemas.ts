@@ -55,7 +55,7 @@ export const businessUnitSchema = z.object({
 
 export const businessUnitMembershipSchema = z.object({
   userId: z.string().trim().min(1),
-  role: z.enum(['ADMIN', 'VIEWER']),
+  role: z.literal('ADMIN'),
 });
 
 export const adminConfigImportSchema = z.object({

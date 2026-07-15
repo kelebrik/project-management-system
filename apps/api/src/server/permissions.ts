@@ -12,11 +12,8 @@ import { projectIdForWritePath, userCanWriteProject } from './project-access.js'
 import { isReadRequest } from './project-write-guards.js';
 
 export function writePermissionForPath(pathname: string, method: string): PermissionName | null {
-  // These routes enforce system-admin vs business-unit-admin scope themselves.
-  if (
-    pathname.startsWith('/admin/business-units') ||
-    pathname.startsWith('/admin/business-unit-memberships')
-  ) {
+  // Project access routes enforce system-admin vs business-unit-admin scope themselves.
+  if (pathname.startsWith('/admin/project-access')) {
     return null;
   }
   if (
@@ -37,11 +34,6 @@ export function writePermissionForPath(pathname: string, method: string): Permis
   }
   if (pathname.startsWith('/admin/project-modules')) {
     return 'admin.modules';
-  }
-  if (
-    pathname.startsWith('/admin/project-access')
-  ) {
-    return 'admin.project_access';
   }
   if (pathname.startsWith('/admin/config/import')) {
     return 'admin.config';

@@ -5,6 +5,7 @@ import { projectsToRegistryDrafts } from "../app/formState";
 import {
   appPathForView,
   appRouteFromPath,
+  canAccessAdminView,
   initialRouteProjectCode,
   isAdminSectionViewName,
   isDevelopmentSectionViewName,
@@ -23,6 +24,7 @@ export function useAppRouting({
   authMode,
   firstEnabledProjectView,
   isAdminUser,
+  isBusinessUnitAdmin,
   isAuthenticated,
   isProjectModuleEnabled,
   project,
@@ -127,8 +129,7 @@ export function useAppRouting({
       }
       if (
         isAdminSectionViewName(nextView) &&
-        nextView !== "admin-business-units" &&
-        !isAdminUser
+        !canAccessAdminView(nextView, isAdminUser, isBusinessUnitAdmin)
       ) {
         setError("Раздел администрирования доступен только администратору");
         return;
@@ -162,6 +163,7 @@ export function useAppRouting({
     },
     [
       isAdminUser,
+      isBusinessUnitAdmin,
       isAuthenticated,
       isProjectModuleEnabled,
       project?.code,

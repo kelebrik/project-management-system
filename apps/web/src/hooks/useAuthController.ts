@@ -13,6 +13,7 @@ import type {
   CurrentUser,
 } from "../app/adminTypes";
 import {
+  canAccessAdminView,
   isAdminSectionViewName,
   isDevelopmentSectionViewName,
   writeProtectedViews,
@@ -47,6 +48,8 @@ type UseAuthControllerOptions = {
   projectModules: ProjectModule[];
   isAuthenticated: boolean;
   isAdminUser: boolean;
+  isBusinessUnitAdmin: boolean;
+  isBusinessUnitAdminResolved: boolean;
   firstEnabledProjectView: ProjectSectionView;
   openView: (view: AppView, options?: OpenViewOptions) => void;
   resetAdminState: () => void;
@@ -73,6 +76,8 @@ export function useAuthController({
   projectModules,
   isAuthenticated,
   isAdminUser,
+  isBusinessUnitAdmin,
+  isBusinessUnitAdminResolved,
   firstEnabledProjectView,
   openView,
   resetAdminState,
@@ -168,10 +173,12 @@ export function useAuthController({
     const shouldRedirect =
       (!isAuthenticated && writeProtectedViews.has(activeView)) ||
       (isAuthenticated &&
-        ((isAdminSectionViewName(activeView) &&
-          activeView !== "admin-business-units") ||
-          isDevelopmentSectionViewName(activeView)) &&
-        !isAdminUser);
+        isBusinessUnitAdminResolved &&
+        (
+          (isAdminSectionViewName(activeView) &&
+            !canAccessAdminView(activeView, isAdminUser, isBusinessUnitAdmin)) ||
+          (isDevelopmentSectionViewName(activeView) && !isAdminUser)
+        ));
     if (!shouldRedirect) return;
 
     const fallbackProjectModule = normalizeProjectModulesForUi(projectModules).find(
@@ -191,6 +198,8 @@ export function useAuthController({
     activeView,
     authMode,
     isAdminUser,
+    isBusinessUnitAdmin,
+    isBusinessUnitAdminResolved,
     isAuthenticated,
     openView,
     projectCode,
