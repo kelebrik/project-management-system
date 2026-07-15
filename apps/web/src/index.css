@@ -90,11 +90,15 @@ body {
 }
 
 .business-unit-switcher:focus-within {
-  border-color: var(--brand-400);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-400) 65%, transparent);
+  border-color: transparent;
+  box-shadow: none;
+  outline: 2px solid var(--brand-400);
+  outline-offset: 0;
 }
 
+.business-unit-switcher select:focus,
 .business-unit-switcher select:focus-visible {
+  box-shadow: none;
   outline: 0;
 }
 
@@ -196,8 +200,8 @@ body {
   flex-basis: 160px;
 }
 
-.app-global-header .business-unit-switcher-group {
-  order: 1;
+.app-global-header .business-unit-switcher:focus-within {
+  border-color: transparent;
 }
 
 .business-unit-member .icon-button {

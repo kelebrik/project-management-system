@@ -14,7 +14,6 @@ export function AdminProjectsPageContent() {
     currentUser,
     deleteProject,
     firstEnabledProjectView,
-    openView,
     projectOptionLabel,
     projectRegistryDrafts,
     projectStatusLabel,
@@ -63,7 +62,7 @@ export function AdminProjectsPageContent() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => openView("project-create")}
+                        onClick={() => void ctx.openProjectCreate()}
                       >
                         Создать проект
                       </button>

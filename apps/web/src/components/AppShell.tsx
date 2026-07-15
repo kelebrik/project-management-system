@@ -493,7 +493,7 @@ export function AppShell({
             <button
               type="button"
               className={activeView === "project-create" ? "active" : ""}
-              onClick={() => openView("project-create")}
+              onClick={() => void pageContext.openProjectCreate()}
             >
               <Plus size={15} /> Создать
             </button>
