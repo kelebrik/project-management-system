@@ -212,7 +212,7 @@ export function AdminProjectAccessPageContent() {
     <article className="panel project-card admin-project-access">
       <div className="panel-title">
         <div>
-          <h2>Администрирование: доступ к проектам</h2>
+          <h2>Администрирование: бизнес-юниты и доступ</h2>
           <p>
             Индивидуальные права пользователей на просмотр и изменение выбранных
             проектов.

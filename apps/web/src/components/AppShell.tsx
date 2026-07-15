@@ -211,7 +211,7 @@ const adminNavItems: AdminNavItem[] = [
   },
   {
     view: "admin-project-access",
-    label: "Доступ к проектам",
+    label: "Бизнес-юниты и доступ",
     icon: <ShieldCheck size={17} />,
   },
   {
@@ -393,7 +393,10 @@ export function AppShell({
           onLogin={login}
           onLogout={logout}
         />
-        <BusinessUnitSwitcher />
+        <BusinessUnitSwitcher
+          canManage={isAdminUser}
+          onManage={() => openView("admin-project-access")}
+        />
         <nav className="global-section-nav" aria-label="Основные разделы">
           <button
             type="button"

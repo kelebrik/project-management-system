@@ -1,4 +1,4 @@
-import { Building2 } from 'lucide-react';
+import { Building2, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import {
@@ -15,7 +15,12 @@ type BusinessUnitOption = {
   projectCount: number;
 };
 
-export function BusinessUnitSwitcher() {
+type BusinessUnitSwitcherProps = {
+  canManage?: boolean;
+  onManage?: () => void;
+};
+
+export function BusinessUnitSwitcher({ canManage = false, onManage }: BusinessUnitSwitcherProps) {
   const [units, setUnits] = useState<BusinessUnitOption[]>([]);
   const [selectedId, setSelectedId] = useState(selectedBusinessUnitId() ?? '');
 
@@ -45,24 +50,37 @@ export function BusinessUnitSwitcher() {
   if (units.length === 0) return null;
 
   return (
-    <label className="business-unit-switcher" title="Текущий бизнес-юнит">
-      <Building2 size={15} aria-hidden="true" />
-      <select
-        aria-label="Бизнес-юнит"
-        value={selectedId}
-        onChange={(event) => {
-          const nextId = event.currentTarget.value;
-          window.localStorage.setItem(BUSINESS_UNIT_STORAGE_KEY, nextId);
-          setSelectedId(nextId);
-          window.location.assign('/portfolio');
-        }}
-      >
-        {units.map((unit) => (
-          <option key={unit.id} value={unit.id}>
-            {unit.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="business-unit-switcher-group">
+      <label className="business-unit-switcher" title="Текущий бизнес-юнит">
+        <Building2 size={15} aria-hidden="true" />
+        <select
+          aria-label="Бизнес-юнит"
+          value={selectedId}
+          onChange={(event) => {
+            const nextId = event.currentTarget.value;
+            window.localStorage.setItem(BUSINESS_UNIT_STORAGE_KEY, nextId);
+            setSelectedId(nextId);
+            window.location.assign('/portfolio');
+          }}
+        >
+          {units.map((unit) => (
+            <option key={unit.id} value={unit.id}>
+              {unit.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {canManage && onManage && (
+        <button
+          type="button"
+          className="business-unit-manage-button"
+          aria-label="Создать бизнес-юнит"
+          title="Создать бизнес-юнит"
+          onClick={onManage}
+        >
+          <Plus size={16} aria-hidden="true" />
+        </button>
+      )}
+    </div>
   );
 }
