@@ -342,7 +342,7 @@ export function ReportsPage() {
     <section className="reports-page">
       <header className="reports-header">
         <div>
-          <h2>Конструктор отчётов</h2>
+          <h1>Конструктор отчётов</h1>
           <p>Статус проекта за выбранный период</p>
         </div>
         <div className="reports-actions">

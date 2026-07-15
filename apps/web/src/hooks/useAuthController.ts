@@ -13,6 +13,7 @@ import type {
   CurrentUser,
 } from "../app/adminTypes";
 import {
+  canAccessAdminView,
   isAdminSectionViewName,
   isDevelopmentSectionViewName,
   writeProtectedViews,
@@ -47,6 +48,8 @@ type UseAuthControllerOptions = {
   projectModules: ProjectModule[];
   isAuthenticated: boolean;
   isAdminUser: boolean;
+  isBusinessUnitAdmin: boolean;
+  isBusinessUnitAdminResolved: boolean;
   firstEnabledProjectView: ProjectSectionView;
   openView: (view: AppView, options?: OpenViewOptions) => void;
   resetAdminState: () => void;
@@ -73,6 +76,8 @@ export function useAuthController({
   projectModules,
   isAuthenticated,
   isAdminUser,
+  isBusinessUnitAdmin,
+  isBusinessUnitAdminResolved,
   firstEnabledProjectView,
   openView,
   resetAdminState,
@@ -136,6 +141,25 @@ export function useAuthController({
   }, [setAuthMode, setCurrentUser, setError, setLoading]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+    const refreshCurrentUser = () => {
+      void apiClient
+        .get<{ user: CurrentUser }>("/api/auth/me", "Не удалось обновить сессию")
+        .then((result) => setCurrentUser(result.user))
+        .catch(() => undefined);
+    };
+    const refreshVisibleSession = () => {
+      if (document.visibilityState === "visible") refreshCurrentUser();
+    };
+    window.addEventListener("focus", refreshCurrentUser);
+    document.addEventListener("visibilitychange", refreshVisibleSession);
+    return () => {
+      window.removeEventListener("focus", refreshCurrentUser);
+      document.removeEventListener("visibilitychange", refreshVisibleSession);
+    };
+  }, [isAuthenticated, setCurrentUser]);
+
+  useEffect(() => {
     let cancelled = false;
     apiClient
       .get<KeycloakAuthStatus>("/api/auth/keycloak/status")
@@ -168,9 +192,12 @@ export function useAuthController({
     const shouldRedirect =
       (!isAuthenticated && writeProtectedViews.has(activeView)) ||
       (isAuthenticated &&
-        (isAdminSectionViewName(activeView) ||
-          isDevelopmentSectionViewName(activeView)) &&
-        !isAdminUser);
+        isBusinessUnitAdminResolved &&
+        (
+          (isAdminSectionViewName(activeView) &&
+            !canAccessAdminView(activeView, isAdminUser, isBusinessUnitAdmin)) ||
+          (isDevelopmentSectionViewName(activeView) && !isAdminUser)
+        ));
     if (!shouldRedirect) return;
 
     const fallbackProjectModule = normalizeProjectModulesForUi(projectModules).find(
@@ -190,6 +217,8 @@ export function useAuthController({
     activeView,
     authMode,
     isAdminUser,
+    isBusinessUnitAdmin,
+    isBusinessUnitAdminResolved,
     isAuthenticated,
     openView,
     projectCode,

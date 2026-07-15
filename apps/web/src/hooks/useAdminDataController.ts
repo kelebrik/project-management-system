@@ -34,6 +34,7 @@ type UseAdminDataControllerOptions = {
   activeView: AppView;
   authReady: boolean;
   currentUser: CurrentUser | null;
+  isBusinessUnitAdmin: boolean;
   setUsers: Dispatch<SetStateAction<SystemUser[]>>;
   setUserDrafts: Dispatch<SetStateAction<Record<string, UserDraftState>>>;
   setAuditEvents: Dispatch<SetStateAction<AuditEvent[]>>;
@@ -55,6 +56,7 @@ export function useAdminDataController({
   activeView,
   authReady,
   currentUser,
+  isBusinessUnitAdmin,
   setUsers,
   setUserDrafts,
   setAuditEvents,
@@ -96,8 +98,35 @@ export function useAdminDataController({
   }, [authReady, setProjectModuleDrafts, setProjectModules]);
 
   useEffect(() => {
-    if (!authReady || !isAdminSectionViewName(activeView) || !isAdmin) return;
+    if (!authReady || !isAdminSectionViewName(activeView)) return;
     let cancelled = false;
+    if (!isAdmin && isBusinessUnitAdmin) {
+      Promise.all([
+        apiClient.get<SystemUser[]>(
+          "/api/admin/project-access-users",
+          "Не удалось загрузить пользователей",
+        ),
+        apiClient.get<ProjectAccessRecord[]>(
+          "/api/admin/project-access",
+          "Не удалось загрузить доступы к проектам",
+        ),
+      ])
+        .then(([data, projectAccesses]) => {
+          if (cancelled) return;
+          setUsers(data);
+          setUserDrafts(usersToDrafts(data));
+          setProjectAccesses(projectAccesses);
+        })
+        .catch((loadError) => {
+          if (!cancelled) {
+            setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить доступы");
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (!isAdmin) return;
     Promise.all([
       apiClient.get<SystemUser[]>("/api/users", "Не удалось загрузить пользователей"),
       apiClient.get<AuditEvent[]>(
@@ -150,6 +179,7 @@ export function useAdminDataController({
     activeView,
     authReady,
     isAdmin,
+    isBusinessUnitAdmin,
     setAdminHealth,
     setAdminIntegrations,
     setAuditEvents,
@@ -225,13 +255,13 @@ export function useAdminDataController({
   }, [isAdmin, setAdminIntegrations]);
 
   const reloadProjectAccesses = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!isAdmin && !isBusinessUnitAdmin) return;
     const accesses = await apiClient.get<ProjectAccessRecord[]>(
       "/api/admin/project-access",
       "Не удалось загрузить доступы к проектам",
     );
     setProjectAccesses(accesses);
-  }, [isAdmin, setProjectAccesses]);
+  }, [isAdmin, isBusinessUnitAdmin, setProjectAccesses]);
 
   const reloadAdminHealth = useCallback(async () => {
     if (!isAdmin) return;

@@ -135,8 +135,57 @@ enum ProjectAccessLevel {
   ADMIN
 }
 
+enum BusinessUnitRole {
+  ADMIN
+  PROJECT_MANAGER
+  VIEWER
+}
+
+model BusinessUnit {
+  id          String                   @id @default(cuid())
+  code        String                   @unique
+  name        String
+  isDefault   Boolean                  @default(false)
+  isActive    Boolean                  @default(true)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  projects    Project[]
+  memberships BusinessUnitMembership[]
+
+  @@index([isActive, name])
+}
+
+model BusinessUnitMembership {
+  id             String           @id @default(cuid())
+  businessUnitId String
+  userId         String
+  role           BusinessUnitRole @default(VIEWER)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  businessUnit   BusinessUnit     @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessUnitId, userId])
+  @@index([userId, role])
+  @@index([businessUnitId, role])
+}
+
+model BusinessUnitRolePermission {
+  id         String           @id @default(cuid())
+  role       BusinessUnitRole
+  permission String
+  enabled    Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([role, permission])
+  @@index([role])
+  @@index([permission])
+}
+
 model Project {
   id               String              @id @default(cuid())
+  businessUnitId   String
   parentId         String?
   code             String              @unique
   name             String
@@ -159,6 +208,7 @@ model Project {
   updatedAt        DateTime            @updatedAt
   parent           Project?            @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children         Project[]           @relation("ProjectHierarchy")
+  businessUnit     BusinessUnit        @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   jiraIntegration  JiraIntegration?
   jiraWorkSections JiraWorkSection[]
   tasks            Task[]
@@ -181,6 +231,7 @@ model Project {
   businessRequirements ProjectBusinessRequirements?
 
   @@index([parentId])
+  @@index([businessUnitId, status])
   @@index([sortOrder])
 }
 
@@ -222,6 +273,7 @@ model User {
   webhookEndpointsCreated WebhookEndpoint[] @relation("WebhookEndpointCreatedBy")
   targetDateChanges ProjectTargetDateChange[]
   projectAccesses ProjectAccess[]
+  businessUnitMemberships BusinessUnitMembership[]
 
   @@index([role, isActive])
 }

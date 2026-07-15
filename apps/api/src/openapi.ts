@@ -236,6 +236,15 @@ export const openApiDocument = {
     },
   },
   paths: {
+    "/api/business-units": {
+      get: {
+        tags: ["Projects"],
+        summary: "List business units available in the current user context",
+        responses: {
+          "200": { description: "Available business units" },
+        },
+      },
+    },
     "/api/health": {
       get: {
         tags: ["Health"],
@@ -992,6 +1001,11 @@ export const openApiDocument = {
     },
     "/api/admin/project-modules": {
       put: securedOperation(["Admin"], "Update project module visibility settings"),
+    },
+    "/api/admin/projects/{projectId}/business-unit": {
+      patch: securedOperation(["Admin"], "Move a project subtree to another business unit", [
+        pathParam("projectId"),
+      ]),
     },
     "/api/admin/role-permissions/{permissionId}": {
       patch: securedOperation(["Admin"], "Enable or disable role permission", [

@@ -2,6 +2,7 @@ import type { UserRole } from '@prisma/client';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../../db.js';
+import { ensureBusinessUnitPermissionDefaults } from '../../server/business-unit-permissions.js';
 import {
   defaultDictionaryItems,
   defaultSystemSettings,
@@ -61,6 +62,7 @@ export function defaultPermissionEnabled(role: UserRole, permission: string) {
 }
 
 export async function ensureAdminConfigDefaults() {
+  await ensureBusinessUnitPermissionDefaults();
   await prisma.rolePermission.createMany({
     data: managedRoles.flatMap((role) =>
       managedPermissions.map((permission) => ({

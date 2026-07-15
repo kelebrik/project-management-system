@@ -1,10 +1,18 @@
 import {
   useCallback,
+  useEffect,
+  useRef,
   type Dispatch,
   type FormEvent,
   type SetStateAction,
 } from "react";
 import { apiClient } from "../api/client";
+import type { CurrentUser } from "../app/adminTypes";
+import {
+  BUSINESS_UNIT_HEADER,
+  selectedBusinessUnitId,
+  selectedBusinessUnitSelection,
+} from "../app/businessUnitContext";
 import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
 import { projectPayload } from "../app/formPayloads";
 import {
@@ -16,6 +24,11 @@ import {
 } from "../app/formState";
 import { apiBase, authenticatedFetch } from "../app/http";
 import type { AppView } from "../app/routes";
+import {
+  businessUnitForProjectCreation,
+  projectCreationBusinessUnitMessage,
+  type BusinessUnitOption,
+} from "../app/projectCreation";
 import { useConfirm } from "./useConfirm";
 
 type OpenView = (
@@ -24,7 +37,9 @@ type OpenView = (
 ) => void;
 
 type UseProjectRegistryControllerOptions = {
+  activeView: AppView;
   projects: ProjectListItem[];
+  currentUser: CurrentUser | null;
   setProjects: Dispatch<SetStateAction<ProjectListItem[]>>;
   project: ProjectDetails | null;
   setProject: Dispatch<SetStateAction<ProjectDetails | null>>;
@@ -46,7 +61,9 @@ type UseProjectRegistryControllerOptions = {
 };
 
 export function useProjectRegistryController({
+  activeView,
   projects,
+  currentUser,
   setProjects,
   project,
   setProject,
@@ -66,6 +83,44 @@ export function useProjectRegistryController({
 }: UseProjectRegistryControllerOptions) {
   const confirm = useConfirm();
   const currentProjectId = project?.id ?? null;
+  const confirmedBusinessUnitIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (activeView !== "project-create") {
+      confirmedBusinessUnitIdRef.current = null;
+    }
+  }, [activeView]);
+
+  const openProjectCreate = useCallback(async () => {
+    setError(null);
+    setNotice(null);
+    if (!currentUser || currentUser.role === "ADMIN") {
+      openView("project-create");
+      return;
+    }
+    try {
+      const cachedSelection = selectedBusinessUnitSelection();
+      const selectedUnit = cachedSelection ?? businessUnitForProjectCreation(
+        await apiClient.get<BusinessUnitOption[]>(
+          "/api/business-units",
+          "Не удалось определить выбранный бизнес-юнит",
+        ),
+        selectedBusinessUnitId(),
+      );
+      if (!selectedUnit) throw new Error("Бизнес-юнит не выбран");
+      const approved = await confirm({
+        title: "Создать проект?",
+        message: projectCreationBusinessUnitMessage(selectedUnit.name),
+        confirmLabel: "Продолжить",
+        tone: "default",
+      });
+      if (!approved) return;
+      confirmedBusinessUnitIdRef.current = selectedUnit.id;
+      openView("project-create");
+    } catch (openError) {
+      setError(openError instanceof Error ? openError.message : "Не удалось открыть создание проекта");
+    }
+  }, [confirm, currentUser, openView, setError, setNotice]);
 
   const applyProjectMasterRecord = useCallback(
     (updated: ProjectListItem) => {
@@ -143,9 +198,18 @@ export function useProjectRegistryController({
       setError(null);
       setNotice(null);
       try {
+        const confirmedBusinessUnitId = confirmedBusinessUnitIdRef.current;
+        if (currentUser && currentUser.role !== "ADMIN" && !confirmedBusinessUnitId) {
+          throw new Error("Откройте создание проекта кнопкой «Создать» в шапке страницы");
+        }
         const response = await authenticatedFetch(`${apiBase}/api/projects`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(confirmedBusinessUnitId
+              ? { [BUSINESS_UNIT_HEADER]: confirmedBusinessUnitId }
+              : {}),
+          },
           body: JSON.stringify(projectPayload(newProjectForm)),
         });
         const result = await response.json();
@@ -159,6 +223,7 @@ export function useProjectRegistryController({
         if (!result.id) {
           throw new Error("API не вернул идентификатор созданного проекта");
         }
+        confirmedBusinessUnitIdRef.current = null;
         setNewProjectForm(newProjectFormDefaults());
         openView("project-structure", { replace: true });
         setSelectedProjectId(result.id);
@@ -177,6 +242,7 @@ export function useProjectRegistryController({
     },
     [
       newProjectForm,
+      currentUser,
       openView,
       refreshProject,
       reloadAuditEvents,
@@ -380,6 +446,46 @@ export function useProjectRegistryController({
     ],
   );
 
+  const moveProjectToBusinessUnit = useCallback(
+    async (projectId: string, businessUnitId: string) => {
+      setSavingProjectRegistryId(projectId);
+      setError(null);
+      setNotice(null);
+      try {
+        const result = await apiClient.patch<{
+          movedProjectIds: string[];
+          targetBusinessUnitName: string;
+          deletedAccessCount: number;
+        }>(
+          `/api/admin/projects/${projectId}/business-unit`,
+          { businessUnitId },
+          "Не удалось перенести проект",
+        );
+        if (currentProjectId && result.movedProjectIds.includes(currentProjectId)) {
+          setProject(null);
+        }
+        await reloadProjects();
+        await reloadAuditEvents();
+        setNotice(
+          `Перенесено проектов: ${result.movedProjectIds.length}. БЮ: ${result.targetBusinessUnitName}. Индивидуальные доступы сброшены: ${result.deletedAccessCount}`,
+        );
+      } catch (moveError) {
+        setError(moveError instanceof Error ? moveError.message : "Не удалось перенести проект");
+      } finally {
+        setSavingProjectRegistryId(null);
+      }
+    },
+    [
+      currentProjectId,
+      reloadAuditEvents,
+      reloadProjects,
+      setError,
+      setNotice,
+      setProject,
+      setSavingProjectRegistryId,
+    ],
+  );
+
   const closeProject = useCallback(
     async (projectId: string) => {
       const sourceProject = projects.find((item) => item.id === projectId);
@@ -498,11 +604,13 @@ export function useProjectRegistryController({
 
   return {
     reloadProjects,
+    openProjectCreate,
     createProject,
     updateProjectRegistryDraft,
     savePortfolioProjectIdentity,
     saveProjectPortfolio,
     saveProjectRegistryItem,
+    moveProjectToBusinessUnit,
     closeProject,
     deleteProject,
   };

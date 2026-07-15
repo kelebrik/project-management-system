@@ -35,6 +35,7 @@ export type AppView =
   | "admin-backups"
   | "admin-config"
   | "admin-projects"
+  | "admin-business-units"
   | "admin-modules"
   | "admin-project-access"
   | "admin-audit";
@@ -70,6 +71,7 @@ export type AdminSectionView = Extract<
   | "admin-backups"
   | "admin-config"
   | "admin-projects"
+  | "admin-business-units"
   | "admin-modules"
   | "admin-project-access"
   | "admin-audit"
@@ -107,10 +109,24 @@ export const adminSectionViews: AdminSectionView[] = [
   "admin-backups",
   "admin-config",
   "admin-projects",
+  "admin-business-units",
   "admin-modules",
   "admin-project-access",
   "admin-audit",
 ];
+
+export const businessUnitAdminSectionViews = new Set<AdminSectionView>([
+  "admin-projects",
+  "admin-project-access",
+]);
+
+export function canAccessAdminView(
+  view: AdminSectionView,
+  isSystemAdmin: boolean,
+  isBusinessUnitAdmin: boolean,
+) {
+  return isSystemAdmin || (isBusinessUnitAdmin && businessUnitAdminSectionViews.has(view));
+}
 
 export const developmentSectionViews: DevelopmentSectionView[] = [
   "portfolio-v2",
@@ -179,6 +195,7 @@ export const appViewPaths: Record<AppView, string> = {
   "admin-backups": "/admin/backups",
   "admin-config": "/admin/config",
   "admin-projects": "/admin/projects",
+  "admin-business-units": "/admin/business-units",
   "admin-modules": "/admin/modules",
   "admin-project-access": "/admin/project-access",
   "admin-audit": "/admin/audit",
@@ -280,6 +297,7 @@ export const appPathViews: Record<string, AppView> = {
   "/admin/backups": "admin-backups",
   "/admin/config": "admin-config",
   "/admin/projects": "admin-projects",
+  "/admin/business-units": "admin-business-units",
   "/admin/modules": "admin-modules",
   "/admin/project-access": "admin-project-access",
   "/admin/audit": "admin-audit",

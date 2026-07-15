@@ -204,9 +204,9 @@
   display: grid;
   gap: 0;
   grid-template-columns:
-    132px minmax(260px, 1.35fr) minmax(220px, 0.9fr) 160px 132px 108px
-    104px 360px;
-  min-width: 1490px;
+    132px minmax(260px, 1.35fr) minmax(220px, 0.9fr) 140px 160px 132px
+    108px 104px 360px;
+  min-width: 1630px;
 }
 
 .project-admin-head {

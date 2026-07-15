@@ -3,6 +3,7 @@ import { Router, type Request, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { recordAuditEvent } from '../services/audit.js';
+import { readableProjectWhere, userCanReadProject } from '../server/business-units.js';
 
 const savedViewSchema = z.object({
   projectId: z.string().trim().optional().nullable(),
@@ -35,9 +36,11 @@ export function createSavedViewsRouter({ currentUser, requireAuth }: SavedViewsC
     const user = currentUser(req);
     const viewType = typeof req.query.viewType === 'string' ? req.query.viewType : undefined;
     const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
+    const projectScope = await readableProjectWhere(req);
     const filters: Prisma.SavedViewWhereInput[] = [];
     if (viewType) filters.push({ viewType });
     if (projectId) filters.push({ OR: [{ projectId }, { projectId: null }] });
+    filters.push({ OR: [{ projectId: null }, { project: projectScope }] });
     filters.push(user ? { OR: [{ ownerId: user.id }, { isShared: true }] } : { isShared: true });
     const where: Prisma.SavedViewWhereInput = filters.length > 0 ? { AND: filters } : {};
     const views = await prisma.savedView.findMany({
@@ -56,6 +59,10 @@ export function createSavedViewsRouter({ currentUser, requireAuth }: SavedViewsC
     const user = currentUser(req);
     if (!user) {
       res.status(401).json({ error: 'Требуется вход в систему' });
+      return;
+    }
+    if (parsed.data.projectId && !(await userCanReadProject(req, parsed.data.projectId))) {
+      res.status(404).json({ error: 'Проект не найден' });
       return;
     }
     const view = await prisma.savedView.create({
@@ -100,6 +107,10 @@ export function createSavedViewsRouter({ currentUser, requireAuth }: SavedViewsC
     }
     if (user?.role !== 'ADMIN' && before.ownerId !== user?.id) {
       res.status(403).json({ error: 'Недостаточно прав' });
+      return;
+    }
+    if (parsed.data.projectId && !(await userCanReadProject(req, parsed.data.projectId))) {
+      res.status(404).json({ error: 'Проект не найден' });
       return;
     }
     const view = await prisma.savedView.update({

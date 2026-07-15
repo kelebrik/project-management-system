@@ -51,6 +51,8 @@ export type ProjectAccessLevel = "VIEW" | "EDIT" | "ADMIN";
 
 export type ProjectListItem = {
   id: string;
+  businessUnitId: string;
+  businessUnit: { id: string; code: string; name: string };
   parentId: string | null;
   code: string;
   name: string;

@@ -1,8 +1,32 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const defaultBusinessUnit = await prisma.businessUnit.upsert({
+    where: { code: 'main' },
+    update: { name: 'TV&Box', isDefault: true, isActive: true },
+    create: {
+      id: 'business-unit-default',
+      code: 'main',
+      name: 'TV&Box',
+      isDefault: true,
+    },
+  });
+  const businessUnitRolePermissions = [
+    { role: 'ADMIN', permission: 'PROJECT_VIEW', enabled: true },
+    { role: 'ADMIN', permission: 'PROJECT_CREATE', enabled: true },
+    { role: 'ADMIN', permission: 'PROJECT_ADMIN', enabled: true },
+    { role: 'ADMIN', permission: 'MEMBERS_MANAGE', enabled: true },
+    { role: 'VIEWER', permission: 'PROJECT_VIEW', enabled: true },
+    { role: 'VIEWER', permission: 'PROJECT_CREATE', enabled: true },
+    { role: 'VIEWER', permission: 'PROJECT_ADMIN', enabled: false },
+    { role: 'VIEWER', permission: 'MEMBERS_MANAGE', enabled: false },
+  ] satisfies Prisma.BusinessUnitRolePermissionCreateManyInput[];
+  await prisma.businessUnitRolePermission.createMany({
+    data: businessUnitRolePermissions,
+    skipDuplicates: true,
+  });
   const demoProjects = [
     {
       code: 'TEST-002',
@@ -56,6 +80,7 @@ async function main() {
       prisma.project.upsert({
         where: { code: item.code },
         update: {
+          businessUnitId: defaultBusinessUnit.id,
           parentId: null,
           name: item.name,
           portfolio: 'Project Management',
@@ -74,6 +99,7 @@ async function main() {
           sortOrder: item.sortOrder,
         },
         create: {
+          businessUnitId: defaultBusinessUnit.id,
           code: item.code,
           name: item.name,
           portfolio: 'Project Management',
@@ -98,10 +124,12 @@ async function main() {
   const project = await prisma.project.upsert({
     where: { code: 'ERP' },
     update: {
+      businessUnitId: defaultBusinessUnit.id,
       parentId: null,
       sortOrder: 10,
     },
     create: {
+      businessUnitId: defaultBusinessUnit.id,
       parentId: null,
       code: 'ERP',
       name: 'ERP rollout',

@@ -5,6 +5,7 @@ import { projectsToRegistryDrafts } from "../app/formState";
 import {
   appPathForView,
   appRouteFromPath,
+  canAccessAdminView,
   initialRouteProjectCode,
   isAdminSectionViewName,
   isDevelopmentSectionViewName,
@@ -23,6 +24,7 @@ export function useAppRouting({
   authMode,
   firstEnabledProjectView,
   isAdminUser,
+  isBusinessUnitAdmin,
   isAuthenticated,
   isProjectModuleEnabled,
   project,
@@ -125,7 +127,10 @@ export function useAppRouting({
         setError("Для редактирования нужно войти в систему");
         return;
       }
-      if (isAdminSectionViewName(nextView) && !isAdminUser) {
+      if (
+        isAdminSectionViewName(nextView) &&
+        !canAccessAdminView(nextView, isAdminUser, isBusinessUnitAdmin)
+      ) {
         setError("Раздел администрирования доступен только администратору");
         return;
       }
@@ -158,6 +163,7 @@ export function useAppRouting({
     },
     [
       isAdminUser,
+      isBusinessUnitAdmin,
       isAuthenticated,
       isProjectModuleEnabled,
       project?.code,

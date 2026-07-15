@@ -19,6 +19,12 @@ export type CurrentUser = {
   role: UserRole;
   isActive: boolean;
   lastLoginAt: Date | null;
+  businessUnitAdminIds: string[];
+};
+
+type SafeUserSource = Omit<CurrentUser, 'businessUnitAdminIds'> & {
+  businessUnitAdminIds?: string[];
+  businessUnitMemberships?: Array<{ businessUnitId: string }>;
 };
 
 export type AuthRequest = Request & {
@@ -69,7 +75,7 @@ const legacyPermissionFallbacks: Record<string, string[]> = {
   'admin.integrations': ['admin.manage', 'admin.config'],
 };
 
-export function safeUser(user: CurrentUser): CurrentUser {
+export function safeUser(user: SafeUserSource): CurrentUser {
   return {
     id: user.id,
     email: user.email,
@@ -77,6 +83,10 @@ export function safeUser(user: CurrentUser): CurrentUser {
     role: user.role,
     isActive: user.isActive,
     lastLoginAt: user.lastLoginAt,
+    businessUnitAdminIds:
+      user.businessUnitAdminIds ??
+      user.businessUnitMemberships?.map((membership) => membership.businessUnitId) ??
+      [],
   };
 }
 
@@ -197,7 +207,16 @@ export async function attachAuth(req: Request, _res: Response, next: NextFunctio
 
     const session = await prisma.userSession.findUnique({
       where: { tokenHash: hashSessionToken(token) },
-      include: { user: true },
+      include: {
+        user: {
+          include: {
+            businessUnitMemberships: {
+              where: { role: 'ADMIN' },
+              select: { businessUnitId: true },
+            },
+          },
+        },
+      },
     });
 
     if (!session) {
@@ -336,7 +355,7 @@ export async function wouldRemoveLastAdmin(userId: string, data: { role?: UserRo
 }
 
 export function userResponse(
-  user: CurrentUser & { createdAt?: Date; updatedAt?: Date; passwordHash?: string | null },
+  user: SafeUserSource & { createdAt?: Date; updatedAt?: Date; passwordHash?: string | null },
 ) {
   return {
     id: user.id,

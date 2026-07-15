@@ -34,6 +34,7 @@ import type { CurrentUser } from "../app/adminTypes";
 import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
 import type { ProjectModuleKey } from "../app/projectModules";
 import {
+  canAccessAdminView,
   isAdminSectionViewName,
   type AppView,
   type ProjectSectionView,
@@ -42,6 +43,7 @@ import { wikiGroups } from "../app/wikiContent";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
 import { PageContextProvider, type PageContextValue } from "../pages/PageContext";
 import { AppTopbar } from "./AppTopbar";
+import { BusinessUnitSwitcher } from "./BusinessUnitSwitcher";
 import { ProjectPicker } from "./ProjectPicker";
 import type { ProjectNavItem } from "./ProjectSidebarMenu";
 import { SidebarIdentity } from "./SidebarIdentity";
@@ -69,6 +71,7 @@ type AppShellProps = {
   handleEditableKeyDown: KeyboardEventHandler<HTMLDivElement>;
   isAdminSectionView: boolean;
   isAdminUser: boolean;
+  isBusinessUnitAdmin: boolean;
   isAuthenticated: boolean;
   isClosedProject: boolean;
   isDevelopmentSectionView: boolean;
@@ -204,13 +207,18 @@ const adminNavItems: AdminNavItem[] = [
     icon: <FolderTree size={17} />,
   },
   {
+    view: "admin-business-units",
+    label: "Бизнес-юниты",
+    icon: <BriefcaseBusiness size={17} />,
+  },
+  {
     view: "admin-modules",
     label: "Управление модулями",
     icon: <SlidersHorizontal size={17} />,
   },
   {
     view: "admin-project-access",
-    label: "Доступ к проектам",
+    label: "Доступы",
     icon: <ShieldCheck size={17} />,
   },
   {
@@ -325,6 +333,7 @@ export function AppShell({
   handleEditableKeyDown,
   isAdminSectionView,
   isAdminUser,
+  isBusinessUnitAdmin,
   isAuthenticated,
   isClosedProject,
   isDevelopmentSectionView,
@@ -392,6 +401,7 @@ export function AppShell({
           onLogin={login}
           onLogout={logout}
         />
+        <BusinessUnitSwitcher />
         <nav className="global-section-nav" aria-label="Основные разделы">
           <button
             type="button"
@@ -421,7 +431,7 @@ export function AppShell({
           >
             <Archive size={15} /> Архив
           </button>
-          {isAdminUser && (
+          {(isAdminUser || isBusinessUnitAdmin) && (
             <button
               type="button"
               className={isAdminSectionView ? "active" : ""}
@@ -483,7 +493,7 @@ export function AppShell({
             <button
               type="button"
               className={activeView === "project-create" ? "active" : ""}
-              onClick={() => openView("project-create")}
+              onClick={() => void pageContext.openProjectCreate()}
             >
               <Plus size={15} /> Создать
             </button>
@@ -493,7 +503,12 @@ export function AppShell({
 
       {shouldShowAdminMenu && (
         <nav className="section-navigation section-tabs" aria-label="Администрирование">
-          {adminNavItems.map((item) => (
+          {adminNavItems
+            .filter((item) =>
+              !isAdminSectionViewName(item.view) ||
+              canAccessAdminView(item.view, isAdminUser, isBusinessUnitAdmin),
+            )
+            .map((item) => (
             <button
               type="button"
               key={item.view}
@@ -502,7 +517,7 @@ export function AppShell({
             >
               {item.icon} {item.label}
             </button>
-          ))}
+            ))}
         </nav>
       )}
 

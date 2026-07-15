@@ -1,3 +1,5 @@
+import { businessUnitHeaders } from "./businessUnitContext";
+
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export async function authenticatedFetch(
@@ -9,6 +11,7 @@ export async function authenticatedFetch(
     credentials: "include",
     headers: {
       ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...businessUnitHeaders(),
       ...init.headers,
     },
   });

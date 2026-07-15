@@ -1,3 +1,5 @@
+import { businessUnitHeaders } from "../app/businessUnitContext";
+
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export class ApiError extends Error {
@@ -48,6 +50,7 @@ async function request<T>(
     credentials: "include",
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...businessUnitHeaders(),
       ...options.headers,
     },
   });
