@@ -144,7 +144,10 @@ export function BusinessUnitsPageContent() {
                 placeholder="Код, например retail"
                 pattern="[a-z0-9-]+"
                 value={unitDraft.code}
-                onChange={(event) => setUnitDraft({ ...unitDraft, code: event.currentTarget.value })}
+                onChange={(event) => setUnitDraft({
+                  ...unitDraft,
+                  code: event.currentTarget.value.toLowerCase(),
+                })}
                 required
               />
               <input

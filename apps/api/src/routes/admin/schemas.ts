@@ -43,7 +43,13 @@ export const projectAccessPatchSchema = z.object({
 });
 
 export const businessUnitSchema = z.object({
-  code: z.string().trim().min(2).max(32).regex(/^[a-z0-9-]+$/),
+  code: z.preprocess(
+    (value) => typeof value === 'string' ? value.trim().toLowerCase() : value,
+    z.string()
+      .min(2, 'Код должен содержать минимум 2 символа')
+      .max(32, 'Код должен содержать не более 32 символов')
+      .regex(/^[a-z0-9-]+$/, 'Используйте латинские буквы, цифры и дефис'),
+  ),
   name: z.string().trim().min(2).max(120),
 });
 
