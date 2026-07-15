@@ -38,6 +38,7 @@ export function AppTopbar({
   signedDaysLabel,
   viewTitle,
 }: AppTopbarProps) {
+  if (activeView === "reports") return null;
   const showProjectTitle = project && isProjectView && activeView !== "project-create";
   const showProjectBadges = Boolean(project && showProjectTitle);
   const targetChangeDays = projectTargetSummary?.targetChangeDays ?? null;

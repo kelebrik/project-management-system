@@ -200,6 +200,10 @@ body {
   flex-basis: 160px;
 }
 
+.app-global-header .business-unit-switcher select {
+  font-size: 8px;
+}
+
 .app-global-header .business-unit-switcher:focus-within {
   border-color: transparent;
 }

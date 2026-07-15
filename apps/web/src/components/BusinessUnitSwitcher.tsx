@@ -2,9 +2,9 @@ import { Building2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import {
-  BUSINESS_UNIT_STORAGE_KEY,
   BUSINESS_UNITS_CHANGED_EVENT,
   selectedBusinessUnitId,
+  storeBusinessUnitSelection,
 } from '../app/businessUnitContext';
 
 type BusinessUnitOption = {
@@ -31,12 +31,14 @@ export function BusinessUnitSwitcher() {
           setUnits(items);
           const stored = selectedBusinessUnitId();
           if (stored && items.some((unit) => unit.id === stored)) {
+            const selected = items.find((unit) => unit.id === stored)!;
+            storeBusinessUnitSelection(window.localStorage, selected);
             setSelectedId(stored);
             return;
           }
           const fallback = items.find((unit) => unit.isDefault) ?? items[0];
           if (!fallback) return;
-          window.localStorage.setItem(BUSINESS_UNIT_STORAGE_KEY, fallback.id);
+          storeBusinessUnitSelection(window.localStorage, fallback);
           setSelectedId(fallback.id);
           window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
         })
@@ -63,7 +65,9 @@ export function BusinessUnitSwitcher() {
           value={selectedId}
           onChange={(event) => {
             const nextId = event.currentTarget.value;
-            window.localStorage.setItem(BUSINESS_UNIT_STORAGE_KEY, nextId);
+            const selected = units.find((unit) => unit.id === nextId);
+            if (!selected) return;
+            storeBusinessUnitSelection(window.localStorage, selected);
             setSelectedId(nextId);
             window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
             window.location.assign('/portfolio');

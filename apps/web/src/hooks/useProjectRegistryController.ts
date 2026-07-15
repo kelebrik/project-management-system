@@ -11,6 +11,7 @@ import type { CurrentUser } from "../app/adminTypes";
 import {
   BUSINESS_UNIT_HEADER,
   selectedBusinessUnitId,
+  selectedBusinessUnitSelection,
 } from "../app/businessUnitContext";
 import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
 import { projectPayload } from "../app/formPayloads";
@@ -98,12 +99,12 @@ export function useProjectRegistryController({
       return;
     }
     try {
-      const units = await apiClient.get<BusinessUnitOption[]>(
-        "/api/business-units",
-        "Не удалось определить выбранный бизнес-юнит",
-      );
-      const selectedUnit = businessUnitForProjectCreation(
-        units,
+      const cachedSelection = selectedBusinessUnitSelection();
+      const selectedUnit = cachedSelection ?? businessUnitForProjectCreation(
+        await apiClient.get<BusinessUnitOption[]>(
+          "/api/business-units",
+          "Не удалось определить выбранный бизнес-юнит",
+        ),
         selectedBusinessUnitId(),
       );
       if (!selectedUnit) throw new Error("Бизнес-юнит не выбран");
