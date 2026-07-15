@@ -200,8 +200,9 @@ body {
   flex-basis: 160px;
 }
 
-.app-global-header .business-unit-switcher select {
-  font-size: 8px;
+.app-global-header .business-unit-switcher-group {
+  flex: 0 1 132px;
+  min-width: 132px;
 }
 
 .app-global-header .business-unit-switcher:focus-within {
