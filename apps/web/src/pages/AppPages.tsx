@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { PageSkeleton } from "../components/Skeleton";
 import { AdminAuditPageContent } from "./AdminAuditPageContent";
 import { AdminBackupsPageContent, AdminConfigPageContent, AdminHealthPageContent } from "./AdminStatusPages";
+import { BusinessUnitsPageContent } from "./BusinessUnitsPageContent";
 import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
 import { AdminIntegrationsPageContent } from "./AdminIntegrationsPageContent";
 import { AdminModulesPageContent } from "./AdminModulesPageContent";
@@ -98,6 +99,7 @@ export function AppPages() {
         {activeView === "admin-backups" && <AdminBackupsPageContent />}
         {activeView === "admin-config" && <AdminConfigPageContent />}
         {activeView === "admin-projects" && <AdminProjectsPageContent />}
+        {activeView === "admin-business-units" && <BusinessUnitsPageContent />}
         {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
         {isAdminUser && activeView === "resources" && <ResourceOverviewPage />}

@@ -3,7 +3,6 @@ import { changeUserPasswordSchema, createUserSchema, updateUserSchema } from '@p
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { recordAuditEvent } from '../../services/audit.js';
-import { ensureDefaultBusinessUnitMembership } from '../../server/business-units.js';
 import type { AdminRoutesContext } from './types.js';
 
 const userSelect = {
@@ -47,7 +46,6 @@ export function registerAdminUserRoutes(router: Router, context: AdminRoutesCont
         },
         select: userSelect,
       });
-      await ensureDefaultBusinessUnitMembership(user.id, user.role);
       await recordAuditEvent({
         req,
         actor: currentUser(req),
@@ -102,9 +100,6 @@ export function registerAdminUserRoutes(router: Router, context: AdminRoutesCont
         data: parsed.data,
         select: userSelect,
       });
-      if (user.isActive) {
-        await ensureDefaultBusinessUnitMembership(user.id, user.role);
-      }
       await recordAuditEvent({
         req,
         actor: currentUser(req),

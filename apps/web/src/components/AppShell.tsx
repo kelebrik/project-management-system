@@ -210,8 +210,13 @@ const adminNavItems: AdminNavItem[] = [
     icon: <SlidersHorizontal size={17} />,
   },
   {
+    view: "admin-business-units",
+    label: "Бизнес-юниты",
+    icon: <BriefcaseBusiness size={17} />,
+  },
+  {
     view: "admin-project-access",
-    label: "Бизнес-юниты и доступ",
+    label: "Доступы",
     icon: <ShieldCheck size={17} />,
   },
   {
@@ -395,7 +400,7 @@ export function AppShell({
         />
         <BusinessUnitSwitcher
           canManage={isAdminUser}
-          onManage={() => openView("admin-project-access")}
+          onManage={() => openView("admin-business-units")}
         />
         <nav className="global-section-nav" aria-label="Основные разделы">
           <button

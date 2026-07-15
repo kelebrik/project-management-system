@@ -5,6 +5,11 @@ import {
   type SetStateAction,
 } from "react";
 import { apiClient } from "../api/client";
+import type { CurrentUser } from "../app/adminTypes";
+import {
+  BUSINESS_UNIT_HEADER,
+  selectedBusinessUnitId,
+} from "../app/businessUnitContext";
 import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
 import { projectPayload } from "../app/formPayloads";
 import {
@@ -25,6 +30,7 @@ type OpenView = (
 
 type UseProjectRegistryControllerOptions = {
   projects: ProjectListItem[];
+  currentUser: CurrentUser | null;
   setProjects: Dispatch<SetStateAction<ProjectListItem[]>>;
   project: ProjectDetails | null;
   setProject: Dispatch<SetStateAction<ProjectDetails | null>>;
@@ -47,6 +53,7 @@ type UseProjectRegistryControllerOptions = {
 
 export function useProjectRegistryController({
   projects,
+  currentUser,
   setProjects,
   project,
   setProject,
@@ -143,9 +150,38 @@ export function useProjectRegistryController({
       setError(null);
       setNotice(null);
       try {
+        let confirmedBusinessUnitId: string | null = null;
+        if (currentUser?.role !== "ADMIN") {
+          const units = await apiClient.get<Array<{
+            id: string;
+            name: string;
+            isDefault: boolean;
+          }>>("/api/business-units", "Не удалось определить выбранный бизнес-юнит");
+          const selectedId = selectedBusinessUnitId();
+          const selectedUnit =
+            units.find((unit) => unit.id === selectedId) ??
+            units.find((unit) => unit.isDefault) ??
+            units[0];
+          if (!selectedUnit) {
+            throw new Error("Бизнес-юнит не выбран");
+          }
+          confirmedBusinessUnitId = selectedUnit.id;
+          const approved = await confirm({
+            title: "Создать проект?",
+            message: `Проект будет создан в бизнес-юните «${selectedUnit.name}». Проверьте, правильно ли выбран бизнес-юнит.`,
+            confirmLabel: "Создать проект",
+            tone: "default",
+          });
+          if (!approved) return;
+        }
         const response = await authenticatedFetch(`${apiBase}/api/projects`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(confirmedBusinessUnitId
+              ? { [BUSINESS_UNIT_HEADER]: confirmedBusinessUnitId }
+              : {}),
+          },
           body: JSON.stringify(projectPayload(newProjectForm)),
         });
         const result = await response.json();
@@ -177,6 +213,8 @@ export function useProjectRegistryController({
     },
     [
       newProjectForm,
+      confirm,
+      currentUser,
       openView,
       refreshProject,
       reloadAuditEvents,

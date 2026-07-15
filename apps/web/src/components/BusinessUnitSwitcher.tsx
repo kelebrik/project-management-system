@@ -12,7 +12,7 @@ type BusinessUnitOption = {
   code: string;
   name: string;
   isDefault: boolean;
-  role: 'ADMIN' | 'PROJECT_MANAGER' | 'VIEWER' | 'GUEST';
+  role: 'ADMIN' | 'VIEWER' | 'GUEST';
   canManage: boolean;
   projectCount: number;
 };

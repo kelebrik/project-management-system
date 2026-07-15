@@ -130,7 +130,7 @@ export const wikiGroups: WikiGroup[] = [
               "Если указан copyBaselineFromProjectId, backend требует активный baseline у проекта-источника.",
               "При копировании baseline переносятся WBS-строки, parent-связи, predecessor-поля, WBS dependencies и calendar overrides. Затем пересчитывается расписание.",
               "Если baseline не копируется, создается демо-структура с фазами, задачами, вехами и FS-зависимостями от даты старта.",
-              "Если проект создает не ADMIN, ему выдается EDIT-доступ к проекту и роль пользователя обновляется до PROJECT_MANAGER.",
+              "Перед созданием обычный пользователь подтверждает выбранный бизнес-юнит. После создания он получает EDIT-доступ и становится РП проекта без изменения системной роли.",
             ],
           },
           {
@@ -703,10 +703,10 @@ export const wikiGroups: WikiGroup[] = [
           {
             heading: "Роли и permissions",
             points: [
-              "Управляемые роли: ADMIN, PROJECT_MANAGER, EXECUTIVE_VIEWER. TEAM_MEMBER остается в типах как legacy/совместимость.",
+              "Управляемые системные роли: ADMIN и EXECUTIVE_VIEWER, которые в интерфейсе называются «Администратор системы» и «Пользователь».",
               "ADMIN получает все permissions и его права нельзя отключить.",
-              "EXECUTIVE_VIEWER и TEAM_MEMBER по умолчанию получают read-права, project.create и overview.export.",
-              "PROJECT_MANAGER получает project/wbs/issue/raid write-права и overview generate/publish/export, но не admin.*.",
+              "Пользователь видит проекты всех бизнес-юнитов и может создавать проекты. Права изменения определяются доступом к конкретному проекту.",
+              "Администратор БЮ управляет участниками и всеми проектами своего бизнес-юнита, но не получает системных административных прав.",
               "Есть legacy fallback permissions: например wbs.update может пройти по старому wbs.write.",
             ],
           },

@@ -14,7 +14,6 @@ import {
   verifyPassword,
 } from './auth.js';
 import { isKeycloakEnabled } from './keycloak-auth.js';
-import { ensureDefaultBusinessUnitMembership } from './business-units.js';
 
 export function registerAuthRoutes(app: Express) {
   app.get('/api/auth/setup-status', async (_req, res) => {
@@ -72,8 +71,6 @@ export function registerAuthRoutes(app: Express) {
             lastLoginAt: true,
           },
         });
-
-    await ensureDefaultBusinessUnitMembership(user.id, user.role);
 
     await createSession(user.id, req, res);
     await recordAuditEvent({

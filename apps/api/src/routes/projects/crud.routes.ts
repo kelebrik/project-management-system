@@ -162,34 +162,24 @@ export function registerProjectCrudRoutes(
       const createdProjectAccessLevel = actor?.role === 'ADMIN' ? 'ADMIN' : 'EDIT';
 
       if (actor && actor.role !== 'ADMIN') {
-        await prisma.$transaction([
-          prisma.projectAccess.upsert({
-            where: {
-              projectId_userId: {
-                projectId: project.id,
-                userId: actor.id,
-              },
-            },
-            create: {
+        await prisma.projectAccess.upsert({
+          where: {
+            projectId_userId: {
               projectId: project.id,
               userId: actor.id,
-              level: 'EDIT',
-              grantedById: actor.id,
             },
-            update: {
-              level: 'EDIT',
-              grantedById: actor.id,
-            },
-          }),
-          prisma.user.update({
-            where: { id: actor.id },
-            data: { role: 'PROJECT_MANAGER' },
-          }),
-          prisma.businessUnitMembership.updateMany({
-            where: { businessUnitId, userId: actor.id, role: 'VIEWER' },
-            data: { role: 'PROJECT_MANAGER' },
-          }),
-        ]);
+          },
+          create: {
+            projectId: project.id,
+            userId: actor.id,
+            level: 'EDIT',
+            grantedById: actor.id,
+          },
+          update: {
+            level: 'EDIT',
+            grantedById: actor.id,
+          },
+        });
       }
 
       let copiedBaseline: Awaited<ReturnType<typeof copyLatestWbsBaselineToProject>> | null = null;

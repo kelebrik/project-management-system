@@ -76,6 +76,25 @@ test('global create project permission still allows creating a new project', asy
   assert.deepEqual(decision, { ok: true });
 });
 
+test('every authenticated user can create a project even when role permission is disabled', async () => {
+  const decision = await canProceedWithWrite(
+    {
+      user: { ...projectManager, role: 'EXECUTIVE_VIEWER' },
+      apiToken: null,
+      pathname: '/projects',
+      method: 'POST',
+    },
+    {
+      projectIdForWritePath: async () => null,
+      userCanWriteProject: async () => false,
+      userHasPermission: async () => false,
+      apiTokenHasPermission: () => false,
+    },
+  );
+
+  assert.deepEqual(decision, { ok: true });
+});
+
 test('bulk WBS delete requires delete permission', () => {
   assert.equal(writePermissionForPath('/projects/project-1/wbs-items', 'DELETE'), 'wbs.delete');
 });

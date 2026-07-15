@@ -68,13 +68,21 @@ export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRo
     }
     const managerRoles = await businessUnitRolesWithPermission('MEMBERS_MANAGE');
     const units = await prisma.businessUnit.findMany({
-      where: actor.role === 'ADMIN'
-        ? undefined
-        : { memberships: { some: { userId: actor.id, role: { in: managerRoles } } } },
       include: unitInclude,
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
     });
-    res.json(units);
+    res.json(units.map((unit) => {
+      const canManage =
+        actor.role === 'ADMIN' ||
+        unit.memberships.some(
+          (membership) => membership.userId === actor.id && managerRoles.includes(membership.role),
+        );
+      return {
+        ...unit,
+        memberships: canManage ? unit.memberships : [],
+        canManage,
+      };
+    }));
   });
 
   router.get('/admin/business-unit-users', async (req, res) => {
@@ -101,6 +109,7 @@ export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRo
 
   router.get('/admin/business-unit-role-permissions', requireAdmin, async (_req, res) => {
     const permissions = await prisma.businessUnitRolePermission.findMany({
+      where: { role: { in: ['ADMIN', 'VIEWER'] } },
       orderBy: [{ role: 'asc' }, { permission: 'asc' }],
     });
     res.json(permissions);

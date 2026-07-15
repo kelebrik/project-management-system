@@ -69,9 +69,6 @@ export function AdminUsersPageContent() {
                               }
                             >
                               <option value="ADMIN">{userRoleLabel("ADMIN")}</option>
-                              <option value="PROJECT_MANAGER">
-                                {userRoleLabel("PROJECT_MANAGER")}
-                              </option>
                               <option value="EXECUTIVE_VIEWER">
                                 {userRoleLabel("EXECUTIVE_VIEWER")}
                               </option>
@@ -143,9 +140,6 @@ export function AdminUsersPageContent() {
                                     }
                                   >
                                     <option value="ADMIN">{userRoleLabel("ADMIN")}</option>
-                                    <option value="PROJECT_MANAGER">
-                                      {userRoleLabel("PROJECT_MANAGER")}
-                                    </option>
                                     <option value="EXECUTIVE_VIEWER">
                                       {userRoleLabel("EXECUTIVE_VIEWER")}
                                     </option>

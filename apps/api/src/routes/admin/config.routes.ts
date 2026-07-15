@@ -1,7 +1,7 @@
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { recordAuditEvent } from '../../services/audit.js';
-import { integrationSettings, managedPermissions } from './defaults.js';
+import { integrationSettings, managedPermissions, managedRoles } from './defaults.js';
 import {
   adminConfigImportSchema,
   dictionaryItemSchema,
@@ -28,9 +28,11 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
     const [rolePermissions, businessUnitRolePermissions, dictionaryItems, systemSettings, projectModules, health, backupStatus] =
       await Promise.all([
         prisma.rolePermission.findMany({
+          where: { role: { in: managedRoles } },
           orderBy: [{ role: 'asc' }, { permission: 'asc' }],
         }),
         prisma.businessUnitRolePermission.findMany({
+          where: { role: { in: ['ADMIN', 'VIEWER'] } },
           orderBy: [{ role: 'asc' }, { permission: 'asc' }],
         }),
         prisma.dictionaryItem.findMany({
@@ -60,9 +62,11 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
     await ensureAdminConfigDefaults();
     const [rolePermissions, businessUnitRolePermissions, dictionaryItems, systemSettings, projectModules] = await Promise.all([
       prisma.rolePermission.findMany({
+        where: { role: { in: managedRoles } },
         orderBy: [{ role: 'asc' }, { permission: 'asc' }],
       }),
       prisma.businessUnitRolePermission.findMany({
+        where: { role: { in: ['ADMIN', 'VIEWER'] } },
         orderBy: [{ role: 'asc' }, { permission: 'asc' }],
       }),
       prisma.dictionaryItem.findMany({

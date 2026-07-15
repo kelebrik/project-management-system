@@ -14,16 +14,7 @@ export function createBusinessUnitsRouter() {
     const units = await prisma.businessUnit.findMany({
       where: {
         isActive: true,
-        ...(user?.role === 'ADMIN'
-          ? {}
-          : user
-            ? {
-                OR: [
-                  { memberships: { some: { userId: user.id } } },
-                  { projects: { some: { projectAccesses: { some: { userId: user.id } } } } },
-                ],
-              }
-            : { id: fallbackId ?? '__none__' }),
+        ...(user ? {} : { id: fallbackId ?? '__none__' }),
       },
       include: {
         memberships: user

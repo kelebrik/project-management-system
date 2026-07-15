@@ -592,6 +592,7 @@ function AppController() {
     deleteProject,
   } = useProjectRegistryController({
     projects,
+    currentUser,
     setProjects,
     project,
     setProject,

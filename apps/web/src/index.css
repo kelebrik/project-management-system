@@ -114,6 +114,7 @@ body {
   justify-content: space-between;
 }
 
+.business-unit-admin-heading h2,
 .business-unit-admin-heading h3 {
   align-items: center;
   display: flex;

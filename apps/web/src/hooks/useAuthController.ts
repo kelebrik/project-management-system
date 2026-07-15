@@ -168,7 +168,8 @@ export function useAuthController({
     const shouldRedirect =
       (!isAuthenticated && writeProtectedViews.has(activeView)) ||
       (isAuthenticated &&
-        ((isAdminSectionViewName(activeView) && activeView !== "admin-project-access") ||
+        ((isAdminSectionViewName(activeView) &&
+          activeView !== "admin-business-units") ||
           isDevelopmentSectionViewName(activeView)) &&
         !isAdminUser);
     if (!shouldRedirect) return;

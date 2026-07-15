@@ -1,7 +1,6 @@
 import type { Express, Request } from 'express';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { prisma } from '../db.js';
-import { ensureDefaultBusinessUnitMembership } from './business-units.js';
 import { recordAuditEvent } from '../services/audit.js';
 import { AUTH_COOKIE_SECURE, createSession } from './auth.js';
 import { logEvent } from './logger.js';
@@ -230,7 +229,6 @@ async function upsertKeycloakUser(profile: KeycloakProfile) {
         lastLoginAt: true,
       },
     });
-    await ensureDefaultBusinessUnitMembership(user.id, user.role);
     return user;
   }
   const user = await prisma.user.create({
@@ -250,7 +248,6 @@ async function upsertKeycloakUser(profile: KeycloakProfile) {
       lastLoginAt: true,
     },
   });
-  await ensureDefaultBusinessUnitMembership(user.id, user.role);
   return user;
 }
 

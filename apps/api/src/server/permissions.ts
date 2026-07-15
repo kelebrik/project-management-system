@@ -173,6 +173,9 @@ export async function canProceedWithWrite(
   if (!context.user && !context.apiToken) {
     return { ok: false, status: 401, error: 'Требуется вход в систему' };
   }
+  if (context.user && requiredPermission === 'project.create') {
+    return { ok: true };
+  }
   if (context.apiToken && dependencies.apiTokenHasPermission(context.apiToken, requiredPermission)) {
     return { ok: true };
   }

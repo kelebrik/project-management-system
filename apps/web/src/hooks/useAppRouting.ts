@@ -127,7 +127,7 @@ export function useAppRouting({
       }
       if (
         isAdminSectionViewName(nextView) &&
-        nextView !== "admin-project-access" &&
+        nextView !== "admin-business-units" &&
         !isAdminUser
       ) {
         setError("Раздел администрирования доступен только администратору");

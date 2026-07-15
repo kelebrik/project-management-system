@@ -19,7 +19,7 @@ export function defaultBusinessUnitPermissionEnabled(
 }
 
 export async function ensureBusinessUnitPermissionDefaults() {
-  const roles: BusinessUnitRole[] = ['ADMIN', 'PROJECT_MANAGER', 'VIEWER'];
+  const roles: BusinessUnitRole[] = ['ADMIN', 'VIEWER'];
   await prisma.businessUnitRolePermission.createMany({
     data: roles.flatMap((role) =>
       BUSINESS_UNIT_PERMISSIONS.map((permission) => ({
