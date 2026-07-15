@@ -2,6 +2,10 @@ import type { Prisma, UserRole } from '@prisma/client';
 import type { NextFunction, Request, Response } from 'express';
 import { prisma } from '../db.js';
 import { currentUser } from './auth.js';
+import {
+  businessUnitRoleHasPermission,
+  businessUnitRolesWithPermission,
+} from './business-unit-permissions.js';
 import { projectIdForWritePath } from './project-access.js';
 
 export const BUSINESS_UNIT_HEADER = 'x-business-unit-id';
@@ -47,9 +51,14 @@ export async function readableProjectWhere(req: Request): Promise<Prisma.Project
     return defaultId ? { businessUnitId: defaultId } : { id: { equals: '__none__' } };
   }
 
+  const [viewRoles, projectAdminRoles] = await Promise.all([
+    businessUnitRolesWithPermission('PROJECT_VIEW'),
+    businessUnitRolesWithPermission('PROJECT_ADMIN'),
+  ]);
+  const readableRoles = [...new Set([...viewRoles, ...projectAdminRoles])];
   const access = {
     OR: [
-      { businessUnit: { memberships: { some: { userId: user.id } } } },
+      { businessUnit: { memberships: { some: { userId: user.id, role: { in: readableRoles } } } } },
       { projectAccesses: { some: { userId: user.id } } },
     ],
   } satisfies Prisma.ProjectWhereInput;
@@ -88,7 +97,9 @@ export async function userCanCreateInBusinessUnit(req: Request, businessUnitId: 
     where: { businessUnitId_userId: { businessUnitId, userId: user.id } },
     select: { role: true },
   });
-  return membership?.role === 'ADMIN' || membership?.role === 'PROJECT_MANAGER';
+  return membership
+    ? businessUnitRoleHasPermission(membership.role, 'PROJECT_CREATE')
+    : false;
 }
 
 export async function businessUnitReadMiddleware(

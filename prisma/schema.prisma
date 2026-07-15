@@ -170,6 +170,19 @@ model BusinessUnitMembership {
   @@index([businessUnitId, role])
 }
 
+model BusinessUnitRolePermission {
+  id         String           @id @default(cuid())
+  role       BusinessUnitRole
+  permission String
+  enabled    Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([role, permission])
+  @@index([role])
+  @@index([permission])
+}
+
 model Project {
   id               String              @id @default(cuid())
   businessUnitId   String

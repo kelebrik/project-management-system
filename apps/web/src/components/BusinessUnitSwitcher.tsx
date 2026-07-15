@@ -13,6 +13,7 @@ type BusinessUnitOption = {
   name: string;
   isDefault: boolean;
   role: 'ADMIN' | 'PROJECT_MANAGER' | 'VIEWER' | 'GUEST';
+  canManage: boolean;
   projectCount: number;
 };
 
@@ -78,7 +79,7 @@ export function BusinessUnitSwitcher({ canManage = false, onManage }: BusinessUn
           ))}
         </select>
       </label>
-      {(canManage || units.find((unit) => unit.id === selectedId)?.role === 'ADMIN') && onManage && (
+      {(canManage || units.find((unit) => unit.id === selectedId)?.canManage) && onManage && (
         <button
           type="button"
           className="business-unit-manage-button"

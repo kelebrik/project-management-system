@@ -62,6 +62,15 @@ export const adminConfigImportSchema = z.object({
       }),
     )
     .optional(),
+  businessUnitRolePermissions: z
+    .array(
+      z.object({
+        role: z.enum(['ADMIN', 'PROJECT_MANAGER', 'VIEWER']),
+        permission: z.enum(['PROJECT_VIEW', 'PROJECT_CREATE', 'PROJECT_ADMIN', 'MEMBERS_MANAGE']),
+        enabled: z.boolean(),
+      }),
+    )
+    .optional(),
   dictionaryItems: z.array(dictionaryItemSchema).optional(),
   systemSettings: z
     .array(

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -12,6 +12,24 @@ async function main() {
       name: 'TV&Box',
       isDefault: true,
     },
+  });
+  const businessUnitRolePermissions = [
+    { role: 'ADMIN', permission: 'PROJECT_VIEW', enabled: true },
+    { role: 'ADMIN', permission: 'PROJECT_CREATE', enabled: true },
+    { role: 'ADMIN', permission: 'PROJECT_ADMIN', enabled: true },
+    { role: 'ADMIN', permission: 'MEMBERS_MANAGE', enabled: true },
+    { role: 'PROJECT_MANAGER', permission: 'PROJECT_VIEW', enabled: true },
+    { role: 'PROJECT_MANAGER', permission: 'PROJECT_CREATE', enabled: true },
+    { role: 'PROJECT_MANAGER', permission: 'PROJECT_ADMIN', enabled: false },
+    { role: 'PROJECT_MANAGER', permission: 'MEMBERS_MANAGE', enabled: false },
+    { role: 'VIEWER', permission: 'PROJECT_VIEW', enabled: true },
+    { role: 'VIEWER', permission: 'PROJECT_CREATE', enabled: true },
+    { role: 'VIEWER', permission: 'PROJECT_ADMIN', enabled: false },
+    { role: 'VIEWER', permission: 'MEMBERS_MANAGE', enabled: false },
+  ] satisfies Prisma.BusinessUnitRolePermissionCreateManyInput[];
+  await prisma.businessUnitRolePermission.createMany({
+    data: businessUnitRolePermissions,
+    skipDuplicates: true,
   });
   const demoProjects = [
     {

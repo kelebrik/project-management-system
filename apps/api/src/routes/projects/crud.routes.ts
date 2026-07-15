@@ -97,6 +97,7 @@ export function registerProjectCrudRoutes(
       res.status(403).json({ error: 'Нет права создавать проекты в выбранном бизнес-юните' });
       return;
     }
+    const actor = currentUser(req);
 
     if (projectData.parentId) {
       const parent = await prisma.project.findUnique({
@@ -144,6 +145,10 @@ export function registerProjectCrudRoutes(
         data: {
           ...projectData,
           businessUnitId,
+          projectManager:
+            actor && actor.role !== 'ADMIN'
+              ? actor.name
+              : projectData.projectManager,
           parentId: projectData.parentId || null,
           startDate: new Date(projectData.startDate),
           initialTargetDate: new Date(projectData.targetDate),
@@ -154,8 +159,6 @@ export function registerProjectCrudRoutes(
         },
         include: projectInclude,
       });
-      const actor = currentUser(req);
-
       const createdProjectAccessLevel = actor?.role === 'ADMIN' ? 'ADMIN' : 'EDIT';
 
       if (actor && actor.role !== 'ADMIN') {
@@ -180,6 +183,10 @@ export function registerProjectCrudRoutes(
           }),
           prisma.user.update({
             where: { id: actor.id },
+            data: { role: 'PROJECT_MANAGER' },
+          }),
+          prisma.businessUnitMembership.updateMany({
+            where: { businessUnitId, userId: actor.id, role: 'VIEWER' },
             data: { role: 'PROJECT_MANAGER' },
           }),
         ]);

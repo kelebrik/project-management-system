@@ -2,11 +2,13 @@ import type { Request, Response } from 'express';
 import type { ProjectAccessLevel } from '@prisma/client';
 import { prisma } from '../db.js';
 import { currentUser } from './auth.js';
+import { businessUnitRolesWithPermission } from './business-unit-permissions.js';
 
 const writeLevels: ProjectAccessLevel[] = ['EDIT', 'ADMIN'];
 const adminLevels: ProjectAccessLevel[] = ['ADMIN'];
 
 export async function userProjectAccessLevel(userId: string, projectId: string) {
+  const businessUnitAdminRoles = await businessUnitRolesWithPermission('PROJECT_ADMIN');
   const [access, unitAdmin] = await Promise.all([
     prisma.projectAccess.findUnique({
       where: {
@@ -20,7 +22,7 @@ export async function userProjectAccessLevel(userId: string, projectId: string) 
     prisma.businessUnitMembership.findFirst({
       where: {
         userId,
-        role: 'ADMIN',
+        role: { in: businessUnitAdminRoles },
         businessUnit: { projects: { some: { id: projectId } } },
       },
       select: { id: true },
@@ -41,6 +43,7 @@ export async function userCanAdminProject(userId: string, projectId: string) {
 }
 
 export async function userProjectAccessLevelMap(userId: string, projectIds?: string[]) {
+  const businessUnitAdminRoles = await businessUnitRolesWithPermission('PROJECT_ADMIN');
   const [accesses, unitAdminProjects] = await Promise.all([
     prisma.projectAccess.findMany({
       where: {
@@ -52,7 +55,7 @@ export async function userProjectAccessLevelMap(userId: string, projectIds?: str
     prisma.project.findMany({
       where: {
         ...(projectIds ? { id: { in: projectIds } } : {}),
-        businessUnit: { memberships: { some: { userId, role: 'ADMIN' } } },
+        businessUnit: { memberships: { some: { userId, role: { in: businessUnitAdminRoles } } } },
       },
       select: { id: true },
     }),

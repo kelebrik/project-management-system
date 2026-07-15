@@ -25,9 +25,12 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
 
   router.get('/admin/config', requireAdmin, async (_req, res) => {
     await ensureAdminConfigDefaults();
-    const [rolePermissions, dictionaryItems, systemSettings, projectModules, health, backupStatus] =
+    const [rolePermissions, businessUnitRolePermissions, dictionaryItems, systemSettings, projectModules, health, backupStatus] =
       await Promise.all([
         prisma.rolePermission.findMany({
+          orderBy: [{ role: 'asc' }, { permission: 'asc' }],
+        }),
+        prisma.businessUnitRolePermission.findMany({
           orderBy: [{ role: 'asc' }, { permission: 'asc' }],
         }),
         prisma.dictionaryItem.findMany({
@@ -43,6 +46,7 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
 
     res.json({
       rolePermissions,
+      businessUnitRolePermissions,
       dictionaryItems,
       systemSettings: systemSettings.map(adminSettingResponse),
       projectModules,
@@ -54,8 +58,11 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
 
   router.get('/admin/config/export', requireAdmin, async (_req, res) => {
     await ensureAdminConfigDefaults();
-    const [rolePermissions, dictionaryItems, systemSettings, projectModules] = await Promise.all([
+    const [rolePermissions, businessUnitRolePermissions, dictionaryItems, systemSettings, projectModules] = await Promise.all([
       prisma.rolePermission.findMany({
+        orderBy: [{ role: 'asc' }, { permission: 'asc' }],
+      }),
+      prisma.businessUnitRolePermission.findMany({
         orderBy: [{ role: 'asc' }, { permission: 'asc' }],
       }),
       prisma.dictionaryItem.findMany({
@@ -70,6 +77,11 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
     res.json({
       exportedAt: new Date().toISOString(),
       rolePermissions: rolePermissions.map(({ role, permission, enabled }) => ({
+        role,
+        permission,
+        enabled,
+      })),
+      businessUnitRolePermissions: businessUnitRolePermissions.map(({ role, permission, enabled }) => ({
         role,
         permission,
         enabled,
@@ -101,6 +113,7 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
       return;
     }
     const rolePermissions = parsed.data.rolePermissions ?? [];
+    const businessUnitRolePermissions = parsed.data.businessUnitRolePermissions ?? [];
     const dictionaryItems = parsed.data.dictionaryItems ?? [];
     const systemSettings = parsed.data.systemSettings ?? [];
     const projectModules = parsed.data.projectModules ?? [];
@@ -108,6 +121,18 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
     await prisma.$transaction([
       ...rolePermissions.map((permission) =>
         prisma.rolePermission.upsert({
+          where: {
+            role_permission: {
+              role: permission.role,
+              permission: permission.permission,
+            },
+          },
+          update: { enabled: permission.enabled },
+          create: permission,
+        }),
+      ),
+      ...businessUnitRolePermissions.map((permission) =>
+        prisma.businessUnitRolePermission.upsert({
           where: {
             role_permission: {
               role: permission.role,
@@ -169,6 +194,7 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
       objectType: 'SystemSetting',
       metadata: {
         rolePermissions: rolePermissions.length,
+        businessUnitRolePermissions: businessUnitRolePermissions.length,
         dictionaryItems: dictionaryItems.length,
         systemSettings: systemSettings.length,
         projectModules: projectModules.length,

@@ -48,7 +48,7 @@ type BusinessUnitRole = "ADMIN" | "PROJECT_MANAGER" | "VIEWER";
 type BusinessUnitMembership = {
   id: string;
   role: BusinessUnitRole;
-  user: Pick<AccessUser, "id" | "name" | "email" | "isActive">;
+  user: Pick<AccessUser, "id" | "name" | "email" | "role" | "isActive">;
 };
 type BusinessUnit = {
   id: string;
@@ -293,7 +293,13 @@ export function AdminProjectAccessPageContent() {
               <div className="business-unit-members">
                 {unit.memberships.map((membership) => (
                   <span className="business-unit-member" key={membership.id}>
-                    <span><b>{membership.user.name}</b><small>{businessUnitRoleLabels[membership.role]}</small></span>
+                    <span>
+                      <b>{membership.user.name}</b>
+                      <small>
+                        {membership.user.role === "ADMIN" ? "Администратор системы · " : ""}
+                        {businessUnitRoleLabels[membership.role]}
+                      </small>
+                    </span>
                     <button
                       type="button"
                       className="ghost-button icon-button"
