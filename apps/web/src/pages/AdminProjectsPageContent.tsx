@@ -1,5 +1,7 @@
 import { Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
+import { apiClient } from "../api/client";
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
 import type { ProjectRegistryDraft } from "../app/formState";
@@ -19,12 +21,36 @@ export function AdminProjectsPageContent() {
     projectStatusLabel,
     projectToRegistryDraft,
     ragOptionLabel,
+    moveProjectToBusinessUnit,
     savePortfolioProjectIdentity,
     saveProjectRegistryItem,
     savingProjectRegistryId,
     selectProject,
     updateProjectRegistryDraft,
   } = ctx;
+  const [businessUnits, setBusinessUnits] = useState<Array<{
+    id: string;
+    name: string;
+  }>>([]);
+
+  useEffect(() => {
+    if (currentUser?.role !== "ADMIN") return;
+    let cancelled = false;
+    void apiClient
+      .get<Array<{ id: string; name: string }>>(
+        "/api/business-units",
+        "Не удалось загрузить бизнес-юниты",
+      )
+      .then((units) => {
+        if (!cancelled) setBusinessUnits(units);
+      })
+      .catch(() => {
+        if (!cancelled) setBusinessUnits([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.role]);
 
   const updateAndSaveProjectIdentity = (
     projectId: string,
@@ -72,6 +98,7 @@ export function AdminProjectsPageContent() {
                         <span>Код</span>
                         <span>Наименование</span>
                         <span>Родитель</span>
+                        <span>БЮ</span>
                         <span>РП</span>
                         <span>Статус</span>
                         <span>Индикатор</span>
@@ -152,6 +179,40 @@ export function AdminProjectsPageContent() {
                                   ))}
                               </select>
                             </label>
+                            {currentUser?.role === "ADMIN" ? (
+                              <label>
+                                <span>БЮ</span>
+                                <select
+                                  value={item.businessUnitId}
+                                  disabled={savingProjectRegistryId === item.id}
+                                  onChange={async (event) => {
+                                    const target = businessUnits.find(
+                                      (unit) => unit.id === event.currentTarget.value,
+                                    );
+                                    if (!target || target.id === item.businessUnitId) return;
+                                    const approved = await confirm({
+                                      title: "Перенести проект в другой БЮ?",
+                                      message:
+                                        `«${item.code} · ${item.name}» будет перенесен из «${item.businessUnit.name}» в «${target.name}». ` +
+                                        "Вместе с ним будут перенесены все дочерние проекты, включая закрытые. Связь с прежним родителем будет удалена, все индивидуальные доступы к переносимым проектам будут сброшены.",
+                                      confirmLabel: "Перенести",
+                                    });
+                                    if (approved) {
+                                      void moveProjectToBusinessUnit(item.id, target.id);
+                                    }
+                                  }}
+                                >
+                                  {businessUnits.map((unit) => (
+                                    <option key={unit.id} value={unit.id}>{unit.name}</option>
+                                  ))}
+                                </select>
+                              </label>
+                            ) : (
+                              <span className="project-admin-readonly">
+                                <span>БЮ</span>
+                                {item.businessUnit.name}
+                              </span>
+                            )}
                             <label>
                               <span>РП</span>
                               <input

@@ -983,6 +983,11 @@ export const openApiDocument = {
     "/api/admin/project-modules": {
       put: securedOperation(["Admin"], "Update project module visibility settings"),
     },
+    "/api/admin/projects/{projectId}/business-unit": {
+      patch: securedOperation(["Admin"], "Move a project subtree to another business unit", [
+        pathParam("projectId"),
+      ]),
+    },
     "/api/admin/role-permissions/{permissionId}": {
       patch: securedOperation(["Admin"], "Enable or disable role permission", [
         pathParam("permissionId"),

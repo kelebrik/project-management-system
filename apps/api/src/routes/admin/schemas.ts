@@ -58,6 +58,10 @@ export const businessUnitMembershipSchema = z.object({
   role: z.literal('ADMIN'),
 });
 
+export const projectBusinessUnitMoveSchema = z.object({
+  businessUnitId: z.string().trim().min(1),
+});
+
 export const adminConfigImportSchema = z.object({
   rolePermissions: z
     .array(

@@ -446,6 +446,46 @@ export function useProjectRegistryController({
     ],
   );
 
+  const moveProjectToBusinessUnit = useCallback(
+    async (projectId: string, businessUnitId: string) => {
+      setSavingProjectRegistryId(projectId);
+      setError(null);
+      setNotice(null);
+      try {
+        const result = await apiClient.patch<{
+          movedProjectIds: string[];
+          targetBusinessUnitName: string;
+          deletedAccessCount: number;
+        }>(
+          `/api/admin/projects/${projectId}/business-unit`,
+          { businessUnitId },
+          "Не удалось перенести проект",
+        );
+        if (currentProjectId && result.movedProjectIds.includes(currentProjectId)) {
+          setProject(null);
+        }
+        await reloadProjects();
+        await reloadAuditEvents();
+        setNotice(
+          `Перенесено проектов: ${result.movedProjectIds.length}. БЮ: ${result.targetBusinessUnitName}. Индивидуальные доступы сброшены: ${result.deletedAccessCount}`,
+        );
+      } catch (moveError) {
+        setError(moveError instanceof Error ? moveError.message : "Не удалось перенести проект");
+      } finally {
+        setSavingProjectRegistryId(null);
+      }
+    },
+    [
+      currentProjectId,
+      reloadAuditEvents,
+      reloadProjects,
+      setError,
+      setNotice,
+      setProject,
+      setSavingProjectRegistryId,
+    ],
+  );
+
   const closeProject = useCallback(
     async (projectId: string) => {
       const sourceProject = projects.find((item) => item.id === projectId);
@@ -570,6 +610,7 @@ export function useProjectRegistryController({
     savePortfolioProjectIdentity,
     saveProjectPortfolio,
     saveProjectRegistryItem,
+    moveProjectToBusinessUnit,
     closeProject,
     deleteProject,
   };
