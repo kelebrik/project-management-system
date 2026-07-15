@@ -2,6 +2,7 @@ import { Building2, Plus, Search, Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { apiClient } from "../api/client";
+import { BUSINESS_UNITS_CHANGED_EVENT } from "../app/businessUnitContext";
 import type { ProjectAccessLevel } from "../app/domainTypes";
 import { userRoleLabel } from "../app/adminHelpers";
 import type { UserRole } from "../app/adminTypes";
@@ -21,6 +22,8 @@ type AccessUser = {
   role: UserRole;
   isActive: boolean;
 };
+
+type BusinessUnitDirectoryUser = Pick<AccessUser, "id" | "name" | "email" | "isActive">;
 
 type AccessProject = {
   id: string;
@@ -58,7 +61,7 @@ type BusinessUnit = {
 };
 
 const businessUnitRoleLabels: Record<BusinessUnitRole, string> = {
-  ADMIN: "Администратор проектов",
+  ADMIN: "Администратор бизнес-юнита",
   PROJECT_MANAGER: "Руководитель проектов",
   VIEWER: "Наблюдатель",
 };
@@ -74,10 +77,12 @@ export function AdminProjectAccessPageContent() {
     savingProjectAccess,
     updateProjectAccessDraft,
     updateProjectAccessLevel,
+    isAdminUser,
     users,
   } = usePageContext();
   const confirm = useConfirm();
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
+  const [businessUnitUsers, setBusinessUnitUsers] = useState<BusinessUnitDirectoryUser[]>([]);
   const [businessUnitError, setBusinessUnitError] = useState("");
   const [creatingUnit, setCreatingUnit] = useState(false);
   const [unitDraft, setUnitDraft] = useState({ code: "", name: "" });
@@ -106,14 +111,20 @@ export function AdminProjectAccessPageContent() {
 
   useEffect(() => {
     let cancelled = false;
-    apiClient
-      .get<BusinessUnit[]>(
+    Promise.all([
+      apiClient.get<BusinessUnit[]>(
         "/api/admin/business-units",
         "Не удалось загрузить бизнес-юниты",
-      )
-      .then((data) => {
+      ),
+      apiClient.get<BusinessUnitDirectoryUser[]>(
+        "/api/admin/business-unit-users",
+        "Не удалось загрузить пользователей",
+      ),
+    ])
+      .then(([data, directoryUsers]) => {
         if (cancelled) return;
         setBusinessUnits(data);
+        setBusinessUnitUsers(directoryUsers);
         setMembershipDraft((current) => ({
           ...current,
           businessUnitId: current.businessUnitId || data[0]?.id || "",
@@ -134,8 +145,13 @@ export function AdminProjectAccessPageContent() {
     event.preventDefault();
     setCreatingUnit(true);
     try {
-      await apiClient.post("/api/admin/business-units", unitDraft, "Не удалось создать бизнес-юнит");
+      await apiClient.post<BusinessUnit>(
+        "/api/admin/business-units",
+        unitDraft,
+        "Не удалось создать бизнес-юнит",
+      );
       setUnitDraft({ code: "", name: "" });
+      window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
       await loadBusinessUnits();
     } catch (error) {
       setBusinessUnitError(error instanceof Error ? error.message : "Не удалось создать бизнес-юнит");
@@ -210,13 +226,14 @@ export function AdminProjectAccessPageContent() {
 
   return (
     <article className="panel project-card admin-project-access">
-      <div className="panel-title">
+      <div className="business-unit-role-boundary" aria-label="Уровни администрирования">
         <div>
-          <h2>Администрирование: бизнес-юниты и доступ</h2>
-          <p>
-            Индивидуальные права пользователей на просмотр и изменение выбранных
-            проектов.
-          </p>
+          <b>Администратор системы</b>
+          <span>Создает бизнес-юниты и управляет всей системой.</span>
+        </div>
+        <div>
+          <b>Администратор бизнес-юнита</b>
+          <span>Управляет участниками и всеми проектами только своего бизнес-юнита.</span>
         </div>
       </div>
 
@@ -226,7 +243,7 @@ export function AdminProjectAccessPageContent() {
             <h3 id="business-unit-heading"><Building2 size={18} /> Бизнес-юниты</h3>
             <p>Контуры портфелей и роли команд. Индивидуальные доступы ниже остаются исключениями.</p>
           </div>
-          <form className="business-unit-create" onSubmit={createBusinessUnit}>
+          {isAdminUser && <form className="business-unit-create" onSubmit={createBusinessUnit}>
             <input
               aria-label="Код бизнес-юнита"
               placeholder="Код, например retail"
@@ -245,7 +262,7 @@ export function AdminProjectAccessPageContent() {
             <button type="submit" disabled={creatingUnit} title="Создать бизнес-юнит">
               <Plus size={16} /> Создать
             </button>
-          </form>
+          </form>}
         </div>
 
         {businessUnitError && <p className="business-unit-error">{businessUnitError}</p>}
@@ -265,7 +282,7 @@ export function AdminProjectAccessPageContent() {
             required
           >
             <option value="">Выберите пользователя</option>
-            {activeUsers.map((user) => <option key={user.id} value={user.id}>{user.name} · {user.email}</option>)}
+            {businessUnitUsers.map((user) => <option key={user.id} value={user.id}>{user.name} · {user.email}</option>)}
           </select>
           <select
             aria-label="Роль в бизнес-юните"
@@ -316,6 +333,7 @@ export function AdminProjectAccessPageContent() {
         </div>
       </section>
 
+      {isAdminUser && <>
       <form className="project-access-grant" onSubmit={grantProjectAccess}>
         <div className="project-access-picker">
           <div className="project-access-picker-title">
@@ -497,6 +515,7 @@ export function AdminProjectAccessPageContent() {
           <p className="project-access-empty">Назначенных доступов пока нет.</p>
         )}
       </div>
+      </>}
     </article>
   );
 }

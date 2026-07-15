@@ -1,5 +1,6 @@
 export const BUSINESS_UNIT_STORAGE_KEY = 'pms-business-unit-id';
 export const BUSINESS_UNIT_HEADER = 'X-Business-Unit-ID';
+export const BUSINESS_UNITS_CHANGED_EVENT = 'pms-business-units-changed';
 
 export function selectedBusinessUnitId() {
   if (typeof window === 'undefined') return null;

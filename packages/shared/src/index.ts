@@ -116,7 +116,7 @@ export const labels = {
     Closed: "Закрыто",
   },
   userRole: {
-    ADMIN: "Администратор",
+    ADMIN: "Администратор системы",
     PROJECT_MANAGER: "РП",
     TEAM_MEMBER: "Участник команды",
     EXECUTIVE_VIEWER: "Просмотр",

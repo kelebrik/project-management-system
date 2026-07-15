@@ -125,7 +125,11 @@ export function useAppRouting({
         setError("Для редактирования нужно войти в систему");
         return;
       }
-      if (isAdminSectionViewName(nextView) && !isAdminUser) {
+      if (
+        isAdminSectionViewName(nextView) &&
+        nextView !== "admin-project-access" &&
+        !isAdminUser
+      ) {
         setError("Раздел администрирования доступен только администратору");
         return;
       }

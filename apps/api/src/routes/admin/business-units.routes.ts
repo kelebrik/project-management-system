@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import type { Router } from 'express';
+import type { Request, Response, Router } from 'express';
 import { prisma } from '../../db.js';
 import { recordAuditEvent } from '../../services/audit.js';
 import { businessUnitMembershipSchema, businessUnitSchema } from './schemas.js';
@@ -19,15 +19,70 @@ function param(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+async function canManageBusinessUnit(user: ReturnType<AdminRoutesContext['currentUser']>, businessUnitId: string) {
+  if (!user) return false;
+  if (user.role === 'ADMIN') return true;
+  const membership = await prisma.businessUnitMembership.findUnique({
+    where: { businessUnitId_userId: { businessUnitId, userId: user.id } },
+    select: { role: true },
+  });
+  return membership?.role === 'ADMIN';
+}
+
+async function requireBusinessUnitManager(
+  req: Request,
+  res: Response,
+  businessUnitId: string,
+  currentUser: AdminRoutesContext['currentUser'],
+) {
+  const user = currentUser(req);
+  if (!user) {
+    res.status(401).json({ error: 'Требуется вход в систему' });
+    return null;
+  }
+  if (!(await canManageBusinessUnit(user, businessUnitId))) {
+    res.status(403).json({ error: 'Управлять участниками может администратор этого бизнес-юнита' });
+    return null;
+  }
+  return user;
+}
+
 export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRoutesContext) {
   const { requireAdmin, currentUser } = context;
 
-  router.get('/admin/business-units', requireAdmin, async (_req, res) => {
+  router.get('/admin/business-units', async (req, res) => {
+    const actor = currentUser(req);
+    if (!actor) {
+      res.status(401).json({ error: 'Требуется вход в систему' });
+      return;
+    }
     const units = await prisma.businessUnit.findMany({
+      where: actor.role === 'ADMIN' ? undefined : { memberships: { some: { userId: actor.id, role: 'ADMIN' } } },
       include: unitInclude,
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
     });
     res.json(units);
+  });
+
+  router.get('/admin/business-unit-users', async (req, res) => {
+    const actor = currentUser(req);
+    if (!actor) {
+      res.status(401).json({ error: 'Требуется вход в систему' });
+      return;
+    }
+    if (actor.role !== 'ADMIN' && !(await prisma.businessUnitMembership.findFirst({
+      where: { userId: actor.id, role: 'ADMIN' },
+      select: { id: true },
+    }))) {
+      res.status(403).json({ error: 'Недостаточно прав' });
+      return;
+    }
+    const users = await prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, email: true, isActive: true },
+      orderBy: [{ name: 'asc' }, { email: 'asc' }],
+    });
+    res.json(users);
   });
 
   router.post('/admin/business-units', requireAdmin, async (req, res) => {
@@ -65,13 +120,15 @@ export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRo
     }
   });
 
-  router.post('/admin/business-units/:businessUnitId/memberships', requireAdmin, async (req, res) => {
+  router.post('/admin/business-units/:businessUnitId/memberships', async (req, res) => {
     const businessUnitId = param(req.params.businessUnitId);
     const parsed = businessUnitMembershipSchema.safeParse(req.body);
     if (!businessUnitId || !parsed.success) {
       res.status(400).json({ error: parsed.success ? 'Бизнес-юнит не указан' : parsed.error.flatten() });
       return;
     }
+    const actor = await requireBusinessUnitManager(req, res, businessUnitId, currentUser);
+    if (!actor) return;
     const [unit, user, existing] = await Promise.all([
       prisma.businessUnit.findUnique({ where: { id: businessUnitId }, select: { id: true } }),
       prisma.user.findUnique({ where: { id: parsed.data.userId }, select: { id: true, isActive: true } }),
@@ -104,7 +161,7 @@ export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRo
     });
     await recordAuditEvent({
       req,
-      actor: currentUser(req),
+      actor,
       action: 'business_unit.membership.upsert',
       objectType: 'BusinessUnitMembership',
       objectId: membership.id,
@@ -113,7 +170,7 @@ export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRo
     res.json(membership);
   });
 
-  router.delete('/admin/business-unit-memberships/:membershipId', requireAdmin, async (req, res) => {
+  router.delete('/admin/business-unit-memberships/:membershipId', async (req, res) => {
     const membershipId = param(req.params.membershipId);
     if (!membershipId) {
       res.status(400).json({ error: 'Участник не указан' });
@@ -124,6 +181,8 @@ export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRo
       res.status(404).json({ error: 'Участник бизнес-юнита не найден' });
       return;
     }
+    const actor = await requireBusinessUnitManager(req, res, before.businessUnitId, currentUser);
+    if (!actor) return;
     const adminCount =
       before.role === 'ADMIN'
         ? await prisma.businessUnitMembership.count({
@@ -137,7 +196,7 @@ export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRo
     await prisma.businessUnitMembership.delete({ where: { id: membershipId } });
     await recordAuditEvent({
       req,
-      actor: currentUser(req),
+      actor,
       action: 'business_unit.membership.delete',
       objectType: 'BusinessUnitMembership',
       objectId: membershipId,

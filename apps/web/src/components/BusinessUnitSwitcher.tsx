@@ -1,8 +1,9 @@
-import { Building2, Plus } from 'lucide-react';
+import { Building2, Plus, Settings } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import {
   BUSINESS_UNIT_STORAGE_KEY,
+  BUSINESS_UNITS_CHANGED_EVENT,
   selectedBusinessUnitId,
 } from '../app/businessUnitContext';
 
@@ -26,24 +27,31 @@ export function BusinessUnitSwitcher({ canManage = false, onManage }: BusinessUn
 
   useEffect(() => {
     let cancelled = false;
-    apiClient
-      .get<BusinessUnitOption[]>('/api/business-units', 'Не удалось загрузить бизнес-юниты')
-      .then((items) => {
-        if (cancelled) return;
-        setUnits(items);
-        const stored = selectedBusinessUnitId();
-        if (stored && items.some((unit) => unit.id === stored)) {
-          setSelectedId(stored);
-          return;
-        }
-        const fallback = items.find((unit) => unit.isDefault) ?? items[0];
-        if (!fallback) return;
-        window.localStorage.setItem(BUSINESS_UNIT_STORAGE_KEY, fallback.id);
-        setSelectedId(fallback.id);
-      })
-      .catch(() => setUnits([]));
+    const loadUnits = () => {
+      void apiClient
+        .get<BusinessUnitOption[]>('/api/business-units', 'Не удалось загрузить бизнес-юниты')
+        .then((items) => {
+          if (cancelled) return;
+          setUnits(items);
+          const stored = selectedBusinessUnitId();
+          if (stored && items.some((unit) => unit.id === stored)) {
+            setSelectedId(stored);
+            return;
+          }
+          const fallback = items.find((unit) => unit.isDefault) ?? items[0];
+          if (!fallback) return;
+          window.localStorage.setItem(BUSINESS_UNIT_STORAGE_KEY, fallback.id);
+          setSelectedId(fallback.id);
+        })
+        .catch(() => {
+          if (!cancelled) setUnits([]);
+        });
+    };
+    loadUnits();
+    window.addEventListener(BUSINESS_UNITS_CHANGED_EVENT, loadUnits);
     return () => {
       cancelled = true;
+      window.removeEventListener(BUSINESS_UNITS_CHANGED_EVENT, loadUnits);
     };
   }, []);
 
@@ -70,15 +78,15 @@ export function BusinessUnitSwitcher({ canManage = false, onManage }: BusinessUn
           ))}
         </select>
       </label>
-      {canManage && onManage && (
+      {(canManage || units.find((unit) => unit.id === selectedId)?.role === 'ADMIN') && onManage && (
         <button
           type="button"
           className="business-unit-manage-button"
-          aria-label="Создать бизнес-юнит"
-          title="Создать бизнес-юнит"
+          aria-label={canManage ? 'Создать бизнес-юнит' : 'Управлять бизнес-юнитом'}
+          title={canManage ? 'Создать бизнес-юнит' : 'Управлять бизнес-юнитом'}
           onClick={onManage}
         >
-          <Plus size={16} aria-hidden="true" />
+          {canManage ? <Plus size={16} aria-hidden="true" /> : <Settings size={16} aria-hidden="true" />}
         </button>
       )}
     </div>
