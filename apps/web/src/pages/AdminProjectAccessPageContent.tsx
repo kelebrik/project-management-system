@@ -226,17 +226,6 @@ export function AdminProjectAccessPageContent() {
 
   return (
     <article className="panel project-card admin-project-access">
-      <div className="business-unit-role-boundary" aria-label="Уровни администрирования">
-        <div>
-          <b>Администратор системы</b>
-          <span>Создает бизнес-юниты и управляет всей системой.</span>
-        </div>
-        <div>
-          <b>Администратор бизнес-юнита</b>
-          <span>Управляет участниками и всеми проектами только своего бизнес-юнита.</span>
-        </div>
-      </div>
-
       <section className="business-unit-admin" aria-labelledby="business-unit-heading">
         <div className="business-unit-admin-heading">
           <div>

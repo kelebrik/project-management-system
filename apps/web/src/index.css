@@ -89,9 +89,13 @@ body {
   width: 100%;
 }
 
+.business-unit-switcher:focus-within {
+  border-color: var(--brand-400);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-400) 65%, transparent);
+}
+
 .business-unit-switcher select:focus-visible {
-  outline: 2px solid var(--brand-500);
-  outline-offset: 2px;
+  outline: 0;
 }
 
 .business-unit-admin {
@@ -99,28 +103,6 @@ body {
   border-top: 1px solid var(--border);
   margin: 8px 0 24px;
   padding: 18px 0;
-}
-
-.business-unit-role-boundary {
-  border-bottom: 1px solid var(--border);
-  display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 2px 0 16px;
-}
-
-.business-unit-role-boundary div {
-  display: grid;
-  gap: 3px;
-}
-
-.business-unit-role-boundary b {
-  font-size: 13px;
-}
-
-.business-unit-role-boundary span {
-  color: var(--text-muted);
-  font-size: 12px;
 }
 
 .business-unit-admin-heading,
@@ -230,10 +212,6 @@ body {
 }
 
 @media (max-width: 1100px) {
-  .business-unit-role-boundary {
-    grid-template-columns: 1fr;
-  }
-
   .business-unit-admin-heading,
   .business-unit-membership-form,
   .business-unit-row {
