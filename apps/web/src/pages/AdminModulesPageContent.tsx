@@ -13,7 +13,6 @@ export function AdminModulesPageContent() {
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>Администрирование: управление модулями</h2>
                       <p>
                         Включение и скрытие страниц раздела Проекты для всех
                         пользователей.

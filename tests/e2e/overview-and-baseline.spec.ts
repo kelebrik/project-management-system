@@ -216,6 +216,71 @@ async function mockReadOnlyProject(page: Page) {
   );
 }
 
+test("project creation confirms the selected business unit for an administrator", async ({
+  page,
+}) => {
+  await page.route("**/api/business-units", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "business-unit-main",
+          code: "main",
+          name: "TV&Box",
+          isDefault: true,
+          role: "ADMIN",
+          canManage: true,
+          projectCount: 1,
+        },
+      ],
+    }),
+  );
+  await mockAdminProject(page);
+  await page.goto("/projects");
+
+  await page.getByRole("button", { name: "Создать", exact: true }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Создать проект?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("TV&Box");
+  await expect(dialog).toContainText("нажмите «Отмена»");
+  await expect(page.locator(".confirm-business-unit-callout")).toBeVisible();
+  if (process.env.CAPTURE_BUSINESS_UNIT_CONFIRM === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-business-unit-confirm-desktop.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: "/private/tmp/pms-business-unit-confirm-mobile.png",
+      fullPage: true,
+    });
+  }
+  await dialog.getByRole("button", { name: "Отмена" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("Jira work synchronization always uses production", async ({ page }) => {
+  let syncBody: { baseUrl?: string } | null = null;
+  await mockAdminProject(page);
+  await page.route("**/api/projects/project-1/jira-work-sections", (route) =>
+    route.fulfill({ json: { ok: true } }),
+  );
+  await page.route("**/api/projects/project-1/jira/sync", async (route) => {
+    syncBody = route.request().postDataJSON() as { baseUrl?: string };
+    await route.fulfill({
+      json: { synced: 0, configuredSections: 0, jiraUsers: [] },
+    });
+  });
+  await page.goto("/TV-OVERVIEW/jira-work");
+
+  await expect(page.getByLabel("Окружение Jira")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "dev", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "prod", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Синхронизировать" }).click();
+
+  await expect.poll(() => syncBody?.baseUrl).toBe("https://tasks.sberdevices.ru");
+});
+
 test("overview entries expand statuses and open the selected issue", async ({ page }) => {
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/overview");

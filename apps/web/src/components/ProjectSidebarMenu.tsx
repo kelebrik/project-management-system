@@ -16,6 +16,7 @@ type ProjectSidebarMenuProps = {
   isProjectSectionView: boolean;
   isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   navLabel: (icon: ReactNode, label: string) => ReactNode;
+  onCreateProject: () => void;
   onOpenView: (view: AppView) => void;
   projectNavItems: ProjectNavItem[];
   projectPicker: ReactNode;
@@ -27,6 +28,7 @@ export function ProjectSidebarMenu({
   isProjectModuleEnabled,
   isProjectSectionView,
   navLabel,
+  onCreateProject,
   onOpenView,
   projectNavItems,
   projectPicker,
@@ -70,7 +72,7 @@ export function ProjectSidebarMenu({
                   ? "active nested child project-create-nav"
                   : "nested child project-create-nav"
               }
-              onClick={() => onOpenView("project-create")}
+              onClick={onCreateProject}
               aria-label="Создать проект"
             >
               {navLabel(<Plus size={17} />, "Создать проект")}
