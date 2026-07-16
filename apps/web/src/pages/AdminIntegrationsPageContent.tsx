@@ -29,7 +29,6 @@ export function AdminIntegrationsPageContent() {
                 <article className="panel project-card admin-integrations-panel">
                   <div className="panel-title">
                     <div>
-                      <h2>Администрирование: интеграции и API</h2>
                       <p>
                         API-токены, webhook API и настройки внешних контуров:
                         GitLab, GitHub, Azure DevOps и BI.

@@ -30,7 +30,6 @@ export function AdminAuditPageContent() {
                   <article className="panel project-card">
                     <div className="panel-title">
                       <div>
-                        <h2>Администрирование: журнал аудита</h2>
                         <p>Последние системные события и изменения данных</p>
                       </div>
                       <button type="button" onClick={() => void reloadAuditEvents()}>

@@ -418,40 +418,6 @@
   grid-column: 1 / -1;
 }
 
-.jira-env-switch {
-  align-items: center;
-  display: inline-flex;
-  flex: 0 0 auto;
-}
-
-.jira-env-switch button {
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  min-width: 52px;
-  padding: 8px 10px;
-  text-transform: uppercase;
-}
-
-.jira-env-switch button:first-child {
-  border-radius: 6px 0 0 6px;
-}
-
-.jira-env-switch button:last-child {
-  border-radius: 0 6px 6px 0;
-  margin-left: -1px;
-}
-
-.jira-env-switch button.active {
-  background: var(--brand-soft);
-  border-color: var(--brand-border-strong);
-  color: var(--brand);
-  position: relative;
-  z-index: 1;
-}
-
 .jira-work-sections {
   display: grid;
   gap: 16px;

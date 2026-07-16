@@ -23,7 +23,6 @@ export function AdminUsersPageContent() {
                   <article className="panel project-card">
                     <div className="panel-title">
                       <div>
-                        <h2>Администрирование: пользователи</h2>
                         <p>Базовые учетные записи, роли и доступ в систему</p>
                       </div>
                     </div>

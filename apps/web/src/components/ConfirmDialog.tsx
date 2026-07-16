@@ -1,10 +1,11 @@
 import {
   useCallback,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CornerLeftUp } from "lucide-react";
 import {
   ConfirmContext,
   type ConfirmFn,
@@ -28,6 +29,34 @@ function ConfirmDialog({
 }) {
   const containerRef = useFocusTrap<HTMLDivElement>(true, onCancel);
   const tone = options.tone ?? "danger";
+  const [businessUnitCalloutPosition, setBusinessUnitCalloutPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!options.highlightBusinessUnit) return;
+    const updatePosition = () => {
+      const switcher = document.querySelector<HTMLElement>(
+        ".business-unit-switcher",
+      );
+      if (!switcher) {
+        setBusinessUnitCalloutPosition(null);
+        return;
+      }
+      const rect = switcher.getBoundingClientRect();
+      setBusinessUnitCalloutPosition({
+        left: Math.max(
+          12,
+          Math.min(window.innerWidth - 260, rect.left + rect.width / 2 - 12),
+        ),
+        top: rect.bottom + 8,
+      });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    return () => window.removeEventListener("resize", updatePosition);
+  }, [options.highlightBusinessUnit]);
 
   return (
     <div
@@ -36,6 +65,16 @@ function ConfirmDialog({
         if (event.target === event.currentTarget) onCancel();
       }}
     >
+      {options.highlightBusinessUnit && businessUnitCalloutPosition && (
+        <div
+          className="confirm-business-unit-callout"
+          aria-hidden="true"
+          style={businessUnitCalloutPosition}
+        >
+          <CornerLeftUp size={24} strokeWidth={2} />
+          <span>Отмените и смените БЮ здесь</span>
+        </div>
+      )}
       <div
         className={`confirm-dialog ${tone}`}
         role="dialog"

@@ -81,7 +81,6 @@ export function AdminProjectsPageContent() {
                     <article className="panel project-card">
                       <div className="panel-title">
                         <div>
-                          <h2>Администрирование: реестр проектов</h2>
                         <p>
                           Управление кодами, наименованиями и иерархией проектов
                         </p>
