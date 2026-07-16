@@ -26,7 +26,6 @@ import {
 import {
   artifactStatusLabel,
   auditActionLabel,
-  auditFieldLabel,
   auditObjectLabel,
   issuePrimaryJiraLink,
   issueSeverityLabel,
@@ -89,6 +88,7 @@ type AppPresentationProps = {
   handleEditableFocus: FocusEventHandler<HTMLDivElement>;
   handleEditableKeyDown: KeyboardEventHandler<HTMLDivElement>;
   isAdminUser: boolean;
+  isBusinessUnitAdmin: boolean;
   isAuthenticated: boolean;
   isClosedProject: boolean;
   isProjectModuleEnabled: (key: any) => boolean;
@@ -164,8 +164,9 @@ function createViewTitle(project: any): Record<AppView, string> {
     "admin-backups": "Администрирование: backup/restore",
     "admin-config": "Администрирование: import/export",
     "admin-projects": "Администрирование: реестр проектов",
+    "admin-business-units": "Администрирование: бизнес-юниты",
     "admin-modules": "Администрирование: управление модулями",
-    "admin-project-access": "Администрирование: доступ к проектам",
+    "admin-project-access": "Администрирование: доступы",
     "admin-audit": "Администрирование: журнал аудита",
   };
 }
@@ -185,6 +186,7 @@ export function AppPresentation({
   handleEditableFocus,
   handleEditableKeyDown,
   isAdminUser,
+  isBusinessUnitAdmin,
   isAuthenticated,
   isClosedProject,
   isProjectModuleEnabled,
@@ -237,7 +239,9 @@ export function AppPresentation({
       activeView === "project-create" ||
       (selectedProjectListItem && isProjectSectionView),
   );
-  const shouldShowAdminMenu = Boolean(isAdminUser && isAdminSectionView);
+  const shouldShowAdminMenu = Boolean(
+    (isAdminUser || isBusinessUnitAdmin) && isAdminSectionView,
+  );
   const shouldShowDevelopmentMenu = Boolean(
     isAdminUser && isDevelopmentSectionView,
   );
@@ -306,7 +310,6 @@ export function AppPresentation({
     adminPermissionOrder,
     artifactStatusLabel,
     auditActionLabel,
-    auditFieldLabel,
     auditObjectLabel,
     calendarDelayDays,
     calendarMonthDays,
@@ -368,6 +371,7 @@ export function AppPresentation({
       handleEditableKeyDown={handleEditableKeyDown}
       isAdminSectionView={isAdminSectionView}
       isAdminUser={isAdminUser}
+      isBusinessUnitAdmin={isBusinessUnitAdmin}
       isAuthenticated={isAuthenticated}
       isClosedProject={shouldShowClosedProjectBanner}
       isDevelopmentSectionView={isDevelopmentSectionView}

@@ -11,6 +11,12 @@ import {
   userProjectAccessLevel,
   userProjectAccessLevelMap,
 } from '../../server/project-access.js';
+import {
+  defaultBusinessUnitId,
+  readableProjectWhere,
+  requestedBusinessUnitId,
+  userCanCreateInBusinessUnit,
+} from '../../server/business-units.js';
 import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
 import { createDefaultProjectStructure } from './default-structure.js';
@@ -46,6 +52,7 @@ export function registerProjectCrudRoutes(
 ) {
   router.get('/projects', async (req, res) => {
     const projects = await prisma.project.findMany({
+      where: await readableProjectWhere(req),
       orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
       include: projectInclude,
     });
@@ -81,6 +88,16 @@ export function registerProjectCrudRoutes(
     }
 
     const { copyBaselineFromProjectId, ...projectData } = parsed.data;
+    const businessUnitId = requestedBusinessUnitId(req) ?? (await defaultBusinessUnitId());
+    if (!businessUnitId) {
+      res.status(400).json({ error: 'Бизнес-юнит не выбран' });
+      return;
+    }
+    if (!(await userCanCreateInBusinessUnit(req, businessUnitId))) {
+      res.status(403).json({ error: 'Нет права создавать проекты в выбранном бизнес-юните' });
+      return;
+    }
+    const actor = currentUser(req);
 
     if (projectData.parentId) {
       const parent = await prisma.project.findUnique({
@@ -90,6 +107,10 @@ export function registerProjectCrudRoutes(
         res.status(400).json({ error: 'Родительский проект не найден' });
         return;
       }
+      if (parent.businessUnitId !== businessUnitId) {
+        res.status(400).json({ error: 'Родительский проект должен быть в том же бизнес-юните' });
+        return;
+      }
     }
 
     if (copyBaselineFromProjectId) {
@@ -97,6 +118,7 @@ export function registerProjectCrudRoutes(
         where: { id: copyBaselineFromProjectId },
         select: {
           id: true,
+          businessUnitId: true,
           _count: {
             select: {
               wbsBaselines: { where: { status: 'ACTIVE' } },
@@ -106,6 +128,10 @@ export function registerProjectCrudRoutes(
       });
       if (!sourceProject) {
         res.status(400).json({ error: 'Проект-источник базового плана не найден' });
+        return;
+      }
+      if (sourceProject.businessUnitId !== businessUnitId) {
+        res.status(400).json({ error: 'Базовый план можно копировать только внутри бизнес-юнита' });
         return;
       }
       if (sourceProject._count.wbsBaselines === 0) {
@@ -118,6 +144,11 @@ export function registerProjectCrudRoutes(
       const project = await prisma.project.create({
         data: {
           ...projectData,
+          businessUnitId,
+          projectManager:
+            actor && actor.role !== 'ADMIN'
+              ? actor.name
+              : projectData.projectManager,
           parentId: projectData.parentId || null,
           startDate: new Date(projectData.startDate),
           initialTargetDate: new Date(projectData.targetDate),
@@ -128,8 +159,6 @@ export function registerProjectCrudRoutes(
         },
         include: projectInclude,
       });
-      const actor = currentUser(req);
-
       const createdProjectAccessLevel = actor?.role === 'ADMIN' ? 'ADMIN' : 'EDIT';
 
       if (actor && actor.role !== 'ADMIN') {
@@ -324,6 +353,10 @@ export function registerProjectCrudRoutes(
       });
       if (!parent) {
         res.status(400).json({ error: 'Родительский проект не найден' });
+        return;
+      }
+      if (parent.businessUnitId !== project.businessUnitId) {
+        res.status(400).json({ error: 'Родительский проект должен быть в том же бизнес-юните' });
         return;
       }
     }

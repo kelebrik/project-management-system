@@ -51,12 +51,14 @@ export function AdminProjectAccessPageContent() {
     savingProjectAccess,
     updateProjectAccessDraft,
     updateProjectAccessLevel,
+    isAdminUser,
     users,
   } = usePageContext();
   const confirm = useConfirm();
 
   const [userSearch, setUserSearch] = useState("");
   const [projectSearch, setProjectSearch] = useState("");
+  const grantLevels: ProjectAccessLevel[] = isAdminUser ? ["EDIT", "ADMIN"] : ["EDIT"];
   const activeUsers = useMemo(
     () => (users as AccessUser[]).filter((user) => user.isActive),
     [users],
@@ -106,16 +108,15 @@ export function AdminProjectAccessPageContent() {
 
   return (
     <article className="panel project-card admin-project-access">
-      <div className="panel-title">
+      <div className="project-access-section-title">
         <div>
-          <h2>Администрирование: доступ к проектам</h2>
+          <h2>Доступы к проектам</h2>
           <p>
-            Индивидуальные права пользователей на просмотр и изменение выбранных
-            проектов.
+            Все пользователи уже видят все проекты. Администратор БЮ может выдавать
+            право изменения только в выбранном бизнес-юните.
           </p>
         </div>
       </div>
-
       <form className="project-access-grant" onSubmit={grantProjectAccess}>
         <div className="project-access-picker">
           <div className="project-access-picker-title">
@@ -196,7 +197,7 @@ export function AdminProjectAccessPageContent() {
           <div>
             <h3>Уровень доступа</h3>
             <div className="project-access-levels">
-              {(["VIEW", "EDIT", "ADMIN"] as ProjectAccessLevel[]).map((level) => (
+              {grantLevels.map((level) => (
                 <button
                   type="button"
                   className={projectAccessDraft.level === level ? "active" : ""}
@@ -261,9 +262,11 @@ export function AdminProjectAccessPageContent() {
                     )
                   }
                 >
-                  <option value="VIEW">{projectAccessLevelLabels.VIEW}</option>
+                  {isAdminUser && (
+                    <option value="VIEW" disabled>{projectAccessLevelLabels.VIEW} (уже есть у всех)</option>
+                  )}
                   <option value="EDIT">{projectAccessLevelLabels.EDIT}</option>
-                  <option value="ADMIN">{projectAccessLevelLabels.ADMIN}</option>
+                  {isAdminUser && <option value="ADMIN">{projectAccessLevelLabels.ADMIN}</option>}
                 </select>
               </label>
               <span>{userRoleLabel(access.user.role)}</span>
@@ -280,7 +283,7 @@ export function AdminProjectAccessPageContent() {
                   if (
                     await confirm({
                       title: "Удалить доступ?",
-                      message: "Пользователь потеряет доступ к проекту.",
+                      message: "Пользователь потеряет право изменять или администрировать проект. Просмотр сохранится.",
                       confirmLabel: "Удалить",
                     })
                   ) {

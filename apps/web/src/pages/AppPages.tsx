@@ -10,6 +10,7 @@ import { AdminProjectsPageContent } from "./AdminProjectsPageContent";
 import { AdminRagPageContent, AdminTemplatesPageContent, AdminWorkflowsPageContent } from "./AdminSettingsPages";
 import { AdminRolesPageContent } from "./AdminRolesPageContent";
 import { AdminUsersPageContent } from "./AdminUsersPageContent";
+import { BusinessUnitsPageContent } from "./BusinessUnitsPageContent";
 import { ClosedProjectsPage } from "./ClosedProjectsPage";
 import { PortfolioPage } from "./PortfolioPage";
 import { ProjectsPage } from "./ProjectsPage";
@@ -98,6 +99,7 @@ export function AppPages() {
         {activeView === "admin-backups" && <AdminBackupsPageContent />}
         {activeView === "admin-config" && <AdminConfigPageContent />}
         {activeView === "admin-projects" && <AdminProjectsPageContent />}
+        {isAdminUser && activeView === "admin-business-units" && <BusinessUnitsPageContent />}
         {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
         {isAdminUser && activeView === "resources" && <ResourceOverviewPage />}

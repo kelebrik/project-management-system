@@ -16,9 +16,10 @@ export type CurrentUser = {
   role: UserRole;
   isActive: boolean;
   lastLoginAt: string | null;
+  businessUnitAdminIds: string[];
 };
 
-export type SystemUser = CurrentUser & {
+export type SystemUser = Omit<CurrentUser, "businessUnitAdminIds"> & {
   createdAt: string;
   updatedAt: string;
   hasPassword: boolean;

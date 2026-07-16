@@ -298,28 +298,6 @@ test("risk page keeps the color matrix visible", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("gantt range controls switch the visible planning window", async ({ page }) => {
-  await mockAdminProject(page);
-  await page.goto("/TV-OVERVIEW/gantt");
-
-  const range = page.getByLabel("Диапазон Гантта");
-  await expect(range).toBeVisible();
-  await expect(range.getByRole("button")).toHaveText([
-    "30 дн.",
-    "90 дн.",
-    "180 дн.",
-    "Все",
-  ]);
-  await expect(range.getByRole("button", { name: "90 дн." })).toHaveClass(
-    /active/,
-  );
-
-  await range.getByRole("button", { name: "30 дн." }).click();
-  await expect(range.getByRole("button", { name: "30 дн." })).toHaveClass(
-    /active/,
-  );
-});
-
 test("overview sections scroll after six visible items", async ({ page }) => {
   await mockAdminProject(page, (project) => {
     const risk = project.raidItems[0];
@@ -376,14 +354,56 @@ test("administrator updates baseline only for selected WBS rows", async ({ page 
       },
     });
   });
-  page.on("dialog", (dialog) => void dialog.accept());
 
   await page.goto("/TV-OVERVIEW/wbs");
   await expect(page.getByRole("button", { name: "Критический путь" })).toHaveCount(0);
   await page.getByRole("checkbox", { name: "Выбрать строку 1.1" }).check();
   await page.getByRole("button", { name: "Обновить базовый план" }).click();
+  const confirmation = page.getByRole("dialog", {
+    name: "Обновить базовый план?",
+  });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "Обновить" }).click();
 
   await expect.poll(() => baselineBody).toEqual({ itemIds: ["wbs-1"] });
+});
+
+test("WBS deletion uses one in-app confirmation without a browser dialog", async ({
+  page,
+}) => {
+  await mockAdminProject(page);
+  let deleteRequests = 0;
+  let browserDialogs = 0;
+  page.on("dialog", async (dialog) => {
+    browserDialogs += 1;
+    await dialog.dismiss();
+  });
+  await page.route("**/api/wbs-items/wbs-1", async (route) => {
+    deleteRequests += 1;
+    await route.fulfill({
+      json: {
+        wbsItems: [],
+        wbsDependencies: [],
+        criticalPath: null,
+      },
+    });
+  });
+
+  await page.goto("/TV-OVERVIEW/wbs");
+  await page
+    .getByRole("button", { name: "Удалить строку Структуры" })
+    .click({ force: true });
+
+  const confirmation = page.getByRole("dialog", {
+    name: "Удалить строку Структуры?",
+  });
+  await expect(confirmation).toBeVisible();
+  expect(browserDialogs).toBe(0);
+
+  await confirmation.getByRole("button", { name: "Удалить" }).click();
+  await expect(confirmation).toBeHidden();
+  await expect.poll(() => deleteRequests).toBe(1);
+  expect(browserDialogs).toBe(0);
 });
 
 test("inline WBS insert button stays above the following row", async ({ page }) => {

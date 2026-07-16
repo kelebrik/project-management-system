@@ -186,7 +186,7 @@ export function IssueDrawer() {
                             jiraTicketUrl: event.target.value,
                           });
                         }}
-                        placeholder="https://jira.company.example/browse/ERP-1842"
+                        placeholder="https://jira.company.ru/browse/ERP-1842"
                       />
                     </div>
                     {issueFormErrors.jiraTicketUrl && (
@@ -213,7 +213,7 @@ export function IssueDrawer() {
                               jiraUrl: event.target.value,
                             })
                           }
-                          placeholder="https://jira.company.example/browse/ERP-1842"
+                          placeholder="https://jira.company.ru/browse/ERP-1842"
                         />
                         <button
                           type="button"

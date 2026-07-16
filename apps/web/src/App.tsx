@@ -37,6 +37,7 @@ import { useIssueState } from "./hooks/useIssueState";
 import { usePassportController } from "./hooks/usePassportController";
 import { useProjectCoreState } from "./hooks/useProjectCoreState";
 import { useProjectRegistryController } from "./hooks/useProjectRegistryController";
+import { useBusinessUnitAdminStatus } from "./hooks/useBusinessUnitAdminStatus";
 import { useRaidController } from "./hooks/useRaidController";
 import { useRaidState } from "./hooks/useRaidState";
 import { useSavedViewsState } from "./hooks/useSavedViewsState";
@@ -305,6 +306,10 @@ function AppController() {
     useSavedViewsState();
   const isAuthenticated = Boolean(currentUser);
   const isAdminUser = currentUser?.role === "ADMIN";
+  const { isBusinessUnitAdmin, isBusinessUnitAdminResolved } = useBusinessUnitAdminStatus(
+    currentUser,
+    authMode === "ready",
+  );
   const isClosedProject = project?.status === "CLOSED";
   const globalSearch = useGlobalSearch();
   const {
@@ -318,6 +323,7 @@ function AppController() {
     activeView,
     authReady: authMode === "ready",
     currentUser,
+    isBusinessUnitAdmin,
     setUsers,
     setUserDrafts,
     setAuditEvents,
@@ -361,6 +367,7 @@ function AppController() {
     authMode,
     firstEnabledProjectView,
     isAdminUser,
+    isBusinessUnitAdmin,
     isAuthenticated,
     isProjectModuleEnabled,
     project,
@@ -391,6 +398,8 @@ function AppController() {
     projectModules,
     isAuthenticated,
     isAdminUser,
+    isBusinessUnitAdmin,
+    isBusinessUnitAdminResolved,
     firstEnabledProjectView,
     openView,
     resetAdminState,
@@ -583,15 +592,19 @@ function AppController() {
     setNotice,
   });
   const {
+    openProjectCreate,
     createProject,
     updateProjectRegistryDraft,
     savePortfolioProjectIdentity,
     saveProjectPortfolio,
     saveProjectRegistryItem,
+    moveProjectToBusinessUnit,
     closeProject,
     deleteProject,
   } = useProjectRegistryController({
+    activeView,
     projects,
+    currentUser,
     setProjects,
     project,
     setProject,
@@ -892,8 +905,8 @@ function AppController() {
     ...{ jiraForm, jiraWorkSectionDrafts, saveJiraIntegration, saveJiraWorkSections, savingJira, savingJiraWorkSections, setJiraForm, setJiraWorkSectionDrafts, syncJira },
     ...{ addPassportRow, deletePassportRow, passportRows, savePassportRows, savingPassportRows, updatePassportRow },
     ...{ addRaidStatusUpdate, closeRaidItem, convertRiskToAssumption, convertRiskToProblem, expandedRaidId, raidDecisionOnly, raidDrafts, raidForm, raidHighOnly, raidOverdueOnly, raidStatusDrafts, raidTypeFilter, saveRaidItem, createRaidItem, deleteRaidItem, updateRaidDraft, updateRaidStatusDraft },
-    ...{ newProjectForm, projectAccessDraft, projectAccesses, projectModuleDrafts, projectRegistryDrafts, projectTargetApprovedBy, projectTargetChangeReason, projectTargetDateDraft, savePortfolioProjectIdentity, saveProjectPortfolio, saveProjectRegistryItem, saveProjectTargetDate },
-    ...{ addIssueFormLink, addIssueJiraLink, addIssueStatusUpdate, closeProject, createProject, deleteProject, reloadAuditEvents, saveProjectModules, setNewProjectForm, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, updateProjectModuleDraft, updateProjectRegistryDraft },
+    ...{ newProjectForm, projectAccessDraft, projectAccesses, projectModuleDrafts, projectRegistryDrafts, projectTargetApprovedBy, projectTargetChangeReason, projectTargetDateDraft, moveProjectToBusinessUnit, savePortfolioProjectIdentity, saveProjectPortfolio, saveProjectRegistryItem, saveProjectTargetDate },
+    ...{ addIssueFormLink, addIssueJiraLink, addIssueStatusUpdate, closeProject, createProject, deleteProject, openProjectCreate, reloadAuditEvents, saveProjectModules, setNewProjectForm, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, updateProjectModuleDraft, updateProjectRegistryDraft },
     ...{ createApiToken, createDictionaryItem, createUser, createWebhook, deactivateDictionaryItem, deleteProjectAccess, exportAdminConfig, grantProjectAccess, importAdminConfig, reloadAdminConfig, reloadAdminHealth, reloadAdminIntegrations, restoreWbsTombstone, saveDictionaryItem, saveSystemSettings, saveUser, testWebhook, toggleApiToken, toggleRolePermission, toggleWebhook, updateDictionaryDraft, updateProjectAccessDraft, updateProjectAccessLevel, updateUserDraft },
     ...{ savingBaseline, savingCalendar, savingDictionaryItemId, savingIntegration, savingProjectAccess, savingProjectModules, savingProjectRegistryId, savingProjectTargetDate, savingRolePermissionId, savingSystemSettings, savingUserId },
     ...{ ganttRangeDays, setGanttRangeDays },
@@ -918,6 +931,7 @@ function AppController() {
       handleEditableFocus={handleEditableFocus}
       handleEditableKeyDown={handleEditableKeyDown}
       isAdminUser={isAdminUser}
+      isBusinessUnitAdmin={isBusinessUnitAdmin}
       isAuthenticated={isAuthenticated}
       isClosedProject={isClosedProject}
       isProjectModuleEnabled={isProjectModuleEnabled}

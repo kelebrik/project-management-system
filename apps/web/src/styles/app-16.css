@@ -559,41 +559,11 @@ html {
     overflow-x: visible;
   }
 
-  .audit-entry {
-    border: 0;
-    margin-bottom: 10px;
-  }
-
   .audit-row {
     border: 1px solid var(--border-3);
     border-radius: 8px;
+    margin-bottom: 10px;
     min-width: 0;
-  }
-
-  .audit-changes {
-    min-width: 0;
-    padding: 0 0 10px;
-  }
-
-  .audit-tombstone {
-    align-items: stretch;
-    flex-direction: column;
-    min-width: 0;
-    padding: 0 0 10px;
-  }
-
-  .audit-tombstone span {
-    white-space: normal;
-  }
-
-  .audit-change {
-    align-items: stretch;
-    gap: 4px;
-    grid-template-columns: 1fr;
-  }
-
-  .audit-change i {
-    display: none;
   }
 
   .project-tree-row > span,

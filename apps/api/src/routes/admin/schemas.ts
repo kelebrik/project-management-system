@@ -42,12 +42,41 @@ export const projectAccessPatchSchema = z.object({
   level: z.enum(['VIEW', 'EDIT', 'ADMIN']),
 });
 
+export const businessUnitSchema = z.object({
+  code: z.preprocess(
+    (value) => typeof value === 'string' ? value.trim().toLowerCase() : value,
+    z.string()
+      .min(2, 'Код должен содержать минимум 2 символа')
+      .max(32, 'Код должен содержать не более 32 символов')
+      .regex(/^[a-z0-9-]+$/, 'Используйте латинские буквы, цифры и дефис'),
+  ),
+  name: z.string().trim().min(2).max(120),
+});
+
+export const businessUnitMembershipSchema = z.object({
+  userId: z.string().trim().min(1),
+  role: z.literal('ADMIN'),
+});
+
+export const projectBusinessUnitMoveSchema = z.object({
+  businessUnitId: z.string().trim().min(1),
+});
+
 export const adminConfigImportSchema = z.object({
   rolePermissions: z
     .array(
       z.object({
         role: z.enum(['ADMIN', 'PROJECT_MANAGER', 'EXECUTIVE_VIEWER']),
         permission: z.string().trim().min(1),
+        enabled: z.boolean(),
+      }),
+    )
+    .optional(),
+  businessUnitRolePermissions: z
+    .array(
+      z.object({
+        role: z.enum(['ADMIN', 'PROJECT_MANAGER', 'VIEWER']),
+        permission: z.enum(['PROJECT_VIEW', 'PROJECT_CREATE', 'PROJECT_ADMIN', 'MEMBERS_MANAGE']),
         enabled: z.boolean(),
       }),
     )

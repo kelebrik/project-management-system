@@ -81,7 +81,7 @@ export function registerAuthRoutes(app: Express) {
       objectId: user.id,
       afterValue: user,
     });
-    res.status(201).json({ user });
+    res.status(201).json({ user: safeUser(user) });
   });
 
   app.post('/api/auth/login', async (req, res) => {
@@ -101,6 +101,10 @@ export function registerAuthRoutes(app: Express) {
         isActive: true,
         passwordHash: true,
         lastLoginAt: true,
+        businessUnitMemberships: {
+          where: { role: 'ADMIN' },
+          select: { businessUnitId: true },
+        },
       },
     });
 
@@ -131,6 +135,7 @@ export function registerAuthRoutes(app: Express) {
         role: user.role,
         isActive: user.isActive,
         lastLoginAt,
+        businessUnitMemberships: user.businessUnitMemberships,
       }),
     });
   });

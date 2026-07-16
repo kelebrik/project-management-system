@@ -37,7 +37,6 @@ export const userRoles = [
 ] as const;
 export const assignableUserRoles = [
   "ADMIN",
-  "PROJECT_MANAGER",
   "EXECUTIVE_VIEWER",
 ] as const;
 export const issueSeverities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
@@ -116,10 +115,10 @@ export const labels = {
     Closed: "Закрыто",
   },
   userRole: {
-    ADMIN: "Администратор",
-    PROJECT_MANAGER: "РП",
-    TEAM_MEMBER: "Участник команды",
-    EXECUTIVE_VIEWER: "Просмотр",
+    ADMIN: "Администратор системы",
+    PROJECT_MANAGER: "Пользователь",
+    TEAM_MEMBER: "Пользователь",
+    EXECUTIVE_VIEWER: "Пользователь",
   },
 } as const;
 
