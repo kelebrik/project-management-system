@@ -571,7 +571,7 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
       },
     );
   });
-  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.setViewportSize({ width: 2048, height: 1152 });
   await page.goto("/TV-OVERVIEW/gantt");
 
   const globalNav = page.locator(".app-global-header");
