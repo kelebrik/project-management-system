@@ -94,7 +94,7 @@ export function useProjectRegistryController({
   const openProjectCreate = useCallback(async () => {
     setError(null);
     setNotice(null);
-    if (!currentUser || currentUser.role === "ADMIN") {
+    if (!currentUser) {
       openView("project-create");
       return;
     }
@@ -113,6 +113,7 @@ export function useProjectRegistryController({
         message: projectCreationBusinessUnitMessage(selectedUnit.name),
         confirmLabel: "Продолжить",
         tone: "default",
+        highlightBusinessUnit: true,
       });
       if (!approved) return;
       confirmedBusinessUnitIdRef.current = selectedUnit.id;
@@ -199,7 +200,7 @@ export function useProjectRegistryController({
       setNotice(null);
       try {
         const confirmedBusinessUnitId = confirmedBusinessUnitIdRef.current;
-        if (currentUser && currentUser.role !== "ADMIN" && !confirmedBusinessUnitId) {
+        if (currentUser && !confirmedBusinessUnitId) {
           throw new Error("Откройте создание проекта кнопкой «Создать» в шапке страницы");
         }
         const response = await authenticatedFetch(`${apiBase}/api/projects`, {

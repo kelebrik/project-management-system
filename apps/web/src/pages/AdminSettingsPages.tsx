@@ -6,7 +6,6 @@ export function AdminTemplatesPageContent() {
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>Администрирование: шаблоны Структуры</h2>
                       <p>Базовые наборы работ для создания новых проектов</p>
                     </div>
                   </div>
@@ -40,7 +39,6 @@ export function AdminRagPageContent() {
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>Администрирование: формулы RAG</h2>
                       <p>Правила расчета зеленого, желтого и красного статуса проекта</p>
                     </div>
                   </div>
@@ -97,7 +95,6 @@ export function AdminWorkflowsPageContent() {
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>Администрирование: workflow согласований</h2>
                       <p>Маршруты согласования обзора, базового плана и закрытия проекта</p>
                     </div>
                   </div>

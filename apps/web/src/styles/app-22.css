@@ -275,10 +275,10 @@
   flex: 0 0 auto;
   font-size: 12px;
   font-weight: 700;
-  gap: 4px;
+  gap: 6px;
   justify-content: center;
   min-height: 46px;
-  padding: 0 6px;
+  padding: 0 11px;
   position: relative;
   text-decoration: none;
   white-space: nowrap;
@@ -307,8 +307,8 @@
 }
 
 .section-tabs svg {
-  height: 14px;
-  width: 14px;
+  height: 15px;
+  width: 15px;
 }
 
 .wiki-section-tabs .wiki-article-tab {

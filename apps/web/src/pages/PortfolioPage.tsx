@@ -101,7 +101,7 @@ export function PortfolioPage() {
         <article className="panel portfolio-goal-timeline-panel">
           <div className="panel-title">
             <div>
-              <h2>Временные линии проектов</h2>
+              <h2>Цели проектов</h2>
               <p>Отдельная шкала целей ИСР для каждого активного проекта</p>
             </div>
           </div>
@@ -130,7 +130,7 @@ export function PortfolioPage() {
                     </button>
                     <div
                       className="portfolio-project-timeline-track"
-                      aria-label={`Временная линия проекта ${row.projectName}`}
+                      aria-label={`Цели проекта ${row.projectName}`}
                     >
                       <span className="portfolio-goal-axis-line" />
                       {portfolioGoalTimeline.monthTicks.map((tick, index) => (

@@ -24,7 +24,6 @@ export function AdminDictionariesPageContent() {
                     <article className="panel project-card">
                       <div className="panel-title">
                         <div>
-                          <h2>Администрирование: справочники</h2>
                           <p>Единые значения для типов, статусов и критичности</p>
                         </div>
                       </div>

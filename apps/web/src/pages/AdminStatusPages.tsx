@@ -6,7 +6,6 @@ export function AdminHealthPageContent() {
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>Администрирование: system health</h2>
                       <p>Техническое состояние приложения и подключений</p>
                     </div>
                     <button type="button" onClick={() => void reloadAdminHealth()}>
@@ -40,7 +39,6 @@ export function AdminBackupsPageContent() {
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>Администрирование: backup/restore status</h2>
                       <p>Состояние каталога backup и последнего архивного файла</p>
                     </div>
                     <button type="button" onClick={() => void reloadAdminHealth()}>
@@ -85,7 +83,6 @@ export function AdminConfigPageContent() {
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>Администрирование: import/export конфигурации</h2>
                       <p>Перенос ролей, справочников и системных настроек между средами</p>
                     </div>
                     <div className="panel-title-actions">
