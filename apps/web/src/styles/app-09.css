@@ -307,6 +307,8 @@ body.milestone-label-dragging * {
   body[data-print-target] .sidebar,
   body[data-print-target] .sidebar-toggle,
   body[data-print-target] .topbar,
+  body[data-print-target] .app-global-header,
+  body[data-print-target] .section-navigation,
   body[data-print-target] .toast-stack,
   body[data-print-target] .panel-title,
   body[data-print-target] .milestone-section,
@@ -478,9 +480,10 @@ body.milestone-label-dragging * {
 
   body[data-print-target] .milestone-timeline {
     border: 0;
-    max-width: 100% !important;
+    max-width: none !important;
     overflow: hidden !important;
-    width: 100% !important;
+    width: var(--milestone-print-width, 100%) !important;
+    zoom: var(--milestone-print-scale, 1);
   }
 
   body[data-print-target] .milestone-lanes {
