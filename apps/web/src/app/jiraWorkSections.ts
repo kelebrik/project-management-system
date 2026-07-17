@@ -23,6 +23,7 @@ export function normalizeJiraWorkSectionDrafts(
       sortOrder,
       title: section?.title || defaultJiraWorkSectionTitle(sortOrder),
       jql: section?.jql ?? "",
+      filterUrl: section?.filterUrl ?? "",
     };
   }).sort((left, right) => left.sortOrder - right.sortOrder);
 }

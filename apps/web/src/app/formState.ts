@@ -114,6 +114,7 @@ export type JiraWorkSectionDraft = {
   sortOrder: number;
   title: string;
   jql: string;
+  filterUrl: string;
 };
 
 export type IssueFormState = {

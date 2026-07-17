@@ -8,7 +8,7 @@ import { logEvent } from '../server/logger.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   ensureDefaultJiraWorkSections,
-  jiraWorkSectionFilterToJql,
+  resolveJiraWorkSectionJql,
 } from '../services/jira-work-sections.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 
@@ -93,6 +93,10 @@ const jiraWorkSectionsSchema = z.object({
         id: z.string().trim().optional(),
         title: z.string().trim().min(1).max(80),
         jql: z.string().trim().max(4000),
+        filterUrl: z
+          .union([z.literal(''), z.string().trim().url().max(2000)])
+          .optional()
+          .default(''),
         sortOrder: z.number().int().min(0),
       }),
     )
@@ -171,10 +175,12 @@ router.put('/projects/:projectId/jira-work-sections', async (req, res) => {
             sortOrder: section.sortOrder,
             title: section.title,
             jql: section.jql,
+            filterUrl: section.filterUrl,
           },
           update: {
             title: section.title,
             jql: section.jql,
+            filterUrl: section.filterUrl,
           },
           include: {
             issues: {
@@ -752,7 +758,7 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     const sectionsWithFilter = workSections
       .map((section) => ({
         ...section,
-        jiraQuery: jiraWorkSectionFilterToJql(section.jql),
+        jiraQuery: resolveJiraWorkSectionJql(section.jql, section.filterUrl),
       }))
       .filter((section) => section.jiraQuery);
     const syncedAt = new Date();

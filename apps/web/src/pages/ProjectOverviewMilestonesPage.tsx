@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type CSSProperties } from "react";
 import { usePageContext } from "./PageContext";
 import {
   date as formatDate,
@@ -30,6 +30,11 @@ type ProjectGoalTimelineModel = {
     label: string;
     offset: number;
   }>;
+};
+
+type GoalPrintStyle = CSSProperties & {
+  "--goal-print-scale": string;
+  "--goal-print-width": string;
 };
 
 function currentHashId() {
@@ -170,6 +175,10 @@ export function ProjectOverviewMilestonesPage() {
     () => createProjectGoalTimeline(project.wbsItems as WbsItem[]),
     [project.wbsItems],
   );
+  const goalPrintContentHeight =
+    130 + (projectGoalTimeline?.items.length ?? 0) * 44;
+  // 610px is the 190mm page minus its heading/padding; 44px is one goal row plus gap.
+  const goalPrintScale = Math.min(1, 610 / goalPrintContentHeight);
 
   useEffect(() => {
     const syncHashSection = () => {
@@ -185,8 +194,20 @@ export function ProjectOverviewMilestonesPage() {
   }, []);
 
   return (
-    <>
-      <article className="panel project-card portfolio-goal-timeline-panel">
+    <div
+      className="schedule-print-document"
+      data-print-section="project-schedule-print"
+      id="project-schedule-print"
+    >
+      <article
+        className="panel project-card portfolio-goal-timeline-panel schedule-print-page schedule-print-goals"
+        style={
+          {
+            "--goal-print-scale": goalPrintScale.toFixed(4),
+            "--goal-print-width": `${(100 / goalPrintScale).toFixed(4)}%`,
+          } as GoalPrintStyle
+        }
+      >
         <div className="panel-title">
           <div>
             <h2>Цели проекта</h2>
@@ -261,7 +282,7 @@ export function ProjectOverviewMilestonesPage() {
       </article>
 
       <article
-        className={`panel project-card workspace-focus-panel workspace-focus-milestones ${
+        className={`panel project-card workspace-focus-panel workspace-focus-milestones schedule-print-page schedule-print-milestones ${
           fullscreenWorkspaceView === "overview-milestones-by-phase"
             ? "workspace-focus-panel-fullscreen"
             : ""
@@ -301,13 +322,13 @@ export function ProjectOverviewMilestonesPage() {
             onLabelPointerDown={startMilestoneLabelDrag}
             onPrint={() =>
               printSectionAsPdf(
-                "milestones-by-phase",
-                `${project.code} - вехи по фазам`,
+                "project-schedule-print",
+                `${project.code} - цели и вехи`,
               )
             }
           />
         </div>
       </article>
-    </>
+    </div>
   );
 }

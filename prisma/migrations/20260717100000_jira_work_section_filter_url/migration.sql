@@ -1,0 +1,2 @@
+ALTER TABLE "JiraWorkSection"
+ADD COLUMN "filterUrl" TEXT NOT NULL DEFAULT '';

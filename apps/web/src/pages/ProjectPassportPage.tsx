@@ -40,41 +40,33 @@ export function ProjectPassportPage() {
                       + Добавить поле
                     </button>
                   </div>
-                  <section className="passport-targets">
-                    <div className="passport-targets-head">
-                      <div>
-                        <h3>Цели и сроки проекта</h3>
-                        <p>Утвержденная цель и прогноз завершения</p>
-                      </div>
-                    </div>
-                    <div className="passport-target-metrics">
-                      <div>
-                        <span>Стартовая цель</span>
-                        <b>{date(projectTargetSummary?.initialTargetDate ?? project?.targetDate ?? null)}</b>
-                      </div>
-                      <div>
-                        <span>
-                          {projectTargetSummary?.activeGoal?.title ?? "Текущая цель"}
-                        </span>
-                        <b>{date(projectTargetSummary?.currentTargetDate ?? project?.targetDate ?? null)}</b>
-                        <small>{signedDaysLabel(projectTargetSummary?.targetChangeDays ?? null)}</small>
-                      </div>
-                      <div>
-                        <span>Прогноз завершения</span>
-                        <b>{date(projectTargetSummary?.forecastFinishDate ?? null)}</b>
-                        <small>{signedDaysLabel(projectTargetSummary?.effectiveDelayDays ?? null)}</small>
-                      </div>
-                      <div>
-                        <span>Полное отклонение</span>
-                        <b>{signedDaysLabel(projectTargetSummary?.totalVarianceDays ?? null)}</b>
-                      </div>
-                    </div>
-                  </section>
                   <div className="passport-table">
                     <div className="passport-head">
                       <span>Поле</span>
                       <span>Описание</span>
                       <span />
+                    </div>
+                    <div className="passport-row passport-row-readonly">
+                      <span>Цель на старте проекта</span>
+                      <span>
+                        {date(
+                          projectTargetSummary?.initialTargetDate ??
+                            project?.targetDate ??
+                            null,
+                        )}
+                      </span>
+                      <span aria-hidden="true" />
+                    </div>
+                    <div className="passport-row passport-row-readonly">
+                      <span>Текущая актуальная цель</span>
+                      <span>
+                        {date(
+                          projectTargetSummary?.currentTargetDate ??
+                            project?.targetDate ??
+                            null,
+                        )}
+                      </span>
+                      <span aria-hidden="true" />
                     </div>
                     {passportRows.map((row, index) => (
                       <div className="passport-row" key={row.id}>

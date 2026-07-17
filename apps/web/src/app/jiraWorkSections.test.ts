@@ -11,6 +11,7 @@ function section(overrides: Partial<JiraWorkSection>): JiraWorkSection {
     sortOrder: 0,
     title: "Раздел 1",
     jql: "",
+    filterUrl: "",
     createdAt: "2026-06-09T00:00:00.000Z",
     updatedAt: "2026-06-09T00:00:00.000Z",
     issues: [],
@@ -34,7 +35,8 @@ test("normalizeJiraWorkSectionDrafts keeps saved names and additional sections",
       id: "section-1",
       sortOrder: 0,
       title: "Тикеты под риском",
-      jql: "https://jira.example/issues/?filter=123",
+      jql: "project = PMS",
+      filterUrl: "https://jira.example/issues/?filter=123",
     }),
     section({
       id: "section-4",
@@ -46,6 +48,7 @@ test("normalizeJiraWorkSectionDrafts keeps saved names and additional sections",
 
   assert.equal(drafts.length, 4);
   assert.equal(drafts[0]?.title, "Тикеты под риском");
-  assert.equal(drafts[0]?.jql, "https://jira.example/issues/?filter=123");
+  assert.equal(drafts[0]?.jql, "project = PMS");
+  assert.equal(drafts[0]?.filterUrl, "https://jira.example/issues/?filter=123");
   assert.equal(drafts[3]?.title, "Дополнительный раздел");
 });

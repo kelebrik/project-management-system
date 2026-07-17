@@ -528,7 +528,7 @@ export const wikiGroups: WikiGroup[] = [
             points: [
               "Проектная Jira-интеграция хранит baseUrl, boardUrl, projectKey, issuesJql и openIssuesJql.",
               "Для Jira work sections backend гарантирует минимум три секции с sortOrder 0..2.",
-              "Поле секции принимает прямой JQL, числовой filter id, URL с query filter или URL с query jql.",
+              "В секции отдельно сохраняются прямой JQL и ссылка на Jira-фильтр; если заполнены оба поля, используется JQL.",
               "При sync все старые связи JiraWorkSectionIssue удаляются, затем создаются новые связи к актуальным snapshots.",
               "JiraIssueSnapshot upsert идет по projectId + issueKey, поэтому один тикет обновляет снимок, а не создает дубликат.",
             ],

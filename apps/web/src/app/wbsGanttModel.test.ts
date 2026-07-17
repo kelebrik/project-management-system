@@ -105,22 +105,25 @@ test("createWbsGantt renders phases and work packages as labeled range lines", (
   assert.equal(workPackageEntry?.bracket, false);
 });
 
-test("createWbsGantt limits items to the selected working range", () => {
+test("createWbsGantt keeps historical work available in a selected range", () => {
   const now = new Date();
   const isoAfterDays = (days: number) => {
     const value = new Date(now);
     value.setDate(value.getDate() + days);
     return value.toISOString().slice(0, 10);
   };
+  const old = wbsTreeItem({ id: "old", startDate: isoAfterDays(-180), dueDate: isoAfterDays(-170) });
   const near = wbsTreeItem({ id: "near", startDate: isoAfterDays(2), dueDate: isoAfterDays(8) });
   const far = wbsTreeItem({ id: "far", startDate: isoAfterDays(220), dueDate: isoAfterDays(230) });
 
   const model = createWbsGantt({
-    visibleWbsTree: [near, far],
+    visibleWbsTree: [old, near, far],
     criticalPath: null,
     wbsDependencies: [],
     rangeDays: 90,
   });
 
-  assert.deepEqual(model.items.map((entry) => entry.item.id), ["near"]);
+  assert.deepEqual(model.items.map((entry) => entry.item.id), ["old", "near", "far"]);
+  assert.ok(model.start && model.start <= new Date(old.startDate!));
+  assert.ok(model.end && model.end >= new Date(far.dueDate!));
 });

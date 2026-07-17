@@ -420,7 +420,7 @@
 
 .jira-work-sections {
   display: grid;
-  gap: 16px;
+  gap: 8px;
 }
 
 .jira-work-section {
@@ -435,9 +435,9 @@
   align-items: center;
   background: var(--surface-2);
   display: grid;
-  gap: 8px;
-  grid-template-columns: 30px minmax(180px, 420px);
-  padding: 12px;
+  gap: 4px;
+  grid-template-columns: 26px minmax(180px, 420px);
+  padding: 0 6px;
 }
 
 .jira-work-section-toggle {
@@ -447,19 +447,22 @@
   color: var(--text-heading);
   cursor: pointer;
   display: inline-flex;
-  height: 28px;
+  height: 24px;
   justify-content: center;
   padding: 0;
-  width: 28px;
+  width: 24px;
 }
 
 .jira-work-section-title input {
   background: transparent;
   border: 0;
   color: var(--text);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 400;
-  padding: 6px 4px;
+  height: 24px;
+  line-height: 18px;
+  min-height: 24px !important;
+  padding: 0 4px;
   width: 100%;
 }
 
@@ -508,6 +511,10 @@
   padding: 12px;
 }
 
+.jira-work-filter-fields {
+  display: grid;
+}
+
 .jira-work-filter-field span {
   color: var(--text);
   font-size: 14px;
@@ -515,10 +522,14 @@
   padding-top: 9px;
 }
 
-.jira-work-filter-field textarea {
+.jira-work-filter-field textarea,
+.jira-work-filter-field input {
   line-height: 1.35;
-  min-height: 84px;
   min-width: 0;
+}
+
+.jira-work-filter-field textarea {
+  min-height: 84px;
   resize: vertical;
 }
 
@@ -629,7 +640,7 @@
 
 @media (max-width: 860px) {
   .jira-work-section-head {
-    grid-template-columns: 30px minmax(0, 1fr);
+    grid-template-columns: 26px minmax(0, 1fr);
   }
 
   .jira-work-filter-field {
