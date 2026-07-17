@@ -56,6 +56,7 @@ export function ProjectJiraWorkPage() {
         sortOrder: nextSortOrder,
         title: defaultJiraWorkSectionTitle(nextSortOrder),
         jql: "",
+        filterUrl: "",
       },
     ]);
   };
@@ -163,23 +164,42 @@ export function ProjectJiraWorkPage() {
                         <span>JQL</span>
                       </button>
                       {!isJqlCollapsed && (
-                        <label className="jira-work-filter-field">
-                          <span>JQL</span>
-                          <textarea
-                            value={section.jql}
-                            onChange={(event) =>
-                              setJiraWorkSectionDrafts(
-                                jiraWorkSectionDrafts.map((entry) =>
-                                  entry.sortOrder === section.sortOrder
-                                    ? { ...entry, jql: event.target.value }
-                                    : entry,
-                                ),
-                              )
-                            }
-                            placeholder='labels = cvte968 AND status not in (Closed, Done) ORDER BY created DESC'
-                            rows={3}
-                          />
-                        </label>
+                        <div className="jira-work-filter-fields">
+                          <label className="jira-work-filter-field">
+                            <span>JQL</span>
+                            <textarea
+                              value={section.jql}
+                              onChange={(event) =>
+                                setJiraWorkSectionDrafts(
+                                  jiraWorkSectionDrafts.map((entry) =>
+                                    entry.sortOrder === section.sortOrder
+                                      ? { ...entry, jql: event.target.value }
+                                      : entry,
+                                  ),
+                                )
+                              }
+                              placeholder='labels = cvte968 AND status not in (Closed, Done) ORDER BY created DESC'
+                              rows={3}
+                            />
+                          </label>
+                          <label className="jira-work-filter-field">
+                            <span>Ссылка на фильтр</span>
+                            <input
+                              type="url"
+                              value={section.filterUrl}
+                              onChange={(event) =>
+                                setJiraWorkSectionDrafts(
+                                  jiraWorkSectionDrafts.map((entry) =>
+                                    entry.sortOrder === section.sortOrder
+                                      ? { ...entry, filterUrl: event.target.value }
+                                      : entry,
+                                  ),
+                                )
+                              }
+                              placeholder="https://tasks.sberdevices.ru/issues/?filter=12345"
+                            />
+                          </label>
+                        </div>
                       )}
                     </div>
 

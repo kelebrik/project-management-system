@@ -281,6 +281,86 @@ test("Jira work synchronization always uses production", async ({ page }) => {
   await expect.poll(() => syncBody?.baseUrl).toBe("https://tasks.sberdevices.ru");
 });
 
+test("Jira work sections expose separate JQL and filter URL fields", async ({
+  page,
+}) => {
+  await mockAdminProject(page);
+  await page.goto("/TV-OVERVIEW/jira-work");
+
+  const firstSection = page.locator(".jira-work-section").first();
+  const collapsedHeight = await firstSection
+    .locator(".jira-work-section-head")
+    .evaluate((element) => element.getBoundingClientRect().height);
+  expect(collapsedHeight).toBeLessThanOrEqual(40);
+
+  await firstSection.locator(".jira-work-section-toggle").click();
+  await firstSection.getByRole("button", { name: "JQL", exact: true }).click();
+
+  await expect(firstSection.getByLabel("JQL", { exact: true })).toBeVisible();
+  await expect(firstSection.getByLabel("Ссылка на фильтр")).toBeVisible();
+});
+
+test("project passport starts with a read-only initial target row", async ({
+  page,
+}) => {
+  await mockAdminProject(page);
+  await page.goto("/TV-OVERVIEW/passport");
+
+  const firstRow = page.locator(".passport-row").first();
+  await expect(firstRow).toContainText("Стартовая цель");
+  await expect(firstRow).toContainText(isoDay(30).split("-").reverse().join("."));
+  await expect(firstRow.locator("input, textarea, button")).toHaveCount(0);
+  await expect(page.getByText("Цели и сроки проекта")).toHaveCount(0);
+  await expect(page.getByText("Утвердить новую цель")).toHaveCount(0);
+});
+
+test("schedule PDF keeps the print layout until afterprint", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.print = () => {
+      document.body.dataset.printInvoked = "true";
+    };
+  });
+  await mockAdminProject(page);
+  await page.goto("/TV-OVERVIEW/schedule");
+
+  await page.getByRole("button", { name: "Сохранить в PDF" }).click();
+  await expect(page.locator("body")).toHaveAttribute("data-print-invoked", "true");
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-print-target",
+    "milestones-by-phase",
+  );
+
+  await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
+  await expect(page.locator("body")).not.toHaveAttribute("data-print-target", /.*/);
+});
+
+test("Gantt keeps old project work available in a short range", async ({ page }) => {
+  await mockAdminProject(page, (project) => {
+    project.wbsItems.unshift({
+      ...project.wbsItems[0],
+      id: "wbs-old",
+      code: "0.1",
+      title: "Историческая задача",
+      startDate: isoDay(-180),
+      dueDate: isoDay(-170),
+      sortOrder: 0,
+    });
+  });
+  await page.goto("/TV-OVERVIEW/gantt");
+
+  await page
+    .getByLabel("Диапазон Гантта")
+    .getByRole("button", { name: "30 дн." })
+    .click();
+  await expect(page.locator(".gantt-label", { hasText: "Историческая задача" })).toBeVisible();
+
+  const scrollMetrics = await page.locator(".gantt-panel-scroll").evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth);
+});
+
 test("overview entries expand statuses and open the selected issue", async ({ page }) => {
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/overview");

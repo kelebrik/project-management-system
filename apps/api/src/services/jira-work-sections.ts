@@ -32,6 +32,10 @@ export function jiraWorkSectionFilterToJql(value: string) {
   return trimmed;
 }
 
+export function resolveJiraWorkSectionJql(jql: string, filterUrl: string) {
+  return jiraWorkSectionFilterToJql(jql.trim() || filterUrl);
+}
+
 export async function ensureDefaultJiraWorkSections(projectId: string) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },

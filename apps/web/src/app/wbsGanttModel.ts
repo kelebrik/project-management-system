@@ -99,12 +99,6 @@ export function createWbsGantt({
   wbsDependencies,
   rangeDays = null,
 }: WbsGanttOptions) {
-  const rangeStart = rangeDays
-    ? new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 14)
-    : null;
-  const rangeEnd = rangeStart && rangeDays
-    ? new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate() + rangeDays + 14)
-    : null;
   const datedItems = visibleWbsTree
     .filter((item) => item.status !== "CANCELLED")
     .map((item) => {
@@ -123,8 +117,7 @@ export function createWbsGantt({
         forecastEnd: validDate(item.forecastDueDate),
       };
     })
-    .filter((item): item is DatedWbsItem => item !== null)
-    .filter((entry) => !rangeStart || !rangeEnd || (entry.end >= rangeStart && entry.start <= rangeEnd));
+    .filter((item): item is DatedWbsItem => item !== null);
 
   if (datedItems.length === 0) {
     return createEmptyWbsGantt();
@@ -140,8 +133,23 @@ export function createWbsGantt({
       entry.forecastEnd,
     ].filter((dateValue): dateValue is Date => dateValue !== null),
   );
-  const rawStart = rangeStart ?? new Date(Math.min(...timelineDates.map((item) => item.getTime())));
-  const rawEnd = rangeEnd ?? new Date(Math.max(...timelineDates.map((item) => item.getTime())));
+  const earliestItemDate = new Date(
+    Math.min(...timelineDates.map((item) => item.getTime())),
+  );
+  const latestItemDate = new Date(
+    Math.max(...timelineDates.map((item) => item.getTime())),
+  );
+  const todayAnchor = startOfDay(new Date());
+  const minimumWindowStart = new Date(todayAnchor);
+  minimumWindowStart.setDate(minimumWindowStart.getDate() - 14);
+  const minimumWindowEnd = new Date(todayAnchor);
+  if (rangeDays) minimumWindowEnd.setDate(minimumWindowEnd.getDate() + rangeDays);
+  const rawStart = rangeDays && minimumWindowStart < earliestItemDate
+    ? minimumWindowStart
+    : earliestItemDate;
+  const rawEnd = rangeDays && minimumWindowEnd > latestItemDate
+    ? minimumWindowEnd
+    : latestItemDate;
   const start = startOfMonth(rawStart);
   const end = addMonths(startOfMonth(rawEnd), 1);
   const totalDays = Math.max(1, daysBetween(start, end));

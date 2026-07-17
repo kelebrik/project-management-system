@@ -163,6 +163,7 @@ function jiraWorkSectionsPayload() {
       sortOrder: index,
       title: section.title.trim() || `Раздел ${index + 1}`,
       jql: section.jql.trim(),
+      filterUrl: section.filterUrl.trim(),
     })),
   };
 }

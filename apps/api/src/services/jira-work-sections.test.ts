@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   defaultJiraWorkSectionTitle,
   jiraWorkSectionFilterToJql,
+  resolveJiraWorkSectionJql,
 } from './jira-work-sections.js';
 
 test('defaultJiraWorkSectionTitle uses one-based section numbering', () => {
@@ -32,5 +33,35 @@ test('jiraWorkSectionFilterToJql keeps direct search expressions', () => {
   assert.equal(
     jiraWorkSectionFilterToJql('/issues/?jql=project%20%3D%20PMS'),
     'project = PMS',
+  );
+});
+
+test('resolveJiraWorkSectionJql gives direct JQL priority over a filter link', () => {
+  assert.equal(
+    resolveJiraWorkSectionJql(
+      'project = DIRECT',
+      'https://tasks.sberdevices.ru/issues/?filter=39227',
+    ),
+    'project = DIRECT',
+  );
+});
+
+test('resolveJiraWorkSectionJql uses a filter link when JQL is empty', () => {
+  assert.equal(
+    resolveJiraWorkSectionJql(
+      '',
+      'https://tasks.sberdevices.ru/issues/?filter=39227',
+    ),
+    'filter = 39227',
+  );
+});
+
+test('resolveJiraWorkSectionJql keeps legacy filter links stored in JQL', () => {
+  assert.equal(
+    resolveJiraWorkSectionJql(
+      'https://tasks.sberdevices.ru/issues/?filter=39227',
+      '',
+    ),
+    'filter = 39227',
   );
 });

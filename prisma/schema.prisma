@@ -708,6 +708,7 @@ model JiraWorkSection {
   sortOrder Int
   title     String
   jql       String                 @default("")
+  filterUrl String                 @default("")
   createdAt DateTime               @default(now())
   updatedAt DateTime               @updatedAt
   project   Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
