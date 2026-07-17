@@ -387,17 +387,32 @@ test("schedule PDF keeps the print layout until afterprint", async ({ page }) =>
   await expect(page.locator("body")).toHaveAttribute("data-print-invoked", "true");
   await expect(page.locator("body")).toHaveAttribute(
     "data-print-target",
-    "milestones-by-phase",
+    "project-schedule-print",
   );
 
   await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
   await expect(page.locator("body")).not.toHaveAttribute("data-print-target", /.*/);
 });
 
-test("schedule PDF isolates and fits a multi-phase graph on one page", async ({
+test("schedule PDF prints goals and milestones on two complete pages", async ({
   page,
 }) => {
   await mockAdminProject(page, (project) => {
+    for (let index = 0; index < 12; index += 1) {
+      project.wbsItems.push({
+        ...project.wbsItems[0],
+        id: `goal-${index + 1}`,
+        parentId: null,
+        code: `G${index + 1}`,
+        title: `Цель проекта ${index + 1}`,
+        type: "GOAL",
+        status: "NOT_STARTED",
+        startDate: isoDay(index * 5),
+        dueDate: isoDay(index * 5),
+        baselineDueDate: isoDay(index * 5 - 2),
+        sortOrder: 500 + index,
+      });
+    }
     for (let index = 0; index < 6; index += 1) {
       const phaseId = `phase-${index + 1}`;
       project.wbsItems.push(
@@ -431,8 +446,8 @@ test("schedule PDF isolates and fits a multi-phase graph on one page", async ({
   await page.goto("/TV-OVERVIEW/schedule");
   await expect(page.locator("#milestones-by-phase")).toBeVisible();
   await page.evaluate(() => {
-    document.documentElement.dataset.printTarget = "milestones-by-phase";
-    document.body.dataset.printTarget = "milestones-by-phase";
+    document.documentElement.dataset.printTarget = "project-schedule-print";
+    document.body.dataset.printTarget = "project-schedule-print";
   });
   await page.emulateMedia({ media: "print" });
 
@@ -445,21 +460,73 @@ test("schedule PDF isolates and fits a multi-phase graph on one page", async ({
         ? getComputedStyle(navigation).display
         : "absent",
       targetTop: document
-        .getElementById("milestones-by-phase")!
+        .getElementById("project-schedule-print")!
         .getBoundingClientRect().top,
+      goalsHeadingDisplay: getComputedStyle(
+        document.querySelector(".schedule-print-goals > .panel-title")!,
+      ).display,
+      milestonesHeadingDisplay: getComputedStyle(
+        document.querySelector(".schedule-print-milestones > .panel-title")!,
+      ).display,
+      legendDisplay: getComputedStyle(
+        document.querySelector(".schedule-print-milestones .milestone-legend")!,
+      ).display,
+      goalScale: Number(
+        getComputedStyle(
+          document.querySelector(".schedule-print-goals .portfolio-goal-timeline")!,
+        ).zoom,
+      ),
+      milestoneScale: Number(
+        getComputedStyle(
+          document.querySelector(".schedule-print-milestones .milestone-timeline")!,
+        ).zoom,
+      ),
     };
   });
   expect(["none", "absent"]).toContain(printLayout.headerDisplay);
   expect(["none", "absent"]).toContain(printLayout.navigationDisplay);
   expect(printLayout.targetTop).toBeLessThan(40);
+  expect(printLayout.goalsHeadingDisplay).not.toBe("none");
+  expect(printLayout.milestonesHeadingDisplay).not.toBe("none");
+  expect(printLayout.legendDisplay).not.toBe("none");
+  expect(printLayout.goalScale).toBeLessThan(1);
+  expect(printLayout.milestoneScale).toBeLessThan(1);
+
+  const clipping = await page.evaluate(() => {
+    const goalsPage = document.querySelector(".schedule-print-goals")!;
+    const milestonesPage = document.querySelector(".schedule-print-milestones")!;
+    const lastGoal = document.querySelector(
+      ".schedule-print-goals .portfolio-goal-item:last-child",
+    )!;
+    const lastLane = document.querySelector(
+      ".schedule-print-milestones .milestone-lane:last-child",
+    )!;
+    return {
+      goalBottom: lastGoal.getBoundingClientRect().bottom,
+      goalPageBottom: goalsPage.getBoundingClientRect().bottom,
+      laneBottom: lastLane.getBoundingClientRect().bottom,
+      milestonePageBottom: milestonesPage.getBoundingClientRect().bottom,
+    };
+  });
+  expect(clipping.goalBottom).toBeLessThanOrEqual(clipping.goalPageBottom + 1);
+  expect(clipping.laneBottom).toBeLessThanOrEqual(
+    clipping.milestonePageBottom + 1,
+  );
+  if (process.env.CAPTURE_SCHEDULE_PRINT_SCREENSHOT) {
+    await page.screenshot({
+      path: process.env.CAPTURE_SCHEDULE_PRINT_SCREENSHOT,
+      fullPage: true,
+    });
+  }
 
   const pdf = await page.pdf({
     format: "A4",
     landscape: true,
+    path: process.env.CAPTURE_SCHEDULE_PDF || undefined,
     preferCSSPageSize: true,
     printBackground: true,
   });
-  expect(countPdfPages(pdf)).toBe(1);
+  expect(countPdfPages(pdf)).toBe(2);
 });
 
 test("Gantt keeps old project work available in a short range", async ({ page }) => {

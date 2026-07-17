@@ -271,6 +271,10 @@ body.milestone-label-dragging * {
   cursor: grabbing !important;
 }
 
+.schedule-print-document {
+  display: contents;
+}
+
 @media print {
   @page {
     size: A4 landscape;
@@ -322,6 +326,63 @@ body.milestone-label-dragging * {
     [data-print-section="milestones-by-phase"],
   body[data-print-target="milestones-all"] [data-print-section="milestones-all"] {
     display: grid !important;
+  }
+
+  body[data-print-target="project-schedule-print"]
+    .content-grid > .schedule-print-document {
+    display: block !important;
+  }
+
+  body[data-print-target="project-schedule-print"] .schedule-print-page {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    box-sizing: border-box;
+    break-after: page;
+    height: 190mm;
+    margin: 0 !important;
+    max-height: 190mm;
+    overflow: hidden !important;
+    padding: 4mm !important;
+    page-break-after: always;
+    width: 100% !important;
+  }
+
+  body[data-print-target="project-schedule-print"] .schedule-print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  body[data-print-target="project-schedule-print"]
+    .schedule-print-page > .panel-title {
+    display: flex !important;
+    margin-bottom: 4mm !important;
+  }
+
+  body[data-print-target="project-schedule-print"]
+    .schedule-print-page > .panel-title .panel-title-actions {
+    display: none !important;
+  }
+
+  body[data-print-target="project-schedule-print"] .schedule-print-goals
+    .portfolio-goal-timeline {
+    max-width: none !important;
+    width: var(--goal-print-width, 100%) !important;
+    zoom: var(--goal-print-scale, 1);
+  }
+
+  body[data-print-target="project-schedule-print"] .milestone-section,
+  body[data-print-target="project-schedule-print"] .milestone-section-actions {
+    display: flex !important;
+  }
+
+  body[data-print-target="project-schedule-print"] .milestone-section {
+    flex-direction: column;
+  }
+
+  body[data-print-target="project-schedule-print"]
+    .milestone-section-actions button {
+    display: none !important;
   }
 
   body[data-print-target="project-structure-print"] .content-grid > :not(.workspace-focus-structure),
@@ -491,54 +552,90 @@ body.milestone-label-dragging * {
     width: 100% !important;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-lanes {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-lanes {
     gap: 3mm;
     padding: 3mm 2mm 4mm 0;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-scale,
-  body[data-print-target="milestones-by-phase"] .milestone-lane {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-scale,
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-lane {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-scale span {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-scale span {
     left: 2mm !important;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-scale span + span {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-scale span + span {
     left: auto !important;
     right: 11mm !important;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-lane-title {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-lane-title {
     padding-right: 0;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-axis-title {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-axis-title {
     left: calc(2mm + var(--milestone-axis-title-left, 0px));
     max-width: var(--milestone-axis-title-width, 320px);
     padding: 0 2mm;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-axis-title strong {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-axis-title strong {
     font-size: 9pt;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-lane-canvas {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-lane-canvas {
     min-width: 0;
     padding: 0 11mm 0 2mm;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-axis {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-axis {
     left: 2mm;
     right: 11mm;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-axis-arrow {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-axis-arrow {
     right: 3mm;
   }
 
-  body[data-print-target="milestones-by-phase"] .milestone-range {
+  body:is(
+      [data-print-target="milestones-by-phase"],
+      [data-print-target="project-schedule-print"]
+    ) .milestone-range {
     left: 7mm;
     right: 12mm;
   }
