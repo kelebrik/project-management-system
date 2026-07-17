@@ -420,6 +420,7 @@ export type JiraWorkSection = {
   sortOrder: number;
   title: string;
   jql: string;
+  filterUrl: string;
   createdAt: string;
   updatedAt: string;
   issues: JiraWorkSectionIssue[];

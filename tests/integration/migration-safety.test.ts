@@ -74,6 +74,16 @@ test("Migrations avoid destructive operations outside explicit historical data i
   assert.deepEqual(violations, [], `Unsafe migration operations found:\n${violations.join("\n")}`);
 });
 
+test("Jira filter URL migration preserves existing section data", () => {
+  const migration = migrationSql("20260717100000_jira_work_section_filter_url");
+
+  assert.match(
+    migration,
+    /ADD\s+COLUMN\s+"filterUrl"\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+''/i,
+  );
+  assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+});
+
 test("Historical Excel migrations keep numeric casts explicit", () => {
   const excelMigration = migrationSql("20260514093000_wbs_excel_fields");
   const restoreMigration = migrationSql("20260518110000_restore_cvte_structure_from_excel");
