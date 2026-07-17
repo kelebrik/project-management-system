@@ -174,7 +174,8 @@ export function MilestoneTimelineSection({
     timeline.lanes.length * timeline.laneHeight +
     Math.max(0, timeline.lanes.length - 1) * MILESTONE_PHASE_LANE_GRID_GAP +
     60;
-  const printScale = Math.min(1, 680 / Math.max(1, printContentHeight));
+  // 560px leaves room on the 190mm page for the section title, legend and padding.
+  const printScale = Math.min(1, 560 / Math.max(1, printContentHeight));
 
   return (
     <section
