@@ -149,7 +149,12 @@ function projectFixture() {
     budgetForecast: "0",
     summary: "",
     sortOrder: 0,
-    uiState: null,
+    uiState: {
+      wbsColumnWidths: {
+        jiraTicketUrl: 240,
+        mattermostUrl: 280,
+      },
+    },
     jiraIntegration: null,
     targetDateChanges: [],
     wbsItems: [wbsItem],
@@ -1082,6 +1087,14 @@ test("project navigation and current work reflect the structure", async ({ page 
   await expect(page.getByText("Комментарий", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Jira URL", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "MM", exact: true })).toBeVisible();
+  const jiraHeaderWidth = await page
+    .getByRole("columnheader", { name: /^Jira URL/ })
+    .evaluate((element) => element.getBoundingClientRect().width);
+  const mmHeaderWidth = await page
+    .getByRole("columnheader", { name: /^MM/ })
+    .evaluate((element) => element.getBoundingClientRect().width);
+  expect(jiraHeaderWidth).toBeLessThanOrEqual(121);
+  expect(mmHeaderWidth).toBeLessThanOrEqual(141);
   await expect(page.getByRole("link", { name: "Jira", exact: true })).toHaveAttribute(
     "href",
     "https://tasks.sberdevices.ru/browse/TV-1",

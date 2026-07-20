@@ -251,7 +251,7 @@ export function normalizeWbsColumnWidths(
     WBS_TABLE_COLUMNS.map((column) => [column.key, column.width]),
   ) as Record<WbsTableColumnKey, number>;
 
-  return {
+  const normalizedWidths = {
     ...defaultWidths,
     ...widths,
     level: Math.max(
@@ -259,6 +259,15 @@ export function normalizeWbsColumnWidths(
       widths?.level ?? defaultWidths.level,
     ),
   };
+
+  if (widths?.jiraTicketUrl === 240) {
+    normalizedWidths.jiraTicketUrl = defaultWidths.jiraTicketUrl;
+  }
+  if (widths?.mattermostUrl === 280) {
+    normalizedWidths.mattermostUrl = defaultWidths.mattermostUrl;
+  }
+
+  return normalizedWidths;
 }
 
 function sortableNumberValue(value: number | string | null | undefined) {
