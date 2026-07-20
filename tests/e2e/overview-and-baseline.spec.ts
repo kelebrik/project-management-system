@@ -1093,8 +1093,8 @@ test("project navigation and current work reflect the structure", async ({ page 
   const mmHeaderWidth = await page
     .getByRole("columnheader", { name: /^MM/ })
     .evaluate((element) => element.getBoundingClientRect().width);
-  expect(jiraHeaderWidth).toBeLessThanOrEqual(121);
-  expect(mmHeaderWidth).toBeLessThanOrEqual(141);
+  expect(jiraHeaderWidth).toBeLessThanOrEqual(89);
+  expect(mmHeaderWidth).toBeLessThanOrEqual(77);
   await expect(page.getByRole("link", { name: "Jira", exact: true })).toHaveAttribute(
     "href",
     "https://tasks.sberdevices.ru/browse/TV-1",
