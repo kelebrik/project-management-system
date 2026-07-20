@@ -34,7 +34,7 @@ import {
   type WbsPredecessorTiming,
   type WbsSortState,
 } from "../app/wbsTable";
-import { isHttpsUrl, isMattermostUrl } from "../app/http";
+import { WbsUrlField } from "../components/WbsUrlField";
 import {
   resolveDraftPredecessorCode,
   wbsDraftDisplayLevel,
@@ -80,6 +80,7 @@ type UseWbsStructureTableControllerOptions = {
   saveWbsItem: SaveWbsItem;
   selectedWbsIds: Set<string>;
   setDraggedWbsItemId: Dispatch<SetStateAction<string | null>>;
+  setError: Dispatch<SetStateAction<string | null>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
   setSelectedWbsIds: Dispatch<SetStateAction<Set<string>>>;
   setWbsDrafts: Dispatch<SetStateAction<Record<string, WbsFormState>>>;
@@ -163,6 +164,7 @@ export function useWbsStructureTableController({
   saveWbsItem,
   selectedWbsIds,
   setDraggedWbsItemId,
+  setError,
   setNotice,
   setSelectedWbsIds,
   setWbsDrafts,
@@ -491,11 +493,25 @@ export function useWbsStructureTableController({
           value = formatReadonlyPercent(draft.progress);
           break;
         case "jiraTicketUrl":
-          value = emptyReadonlyValue(draft.jiraTicketUrl);
-          break;
+          return (
+            <WbsUrlField
+              contextLabel={item.code}
+              isReadOnly
+              kind="jira"
+              value={draft.jiraTicketUrl}
+              onSave={() => undefined}
+            />
+          );
         case "mattermostUrl":
-          value = emptyReadonlyValue(draft.mattermostUrl);
-          break;
+          return (
+            <WbsUrlField
+              contextLabel={item.code}
+              isReadOnly
+              kind="mattermost"
+              value={draft.mattermostUrl}
+              onSave={() => undefined}
+            />
+          );
         case "leadLag":
           value = emptyReadonlyValue(draft.leadLagDays);
           break;
@@ -873,41 +889,36 @@ export function useWbsStructureTableController({
         );
       case "jiraTicketUrl":
         return (
-          <input
-            className={
-              draft.jiraTicketUrl && !isHttpsUrl(draft.jiraTicketUrl)
-                ? "input-error"
-                : ""
-            }
+          <WbsUrlField
+            contextLabel={item.code}
+            isReadOnly={false}
+            kind="jira"
             value={draft.jiraTicketUrl}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { jiraTicketUrl: event.target.value })
+            onInvalid={setError}
+            onSave={(jiraTicketUrl) =>
+              saveWbsDraftPatch(
+                item.id,
+                { jiraTicketUrl },
+                { silent: true },
+              )
             }
-            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => scheduleWbsSave(item.id)}
-            placeholder="https://..."
           />
         );
       case "mattermostUrl":
         return (
-          <input
-            className={
-              draft.mattermostUrl && !isMattermostUrl(draft.mattermostUrl)
-                ? "input-error"
-                : ""
-            }
-            aria-invalid={
-              Boolean(draft.mattermostUrl) && !isMattermostUrl(draft.mattermostUrl)
-            }
+          <WbsUrlField
+            contextLabel={item.code}
+            isReadOnly={false}
+            kind="mattermost"
             value={draft.mattermostUrl}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { mattermostUrl: event.target.value })
+            onInvalid={setError}
+            onSave={(mattermostUrl) =>
+              saveWbsDraftPatch(
+                item.id,
+                { mattermostUrl },
+                { silent: true },
+              )
             }
-            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => scheduleWbsSave(item.id)}
-            placeholder="https://mm.sberdevices.ru/..."
           />
         );
       case "comment":

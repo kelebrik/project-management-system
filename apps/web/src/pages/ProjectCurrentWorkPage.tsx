@@ -1,8 +1,8 @@
 import { createCurrentWorkRows } from "../app/currentWorkModel";
 import { date } from "../app/dateUtils";
 import type { WbsItemStatus } from "../app/domainTypes";
-import { isHttpsUrl, isMattermostUrl } from "../app/http";
 import { wbsStatusLabel } from "../app/labels";
+import { WbsUrlField } from "../components/WbsUrlField";
 import { usePageContext } from "./PageContext";
 
 const STATUS_OPTIONS: WbsItemStatus[] = [
@@ -21,6 +21,7 @@ export function ProjectCurrentWorkPage() {
     project,
     saveWbsDraftPatch,
     setActiveWbsItemId,
+    setError,
     updateWbsDraft,
     wbsDrafts,
   } = usePageContext();
@@ -146,54 +147,36 @@ export function ProjectCurrentWorkPage() {
                 )}
               </span>
               <span role="cell">
-                {isReadOnly ? (
-                  row.jiraTicketUrl.trim() ? (
-                    <a href={row.jiraTicketUrl.trim()} target="_blank" rel="noreferrer">Jira</a>
-                  ) : "—"
-                ) : (
-                  <input
-                    className={isHttpsUrl(row.jiraTicketUrl) ? "" : "input-error"}
-                    aria-invalid={!isHttpsUrl(row.jiraTicketUrl)}
-                    aria-label={`Jira ${row.code}`}
-                    value={row.jiraTicketUrl}
-                    placeholder="https://..."
-                    onChange={(event) =>
-                      updateWbsDraft(row.id, { jiraTicketUrl: event.target.value })
-                    }
-                    onBlur={(event) =>
-                      saveWbsDraftPatch(
-                        row.id,
-                        { jiraTicketUrl: event.currentTarget.value },
-                        { silent: true },
-                      )
-                    }
-                  />
-                )}
+                <WbsUrlField
+                  contextLabel={row.code}
+                  isReadOnly={isReadOnly}
+                  kind="jira"
+                  value={row.jiraTicketUrl}
+                  onInvalid={setError}
+                  onSave={(jiraTicketUrl) =>
+                    saveWbsDraftPatch(
+                      row.id,
+                      { jiraTicketUrl },
+                      { silent: true },
+                    )
+                  }
+                />
               </span>
               <span role="cell">
-                {isReadOnly ? (
-                  row.mattermostUrl.trim() ? (
-                    <a href={row.mattermostUrl.trim()} target="_blank" rel="noreferrer">MM</a>
-                  ) : "—"
-                ) : (
-                  <input
-                    className={isMattermostUrl(row.mattermostUrl) ? "" : "input-error"}
-                    aria-invalid={!isMattermostUrl(row.mattermostUrl)}
-                    aria-label={`MM ${row.code}`}
-                    value={row.mattermostUrl}
-                    placeholder="https://mm.sberdevices.ru/..."
-                    onChange={(event) =>
-                      updateWbsDraft(row.id, { mattermostUrl: event.target.value })
-                    }
-                    onBlur={(event) =>
-                      saveWbsDraftPatch(
-                        row.id,
-                        { mattermostUrl: event.currentTarget.value },
-                        { silent: true },
-                      )
-                    }
-                  />
-                )}
+                <WbsUrlField
+                  contextLabel={row.code}
+                  isReadOnly={isReadOnly}
+                  kind="mattermost"
+                  value={row.mattermostUrl}
+                  onInvalid={setError}
+                  onSave={(mattermostUrl) =>
+                    saveWbsDraftPatch(
+                      row.id,
+                      { mattermostUrl },
+                      { silent: true },
+                    )
+                  }
+                />
               </span>
             </div>
           ))}

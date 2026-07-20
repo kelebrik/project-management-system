@@ -1025,14 +1025,25 @@ test("project navigation and current work reflect the structure", async ({ page 
   await expect(page.getByLabel("Статус 1.1")).toBeEnabled();
   await expect(page.getByLabel("Срок 1.1")).toBeEnabled();
   await expect(page.getByLabel("Исполнитель 1.1")).toBeEnabled();
-  await expect(page.getByLabel("Jira 1.1")).toHaveValue(
+  await expect(page.getByRole("link", { name: "Jira", exact: true })).toHaveAttribute(
+    "href",
     "https://tasks.sberdevices.ru/browse/TV-1",
   );
-  const mmInput = page.getByLabel("MM 1.1");
-  await expect(mmInput).toHaveValue("https://mm.sberdevices.ru/channel/thread");
+  await expect(page.getByRole("link", { name: "MM", exact: true })).toHaveAttribute(
+    "href",
+    "https://mm.sberdevices.ru/channel/thread",
+  );
+  await page.getByRole("button", { name: "Изменить ссылку MM 1.1" }).click();
+  let mmInput = page.getByLabel("Ссылка MM 1.1");
   await mmInput.fill("https://mm.sberdevices.ru.evil.test/channel");
-  await mmInput.blur();
   await expect(mmInput).toHaveAttribute("aria-invalid", "true");
+  await mmInput.blur();
+  await expect(page.getByRole("link", { name: "MM", exact: true })).toHaveAttribute(
+    "href",
+    "https://mm.sberdevices.ru/channel/thread",
+  );
+  await page.getByRole("button", { name: "Изменить ссылку MM 1.1" }).click();
+  mmInput = page.getByLabel("Ссылка MM 1.1");
   await mmInput.fill("https://mm.sberdevices.ru/team/channel");
   await mmInput.blur();
   await expect.poll(() => savedPatch?.mattermostUrl).toBe(
@@ -1047,6 +1058,16 @@ test("project navigation and current work reflect the structure", async ({ page 
       path: "/private/tmp/pms-current-work-desktop.png",
       fullPage: true,
     });
+    await currentWork.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+    await page.screenshot({
+      path: "/private/tmp/pms-current-work-links-desktop.png",
+      fullPage: true,
+    });
+    await currentWork.evaluate((element) => {
+      element.scrollLeft = 0;
+    });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({
       path: "/private/tmp/pms-current-work-mobile.png",
@@ -1056,10 +1077,19 @@ test("project navigation and current work reflect the structure", async ({ page 
   }
 
   await page.goto("/TV-OVERVIEW/wbs");
+  await page.getByRole("button", { name: "Раскрыть элемент Структуры" }).click();
   await expect(page.getByText("Сводка по работам", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Комментарий", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Jira URL", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "MM", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Jira", exact: true })).toHaveAttribute(
+    "href",
+    "https://tasks.sberdevices.ru/browse/TV-1",
+  );
+  await expect(page.getByRole("link", { name: "MM", exact: true })).toHaveAttribute(
+    "href",
+    "https://mm.sberdevices.ru/team/channel",
+  );
 });
 
 function countPdfPages(pdf: Buffer) {

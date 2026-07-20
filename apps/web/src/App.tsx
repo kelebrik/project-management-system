@@ -782,6 +782,7 @@ function AppController() {
       saveWbsItem,
       selectedWbsIds,
       setDraggedWbsItemId,
+      setError,
       setNotice,
       setSelectedWbsIds,
       setWbsDrafts,
