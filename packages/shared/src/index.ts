@@ -222,6 +222,24 @@ const wbsItemShape = {
     .startsWith("https://", "Ссылка Jira должна начинаться с https://")
     .optional()
     .nullable(),
+  mattermostUrl: z
+    .preprocess(
+      (value) =>
+        typeof value === "string" && value.trim() === "" ? null : value,
+      z
+        .string()
+        .trim()
+        .url()
+        .refine((value) => {
+          const url = new URL(value);
+          return (
+            url.protocol === "https:" &&
+            url.hostname.toLowerCase() === "mm.sberdevices.ru"
+          );
+        }, "Ссылка MM должна вести на https://mm.sberdevices.ru")
+        .nullable(),
+    )
+    .optional(),
   description: z.string().trim().optional().nullable(),
   comment: z.string().trim().optional().nullable(),
   sortOrder: z.coerce.number().int(),

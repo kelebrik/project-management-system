@@ -168,6 +168,7 @@ export const openApiDocument = {
           effortPercent: { type: "integer", minimum: 0, maximum: 100 },
           jiraTicketKey: { type: ["string", "null"] },
           jiraTicketUrl: { type: ["string", "null"], format: "uri" },
+          mattermostUrl: { type: ["string", "null"], format: "uri" },
           comment: { type: ["string", "null"] },
         },
         required: ["id", "projectId", "code", "title", "type", "status"],

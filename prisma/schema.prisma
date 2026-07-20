@@ -505,6 +505,7 @@ model WbsItem {
   progress      Int           @default(0)
   jiraTicketKey String?
   jiraTicketUrl String?
+  mattermostUrl String?
   description   String?
   comment       String?
   closedAt      DateTime?

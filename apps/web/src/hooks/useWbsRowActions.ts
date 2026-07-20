@@ -15,7 +15,7 @@ import type {
   WbsTreeItem,
 } from "../app/domainTypes";
 import { wbsToForm, type WbsFormState } from "../app/formState";
-import { apiBase, authenticatedFetch, isHttpsUrl } from "../app/http";
+import { apiBase, authenticatedFetch, isHttpsUrl, isMattermostUrl } from "../app/http";
 import {
   WBS_PREDECESSOR_KEYS,
   WBS_PREDECESSOR_TYPE_BY_KEY,
@@ -135,6 +135,7 @@ export function useWbsRowActions({
       progress: Number(form.progress),
       jiraTicketKey: form.jiraTicketKey || null,
       jiraTicketUrl: form.jiraTicketUrl || null,
+      mattermostUrl: form.mattermostUrl.trim() || null,
       description: form.description || null,
       comment: form.comment.trim() || null,
       sortOrder: Number(form.sortOrder),
@@ -211,6 +212,9 @@ export function useWbsRowActions({
         }
         if (!isHttpsUrl(draft.jiraTicketUrl)) {
           throw new Error("Ссылка Jira должна начинаться с https://");
+        }
+        if (!isMattermostUrl(draft.mattermostUrl)) {
+          throw new Error("Ссылка MM должна вести на https://mm.sberdevices.ru");
         }
         const currentPayload = wbsPayload(
           itemId,
@@ -482,6 +486,10 @@ export function useWbsRowActions({
     const comparablePayload = wbsPayload(itemId, draft);
     if (!isHttpsUrl(draft.jiraTicketUrl)) {
       setError("Ссылка Jira должна начинаться с https://");
+      return;
+    }
+    if (!isMattermostUrl(draft.mattermostUrl)) {
+      setError("Ссылка MM должна вести на https://mm.sberdevices.ru");
       return;
     }
     const currentPayload = currentItem

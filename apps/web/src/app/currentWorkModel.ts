@@ -22,6 +22,8 @@ export type CurrentWorkRow = {
   dueDate: string | null;
   owner: string;
   comment: string;
+  jiraTicketUrl: string;
+  mattermostUrl: string;
 };
 
 function startOfLocalDay(value: Date) {
@@ -141,7 +143,9 @@ export function createCurrentWorkRows(
         status: draft.status,
         dueDate: draft.dueDate || null,
         owner: draft.owner,
-        comment: draft.comment.trim(),
+        comment: draft.comment,
+        jiraTicketUrl: draft.jiraTicketUrl,
+        mattermostUrl: draft.mattermostUrl,
       };
     })
     .sort((left, right) => CODE_COLLATOR.compare(left.code, right.code));

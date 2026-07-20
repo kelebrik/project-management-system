@@ -45,6 +45,7 @@ function projectFixture() {
     progress: 50,
     jiraTicketKey: null,
     jiraTicketUrl: null,
+    mattermostUrl: null,
     description: null,
     comment: "Проверить результат",
     closedAt: null,
@@ -729,7 +730,6 @@ test("WBS deletion uses one in-app confirmation without a browser dialog", async
       },
     });
   });
-
   await page.goto("/TV-OVERVIEW/wbs");
   await page
     .getByRole("button", { name: "Удалить строку Структуры" })
@@ -956,7 +956,9 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
 });
 
 test("project navigation and current work reflect the structure", async ({ page }) => {
-  await mockAdminProject(page, (project) => {
+  let savedPatch: Record<string, unknown> | null = null;
+  let renumberRequests = 0;
+  const project = await mockAdminProject(page, (project) => {
     project.wbsItems.unshift({
       ...project.wbsItems[0],
       id: "work-package-1",
@@ -967,6 +969,30 @@ test("project navigation and current work reflect the structure", async ({ page 
       comment: null,
     });
     project.wbsItems[1].parentId = "work-package-1";
+    project.wbsItems[1].jiraTicketUrl = "https://tasks.sberdevices.ru/browse/TV-1";
+    project.wbsItems[1].mattermostUrl = "https://mm.sberdevices.ru/channel/thread";
+  });
+  await page.route("**/api/wbs-items/wbs-1", async (route) => {
+    savedPatch = route.request().postDataJSON() as Record<string, unknown>;
+    Object.assign(project.wbsItems[1], savedPatch);
+    await route.fulfill({
+      json: {
+        item: project.wbsItems[1],
+        wbsItems: project.wbsItems,
+        wbsDependencies: [],
+        criticalPath: null,
+      },
+    });
+  });
+  await page.route(/\/api\/projects\/project-1\/wbs-items\/renumber$/, (route) => {
+    renumberRequests += 1;
+    return route.fulfill({
+      json: {
+        wbsItems: project.wbsItems,
+        wbsDependencies: [],
+        criticalPath: null,
+      },
+    });
   });
   await page.goto("/TV-OVERVIEW/current-work");
 
@@ -991,8 +1017,32 @@ test("project navigation and current work reflect the structure", async ({ page 
   const currentWork = page.getByRole("table", { name: "Текучка проекта" });
   await expect(currentWork).toContainText("1.1");
   await expect(currentWork).toContainText("1 Пакет интеграции");
-  await expect(currentWork).toContainText("Проверить результат");
+  await expect(page.getByLabel("Комментарий 1.1")).toHaveValue("Проверить результат");
+  const commentInput = page.getByLabel("Комментарий 1.1");
+  await commentInput.fill("Новый комментарий");
+  await commentInput.blur();
+  await expect.poll(() => savedPatch?.comment).toBe("Новый комментарий");
+  await expect(page.getByLabel("Статус 1.1")).toBeEnabled();
+  await expect(page.getByLabel("Срок 1.1")).toBeEnabled();
+  await expect(page.getByLabel("Исполнитель 1.1")).toBeEnabled();
+  await expect(page.getByLabel("Jira 1.1")).toHaveValue(
+    "https://tasks.sberdevices.ru/browse/TV-1",
+  );
+  const mmInput = page.getByLabel("MM 1.1");
+  await expect(mmInput).toHaveValue("https://mm.sberdevices.ru/channel/thread");
+  await mmInput.fill("https://mm.sberdevices.ru.evil.test/channel");
+  await mmInput.blur();
+  await expect(mmInput).toHaveAttribute("aria-invalid", "true");
+  await mmInput.fill("https://mm.sberdevices.ru/team/channel");
+  await mmInput.blur();
+  await expect.poll(() => savedPatch?.mattermostUrl).toBe(
+    "https://mm.sberdevices.ru/team/channel",
+  );
+  await expect.poll(() => renumberRequests).toBeGreaterThan(0);
   if (process.env.CAPTURE_CURRENT_WORK === "1") {
+    await currentWork.evaluate((element) => {
+      element.scrollLeft = 0;
+    });
     await page.screenshot({
       path: "/private/tmp/pms-current-work-desktop.png",
       fullPage: true,
@@ -1008,6 +1058,8 @@ test("project navigation and current work reflect the structure", async ({ page 
   await page.goto("/TV-OVERVIEW/wbs");
   await expect(page.getByText("Сводка по работам", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Комментарий", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Jira URL", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "MM", exact: true })).toBeVisible();
 });
 
 function countPdfPages(pdf: Buffer) {

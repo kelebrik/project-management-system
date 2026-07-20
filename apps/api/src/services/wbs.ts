@@ -321,6 +321,7 @@ export function wbsItemSnapshotData(
     progress: item.progress,
     jiraTicketKey: item.jiraTicketKey || null,
     jiraTicketUrl: item.jiraTicketUrl || null,
+    mattermostUrl: item.mattermostUrl?.trim() || null,
     description: item.description || null,
     comment: item.comment?.trim() || null,
     closedAt,

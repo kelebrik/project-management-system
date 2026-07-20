@@ -287,8 +287,8 @@
 .current-work-head,
 .current-work-row {
   display: grid;
-  grid-template-columns: 100px minmax(190px, 1fr) minmax(240px, 1.3fr) 140px 110px 170px minmax(220px, 1fr);
-  min-width: 1190px;
+  grid-template-columns: 90px minmax(180px, 1fr) minmax(220px, 1.2fr) 150px 140px 180px minmax(220px, 1fr) minmax(220px, 1fr) minmax(260px, 1.15fr);
+  min-width: 1660px;
 }
 
 .current-work-head {
@@ -322,6 +322,17 @@
 
 .current-work-title {
   color: var(--text-strongest);
+  font-weight: 800;
+}
+
+.current-work-row input,
+.current-work-row select {
+  min-width: 0;
+  width: 100%;
+}
+
+.current-work-row a {
+  color: var(--brand);
   font-weight: 800;
 }
 

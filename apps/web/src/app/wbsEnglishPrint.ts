@@ -16,6 +16,7 @@ export const WBS_COLUMN_EN_LABELS: Record<WbsTableColumnKey, string> = {
   effortPercent: "Effort, %",
   progress: "%",
   jiraTicketUrl: "Jira URL",
+  mattermostUrl: "MM",
   predecessor1: "Predecessor 1",
   predecessor2: "Predecessor 2",
   predecessor3: "Predecessor 3",
