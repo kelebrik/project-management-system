@@ -204,6 +204,7 @@ export type WbsItem = {
   jiraTicketKey: string | null;
   jiraTicketUrl: string | null;
   description: string | null;
+  comment: string | null;
   closedAt: string | null;
   sortOrder: number;
 };

@@ -46,6 +46,7 @@ function projectFixture() {
     jiraTicketKey: null,
     jiraTicketUrl: null,
     description: null,
+    comment: "Проверить результат",
     closedAt: null,
     sortOrder: 10,
   };
@@ -952,6 +953,61 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
       fullPage: true,
     });
   }
+});
+
+test("project navigation and current work reflect the structure", async ({ page }) => {
+  await mockAdminProject(page, (project) => {
+    project.wbsItems.unshift({
+      ...project.wbsItems[0],
+      id: "work-package-1",
+      parentId: null,
+      code: "1",
+      title: "Пакет интеграции",
+      type: "WORK_PACKAGE",
+      comment: null,
+    });
+    project.wbsItems[1].parentId = "work-package-1";
+  });
+  await page.goto("/TV-OVERVIEW/current-work");
+
+  const projectNav = page.getByRole("navigation", { name: "Разделы проекта" });
+  const orderedLabels = [
+    "Состояние",
+    "График",
+    "Гантт",
+    "Требования",
+    "Паспорт",
+    "Текучка",
+    "Структура",
+  ];
+  const tabPositions = await Promise.all(
+    orderedLabels.map(async (label) => {
+      const tab = projectNav.getByRole("button", { name: label, exact: true });
+      await expect(tab).toBeVisible();
+      return (await tab.boundingBox())?.x ?? 0;
+    }),
+  );
+  expect(tabPositions).toEqual([...tabPositions].sort((left, right) => left - right));
+  const currentWork = page.getByRole("table", { name: "Текучка проекта" });
+  await expect(currentWork).toContainText("1.1");
+  await expect(currentWork).toContainText("1 Пакет интеграции");
+  await expect(currentWork).toContainText("Проверить результат");
+  if (process.env.CAPTURE_CURRENT_WORK === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-current-work-desktop.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: "/private/tmp/pms-current-work-mobile.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1280, height: 720 });
+  }
+
+  await page.goto("/TV-OVERVIEW/wbs");
+  await expect(page.getByText("Сводка по работам", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Комментарий", { exact: true })).toBeVisible();
 });
 
 function countPdfPages(pdf: Buffer) {

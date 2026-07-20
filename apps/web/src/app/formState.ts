@@ -98,6 +98,7 @@ export type WbsFormState = {
   jiraTicketKey: string;
   jiraTicketUrl: string;
   description: string;
+  comment: string;
   sortOrder: string;
 };
 
@@ -459,6 +460,7 @@ export function wbsToForm(
     jiraTicketKey: item.jiraTicketKey ?? "",
     jiraTicketUrl: item.jiraTicketUrl ?? "",
     description: item.description ?? "",
+    comment: item.comment ?? "",
     sortOrder: String(item.sortOrder),
   };
 }

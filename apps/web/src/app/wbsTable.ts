@@ -10,6 +10,7 @@ export const WBS_TABLE_COLUMNS = [
   { key: "type", label: "Тип", width: 132 },
   { key: "status", label: "Статус", width: 136 },
   { key: "owner", label: "Исполнитель", width: 150 },
+  { key: "comment", label: "Комментарий", width: 280 },
   { key: "start", label: "Старт", width: 138 },
   { key: "due", label: "Срок", width: 138 },
   { key: "workDays", label: "Раб. дни", width: 96 },
@@ -62,6 +63,7 @@ export type WbsFormFieldKey =
   | "type"
   | "status"
   | "owner"
+  | "comment"
   | "startDate"
   | "dueDate"
   | "workDays"
@@ -110,6 +112,7 @@ export const WBS_COLUMN_FIELDS: Record<WbsTableColumnKey, WbsFormFieldKey[]> = {
   type: ["type"],
   status: ["status"],
   owner: ["owner"],
+  comment: ["comment"],
   start: ["startDate"],
   due: ["dueDate"],
   workDays: ["workDays"],
@@ -150,6 +153,7 @@ export type SortableWbsTreeItem = {
   type: string;
   status: string;
   owner: string | null;
+  comment: string | null;
   startDate: string | null;
   dueDate: string | null;
   wbsLevel: number | null;
@@ -300,6 +304,8 @@ function wbsSortValue(
       return sortableTextValue(labels.statusLabel?.(draft?.status ?? item.status) ?? draft?.status ?? item.status);
     case "owner":
       return sortableTextValue(draft?.owner ?? item.owner);
+    case "comment":
+      return sortableTextValue(draft?.comment ?? item.comment);
     case "start":
       return sortableDateValue(draft?.startDate ?? item.startDate);
     case "due":

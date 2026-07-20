@@ -223,6 +223,7 @@ const wbsItemShape = {
     .optional()
     .nullable(),
   description: z.string().trim().optional().nullable(),
+  comment: z.string().trim().optional().nullable(),
   sortOrder: z.coerce.number().int(),
 } as const;
 
