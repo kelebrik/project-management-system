@@ -97,6 +97,7 @@ export type WbsFormState = {
   progress: string;
   jiraTicketKey: string;
   jiraTicketUrl: string;
+  mattermostUrl: string;
   description: string;
   comment: string;
   sortOrder: string;
@@ -459,6 +460,7 @@ export function wbsToForm(
     progress: String(item.progress),
     jiraTicketKey: item.jiraTicketKey ?? "",
     jiraTicketUrl: item.jiraTicketUrl ?? "",
+    mattermostUrl: item.mattermostUrl ?? "",
     description: item.description ?? "",
     comment: item.comment ?? "",
     sortOrder: String(item.sortOrder),

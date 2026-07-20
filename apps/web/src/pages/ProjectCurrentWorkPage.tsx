@@ -1,10 +1,29 @@
 import { createCurrentWorkRows } from "../app/currentWorkModel";
 import { date } from "../app/dateUtils";
+import type { WbsItemStatus } from "../app/domainTypes";
+import { isHttpsUrl, isMattermostUrl } from "../app/http";
 import { wbsStatusLabel } from "../app/labels";
 import { usePageContext } from "./PageContext";
 
+const STATUS_OPTIONS: WbsItemStatus[] = [
+  "NOT_STARTED",
+  "IN_PROGRESS",
+  "IN_REVIEW",
+  "AT_RISK",
+  "BLOCKED",
+  "DONE",
+  "CANCELLED",
+];
+
 export function ProjectCurrentWorkPage() {
-  const { project, wbsDrafts } = usePageContext();
+  const {
+    isReadOnly,
+    project,
+    saveWbsDraftPatch,
+    setActiveWbsItemId,
+    updateWbsDraft,
+    wbsDrafts,
+  } = usePageContext();
   const rows = createCurrentWorkRows(project.wbsItems, wbsDrafts ?? {});
 
   return (
@@ -27,16 +46,155 @@ export function ProjectCurrentWorkPage() {
             <span role="columnheader">Срок</span>
             <span role="columnheader">Исполнитель</span>
             <span role="columnheader">Комментарий</span>
+            <span role="columnheader">Jira</span>
+            <span role="columnheader">MM</span>
           </div>
           {rows.map((row) => (
-            <div className="current-work-row" role="row" key={row.id}>
+            <div
+              className="current-work-row"
+              role="row"
+              key={row.id}
+              onFocus={() => setActiveWbsItemId(row.id)}
+            >
               <span role="cell">{row.code}</span>
               <span role="cell">{row.workPackage}</span>
               <span role="cell" className="current-work-title">{row.title}</span>
-              <span role="cell">{wbsStatusLabel(row.status)}</span>
-              <span role="cell">{date(row.dueDate)}</span>
-              <span role="cell">{row.owner || "—"}</span>
-              <span role="cell">{row.comment || "—"}</span>
+              <span role="cell">
+                {isReadOnly ? (
+                  wbsStatusLabel(row.status)
+                ) : (
+                  <select
+                    aria-label={`Статус ${row.code}`}
+                    value={row.status}
+                    onChange={(event) =>
+                      saveWbsDraftPatch(
+                        row.id,
+                        { status: event.target.value as WbsItemStatus },
+                        { silent: true },
+                      )
+                    }
+                  >
+                    {STATUS_OPTIONS.map((status) => (
+                      <option value={status} key={status}>
+                        {wbsStatusLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </span>
+              <span role="cell">
+                {isReadOnly ? (
+                  date(row.dueDate)
+                ) : (
+                  <input
+                    type="date"
+                    aria-label={`Срок ${row.code}`}
+                    value={row.dueDate ?? ""}
+                    onChange={(event) => {
+                      const dueDate = event.target.value;
+                      saveWbsDraftPatch(
+                        row.id,
+                        {
+                          dueDate,
+                          forecastDueDate: dueDate,
+                          excelEndDate: dueDate,
+                        },
+                        { silent: true, scheduleDriver: "dates" },
+                      );
+                    }}
+                  />
+                )}
+              </span>
+              <span role="cell">
+                {isReadOnly ? (
+                  row.owner || "—"
+                ) : (
+                  <input
+                    aria-label={`Исполнитель ${row.code}`}
+                    value={row.owner}
+                    onChange={(event) =>
+                      updateWbsDraft(row.id, { owner: event.target.value })
+                    }
+                    onBlur={(event) =>
+                      saveWbsDraftPatch(
+                        row.id,
+                        { owner: event.currentTarget.value },
+                        { silent: true },
+                      )
+                    }
+                  />
+                )}
+              </span>
+              <span role="cell">
+                {isReadOnly ? (
+                  row.comment.trim() || "—"
+                ) : (
+                  <input
+                    aria-label={`Комментарий ${row.code}`}
+                    value={row.comment}
+                    onChange={(event) =>
+                      updateWbsDraft(row.id, { comment: event.target.value })
+                    }
+                    onBlur={(event) =>
+                      saveWbsDraftPatch(
+                        row.id,
+                        { comment: event.currentTarget.value },
+                        { silent: true },
+                      )
+                    }
+                  />
+                )}
+              </span>
+              <span role="cell">
+                {isReadOnly ? (
+                  row.jiraTicketUrl.trim() ? (
+                    <a href={row.jiraTicketUrl.trim()} target="_blank" rel="noreferrer">Jira</a>
+                  ) : "—"
+                ) : (
+                  <input
+                    className={isHttpsUrl(row.jiraTicketUrl) ? "" : "input-error"}
+                    aria-invalid={!isHttpsUrl(row.jiraTicketUrl)}
+                    aria-label={`Jira ${row.code}`}
+                    value={row.jiraTicketUrl}
+                    placeholder="https://..."
+                    onChange={(event) =>
+                      updateWbsDraft(row.id, { jiraTicketUrl: event.target.value })
+                    }
+                    onBlur={(event) =>
+                      saveWbsDraftPatch(
+                        row.id,
+                        { jiraTicketUrl: event.currentTarget.value },
+                        { silent: true },
+                      )
+                    }
+                  />
+                )}
+              </span>
+              <span role="cell">
+                {isReadOnly ? (
+                  row.mattermostUrl.trim() ? (
+                    <a href={row.mattermostUrl.trim()} target="_blank" rel="noreferrer">MM</a>
+                  ) : "—"
+                ) : (
+                  <input
+                    className={isMattermostUrl(row.mattermostUrl) ? "" : "input-error"}
+                    aria-invalid={!isMattermostUrl(row.mattermostUrl)}
+                    aria-label={`MM ${row.code}`}
+                    value={row.mattermostUrl}
+                    placeholder="https://mm.sberdevices.ru/..."
+                    onChange={(event) =>
+                      updateWbsDraft(row.id, { mattermostUrl: event.target.value })
+                    }
+                    onBlur={(event) =>
+                      saveWbsDraftPatch(
+                        row.id,
+                        { mattermostUrl: event.currentTarget.value },
+                        { silent: true },
+                      )
+                    }
+                  />
+                )}
+              </span>
             </div>
           ))}
         </div>

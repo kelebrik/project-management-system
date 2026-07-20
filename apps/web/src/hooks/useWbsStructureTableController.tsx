@@ -19,7 +19,6 @@ import {
   type WbsFormState,
   wbsToForm,
 } from "../app/formState";
-import { isHttpsUrl } from "../app/http";
 import { useConfirm } from "./useConfirm";
 import {
   editableKeyHandler,
@@ -35,6 +34,7 @@ import {
   type WbsPredecessorTiming,
   type WbsSortState,
 } from "../app/wbsTable";
+import { isHttpsUrl, isMattermostUrl } from "../app/http";
 import {
   resolveDraftPredecessorCode,
   wbsDraftDisplayLevel,
@@ -493,6 +493,9 @@ export function useWbsStructureTableController({
         case "jiraTicketUrl":
           value = emptyReadonlyValue(draft.jiraTicketUrl);
           break;
+        case "mattermostUrl":
+          value = emptyReadonlyValue(draft.mattermostUrl);
+          break;
         case "leadLag":
           value = emptyReadonlyValue(draft.leadLagDays);
           break;
@@ -884,6 +887,27 @@ export function useWbsStructureTableController({
             onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => scheduleWbsSave(item.id)}
             placeholder="https://..."
+          />
+        );
+      case "mattermostUrl":
+        return (
+          <input
+            className={
+              draft.mattermostUrl && !isMattermostUrl(draft.mattermostUrl)
+                ? "input-error"
+                : ""
+            }
+            aria-invalid={
+              Boolean(draft.mattermostUrl) && !isMattermostUrl(draft.mattermostUrl)
+            }
+            value={draft.mattermostUrl}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { mattermostUrl: event.target.value })
+            }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
+            onBlur={() => scheduleWbsSave(item.id)}
+            placeholder="https://mm.sberdevices.ru/..."
           />
         );
       case "comment":

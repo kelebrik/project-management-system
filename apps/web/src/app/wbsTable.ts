@@ -19,6 +19,7 @@ export const WBS_TABLE_COLUMNS = [
   { key: "effortPercent", label: "Трудоемк., %", width: 112 },
   { key: "progress", label: "%", width: 72 },
   { key: "jiraTicketUrl", label: "Jira URL", width: 240 },
+  { key: "mattermostUrl", label: "MM", width: 280 },
   { key: "predecessor1", label: "Предшественник 1", width: 80 },
   { key: "predecessor2", label: "Предшественник 2", width: 80 },
   { key: "predecessor3", label: "Предшественник 3", width: 80 },
@@ -72,6 +73,7 @@ export type WbsFormFieldKey =
   | "effortPercent"
   | "progress"
   | "jiraTicketUrl"
+  | "mattermostUrl"
   | WbsPredecessorKey
   | WbsPredecessorTypeKey
   | "leadLagDays"
@@ -82,6 +84,7 @@ export const WBS_DIRTY_FIELDS: WbsFormFieldKey[] = [
   "type",
   "status",
   "owner",
+  "comment",
   "startDate",
   "dueDate",
   "workDays",
@@ -90,6 +93,7 @@ export const WBS_DIRTY_FIELDS: WbsFormFieldKey[] = [
   "effortPercent",
   "progress",
   "jiraTicketUrl",
+  "mattermostUrl",
   "predecessor1",
   "predecessor2",
   "predecessor3",
@@ -121,6 +125,7 @@ export const WBS_COLUMN_FIELDS: Record<WbsTableColumnKey, WbsFormFieldKey[]> = {
   effortPercent: ["effortPercent"],
   progress: ["progress"],
   jiraTicketUrl: ["jiraTicketUrl"],
+  mattermostUrl: ["mattermostUrl"],
   predecessor1: ["predecessor1", "predecessor1Type"],
   predecessor2: ["predecessor2", "predecessor2Type"],
   predecessor3: ["predecessor3", "predecessor3Type"],
@@ -171,6 +176,7 @@ export type SortableWbsTreeItem = {
   progress: number;
   jiraTicketKey: string | null;
   jiraTicketUrl: string | null;
+  mattermostUrl: string | null;
   sortOrder: number;
   level: number;
   children: SortableWbsTreeItem[];
@@ -322,6 +328,8 @@ function wbsSortValue(
       return sortableNumberValue(draft?.progress ?? item.progress);
     case "jiraTicketUrl":
       return sortableTextValue(draft?.jiraTicketUrl ?? item.jiraTicketUrl ?? item.jiraTicketKey);
+    case "mattermostUrl":
+      return sortableTextValue(draft?.mattermostUrl ?? item.mattermostUrl);
     case "predecessor1":
       return sortableTextValue(draft?.predecessor1 ?? item.predecessor1);
     case "predecessor2":

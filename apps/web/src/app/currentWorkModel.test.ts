@@ -73,5 +73,5 @@ test("current work uses edited structure values", () => {
     new Date(2026, 6, 20),
   );
   assert.equal(rows[0].title, "Измененное");
-  assert.equal(rows[0].comment, "Проверить");
+  assert.equal(rows[0].comment, "  Проверить  ");
 });

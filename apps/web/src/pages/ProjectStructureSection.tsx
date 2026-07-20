@@ -260,6 +260,8 @@ export function ProjectStructureSection() {
         return formatPercent(draft.progress);
       case "jiraTicketUrl":
         return draft.jiraTicketUrl;
+      case "mattermostUrl":
+        return draft.mattermostUrl;
       case "predecessor1":
       case "predecessor2":
       case "predecessor3":

@@ -203,6 +203,7 @@ export type WbsItem = {
   progress: number;
   jiraTicketKey: string | null;
   jiraTicketUrl: string | null;
+  mattermostUrl: string | null;
   description: string | null;
   comment: string | null;
   closedAt: string | null;
