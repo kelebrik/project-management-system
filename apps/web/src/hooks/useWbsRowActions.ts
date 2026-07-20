@@ -136,6 +136,7 @@ export function useWbsRowActions({
       jiraTicketKey: form.jiraTicketKey || null,
       jiraTicketUrl: form.jiraTicketUrl || null,
       description: form.description || null,
+      comment: form.comment.trim() || null,
       sortOrder: Number(form.sortOrder),
     };
     return options.scheduleDriver

@@ -466,6 +466,9 @@ export function useWbsStructureTableController({
         case "owner":
           value = emptyReadonlyValue(draft.owner);
           break;
+        case "comment":
+          value = emptyReadonlyValue(draft.comment);
+          break;
         case "start":
           value = emptyReadonlyValue(draft.startDate);
           break;
@@ -881,6 +884,19 @@ export function useWbsStructureTableController({
             onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => scheduleWbsSave(item.id)}
             placeholder="https://..."
+          />
+        );
+      case "comment":
+        return (
+          <input
+            value={draft.comment}
+            onChange={(event) =>
+              updateWbsDraft(item.id, { comment: event.target.value })
+            }
+            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
+            onKeyDown={wbsEditKeyHandler(item.id)}
+            onBlur={() => scheduleWbsSave(item.id)}
+            placeholder="Комментарий"
           />
         );
       case "predecessor1":

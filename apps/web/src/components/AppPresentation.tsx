@@ -141,6 +141,7 @@ function createViewTitle(project: any): Record<AppView, string> {
     "project-schedule": project?.name ?? "График проекта",
     "project-passport": project?.name ?? "Паспорт проекта",
     "project-business-requirements": project?.name ?? "Бизнес требования",
+    "project-current-work": project?.name ?? "Текучка",
     "project-pm-workspace": project?.name ?? "Рабочий стол PM",
     "project-structure": project?.name ?? "Структура",
     "project-gantt": project?.name ?? "Гантт",

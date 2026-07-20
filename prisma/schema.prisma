@@ -510,6 +510,7 @@ model WbsItem {
   jiraTicketKey String?
   jiraTicketUrl String?
   description   String?
+  comment       String?
   closedAt      DateTime?
   sortOrder     Int           @default(0)
   createdAt     DateTime      @default(now())

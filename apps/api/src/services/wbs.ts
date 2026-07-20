@@ -322,6 +322,7 @@ export function wbsItemSnapshotData(
     jiraTicketKey: item.jiraTicketKey || null,
     jiraTicketUrl: item.jiraTicketUrl || null,
     description: item.description || null,
+    comment: item.comment?.trim() || null,
     closedAt,
     sortOrder: item.sortOrder,
   };

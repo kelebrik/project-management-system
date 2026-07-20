@@ -1,7 +1,6 @@
 import { usePageContext } from "./PageContext";
 import { ProjectGanttSection } from "./ProjectGanttSection";
 import { ProjectStructureSection } from "./ProjectStructureSection";
-import { ProjectWorkSummarySection } from "./ProjectWorkSummarySection";
 
 export function ProjectWorkspacePage() {
   const ctx = usePageContext();
@@ -12,7 +11,6 @@ export function ProjectWorkspacePage() {
 
   return (
     <>
-      {activeView === "project-structure" && <ProjectWorkSummarySection />}
                     <article
                       className={`panel project-card workspace-focus-panel ${
                         fullscreenWorkspaceView === activeView

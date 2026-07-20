@@ -242,6 +242,8 @@ export function ProjectStructureSection() {
         return WBS_STATUS_EN_LABELS[draft.status];
       case "owner":
         return draft.owner;
+      case "comment":
+        return draft.comment;
       case "start":
         return draft.startDate;
       case "due":
