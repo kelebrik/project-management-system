@@ -260,12 +260,14 @@ export function normalizeWbsColumnWidths(
     ),
   };
 
-  if (widths?.jiraTicketUrl === 240) {
-    normalizedWidths.jiraTicketUrl = defaultWidths.jiraTicketUrl;
-  }
-  if (widths?.mattermostUrl === 280) {
-    normalizedWidths.mattermostUrl = defaultWidths.mattermostUrl;
-  }
+  normalizedWidths.jiraTicketUrl = Math.min(
+    normalizedWidths.jiraTicketUrl,
+    defaultWidths.jiraTicketUrl,
+  );
+  normalizedWidths.mattermostUrl = Math.min(
+    normalizedWidths.mattermostUrl,
+    defaultWidths.mattermostUrl,
+  );
 
   return normalizedWidths;
 }
