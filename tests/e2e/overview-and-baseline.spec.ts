@@ -151,8 +151,8 @@ function projectFixture() {
     sortOrder: 0,
     uiState: {
       wbsColumnWidths: {
-        jiraTicketUrl: 240,
-        mattermostUrl: 280,
+        jiraTicketUrl: 220,
+        mattermostUrl: 260,
       },
     },
     jiraIntegration: null,

@@ -3,22 +3,22 @@ import test from "node:test";
 
 import { normalizeWbsColumnWidths } from "./wbsTable";
 
-test("WBS column widths migrate legacy Jira and MM defaults", () => {
+test("WBS column widths clamp any legacy Jira and MM widths", () => {
   const widths = normalizeWbsColumnWidths({
-    jiraTicketUrl: 240,
-    mattermostUrl: 280,
+    jiraTicketUrl: 220,
+    mattermostUrl: 260,
   });
 
   assert.equal(widths.jiraTicketUrl, 120);
   assert.equal(widths.mattermostUrl, 140);
 });
 
-test("WBS column widths preserve manually resized Jira and MM columns", () => {
+test("WBS column widths preserve narrower Jira and MM columns", () => {
   const widths = normalizeWbsColumnWidths({
-    jiraTicketUrl: 180,
-    mattermostUrl: 190,
+    jiraTicketUrl: 100,
+    mattermostUrl: 110,
   });
 
-  assert.equal(widths.jiraTicketUrl, 180);
-  assert.equal(widths.mattermostUrl, 190);
+  assert.equal(widths.jiraTicketUrl, 100);
+  assert.equal(widths.mattermostUrl, 110);
 });
