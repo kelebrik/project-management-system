@@ -287,8 +287,8 @@
 .current-work-head,
 .current-work-row {
   display: grid;
-  grid-template-columns: 90px minmax(180px, 1fr) minmax(220px, 1.2fr) 150px 140px 180px minmax(220px, 1fr) minmax(220px, 1fr) minmax(260px, 1.15fr);
-  min-width: 1660px;
+  grid-template-columns: 76px minmax(180px, 1fr) minmax(220px, 1.2fr) 150px 140px 150px minmax(220px, 1fr) 110px 130px;
+  min-width: 1380px;
 }
 
 .current-work-head {
