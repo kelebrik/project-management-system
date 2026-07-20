@@ -7,6 +7,7 @@ export const WBS_COLUMN_EN_LABELS: Record<WbsTableColumnKey, string> = {
   type: "Type",
   status: "Status",
   owner: "Assignee",
+  comment: "Comment",
   start: "Start",
   due: "Due date",
   workDays: "Work days",
