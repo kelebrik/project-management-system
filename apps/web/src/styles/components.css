@@ -22,6 +22,7 @@
   font-size: var(--fs-sm);
   font-weight: 700;
   gap: 6px;
+  max-width: calc(100vw - 24px);
   padding: 8px 10px;
   pointer-events: none;
   position: fixed;

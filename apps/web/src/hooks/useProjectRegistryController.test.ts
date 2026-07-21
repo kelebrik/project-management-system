@@ -19,6 +19,6 @@ test("project creation uses the selected business unit before the default", () =
 test("project creation confirmation names the fixed business unit", () => {
   const message = projectCreationBusinessUnitMessage("SberDevices");
   assert.match(message, /«SberDevices»/);
-  assert.match(message, /«Отмена»/);
-  assert.match(message, /переключателе в шапке/);
+  assert.match(message, /Проверьте выбранный БЮ/);
+  assert.doesNotMatch(message, /шапке/);
 });

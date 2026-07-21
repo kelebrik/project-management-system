@@ -29,34 +29,44 @@ function ConfirmDialog({
 }) {
   const containerRef = useFocusTrap<HTMLDivElement>(true, onCancel);
   const tone = options.tone ?? "danger";
-  const [businessUnitCalloutPosition, setBusinessUnitCalloutPosition] = useState<{
+  const [calloutPosition, setCalloutPosition] = useState<{
     left: number;
     top: number;
   } | null>(null);
 
   useLayoutEffect(() => {
-    if (!options.highlightBusinessUnit) return;
+    if (!options.callout) return;
     const updatePosition = () => {
-      const switcher = document.querySelector<HTMLElement>(
-        ".business-unit-switcher",
-      );
-      if (!switcher) {
-        setBusinessUnitCalloutPosition(null);
+      const target = document.querySelector<HTMLElement>(options.callout.selector);
+      if (!target) {
+        setCalloutPosition(null);
         return;
       }
-      const rect = switcher.getBoundingClientRect();
-      setBusinessUnitCalloutPosition({
+      const rect = target.getBoundingClientRect();
+      const dialogRect = containerRef.current?.getBoundingClientRect();
+      let top = rect.bottom + 8;
+      if (
+        dialogRect &&
+        top < dialogRect.bottom + 8 &&
+        top + 56 > dialogRect.top - 8
+      ) {
+        top =
+          dialogRect.top >= 76
+            ? dialogRect.top - 64
+            : Math.min(window.innerHeight - 68, dialogRect.bottom + 8);
+      }
+      setCalloutPosition({
         left: Math.max(
           12,
           Math.min(window.innerWidth - 260, rect.left + rect.width / 2 - 12),
         ),
-        top: rect.bottom + 8,
+        top,
       });
     };
     updatePosition();
     window.addEventListener("resize", updatePosition);
     return () => window.removeEventListener("resize", updatePosition);
-  }, [options.highlightBusinessUnit]);
+  }, [containerRef, options.callout]);
 
   return (
     <div
@@ -65,14 +75,14 @@ function ConfirmDialog({
         if (event.target === event.currentTarget) onCancel();
       }}
     >
-      {options.highlightBusinessUnit && businessUnitCalloutPosition && (
+      {options.callout && calloutPosition && (
         <div
           className="confirm-business-unit-callout"
           aria-hidden="true"
-          style={businessUnitCalloutPosition}
+          style={calloutPosition}
         >
           <CornerLeftUp size={24} strokeWidth={2} />
-          <span>Отмените и смените БЮ здесь</span>
+          <span>{options.callout.message}</span>
         </div>
       )}
       <div

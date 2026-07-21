@@ -26,7 +26,11 @@ import type { ProjectCalendarCode, WbsPredecessorTiming } from "./wbsTable";
 
 export type ProjectFormState = {
   parentId: string;
-  copyBaselineFromProjectId: string;
+  businessUnitId: string;
+  copyCurrentStructureFrom: Array<{
+    projectId: string;
+    phaseIds: string[] | null;
+  }>;
   code: string;
   name: string;
   portfolio: string;
@@ -247,7 +251,8 @@ export const emptyIssueForm: IssueFormState = {
 
 const emptyProjectForm: ProjectFormState = {
   parentId: "",
-  copyBaselineFromProjectId: "",
+  businessUnitId: "",
+  copyCurrentStructureFrom: [],
   code: "",
   name: "",
   portfolio: "",

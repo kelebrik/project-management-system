@@ -4,7 +4,7 @@ import { prisma } from '../../db.js';
 import { recordAuditEvent } from '../../services/audit.js';
 import { getProjectWbsSnapshot } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
-import { copyLatestWbsBaselineToProject } from '../../services/wbs-baseline.js';
+import { copyCurrentStructuresToProject } from '../../services/wbs-current-structure-copy.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
 import {
@@ -16,6 +16,7 @@ import {
   readableProjectWhere,
   requestedBusinessUnitId,
   userCanCreateInBusinessUnit,
+  userCanReadProject,
 } from '../../server/business-units.js';
 import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
@@ -80,6 +81,41 @@ export function registerProjectCrudRoutes(
     );
   });
 
+  router.get('/projects/structure-copy-options', async (req, res) => {
+    if (!currentUser(req)) {
+      res.status(401).json({ error: 'Требуется вход в систему' });
+      return;
+    }
+    const projects = await prisma.project.findMany({
+      where: { status: { not: 'CLOSED' } },
+      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        businessUnit: { select: { id: true, name: true } },
+        wbsItems: {
+          where: { type: 'PHASE' },
+          orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+          select: { id: true, code: true, title: true },
+        },
+      },
+    });
+    const readableProjects = await Promise.all(
+      projects.map(async (project) =>
+        (await userCanReadProject(req, project.id)) ? project : null,
+      ),
+    );
+    res.json(
+      readableProjects
+        .filter((project): project is NonNullable<typeof project> => project !== null)
+        .map(({ wbsItems, ...project }) => ({
+          ...project,
+          phases: wbsItems,
+        })),
+    );
+  });
+
   router.post('/projects', async (req, res) => {
     const parsed = createProjectSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -87,7 +123,7 @@ export function registerProjectCrudRoutes(
       return;
     }
 
-    const { copyBaselineFromProjectId, ...projectData } = parsed.data;
+    const { copyCurrentStructureFrom, ...projectData } = parsed.data;
     const businessUnitId = requestedBusinessUnitId(req) ?? (await defaultBusinessUnitId());
     if (!businessUnitId) {
       res.status(400).json({ error: 'Бизнес-юнит не выбран' });
@@ -98,6 +134,13 @@ export function registerProjectCrudRoutes(
       return;
     }
     const actor = currentUser(req);
+
+    for (const selection of copyCurrentStructureFrom) {
+      if (!(await userCanReadProject(req, selection.projectId))) {
+        res.status(403).json({ error: 'Нет доступа к проекту-источнику Структуры' });
+        return;
+      }
+    }
 
     if (projectData.parentId) {
       const parent = await prisma.project.findUnique({
@@ -113,95 +156,68 @@ export function registerProjectCrudRoutes(
       }
     }
 
-    if (copyBaselineFromProjectId) {
-      const sourceProject = await prisma.project.findUnique({
-        where: { id: copyBaselineFromProjectId },
-        select: {
-          id: true,
-          businessUnitId: true,
-          _count: {
-            select: {
-              wbsBaselines: { where: { status: 'ACTIVE' } },
-            },
-          },
-        },
-      });
-      if (!sourceProject) {
-        res.status(400).json({ error: 'Проект-источник базового плана не найден' });
-        return;
-      }
-      if (sourceProject.businessUnitId !== businessUnitId) {
-        res.status(400).json({ error: 'Базовый план можно копировать только внутри бизнес-юнита' });
-        return;
-      }
-      if (sourceProject._count.wbsBaselines === 0) {
-        res.status(400).json({ error: 'У выбранного проекта нет активного базового плана' });
-        return;
-      }
-    }
-
     try {
-      const project = await prisma.project.create({
-        data: {
-          ...projectData,
-          businessUnitId,
-          projectManager:
-            actor && actor.role !== 'ADMIN'
-              ? actor.name
-              : projectData.projectManager,
-          parentId: projectData.parentId || null,
-          startDate: new Date(projectData.startDate),
-          initialTargetDate: new Date(projectData.targetDate),
-          targetDate: new Date(projectData.targetDate),
-          budgetPlanned: projectData.budgetPlanned,
-          budgetForecast: projectData.budgetForecast,
-          uiState: sanitizeProjectUiState(projectData.uiState),
-        },
-        include: projectInclude,
+      const { project, copiedStructure } = await prisma.$transaction(async (tx) => {
+        const createdProject = await tx.project.create({
+          data: {
+            ...projectData,
+            businessUnitId,
+            projectManager:
+              actor && actor.role !== 'ADMIN'
+                ? actor.name
+                : projectData.projectManager,
+            parentId: projectData.parentId || null,
+            startDate: new Date(projectData.startDate),
+            initialTargetDate: new Date(projectData.targetDate),
+            targetDate: new Date(projectData.targetDate),
+            budgetPlanned: projectData.budgetPlanned,
+            budgetForecast: projectData.budgetForecast,
+            uiState: sanitizeProjectUiState(projectData.uiState),
+          },
+          include: projectInclude,
+        });
+
+        if (actor && actor.role !== 'ADMIN') {
+          await tx.projectAccess.upsert({
+            where: {
+              projectId_userId: {
+                projectId: createdProject.id,
+                userId: actor.id,
+              },
+            },
+            create: {
+              projectId: createdProject.id,
+              userId: actor.id,
+              level: 'EDIT',
+              grantedById: actor.id,
+            },
+            update: {
+              level: 'EDIT',
+              grantedById: actor.id,
+            },
+          });
+        }
+
+        const copyResult = copyCurrentStructureFrom.length
+          ? await copyCurrentStructuresToProject(tx, {
+              targetProjectId: createdProject.id,
+              selections: copyCurrentStructureFrom,
+            })
+          : null;
+        return { project: createdProject, copiedStructure: copyResult };
       });
       const createdProjectAccessLevel = actor?.role === 'ADMIN' ? 'ADMIN' : 'EDIT';
-
-      if (actor && actor.role !== 'ADMIN') {
-        await prisma.projectAccess.upsert({
-          where: {
-            projectId_userId: {
-              projectId: project.id,
-              userId: actor.id,
-            },
-          },
-          create: {
-            projectId: project.id,
-            userId: actor.id,
-            level: 'EDIT',
-            grantedById: actor.id,
-          },
-          update: {
-            level: 'EDIT',
-            grantedById: actor.id,
-          },
-        });
-      }
-
-      let copiedBaseline: Awaited<ReturnType<typeof copyLatestWbsBaselineToProject>> | null = null;
-      if (copyBaselineFromProjectId) {
-        copiedBaseline = await copyLatestWbsBaselineToProject({
-          sourceProjectId: copyBaselineFromProjectId,
-          targetProjectId: project.id,
-          createdById: currentUser(req)?.id ?? null,
-        });
+      if (copiedStructure) {
         await recalculateProjectWbsSchedule(project.id);
         const snapshot = await getProjectWbsSnapshot(project.id);
         await recordWbsCommand({
           projectId: project.id,
-          type: 'BASELINE',
+          type: 'BULK_UPDATE',
           payload: {
-            action: 'copy-baseline-from-project',
-            sourceProjectId: copyBaselineFromProjectId,
-            sourceBaselineId: copiedBaseline.sourceBaselineId,
-            sourceVersion: copiedBaseline.sourceVersion,
-            copiedBaselineId: copiedBaseline.copiedBaseline.id,
-            itemCount: copiedBaseline.itemCount,
-            dependencyCount: copiedBaseline.dependencyCount,
+            action: 'copy-current-structures',
+            sources: copiedStructure.sources,
+            itemCount: copiedStructure.itemCount,
+            dependencyCount: copiedStructure.dependencyCount,
           },
           afterSnapshot: snapshot,
         });
@@ -218,26 +234,24 @@ export function registerProjectCrudRoutes(
         objectId: project.id,
         projectId: project.id,
         afterValue: afterSnapshot ?? project,
-        metadata: copiedBaseline
+        metadata: copiedStructure
           ? {
-              copiedBaselineFromProjectId: copyBaselineFromProjectId,
-              sourceBaselineId: copiedBaseline.sourceBaselineId,
-              copiedBaselineId: copiedBaseline.copiedBaseline.id,
-              itemCount: copiedBaseline.itemCount,
-              dependencyCount: copiedBaseline.dependencyCount,
+              copiedCurrentStructureFrom: copiedStructure.sources,
+              itemCount: copiedStructure.itemCount,
+              dependencyCount: copiedStructure.dependencyCount,
             }
           : { defaultStructureCreated: true },
       });
       await emitWebhookEvent({
         eventType: 'project.created',
         projectId: project.id,
-        payload: { project: afterSnapshot ?? project, copiedBaseline },
+        payload: { project: afterSnapshot ?? project, copiedStructure },
       }).catch(() => undefined);
 
       res.status(201).json({
         ...project,
         currentUserAccessLevel: actor ? createdProjectAccessLevel : null,
-        copiedBaseline,
+        copiedStructure,
       });
     } catch (error) {
       if (
@@ -247,7 +261,12 @@ export function registerProjectCrudRoutes(
         res.status(409).json({ error: 'Код проекта уже существует' });
         return;
       }
-      if (error instanceof Error && error.message.includes('базового плана')) {
+      if (
+        error instanceof Error &&
+        (error.message.includes('Структур') ||
+          error.message.includes('фаз') ||
+          error.message.includes('проект-источник'))
+      ) {
         res.status(400).json({ error: error.message });
         return;
       }

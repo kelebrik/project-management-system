@@ -2,7 +2,25 @@ import { projectSchema } from '@pms/shared';
 import { z } from 'zod';
 
 export const createProjectSchema = projectSchema.extend({
-  copyBaselineFromProjectId: z.string().trim().optional().nullable(),
+  copyCurrentStructureFrom: z
+    .array(
+      z.object({
+        projectId: z.string().trim().min(1),
+        phaseIds: z.array(z.string().trim().min(1)).min(1).max(100).nullable(),
+      }),
+    )
+    .max(100)
+    .optional()
+    .default([]),
+}).superRefine((value, context) => {
+  const projectIds = value.copyCurrentStructureFrom.map((item) => item.projectId);
+  if (new Set(projectIds).size !== projectIds.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['copyCurrentStructureFrom'],
+      message: 'Каждый проект-источник можно выбрать только один раз',
+    });
+  }
 });
 
 export const updateProjectSchema = projectSchema.partial();

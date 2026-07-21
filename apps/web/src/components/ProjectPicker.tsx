@@ -1,7 +1,6 @@
 import { ChevronDown, Search } from "lucide-react";
 
 import type { ProjectListItem } from "../app/domainTypes";
-import { projectOptionLabel } from "../app/labels";
 import type { AppView } from "../app/routes";
 
 type ProjectPickerProps = {
@@ -34,11 +33,17 @@ export function ProjectPicker({
       <button
         type="button"
         className="project-picker-trigger"
+        aria-label={
+          selectedProject
+            ? `Проект ${selectedProject.code}. Открыть список проектов`
+            : "Выбрать проект"
+        }
+        title={selectedProject?.name}
         onClick={() => onOpenChange(!isOpen)}
         aria-expanded={isOpen}
       >
         <span>
-          {selectedProject ? projectOptionLabel(selectedProject) : "Выбрать проект"}
+          {selectedProject ? selectedProject.code : "Выбрать проект"}
         </span>
         <ChevronDown size={15} />
       </button>

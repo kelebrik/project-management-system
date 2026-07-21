@@ -301,6 +301,13 @@ async function mockReadOnlyProject(page: Page) {
 test("project creation confirms the selected business unit for an administrator", async ({
   page,
 }) => {
+  let createBody: {
+    copyCurrentStructureFrom?: Array<{
+      projectId: string;
+      phaseIds: string[] | null;
+    }>;
+  } | null = null;
+  let createBusinessUnitHeader: string | null = null;
   await page.route("**/api/business-units", (route) =>
     route.fulfill({
       json: [
@@ -313,18 +320,89 @@ test("project creation confirms the selected business unit for an administrator"
           canManage: true,
           projectCount: 1,
         },
+        {
+          id: "business-unit-sd",
+          code: "sd",
+          name: "SberDevices",
+          isDefault: false,
+          role: "MEMBER",
+          canManage: false,
+          projectCount: 1,
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/projects/structure-copy-options", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "source-alpha",
+          code: "ALPHA",
+          name: "Проект Альфа",
+          businessUnit: { id: "business-unit-main", name: "TV&Box" },
+          phases: [
+            { id: "phase-analysis", code: "1", title: "Анализ" },
+            { id: "phase-launch", code: "2", title: "Запуск" },
+          ],
+        },
+        {
+          id: "source-beta",
+          code: "BETA",
+          name: "Проект Бета",
+          businessUnit: { id: "business-unit-sd", name: "SberDevices" },
+          phases: [{ id: "phase-delivery", code: "1", title: "Поставка" }],
+        },
       ],
     }),
   );
   await mockAdminProject(page);
+  await page.route(/\/api\/projects$/, async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    createBody = route.request().postDataJSON() as typeof createBody;
+    createBusinessUnitHeader = route.request().headers()["x-business-unit-id"] ?? null;
+    await route.fulfill({ status: 400, json: { error: "Проверка запроса" } });
+  });
   await page.goto("/projects");
 
   await page.getByRole("button", { name: "Создать", exact: true }).click();
 
+  await expect(page.getByRole("heading", { name: "Создать проект" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Создать проект?" })).toBeHidden();
+  await page.getByLabel("Портфель").selectOption("business-unit-sd");
+
+  await page
+    .getByRole("button", { name: "Не копировать, создать тестовую структуру" })
+    .click();
+  const structureSearch = page.getByLabel("Поиск проектов и фаз");
+  await structureSearch.fill("Анализ");
+  await page.getByRole("checkbox", { name: /1 · Анализ/ }).check();
+  await structureSearch.fill("Поставка");
+  await page.getByRole("checkbox", { name: /1 · Поставка/ }).check();
+  await structureSearch.fill("");
+  await expect(page.getByRole("button", { name: "Выбрано: 2" })).toBeVisible();
+  if (process.env.CAPTURE_BUSINESS_UNIT_CONFIRM === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-project-create-structure-desktop.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: "/private/tmp/pms-project-create-structure-mobile.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1280, height: 720 });
+  }
+  await page.getByRole("button", { name: "Выбрано: 2" }).click();
+
+  await page.getByRole("button", { name: "Создать проект", exact: true }).click();
+
   const dialog = page.getByRole("dialog", { name: "Создать проект?" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("TV&Box");
-  await expect(dialog).toContainText("нажмите «Отмена»");
+  await expect(dialog).toContainText("SberDevices");
+  await expect(dialog).toContainText("Проверьте выбранный БЮ");
   await expect(page.locator(".confirm-business-unit-callout")).toBeVisible();
   if (process.env.CAPTURE_BUSINESS_UNIT_CONFIRM === "1") {
     await page.screenshot({
@@ -339,6 +417,13 @@ test("project creation confirms the selected business unit for an administrator"
   }
   await dialog.getByRole("button", { name: "Отмена" }).click();
   await expect(dialog).toBeHidden();
+  await page.getByRole("button", { name: "Создать проект", exact: true }).click();
+  await dialog.getByRole("button", { name: "Создать", exact: true }).click();
+  await expect.poll(() => createBusinessUnitHeader).toBe("business-unit-sd");
+  expect(createBody?.copyCurrentStructureFrom).toEqual([
+    { projectId: "source-alpha", phaseIds: ["phase-analysis"] },
+    { projectId: "source-beta", phaseIds: ["phase-delivery"] },
+  ]);
 });
 
 test("Jira work synchronization always uses production", async ({ page }) => {
@@ -1160,6 +1245,20 @@ test("project navigation and current work reflect the structure", async ({ page 
     await route.fulfill({ json: { id: project.id, uiState: body.uiState } });
   });
   await page.goto("/TV-OVERVIEW/current-work");
+
+  const projectPickerTrigger = page.getByRole("button", {
+    name: /Проект TV-OVERVIEW\. Открыть список проектов/,
+  });
+  await expect(projectPickerTrigger).toHaveText(/TV-OVERVIEW/);
+  await expect(projectPickerTrigger).not.toContainText(project.name);
+  expect(
+    await projectPickerTrigger.locator("span").evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await projectPickerTrigger.evaluate((element) => element.getBoundingClientRect().width),
+  ).toBeLessThanOrEqual(168);
 
   const projectNav = page.getByRole("navigation", { name: "Разделы проекта" });
   const orderedLabels = [
