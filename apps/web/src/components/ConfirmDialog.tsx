@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AlertTriangle, CornerLeftUp } from "lucide-react";
+import { AlertTriangle, CornerLeftDown, CornerLeftUp } from "lucide-react";
 import {
   ConfirmContext,
   type ConfirmFn,
@@ -30,47 +30,55 @@ function ConfirmDialog({
   const containerRef = useFocusTrap<HTMLDivElement>(true, onCancel);
   const tone = options.tone ?? "danger";
   const [calloutPosition, setCalloutPosition] = useState<{
+    arrowLeft: number;
+    bottom?: number;
     left: number;
-    top: number;
+    placement: "above" | "below";
+    top?: number;
   } | null>(null);
 
   useLayoutEffect(() => {
     if (!options.callout) return;
+    const target = document.querySelector<HTMLElement>(options.callout.selector);
+    if (!target) return;
     const updatePosition = () => {
-      const target = document.querySelector<HTMLElement>(options.callout.selector);
-      if (!target) {
-        setCalloutPosition(null);
-        return;
-      }
       const rect = target.getBoundingClientRect();
-      const dialogRect = containerRef.current?.getBoundingClientRect();
-      let top = rect.bottom + 8;
-      if (
-        dialogRect &&
-        top < dialogRect.bottom + 8 &&
-        top + 56 > dialogRect.top - 8
-      ) {
-        top =
-          dialogRect.top >= 76
-            ? dialogRect.top - 64
-            : Math.min(window.innerHeight - 68, dialogRect.bottom + 8);
-      }
+      const targetCenter = rect.left + rect.width / 2;
+      const calloutWidth = Math.min(248, window.innerWidth - 24);
+      const left = Math.max(
+        12,
+        Math.min(window.innerWidth - calloutWidth - 12, targetCenter - 19),
+      );
+      const belowTop = rect.bottom + 16;
+      const placeAbove = rect.top >= 76;
       setCalloutPosition({
-        left: Math.max(
-          12,
-          Math.min(window.innerWidth - 260, rect.left + rect.width / 2 - 12),
-        ),
-        top,
+        arrowLeft: targetCenter - left - 9,
+        ...(placeAbove
+          ? { bottom: window.innerHeight - rect.top + 16 }
+          : { top: belowTop }),
+        left,
+        placement: placeAbove ? "above" : "below",
       });
     };
     updatePosition();
-    window.addEventListener("resize", updatePosition);
-    return () => window.removeEventListener("resize", updatePosition);
+    let animationFrame = 0;
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(updatePosition);
+    };
+    const resizeObserver = new ResizeObserver(scheduleUpdate);
+    resizeObserver.observe(target);
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleUpdate);
+    };
   }, [containerRef, options.callout]);
 
   return (
     <div
-      className="confirm-overlay"
+      className={`confirm-overlay${options.callout ? " has-callout" : ""}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCancel();
       }}
@@ -79,9 +87,28 @@ function ConfirmDialog({
         <div
           className="confirm-business-unit-callout"
           aria-hidden="true"
-          style={calloutPosition}
+          data-placement={calloutPosition.placement}
+          style={{
+            bottom: calloutPosition.bottom,
+            left: calloutPosition.left,
+            top: calloutPosition.top,
+          }}
         >
-          <CornerLeftUp size={24} strokeWidth={2} />
+          {calloutPosition.placement === "above" ? (
+            <CornerLeftDown
+              className="confirm-business-unit-callout-arrow"
+              size={24}
+              strokeWidth={2}
+              style={{ left: calloutPosition.arrowLeft }}
+            />
+          ) : (
+            <CornerLeftUp
+              className="confirm-business-unit-callout-arrow"
+              size={24}
+              strokeWidth={2}
+              style={{ left: calloutPosition.arrowLeft }}
+            />
+          )}
           <span>{options.callout.message}</span>
         </div>
       )}

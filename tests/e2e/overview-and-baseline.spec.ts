@@ -298,6 +298,48 @@ async function mockReadOnlyProject(page: Page) {
   );
 }
 
+async function expectBusinessUnitCalloutToPointAtField(page: Page) {
+  const businessUnitCallout = page.locator(".confirm-business-unit-callout");
+  await expect(businessUnitCallout).toBeVisible();
+  const pointerOffset = async () => {
+    const [businessUnitBox, calloutArrowBox, calloutBox, calloutPlacement, dialogBox] =
+      await Promise.all([
+        page.getByLabel("Портфель").boundingBox(),
+        businessUnitCallout.locator(".confirm-business-unit-callout-arrow").boundingBox(),
+        businessUnitCallout.boundingBox(),
+        businessUnitCallout.getAttribute("data-placement"),
+        page.getByRole("dialog", { name: "Создать проект?" }).boundingBox(),
+      ]);
+    if (!businessUnitBox || !calloutArrowBox || !calloutBox || !dialogBox) {
+      return {
+        overlap: Number.POSITIVE_INFINITY,
+        x: Number.POSITIVE_INFINITY,
+        y: Number.POSITIVE_INFINITY,
+      };
+    }
+    const targetEdge =
+      calloutPlacement === "above"
+        ? businessUnitBox.y
+        : businessUnitBox.y + businessUnitBox.height;
+    const arrowTipY =
+      calloutPlacement === "above" ? calloutArrowBox.y + 20 : calloutArrowBox.y + 4;
+    return {
+      overlap: Math.max(
+        0,
+        Math.min(calloutBox.y + calloutBox.height, dialogBox.y + dialogBox.height) -
+          Math.max(calloutBox.y, dialogBox.y),
+      ),
+      x: Math.abs(
+        calloutArrowBox.x + 9 - (businessUnitBox.x + businessUnitBox.width / 2),
+      ),
+      y: Math.abs(arrowTipY - targetEdge),
+    };
+  };
+  await expect.poll(async () => (await pointerOffset()).x).toBeLessThanOrEqual(1);
+  await expect.poll(async () => (await pointerOffset()).y).toBeLessThanOrEqual(1);
+  await expect.poll(async () => (await pointerOffset()).overlap).toBe(0);
+}
+
 test("project creation confirms the selected business unit for an administrator", async ({
   page,
 }) => {
@@ -403,16 +445,17 @@ test("project creation confirms the selected business unit for an administrator"
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("SberDevices");
   await expect(dialog).toContainText("Проверьте выбранный БЮ");
-  await expect(page.locator(".confirm-business-unit-callout")).toBeVisible();
+  await expectBusinessUnitCalloutToPointAtField(page);
   if (process.env.CAPTURE_BUSINESS_UNIT_CONFIRM === "1") {
     await page.screenshot({
       path: "/private/tmp/pms-business-unit-confirm-desktop.png",
       fullPage: true,
     });
     await page.setViewportSize({ width: 390, height: 844 });
+    await expectBusinessUnitCalloutToPointAtField(page);
     await page.screenshot({
       path: "/private/tmp/pms-business-unit-confirm-mobile.png",
-      fullPage: true,
+      fullPage: false,
     });
   }
   await dialog.getByRole("button", { name: "Отмена" }).click();
