@@ -411,6 +411,12 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/projects/structure-copy-options": {
+      get: securedOperation(
+        ["Projects"],
+        "List active projects and current Structure phases available for copying",
+      ),
+    },
     "/api/projects/{projectId}": {
       patch: securedOperation(
         ["Projects"],

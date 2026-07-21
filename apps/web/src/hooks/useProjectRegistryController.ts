@@ -10,8 +10,8 @@ import { apiClient } from "../api/client";
 import type { CurrentUser } from "../app/adminTypes";
 import {
   BUSINESS_UNIT_HEADER,
-  selectedBusinessUnitId,
-  selectedBusinessUnitSelection,
+  BUSINESS_UNITS_CHANGED_EVENT,
+  storeBusinessUnitSelection,
 } from "../app/businessUnitContext";
 import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
 import { projectPayload } from "../app/formPayloads";
@@ -91,37 +91,12 @@ export function useProjectRegistryController({
     }
   }, [activeView]);
 
-  const openProjectCreate = useCallback(async () => {
+  const openProjectCreate = useCallback(() => {
     setError(null);
     setNotice(null);
-    if (!currentUser) {
-      openView("project-create");
-      return;
-    }
-    try {
-      const cachedSelection = selectedBusinessUnitSelection();
-      const selectedUnit = cachedSelection ?? businessUnitForProjectCreation(
-        await apiClient.get<BusinessUnitOption[]>(
-          "/api/business-units",
-          "Не удалось определить выбранный бизнес-юнит",
-        ),
-        selectedBusinessUnitId(),
-      );
-      if (!selectedUnit) throw new Error("Бизнес-юнит не выбран");
-      const approved = await confirm({
-        title: "Создать проект?",
-        message: projectCreationBusinessUnitMessage(selectedUnit.name),
-        confirmLabel: "Продолжить",
-        tone: "default",
-        highlightBusinessUnit: true,
-      });
-      if (!approved) return;
-      confirmedBusinessUnitIdRef.current = selectedUnit.id;
-      openView("project-create");
-    } catch (openError) {
-      setError(openError instanceof Error ? openError.message : "Не удалось открыть создание проекта");
-    }
-  }, [confirm, currentUser, openView, setError, setNotice]);
+    confirmedBusinessUnitIdRef.current = null;
+    openView("project-create");
+  }, [openView, setError, setNotice]);
 
   const applyProjectMasterRecord = useCallback(
     (updated: ProjectListItem) => {
@@ -199,16 +174,43 @@ export function useProjectRegistryController({
       setError(null);
       setNotice(null);
       try {
-        const confirmedBusinessUnitId = confirmedBusinessUnitIdRef.current;
-        if (currentUser && !confirmedBusinessUnitId) {
-          throw new Error("Откройте создание проекта кнопкой «Создать» в шапке страницы");
+        const businessUnitId = newProjectForm.businessUnitId;
+        if (currentUser && !businessUnitId) {
+          throw new Error("Выберите бизнес-юнит в поле «Портфель»");
+        }
+        if (
+          currentUser &&
+          confirmedBusinessUnitIdRef.current !== businessUnitId
+        ) {
+          const selectedUnit = businessUnitForProjectCreation(
+            await apiClient.get<BusinessUnitOption[]>(
+              "/api/business-units",
+              "Не удалось определить выбранный бизнес-юнит",
+            ),
+            businessUnitId,
+          );
+          if (!selectedUnit || selectedUnit.id !== businessUnitId) {
+            throw new Error("Выбранный бизнес-юнит не найден");
+          }
+          const approved = await confirm({
+            title: "Создать проект?",
+            message: projectCreationBusinessUnitMessage(selectedUnit.name),
+            confirmLabel: "Создать",
+            tone: "default",
+            callout: {
+              selector: ".project-create-business-unit select",
+              message: "Отмените и смените БЮ в этом поле",
+            },
+          });
+          if (!approved) return;
+          confirmedBusinessUnitIdRef.current = businessUnitId;
         }
         const response = await authenticatedFetch(`${apiBase}/api/projects`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(confirmedBusinessUnitId
-              ? { [BUSINESS_UNIT_HEADER]: confirmedBusinessUnitId }
+            ...(businessUnitId
+              ? { [BUSINESS_UNIT_HEADER]: businessUnitId }
               : {}),
           },
           body: JSON.stringify(projectPayload(newProjectForm)),
@@ -223,6 +225,13 @@ export function useProjectRegistryController({
         }
         if (!result.id) {
           throw new Error("API не вернул идентификатор созданного проекта");
+        }
+        if (businessUnitId && newProjectForm.portfolio) {
+          storeBusinessUnitSelection(window.localStorage, {
+            id: businessUnitId,
+            name: newProjectForm.portfolio,
+          });
+          window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
         }
         confirmedBusinessUnitIdRef.current = null;
         setNewProjectForm(newProjectFormDefaults());
@@ -242,6 +251,7 @@ export function useProjectRegistryController({
       }
     },
     [
+      confirm,
       newProjectForm,
       currentUser,
       openView,
