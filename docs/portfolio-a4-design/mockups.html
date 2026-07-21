@@ -460,7 +460,7 @@
 
     const goals = projects.flatMap((project, pi) => goalNames[pi].map((title, gi) => {
       const [baseline, forecast, baseDelay] = goalDates[gi];
-      const delay = Math.max(0, baseDelay + (pi % 3) * 2 - (gi === 3 ? pi : 0));
+      const delay = baseDelay;
       const generatedStatusIndex = (gi + pi) % statuses.length;
       const status = gi === 0 ? (pi % 2 === 0 ? "Блок" : "Риск") : statuses[generatedStatusIndex];
       const statusKey = gi === 0 ? (pi % 2 === 0 ? "blocked" : "at-risk") : statusKeys[generatedStatusIndex];

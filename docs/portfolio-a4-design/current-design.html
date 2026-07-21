@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Портфель: текущий дизайн под нагрузкой</title>
+  <link rel="stylesheet" href="../../apps/web/src/App.css" />
+  <style>
+    html, body { margin: 0; min-width: 0; }
+    body { background: #dfe4ea; padding: 0; }
+    .current-canvas {
+      background: var(--bg);
+      box-sizing: border-box;
+      min-height: 1240px;
+      overflow: hidden;
+      padding: 16px;
+      position: relative;
+      width: 1754px;
+    }
+    .current-sheet-head {
+      align-items: center;
+      border-bottom: 1px solid var(--border-strong);
+      display: flex;
+      height: 42px;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding: 0 2px 7px;
+    }
+    .current-sheet-head h1 { font-size: 19px; line-height: 1; margin: 0; }
+    .current-sheet-head h1 span { color: var(--brand); }
+    .current-sheet-head p { color: var(--text-muted); font-size: 10px; font-weight: 800; margin: 0; text-align: right; }
+    .current-canvas .panel { background: var(--surface); }
+    .current-canvas .projects-tree-section { margin-bottom: 18px; }
+    .current-canvas .projects-tree-section:last-of-type { margin-bottom: 0; }
+    .a4-boundary {
+      border-top: 2px dashed #c026d3;
+      color: #86198f;
+      font-size: 11px;
+      font-weight: 900;
+      left: 0;
+      pointer-events: none;
+      position: absolute;
+      right: 0;
+      z-index: 100;
+    }
+    .a4-boundary span {
+      background: #fae8ff;
+      border: 1px solid #e879f9;
+      border-radius: 3px 3px 0 0;
+      bottom: 0;
+      padding: 3px 7px;
+      position: absolute;
+      right: 18px;
+    }
+  </style>
+</head>
+<body>
+  <main class="current-canvas" data-current-canvas>
+    <header class="current-sheet-head">
+      <h1>Портфель <span>· Текущий дизайн</span></h1>
+      <p>Без уплотнения и изменения текущей структуры<br>5 проектов · 25 целей · 10 проблем · 20 рисков</p>
+    </header>
+    <div id="current-content"></div>
+  </main>
+  <script>
+    const projects = [
+      { code: "TV-7500", name: "Игровая платформа Smart TV", portfolio: "TV Platform", pm: "А. Иванов", target: "30.09.26", rag: "red", progress: [42, 31, 27], sponsor: "Product VP", status: "Активен", budget: "48,2 млн", forecast: "54,7 млн" },
+      { code: "TV-7612", name: "Голосовое управление 2.0", portfolio: "AI Experience", pm: "М. Орлова", target: "18.10.26", rag: "amber", progress: [58, 24, 18], sponsor: "AI Director", status: "Активен", budget: "31,0 млн", forecast: "32,4 млн" },
+      { code: "BOX-318", name: "Новая аппаратная платформа", portfolio: "Devices", pm: "П. Ким", target: "12.12.26", rag: "red", progress: [33, 39, 28], sponsor: "HW VP", status: "Активен", budget: "86,5 млн", forecast: "97,1 млн" },
+      { code: "APP-204", name: "Новый домашний экран", portfolio: "Applications", pm: "Е. Смирнова", target: "05.11.26", rag: "green", progress: [69, 19, 12], sponsor: "UX Director", status: "Активен", budget: "22,8 млн", forecast: "22,1 млн" },
+      { code: "QA-119", name: "Автоматизация HDMI FRL", portfolio: "Quality", pm: "Д. Волков", target: "25.11.26", rag: "amber", progress: [51, 28, 21], sponsor: "QA Head", status: "Активен", budget: "17,4 млн", forecast: "18,0 млн" },
+    ];
+    const goalNames = [
+      ["Заморозить архитектуру", "Завершить прототип", "Пройти alpha review", "Закрыть beta scope", "Выпустить RC"],
+      ["Согласовать словари", "Довести WER до цели", "Интегрировать NLU", "Провести dogfood", "Запустить rollout"],
+      ["Подтвердить EVT", "Закрыть SI", "Завершить DVT", "Пройти PVT", "Разрешить MP"],
+      ["Утвердить UX-концепт", "Собрать UI kit", "Закрыть разработку", "Пройти UX research", "Включить по умолчанию"],
+      ["Собрать стенд FRL", "Автоматизировать EDID", "Закрыть VRR/ALLM", "Прогнать long run", "Передать в регресс"],
+    ];
+    const problemNames = [
+      ["Не подтвержден API платформы", "Задержана поставка dev-kit"],
+      ["Нет корпуса для шумной комнаты", "Заблокирован доступ к датасету"],
+      ["Перегрев SoC на FRL6", "Поставщик не закрыл errata"],
+      ["Не согласован motion design", "Падает cold-start telemetry"],
+      ["Нет генератора 48 Gbit/s", "EDID расходится между портами"],
+    ];
+    const riskNames = [
+      ["Рост задержки рендеринга", "Срыв сертификации магазина", "Нехватка GPU memory", "Регресс облачных сохранений"],
+      ["Деградация WER на шуме", "Рост стоимости inference", "Конфликт wake-word", "Задержка локализации"],
+      ["Недоступность памяти LPDDR", "Падение yield новой платы", "EMI выше целевого", "Сдвиг сертификации Wi-Fi"],
+      ["Просадка FPS анимаций", "Низкая конверсия виджетов", "Конфликт тем оформления", "Рост времени загрузки"],
+      ["Нестабильность FRL training", "Ошибки YCbCr 4:4:4", "Потеря VRR после hotplug", "Недостаточное покрытие DSC"],
+    ];
+    const owners = ["Platform", "Vendor", "QA", "HW", "UX", "ML Team", "DevOps"];
+    const goalDates = [["14.07", "18.07", 4], ["29.07", "05.08", 7], ["12.08", "26.08", 14], ["03.09", "03.09", 0], ["24.09", "15.10", 21]];
+    const statuses = ["BLOCKED", "AT_RISK", "DONE", "AT_RISK", "ON_TRACK"];
+    const safe = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+    const goals = projects.flatMap((project, pi) => goalNames[pi].map((title, gi) => {
+      const [baseline, due, delay] = goalDates[gi];
+      return { project, title, baseline, due, delay, status: statuses[(pi + gi) % statuses.length], offset: [8, 28, 48, 68, 88][gi] };
+    }));
+    const problems = projects.flatMap((project, pi) => problemNames[pi].map((title, index) => makeRaid("problem", project, title, pi, index)));
+    const risks = projects.flatMap((project, pi) => riskNames[pi].map((title, index) => makeRaid("risk", project, title, pi, index)));
+
+    function makeRaid(kind, project, title, pi, index) {
+      const seed = kind === "problem" ? pi * 2 + index : pi * 4 + index;
+      const noDue = seed % 9 === 8;
+      return {
+        kind, project, title,
+        score: kind === "problem" ? 20 - (seed % 4) * 2 : 16 - (seed % 4),
+        owner: owners[(seed + (kind === "risk" ? 2 : 0)) % owners.length],
+        due: noDue ? null : ["12.07", "22.07", "06.08", "19.09"][seed % 4],
+        relative: noDue ? "срок не задан" : ["просрочено 9 дн.", "через 6 дн.", "через 21 дн.", "через 62 дн."][seed % 4],
+        impact: 2 + (seed % 6) * 2,
+        jira: `${project.code.split("-")[0]}-${180 + seed}`,
+      };
+    }
+
+    function goalsSection() {
+      const ticks = Array.from({ length: 13 }, (_, index) => ({ offset: (index / 12) * 100, label: ["мар", "", "май", "", "июл", "", "сен", "", "ноя", "", "янв", "", "мар"][index] }));
+      const rows = projects.map((project) => {
+        const items = goals.filter((goal) => goal.project.code === project.code);
+        return `<section class="portfolio-project-timeline-row">
+          <button class="portfolio-project-timeline-title" type="button"><span><b>${project.name}</b><small>${project.code} · ${project.portfolio}</small></span><strong>${items.length}</strong></button>
+          <div class="portfolio-project-timeline-track"><span class="portfolio-goal-axis-line"></span>${ticks.map((tick, index) => `<span class="portfolio-goal-track-month-tick ${index % 2 === 0 ? "major" : "minor"} ${index === 0 ? "edge-start" : ""} ${index === ticks.length - 1 ? "edge-end" : ""}" data-label="${tick.label}" style="left:${tick.offset}%"></span>`).join("")}<span class="portfolio-goal-today-line" style="left:35%"></span>${items.map((goal, index) => `<span class="portfolio-goal-dot status-${goal.status.toLowerCase()}" style="left:${goal.offset}%">${index + 1}</span>`).join("")}</div>
+          <div class="portfolio-goal-items">${items.map((goal, index) => `<button class="portfolio-goal-item status-${goal.status.toLowerCase()}" type="button"><span class="portfolio-goal-item-index">${index + 1}</span><span class="portfolio-goal-inline"><b>${project.name} · ${safe(goal.title)}</b><small class="portfolio-goal-meta"><span>базовый план ${goal.baseline}</span><span>актуальный прогноз ${goal.due}</span>${goal.delay > 0 ? `<span class="portfolio-goal-delay">отставание +${goal.delay} дн.</span>` : ""}</small></span></button>`).join("")}</div>
+        </section>`;
+      }).join("");
+      return `<section class="projects-tree-section portfolio-goals-section"><article class="panel portfolio-goal-timeline-panel"><div class="panel-title"><div><h2>Цели проектов</h2><p>Отдельная шкала целей ИСР для каждого активного проекта</p></div></div><div class="portfolio-goal-timeline"><div class="portfolio-project-timelines">${rows}</div><div class="portfolio-goal-range"><span>21.03.2026</span><span>21.03.2027</span></div></div></article></section>`;
+    }
+
+    function raidCard(item) {
+      return `<button type="button" class="portfolio-raid-item"><span class="portfolio-blocker-score">${item.score}</span><span class="portfolio-raid-item-main"><b>${safe(item.title)}</b><small>${safe(item.owner)}${item.due ? ` · срок ${item.due}` : ""} · ${item.jira}</small></span><span class="portfolio-raid-due ${item.due === "12.07" ? "overdue" : item.due === "22.07" ? "soon" : item.due ? "normal" : "neutral"}">${safe(item.relative)}</span><span class="portfolio-raid-impact">+${item.impact} дн.</span></button>`;
+    }
+
+    function raidGroups(items) {
+      return `<div class="portfolio-raid-projects">${projects.map((project) => {
+        const projectItems = items.filter((item) => item.project.code === project.code);
+        return `<section class="portfolio-raid-project"><div class="portfolio-raid-project-title"><b>${project.name}</b><span>${projectItems.length}</span></div><div class="portfolio-raid-list">${projectItems.map(raidCard).join("")}</div></section>`;
+      }).join("")}</div>`;
+    }
+
+    function raidSection() {
+      return `<section class="projects-tree-section portfolio-raid-grid"><article class="panel portfolio-blockers-panel current-problems"><div class="panel-title"><div><h2>Блокирующие проблемы</h2><p>Проблемы в красной зоне по проектам</p></div></div>${raidGroups(problems)}</article><article class="panel portfolio-blockers-panel current-risks"><div class="panel-title"><div><h2>Ключевые риски</h2><p>Риски в красной зоне по проектам</p></div></div>${raidGroups(risks)}</article></section>`;
+    }
+
+    function projectsSection() {
+      const rows = projects.map((p) => `<button type="button" class="projects-overview-card"><span class="projects-overview-rag ${p.rag}"></span><span class="projects-overview-main"><span class="projects-overview-code">${p.code}</span><b>${p.name}</b><small>${p.portfolio}</small></span><span class="projects-overview-meta"><span>${p.status}</span><span>${p.pm}</span><span>Цель ${p.target}</span></span><span class="projects-overview-work-progress"><em>Прогресс</em><span class="project-work-progress-bar"><i class="completed" style="width:${p.progress[0]}%"></i><i class="in-progress" style="width:${p.progress[1]}%"></i><i class="not-started" style="width:${p.progress[2]}%"></i></span><small class="project-work-progress-legend"><span class="completed">${p.progress[0]}%</span><span class="in-progress">${p.progress[1]}%</span><span class="not-started">${p.progress[2]}%</span></small></span><span class="projects-overview-passport"><span><em>Спонсор</em><strong>${p.sponsor}</strong></span><span><em>РП</em><strong>${p.pm}</strong></span><span><em>Статус</em><strong>${p.status}</strong></span><span><em>Бюджет</em><strong>${p.budget}</strong></span><span><em>Прогноз</em><strong>${p.forecast}</strong></span></span></button>`).join("");
+      return `<section class="projects-tree-section"><article class="panel project-tree-panel"><div class="panel-title"><div><h2>Проекты</h2><p>Компактная сводка по паспортам всех проектов</p></div></div><div class="projects-overview-toolbar"><span>Сортировать:</span><button class="active">Код ↑</button><button>Название</button><button>Статус</button><button>Цель</button></div><div class="projects-overview-grid">${rows}</div></article></section>`;
+    }
+
+    document.getElementById("current-content").innerHTML = goalsSection() + raidSection() + projectsSection();
+  </script>
+</body>
+</html>
