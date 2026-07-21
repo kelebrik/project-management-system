@@ -1112,12 +1112,22 @@ test("project navigation and current work reflect the structure", async ({ page 
   }
   await expect(commentInput).toHaveAttribute("rows", "3");
   await expect(commentInput).toHaveAttribute("wrap", "soft");
-  await expect(commentInput).toHaveCSS("height", "62px");
+  await expect(commentInput).toHaveCSS("min-height", "62px");
   await expect(commentInput).toHaveCSS("padding-top", "4px");
   await expect(commentInput).toHaveCSS("padding-bottom", "4px");
   await expect(commentInput).toHaveCSS("overflow-y", "auto");
   await expect(commentInput).toHaveCSS("resize", "none");
   await expect(commentInput).toHaveCSS("overflow-wrap", "anywhere");
+  const commentCellGaps = await commentInput.evaluate((element) => {
+    const field = element.getBoundingClientRect();
+    const cell = element.parentElement?.getBoundingClientRect();
+    return cell
+      ? { top: field.top - cell.top, bottom: cell.bottom - field.bottom }
+      : null;
+  });
+  expect(commentCellGaps).not.toBeNull();
+  expect(Math.abs(commentCellGaps?.top ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(1);
+  expect(Math.abs(commentCellGaps?.bottom ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(1);
   await commentInput.locator("..").click();
   await expect(commentInput).toBeFocused();
   await commentInput.fill("Новый комментарий\nВторая строка\nТретья строка");
