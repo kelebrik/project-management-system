@@ -156,6 +156,207 @@
   padding: 10px 12px;
 }
 
+.portfolio-goal-timeline-panel {
+  overflow: visible;
+}
+
+.portfolio-project-filter {
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.portfolio-project-filter summary {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text-heading);
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 7px;
+  list-style: none;
+  min-height: 34px;
+  padding: 6px 8px 6px 10px;
+  white-space: nowrap;
+}
+
+.portfolio-project-filter summary::-webkit-details-marker {
+  display: none;
+}
+
+.portfolio-project-filter summary strong {
+  background: var(--surface-3);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 3px 5px;
+}
+
+.portfolio-project-filter[open] summary {
+  background: var(--brand-soft);
+  border-color: var(--brand-border-strong);
+  color: var(--brand);
+}
+
+.portfolio-project-filter.is-filtered summary {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger-700);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1);
+}
+
+.portfolio-project-filter.is-filtered summary strong {
+  background: var(--danger);
+  color: #fff;
+}
+
+.portfolio-project-filter-chevron {
+  transition: transform 120ms ease;
+}
+
+.portfolio-project-filter[open] .portfolio-project-filter-chevron {
+  transform: rotate(180deg);
+}
+
+.portfolio-project-filter-popover {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+  display: grid;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  min-width: min(340px, calc(100vw - 32px));
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 360px;
+  z-index: 70;
+}
+
+.portfolio-project-filter-actions {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.portfolio-project-filter-actions button {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  min-height: 30px;
+  padding: 5px 8px;
+}
+
+.portfolio-project-filter-actions button:hover:not(:disabled) {
+  background: var(--brand-soft);
+  border-color: var(--brand-border-strong);
+  color: var(--brand);
+}
+
+.portfolio-project-filter-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.portfolio-project-filter-list {
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  display: grid;
+  max-height: min(50vh, 320px);
+  overflow-y: auto;
+}
+
+.portfolio-project-filter-list label {
+  align-items: center;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 42px;
+  padding: 5px 7px;
+}
+
+.portfolio-project-filter-list label + label {
+  border-top: 1px solid var(--border);
+}
+
+.portfolio-project-filter-list label:hover {
+  background: var(--surface-2);
+}
+
+.portfolio-project-filter-list input {
+  accent-color: var(--brand);
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.portfolio-project-filter-list label > span,
+.portfolio-project-filter-list b,
+.portfolio-project-filter-list small {
+  display: block;
+  min-width: 0;
+}
+
+.portfolio-project-filter-list b {
+  color: var(--brand);
+  font-size: 11px;
+}
+
+.portfolio-project-filter-list small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.portfolio-project-filter-list p {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 0;
+  padding: 12px 8px;
+}
+
+.portfolio-project-filter-status {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .portfolio-goal-timeline-panel > .panel-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .portfolio-project-filter,
+  .portfolio-project-filter summary {
+    width: 100%;
+  }
+
+  .portfolio-project-filter summary span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .portfolio-project-filter-popover {
+    left: 0;
+    right: auto;
+    width: min(360px, calc(100vw - 32px));
+  }
+}
+
 .portfolio-project-timeline-track {
   height: 56px;
   padding-top: 20px;

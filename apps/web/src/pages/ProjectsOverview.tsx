@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { ProjectListItem } from "../app/domainTypes";
 import { projectHealthLabel, projectStatusLabel } from "../app/labels";
 import { createProjectWorkProgress } from "../app/projectWorkProgress";
+import { getActiveProjects } from "../app/portfolioModels";
 import type { ProjectSectionView } from "../app/routes";
 
 type SortKey = "code" | "name" | "status" | "target";
@@ -55,7 +56,7 @@ export function ProjectsOverview({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const sortedItems = useMemo(() => {
-    const items = projects.filter((project) => project.status !== "CLOSED");
+    const items = getActiveProjects(projects);
     const direction = sortDir === "asc" ? 1 : -1;
     const valueOf = (project: ProjectListItem) => {
       switch (sortKey) {
