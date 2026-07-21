@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Портфель: варианты A4</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d7dde5;
+      --line-strong: #b8c2cf;
+      --paper: #f4f6f8;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --brand: #087ea4;
+      --brand-soft: #e8f4f8;
+      --goal: #6d4cc4;
+      --goal-soft: #f1edfb;
+      --problem: #c9363e;
+      --problem-soft: #fdecee;
+      --risk: #b56a00;
+      --risk-soft: #fff4df;
+      --success: #217a4a;
+      --success-soft: #e8f5ed;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: #dfe4ea;
+      color: var(--ink);
+      font-family: Inter, "SF Pro Text", "Segoe UI", Arial, sans-serif;
+      letter-spacing: 0;
+      padding: 24px;
+    }
+    button { font: inherit; }
+
+    .sheet {
+      background: var(--paper);
+      box-shadow: 0 12px 36px rgba(16, 24, 40, .16);
+      display: grid;
+      gap: 8px;
+      grid-template-rows: 42px 690px 450px;
+      height: 1240px;
+      margin: 0 auto 28px;
+      overflow: hidden;
+      padding: 16px;
+      width: 1754px;
+    }
+
+    .sheet-head {
+      align-items: center;
+      border-bottom: 1px solid var(--line-strong);
+      display: flex;
+      justify-content: space-between;
+      min-width: 0;
+      padding: 0 2px 7px;
+    }
+    .sheet-head h1 { font-size: 19px; line-height: 1; margin: 0; }
+    .sheet-head h1 span { color: var(--brand); }
+    .sheet-head p {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      margin: 0;
+      text-align: right;
+    }
+
+    .upper { height: 690px; min-height: 0; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      min-height: 0;
+      overflow: hidden;
+      padding: 9px;
+    }
+    .panel-head {
+      align-items: end;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      min-height: 30px;
+      padding: 0 1px 7px;
+    }
+    .panel-head h2 { font-size: 13px; line-height: 1.15; margin: 0; }
+    .panel-head p { color: var(--muted); font-size: 9px; font-weight: 700; margin: 0; }
+
+    .type-chip,
+    .status-chip,
+    .score,
+    .project-chip {
+      align-items: center;
+      border-radius: 3px;
+      display: inline-flex;
+      font-size: 8px;
+      font-weight: 900;
+      justify-content: center;
+      line-height: 1;
+      padding: 3px 4px;
+      white-space: nowrap;
+    }
+    .type-goal { background: var(--goal-soft); color: var(--goal); }
+    .type-problem { background: var(--problem-soft); color: var(--problem); }
+    .type-risk { background: var(--risk-soft); color: var(--risk); }
+    .project-chip { background: #edf1f5; color: #344054; }
+    .status-chip.on-track, .status-chip.done { background: var(--success-soft); color: var(--success); }
+    .status-chip.at-risk { background: var(--risk-soft); color: var(--risk); }
+    .status-chip.blocked { background: var(--problem-soft); color: var(--problem); }
+    .score { background: var(--problem); color: #fff; min-width: 21px; }
+
+    .item-title {
+      color: var(--ink);
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1.15;
+      min-width: 0;
+    }
+    .item-meta {
+      color: var(--muted);
+      font-size: 8px;
+      font-weight: 700;
+      line-height: 1.2;
+      min-width: 0;
+    }
+    .danger-text { color: var(--problem); font-weight: 900; }
+
+    /* Variant 1: urgency */
+    .urgency-board {
+      display: grid;
+      gap: 7px;
+      grid-template-columns: 1fr .9fr 2fr 1fr .8fr;
+      height: 100%;
+    }
+    .urgency-column { display: grid; grid-template-rows: 38px 1fr; min-width: 0; }
+    .urgency-column > header {
+      align-items: center;
+      background: var(--surface-2);
+      border-bottom: 2px solid var(--line-strong);
+      display: flex;
+      justify-content: space-between;
+      padding: 0 8px;
+    }
+    .urgency-column.overdue > header { border-color: var(--problem); }
+    .urgency-column.soon > header { border-color: #e98b2a; }
+    .urgency-column h2 { font-size: 11px; margin: 0; }
+    .urgency-column header span { color: var(--muted); font-size: 9px; font-weight: 900; }
+    .urgency-list { align-content: start; display: grid; gap: 3px; overflow: hidden; padding-top: 5px; }
+    .urgency-list.split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .urgency-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--goal);
+      border-radius: 3px;
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      padding: 4px 5px;
+    }
+    .urgency-card.problem { border-left-color: var(--problem); }
+    .urgency-card.risk { border-left-color: var(--risk); }
+    .urgency-card-top { align-items: center; display: flex; gap: 4px; justify-content: flex-start; min-width: 0; }
+    .urgency-card-top .score, .urgency-card-top .status-chip { margin-left: auto; }
+    .urgency-card > .item-title, .urgency-card > .item-meta { white-space: normal; }
+
+    /* Variant 2: ledgers */
+    .twin-ledgers { display: grid; gap: 8px; grid-template-columns: .49fr .51fr; height: 100%; }
+    .ledger { display: grid; grid-template-rows: 38px 22px 1fr; height: 100%; padding: 0; }
+    .ledger .panel-head { margin: 0 9px; }
+    .ledger-head, .ledger-row {
+      align-items: center;
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+      padding: 0 6px;
+    }
+    .goal-ledger .ledger-head, .goal-ledger .ledger-row {
+      grid-template-columns: 58px minmax(0, 1fr) 52px 45px 45px 37px;
+    }
+    .raid-ledger .ledger-head, .raid-ledger .ledger-row {
+      grid-template-columns: 45px 28px 26px minmax(0, 1fr) 52px 43px 60px 44px 45px;
+    }
+    .ledger-head {
+      background: #eef2f6;
+      color: var(--muted);
+      font-size: 8px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .ledger-body { display: grid; min-height: 0; }
+    .goal-ledger .ledger-body { grid-template-rows: repeat(25, 1fr); }
+    .raid-ledger .ledger-body { grid-template-rows: repeat(30, 1fr); }
+    .ledger-row { border-top: 1px solid #e8ecf0; font-size: 8px; }
+    .ledger-row.group-start { border-top: 2px solid var(--line-strong); }
+    .ledger-row:nth-child(odd) { background: #fbfcfd; }
+    .ledger-project { color: var(--brand); font-size: 8px; font-weight: 900; }
+    .ledger-row .title { font-size: 8.5px; font-weight: 800; white-space: nowrap; }
+    .ledger-row .muted { color: var(--muted); font-size: 8px; font-weight: 700; white-space: nowrap; }
+
+    /* Variant 3: time first */
+    .time-layout { display: grid; gap: 8px; grid-template-rows: 390px 292px; height: 100%; }
+    .timeline-panel { display: grid; grid-template-rows: 34px 26px repeat(5, 1fr); padding: 0; }
+    .timeline-panel .panel-head { margin: 0 9px; }
+    .timeline-axis, .timeline-lane {
+      display: grid;
+      grid-template-columns: 106px repeat(5, minmax(0, 1fr));
+      min-width: 0;
+    }
+    .timeline-axis { color: var(--muted); font-size: 8px; font-weight: 900; }
+    .timeline-axis span { align-items: center; border-left: 1px solid #e7ebef; display: flex; justify-content: center; }
+    .timeline-axis span:first-child { border-left: 0; }
+    .timeline-lane { border-top: 1px solid var(--line); }
+    .timeline-project {
+      align-items: center;
+      background: var(--surface-2);
+      color: var(--brand);
+      display: flex;
+      font-size: 9px;
+      font-weight: 900;
+      padding: 6px;
+    }
+    .timeline-event {
+      align-content: center;
+      background: linear-gradient(90deg, transparent 0 12%, #e9e2f8 12% 88%, transparent 88%);
+      border-left: 1px solid #e7ebef;
+      display: grid;
+      gap: 1px;
+      min-width: 0;
+      padding: 3px 5px;
+      position: relative;
+    }
+    .timeline-event::before, .timeline-event::after {
+      background: var(--goal);
+      border-radius: 50%;
+      content: "";
+      height: 6px;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 6px;
+    }
+    .timeline-event::before { left: 11%; }
+    .timeline-event::after { right: 10%; }
+    .timeline-event .item-title { font-size: 8.5px; padding-left: 13px; white-space: nowrap; }
+    .timeline-event .item-meta { font-size: 7.5px; padding-left: 13px; white-space: nowrap; }
+    .timeline-raid { display: grid; gap: 8px; grid-template-columns: .34fr .66fr; }
+    .mini-register { display: grid; grid-template-rows: 34px 1fr; padding: 0; }
+    .mini-register .panel-head { margin: 0 8px; }
+    .problem-mini-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .risk-mini-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .mini-raid-card {
+      align-content: center;
+      border-left: 1px solid var(--line);
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      padding: 4px 6px;
+    }
+    .mini-raid-card:nth-child(-n+4) { border-top-color: transparent; }
+    .mini-raid-top { align-items: center; display: flex; gap: 4px; }
+    .mini-raid-top .item-title { flex: 1; font-size: 8.5px; white-space: nowrap; }
+
+    /* Variant 4: project columns */
+    .project-columns { display: grid; gap: 7px; grid-template-columns: repeat(5, minmax(0, 1fr)); height: 100%; }
+    .project-column { display: grid; grid-template-rows: 38px 1fr; padding: 0; }
+    .project-column > header {
+      align-items: center;
+      background: #eef4f7;
+      border-bottom: 1px solid var(--line-strong);
+      display: flex;
+      justify-content: space-between;
+      padding: 0 7px;
+    }
+    .project-column > header b { color: var(--brand); font-size: 10px; }
+    .project-column > header span { color: var(--muted); font-size: 8px; font-weight: 800; }
+    .project-column-body { display: grid; grid-template-rows: 44% 20% 36%; min-height: 0; padding: 5px; }
+    .column-section { display: grid; gap: 2px; min-height: 0; }
+    .column-section.goals { grid-template-rows: 15px repeat(5, minmax(0, 1fr)); }
+    .column-section.problems { grid-template-rows: 15px repeat(2, minmax(0, 1fr)); }
+    .column-section.risks { grid-template-rows: 15px repeat(4, minmax(0, 1fr)); }
+    .column-section + .column-section { border-top: 1px solid var(--line-strong); margin-top: 4px; padding-top: 4px; }
+    .column-label { align-items: center; color: var(--muted); display: flex; font-size: 8px; font-weight: 900; justify-content: space-between; min-height: 15px; text-transform: uppercase; }
+    .column-item {
+      background: var(--surface-2);
+      border-left: 3px solid var(--goal);
+      display: grid;
+      gap: 1px;
+      min-width: 0;
+      padding: 3px 4px;
+    }
+    .column-item.problem { border-left-color: var(--problem); }
+    .column-item.risk { border-left-color: var(--risk); }
+    .column-item .item-title { font-size: 8.5px; white-space: nowrap; }
+    .column-item .item-meta { font-size: 7.5px; white-space: nowrap; }
+
+    /* Variant 5: category stack */
+    .category-stack { display: grid; gap: 8px; grid-template-rows: 342px 340px; height: 100%; }
+    .category-goals { display: grid; grid-template-rows: 34px 1fr; padding: 0; }
+    .category-goals .panel-head, .category-bottom .panel-head { margin: 0 9px; }
+    .category-goal-columns { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .category-project { border-left: 1px solid var(--line); display: grid; grid-template-rows: 14px repeat(5, minmax(0, 1fr)); min-width: 0; padding: 5px; }
+    .category-project:first-child { border-left: 0; }
+    .category-project h3 { color: var(--brand); font-size: 9px; margin: 0 0 4px; }
+    .category-goal-card { background: var(--goal-soft); border-bottom: 1px solid #ddd5f2; display: grid; gap: 2px; min-width: 0; padding: 4px 5px; }
+    .category-goal-card .item-title { font-size: 8.5px; white-space: nowrap; }
+    .category-goal-card .item-meta { font-size: 7.5px; white-space: nowrap; }
+    .category-bottom { display: grid; gap: 8px; grid-template-columns: .32fr .68fr; }
+    .category-problems, .category-risks { display: grid; grid-template-rows: 34px 1fr; padding: 0; }
+    .category-problem-list { display: grid; grid-template-rows: repeat(10, 1fr); }
+    .category-problem-row {
+      align-items: center;
+      border-top: 1px solid var(--line);
+      display: grid;
+      font-size: 8px;
+      gap: 4px;
+      grid-template-columns: 45px 22px minmax(0, 1fr) 42px;
+      padding: 0 6px;
+    }
+    .category-problem-main { display: grid; gap: 2px; min-width: 0; }
+    .category-problem-main .item-title, .category-problem-main .item-meta { white-space: nowrap; }
+    .category-problem-row .danger-text { font-size: 8px; white-space: nowrap; }
+    .category-risk-columns { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .category-risk-project { border-left: 1px solid var(--line); display: grid; grid-template-rows: 14px repeat(4, minmax(0, 1fr)); min-width: 0; padding: 4px; }
+    .category-risk-project:first-child { border-left: 0; }
+    .category-risk-project h3 { color: var(--brand); font-size: 9px; margin: 0 0 4px; }
+    .category-risk-card { border-bottom: 1px solid var(--line); display: grid; gap: 2px; min-width: 0; padding: 4px; }
+    .category-risk-card .item-title { font-size: 8.5px; white-space: nowrap; }
+    .category-risk-card .item-meta { font-size: 7.5px; white-space: nowrap; }
+
+    /* Same projects section in all five sheets */
+    .projects-panel { display: grid; grid-template-rows: 38px 27px 1fr; height: 450px; padding: 9px; }
+    .projects-panel .panel-head { min-height: 29px; }
+    .projects-toolbar { align-items: center; color: var(--muted); display: flex; font-size: 9px; font-weight: 800; gap: 5px; }
+    .projects-toolbar button { background: var(--surface); border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font-size: 8px; font-weight: 800; padding: 3px 6px; }
+    .projects-toolbar button.active { background: var(--brand-soft); border-color: #9bc9d9; color: var(--brand); }
+    .projects-grid { display: grid; grid-template-rows: repeat(5, 1fr); min-height: 0; }
+    .project-row {
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 0;
+      display: grid;
+      gap: 9px;
+      grid-template-columns: 8px 265px 190px 210px minmax(0, 1fr);
+      min-width: 0;
+      padding: 5px 9px;
+    }
+    .project-row:first-child { border-top: 1px solid var(--line); }
+    .rag { border-radius: 50%; height: 8px; width: 8px; }
+    .rag.green { background: #28a55f; }
+    .rag.amber { background: #e98b2a; }
+    .rag.red { background: var(--problem); }
+    .project-main, .project-meta, .project-progress { display: grid; gap: 2px; min-width: 0; }
+    .project-code { color: var(--brand); font-size: 8px; font-weight: 900; }
+    .project-main b { font-size: 10px; white-space: nowrap; }
+    .project-main small, .project-meta span { color: var(--muted); font-size: 8px; font-weight: 700; white-space: nowrap; }
+    .project-progress > span:first-child { color: var(--muted); font-size: 8px; font-weight: 900; }
+    .progress-bar { background: #e1e6eb; display: flex; height: 6px; overflow: hidden; }
+    .progress-bar i:nth-child(1) { background: #239c58; }
+    .progress-bar i:nth-child(2) { background: #3689d7; }
+    .progress-bar i:nth-child(3) { background: #aab3bd; }
+    .progress-legend { color: var(--muted); display: flex; font-size: 7.5px; font-weight: 800; gap: 8px; }
+    .passport { display: grid; gap: 8px; grid-template-columns: repeat(5, minmax(0, 1fr)); min-width: 0; }
+    .passport span { display: grid; gap: 1px; min-width: 0; }
+    .passport em { color: var(--muted); font-size: 7px; font-style: normal; font-weight: 900; text-transform: uppercase; }
+    .passport strong { font-size: 8px; line-height: 1.15; }
+
+    /* A4 legibility floor for all data-bearing text. */
+    .sheet .type-chip,
+    .sheet .status-chip,
+    .sheet .score,
+    .sheet .project-chip,
+    .sheet .item-meta,
+    .sheet .ledger-head,
+    .sheet .ledger-row,
+    .sheet .ledger-project,
+    .sheet .ledger-row .muted,
+    .sheet .timeline-axis,
+    .sheet .timeline-event .item-meta,
+    .sheet .mini-raid-top .item-title,
+    .sheet .column-item .item-meta,
+    .sheet .category-goal-card .item-meta,
+    .sheet .category-risk-card .item-meta,
+    .sheet .category-problem-row,
+    .sheet .category-problem-row .danger-text,
+    .sheet .projects-toolbar,
+    .sheet .projects-toolbar button,
+    .sheet .project-code,
+    .sheet .project-main small,
+    .sheet .project-meta span,
+    .sheet .project-progress > span:first-child,
+    .sheet .progress-legend,
+    .sheet .passport em,
+    .sheet .passport strong {
+      font-size: 9px;
+    }
+    .sheet .item-title,
+    .sheet .ledger-row .title,
+    .sheet .timeline-event .item-title,
+    .sheet .column-item .item-title,
+    .sheet .category-goal-card .item-title,
+    .sheet .category-risk-card .item-title {
+      font-size: 10px;
+    }
+    .sheet .project-main b { font-size: 11px; }
+  </style>
+</head>
+<body>
+  <main id="mockups"></main>
+  <script>
+    const projects = [
+      { code: "TV-7500", name: "Игровая платформа Smart TV", portfolio: "TV Platform", pm: "А. Иванов", target: "30.09.26", rag: "red", progress: [42, 31, 27], sponsor: "Product VP", status: "Активен", budget: "48,2 млн", forecast: "54,7 млн" },
+      { code: "TV-7612", name: "Голосовое управление 2.0", portfolio: "AI Experience", pm: "М. Орлова", target: "18.10.26", rag: "amber", progress: [58, 24, 18], sponsor: "AI Director", status: "Активен", budget: "31,0 млн", forecast: "32,4 млн" },
+      { code: "BOX-318", name: "Новая аппаратная платформа", portfolio: "Devices", pm: "П. Ким", target: "12.12.26", rag: "red", progress: [33, 39, 28], sponsor: "HW VP", status: "Активен", budget: "86,5 млн", forecast: "97,1 млн" },
+      { code: "APP-204", name: "Новый домашний экран", portfolio: "Applications", pm: "Е. Смирнова", target: "05.11.26", rag: "green", progress: [69, 19, 12], sponsor: "UX Director", status: "Активен", budget: "22,8 млн", forecast: "22,1 млн" },
+      { code: "QA-119", name: "Автоматизация HDMI FRL", portfolio: "Quality", pm: "Д. Волков", target: "25.11.26", rag: "amber", progress: [51, 28, 21], sponsor: "QA Head", status: "Активен", budget: "17,4 млн", forecast: "18,0 млн" },
+    ];
+
+    const goalNames = [
+      ["Заморозить архитектуру", "Завершить прототип", "Пройти alpha review", "Закрыть beta scope", "Выпустить RC"],
+      ["Согласовать словари", "Довести WER до цели", "Интегрировать NLU", "Провести dogfood", "Запустить rollout"],
+      ["Подтвердить EVT", "Закрыть SI", "Завершить DVT", "Пройти PVT", "Разрешить MP"],
+      ["Утвердить UX-концепт", "Собрать UI kit", "Закрыть разработку", "Пройти UX research", "Включить по умолчанию"],
+      ["Собрать стенд FRL", "Автоматизировать EDID", "Закрыть VRR/ALLM", "Прогнать long run", "Передать в регресс"],
+    ];
+    const problemNames = [
+      ["Не подтвержден API платформы", "Задержана поставка dev-kit"],
+      ["Нет корпуса для шумной комнаты", "Заблокирован доступ к датасету"],
+      ["Перегрев SoC на FRL6", "Поставщик не закрыл errata"],
+      ["Не согласован motion design", "Падает cold-start telemetry"],
+      ["Нет генератора 48 Gbit/s", "EDID расходится между портами"],
+    ];
+    const riskNames = [
+      ["Рост задержки рендеринга", "Срыв сертификации магазина", "Нехватка GPU memory", "Регресс облачных сохранений"],
+      ["Деградация WER на шуме", "Рост стоимости inference", "Конфликт wake-word", "Задержка локализации"],
+      ["Недоступность памяти LPDDR", "Падение yield новой платы", "EMI выше целевого", "Сдвиг сертификации Wi-Fi"],
+      ["Просадка FPS анимаций", "Низкая конверсия виджетов", "Конфликт тем оформления", "Рост времени загрузки"],
+      ["Нестабильность FRL training", "Ошибки YCbCr 4:4:4", "Потеря VRR после hotplug", "Недостаточное покрытие DSC"],
+    ];
+    const owners = ["Platform", "Vendor", "QA", "HW", "UX", "ML Team", "DevOps"];
+    const urgencyReferenceDate = new Date(2026, 6, 21);
+    function urgencyBucket(value) {
+      if (!value) return 4;
+      const [day, month] = value.split(".").map(Number);
+      const dueDate = new Date(2026, month - 1, day);
+      const days = Math.round((dueDate.getTime() - urgencyReferenceDate.getTime()) / 86400000);
+      if (days < 0) return 0;
+      if (days <= 14) return 1;
+      if (days <= 60) return 2;
+      return 3;
+    }
+    const goalDates = [
+      ["14.07", "18.07", 4], ["29.07", "05.08", 7], ["12.08", "26.08", 14],
+      ["03.09", "03.09", 0], ["24.09", "15.10", 21],
+    ];
+    const statuses = ["В срок", "Риск", "Блок", "Готово", "Риск"];
+    const statusKeys = ["on-track", "at-risk", "blocked", "done", "at-risk"];
+
+    const goals = projects.flatMap((project, pi) => goalNames[pi].map((title, gi) => {
+      const [baseline, forecast, baseDelay] = goalDates[gi];
+      const delay = Math.max(0, baseDelay + (pi % 3) * 2 - (gi === 3 ? pi : 0));
+      const generatedStatusIndex = (gi + pi) % statuses.length;
+      const status = gi === 0 ? (pi % 2 === 0 ? "Блок" : "Риск") : statuses[generatedStatusIndex];
+      const statusKey = gi === 0 ? (pi % 2 === 0 ? "blocked" : "at-risk") : statusKeys[generatedStatusIndex];
+      return {
+        kind: "goal", project, title, baseline, forecast, delay,
+        status,
+        statusKey,
+        bucket: urgencyBucket(forecast),
+      };
+    }));
+
+    const problems = projects.flatMap((project, pi) => problemNames[pi].map((title, ii) => {
+      const due = (pi + ii) % 5 === 4 ? null : ["12.07", "22.07", "06.08", "19.09"][(pi + ii) % 4];
+      return {
+        kind: "problem", project, title,
+        score: 20 - ((pi + ii) % 4) * 2,
+        owner: owners[(pi * 2 + ii) % owners.length],
+        due,
+        relative: due ? ["проср. 9 дн.", "через 6 дн.", "через 21 дн.", "через 62 дн."][(pi + ii) % 4] : "срок не задан",
+        impact: `+${6 + ((pi + ii) % 5) * 3} дн.`,
+        jira: `${project.code.split("-")[0]}-${180 + pi * 12 + ii}`,
+        bucket: urgencyBucket(due),
+      };
+    }));
+
+    const risks = projects.flatMap((project, pi) => riskNames[pi].map((title, ri) => {
+      const due = (pi + ri) % 7 === 6 ? null : ["09.07", "28.07", "17.08", "28.09"][(pi + ri) % 4];
+      return {
+        kind: "risk", project, title,
+        score: 16 - ((pi + ri) % 4),
+        owner: owners[(pi + ri + 2) % owners.length],
+        due,
+        relative: due ? ["проср. 12 дн.", "через 12 дн.", "через 32 дн.", "через 74 дн."][(pi + ri) % 4] : "срок не задан",
+        impact: `+${2 + ((pi + ri) % 6) * 2} дн.`,
+        jira: `${project.code.split("-")[0]}-${240 + pi * 16 + ri}`,
+        bucket: urgencyBucket(due),
+      };
+    }));
+    const raids = [...problems, ...risks];
+    const allItems = [...goals, ...raids];
+
+    const typeLabel = { goal: "Цель", problem: "Проблема", risk: "Риск" };
+    const safe = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    const goalMeta = (item) => `Б ${item.baseline} · П ${item.forecast} · <span class="${item.delay > 0 ? "danger-text" : ""}">${item.delay > 0 ? `+${item.delay} дн.` : "без откл."}</span>`;
+    const raidMeta = (item) => item.due
+      ? `${safe(item.owner)} · ${item.due} · ${safe(item.relative)} · ${safe(item.jira)} · <span class="danger-text">${item.impact}</span>`
+      : `${safe(item.owner)} · срок не задан · ${safe(item.jira)} · <span class="danger-text">${item.impact}</span>`;
+    const itemMeta = (item) => item.kind === "goal" ? goalMeta(item) : raidMeta(item);
+
+    function sheetHead(number, title, note) {
+      return `<header class="sheet-head"><h1>Портфель <span>· ${String(number).padStart(2, "0")} ${safe(title)}</span></h1><p>${safe(note)}<br>5 проектов · 25 целей · 10 проблем · 20 рисков · A4 landscape</p></header>`;
+    }
+
+    function panelHead(title, subtitle = "") {
+      return `<div class="panel-head"><h2>${safe(title)}</h2><p>${safe(subtitle)}</p></div>`;
+    }
+
+    function projectsPanel() {
+      const rows = projects.map((p) => `
+        <div class="project-row">
+          <span class="rag ${p.rag}"></span>
+          <span class="project-main"><span class="project-code">${p.code}</span><b>${p.name}</b><small>${p.portfolio}</small></span>
+          <span class="project-meta"><span>${p.status}</span><span>${p.pm}</span><span>Цель ${p.target}</span></span>
+          <span class="project-progress"><span>Прогресс</span><span class="progress-bar"><i style="width:${p.progress[0]}%"></i><i style="width:${p.progress[1]}%"></i><i style="width:${p.progress[2]}%"></i></span><span class="progress-legend"><span>${p.progress[0]}% завершено</span><span>${p.progress[1]}% в работе</span><span>${p.progress[2]}% не начато</span></span></span>
+          <span class="passport"><span><em>Спонсор</em><strong>${p.sponsor}</strong></span><span><em>Руководитель</em><strong>${p.pm}</strong></span><span><em>Статус</em><strong>${p.status}</strong></span><span><em>Бюджет</em><strong>${p.budget}</strong></span><span><em>Прогноз</em><strong>${p.forecast}</strong></span></span>
+        </div>`).join("");
+      return `<section class="panel projects-panel">${panelHead("Проекты", "Компактная сводка по паспортам всех проектов")}
+        <div class="projects-toolbar"><span>Сортировать:</span><button class="active">Код ↑</button><button>Название</button><button>Статус</button><button>Цель</button></div>
+        <div class="projects-grid">${rows}</div></section>`;
+    }
+
+    function urgencyCard(item) {
+      const marker = item.kind === "goal"
+        ? `<span class="status-chip ${item.statusKey}">${item.status}</span>`
+        : `<span class="score">${item.score}</span>`;
+      return `<article class="urgency-card ${item.kind}"><div class="urgency-card-top"><span class="type-chip type-${item.kind}">${typeLabel[item.kind]}</span><span class="project-chip">${item.project.code}</span>${marker}</div><div class="item-title">${safe(item.title)}</div><div class="item-meta">${itemMeta(item)}</div></article>`;
+    }
+
+    function variantUrgency() {
+      const buckets = [
+        ["Просрочено", "overdue"], ["До 14 дней", "soon"], ["15–60 дней", ""], ["Позже", ""], ["Без срока", ""],
+      ];
+      const columns = buckets.map(([label, tone], index) => {
+        const items = allItems.filter((item) => item.bucket === index);
+        return `<section class="panel urgency-column ${tone}"><header><h2>${label}</h2><span>${items.length}</span></header><div class="urgency-list ${items.length > 14 ? "split" : ""}">${items.map(urgencyCard).join("")}</div></section>`;
+      }).join("");
+      return `<section class="sheet" data-shot="01-urgency-board">${sheetHead(1, "Срочность", "Единая шкала по прогнозной/контрольной дате")}
+        <div class="upper urgency-board">${columns}</div>${projectsPanel()}</section>`;
+    }
+
+    function variantLedgers() {
+      const goalRows = goals.map((g, index) => `<div class="ledger-row ${index % 5 === 0 ? "group-start" : ""}"><span class="ledger-project">${index % 5 === 0 ? g.project.code : ""}</span><span class="title">${safe(g.title)}</span><span class="status-chip ${g.statusKey}">${g.status}</span><span class="muted">${g.baseline}</span><span class="muted">${g.forecast}</span><span class="${g.delay > 0 ? "danger-text" : "muted"}">${g.delay > 0 ? `+${g.delay}` : "0"}</span></div>`).join("");
+      const raidByProject = projects.flatMap((p) => raids.filter((item) => item.project.code === p.code));
+      const raidRows = raidByProject.map((r, index) => `<div class="ledger-row ${index % 6 === 0 ? "group-start" : ""}"><span class="ledger-project">${index % 6 === 0 ? r.project.code : ""}</span><span class="type-chip type-${r.kind}">${r.kind === "problem" ? "П" : "Р"}</span><span class="score">${r.score}</span><span class="title">${safe(r.title)}</span><span class="muted">${safe(r.owner)}</span><span class="muted">${r.due ?? "—"}</span><span class="muted">${safe(r.relative)}</span><span class="muted">${safe(r.jira)}</span><span class="danger-text">${r.impact}</span></div>`).join("");
+      return `<section class="sheet" data-shot="02-twin-ledgers">${sheetHead(2, "Два реестра", "Рекомендуемый: максимум сравнимости на минимальной высоте")}
+        <div class="upper twin-ledgers">
+          <section class="panel ledger goal-ledger">${panelHead("Цели", "25 записей")}
+            <div class="ledger-head"><span>Проект</span><span>Цель</span><span>Статус</span><span>Baseline</span><span>Прогноз</span><span>Δ дн.</span></div><div class="ledger-body">${goalRows}</div></section>
+          <section class="panel ledger raid-ledger">${panelHead("Проблемы и риски", "10 проблем · 20 рисков")}
+            <div class="ledger-head"><span>Проект</span><span>Тип</span><span>Балл</span><span>Описание</span><span>Владелец</span><span>Срок</span><span>Относит.</span><span>Jira</span><span>Влияние</span></div><div class="ledger-body">${raidRows}</div></section>
+        </div>${projectsPanel()}</section>`;
+    }
+
+    function variantTimeline() {
+      const months = ["18 июл", "05 авг", "26 авг", "03 сен", "15 окт"];
+      const lanes = projects.map((p) => {
+        const items = goals.filter((g) => g.project.code === p.code);
+        return `<div class="timeline-lane"><div class="timeline-project">${p.code}<br>${p.name}</div>${items.map((g) => `<div class="timeline-event"><span class="item-title"><span class="status-chip ${g.statusKey}">${g.status}</span> ${safe(g.title)}</span><span class="item-meta">Б ${g.baseline} → П ${g.forecast} · <span class="${g.delay > 0 ? "danger-text" : ""}">${g.delay > 0 ? `+${g.delay} дн.` : "0 дн."}</span></span></div>`).join("")}</div>`;
+      }).join("");
+      const problemCards = projects.flatMap((p) => problems.filter((x) => x.project.code === p.code)).map((x) => `<article class="mini-raid-card"><div class="mini-raid-top"><span class="project-chip">${x.project.code}</span><span class="score">${x.score}</span><span class="item-title">${safe(x.title)}</span></div><div class="item-meta">${raidMeta(x)}</div></article>`).join("");
+      const riskCards = projects.flatMap((p) => risks.filter((x) => x.project.code === p.code)).map((x) => `<article class="mini-raid-card"><div class="mini-raid-top"><span class="project-chip">${x.project.code}</span><span class="score">${x.score}</span><span class="item-title">${safe(x.title)}</span></div><div class="item-meta">${raidMeta(x)}</div></article>`).join("");
+      return `<section class="sheet" data-shot="03-time-first">${sheetHead(3, "Ось сроков", "Цели читаются во времени, RAID — плотными реестрами")}
+        <div class="upper time-layout">
+          <section class="panel timeline-panel">${panelHead("Цели проектов", "Baseline → прогноз · 5 целей на проект")}<div class="timeline-axis"><span></span>${months.map((m) => `<span>${m}</span>`).join("")}</div>${lanes}</section>
+          <div class="timeline-raid"><section class="panel mini-register">${panelHead("Блокирующие проблемы", "2 на проект")}<div class="problem-mini-grid">${problemCards}</div></section><section class="panel mini-register">${panelHead("Ключевые риски", "4 на проект")}<div class="risk-mini-grid">${riskCards}</div></section></div>
+        </div>${projectsPanel()}</section>`;
+    }
+
+    function columnItem(item) {
+      const prefix = item.kind === "goal" ? `<span class="status-chip ${item.statusKey}">${item.status}</span> ` : `<span class="score">${item.score}</span> `;
+      return `<div class="column-item ${item.kind}"><span class="item-title">${prefix}${safe(item.title)}</span><span class="item-meta">${itemMeta(item)}</span></div>`;
+    }
+
+    function variantProjectColumns() {
+      const columns = projects.map((p) => {
+        const pg = goals.filter((x) => x.project.code === p.code);
+        const pp = problems.filter((x) => x.project.code === p.code);
+        const pr = risks.filter((x) => x.project.code === p.code);
+        return `<section class="panel project-column"><header><b>${p.code}</b><span>${p.name}</span></header><div class="project-column-body">
+          <div class="column-section goals"><div class="column-label"><span>Цели</span><span>5</span></div>${pg.map(columnItem).join("")}</div>
+          <div class="column-section problems"><div class="column-label"><span>Проблемы</span><span>2</span></div>${pp.map(columnItem).join("")}</div>
+          <div class="column-section risks"><div class="column-label"><span>Риски</span><span>4</span></div>${pr.map(columnItem).join("")}</div>
+        </div></section>`;
+      }).join("");
+      return `<section class="sheet" data-shot="04-project-columns">${sheetHead(4, "Колонки проектов", "Проект целиком читается сверху вниз")}
+        <div class="upper project-columns">${columns}</div>${projectsPanel()}</section>`;
+    }
+
+    function variantCategoryStack() {
+      const goalColumns = projects.map((p) => `<section class="category-project"><h3>${p.code} · ${p.name}</h3>${goals.filter((x) => x.project.code === p.code).map((g) => `<div class="category-goal-card"><span class="item-title"><span class="status-chip ${g.statusKey}">${g.status}</span> ${safe(g.title)}</span><span class="item-meta">${goalMeta(g)}</span></div>`).join("")}</section>`).join("");
+      const problemRows = projects.flatMap((p) => problems.filter((x) => x.project.code === p.code)).map((x) => `<div class="category-problem-row"><span class="project-chip">${x.project.code}</span><span class="score">${x.score}</span><span class="category-problem-main"><span class="item-title">${safe(x.title)}</span><span class="item-meta">${safe(x.owner)} · ${x.due ?? "без срока"} · ${safe(x.relative)} · ${safe(x.jira)}</span></span><span class="danger-text">${x.impact}</span></div>`).join("");
+      const riskColumns = projects.map((p) => `<section class="category-risk-project"><h3>${p.code}</h3>${risks.filter((x) => x.project.code === p.code).map((x) => `<div class="category-risk-card"><span class="item-title"><span class="score">${x.score}</span> ${safe(x.title)}</span><span class="item-meta">${raidMeta(x)}</span></div>`).join("")}</section>`).join("");
+      return `<section class="sheet" data-shot="05-category-stack">${sheetHead(5, "Три уровня", "Ширина распределена по объему каждой категории")}
+        <div class="upper category-stack">
+          <section class="panel category-goals">${panelHead("Цели проектов", "5 проектных колонок · 25 целей")}<div class="category-goal-columns">${goalColumns}</div></section>
+          <div class="category-bottom"><section class="panel category-problems">${panelHead("Блокирующие проблемы", "10 записей")}<div class="category-problem-list">${problemRows}</div></section><section class="panel category-risks">${panelHead("Ключевые риски", "20 записей")}<div class="category-risk-columns">${riskColumns}</div></section></div>
+        </div>${projectsPanel()}</section>`;
+    }
+
+    document.getElementById("mockups").innerHTML = [
+      variantUrgency(), variantLedgers(), variantTimeline(), variantProjectColumns(), variantCategoryStack(),
+    ].join("");
+  </script>
+</body>
+</html>
