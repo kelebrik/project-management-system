@@ -348,10 +348,44 @@
   font-weight: 800;
 }
 
+.current-work-row .current-work-editable-cell {
+  padding: 0;
+}
+
 .current-work-row input,
 .current-work-row select {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-heading);
+  font-size: 13px;
+  height: 100%;
+  min-height: 42px;
   min-width: 0;
+  padding: 7px 8px;
   width: 100%;
+}
+
+.current-work-row select {
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+.current-work-row input:focus,
+.current-work-row select:focus {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--brand-border-strong);
+  outline: none;
+}
+
+.current-work-editable-cell .wbs-url-field {
+  min-height: 42px;
+  padding: 7px 8px;
+}
+
+.current-work-editable-cell > input[aria-label^="Ссылка "] {
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .current-work-row a {

@@ -126,7 +126,10 @@ export function ProjectCurrentWorkPage() {
               <span role="cell">{row.code}</span>
               <span role="cell">{row.workPackage}</span>
               <span role="cell" className="current-work-title">{row.title}</span>
-              <span role="cell">
+              <span
+                role="cell"
+                className={isReadOnly ? undefined : "current-work-editable-cell"}
+              >
                 {isReadOnly ? (
                   wbsStatusLabel(row.status)
                 ) : (
@@ -149,7 +152,10 @@ export function ProjectCurrentWorkPage() {
                   </select>
                 )}
               </span>
-              <span role="cell">
+              <span
+                role="cell"
+                className={isReadOnly ? undefined : "current-work-editable-cell"}
+              >
                 {isReadOnly ? (
                   date(row.dueDate)
                 ) : (
@@ -172,7 +178,10 @@ export function ProjectCurrentWorkPage() {
                   />
                 )}
               </span>
-              <span role="cell">
+              <span
+                role="cell"
+                className={isReadOnly ? undefined : "current-work-editable-cell"}
+              >
                 {isReadOnly ? (
                   row.owner || "—"
                 ) : (
@@ -192,7 +201,10 @@ export function ProjectCurrentWorkPage() {
                   />
                 )}
               </span>
-              <span role="cell">
+              <span
+                role="cell"
+                className={isReadOnly ? undefined : "current-work-editable-cell"}
+              >
                 {isReadOnly ? (
                   row.comment.trim() || "—"
                 ) : (
@@ -212,7 +224,10 @@ export function ProjectCurrentWorkPage() {
                   />
                 )}
               </span>
-              <span role="cell">
+              <span
+                role="cell"
+                className={isReadOnly ? undefined : "current-work-editable-cell"}
+              >
                 <WbsUrlField
                   contextLabel={row.code}
                   isReadOnly={isReadOnly}
@@ -228,7 +243,10 @@ export function ProjectCurrentWorkPage() {
                   }
                 />
               </span>
-              <span role="cell">
+              <span
+                role="cell"
+                className={isReadOnly ? undefined : "current-work-editable-cell"}
+              >
                 <WbsUrlField
                   contextLabel={row.code}
                   isReadOnly={isReadOnly}
