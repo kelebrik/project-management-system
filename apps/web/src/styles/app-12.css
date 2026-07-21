@@ -381,9 +381,9 @@
 }
 
 .current-work-row .current-work-comment-editor {
-  height: 50px;
+  height: 68px;
   line-height: 18px;
-  min-height: 50px;
+  min-height: 68px;
   overflow-wrap: anywhere;
   overflow-y: auto;
   resize: none;

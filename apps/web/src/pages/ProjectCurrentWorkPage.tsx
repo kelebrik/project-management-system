@@ -211,7 +211,7 @@ export function ProjectCurrentWorkPage() {
                   <textarea
                     className="current-work-comment-editor"
                     aria-label={`Комментарий ${row.code}`}
-                    rows={2}
+                    rows={3}
                     wrap="soft"
                     value={row.comment}
                     onChange={(event) =>
