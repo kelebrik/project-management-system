@@ -10,6 +10,7 @@ import {
 } from "../app/projectStructureCopy";
 
 type ProjectStructureCopyFieldProps = {
+  error: string | null;
   isLoading: boolean;
   onChange: (selection: ProjectStructureCopySelection[]) => void;
   options: ProjectStructureCopyOption[];
@@ -17,6 +18,7 @@ type ProjectStructureCopyFieldProps = {
 };
 
 export function ProjectStructureCopyField({
+  error,
   isLoading,
   onChange,
   options,
@@ -112,7 +114,9 @@ export function ProjectStructureCopyField({
               );
             })}
             {!isLoading && filteredOptions.length === 0 && (
-              <div className="structure-copy-empty">Проекты и фазы не найдены</div>
+              <div className="structure-copy-empty">
+                {error ?? "Проекты и фазы не найдены"}
+              </div>
             )}
             {isLoading && <div className="structure-copy-empty">Загрузка структуры…</div>}
           </div>

@@ -24,6 +24,7 @@ export function ProjectCreatePage() {
 
   const [businessUnits, setBusinessUnits] = useState<BusinessUnitOption[]>([]);
   const [copyOptions, setCopyOptions] = useState<ProjectStructureCopyOption[]>([]);
+  const [copyOptionsError, setCopyOptionsError] = useState<string | null>(null);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
 
   const [formErrors, setFormErrors] = useState<{
@@ -34,20 +35,14 @@ export function ProjectCreatePage() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      apiClient.get<BusinessUnitOption[]>(
+    void apiClient
+      .get<BusinessUnitOption[]>(
         "/api/business-units",
         "Не удалось загрузить бизнес-юниты",
-      ),
-      apiClient.get<ProjectStructureCopyOption[]>(
-        "/api/projects/structure-copy-options",
-        "Не удалось загрузить текущие Структуры проектов",
-      ),
-    ])
-      .then(([units, structures]) => {
+      )
+      .then((units) => {
         if (cancelled) return;
         setBusinessUnits(units);
-        setCopyOptions(structures);
         setNewProjectForm((current) => {
           const selectedUnit = businessUnitForProjectCreation(
             units,
@@ -63,7 +58,27 @@ export function ProjectCreatePage() {
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          setError(error instanceof Error ? error.message : "Не удалось загрузить форму");
+          setError(
+            error instanceof Error ? error.message : "Не удалось загрузить бизнес-юниты",
+          );
+        }
+      });
+
+    void apiClient
+      .get<ProjectStructureCopyOption[]>(
+        "/api/projects/structure-copy-options",
+        "Не удалось загрузить текущие Структуры проектов",
+      )
+      .then((structures) => {
+        if (cancelled) return;
+        setCopyOptions(structures);
+        setCopyOptionsError(null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCopyOptionsError(
+            "Не удалось загрузить варианты копирования. Проект можно создать без копирования Структуры.",
+          );
         }
       })
       .finally(() => {
@@ -162,6 +177,7 @@ export function ProjectCreatePage() {
                     <div className="form-field span-2">
                       <span className="form-field-label">Скопировать из проекта</span>
                       <ProjectStructureCopyField
+                        error={copyOptionsError}
                         isLoading={isLoadingOptions}
                         options={copyOptions}
                         value={newProjectForm.copyCurrentStructureFrom}
