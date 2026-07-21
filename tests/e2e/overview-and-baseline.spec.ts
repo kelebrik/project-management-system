@@ -1100,6 +1100,18 @@ test("project navigation and current work reflect the structure", async ({ page 
   ).toBeLessThanOrEqual(1);
   await expect(page.getByLabel("Комментарий 1.1")).toHaveValue("Проверить результат");
   const commentInput = page.getByLabel("Комментарий 1.1");
+  for (const editor of [
+    page.getByLabel("Статус 1.1"),
+    page.getByLabel("Срок 1.1"),
+    page.getByLabel("Исполнитель 1.1"),
+    commentInput,
+  ]) {
+    await expect(editor).toHaveCSS("border-top-width", "0px");
+    await expect(editor).toHaveCSS("border-radius", "0px");
+    await expect(editor).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  }
+  await commentInput.locator("..").click();
+  await expect(commentInput).toBeFocused();
   await commentInput.fill("Новый комментарий");
   await commentInput.blur();
   await expect.poll(() => savedPatch?.comment).toBe("Новый комментарий");
