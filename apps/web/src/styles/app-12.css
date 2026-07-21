@@ -287,8 +287,8 @@
 .current-work-head,
 .current-work-row {
   display: grid;
-  grid-template-columns: 76px minmax(180px, 1fr) minmax(220px, 1.2fr) 150px 140px 150px minmax(220px, 1fr) 88px 76px;
-  min-width: 1300px;
+  grid-template-columns: var(--current-work-template);
+  min-width: var(--current-work-min-width);
 }
 
 .current-work-head {
@@ -303,6 +303,29 @@
 .current-work-row span {
   border-right: 1px solid var(--border);
   padding: 10px 12px;
+}
+
+.current-work-head span {
+  position: relative;
+}
+
+.current-work-column-resizer {
+  background: transparent;
+  border: 0;
+  bottom: 0;
+  cursor: col-resize;
+  min-height: 0;
+  padding: 0;
+  position: absolute;
+  right: -4px;
+  top: 0;
+  width: 8px;
+  z-index: 3;
+}
+
+.current-work-column-resizer:hover,
+.current-work-column-resizer:focus-visible {
+  background: rgba(15, 118, 110, 0.16);
 }
 
 .current-work-head span:last-child,

@@ -1,4 +1,12 @@
+import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { createCurrentWorkRows } from "../app/currentWorkModel";
+import {
+  CURRENT_WORK_COLUMNS,
+  currentWorkGridTemplate,
+  currentWorkTableMinWidth,
+  normalizeCurrentWorkColumnWidths,
+  type CurrentWorkColumnKey,
+} from "../app/currentWorkTable";
 import { date } from "../app/dateUtils";
 import type { WbsItemStatus } from "../app/domainTypes";
 import { wbsStatusLabel } from "../app/labels";
@@ -18,14 +26,58 @@ const STATUS_OPTIONS: WbsItemStatus[] = [
 export function ProjectCurrentWorkPage() {
   const {
     isReadOnly,
+    isAuthenticated,
+    isClosedProject,
     project,
+    saveProjectUiState,
     saveWbsDraftPatch,
     setActiveWbsItemId,
     setError,
     updateWbsDraft,
     wbsDrafts,
   } = usePageContext();
+  const [columnWidths, setColumnWidths] = useState(() =>
+    normalizeCurrentWorkColumnWidths(project.uiState?.currentWorkColumnWidths),
+  );
   const rows = createCurrentWorkRows(project.wbsItems, wbsDrafts ?? {});
+  const gridTemplate = currentWorkGridTemplate(columnWidths);
+  const tableMinWidth = currentWorkTableMinWidth(columnWidths);
+
+  const startColumnResize = (
+    columnKey: CurrentWorkColumnKey,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = columnWidths[columnKey];
+    let latestWidths = columnWidths;
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const nextWidth = Math.min(
+        760,
+        Math.max(56, startWidth + moveEvent.clientX - startX),
+      );
+      setColumnWidths((current) => {
+        latestWidths = { ...current, [columnKey]: nextWidth };
+        return latestWidths;
+      });
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      if (!isAuthenticated || isClosedProject) return;
+      void saveProjectUiState({
+        currentWorkColumnWidths: latestWidths,
+      }).catch((error: unknown) =>
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Не удалось сохранить ширину колонок Текучки",
+        ),
+      );
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  };
 
   return (
     <article className="panel project-card current-work-page">
@@ -38,17 +90,31 @@ export function ProjectCurrentWorkPage() {
       {rows.length === 0 ? (
         <div className="empty-state">Работ по заданным условиям нет.</div>
       ) : (
-        <div className="current-work-table" role="table" aria-label="Текучка проекта">
+        <div
+          className="current-work-table"
+          role="table"
+          aria-label="Текучка проекта"
+          style={
+            {
+              "--current-work-template": gridTemplate,
+              "--current-work-min-width": `${tableMinWidth}px`,
+            } as CSSProperties
+          }
+        >
           <div className="current-work-head" role="row">
-            <span role="columnheader">Номер</span>
-            <span role="columnheader">Пакет работ</span>
-            <span role="columnheader">Наименование</span>
-            <span role="columnheader">Статус</span>
-            <span role="columnheader">Срок</span>
-            <span role="columnheader">Исполнитель</span>
-            <span role="columnheader">Комментарий</span>
-            <span role="columnheader">Jira</span>
-            <span role="columnheader">MM</span>
+            {CURRENT_WORK_COLUMNS.map((column) => (
+              <span role="columnheader" key={column.key}>
+                {column.label}
+                <button
+                  type="button"
+                  className="current-work-column-resizer"
+                  aria-label={`Изменить ширину колонки ${column.label}`}
+                  onPointerDown={(event) =>
+                    startColumnResize(column.key, event)
+                  }
+                />
+              </span>
+            ))}
           </div>
           {rows.map((row) => (
             <div

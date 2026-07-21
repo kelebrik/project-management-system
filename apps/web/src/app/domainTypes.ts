@@ -11,6 +11,7 @@ import type {
   WbsSortState,
   WbsTableColumnKey,
 } from "./wbsTable";
+import type { CurrentWorkColumnKey } from "./currentWorkTable";
 
 export type {
   IssueSeverity,
@@ -143,6 +144,7 @@ export type ProjectUiState = {
   wbsHiddenColumns?: WbsTableColumnKey[];
   wbsColumnWidths?: Partial<Record<WbsTableColumnKey, number>>;
   wbsSort?: WbsSortState | null;
+  currentWorkColumnWidths?: Partial<Record<CurrentWorkColumnKey, number>>;
   ganttPanelHeight?: number;
   ganttPanelWidth?: number;
   ganttWbsWidth?: number;
