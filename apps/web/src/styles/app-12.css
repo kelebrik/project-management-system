@@ -353,7 +353,8 @@
 }
 
 .current-work-row input,
-.current-work-row select {
+.current-work-row select,
+.current-work-row textarea {
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -372,10 +373,21 @@
 }
 
 .current-work-row input:focus,
-.current-work-row select:focus {
+.current-work-row select:focus,
+.current-work-row textarea:focus {
   background: var(--surface);
   box-shadow: inset 0 0 0 2px var(--brand-border-strong);
   outline: none;
+}
+
+.current-work-row .current-work-comment-editor {
+  height: 50px;
+  line-height: 18px;
+  min-height: 50px;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  resize: none;
+  white-space: pre-wrap;
 }
 
 .current-work-editable-cell .wbs-url-field {
