@@ -426,6 +426,70 @@ test("project creation confirms the selected business unit for an administrator"
   ]);
 });
 
+test("project creation keeps business units available when structure options fail", async ({
+  page,
+}) => {
+  await page.route("**/api/business-units", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "business-unit-main",
+          code: "main",
+          name: "TV&Box",
+          isDefault: true,
+          role: "ADMIN",
+          canManage: true,
+          projectCount: 1,
+        },
+        {
+          id: "business-unit-sd",
+          code: "sd",
+          name: "SberDevices",
+          isDefault: false,
+          role: "MEMBER",
+          canManage: false,
+          projectCount: 1,
+        },
+        {
+          id: "business-unit-test",
+          code: "test1",
+          name: "test1",
+          isDefault: false,
+          role: "MEMBER",
+          canManage: false,
+          projectCount: 0,
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/projects/structure-copy-options", (route) =>
+    route.fulfill({ status: 404, json: { error: "Проект не найден" } }),
+  );
+  await mockAdminProject(page);
+  await page.goto("/projects");
+
+  await page.getByRole("button", { name: "Создать", exact: true }).click();
+
+  const businessUnitSelect = page.getByLabel("Портфель");
+  const businessUnitOptions = businessUnitSelect.locator('option:not([value=""])');
+  await expect(businessUnitOptions).toHaveCount(3);
+  await expect(businessUnitOptions).toHaveText([
+    "TV&Box",
+    "SberDevices",
+    "test1",
+  ]);
+  await expect(page.getByText("Проект не найден", { exact: true })).toHaveCount(0);
+
+  await page
+    .getByRole("button", { name: "Не копировать, создать тестовую структуру" })
+    .click();
+  await expect(
+    page.getByText(
+      "Не удалось загрузить варианты копирования. Проект можно создать без копирования Структуры.",
+    ),
+  ).toBeVisible();
+});
+
 test("Jira work synchronization always uses production", async ({ page }) => {
   let syncBody: { baseUrl?: string } | null = null;
   await mockAdminProject(page);
