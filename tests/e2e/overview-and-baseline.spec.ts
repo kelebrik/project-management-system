@@ -209,6 +209,78 @@ async function mockAdminProject(
   return project;
 }
 
+function portfolioProjectFixture(
+  id: string,
+  code: string,
+  name: string,
+  goalTitle: string,
+  problemTitle: string,
+  riskTitle: string,
+) {
+  const project = projectFixture();
+  project.id = id;
+  project.code = code;
+  project.name = name;
+  project.wbsItems = [
+    {
+      ...project.wbsItems[0],
+      id: `${id}-goal`,
+      code: "G.1",
+      title: goalTitle,
+      type: "GOAL",
+      status: "IN_PROGRESS",
+    },
+  ];
+  project.raidItems = [
+    {
+      ...project.raidItems[0],
+      id: `${id}-problem`,
+      type: "DEPENDENCY",
+      title: problemTitle,
+      riskScore: 20,
+    },
+    {
+      ...project.raidItems[0],
+      id: `${id}-risk`,
+      type: "RISK",
+      title: riskTitle,
+      riskScore: 16,
+    },
+  ];
+  return project;
+}
+
+async function mockAdminPortfolio(
+  page: Page,
+  projects: ReturnType<typeof projectFixture>[],
+) {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "admin-1",
+          email: "admin@example.test",
+          name: "Администратор",
+          role: "ADMIN",
+          isActive: true,
+          lastLoginAt: null,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/auth/keycloak/status", (route) =>
+    route.fulfill({ json: { enabled: false, hostname: null } }),
+  );
+  await page.route(/\/api\/projects$/, (route) => route.fulfill({ json: projects }));
+  await page.route(/\/api\/projects\/([^/]+)\/overview$/, (route) => {
+    const projectId = new URL(route.request().url()).pathname.split("/").at(-2);
+    const project = projects.find(({ id }) => id === projectId);
+    return project
+      ? route.fulfill({ json: project })
+      : route.fulfill({ status: 404, json: { error: "Проект не найден" } });
+  });
+}
+
 async function mockReadOnlyProject(page: Page) {
   const project = projectFixture();
   await page.route("**/api/auth/me", (route) =>
@@ -632,6 +704,83 @@ test("portfolio and projects show work-day weighted progress", async ({ page }) 
       fullPage: true,
     });
   }
+});
+
+test("portfolio project filter scopes goals problems and risks only", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const first = portfolioProjectFixture(
+    "project-1",
+    "TV-FIRST",
+    "Первый проект",
+    "Первая цель",
+    "Первая проблема",
+    "Первый риск",
+  );
+  const second = portfolioProjectFixture(
+    "project-2",
+    "TV-SECOND",
+    "Второй проект",
+    "Вторая цель",
+    "Вторая проблема",
+    "Второй риск",
+  );
+  await mockAdminPortfolio(page, [first, second]);
+  await page.goto("/portfolio");
+
+  const filter = page.getByTestId("portfolio-project-filter");
+  const summary = filter.locator("summary");
+  await expect(summary).toContainText("Все 2");
+  await expect(filter).not.toHaveClass(/is-filtered/);
+  await expect(page.locator(".portfolio-project-timeline-row")).toHaveCount(2);
+
+  await summary.click();
+  await filter.getByRole("checkbox", { name: /TV-SECOND.*Второй проект/ }).uncheck();
+
+  await expect(summary).toContainText("1 из 2");
+  await expect(filter).toHaveClass(/is-filtered/);
+  await expect(page.getByText("Вторая цель", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Вторая проблема", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Второй риск", { exact: true })).toHaveCount(0);
+  await expect(
+    page.locator(".projects-overview-card", { hasText: "Второй проект" }),
+  ).toBeVisible();
+
+  const popover = filter.locator(".portfolio-project-filter-popover");
+  const desktopBox = await popover.boundingBox();
+  expect(desktopBox).not.toBeNull();
+  expect(desktopBox!.x).toBeGreaterThanOrEqual(0);
+  expect(desktopBox!.x + desktopBox!.width).toBeLessThanOrEqual(1440);
+  if (process.env.CAPTURE_PORTFOLIO_FILTER === "1") {
+    await page.locator(".portfolio-goal-timeline-panel").screenshot({
+      path: "/private/tmp/pms-portfolio-filter-desktop.png",
+    });
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await summary.scrollIntoViewIfNeeded();
+  const mobileBox = await popover.boundingBox();
+  expect(mobileBox).not.toBeNull();
+  expect(mobileBox!.x).toBeGreaterThanOrEqual(0);
+  expect(mobileBox!.x + mobileBox!.width).toBeLessThanOrEqual(390);
+  if (process.env.CAPTURE_PORTFOLIO_FILTER === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-portfolio-filter-mobile.png",
+    });
+  }
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+
+  await filter.getByRole("button", { name: "Снять все" }).click();
+  await expect(summary).toContainText("0 из 2");
+  await expect(
+    page.getByText("Для отображения не выбран ни один проект."),
+  ).toHaveCount(3);
+  await expect(page.locator(".projects-overview-card")).toHaveCount(2);
+
+  await filter.getByRole("button", { name: "Выбрать все" }).click();
+  await expect(summary).toContainText("Все 2");
+  await expect(filter).not.toHaveClass(/is-filtered/);
+  await expect(page.locator(".portfolio-project-timeline-row")).toHaveCount(2);
 });
 
 test("risk page keeps the color matrix visible", async ({ page }) => {
