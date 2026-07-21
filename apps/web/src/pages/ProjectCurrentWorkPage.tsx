@@ -208,8 +208,11 @@ export function ProjectCurrentWorkPage() {
                 {isReadOnly ? (
                   row.comment.trim() || "—"
                 ) : (
-                  <input
+                  <textarea
+                    className="current-work-comment-editor"
                     aria-label={`Комментарий ${row.code}`}
+                    rows={2}
+                    wrap="soft"
                     value={row.comment}
                     onChange={(event) =>
                       updateWbsDraft(row.id, { comment: event.target.value })

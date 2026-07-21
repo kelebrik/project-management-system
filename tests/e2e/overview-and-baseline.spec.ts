@@ -1110,11 +1110,19 @@ test("project navigation and current work reflect the structure", async ({ page 
     await expect(editor).toHaveCSS("border-radius", "0px");
     await expect(editor).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   }
+  await expect(commentInput).toHaveAttribute("rows", "2");
+  await expect(commentInput).toHaveAttribute("wrap", "soft");
+  await expect(commentInput).toHaveCSS("height", "50px");
+  await expect(commentInput).toHaveCSS("overflow-y", "auto");
+  await expect(commentInput).toHaveCSS("resize", "none");
+  await expect(commentInput).toHaveCSS("overflow-wrap", "anywhere");
   await commentInput.locator("..").click();
   await expect(commentInput).toBeFocused();
-  await commentInput.fill("Новый комментарий");
+  await commentInput.fill("Новый комментарий\nВторая строка");
   await commentInput.blur();
-  await expect.poll(() => savedPatch?.comment).toBe("Новый комментарий");
+  await expect.poll(() => savedPatch?.comment).toBe(
+    "Новый комментарий\nВторая строка",
+  );
   await expect(page.getByLabel("Статус 1.1")).toBeEnabled();
   await expect(page.getByLabel("Срок 1.1")).toBeEnabled();
   await expect(page.getByLabel("Исполнитель 1.1")).toBeEnabled();
