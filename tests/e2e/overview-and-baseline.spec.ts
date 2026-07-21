@@ -1066,6 +1066,38 @@ test("project navigation and current work reflect the structure", async ({ page 
         (savedCurrentWorkWidths?.workPackage ?? resizedWorkPackageWidth),
     ),
   ).toBeLessThanOrEqual(1);
+  const titleHeader = currentWork.getByRole("columnheader", {
+    name: /^Наименование/,
+  });
+  const initialTitleWidth = await titleHeader.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  const titleResizeHandle = page.getByRole("button", {
+    name: "Изменить ширину колонки Наименование",
+  });
+  const titleResizeHandleBox = await titleResizeHandle.boundingBox();
+  expect(titleResizeHandleBox).not.toBeNull();
+  if (titleResizeHandleBox) {
+    await page.mouse.move(
+      titleResizeHandleBox.x + titleResizeHandleBox.width / 2,
+      titleResizeHandleBox.y + titleResizeHandleBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(titleResizeHandleBox.x - 50, titleResizeHandleBox.y + 4);
+    await page.mouse.up();
+  }
+  await expect
+    .poll(() => savedCurrentWorkWidths?.title ?? initialTitleWidth)
+    .toBeLessThan(initialTitleWidth);
+  const resizedTitleWidth = await titleHeader.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  expect(resizedTitleWidth).toBeLessThan(initialTitleWidth);
+  expect(
+    Math.abs(
+      resizedTitleWidth - (savedCurrentWorkWidths?.title ?? resizedTitleWidth),
+    ),
+  ).toBeLessThanOrEqual(1);
   await expect(page.getByLabel("Комментарий 1.1")).toHaveValue("Проверить результат");
   const commentInput = page.getByLabel("Комментарий 1.1");
   await commentInput.fill("Новый комментарий");
