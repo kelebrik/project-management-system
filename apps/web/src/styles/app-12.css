@@ -380,8 +380,13 @@
   outline: none;
 }
 
+.current-work-row .current-work-comment-cell {
+  display: flex;
+  flex-direction: column;
+}
+
 .current-work-row .current-work-comment-editor {
-  height: 62px;
+  flex: 1 1 auto;
   line-height: 18px;
   min-height: 62px;
   overflow-wrap: anywhere;

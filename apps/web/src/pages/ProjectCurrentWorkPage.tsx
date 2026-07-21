@@ -203,7 +203,11 @@ export function ProjectCurrentWorkPage() {
               </span>
               <span
                 role="cell"
-                className={isReadOnly ? undefined : "current-work-editable-cell"}
+                className={
+                  isReadOnly
+                    ? undefined
+                    : "current-work-editable-cell current-work-comment-cell"
+                }
               >
                 {isReadOnly ? (
                   row.comment.trim() || "—"
