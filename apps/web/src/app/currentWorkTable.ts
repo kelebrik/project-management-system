@@ -1,11 +1,11 @@
 export const CURRENT_WORK_COLUMNS = [
   { key: "number", label: "Номер", width: 76 },
   { key: "workPackage", label: "Пакет работ", width: 180 },
-  { key: "title", label: "Наименование", width: 220, flexible: true },
+  { key: "title", label: "Наименование", width: 220 },
   { key: "status", label: "Статус", width: 150 },
   { key: "dueDate", label: "Срок", width: 140 },
   { key: "owner", label: "Исполнитель", width: 150 },
-  { key: "comment", label: "Комментарий", width: 220, flexible: true },
+  { key: "comment", label: "Комментарий", width: 220 },
   { key: "jira", label: "Jira", width: 88 },
   { key: "mattermost", label: "MM", width: 76 },
 ] as const;
@@ -35,12 +35,9 @@ export function normalizeCurrentWorkColumnWidths(
 }
 
 export function currentWorkGridTemplate(widths: CurrentWorkColumnWidths) {
-  return CURRENT_WORK_COLUMNS.map((column) => {
-    const width = `${widths[column.key]}px`;
-    return "flexible" in column && column.flexible
-      ? `minmax(${width}, 1fr)`
-      : width;
-  }).join(" ");
+  return `${CURRENT_WORK_COLUMNS.map(
+    (column) => `${widths[column.key]}px`,
+  ).join(" ")} minmax(0, 1fr)`;
 }
 
 export function currentWorkTableMinWidth(widths: CurrentWorkColumnWidths) {

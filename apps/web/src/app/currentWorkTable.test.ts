@@ -20,7 +20,10 @@ test("current work column widths are clamped and form a stable grid", () => {
 
   assert.equal(widths.number, 56);
   assert.equal(widths.comment, 760);
-  assert.match(currentWorkGridTemplate(widths), /minmax\(760px, 1fr\)/);
+  assert.match(
+    currentWorkGridTemplate(widths),
+    /760px 88px 76px minmax\(0, 1fr\)$/,
+  );
   assert.equal(
     currentWorkTableMinWidth(widths),
     Object.values(widths).reduce((sum, width) => sum + width, 0),
