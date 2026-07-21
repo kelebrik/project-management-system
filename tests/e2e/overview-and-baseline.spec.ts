@@ -154,6 +154,9 @@ function projectFixture() {
         jiraTicketUrl: 220,
         mattermostUrl: 260,
       },
+      currentWorkColumnWidths: {
+        workPackage: 180,
+      },
     },
     jiraIntegration: null,
     targetDateChanges: [],
@@ -962,6 +965,7 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
 
 test("project navigation and current work reflect the structure", async ({ page }) => {
   let savedPatch: Record<string, unknown> | null = null;
+  let savedCurrentWorkWidths: Record<string, number> | null = null;
   let renumberRequests = 0;
   const project = await mockAdminProject(page, (project) => {
     project.wbsItems.unshift({
@@ -999,6 +1003,13 @@ test("project navigation and current work reflect the structure", async ({ page 
       },
     });
   });
+  await page.route("**/api/projects/project-1", async (route) => {
+    const body = route.request().postDataJSON() as {
+      uiState?: { currentWorkColumnWidths?: Record<string, number> };
+    };
+    savedCurrentWorkWidths = body.uiState?.currentWorkColumnWidths ?? null;
+    await route.fulfill({ json: { id: project.id, uiState: body.uiState } });
+  });
   await page.goto("/TV-OVERVIEW/current-work");
 
   const projectNav = page.getByRole("navigation", { name: "Разделы проекта" });
@@ -1022,6 +1033,39 @@ test("project navigation and current work reflect the structure", async ({ page 
   const currentWork = page.getByRole("table", { name: "Текучка проекта" });
   await expect(currentWork).toContainText("1.1");
   await expect(currentWork).toContainText("1 Пакет интеграции");
+  const workPackageHeader = currentWork.getByRole("columnheader", {
+    name: /^Пакет работ/,
+  });
+  const initialWorkPackageWidth = await workPackageHeader.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  const resizeHandle = page.getByRole("button", {
+    name: "Изменить ширину колонки Пакет работ",
+  });
+  const resizeHandleBox = await resizeHandle.boundingBox();
+  expect(resizeHandleBox).not.toBeNull();
+  if (resizeHandleBox) {
+    await page.mouse.move(
+      resizeHandleBox.x + resizeHandleBox.width / 2,
+      resizeHandleBox.y + resizeHandleBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(resizeHandleBox.x - 45, resizeHandleBox.y + 4);
+    await page.mouse.up();
+  }
+  await expect
+    .poll(() => savedCurrentWorkWidths?.workPackage ?? initialWorkPackageWidth)
+    .toBeLessThan(initialWorkPackageWidth);
+  const resizedWorkPackageWidth = await workPackageHeader.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  expect(resizedWorkPackageWidth).toBeLessThan(initialWorkPackageWidth);
+  expect(
+    Math.abs(
+      resizedWorkPackageWidth -
+        (savedCurrentWorkWidths?.workPackage ?? resizedWorkPackageWidth),
+    ),
+  ).toBeLessThanOrEqual(1);
   await expect(page.getByLabel("Комментарий 1.1")).toHaveValue("Проверить результат");
   const commentInput = page.getByLabel("Комментарий 1.1");
   await commentInput.fill("Новый комментарий");

@@ -108,7 +108,7 @@ export function AppPages() {
         {project && activeView === "project-schedule" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-business-requirements" && <ProjectBusinessRequirementsPage />}
-        {project && activeView === "project-current-work" && <ProjectCurrentWorkPage />}
+        {project && activeView === "project-current-work" && <ProjectCurrentWorkPage key={project.id} />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
         {isAdminUser && project && activeView === "project-pm-workspace" && (
