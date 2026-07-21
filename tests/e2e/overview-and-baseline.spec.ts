@@ -1112,7 +1112,9 @@ test("project navigation and current work reflect the structure", async ({ page 
   }
   await expect(commentInput).toHaveAttribute("rows", "3");
   await expect(commentInput).toHaveAttribute("wrap", "soft");
-  await expect(commentInput).toHaveCSS("height", "68px");
+  await expect(commentInput).toHaveCSS("height", "62px");
+  await expect(commentInput).toHaveCSS("padding-top", "4px");
+  await expect(commentInput).toHaveCSS("padding-bottom", "4px");
   await expect(commentInput).toHaveCSS("overflow-y", "auto");
   await expect(commentInput).toHaveCSS("resize", "none");
   await expect(commentInput).toHaveCSS("overflow-wrap", "anywhere");

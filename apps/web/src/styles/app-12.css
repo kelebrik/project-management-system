@@ -381,11 +381,13 @@
 }
 
 .current-work-row .current-work-comment-editor {
-  height: 68px;
+  height: 62px;
   line-height: 18px;
-  min-height: 68px;
+  min-height: 62px;
   overflow-wrap: anywhere;
   overflow-y: auto;
+  padding-bottom: 4px;
+  padding-top: 4px;
   resize: none;
   white-space: pre-wrap;
 }
