@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { WbsItem } from "./domainTypes";
 import { wbsToForm } from "./formState";
 import { createCurrentWorkRows, currentWorkDateRange } from "./currentWorkModel";
+import { focusedWbsBranchState } from "./wbsTree";
 
 function item(overrides: Partial<WbsItem> & Pick<WbsItem, "id" | "code" | "title">) {
   return {
@@ -74,4 +75,23 @@ test("current work uses edited structure values", () => {
   );
   assert.equal(rows[0].title, "Измененное");
   assert.equal(rows[0].comment, "  Проверить  ");
+});
+
+test("current work focus collapses every unrelated structure branch", () => {
+  const items = [
+    item({ id: "phase-a", code: "1", title: "Фаза A", type: "PHASE" }),
+    item({ id: "wp-a", parentId: "phase-a", code: "1.1", title: "Пакет A", type: "WORK_PACKAGE" }),
+    item({ id: "task-a", parentId: "wp-a", code: "1.1.1", title: "Нужная работа" }),
+    item({ id: "wp-b", parentId: "phase-a", code: "1.2", title: "Пакет B", type: "WORK_PACKAGE" }),
+    item({ id: "task-b", parentId: "wp-b", code: "1.2.1", title: "Соседняя работа" }),
+    item({ id: "phase-b", code: "2", title: "Фаза B", type: "PHASE" }),
+    item({ id: "wp-c", parentId: "phase-b", code: "2.1", title: "Пакет C", type: "WORK_PACKAGE" }),
+    item({ id: "task-c", parentId: "wp-c", code: "2.1.1", title: "Другая работа" }),
+  ];
+
+  const focus = focusedWbsBranchState(items, "task-a");
+
+  assert.equal(focus?.activeItemId, "task-a");
+  assert.equal(focus?.scrollItemId, "wp-a");
+  assert.deepEqual(focus?.collapsedIds, new Set(["wp-b", "phase-b", "wp-c"]));
 });

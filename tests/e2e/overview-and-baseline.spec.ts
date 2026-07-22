@@ -1321,6 +1321,29 @@ test("project navigation and current work reflect the structure", async ({ page 
     project.wbsItems[1].parentId = "work-package-1";
     project.wbsItems[1].jiraTicketUrl = "https://tasks.sberdevices.ru/browse/TV-1";
     project.wbsItems[1].mattermostUrl = "https://mm.sberdevices.ru/channel/thread";
+    for (let index = 1; index <= 12; index += 1) {
+      project.wbsItems.push(
+        {
+          ...project.wbsItems[0],
+          id: `unrelated-package-${index}`,
+          parentId: null,
+          code: `${index + 1}`,
+          title: `Посторонний пакет ${index}`,
+          type: "WORK_PACKAGE",
+          comment: null,
+        },
+        {
+          ...project.wbsItems[1],
+          id: `unrelated-task-${index}`,
+          parentId: `unrelated-package-${index}`,
+          code: `${index + 1}.1`,
+          title: `Посторонняя работа ${index}`,
+          status: "CANCELLED",
+          jiraTicketUrl: null,
+          mattermostUrl: null,
+        },
+      );
+    }
   });
   await page.route("**/api/wbs-items/wbs-1", async (route) => {
     savedPatch = route.request().postDataJSON() as Record<string, unknown>;
@@ -1544,8 +1567,49 @@ test("project navigation and current work reflect the structure", async ({ page 
     await page.setViewportSize({ width: 1280, height: 720 });
   }
 
-  await page.goto("/TV-OVERVIEW/wbs");
-  await page.getByRole("button", { name: "Раскрыть элемент Структуры" }).click();
+  await currentWork.getByRole("link", { name: "Тестовая задача", exact: true }).click();
+  await expect(page).toHaveURL("/TV-OVERVIEW/wbs");
+  const focusedPackage = page.locator("#wbs-item-work-package-1");
+  const focusedTask = page.locator("#wbs-item-wbs-1");
+  await expect(focusedPackage).toBeVisible();
+  await expect(focusedTask).toBeVisible();
+  await expect(
+    focusedPackage.getByRole("button", { name: "Схлопнуть элемент Структуры" }),
+  ).toBeVisible();
+  await expect(focusedTask.locator(".wbs-table-row")).toHaveClass(/active/);
+  await expect(page.locator("#wbs-item-unrelated-package-1")).toBeVisible();
+  await expect(page.locator("#wbs-item-unrelated-task-1")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Раскрыть элемент Структуры" }),
+  ).toHaveCount(12);
+  await expect
+    .poll(async () => {
+      const box = await focusedPackage.boundingBox();
+      return box
+        ? Math.abs(box.y + box.height / 2 - page.viewportSize()!.height / 2)
+        : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(80);
+  if (process.env.CAPTURE_CURRENT_WORK === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-current-work-structure-focus.png",
+      fullPage: false,
+    });
+  }
+  const distantPackage = page.locator("#wbs-item-unrelated-package-12");
+  await distantPackage
+    .getByRole("button", { name: "Раскрыть элемент Структуры" })
+    .click();
+  await expect(page.locator("#wbs-item-unrelated-task-12")).toBeVisible();
+  await expect(distantPackage).toBeInViewport();
+  await expect
+    .poll(async () => {
+      const box = await focusedPackage.boundingBox();
+      return box
+        ? Math.abs(box.y + box.height / 2 - page.viewportSize()!.height / 2)
+        : Number.POSITIVE_INFINITY;
+    })
+    .toBeGreaterThan(150);
   await expect(page.getByText("Сводка по работам", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Комментарий", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Jira URL", exact: true })).toBeVisible();

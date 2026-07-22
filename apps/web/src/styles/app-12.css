@@ -412,6 +412,23 @@
   font-weight: 800;
 }
 
+.current-work-structure-link {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+
+.current-work-structure-link:hover,
+.current-work-structure-link:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.current-work-structure-link:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--brand-border-strong);
+  outline-offset: 2px;
+}
+
 .wbs-url-field {
   align-items: center;
   display: flex;
