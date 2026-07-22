@@ -113,16 +113,12 @@ export function focusedWbsBranchState(items: WbsItem[], targetItemId: string) {
 
   const expandedIds = new Set<string>();
   const visitedIds = new Set<string>([target.id]);
-  let scrollItemId = target.id;
   let parentId = target.parentId;
   while (parentId && !visitedIds.has(parentId)) {
     visitedIds.add(parentId);
     const parent = itemsById.get(parentId);
     if (!parent) break;
     expandedIds.add(parent.id);
-    if (parent.type === "WORK_PACKAGE" && scrollItemId === target.id) {
-      scrollItemId = parent.id;
-    }
     parentId = parent.parentId;
   }
 
@@ -136,7 +132,7 @@ export function focusedWbsBranchState(items: WbsItem[], targetItemId: string) {
         .filter((item) => parentIds.has(item.id) && !expandedIds.has(item.id))
         .map((item) => item.id),
     ),
-    scrollItemId,
+    scrollItemId: target.id,
   };
 }
 

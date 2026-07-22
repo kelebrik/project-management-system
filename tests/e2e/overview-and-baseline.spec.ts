@@ -1584,7 +1584,7 @@ test("project navigation and current work reflect the structure", async ({ page 
   ).toHaveCount(12);
   await expect
     .poll(async () => {
-      const box = await focusedPackage.boundingBox();
+      const box = await focusedTask.boundingBox();
       return box
         ? Math.abs(box.y + box.height / 2 - page.viewportSize()!.height / 2)
         : Number.POSITIVE_INFINITY;
@@ -1604,7 +1604,7 @@ test("project navigation and current work reflect the structure", async ({ page 
   await expect(distantPackage).toBeInViewport();
   await expect
     .poll(async () => {
-      const box = await focusedPackage.boundingBox();
+      const box = await focusedTask.boundingBox();
       return box
         ? Math.abs(box.y + box.height / 2 - page.viewportSize()!.height / 2)
         : Number.POSITIVE_INFINITY;
