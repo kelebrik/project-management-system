@@ -92,6 +92,6 @@ test("current work focus collapses every unrelated structure branch", () => {
   const focus = focusedWbsBranchState(items, "task-a");
 
   assert.equal(focus?.activeItemId, "task-a");
-  assert.equal(focus?.scrollItemId, "wp-a");
+  assert.equal(focus?.scrollItemId, "task-a");
   assert.deepEqual(focus?.collapsedIds, new Set(["wp-b", "phase-b", "wp-c"]));
 });
