@@ -1,5 +1,5 @@
 import { FileDown, Languages, Maximize2, Minimize2, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
@@ -18,7 +18,11 @@ import {
   WBS_TYPE_EN_LABELS,
   wbsEnglishProjectName,
 } from "../app/wbsEnglishPrint";
-import { resolveDraftPredecessorCode, wbsDraftDisplayLevel } from "../app/wbsTree";
+import {
+  focusedWbsBranchState,
+  resolveDraftPredecessorCode,
+  wbsDraftDisplayLevel,
+} from "../app/wbsTree";
 import type { WbsTableCssProperties } from "../app/uiStyleTypes";
 import type { ProjectCalendarCode, WbsTableColumnKey } from "../app/wbsTable";
 import type { WbsItemStatus, WbsTreeItem } from "../app/domainTypes";
@@ -81,11 +85,14 @@ export function ProjectStructureSection() {
     savingWbsBulk,
     selectedWbsIds,
     setActiveWbsItemId,
+    setCollapsedWbsIds,
     setDraggedWbsColumn,
     setSelectedWbsIds,
     setShowWbsColumnMenu,
+    setShowStructureCriticalPath,
     setWbsDropTargetId,
     setWbsHierarchyLevel,
+    setWbsSort,
     showWbsColumnMenu,
     startWbsColumnDrag,
     startWbsColumnResize,
@@ -108,6 +115,18 @@ export function ProjectStructureSection() {
     wbsUndoStack,
   } = usePageContext();
   const confirm = useConfirm();
+  const [requestedFocusItemId] = useState(() =>
+    new URLSearchParams(window.location.search).get("focusWbs"),
+  );
+  const focusedBranch = useMemo(
+    () =>
+      requestedFocusItemId
+        ? focusedWbsBranchState(project.wbsItems, requestedFocusItemId)
+        : null,
+    [project.wbsItems, requestedFocusItemId],
+  );
+  const appliedFocusItemIdRef = useRef<string | null>(null);
+  const scrolledFocusItemIdRef = useRef<string | null>(null);
 
   const englishProjectName = wbsEnglishProjectName(project.name);
   const englishPrintTitle = `${englishProjectName} - Structure`;
@@ -121,6 +140,47 @@ export function ProjectStructureSection() {
   const [cachedEnglishTranslations] = useState(
     () => loadWbsEnglishTranslationCache(),
   );
+
+  useLayoutEffect(() => {
+    if (
+      !focusedBranch ||
+      appliedFocusItemIdRef.current === focusedBranch.activeItemId
+    ) {
+      return;
+    }
+    appliedFocusItemIdRef.current = focusedBranch.activeItemId;
+    setWbsSort(null);
+    setShowStructureCriticalPath(false);
+    setCollapsedWbsIds(focusedBranch.collapsedIds);
+    setActiveWbsItemId(focusedBranch.activeItemId);
+  }, [
+    focusedBranch,
+    setActiveWbsItemId,
+    setCollapsedWbsIds,
+    setShowStructureCriticalPath,
+    setWbsSort,
+  ]);
+
+  useEffect(() => {
+    if (
+      !focusedBranch ||
+      scrolledFocusItemIdRef.current === focusedBranch.activeItemId
+    ) {
+      return;
+    }
+    const animationFrame = window.requestAnimationFrame(() => {
+      const focusedRow = document.getElementById(
+        `wbs-item-${focusedBranch.scrollItemId}`,
+      );
+      if (!focusedRow) return;
+      scrolledFocusItemIdRef.current = focusedBranch.activeItemId;
+      focusedRow.scrollIntoView({ behavior: "smooth", block: "center" });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("focusWbs");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [focusedBranch, visibleStructureWbsTree]);
   const selectedWbsItemIds = useMemo(
     () => [...selectedWbsIds],
     [selectedWbsIds],
@@ -708,6 +768,7 @@ export function ProjectStructureSection() {
                           return (
                             <div
                               key={item.id}
+                              id={`wbs-item-${item.id}`}
                               className={`wbs-row-stack ${draggedWbsItemId === item.id ? "dragging" : ""} ${wbsDropTargetId === item.id ? "drop-target" : ""}`}
                               onDragOver={(event) => {
                                 if (

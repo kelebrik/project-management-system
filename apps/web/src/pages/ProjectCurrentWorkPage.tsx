@@ -1,4 +1,9 @@
-import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { createCurrentWorkRows } from "../app/currentWorkModel";
 import {
   CURRENT_WORK_COLUMNS,
@@ -10,6 +15,7 @@ import {
 import { date } from "../app/dateUtils";
 import type { WbsItemStatus } from "../app/domainTypes";
 import { wbsStatusLabel } from "../app/labels";
+import { appPathForView } from "../app/routes";
 import { WbsUrlField } from "../components/WbsUrlField";
 import { usePageContext } from "./PageContext";
 
@@ -28,6 +34,7 @@ export function ProjectCurrentWorkPage() {
     isReadOnly,
     isAuthenticated,
     isClosedProject,
+    openView,
     project,
     saveProjectUiState,
     saveWbsDraftPatch,
@@ -42,6 +49,22 @@ export function ProjectCurrentWorkPage() {
   const rows = createCurrentWorkRows(project.wbsItems, wbsDrafts ?? {});
   const gridTemplate = currentWorkGridTemplate(columnWidths);
   const tableMinWidth = currentWorkTableMinWidth(columnWidths);
+
+  const openWorkInStructure = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.button !== 0 ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
+    ) {
+      return;
+    }
+    event.preventDefault();
+    const url = new URL(event.currentTarget.href);
+    window.history.pushState(null, "", `${url.pathname}${url.search}`);
+    openView("project-structure");
+  };
 
   const startColumnResize = (
     columnKey: CurrentWorkColumnKey,
@@ -125,7 +148,16 @@ export function ProjectCurrentWorkPage() {
             >
               <span role="cell">{row.code}</span>
               <span role="cell">{row.workPackage}</span>
-              <span role="cell" className="current-work-title">{row.title}</span>
+              <span role="cell" className="current-work-title">
+                <a
+                  className="current-work-structure-link"
+                  href={`${appPathForView("project-structure", project.code)}?focusWbs=${encodeURIComponent(row.id)}`}
+                  onClick={openWorkInStructure}
+                  title="Открыть работу в Структуре"
+                >
+                  {row.title}
+                </a>
+              </span>
               <span
                 role="cell"
                 className={isReadOnly ? undefined : "current-work-editable-cell"}

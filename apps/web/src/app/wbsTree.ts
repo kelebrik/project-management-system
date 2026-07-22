@@ -106,6 +106,40 @@ export function collapsedWbsIdsForLevel(items: WbsTreeItem[], level: number) {
   );
 }
 
+export function focusedWbsBranchState(items: WbsItem[], targetItemId: string) {
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  const target = itemsById.get(targetItemId);
+  if (!target) return null;
+
+  const expandedIds = new Set<string>();
+  const visitedIds = new Set<string>([target.id]);
+  let scrollItemId = target.id;
+  let parentId = target.parentId;
+  while (parentId && !visitedIds.has(parentId)) {
+    visitedIds.add(parentId);
+    const parent = itemsById.get(parentId);
+    if (!parent) break;
+    expandedIds.add(parent.id);
+    if (parent.type === "WORK_PACKAGE" && scrollItemId === target.id) {
+      scrollItemId = parent.id;
+    }
+    parentId = parent.parentId;
+  }
+
+  const parentIds = new Set(
+    items.map((item) => item.parentId).filter((id): id is string => Boolean(id)),
+  );
+  return {
+    activeItemId: target.id,
+    collapsedIds: new Set(
+      items
+        .filter((item) => parentIds.has(item.id) && !expandedIds.has(item.id))
+        .map((item) => item.id),
+    ),
+    scrollItemId,
+  };
+}
+
 export function setsAreEqual(left: Set<string>, right: Set<string>) {
   if (left.size !== right.size) return false;
   for (const value of left) {
