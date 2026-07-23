@@ -203,12 +203,158 @@ code {
 }
 
 .form-grid label,
-.stack-form label {
+.stack-form label,
+.form-field {
   color: var(--text-muted);
   display: grid;
   font-size: 13px;
   font-weight: 700;
   gap: 6px;
+}
+
+.form-field-label {
+  display: block;
+}
+
+.structure-copy-field {
+  position: relative;
+}
+
+.structure-copy-trigger {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  display: grid;
+  font: inherit;
+  font-weight: 700;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.structure-copy-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.structure-copy-popover {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  gap: 8px;
+  left: 0;
+  padding: 10px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  z-index: 70;
+}
+
+.form-grid .structure-copy-search {
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 0 9px;
+}
+
+.structure-copy-search input {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  min-height: 36px;
+  padding: 0;
+}
+
+.structure-copy-search input:focus {
+  box-shadow: none;
+}
+
+.structure-copy-options {
+  display: grid;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.structure-copy-project {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  padding: 6px 0;
+}
+
+.structure-copy-project:last-child {
+  border-bottom: 0;
+}
+
+.form-grid .structure-copy-project-option,
+.form-grid .structure-copy-phase-option {
+  align-items: center;
+  color: var(--text);
+  display: grid;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 8px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 36px;
+  padding: 5px 7px;
+}
+
+.form-grid .structure-copy-project-option:hover,
+.form-grid .structure-copy-phase-option:hover {
+  background: var(--surface-2);
+}
+
+.structure-copy-project-option input,
+.structure-copy-phase-option input {
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.structure-copy-project-option span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.structure-copy-project-option b,
+.structure-copy-project-option small,
+.structure-copy-phase-option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.structure-copy-project-option small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.form-grid .structure-copy-phase-option {
+  font-weight: 600;
+  padding-left: 27px;
+}
+
+.structure-copy-phase-option:has(input:disabled) {
+  color: var(--text-muted);
+}
+
+.structure-copy-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 14px 8px;
+  text-align: center;
 }
 
 .form-note {

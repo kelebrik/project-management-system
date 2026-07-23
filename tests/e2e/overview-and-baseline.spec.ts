@@ -45,7 +45,9 @@ function projectFixture() {
     progress: 50,
     jiraTicketKey: null,
     jiraTicketUrl: null,
+    mattermostUrl: null,
     description: null,
+    comment: "Проверить результат",
     closedAt: null,
     sortOrder: 10,
   };
@@ -147,7 +149,15 @@ function projectFixture() {
     budgetForecast: "0",
     summary: "",
     sortOrder: 0,
-    uiState: null,
+    uiState: {
+      wbsColumnWidths: {
+        jiraTicketUrl: 220,
+        mattermostUrl: 260,
+      },
+      currentWorkColumnWidths: {
+        workPackage: 180,
+      },
+    },
     jiraIntegration: null,
     targetDateChanges: [],
     wbsItems: [wbsItem],
@@ -199,6 +209,78 @@ async function mockAdminProject(
   return project;
 }
 
+function portfolioProjectFixture(
+  id: string,
+  code: string,
+  name: string,
+  goalTitle: string,
+  problemTitle: string,
+  riskTitle: string,
+) {
+  const project = projectFixture();
+  project.id = id;
+  project.code = code;
+  project.name = name;
+  project.wbsItems = [
+    {
+      ...project.wbsItems[0],
+      id: `${id}-goal`,
+      code: "G.1",
+      title: goalTitle,
+      type: "GOAL",
+      status: "IN_PROGRESS",
+    },
+  ];
+  project.raidItems = [
+    {
+      ...project.raidItems[0],
+      id: `${id}-problem`,
+      type: "DEPENDENCY",
+      title: problemTitle,
+      riskScore: 20,
+    },
+    {
+      ...project.raidItems[0],
+      id: `${id}-risk`,
+      type: "RISK",
+      title: riskTitle,
+      riskScore: 16,
+    },
+  ];
+  return project;
+}
+
+async function mockAdminPortfolio(
+  page: Page,
+  projects: ReturnType<typeof projectFixture>[],
+) {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "admin-1",
+          email: "admin@example.test",
+          name: "Администратор",
+          role: "ADMIN",
+          isActive: true,
+          lastLoginAt: null,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/auth/keycloak/status", (route) =>
+    route.fulfill({ json: { enabled: false, hostname: null } }),
+  );
+  await page.route(/\/api\/projects$/, (route) => route.fulfill({ json: projects }));
+  await page.route(/\/api\/projects\/([^/]+)\/overview$/, (route) => {
+    const projectId = new URL(route.request().url()).pathname.split("/").at(-2);
+    const project = projects.find(({ id }) => id === projectId);
+    return project
+      ? route.fulfill({ json: project })
+      : route.fulfill({ status: 404, json: { error: "Проект не найден" } });
+  });
+}
+
 async function mockReadOnlyProject(page: Page) {
   const project = projectFixture();
   await page.route("**/api/auth/me", (route) =>
@@ -216,7 +298,178 @@ async function mockReadOnlyProject(page: Page) {
   );
 }
 
+async function expectBusinessUnitCalloutToPointAtField(page: Page) {
+  const businessUnitCallout = page.locator(".confirm-business-unit-callout");
+  await expect(businessUnitCallout).toBeVisible();
+  const pointerOffset = async () => {
+    const [businessUnitBox, calloutArrowBox, calloutBox, calloutPlacement, dialogBox] =
+      await Promise.all([
+        page.getByLabel("Портфель").boundingBox(),
+        businessUnitCallout.locator(".confirm-business-unit-callout-arrow").boundingBox(),
+        businessUnitCallout.boundingBox(),
+        businessUnitCallout.getAttribute("data-placement"),
+        page.getByRole("dialog", { name: "Создать проект?" }).boundingBox(),
+      ]);
+    if (!businessUnitBox || !calloutArrowBox || !calloutBox || !dialogBox) {
+      return {
+        overlap: Number.POSITIVE_INFINITY,
+        x: Number.POSITIVE_INFINITY,
+        y: Number.POSITIVE_INFINITY,
+      };
+    }
+    const targetEdge =
+      calloutPlacement === "above"
+        ? businessUnitBox.y
+        : businessUnitBox.y + businessUnitBox.height;
+    const arrowTipY =
+      calloutPlacement === "above" ? calloutArrowBox.y + 20 : calloutArrowBox.y + 4;
+    return {
+      overlap: Math.max(
+        0,
+        Math.min(calloutBox.y + calloutBox.height, dialogBox.y + dialogBox.height) -
+          Math.max(calloutBox.y, dialogBox.y),
+      ),
+      x: Math.abs(
+        calloutArrowBox.x + 9 - (businessUnitBox.x + businessUnitBox.width / 2),
+      ),
+      y: Math.abs(arrowTipY - targetEdge),
+    };
+  };
+  await expect.poll(async () => (await pointerOffset()).x).toBeLessThanOrEqual(1);
+  await expect.poll(async () => (await pointerOffset()).y).toBeLessThanOrEqual(1);
+  await expect.poll(async () => (await pointerOffset()).overlap).toBe(0);
+}
+
 test("project creation confirms the selected business unit for an administrator", async ({
+  page,
+}) => {
+  let createBody: {
+    copyCurrentStructureFrom?: Array<{
+      projectId: string;
+      phaseIds: string[] | null;
+    }>;
+  } | null = null;
+  let createBusinessUnitHeader: string | null = null;
+  await page.route("**/api/business-units", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "business-unit-main",
+          code: "main",
+          name: "TV&Box",
+          isDefault: true,
+          role: "ADMIN",
+          canManage: true,
+          projectCount: 1,
+        },
+        {
+          id: "business-unit-sd",
+          code: "sd",
+          name: "SberDevices",
+          isDefault: false,
+          role: "MEMBER",
+          canManage: false,
+          projectCount: 1,
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/projects/structure-copy-options", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "source-alpha",
+          code: "ALPHA",
+          name: "Проект Альфа",
+          businessUnit: { id: "business-unit-main", name: "TV&Box" },
+          phases: [
+            { id: "phase-analysis", code: "1", title: "Анализ" },
+            { id: "phase-launch", code: "2", title: "Запуск" },
+          ],
+        },
+        {
+          id: "source-beta",
+          code: "BETA",
+          name: "Проект Бета",
+          businessUnit: { id: "business-unit-sd", name: "SberDevices" },
+          phases: [{ id: "phase-delivery", code: "1", title: "Поставка" }],
+        },
+      ],
+    }),
+  );
+  await mockAdminProject(page);
+  await page.route(/\/api\/projects$/, async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    createBody = route.request().postDataJSON() as typeof createBody;
+    createBusinessUnitHeader = route.request().headers()["x-business-unit-id"] ?? null;
+    await route.fulfill({ status: 400, json: { error: "Проверка запроса" } });
+  });
+  await page.goto("/projects");
+
+  await page.getByRole("button", { name: "Создать", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Создать проект" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Создать проект?" })).toBeHidden();
+  await page.getByLabel("Портфель").selectOption("business-unit-sd");
+
+  await page
+    .getByRole("button", { name: "Не копировать, создать тестовую структуру" })
+    .click();
+  const structureSearch = page.getByLabel("Поиск проектов и фаз");
+  await structureSearch.fill("Анализ");
+  await page.getByRole("checkbox", { name: /1 · Анализ/ }).check();
+  await structureSearch.fill("Поставка");
+  await page.getByRole("checkbox", { name: /1 · Поставка/ }).check();
+  await structureSearch.fill("");
+  await expect(page.getByRole("button", { name: "Выбрано: 2" })).toBeVisible();
+  if (process.env.CAPTURE_BUSINESS_UNIT_CONFIRM === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-project-create-structure-desktop.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: "/private/tmp/pms-project-create-structure-mobile.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1280, height: 720 });
+  }
+  await page.getByRole("button", { name: "Выбрано: 2" }).click();
+
+  await page.getByRole("button", { name: "Создать проект", exact: true }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Создать проект?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("SberDevices");
+  await expect(dialog).toContainText("Проверьте выбранный БЮ");
+  await expectBusinessUnitCalloutToPointAtField(page);
+  if (process.env.CAPTURE_BUSINESS_UNIT_CONFIRM === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-business-unit-confirm-desktop.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectBusinessUnitCalloutToPointAtField(page);
+    await page.screenshot({
+      path: "/private/tmp/pms-business-unit-confirm-mobile.png",
+      fullPage: false,
+    });
+  }
+  await dialog.getByRole("button", { name: "Отмена" }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByRole("button", { name: "Создать проект", exact: true }).click();
+  await dialog.getByRole("button", { name: "Создать", exact: true }).click();
+  await expect.poll(() => createBusinessUnitHeader).toBe("business-unit-sd");
+  expect(createBody?.copyCurrentStructureFrom).toEqual([
+    { projectId: "source-alpha", phaseIds: ["phase-analysis"] },
+    { projectId: "source-beta", phaseIds: ["phase-delivery"] },
+  ]);
+});
+
+test("project creation keeps business units available when structure options fail", async ({
   page,
 }) => {
   await page.route("**/api/business-units", (route) =>
@@ -231,32 +484,53 @@ test("project creation confirms the selected business unit for an administrator"
           canManage: true,
           projectCount: 1,
         },
+        {
+          id: "business-unit-sd",
+          code: "sd",
+          name: "SberDevices",
+          isDefault: false,
+          role: "MEMBER",
+          canManage: false,
+          projectCount: 1,
+        },
+        {
+          id: "business-unit-test",
+          code: "test1",
+          name: "test1",
+          isDefault: false,
+          role: "MEMBER",
+          canManage: false,
+          projectCount: 0,
+        },
       ],
     }),
+  );
+  await page.route("**/api/projects/structure-copy-options", (route) =>
+    route.fulfill({ status: 404, json: { error: "Проект не найден" } }),
   );
   await mockAdminProject(page);
   await page.goto("/projects");
 
   await page.getByRole("button", { name: "Создать", exact: true }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Создать проект?" });
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("TV&Box");
-  await expect(dialog).toContainText("нажмите «Отмена»");
-  await expect(page.locator(".confirm-business-unit-callout")).toBeVisible();
-  if (process.env.CAPTURE_BUSINESS_UNIT_CONFIRM === "1") {
-    await page.screenshot({
-      path: "/private/tmp/pms-business-unit-confirm-desktop.png",
-      fullPage: true,
-    });
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({
-      path: "/private/tmp/pms-business-unit-confirm-mobile.png",
-      fullPage: true,
-    });
-  }
-  await dialog.getByRole("button", { name: "Отмена" }).click();
-  await expect(dialog).toBeHidden();
+  const businessUnitSelect = page.getByLabel("Портфель");
+  const businessUnitOptions = businessUnitSelect.locator('option:not([value=""])');
+  await expect(businessUnitOptions).toHaveCount(3);
+  await expect(businessUnitOptions).toHaveText([
+    "TV&Box",
+    "SberDevices",
+    "test1",
+  ]);
+  await expect(page.getByText("Проект не найден", { exact: true })).toHaveCount(0);
+
+  await page
+    .getByRole("button", { name: "Не копировать, создать тестовую структуру" })
+    .click();
+  await expect(
+    page.getByText(
+      "Не удалось загрузить варианты копирования. Проект можно создать без копирования Структуры.",
+    ),
+  ).toBeVisible();
 });
 
 test("Jira work synchronization always uses production", async ({ page }) => {
@@ -624,6 +898,83 @@ test("portfolio and projects show work-day weighted progress", async ({ page }) 
   }
 });
 
+test("portfolio project filter scopes goals problems and risks only", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const first = portfolioProjectFixture(
+    "project-1",
+    "TV-FIRST",
+    "Первый проект",
+    "Первая цель",
+    "Первая проблема",
+    "Первый риск",
+  );
+  const second = portfolioProjectFixture(
+    "project-2",
+    "TV-SECOND",
+    "Второй проект",
+    "Вторая цель",
+    "Вторая проблема",
+    "Второй риск",
+  );
+  await mockAdminPortfolio(page, [first, second]);
+  await page.goto("/portfolio");
+
+  const filter = page.getByTestId("portfolio-project-filter");
+  const summary = filter.locator("summary");
+  await expect(summary).toContainText("Все 2");
+  await expect(filter).not.toHaveClass(/is-filtered/);
+  await expect(page.locator(".portfolio-project-timeline-row")).toHaveCount(2);
+
+  await summary.click();
+  await filter.getByRole("checkbox", { name: /TV-SECOND.*Второй проект/ }).uncheck();
+
+  await expect(summary).toContainText("1 из 2");
+  await expect(filter).toHaveClass(/is-filtered/);
+  await expect(page.getByText("Вторая цель", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Вторая проблема", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Второй риск", { exact: true })).toHaveCount(0);
+  await expect(
+    page.locator(".projects-overview-card", { hasText: "Второй проект" }),
+  ).toBeVisible();
+
+  const popover = filter.locator(".portfolio-project-filter-popover");
+  const desktopBox = await popover.boundingBox();
+  expect(desktopBox).not.toBeNull();
+  expect(desktopBox!.x).toBeGreaterThanOrEqual(0);
+  expect(desktopBox!.x + desktopBox!.width).toBeLessThanOrEqual(1440);
+  if (process.env.CAPTURE_PORTFOLIO_FILTER === "1") {
+    await page.locator(".portfolio-goal-timeline-panel").screenshot({
+      path: "/private/tmp/pms-portfolio-filter-desktop.png",
+    });
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await summary.scrollIntoViewIfNeeded();
+  const mobileBox = await popover.boundingBox();
+  expect(mobileBox).not.toBeNull();
+  expect(mobileBox!.x).toBeGreaterThanOrEqual(0);
+  expect(mobileBox!.x + mobileBox!.width).toBeLessThanOrEqual(390);
+  if (process.env.CAPTURE_PORTFOLIO_FILTER === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-portfolio-filter-mobile.png",
+    });
+  }
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+
+  await filter.getByRole("button", { name: "Снять все" }).click();
+  await expect(summary).toContainText("0 из 2");
+  await expect(
+    page.getByText("Для отображения не выбран ни один проект."),
+  ).toHaveCount(3);
+  await expect(page.locator(".projects-overview-card")).toHaveCount(2);
+
+  await filter.getByRole("button", { name: "Выбрать все" }).click();
+  await expect(summary).toContainText("Все 2");
+  await expect(filter).not.toHaveClass(/is-filtered/);
+  await expect(page.locator(".portfolio-project-timeline-row")).toHaveCount(2);
+});
+
 test("risk page keeps the color matrix visible", async ({ page }) => {
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/risks");
@@ -728,7 +1079,6 @@ test("WBS deletion uses one in-app confirmation without a browser dialog", async
       },
     });
   });
-
   await page.goto("/TV-OVERVIEW/wbs");
   await page
     .getByRole("button", { name: "Удалить строку Структуры" })
@@ -952,6 +1302,334 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
       fullPage: true,
     });
   }
+});
+
+test("project navigation and current work reflect the structure", async ({ page }) => {
+  let savedPatch: Record<string, unknown> | null = null;
+  let savedCurrentWorkWidths: Record<string, number> | null = null;
+  let renumberRequests = 0;
+  const project = await mockAdminProject(page, (project) => {
+    project.wbsItems.unshift({
+      ...project.wbsItems[0],
+      id: "work-package-1",
+      parentId: null,
+      code: "1",
+      title: "Пакет интеграции",
+      type: "WORK_PACKAGE",
+      comment: null,
+    });
+    project.wbsItems[1].parentId = "work-package-1";
+    project.wbsItems[1].jiraTicketUrl = "https://tasks.sberdevices.ru/browse/TV-1";
+    project.wbsItems[1].mattermostUrl = "https://mm.sberdevices.ru/channel/thread";
+    for (let index = 1; index <= 12; index += 1) {
+      project.wbsItems.push(
+        {
+          ...project.wbsItems[0],
+          id: `unrelated-package-${index}`,
+          parentId: null,
+          code: `${index + 1}`,
+          title: `Посторонний пакет ${index}`,
+          type: "WORK_PACKAGE",
+          comment: null,
+        },
+        {
+          ...project.wbsItems[1],
+          id: `unrelated-task-${index}`,
+          parentId: `unrelated-package-${index}`,
+          code: `${index + 1}.1`,
+          title: `Посторонняя работа ${index}`,
+          status: "CANCELLED",
+          jiraTicketUrl: null,
+          mattermostUrl: null,
+        },
+      );
+    }
+  });
+  await page.route("**/api/wbs-items/wbs-1", async (route) => {
+    savedPatch = route.request().postDataJSON() as Record<string, unknown>;
+    Object.assign(project.wbsItems[1], savedPatch);
+    await route.fulfill({
+      json: {
+        item: project.wbsItems[1],
+        wbsItems: project.wbsItems,
+        wbsDependencies: [],
+        criticalPath: null,
+      },
+    });
+  });
+  await page.route(/\/api\/projects\/project-1\/wbs-items\/renumber$/, (route) => {
+    renumberRequests += 1;
+    return route.fulfill({
+      json: {
+        wbsItems: project.wbsItems,
+        wbsDependencies: [],
+        criticalPath: null,
+      },
+    });
+  });
+  await page.route("**/api/projects/project-1", async (route) => {
+    const body = route.request().postDataJSON() as {
+      uiState?: { currentWorkColumnWidths?: Record<string, number> };
+    };
+    savedCurrentWorkWidths = body.uiState?.currentWorkColumnWidths ?? null;
+    await route.fulfill({ json: { id: project.id, uiState: body.uiState } });
+  });
+  await page.goto("/TV-OVERVIEW/current-work");
+
+  const projectPickerTrigger = page.getByRole("button", {
+    name: /Проект TV-OVERVIEW\. Открыть список проектов/,
+  });
+  await expect(projectPickerTrigger).toHaveText(/TV-OVERVIEW/);
+  await expect(projectPickerTrigger).not.toContainText(project.name);
+  expect(
+    await projectPickerTrigger.locator("span").evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await projectPickerTrigger.evaluate((element) => element.getBoundingClientRect().width),
+  ).toBeLessThanOrEqual(168);
+
+  const projectNav = page.getByRole("navigation", { name: "Разделы проекта" });
+  const orderedLabels = [
+    "Состояние",
+    "График",
+    "Гантт",
+    "Требования",
+    "Паспорт",
+    "Текучка",
+    "Структура",
+  ];
+  const tabPositions = await Promise.all(
+    orderedLabels.map(async (label) => {
+      const tab = projectNav.getByRole("button", { name: label, exact: true });
+      await expect(tab).toBeVisible();
+      return (await tab.boundingBox())?.x ?? 0;
+    }),
+  );
+  expect(tabPositions).toEqual([...tabPositions].sort((left, right) => left - right));
+  const currentWork = page.getByRole("table", { name: "Текучка проекта" });
+  await expect(currentWork).toContainText("1.1");
+  await expect(currentWork).toContainText("1 Пакет интеграции");
+  const workPackageHeader = currentWork.getByRole("columnheader", {
+    name: /^Пакет работ/,
+  });
+  const initialWorkPackageWidth = await workPackageHeader.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  const resizeHandle = page.getByRole("button", {
+    name: "Изменить ширину колонки Пакет работ",
+  });
+  const resizeHandleBox = await resizeHandle.boundingBox();
+  expect(resizeHandleBox).not.toBeNull();
+  if (resizeHandleBox) {
+    await page.mouse.move(
+      resizeHandleBox.x + resizeHandleBox.width / 2,
+      resizeHandleBox.y + resizeHandleBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(resizeHandleBox.x - 45, resizeHandleBox.y + 4);
+    await page.mouse.up();
+  }
+  await expect
+    .poll(() => savedCurrentWorkWidths?.workPackage ?? initialWorkPackageWidth)
+    .toBeLessThan(initialWorkPackageWidth);
+  const resizedWorkPackageWidth = await workPackageHeader.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  expect(resizedWorkPackageWidth).toBeLessThan(initialWorkPackageWidth);
+  expect(
+    Math.abs(
+      resizedWorkPackageWidth -
+        (savedCurrentWorkWidths?.workPackage ?? resizedWorkPackageWidth),
+    ),
+  ).toBeLessThanOrEqual(1);
+  const titleHeader = currentWork.getByRole("columnheader", {
+    name: /^Наименование/,
+  });
+  const initialTitleWidth = await titleHeader.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  const titleResizeHandle = page.getByRole("button", {
+    name: "Изменить ширину колонки Наименование",
+  });
+  const titleResizeHandleBox = await titleResizeHandle.boundingBox();
+  expect(titleResizeHandleBox).not.toBeNull();
+  if (titleResizeHandleBox) {
+    await page.mouse.move(
+      titleResizeHandleBox.x + titleResizeHandleBox.width / 2,
+      titleResizeHandleBox.y + titleResizeHandleBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(titleResizeHandleBox.x - 50, titleResizeHandleBox.y + 4);
+    await page.mouse.up();
+  }
+  await expect
+    .poll(() => savedCurrentWorkWidths?.title ?? initialTitleWidth)
+    .toBeLessThan(initialTitleWidth);
+  const resizedTitleWidth = await titleHeader.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  expect(resizedTitleWidth).toBeLessThan(initialTitleWidth);
+  expect(
+    Math.abs(
+      resizedTitleWidth - (savedCurrentWorkWidths?.title ?? resizedTitleWidth),
+    ),
+  ).toBeLessThanOrEqual(1);
+  await expect(page.getByLabel("Комментарий 1.1")).toHaveValue("Проверить результат");
+  const commentInput = page.getByLabel("Комментарий 1.1");
+  for (const editor of [
+    page.getByLabel("Статус 1.1"),
+    page.getByLabel("Срок 1.1"),
+    page.getByLabel("Исполнитель 1.1"),
+    commentInput,
+  ]) {
+    await expect(editor).toHaveCSS("border-top-width", "0px");
+    await expect(editor).toHaveCSS("border-radius", "0px");
+    await expect(editor).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  }
+  await expect(commentInput).toHaveAttribute("rows", "3");
+  await expect(commentInput).toHaveAttribute("wrap", "soft");
+  await expect(commentInput).toHaveCSS("min-height", "62px");
+  await expect(commentInput).toHaveCSS("padding-top", "4px");
+  await expect(commentInput).toHaveCSS("padding-bottom", "4px");
+  await expect(commentInput).toHaveCSS("overflow-y", "auto");
+  await expect(commentInput).toHaveCSS("resize", "none");
+  await expect(commentInput).toHaveCSS("overflow-wrap", "anywhere");
+  const commentCellGaps = await commentInput.evaluate((element) => {
+    const field = element.getBoundingClientRect();
+    const cell = element.parentElement?.getBoundingClientRect();
+    return cell
+      ? { top: field.top - cell.top, bottom: cell.bottom - field.bottom }
+      : null;
+  });
+  expect(commentCellGaps).not.toBeNull();
+  expect(Math.abs(commentCellGaps?.top ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(1);
+  expect(Math.abs(commentCellGaps?.bottom ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(1);
+  await commentInput.locator("..").click();
+  await expect(commentInput).toBeFocused();
+  await commentInput.fill("Новый комментарий\nВторая строка\nТретья строка");
+  await commentInput.blur();
+  await expect.poll(() => savedPatch?.comment).toBe(
+    "Новый комментарий\nВторая строка\nТретья строка",
+  );
+  await expect(page.getByLabel("Статус 1.1")).toBeEnabled();
+  await expect(page.getByLabel("Срок 1.1")).toBeEnabled();
+  await expect(page.getByLabel("Исполнитель 1.1")).toBeEnabled();
+  await expect(page.getByRole("link", { name: "Jira", exact: true })).toHaveAttribute(
+    "href",
+    "https://tasks.sberdevices.ru/browse/TV-1",
+  );
+  await expect(page.getByRole("link", { name: "MM", exact: true })).toHaveAttribute(
+    "href",
+    "https://mm.sberdevices.ru/channel/thread",
+  );
+  await page.getByRole("button", { name: "Изменить ссылку MM 1.1" }).click();
+  let mmInput = page.getByLabel("Ссылка MM 1.1");
+  await mmInput.fill("https://mm.sberdevices.ru.evil.test/channel");
+  await expect(mmInput).toHaveAttribute("aria-invalid", "true");
+  await mmInput.blur();
+  await expect(page.getByRole("link", { name: "MM", exact: true })).toHaveAttribute(
+    "href",
+    "https://mm.sberdevices.ru/channel/thread",
+  );
+  await page.getByRole("button", { name: "Изменить ссылку MM 1.1" }).click();
+  mmInput = page.getByLabel("Ссылка MM 1.1");
+  await mmInput.fill("https://mm.sberdevices.ru/team/channel");
+  await mmInput.blur();
+  await expect.poll(() => savedPatch?.mattermostUrl).toBe(
+    "https://mm.sberdevices.ru/team/channel",
+  );
+  await expect.poll(() => renumberRequests).toBeGreaterThan(0);
+  if (process.env.CAPTURE_CURRENT_WORK === "1") {
+    await currentWork.evaluate((element) => {
+      element.scrollLeft = 0;
+    });
+    await page.screenshot({
+      path: "/private/tmp/pms-current-work-desktop.png",
+      fullPage: true,
+    });
+    await currentWork.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+    await page.screenshot({
+      path: "/private/tmp/pms-current-work-links-desktop.png",
+      fullPage: true,
+    });
+    await currentWork.evaluate((element) => {
+      element.scrollLeft = 0;
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: "/private/tmp/pms-current-work-mobile.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1280, height: 720 });
+  }
+
+  await currentWork.getByRole("link", { name: "Тестовая задача", exact: true }).click();
+  await expect(page).toHaveURL("/TV-OVERVIEW/wbs");
+  const focusedPackage = page.locator("#wbs-item-work-package-1");
+  const focusedTask = page.locator("#wbs-item-wbs-1");
+  await expect(focusedPackage).toBeVisible();
+  await expect(focusedTask).toBeVisible();
+  await expect(
+    focusedPackage.getByRole("button", { name: "Схлопнуть элемент Структуры" }),
+  ).toBeVisible();
+  await expect(focusedTask.locator(".wbs-table-row")).toHaveClass(/active/);
+  await expect(page.locator("#wbs-item-unrelated-package-1")).toBeVisible();
+  await expect(page.locator("#wbs-item-unrelated-task-1")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Раскрыть элемент Структуры" }),
+  ).toHaveCount(12);
+  await expect
+    .poll(async () => {
+      const box = await focusedTask.boundingBox();
+      return box
+        ? Math.abs(box.y + box.height / 2 - page.viewportSize()!.height / 2)
+        : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(80);
+  if (process.env.CAPTURE_CURRENT_WORK === "1") {
+    await page.screenshot({
+      path: "/private/tmp/pms-current-work-structure-focus.png",
+      fullPage: false,
+    });
+  }
+  const distantPackage = page.locator("#wbs-item-unrelated-package-12");
+  await distantPackage
+    .getByRole("button", { name: "Раскрыть элемент Структуры" })
+    .click();
+  await expect(page.locator("#wbs-item-unrelated-task-12")).toBeVisible();
+  await expect(distantPackage).toBeInViewport();
+  await expect
+    .poll(async () => {
+      const box = await focusedTask.boundingBox();
+      return box
+        ? Math.abs(box.y + box.height / 2 - page.viewportSize()!.height / 2)
+        : Number.POSITIVE_INFINITY;
+    })
+    .toBeGreaterThan(150);
+  await expect(page.getByText("Сводка по работам", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Комментарий", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Jira URL", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "MM", exact: true })).toBeVisible();
+  const jiraHeaderWidth = await page
+    .getByRole("columnheader", { name: /^Jira URL/ })
+    .evaluate((element) => element.getBoundingClientRect().width);
+  const mmHeaderWidth = await page
+    .getByRole("columnheader", { name: /^MM/ })
+    .evaluate((element) => element.getBoundingClientRect().width);
+  expect(jiraHeaderWidth).toBeLessThanOrEqual(89);
+  expect(mmHeaderWidth).toBeLessThanOrEqual(77);
+  await expect(page.getByRole("link", { name: "Jira", exact: true })).toHaveAttribute(
+    "href",
+    "https://tasks.sberdevices.ru/browse/TV-1",
+  );
+  await expect(page.getByRole("link", { name: "MM", exact: true })).toHaveAttribute(
+    "href",
+    "https://mm.sberdevices.ru/team/channel",
+  );
 });
 
 function countPdfPages(pdf: Buffer) {

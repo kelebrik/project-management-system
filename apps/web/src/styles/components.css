@@ -14,23 +14,34 @@
 }
 
 .confirm-business-unit-callout {
-  align-items: flex-start;
   background: var(--inverse-surface);
   border-radius: var(--radius-sm);
+  box-sizing: border-box;
   color: var(--on-inverse);
-  display: flex;
   font-size: var(--fs-sm);
   font-weight: 700;
-  gap: 6px;
   padding: 8px 10px;
   pointer-events: none;
   position: fixed;
+  width: min(248px, calc(100vw - 24px));
   z-index: 1;
 }
 
-.confirm-business-unit-callout svg {
-  flex: none;
-  margin-top: -5px;
+.confirm-business-unit-callout-arrow {
+  position: absolute;
+  top: -20px;
+}
+
+.confirm-business-unit-callout[data-placement="above"]
+  .confirm-business-unit-callout-arrow {
+  bottom: -20px;
+  top: auto;
+}
+
+@media (max-width: 640px) {
+  .confirm-overlay.has-callout {
+    align-items: flex-end;
+  }
 }
 
 .confirm-dialog {

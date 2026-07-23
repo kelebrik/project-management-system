@@ -1,6 +1,17 @@
+import { useMemo, useState } from "react";
+import { AlertTriangle, ChevronDown } from "lucide-react";
 import { signedDaysUntil } from "../app/dateUtils";
 import type { ProjectListItem } from "../app/domainTypes";
-import type { PortfolioRedRaidItem, PortfolioRedRaidProject } from "../app/portfolioModels";
+import type {
+  PortfolioGoalTimelineProjectRow,
+  PortfolioRedRaidItem,
+  PortfolioRedRaidProject,
+} from "../app/portfolioModels";
+import {
+  createPortfolioProjectFilterOptions,
+  filterPortfolioRowsByProject,
+  selectedPortfolioProjectIds,
+} from "../app/portfolioProjectFilter";
 import { usePageContext } from "./PageContext";
 import { ProjectsOverview } from "./ProjectsOverview";
 
@@ -21,6 +32,9 @@ function dueDateLabel(dueDate: string | null) {
 }
 
 export function PortfolioPage() {
+  const [excludedProjectIds, setExcludedProjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const ctx = usePageContext();
   const {
     date,
@@ -32,9 +46,45 @@ export function PortfolioPage() {
     visiblePortfolioProblemProjects,
     visiblePortfolioRiskProjects,
   } = ctx;
-  const timelineRows = portfolioGoalTimeline.projectRows;
-  const visibleProblemProjects = visiblePortfolioProblemProjects;
-  const visibleRiskProjects = visiblePortfolioRiskProjects;
+  const projectFilterOptions = useMemo(
+    () => createPortfolioProjectFilterOptions(projects as ProjectListItem[]),
+    [projects],
+  );
+  const selectedProjectIds = useMemo(
+    () => selectedPortfolioProjectIds(projectFilterOptions, excludedProjectIds),
+    [excludedProjectIds, projectFilterOptions],
+  );
+  const timelineRows = filterPortfolioRowsByProject<PortfolioGoalTimelineProjectRow>(
+    portfolioGoalTimeline.projectRows,
+    selectedProjectIds,
+  );
+  const visibleProblemProjects = filterPortfolioRowsByProject<PortfolioRedRaidProject>(
+    visiblePortfolioProblemProjects,
+    selectedProjectIds,
+  );
+  const visibleRiskProjects = filterPortfolioRowsByProject<PortfolioRedRaidProject>(
+    visiblePortfolioRiskProjects,
+    selectedProjectIds,
+  );
+  const projectCount = projectFilterOptions.length;
+  const selectedProjectCount = selectedProjectIds.size;
+  const isProjectFilterActive = selectedProjectCount < projectCount;
+  const noProjectsSelected = projectCount > 0 && selectedProjectCount === 0;
+
+  const toggleProject = (projectId: string, checked: boolean) => {
+    setExcludedProjectIds((current) => {
+      const next = new Set(current);
+      if (checked) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  };
+
+  const projectFilterStatus = projectCount === 0
+    ? "Нет проектов"
+    : isProjectFilterActive
+      ? `${selectedProjectCount} из ${projectCount}`
+      : `Все ${projectCount}`;
 
   const openRaidItem = (item: PortfolioRedRaidItem) => {
     openRaidItemFromOverview(item.id, item.type, item.projectId);
@@ -50,7 +100,11 @@ export function PortfolioPage() {
     return (
       <div className="portfolio-raid-projects">
         {projects.map((project) => (
-          <section className="portfolio-raid-project" key={project.projectId}>
+          <section
+            className="portfolio-raid-project"
+            data-project-id={project.projectId}
+            key={project.projectId}
+          >
             <div className="portfolio-raid-project-title">
               <b>{project.projectName}</b>
               <span>{project.items.length}</span>
@@ -104,13 +158,92 @@ export function PortfolioPage() {
               <h2>Цели проектов</h2>
               <p>Отдельная шкала целей ИСР для каждого активного проекта</p>
             </div>
+            <details
+              className={`portfolio-project-filter ${
+                isProjectFilterActive ? "is-filtered" : ""
+              }`}
+              data-testid="portfolio-project-filter"
+            >
+              <summary
+                aria-label={`Проекты для отображения: показано ${selectedProjectCount} из ${projectCount}`}
+              >
+                {isProjectFilterActive && (
+                  <AlertTriangle aria-hidden="true" size={15} />
+                )}
+                <span>Проекты для отображения</span>
+                <strong>{projectFilterStatus}</strong>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="portfolio-project-filter-chevron"
+                  size={15}
+                />
+              </summary>
+              <div className="portfolio-project-filter-popover">
+                <div className="portfolio-project-filter-actions">
+                  <button
+                    type="button"
+                    disabled={selectedProjectCount === projectCount}
+                    onClick={() => setExcludedProjectIds(new Set())}
+                  >
+                    Выбрать все
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedProjectCount === 0 || projectCount === 0}
+                    onClick={() =>
+                      setExcludedProjectIds(
+                        new Set(projectFilterOptions.map(({ id }) => id)),
+                      )
+                    }
+                  >
+                    Снять все
+                  </button>
+                </div>
+                <div
+                  className="portfolio-project-filter-list"
+                  role="group"
+                  aria-label="Проекты портфеля"
+                >
+                  {projectFilterOptions.map((project) => (
+                    <label key={project.id}>
+                      <input
+                        type="checkbox"
+                        checked={selectedProjectIds.has(project.id)}
+                        onChange={(event) =>
+                          toggleProject(project.id, event.currentTarget.checked)
+                        }
+                      />
+                      <span>
+                        <b>{project.code}</b>
+                        <small>{project.name}</small>
+                      </span>
+                    </label>
+                  ))}
+                  {projectFilterOptions.length === 0 && (
+                    <p>Активных проектов нет.</p>
+                  )}
+                </div>
+                <div
+                  className="portfolio-project-filter-status"
+                  role="status"
+                  aria-live="polite"
+                >
+                  Показано {selectedProjectCount} из {projectCount}
+                </div>
+              </div>
+            </details>
           </div>
-          {timelineRows.length > 0 ? (
+          {noProjectsSelected ? (
+            <div className="empty-state compact">
+              Для отображения не выбран ни один проект.
+            </div>
+          ) : timelineRows.length > 0 ? (
             <div className="portfolio-goal-timeline">
               <div className="portfolio-project-timelines">
                 {timelineRows.map((row) => (
                   <section
                     className="portfolio-project-timeline-row"
+                    data-project-id={row.projectId}
                     key={row.projectId}
                   >
                     <button
@@ -229,7 +362,9 @@ export function PortfolioPage() {
           </div>
           {renderRaidProjects(
             visibleProblemProjects,
-            "Блокирующих проблем нет.",
+            noProjectsSelected
+              ? "Для отображения не выбран ни один проект."
+              : "Блокирующих проблем нет.",
           )}
         </article>
 
@@ -242,7 +377,9 @@ export function PortfolioPage() {
           </div>
           {renderRaidProjects(
             visibleRiskProjects,
-            "Ключевых рисков нет.",
+            noProjectsSelected
+              ? "Для отображения не выбран ни один проект."
+              : "Ключевых рисков нет.",
           )}
         </article>
       </section>

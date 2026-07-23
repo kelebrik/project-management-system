@@ -59,3 +59,16 @@ export function isHttpsUrl(value: string) {
     return false;
   }
 }
+
+export function isMattermostUrl(value: string) {
+  if (!value.trim()) return true;
+  try {
+    const url = new URL(value.trim());
+    return (
+      url.protocol === "https:" &&
+      url.hostname.toLowerCase() === "mm.sberdevices.ru"
+    );
+  } catch {
+    return false;
+  }
+}

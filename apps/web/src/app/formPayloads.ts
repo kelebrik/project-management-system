@@ -6,10 +6,10 @@ import type {
 } from "./formState";
 
 export function projectPayload(form: ProjectFormState) {
+  const { businessUnitId: _businessUnitId, ...payload } = form;
   return {
-    ...form,
+    ...payload,
     parentId: form.parentId || null,
-    copyBaselineFromProjectId: form.copyBaselineFromProjectId || null,
     budgetPlanned: Number(form.budgetPlanned),
     budgetForecast: Number(form.budgetForecast),
     scheduleVariance: Number(form.scheduleVariance),

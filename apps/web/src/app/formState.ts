@@ -26,7 +26,11 @@ import type { ProjectCalendarCode, WbsPredecessorTiming } from "./wbsTable";
 
 export type ProjectFormState = {
   parentId: string;
-  copyBaselineFromProjectId: string;
+  businessUnitId: string;
+  copyCurrentStructureFrom: Array<{
+    projectId: string;
+    phaseIds: string[] | null;
+  }>;
   code: string;
   name: string;
   portfolio: string;
@@ -97,7 +101,9 @@ export type WbsFormState = {
   progress: string;
   jiraTicketKey: string;
   jiraTicketUrl: string;
+  mattermostUrl: string;
   description: string;
+  comment: string;
   sortOrder: string;
 };
 
@@ -245,7 +251,8 @@ export const emptyIssueForm: IssueFormState = {
 
 const emptyProjectForm: ProjectFormState = {
   parentId: "",
-  copyBaselineFromProjectId: "",
+  businessUnitId: "",
+  copyCurrentStructureFrom: [],
   code: "",
   name: "",
   portfolio: "",
@@ -458,7 +465,9 @@ export function wbsToForm(
     progress: String(item.progress),
     jiraTicketKey: item.jiraTicketKey ?? "",
     jiraTicketUrl: item.jiraTicketUrl ?? "",
+    mattermostUrl: item.mattermostUrl ?? "",
     description: item.description ?? "",
+    comment: item.comment ?? "",
     sortOrder: String(item.sortOrder),
   };
 }

@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AlertTriangle, CornerLeftUp } from "lucide-react";
+import { AlertTriangle, CornerLeftDown, CornerLeftUp } from "lucide-react";
 import {
   ConfirmContext,
   type ConfirmFn,
@@ -29,50 +29,87 @@ function ConfirmDialog({
 }) {
   const containerRef = useFocusTrap<HTMLDivElement>(true, onCancel);
   const tone = options.tone ?? "danger";
-  const [businessUnitCalloutPosition, setBusinessUnitCalloutPosition] = useState<{
+  const [calloutPosition, setCalloutPosition] = useState<{
+    arrowLeft: number;
+    bottom?: number;
     left: number;
-    top: number;
+    placement: "above" | "below";
+    top?: number;
   } | null>(null);
 
   useLayoutEffect(() => {
-    if (!options.highlightBusinessUnit) return;
+    if (!options.callout) return;
+    const target = document.querySelector<HTMLElement>(options.callout.selector);
+    if (!target) return;
     const updatePosition = () => {
-      const switcher = document.querySelector<HTMLElement>(
-        ".business-unit-switcher",
+      const rect = target.getBoundingClientRect();
+      const targetCenter = rect.left + rect.width / 2;
+      const calloutWidth = Math.min(248, window.innerWidth - 24);
+      const left = Math.max(
+        12,
+        Math.min(window.innerWidth - calloutWidth - 12, targetCenter - 19),
       );
-      if (!switcher) {
-        setBusinessUnitCalloutPosition(null);
-        return;
-      }
-      const rect = switcher.getBoundingClientRect();
-      setBusinessUnitCalloutPosition({
-        left: Math.max(
-          12,
-          Math.min(window.innerWidth - 260, rect.left + rect.width / 2 - 12),
-        ),
-        top: rect.bottom + 8,
+      const belowTop = rect.bottom + 16;
+      const placeAbove = rect.top >= 76;
+      setCalloutPosition({
+        arrowLeft: targetCenter - left - 9,
+        ...(placeAbove
+          ? { bottom: window.innerHeight - rect.top + 16 }
+          : { top: belowTop }),
+        left,
+        placement: placeAbove ? "above" : "below",
       });
     };
     updatePosition();
-    window.addEventListener("resize", updatePosition);
-    return () => window.removeEventListener("resize", updatePosition);
-  }, [options.highlightBusinessUnit]);
+    let animationFrame = 0;
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(updatePosition);
+    };
+    const resizeObserver = new ResizeObserver(scheduleUpdate);
+    resizeObserver.observe(target);
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [containerRef, options.callout]);
 
   return (
     <div
-      className="confirm-overlay"
+      className={`confirm-overlay${options.callout ? " has-callout" : ""}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCancel();
       }}
     >
-      {options.highlightBusinessUnit && businessUnitCalloutPosition && (
+      {options.callout && calloutPosition && (
         <div
           className="confirm-business-unit-callout"
           aria-hidden="true"
-          style={businessUnitCalloutPosition}
+          data-placement={calloutPosition.placement}
+          style={{
+            bottom: calloutPosition.bottom,
+            left: calloutPosition.left,
+            top: calloutPosition.top,
+          }}
         >
-          <CornerLeftUp size={24} strokeWidth={2} />
-          <span>Отмените и смените БЮ здесь</span>
+          {calloutPosition.placement === "above" ? (
+            <CornerLeftDown
+              className="confirm-business-unit-callout-arrow"
+              size={24}
+              strokeWidth={2}
+              style={{ left: calloutPosition.arrowLeft }}
+            />
+          ) : (
+            <CornerLeftUp
+              className="confirm-business-unit-callout-arrow"
+              size={24}
+              strokeWidth={2}
+              style={{ left: calloutPosition.arrowLeft }}
+            />
+          )}
+          <span>{options.callout.message}</span>
         </div>
       )}
       <div

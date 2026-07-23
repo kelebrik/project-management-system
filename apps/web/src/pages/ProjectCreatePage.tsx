@@ -1,7 +1,15 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { usePageContext } from "./PageContext";
 import { FieldError } from "../components/FieldError";
 import type { RagStatus } from "../app/domainTypes";
+import { apiClient } from "../api/client";
+import { selectedBusinessUnitId } from "../app/businessUnitContext";
+import {
+  businessUnitForProjectCreation,
+  type BusinessUnitOption,
+} from "../app/projectCreation";
+import type { ProjectStructureCopyOption } from "../app/projectStructureCopy";
+import { ProjectStructureCopyField } from "../components/ProjectStructureCopyField";
 
 export function ProjectCreatePage() {
   const ctx = usePageContext();
@@ -10,20 +18,85 @@ export function ProjectCreatePage() {
     createProject,
     newProjectForm,
     ragOptionLabel,
+    setError,
     setNewProjectForm,
   } = ctx;
 
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnitOption[]>([]);
+  const [copyOptions, setCopyOptions] = useState<ProjectStructureCopyOption[]>([]);
+  const [copyOptionsError, setCopyOptionsError] = useState<string | null>(null);
+  const [isLoadingOptions, setIsLoadingOptions] = useState(true);
+
   const [formErrors, setFormErrors] = useState<{
+    businessUnitId?: string;
     code?: string;
     name?: string;
   }>({});
 
+  useEffect(() => {
+    let cancelled = false;
+    void apiClient
+      .get<BusinessUnitOption[]>(
+        "/api/business-units",
+        "Не удалось загрузить бизнес-юниты",
+      )
+      .then((units) => {
+        if (cancelled) return;
+        setBusinessUnits(units);
+        setNewProjectForm((current) => {
+          const selectedUnit = businessUnitForProjectCreation(
+            units,
+            current.businessUnitId || selectedBusinessUnitId(),
+          );
+          if (!selectedUnit || current.businessUnitId === selectedUnit.id) return current;
+          return {
+            ...current,
+            businessUnitId: selectedUnit.id,
+            portfolio: selectedUnit.name,
+          };
+        });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setError(
+            error instanceof Error ? error.message : "Не удалось загрузить бизнес-юниты",
+          );
+        }
+      });
+
+    void apiClient
+      .get<ProjectStructureCopyOption[]>(
+        "/api/projects/structure-copy-options",
+        "Не удалось загрузить текущие Структуры проектов",
+      )
+      .then((structures) => {
+        if (cancelled) return;
+        setCopyOptions(structures);
+        setCopyOptionsError(null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCopyOptionsError(
+            "Не удалось загрузить варианты копирования. Проект можно создать без копирования Структуры.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingOptions(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [setError, setNewProjectForm]);
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    const nextErrors: { code?: string; name?: string } = {};
+    const nextErrors: { businessUnitId?: string; code?: string; name?: string } = {};
     if (!newProjectForm.code.trim()) nextErrors.code = "Укажите код проекта";
     if (!newProjectForm.name.trim())
       nextErrors.name = "Укажите наименование проекта";
-    if (nextErrors.code || nextErrors.name) {
+    if (!newProjectForm.businessUnitId)
+      nextErrors.businessUnitId = "Выберите бизнес-юнит";
+    if (nextErrors.code || nextErrors.name || nextErrors.businessUnitId) {
       event.preventDefault();
       setFormErrors(nextErrors);
       return;
@@ -100,31 +173,26 @@ export function ProjectCreatePage() {
                         message={formErrors.name}
                       />
                     </label>
-                    <div className="form-section-title span-2">Базовый план</div>
-                    <label className="span-2">
-                      Скопировать из проекта
-                      <select
-                        value={newProjectForm.copyBaselineFromProjectId}
-                        onChange={(event) =>
+                    <div className="form-section-title span-2">Структура</div>
+                    <div className="form-field span-2">
+                      <span className="form-field-label">Скопировать из проекта</span>
+                      <ProjectStructureCopyField
+                        error={copyOptionsError}
+                        isLoading={isLoadingOptions}
+                        options={copyOptions}
+                        value={newProjectForm.copyCurrentStructureFrom}
+                        onChange={(copyCurrentStructureFrom) =>
                           setNewProjectForm({
                             ...newProjectForm,
-                            copyBaselineFromProjectId: event.target.value,
+                            copyCurrentStructureFrom,
                           })
                         }
-                      >
-                        <option value="">Не копировать, создать тестовую структуру</option>
-                        {activeProjectTree.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {"- ".repeat(item.level)}
-                            {item.code} - {item.name}
-                          </option>
-                        ))}
-                      </select>
+                      />
                       <span className="form-note">
-                        Новый проект получит структуру, связи, даты и календари
-                        из последнего активного базового плана выбранного проекта.
+                        Можно выбрать несколько проектов или отдельных фаз. Будут
+                        скопированы текущая Структура, даты и внутренние связи.
                       </span>
-                    </label>
+                    </div>
                     <label>
                       Родительский проект
                       <select
@@ -137,12 +205,16 @@ export function ProjectCreatePage() {
                         }
                       >
                         <option value="">Корень</option>
-                        {activeProjectTree.map((item) => (
+                        {activeProjectTree
+                          .filter(
+                            (item) => item.businessUnitId === newProjectForm.businessUnitId,
+                          )
+                          .map((item) => (
                           <option key={item.id} value={item.id}>
                             {"- ".repeat(item.level)}
                             {item.code} - {item.name}
                           </option>
-                        ))}
+                          ))}
                       </select>
                     </label>
                     <label>
@@ -159,17 +231,41 @@ export function ProjectCreatePage() {
                           />
                         </label>
                       <div className="form-section-title span-2">Команда и статус</div>
-                      <label>
-                        Портфель
-                      <input
-                        value={newProjectForm.portfolio}
+                    <label className="project-create-business-unit">
+                      Портфель
+                      <select
+                        value={newProjectForm.businessUnitId}
+                        aria-invalid={formErrors.businessUnitId ? true : undefined}
                         onChange={(event) =>
-                          setNewProjectForm({
-                            ...newProjectForm,
-                            portfolio: event.target.value,
-                          })
+                          {
+                            const selectedUnit = businessUnits.find(
+                              (unit) => unit.id === event.currentTarget.value,
+                            );
+                            if (formErrors.businessUnitId) {
+                              setFormErrors((current) => ({
+                                ...current,
+                                businessUnitId: undefined,
+                              }));
+                            }
+                            setNewProjectForm({
+                              ...newProjectForm,
+                              businessUnitId: selectedUnit?.id ?? "",
+                              portfolio: selectedUnit?.name ?? "",
+                              parentId: "",
+                            });
+                          }
                         }
-                        placeholder="Цифровая трансформация"
+                      >
+                        <option value="">Выберите БЮ</option>
+                        {businessUnits.map((unit) => (
+                          <option value={unit.id} key={unit.id}>
+                            {unit.name}
+                          </option>
+                        ))}
+                      </select>
+                      <FieldError
+                        id="new-project-business-unit-error"
+                        message={formErrors.businessUnitId}
                       />
                     </label>
                     <label>

@@ -19,7 +19,6 @@ import {
   type WbsFormState,
   wbsToForm,
 } from "../app/formState";
-import { isHttpsUrl } from "../app/http";
 import { useConfirm } from "./useConfirm";
 import {
   editableKeyHandler,
@@ -35,6 +34,7 @@ import {
   type WbsPredecessorTiming,
   type WbsSortState,
 } from "../app/wbsTable";
+import { WbsUrlField } from "../components/WbsUrlField";
 import {
   resolveDraftPredecessorCode,
   wbsDraftDisplayLevel,
@@ -80,6 +80,7 @@ type UseWbsStructureTableControllerOptions = {
   saveWbsItem: SaveWbsItem;
   selectedWbsIds: Set<string>;
   setDraggedWbsItemId: Dispatch<SetStateAction<string | null>>;
+  setError: Dispatch<SetStateAction<string | null>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
   setSelectedWbsIds: Dispatch<SetStateAction<Set<string>>>;
   setWbsDrafts: Dispatch<SetStateAction<Record<string, WbsFormState>>>;
@@ -163,6 +164,7 @@ export function useWbsStructureTableController({
   saveWbsItem,
   selectedWbsIds,
   setDraggedWbsItemId,
+  setError,
   setNotice,
   setSelectedWbsIds,
   setWbsDrafts,
@@ -466,6 +468,9 @@ export function useWbsStructureTableController({
         case "owner":
           value = emptyReadonlyValue(draft.owner);
           break;
+        case "comment":
+          value = emptyReadonlyValue(draft.comment);
+          break;
         case "start":
           value = emptyReadonlyValue(draft.startDate);
           break;
@@ -488,8 +493,25 @@ export function useWbsStructureTableController({
           value = formatReadonlyPercent(draft.progress);
           break;
         case "jiraTicketUrl":
-          value = emptyReadonlyValue(draft.jiraTicketUrl);
-          break;
+          return (
+            <WbsUrlField
+              contextLabel={item.code}
+              isReadOnly
+              kind="jira"
+              value={draft.jiraTicketUrl}
+              onSave={() => undefined}
+            />
+          );
+        case "mattermostUrl":
+          return (
+            <WbsUrlField
+              contextLabel={item.code}
+              isReadOnly
+              kind="mattermost"
+              value={draft.mattermostUrl}
+              onSave={() => undefined}
+            />
+          );
         case "leadLag":
           value = emptyReadonlyValue(draft.leadLagDays);
           break;
@@ -867,20 +889,49 @@ export function useWbsStructureTableController({
         );
       case "jiraTicketUrl":
         return (
-          <input
-            className={
-              draft.jiraTicketUrl && !isHttpsUrl(draft.jiraTicketUrl)
-                ? "input-error"
-                : ""
-            }
+          <WbsUrlField
+            contextLabel={item.code}
+            isReadOnly={false}
+            kind="jira"
             value={draft.jiraTicketUrl}
+            onInvalid={setError}
+            onSave={(jiraTicketUrl) =>
+              saveWbsDraftPatch(
+                item.id,
+                { jiraTicketUrl },
+                { silent: true },
+              )
+            }
+          />
+        );
+      case "mattermostUrl":
+        return (
+          <WbsUrlField
+            contextLabel={item.code}
+            isReadOnly={false}
+            kind="mattermost"
+            value={draft.mattermostUrl}
+            onInvalid={setError}
+            onSave={(mattermostUrl) =>
+              saveWbsDraftPatch(
+                item.id,
+                { mattermostUrl },
+                { silent: true },
+              )
+            }
+          />
+        );
+      case "comment":
+        return (
+          <input
+            value={draft.comment}
             onChange={(event) =>
-              updateWbsDraft(item.id, { jiraTicketUrl: event.target.value })
+              updateWbsDraft(item.id, { comment: event.target.value })
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={() => scheduleWbsSave(item.id)}
-            placeholder="https://..."
+            placeholder="Комментарий"
           />
         );
       case "predecessor1":

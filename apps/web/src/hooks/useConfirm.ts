@@ -6,7 +6,10 @@ export type ConfirmOptions = {
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: "danger" | "default";
-  highlightBusinessUnit?: boolean;
+  callout?: {
+    message: string;
+    selector: string;
+  };
 };
 
 export type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;

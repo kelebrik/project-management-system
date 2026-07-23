@@ -19,6 +19,7 @@ import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
 import { ProjectBusinessRequirementsPage } from "./ProjectBusinessRequirementsPage";
 import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
 import { ProjectCreatePage } from "./ProjectCreatePage";
+import { ProjectCurrentWorkPage } from "./ProjectCurrentWorkPage";
 import { ProjectIssuesPage } from "./ProjectIssuesPage";
 import { ProjectJiraWorkPage } from "./ProjectJiraWorkPage";
 import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
@@ -107,6 +108,7 @@ export function AppPages() {
         {project && activeView === "project-schedule" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-business-requirements" && <ProjectBusinessRequirementsPage />}
+        {project && activeView === "project-current-work" && <ProjectCurrentWorkPage key={project.id} />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
         {isAdminUser && project && activeView === "project-pm-workspace" && (

@@ -9,6 +9,34 @@ test("WBS patch schema does not default effort percent on partial updates", () =
   assert.deepEqual(parsedPatch, { status: "DONE" });
 });
 
+test("WBS schema accepts only Mattermost links from the corporate host", () => {
+  assert.equal(
+    wbsItemBaseSchema.partial().parse({ mattermostUrl: "" }).mattermostUrl,
+    null,
+  );
+  assert.equal(
+    wbsItemBaseSchema
+      .partial()
+      .parse({ mattermostUrl: "https://mm.sberdevices.ru/channel/thread" })
+      .mattermostUrl,
+    "https://mm.sberdevices.ru/channel/thread",
+  );
+  assert.equal(
+    wbsItemBaseSchema
+      .partial()
+      .safeParse({ mattermostUrl: "https://mm.sberdevices.ru.evil.test" })
+      .success,
+    false,
+  );
+  assert.equal(
+    wbsItemBaseSchema
+      .partial()
+      .safeParse({ mattermostUrl: "http://mm.sberdevices.ru/channel" })
+      .success,
+    false,
+  );
+});
+
 test("levelFromWbsCode reads hierarchy depth from dotted code", () => {
   assert.equal(levelFromWbsCode("1"), 1);
   assert.equal(levelFromWbsCode("1.2.3.4.5"), 5);
