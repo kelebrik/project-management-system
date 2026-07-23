@@ -141,6 +141,11 @@ enum BusinessUnitRole {
   VIEWER
 }
 
+enum PageVisitActorType {
+  USER
+  ANONYMOUS
+}
+
 model BusinessUnit {
   id          String                   @id @default(cuid())
   code        String                   @unique
@@ -270,8 +275,27 @@ model User {
   targetDateChanges ProjectTargetDateChange[]
   projectAccesses ProjectAccess[]
   businessUnitMemberships BusinessUnitMembership[]
+  pageVisits   PageVisit[]
 
   @@index([role, isActive])
+}
+
+model PageVisit {
+  id                   String             @id @default(cuid())
+  eventId              String             @unique
+  actorType            PageVisitActorType
+  userId               String?
+  userName             String?
+  anonymousVisitorHash String?
+  projectId            String?
+  projectCode          String?
+  projectName          String?
+  pageKey              String
+  occurredAt           DateTime           @default(now())
+  user                 User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([occurredAt])
+  @@index([userId])
 }
 
 model ProjectAccess {

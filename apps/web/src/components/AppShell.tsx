@@ -283,6 +283,11 @@ const adminNavItems: AdminNavItem[] = [
     label: "Журнал аудита",
     icon: <FileText size={17} />,
   },
+  {
+    view: "admin-analytics",
+    label: "Посещаемость",
+    icon: <BarChart3 size={17} />,
+  },
 ];
 
 const developmentNavItems: AdminNavItem[] = [

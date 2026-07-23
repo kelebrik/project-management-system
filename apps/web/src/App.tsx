@@ -22,6 +22,7 @@ import { AppPresentation } from "./components/AppPresentation";
 import { useGanttDependencyActions } from "./hooks/useGanttDependencyActions";
 import { useGanttResizeActions } from "./hooks/useGanttResizeActions";
 import { useProjectLifecycleActions } from "./hooks/useProjectLifecycleActions";
+import { usePageVisitTracking } from "./hooks/usePageVisitTracking";
 import { useAdminActionsController } from "./hooks/useAdminActionsController";
 import { useAdminDataController } from "./hooks/useAdminDataController";
 import { useAdminState } from "./hooks/useAdminState";
@@ -381,6 +382,13 @@ function AppController() {
     setProjectRegistryDrafts,
     setProjects,
     setSelectedProjectId,
+  });
+  usePageVisitTracking({
+    activeView,
+    authReady: authMode === "ready",
+    currentUser,
+    projectId: project?.id ?? null,
+    selectedProjectId,
   });
   const { submitAuth, logout, keycloakStatus, loginWithKeycloak } = useAuthController({
     authMode,
