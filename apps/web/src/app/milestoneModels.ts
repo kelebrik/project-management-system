@@ -66,23 +66,6 @@ export function createMilestoneTimeline(
   const today = startOfDay(todaySource);
   const timelineStart = startOfDay(addCalendarMonths(today, -2));
   const timelineEnd = startOfDay(addCalendarMonths(today, 4));
-  const allMilestoneDates = structureMilestones
-    .map((entry) =>
-      entry.milestone.dueDate
-        ? startOfDay(new Date(entry.milestone.dueDate))
-        : null,
-    )
-    .filter(
-      (value): value is Date => value !== null && !Number.isNaN(value.getTime()),
-    );
-  const allTimelineStart =
-    allMilestoneDates.length > 0
-      ? new Date(Math.min(...allMilestoneDates.map((value) => value.getTime())))
-      : timelineStart;
-  const allTimelineEnd =
-    allMilestoneDates.length > 0
-      ? new Date(Math.max(...allMilestoneDates.map((value) => value.getTime())))
-      : timelineEnd;
   const phaseIdForMilestone = (milestone: WbsItem) => {
     let currentId = milestone.parentId;
     const visited = new Set<string>();
@@ -110,6 +93,30 @@ export function createMilestoneTimeline(
       entry,
     ]);
   });
+  const timelineMilestones = structureMilestones.filter((entry) => {
+    const laneId = laneIdByMilestoneId.get(entry.milestone.id) ?? "unassigned";
+    if (laneId !== "unassigned" || entry.milestone.type !== "GOAL") return true;
+    return (milestonesByPhaseLaneId.get(laneId) ?? []).some(
+      (candidate) => candidate.milestone.type === "MILESTONE",
+    );
+  });
+  const allMilestoneDates = timelineMilestones
+    .map((entry) =>
+      entry.milestone.dueDate
+        ? startOfDay(new Date(entry.milestone.dueDate))
+        : null,
+    )
+    .filter(
+      (value): value is Date => value !== null && !Number.isNaN(value.getTime()),
+    );
+  const allTimelineStart =
+    allMilestoneDates.length > 0
+      ? new Date(Math.min(...allMilestoneDates.map((value) => value.getTime())))
+      : timelineStart;
+  const allTimelineEnd =
+    allMilestoneDates.length > 0
+      ? new Date(Math.max(...allMilestoneDates.map((value) => value.getTime())))
+      : timelineEnd;
   const phaseLanes =
     phases.length > 0
       ? [
@@ -156,7 +163,7 @@ export function createMilestoneTimeline(
       })
       .map((lane) => lane.id),
   );
-  const byPhaseMilestones = structureMilestones.filter(
+  const byPhaseMilestones = timelineMilestones.filter(
     (entry) => !stalePhaseLaneIds.has(laneIdByMilestoneId.get(entry.milestone.id) ?? ""),
   );
   const byPhaseLanes = phaseLanes.filter(
@@ -171,7 +178,7 @@ export function createMilestoneTimeline(
     laneIdByMilestoneId,
   });
   const all = createMilestoneTimelineModel({
-    milestones: structureMilestones,
+    milestones: timelineMilestones,
     lanes: [
       {
         id: "all",
@@ -184,7 +191,7 @@ export function createMilestoneTimeline(
     timelineStart: allTimelineStart,
     timelineEnd: allTimelineEnd,
     laneIdByMilestoneId: new Map(
-      structureMilestones.map((entry) => [entry.milestone.id, "all"]),
+      timelineMilestones.map((entry) => [entry.milestone.id, "all"]),
     ),
     minTrackWidth: byPhase.trackWidth,
     todayOffsetMode: "milestone-count",
