@@ -169,6 +169,7 @@ function createViewTitle(project: any): Record<AppView, string> {
     "admin-modules": "Администрирование: управление модулями",
     "admin-project-access": "Администрирование: доступы",
     "admin-audit": "Администрирование: журнал аудита",
+    "admin-analytics": "Администрирование: посещаемость",
   };
 }
 

@@ -1,45 +1,6 @@
-export type AppView =
-  | "portfolio"
-  | "portfolio-v2"
-  | "decision-queue"
-  | "projects"
-  | "reports"
-  | "wiki"
-  | "resources"
-  | "resources-capacity"
-  | "project-create"
-  | "project-overview"
-  | "project-schedule"
-  | "project-passport"
-  | "project-business-requirements"
-  | "project-current-work"
-  | "project-pm-workspace"
-  | "project-structure"
-  | "project-gantt"
-  | "project-jira-work"
-  | "project-issues"
-  | "project-raid"
-  | "project-changes"
-  | "project-budget"
-  | "project-calendars"
-  | "project-artifacts"
-  | "closed-projects"
-  | "admin"
-  | "admin-users"
-  | "admin-roles"
-  | "admin-dictionaries"
-  | "admin-templates"
-  | "admin-rag"
-  | "admin-workflows"
-  | "admin-integrations"
-  | "admin-health"
-  | "admin-backups"
-  | "admin-config"
-  | "admin-projects"
-  | "admin-business-units"
-  | "admin-modules"
-  | "admin-project-access"
-  | "admin-audit";
+import type { AppViewKey } from "@pms/shared";
+
+export type AppView = AppViewKey;
 
 export type ProjectSectionView = Extract<
   AppView,
@@ -77,6 +38,7 @@ export type AdminSectionView = Extract<
   | "admin-modules"
   | "admin-project-access"
   | "admin-audit"
+  | "admin-analytics"
 >;
 
 export type ResourceSectionView = Extract<
@@ -115,6 +77,7 @@ export const adminSectionViews: AdminSectionView[] = [
   "admin-modules",
   "admin-project-access",
   "admin-audit",
+  "admin-analytics",
 ];
 
 export const businessUnitAdminSectionViews = new Set<AdminSectionView>([
@@ -203,6 +166,7 @@ export const appViewPaths: Record<AppView, string> = {
   "admin-modules": "/admin/modules",
   "admin-project-access": "/admin/project-access",
   "admin-audit": "/admin/audit",
+  "admin-analytics": "/admin/analytics",
 };
 
 export const projectPathViews: Record<string, ProjectSectionView | DevelopmentSectionView> = {
@@ -307,6 +271,7 @@ export const appPathViews: Record<string, AppView> = {
   "/admin/modules": "admin-modules",
   "/admin/project-access": "admin-project-access",
   "/admin/audit": "admin-audit",
+  "/admin/analytics": "admin-analytics",
 };
 
 export function normalizeAppPath(pathname: string) {

@@ -70,6 +70,15 @@ function milestone(id: string, dueDate: string, overrides: Partial<WbsItem> = {}
   });
 }
 
+function goal(id: string, dueDate: string, overrides: Partial<WbsItem> = {}): WbsItem {
+  return wbsItem({
+    id,
+    type: "GOAL",
+    dueDate,
+    ...overrides,
+  });
+}
+
 function phase(id: string, sortOrder: number): WbsItem {
   return wbsItem({
     id,
@@ -158,6 +167,96 @@ test("phase milestone timeline hides lanes without visible milestones", () => {
   assert.deepEqual(
     model.lanes.map((lane) => lane.id),
     ["phase-2"],
+  );
+});
+
+test("milestone timelines hide an unassigned lane containing only goals", () => {
+  const projectGoal = goal("goal-1", "2026-06-10");
+  const wbsItems = [projectGoal];
+  const timeline = createMilestoneTimeline(
+    wbsItems,
+    createStructureMilestones(wbsItems),
+    new Date(2026, 5, 1),
+  );
+
+  assert.deepEqual(timeline.byPhase.lanes, []);
+  assert.deepEqual(timeline.all.lanes, []);
+});
+
+test("milestone timelines keep goals assigned to a phase", () => {
+  const projectPhase = phase("phase-1", 1);
+  const phaseGoal = goal("goal-1", "2026-06-10", {
+    parentId: projectPhase.id,
+  });
+  const wbsItems = [projectPhase, phaseGoal];
+  const timeline = createMilestoneTimeline(
+    wbsItems,
+    createStructureMilestones(wbsItems),
+    new Date(2026, 5, 1),
+  );
+
+  assert.deepEqual(
+    timeline.byPhase.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [phaseGoal.id],
+  );
+  assert.deepEqual(
+    timeline.all.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [phaseGoal.id],
+  );
+});
+
+test("milestone timelines keep an unassigned goal beside an unassigned milestone", () => {
+  const projectGoal = goal("goal-1", "2026-06-10");
+  const projectMilestone = milestone("milestone-1", "2026-06-20");
+  const wbsItems = [projectGoal, projectMilestone];
+  const timeline = createMilestoneTimeline(
+    wbsItems,
+    createStructureMilestones(wbsItems),
+    new Date(2026, 5, 1),
+  );
+
+  assert.deepEqual(
+    timeline.byPhase.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [projectGoal.id, projectMilestone.id],
+  );
+  assert.deepEqual(
+    timeline.all.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [projectGoal.id, projectMilestone.id],
+  );
+});
+
+test("milestone timelines hide an unassigned goal when milestones belong to phases", () => {
+  const projectPhase = phase("phase-1", 1);
+  const projectGoal = goal("goal-1", "2026-06-10");
+  const phaseMilestone = milestone("milestone-1", "2026-06-20", {
+    parentId: projectPhase.id,
+  });
+  const wbsItems = [projectPhase, projectGoal, phaseMilestone];
+  const timeline = createMilestoneTimeline(
+    wbsItems,
+    createStructureMilestones(wbsItems),
+    new Date(2026, 5, 1),
+  );
+
+  assert.deepEqual(
+    timeline.byPhase.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [phaseMilestone.id],
+  );
+  assert.deepEqual(
+    timeline.all.lanes.flatMap((lane) =>
+      lane.items.map((item) => item.milestone.id),
+    ),
+    [phaseMilestone.id],
   );
 });
 

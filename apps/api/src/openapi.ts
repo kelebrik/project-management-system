@@ -101,6 +101,7 @@ export const openApiDocument = {
     { name: "Integrations" },
     { name: "Admin" },
     { name: "Audit" },
+    { name: "Analytics" },
   ],
   components: {
     securitySchemes: {
@@ -238,6 +239,20 @@ export const openApiDocument = {
     },
   },
   paths: {
+    "/api/page-visits": {
+      post: {
+        tags: ["Analytics"],
+        summary: "Record a best-effort page view",
+        security: [{ sessionCookie: [] }, {}],
+        responses: {
+          "204": { description: "Recorded or intentionally ignored" },
+          "400": { description: "Validation error" },
+        },
+      },
+    },
+    "/api/admin/page-visits": {
+      get: securedOperation(["Admin", "Analytics"], "Page visit analytics for system administrators"),
+    },
     "/api/business-units": {
       get: {
         tags: ["Projects"],

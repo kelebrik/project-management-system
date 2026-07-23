@@ -6,8 +6,8 @@ const ACTIVE_STATUSES = new Set([
   "IN_PROGRESS",
   "IN_REVIEW",
   "AT_RISK",
-  "BLOCKED",
 ]);
+const EXCLUDED_STATUSES = new Set(["BLOCKED", "CANCELLED"]);
 const CODE_COLLATOR = new Intl.Collator("ru", {
   numeric: true,
   sensitivity: "base",
@@ -114,6 +114,7 @@ export function createCurrentWorkRows(
     .filter((item) => item.type === "TASK")
     .filter((item) => {
       const draft = draftFor(item, drafts);
+      if (EXCLUDED_STATUSES.has(draft.status)) return false;
       if (ACTIVE_STATUSES.has(draft.status)) return true;
       if (draft.status === "DONE") {
         const closedAt = parseLocalDate(item.closedAt);

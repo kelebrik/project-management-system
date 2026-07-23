@@ -7,6 +7,7 @@ import { openApiDocument } from '../openapi.js';
 import { createAdminRouter } from '../routes/admin.routes.js';
 import { createBusinessUnitsRouter } from '../routes/business-units.routes.js';
 import { createIssuesRouter } from '../routes/issues.routes.js';
+import { createPageVisitsRouter } from '../routes/page-visits.routes.js';
 import { createProjectsRouter } from '../routes/projects.routes.js';
 import { createRisksRouter } from '../routes/risks.routes.js';
 import { createSavedViewsRouter } from '../routes/saved-views.routes.js';
@@ -98,6 +99,8 @@ export function createApp() {
 
   registerAuthRoutes(app);
   registerKeycloakAuthRoutes(app);
+
+  app.use('/api', createPageVisitsRouter({ currentUser, requireAdmin }));
 
   app.use('/api', createBusinessUnitsRouter());
   app.use('/api', businessUnitReadMiddleware);
