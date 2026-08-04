@@ -12,24 +12,27 @@ function read(filePath: string) {
 
 test("Docker runtime packages API, Web UI, startup migrations, and readiness probe", () => {
   const dockerfile = read("Dockerfile");
+  const runtimeDockerfile = dockerfile.split("FROM ${NODE_IMAGE} AS runtime")[1] ?? "";
   const compose = read("docker-compose.yml");
 
-  assert.match(dockerfile, /npm run prisma:generate/, "Docker build must generate Prisma client");
+  assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) run prisma:generate/, "Docker build must generate Prisma client");
   assert.match(dockerfile, /docker-prisma-engines\.sh/, "Docker build must bootstrap Prisma engines during image build");
   assert.match(dockerfile, /PRISMA_ENGINES_BASE_URL=/, "Docker build must download Prisma engines from the internal package registry");
   assert.match(dockerfile, /ARG CI_JOB_TOKEN/, "Docker build must accept CI_JOB_TOKEN for authenticated engine downloads");
   assert.match(dockerfile, /debian-openssl-3\.0\.x/, "Docker build must target Debian Bookworm OpenSSL 3 engines");
   assert.match(dockerfile, /PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1/, "Docker build must skip prisma.sh checksum verification in isolated environments");
   assert.match(dockerfile, /ARG NPM_VERSION=11\.18\.0/, "Docker build must pin npm with fixed bundled sigstore");
-  assert.match(dockerfile, /npm install -g --ignore-scripts "npm@\$\{NPM_VERSION\}"/, "Docker build must update bundled npm in image stages");
-  assert.match(dockerfile, /npm ci --include=dev --ignore-scripts/, "Docker build must install npm packages without prisma.sh postinstall downloads");
-  assert.match(dockerfile, /npm run build/, "Docker build must compile workspaces");
+  assert.match(dockerfile, /npm install -g --ignore-scripts "npm@\$\{NPM_VERSION\}"/, "Docker build must pin npm in the build stage");
+  assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) ci --include=dev --ignore-scripts|scripts\/ci-install\.sh/, "Docker build must install npm packages without prisma.sh postinstall downloads");
+  assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) run build/, "Docker build must compile workspaces");
   assert.match(dockerfile, /apps\/web\/dist/, "Runtime image must include built Web UI");
   assert.match(dockerfile, /EXPOSE 3000/, "Runtime image must expose application port");
   assert.match(dockerfile, /docker-entrypoint\.sh/, "Runtime image must ship a startup entrypoint");
   assert.match(dockerfile, /ENTRYPOINT \["\/app\/docker-entrypoint\.sh"\]/, "Container start must run through the migration entrypoint");
-  assert.match(read("scripts/docker-entrypoint.sh"), /npm run prisma:deploy/, "Startup entrypoint must deploy migrations before the API starts");
-  assert.match(dockerfile, /"npm", "run", "start", "--workspace", "@pms\/api"/, "Container start must run the API");
+  assert.match(read("scripts/docker-entrypoint.sh"), /node \/app\/node_modules\/prisma\/build\/index\.js migrate deploy/, "Startup entrypoint must deploy migrations without npm");
+  assert.doesNotMatch(runtimeDockerfile, /npm install -g/, "Runtime stage must not install npm");
+  assert.match(runtimeDockerfile, /rm -rf \/usr\/local\/lib\/node_modules\/npm/, "Runtime image must remove the global npm toolchain");
+  assert.match(runtimeDockerfile, /CMD \["node", "apps\/api\/dist\/server\.js"\]/, "Container start must run the API directly with Node.js");
   assert.match(dockerfile, /USER node/, "Runtime image must run as a non-root user");
   assert.match(dockerfile, /--chown=node:node/, "Runtime files must be owned by the non-root user");
 
@@ -86,7 +89,7 @@ test("Smoke scripts cover security, performance, and migration checks", () => {
   const performance = read("scripts/performance-smoke.sh");
   const migration = read("scripts/migration-dry-run.sh");
 
-  assert.match(security, /GET \/api\/projects/, "Security smoke must verify public read-only projects");
+  assert.match(security, /GET \/api\/projects without auth/, "Security smoke must verify read protection");
   assert.match(security, /GET \/api\/openapi\.json/, "Security smoke must verify OpenAPI availability");
   assert.match(security, /GET \/api\/ready/, "Security smoke must verify readiness");
   assert.match(security, /POST \/api\/projects without auth/, "Security smoke must verify write protection");
@@ -105,7 +108,7 @@ test("Kubernetes manifest follows corporate restricted-pod policies", () => {
   const combinedManifest = `${manifest}\n${migrateJob}`;
 
   assert.match(migrateJob, /kind: Job/, "Kubernetes deployment must provide a one-shot migration Job");
-  assert.match(migrateJob, /command: \["npm", "run", "prisma:deploy"\]/, "Migration Job must run prisma migrate deploy");
+  assert.match(migrateJob, /command: \["node", "\/app\/node_modules\/prisma\/build\/index\.js", "migrate", "deploy"\]/, "Migration Job must run Prisma without npm");
   assert.match(manifest, /kind: Deployment/, "Application must be deployed by a controller, not a bare Pod");
   assert.doesNotMatch(combinedManifest, /kind: Pod\b/, "Manifest must not define bare Pods");
   assert.match(combinedManifest, /kind: ServiceAccount/, "Manifest must define a dedicated ServiceAccount");
@@ -134,10 +137,10 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   );
   assert.match(
     gitlabCi,
-    /\.mr_to_master:[\s\S]*CI_PIPELINE_SOURCE == "merge_request_event"[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/,
+    /\.rule_mr_to_master:[\s\S]*CI_PIPELINE_SOURCE == "merge_request_event"[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/,
     "CI must define merge-request-to-master rules for validation and test jobs",
   );
-  assert.match(gitlabCi, /\.mr_to_master:[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/, "CI must define merge-request-to-master rules for validation and test jobs");
+  assert.match(gitlabCi, /\.mr_to_master:[\s\S]*\*rule_mr_to_master/, "CI must define merge-request-to-master rules for validation and test jobs");
   assert.doesNotMatch(gitlabCi, /^\s*DATABASE_URL:/m, "CI must not define a runtime database URL in global variables");
   assert.match(ciPrismaGenerate, /DATABASE_URL="\$\{DATABASE_URL:-postgresql:\/\/ci:ci@127\.0\.0\.1:5432\/ci\?schema=public\}"/, "CI prisma generate must use a local stub DATABASE_URL when none is provided");
   assert.match(gitlabCi, /\.node_job:[\s\S]*ci-prisma-setup\.sh bootstrap[\s\S]*ci-prisma-generate\.sh/, "CI node jobs must bootstrap Prisma engines before npm install and run an isolated prisma generate");
@@ -148,7 +151,7 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   assert.match(gitlabCi, /unit-tests:[\s\S]*extends: \.node_job/, "unit-tests must run on merge requests to master");
   assert.match(gitlabCi, /integration-contracts:[\s\S]*extends: \.node_job/, "integration-contracts must run on merge requests to master");
   assert.match(gitlabCi, /\.node_job:[\s\S]*stage: check/, "validation and test jobs must run in the same parallel check stage");
-  assert.match(gitlabCi, /build_image:[\s\S]*CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"/, "build_image must run on merge requests to master");
+  assert.match(gitlabCi, /build_image:[\s\S]*extends: \.master_pipeline/, "build_image must run on merge requests to master and push to master");
   assert.match(gitlabCi, /build_image:[\s\S]*--build-arg CI_JOB_TOKEN="\$\{CI_JOB_TOKEN\}"/, "build_image must pass CI_JOB_TOKEN into the Docker build");
   assert.doesNotMatch(gitlabCi, /name:\s*"node:/, "CI must not default to public Docker Hub Node images");
   assert.match(gitlabCi, /PRISMA_ENGINES_BASE_URL:/, "CI must configure an internal Prisma engines package URL");

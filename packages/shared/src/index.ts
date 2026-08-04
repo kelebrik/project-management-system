@@ -232,27 +232,11 @@ export const labels = {
   },
 } as const;
 
-export const passwordSchema = z
-  .string()
-  .min(8, "Пароль должен содержать минимум 8 символов");
-
-export const loginSchema = z.object({
-  email: z.string().trim().email("Некорректный email").toLowerCase(),
-  password: z.string().min(1, "Введите пароль"),
-});
-
-export const bootstrapAdminSchema = z.object({
-  email: z.string().trim().email("Некорректный email").toLowerCase(),
-  name: z.string().trim().min(2, "Укажите имя администратора"),
-  password: passwordSchema,
-});
-
 export const createUserSchema = z.object({
   email: z.string().trim().email("Некорректный email").toLowerCase(),
   name: z.string().trim().min(2, "Укажите имя пользователя"),
   role: z.enum(assignableUserRoles).default("EXECUTIVE_VIEWER"),
   isActive: z.boolean().default(true),
-  password: passwordSchema,
 });
 
 export const updateUserSchema = z.object({
@@ -260,10 +244,6 @@ export const updateUserSchema = z.object({
   name: z.string().trim().min(2, "Укажите имя пользователя").optional(),
   role: z.enum(assignableUserRoles).optional(),
   isActive: z.boolean().optional(),
-});
-
-export const changeUserPasswordSchema = z.object({
-  password: passwordSchema,
 });
 
 export const projectIdentitySchema = z.object({

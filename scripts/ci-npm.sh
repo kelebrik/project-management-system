@@ -11,25 +11,36 @@ NPM_CLI="$NPM_HOME/package/bin/npm-cli.js"
 download() {
   url="$1"
   output="$2"
+  insecure_tls="${PMS_CI_INSECURE_TLS:-0}"
 
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$output"
+    if [ "$insecure_tls" = "1" ] || [ "$insecure_tls" = "true" ]; then
+      curl -k -fsSL "$url" -o "$output"
+    else
+      curl -fsSL "$url" -o "$output"
+    fi
     return
   fi
 
   if command -v wget >/dev/null 2>&1; then
-    wget -qO "$output" "$url"
+    if [ "$insecure_tls" = "1" ] || [ "$insecure_tls" = "true" ]; then
+      wget --no-check-certificate -qO "$output" "$url"
+    else
+      wget -qO "$output" "$url"
+    fi
     return
   fi
 
   node - "$url" "$output" <<'NODE'
 const fs = require("node:fs");
-const { get } = require("node:https");
+const https = require("node:https");
 
 const [url, output] = process.argv.slice(2);
 const file = fs.createWriteStream(output);
+const insecureTls = process.env.PMS_CI_INSECURE_TLS === "1" || process.env.PMS_CI_INSECURE_TLS === "true";
+const agent = insecureTls ? new https.Agent({ rejectUnauthorized: false }) : undefined;
 
-get(url, (response) => {
+https.get(url, { agent }, (response) => {
   if (response.statusCode < 200 || response.statusCode >= 300) {
     file.close();
     fs.rmSync(output, { force: true });

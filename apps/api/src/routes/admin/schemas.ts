@@ -66,7 +66,7 @@ export const adminConfigImportSchema = z.object({
   rolePermissions: z
     .array(
       z.object({
-        role: z.enum(['ADMIN', 'PROJECT_MANAGER', 'TEAM_MEMBER', 'EXECUTIVE_VIEWER']),
+        role: z.enum(['ADMIN', 'PROJECT_MANAGER', 'EXECUTIVE_VIEWER']),
         permission: z.string().trim().min(1),
         enabled: z.boolean(),
       }),

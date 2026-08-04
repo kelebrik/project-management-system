@@ -6,6 +6,11 @@ ENGINES_DIR="${PRISMA_ENGINES_DIR:-/opt/prisma-engines}"
 BASE_URL="${PRISMA_ENGINES_BASE_URL:-}"
 JOB_TOKEN="${PRISMA_ENGINES_JOB_TOKEN:-${CI_JOB_TOKEN:-}}"
 LOCAL_DIR="${PRISMA_ENGINES_LOCAL_DIR:-docker/prisma-engines/${TARGET}}"
+INSECURE_TLS="${PMS_CI_INSECURE_TLS:-}"
+if [ -z "$INSECURE_TLS" ] && [ -n "$JOB_TOKEN" ]; then
+  INSECURE_TLS=1
+fi
+INSECURE_TLS="${INSECURE_TLS:-0}"
 
 SCHEMA_ENGINE="${ENGINES_DIR}/schema-engine-${TARGET}"
 QUERY_ENGINE="${ENGINES_DIR}/libquery_engine-${TARGET}.so.node"
@@ -39,10 +44,14 @@ download() {
   fi
 
   if command -v curl >/dev/null 2>&1; then
+    curl_tls_args=""
+    if [ "$INSECURE_TLS" = "1" ] || [ "$INSECURE_TLS" = "true" ]; then
+      curl_tls_args="-k"
+    fi
     if [ "$mode" = "none" ]; then
-      http_code="$(curl -sS -w '%{http_code}' "$download_url" -o "$download_output" || true)"
+      http_code="$(curl $curl_tls_args -sS -w '%{http_code}' "$download_url" -o "$download_output" || true)"
     else
-      http_code="$(curl -sS -w '%{http_code}' --header "${mode}: ${JOB_TOKEN}" "$download_url" -o "$download_output" || true)"
+      http_code="$(curl $curl_tls_args -sS -w '%{http_code}' --header "${mode}: ${JOB_TOKEN}" "$download_url" -o "$download_output" || true)"
     fi
     echo "Response: HTTP ${http_code} for ${download_url}" >&2
     if [ "$http_code" != "200" ]; then
@@ -53,13 +62,17 @@ download() {
   fi
 
   if command -v wget >/dev/null 2>&1; then
+    wget_tls_args=""
+    if [ "$INSECURE_TLS" = "1" ] || [ "$INSECURE_TLS" = "true" ]; then
+      wget_tls_args="--no-check-certificate"
+    fi
     if [ "$mode" = "none" ]; then
-      wget -S -O "$download_output" "$download_url" 2>&2 || {
+      wget $wget_tls_args -S -O "$download_output" "$download_url" 2>&2 || {
         echo "Failed to download ${download_url}" >&2
         exit 22
       }
     else
-      wget -S -O "$download_output" --header="${mode}: ${JOB_TOKEN}" "$download_url" 2>&2 || {
+      wget $wget_tls_args -S -O "$download_output" --header="${mode}: ${JOB_TOKEN}" "$download_url" 2>&2 || {
         echo "Failed to download ${download_url}" >&2
         exit 22
       }
@@ -68,7 +81,7 @@ download() {
   fi
 
   if command -v node >/dev/null 2>&1; then
-    if ! PRISMA_ENGINES_JOB_TOKEN="$JOB_TOKEN" PRISMA_ENGINES_AUTH_MODE="$(auth_mode)" node - "$download_url" "$download_output" <<'NODE'
+    if ! PMS_CI_INSECURE_TLS="$INSECURE_TLS" PRISMA_ENGINES_JOB_TOKEN="$JOB_TOKEN" PRISMA_ENGINES_AUTH_MODE="$(auth_mode)" node - "$download_url" "$download_output" <<'NODE'
 const fs = require("node:fs");
 const https = require("node:https");
 
@@ -76,8 +89,10 @@ const [downloadUrl, outputPath] = process.argv.slice(2);
 const token = process.env.PRISMA_ENGINES_JOB_TOKEN || process.env.CI_JOB_TOKEN || "";
 const mode = process.env.PRISMA_ENGINES_AUTH_MODE || "JOB-TOKEN";
 const headers = token && mode !== "none" ? { [mode]: token } : {};
+const insecureTls = process.env.PMS_CI_INSECURE_TLS === "1" || process.env.PMS_CI_INSECURE_TLS === "true";
+const agent = insecureTls ? new https.Agent({ rejectUnauthorized: false }) : undefined;
 
-https.get(downloadUrl, { headers }, (response) => {
+https.get(downloadUrl, { headers, agent }, (response) => {
   if (response.statusCode < 200 || response.statusCode >= 300) {
     console.error(`Response: HTTP ${response.statusCode} for ${downloadUrl}`);
     process.exit(22);

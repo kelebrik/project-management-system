@@ -1,5 +1,4 @@
 import type {
-  AuthFormState,
   DictionaryItemDraft,
   SystemSettingsDraft,
   UserFormState,
@@ -193,18 +192,11 @@ export type JiraLinkDraft = {
   jiraUrl: string;
 };
 
-export const emptyAuthForm: AuthFormState = {
-  email: "",
-  name: "",
-  password: "",
-};
-
 export const emptyUserForm: UserFormState = {
   email: "",
   name: "",
   role: "EXECUTIVE_VIEWER",
   isActive: true,
-  password: "",
 };
 
 export const emptyDictionaryDraft: DictionaryItemDraft = {

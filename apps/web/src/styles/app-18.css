@@ -375,6 +375,41 @@
   font-size: 13px;
 }
 
+.audit-changes {
+  background: var(--surface-2);
+  border-top: 1px solid var(--border-3);
+  display: grid;
+  gap: 6px;
+  min-width: 1040px;
+  padding: 8px 12px 10px;
+}
+
+.audit-change {
+  align-items: center;
+  color: var(--text-secondary);
+  display: grid;
+  font-size: 12px;
+  gap: 8px;
+  grid-template-columns: minmax(150px, 0.6fr) minmax(220px, 1fr) 18px minmax(220px, 1fr);
+}
+
+.audit-change b {
+  color: var(--text);
+}
+
+.audit-change em {
+  font-style: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-change i {
+  color: var(--text-muted);
+  font-style: normal;
+  text-align: center;
+}
+
 .checkbox-field {
   align-items: center;
   grid-template-columns: 1fr auto;

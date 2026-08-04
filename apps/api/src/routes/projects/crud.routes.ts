@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
-import { recordAuditEvent } from '../../services/audit.js';
+import { buildAuditFieldChanges, recordAuditEvent } from '../../services/audit.js';
 import { getProjectWbsSnapshot } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { copyCurrentStructuresToProject } from '../../services/wbs-current-structure-copy.js';
@@ -424,6 +424,11 @@ export function registerProjectCrudRoutes(
         beforeValue: beforeSnapshot ?? project,
         afterValue: afterSnapshot ?? updated,
         metadata: { changedFields: Object.keys(parsed.data) },
+        changes: buildAuditFieldChanges(
+          beforeSnapshot ?? project,
+          afterSnapshot ?? updated,
+          Object.keys(parsed.data),
+        ),
       });
       await emitWebhookEvent({
         eventType: 'project.updated',
@@ -550,6 +555,15 @@ export function registerProjectCrudRoutes(
         reason: parsed.data.reason,
         approvedBy: parsed.data.approvedBy || null,
       },
+      changes: [
+        {
+          field: 'targetDate',
+          oldValue: previousTargetDate,
+          newValue: nextTargetDate,
+          oldText: previousTargetDate.toISOString(),
+          newText: nextTargetDate.toISOString(),
+        },
+      ],
     });
     await emitWebhookEvent({
       eventType: 'project.target_date.updated',
@@ -599,6 +613,7 @@ export function registerProjectCrudRoutes(
       projectId: project.id,
       beforeValue: project,
       afterValue: updated,
+      changes: buildAuditFieldChanges(project, updated, ['status']),
     });
     await emitWebhookEvent({
       eventType: 'project.closed',

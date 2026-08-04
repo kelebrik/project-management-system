@@ -45,7 +45,11 @@ export function isTrustedPageVisitRequest(req: Request) {
   const source = req.get('origin') ?? req.get('referer');
   if (!source) return false;
   try {
-    return allowed.includes(new URL(source).origin);
+    const sourceOrigin = new URL(source).origin;
+    const requestOrigin = req.host
+      ? new URL(`${req.protocol}://${req.host}`).origin
+      : null;
+    return allowed.includes(sourceOrigin) || sourceOrigin === requestOrigin;
   } catch {
     return false;
   }

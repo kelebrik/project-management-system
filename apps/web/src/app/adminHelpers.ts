@@ -15,7 +15,6 @@ type SystemUser = {
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
-  hasPassword: boolean;
 };
 
 type UserDraftState = {
@@ -23,7 +22,6 @@ type UserDraftState = {
   name: string;
   role: UserRole;
   isActive: boolean;
-  password: string;
 };
 
 type DictionaryItem = {
@@ -185,7 +183,6 @@ export function userToDraft(user: SystemUser): UserDraftState {
     name: user.name,
     role: user.role,
     isActive: user.isActive,
-    password: "",
   };
 }
 

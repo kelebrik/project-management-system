@@ -17,7 +17,7 @@ docker build -t project-management-system:latest .
 docker run --rm \
   -e DATABASE_URL='postgresql://user:password@db-host:5432/project_management_system?schema=public' \
   project-management-system:latest \
-  npm run prisma:deploy
+  node /app/node_modules/prisma/build/index.js migrate deploy
 docker run -d \
   --name project-management-system \
   -p 3000:3000 \
@@ -43,6 +43,9 @@ docker build \
 
 Манифест для restricted Kubernetes лежит в `deploy/k8s/project-management-system.yaml`.
 Подробности для Sber Git/Kubernetes: `docs/sber-k8s-deployment.md`.
+
+Финальный runtime-образ не содержит глобальный npm. Миграции и API запускаются
+напрямую через Node.js; npm используется только на стадиях установки и сборки.
 
 ## Переменные окружения
 

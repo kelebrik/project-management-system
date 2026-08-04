@@ -74,9 +74,7 @@ import { GlobalSearch } from "./GlobalSearch";
 import { SavedViewControls } from "./SavedViewControls";
 
 type AppPresentationProps = {
-  authForm: any;
   authMode: AuthMode;
-  authSubmitting: boolean;
   context: Record<string, any>;
   currentUser: any;
   error: string | null;
@@ -94,14 +92,13 @@ type AppPresentationProps = {
   isProjectModuleEnabled: (key: any) => boolean;
   isReadOnly: boolean;
   keycloakEnabled: boolean;
+  keycloakStatusResolved: boolean;
   loading: boolean;
   logout: () => void;
-  onAuthFormChange: (value: any) => void;
   onAuthModeChange: (mode: "login" | "ready") => void;
   onErrorChange: (value: string | null) => void;
   onKeycloakLogin: () => void;
   onNoticeChange: (value: string | null) => void;
-  onSubmitAuth: (event: any) => void;
   onSelectSearchResult: (result: any) => void;
   openView: (nextView: AppView, options?: { replace?: boolean; projectCode?: string | null }) => void;
   project: any;
@@ -174,9 +171,7 @@ function createViewTitle(project: any): Record<AppView, string> {
 }
 
 export function AppPresentation({
-  authForm,
   authMode,
-  authSubmitting,
   context,
   currentUser,
   error,
@@ -194,14 +189,13 @@ export function AppPresentation({
   isProjectModuleEnabled,
   isReadOnly,
   keycloakEnabled,
+  keycloakStatusResolved,
   loading,
   logout,
-  onAuthFormChange,
   onAuthModeChange,
   onErrorChange,
   onKeycloakLogin,
   onNoticeChange,
-  onSubmitAuth,
   onSelectSearchResult,
   openView,
   project,
@@ -284,23 +278,13 @@ export function AppPresentation({
     );
   }
 
-  if (authMode === "setup" || authMode === "login") {
-    const authPageMode = authMode;
+  if (authMode === "login") {
     return (
       <AuthPage
-        authForm={authForm}
-        authMode={authPageMode}
         error={error}
         keycloakEnabled={keycloakEnabled}
-        onContinueReadOnly={() => {
-          onAuthModeChange("ready");
-          onErrorChange(null);
-          onNoticeChange(null);
-        }}
-        onFormChange={onAuthFormChange}
+        keycloakStatusResolved={keycloakStatusResolved}
         onKeycloakLogin={onKeycloakLogin}
-        onSubmit={onSubmitAuth}
-        submitting={authSubmitting}
       />
     );
   }

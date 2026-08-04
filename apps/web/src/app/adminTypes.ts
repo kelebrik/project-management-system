@@ -1,7 +1,7 @@
 import type { ProjectModule } from "./projectModules";
 import type { ProjectAccessLevel } from "./domainTypes";
 
-export type AuthMode = "checking" | "setup" | "login" | "ready";
+export type AuthMode = "checking" | "login" | "ready";
 
 export type UserRole =
   | "ADMIN"
@@ -22,7 +22,6 @@ export type CurrentUser = {
 export type SystemUser = Omit<CurrentUser, "businessUnitAdminIds"> & {
   createdAt: string;
   updatedAt: string;
-  hasPassword: boolean;
 };
 
 export type ProjectAccessRecord = {
@@ -68,6 +67,39 @@ export type AuditEvent = {
   beforeValue: unknown;
   afterValue: unknown;
   metadata: unknown;
+  createdAt: string;
+  changes?: AuditEventChange[];
+  wbsTombstone?: WbsTombstone | null;
+};
+
+export type AuditEventChange = {
+  id: string;
+  auditEventId: string;
+  actorId: string | null;
+  projectId: string | null;
+  objectType: string;
+  objectId: string | null;
+  field: string;
+  oldValue: unknown;
+  newValue: unknown;
+  oldText: string | null;
+  newText: string | null;
+  createdAt: string;
+};
+
+export type WbsTombstone = {
+  id: string;
+  projectId: string;
+  auditEventId: string | null;
+  deletedById: string | null;
+  restoredById: string | null;
+  itemIds: unknown;
+  itemCount: number;
+  items: unknown;
+  dependencies: unknown;
+  expiresAt: string;
+  restoredAt: string | null;
+  restoredRootId: string | null;
   createdAt: string;
 };
 
@@ -197,18 +229,11 @@ export type WebhookDraft = {
   isActive: boolean;
 };
 
-export type AuthFormState = {
-  email: string;
-  name: string;
-  password: string;
-};
-
 export type UserFormState = {
   email: string;
   name: string;
   role: UserRole;
   isActive: boolean;
-  password: string;
 };
 
 export type UserDraftState = {
@@ -216,7 +241,6 @@ export type UserDraftState = {
   name: string;
   role: UserRole;
   isActive: boolean;
-  password: string;
 };
 
 export type DictionaryItemDraft = {

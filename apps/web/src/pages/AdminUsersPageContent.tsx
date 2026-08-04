@@ -73,20 +73,6 @@ export function AdminUsersPageContent() {
                               </option>
                             </select>
                           </label>
-                          <label>
-                            Пароль
-                            <input
-                              type="password"
-                              value={newUserForm.password}
-                              onChange={(event) =>
-                                setNewUserForm({
-                                  ...newUserForm,
-                                  password: event.target.value,
-                                })
-                              }
-                              placeholder="Минимум 8 символов"
-                            />
-                          </label>
                           <button type="submit" disabled={creatingUser}>
                             {creatingUser ? "Создаю..." : "Создать пользователя"}
                           </button>
@@ -98,7 +84,6 @@ export function AdminUsersPageContent() {
                             <span>Роль</span>
                             <span>Активен</span>
                             <span>Последний вход</span>
-                            <span>Новый пароль</span>
                             <span />
                           </div>
                           {users.map((user) => {
@@ -160,21 +145,6 @@ export function AdminUsersPageContent() {
                                   <span>Последний вход</span>
                                   <b>{date(user.lastLoginAt)}</b>
                                 </div>
-                                <label>
-                                  <span>Новый пароль</span>
-                                  <input
-                                    type="password"
-                                    value={draft.password}
-                                    onChange={(event) =>
-                                      updateUserDraft(user.id, {
-                                        password: event.target.value,
-                                      })
-                                    }
-                                    placeholder={
-                                      user.hasPassword ? "Не менять" : "Задать пароль"
-                                    }
-                                  />
-                                </label>
                                 <div className="project-admin-actions">
                                   <button
                                     type="button"

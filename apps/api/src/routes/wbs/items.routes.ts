@@ -1,6 +1,12 @@
 import { wbsItemBaseSchema, wbsItemSchema } from '@pms/shared';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
+import { currentUser } from '../../server/auth.js';
+import { buildAuditFieldChanges, recordAuditEvent } from '../../services/audit.js';
+import {
+  attachAuditEventToWbsTombstone,
+  createWbsTombstone,
+} from '../../services/wbs-tombstones.js';
 import {
   getProjectWbsSnapshot,
   recalculateProjectWbsHierarchyStatuses,
@@ -21,6 +27,47 @@ import { wbsBulkDeleteSchema, wbsBulkUpdateSchema } from './schemas.js';
 function wbsLevelFromItem(item: { code: string; wbsLevel: number | null }) {
   return Math.max(1, item.wbsLevel ?? item.code.split('.').filter(Boolean).length);
 }
+
+const wbsItemAuditFields = [
+  'parentId',
+  'code',
+  'title',
+  'type',
+  'status',
+  'owner',
+  'startDate',
+  'dueDate',
+  'baselineStartDate',
+  'baselineDueDate',
+  'forecastStartDate',
+  'forecastDueDate',
+  'wbsLevel',
+  'predecessor1',
+  'predecessor2',
+  'predecessor3',
+  'predecessor4',
+  'predecessor5',
+  'predecessor6',
+  'leadLagDays',
+  'workDays',
+  'calendarDays',
+  'excelStartDate',
+  'excelEndDate',
+  'planWorkDays',
+  'planCalendarDays',
+  'calendarCode',
+  'templateColor',
+  'priority',
+  'effortPercent',
+  'plannedCost',
+  'forecastCost',
+  'progress',
+  'jiraTicketKey',
+  'jiraTicketUrl',
+  'description',
+  'closedAt',
+  'sortOrder',
+];
 
 export function registerWbsItemRoutes(router: Router) {
   router.post('/projects/:projectId/wbs-items', async (req, res) => {
@@ -118,6 +165,17 @@ export function registerWbsItemRoutes(router: Router) {
     await recalculateProjectWbsSchedule(validation.project.id);
     await recalculateProjectWbsHierarchyStatuses(validation.project.id);
     const snapshot = await getProjectWbsSnapshot(validation.project.id);
+    const recalculatedItem = snapshot.wbsItems.find((wbsItem) => wbsItem.id === item.id) ?? item;
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'wbs_item.create',
+      objectType: 'WbsItem',
+      objectId: item.id,
+      projectId: validation.project.id,
+      afterValue: recalculatedItem,
+      changes: buildAuditFieldChanges({}, recalculatedItem, wbsItemAuditFields),
+    });
     await emitWebhookEvent({
       eventType: 'wbs.item.created',
       projectId: validation.project.id,
@@ -308,6 +366,26 @@ export function registerWbsItemRoutes(router: Router) {
       return;
     }
 
+    const actor = currentUser(req);
+    const deletedFullItems = itemIds
+      .map((itemId) => itemsById.get(itemId))
+      .filter((item) => item !== undefined);
+    const deletedDependencies = await prisma.wbsDependency.findMany({
+      where: {
+        OR: [
+          { predecessorId: { in: itemIds } },
+          { successorId: { in: itemIds } },
+        ],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const tombstone = await createWbsTombstone({
+      projectId: req.params.projectId,
+      deletedById: actor?.id ?? null,
+      items: deletedFullItems,
+      dependencies: deletedDependencies,
+    });
+
     const deletedIdSet = new Set(itemIds);
     const levelUpdates = new Map<string, number>();
     const parentUpdates = new Map<string, string | null>();
@@ -375,6 +453,24 @@ export function registerWbsItemRoutes(router: Router) {
       beforeSnapshot: deletedItems,
       afterSnapshot: snapshot,
     });
+    const auditEvent = await recordAuditEvent({
+      req,
+      actor,
+      action: 'wbs_item.delete',
+      objectType: 'WbsItem',
+      projectId: req.params.projectId,
+      beforeValue: deletedItems,
+      metadata: {
+        action: 'bulk-delete',
+        itemIds,
+        deletedCount: deletedItems.length,
+        tombstoneId: tombstone.id,
+        tombstoneExpiresAt: tombstone.expiresAt,
+      },
+    });
+    if (auditEvent) {
+      await attachAuditEventToWbsTombstone(tombstone.id, auditEvent.id);
+    }
 
     res.json({
       deletedCount: itemIds.length,
@@ -527,6 +623,18 @@ export function registerWbsItemRoutes(router: Router) {
     const snapshot = await getProjectWbsSnapshot(existing.projectId);
     const recalculatedItem =
       snapshot.wbsItems.find((item) => item.id === existing.id) ?? updated;
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'wbs_item.update',
+      objectType: 'WbsItem',
+      objectId: existing.id,
+      projectId: existing.projectId,
+      beforeValue: existing,
+      afterValue: recalculatedItem,
+      metadata: { changedFields: Object.keys(parsed.data) },
+      changes: buildAuditFieldChanges(existing, recalculatedItem, wbsItemAuditFields),
+    });
     await emitWebhookEvent({
       eventType: 'wbs.item.updated',
       projectId: existing.projectId,
@@ -544,6 +652,20 @@ export function registerWbsItemRoutes(router: Router) {
       res.status(404).json({ error: 'Элемент Структуры не найден' });
       return;
     }
+
+    const actor = currentUser(req);
+    const deletedDependencies = await prisma.wbsDependency.findMany({
+      where: {
+        OR: [{ predecessorId: existing.id }, { successorId: existing.id }],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const tombstone = await createWbsTombstone({
+      projectId: existing.projectId,
+      deletedById: actor?.id ?? null,
+      items: [existing],
+      dependencies: deletedDependencies,
+    });
 
     const descendantUpdates = await collectDescendantLevelUpdates(existing);
     await prisma.$transaction(async (tx) => {
@@ -581,6 +703,22 @@ export function registerWbsItemRoutes(router: Router) {
       beforeSnapshot: existing,
       afterSnapshot: snapshot,
     });
+    const auditEvent = await recordAuditEvent({
+      req,
+      actor,
+      action: 'wbs_item.delete',
+      objectType: 'WbsItem',
+      objectId: existing.id,
+      projectId: existing.projectId,
+      beforeValue: existing,
+      metadata: {
+        tombstoneId: tombstone.id,
+        tombstoneExpiresAt: tombstone.expiresAt,
+      },
+    });
+    if (auditEvent) {
+      await attachAuditEventToWbsTombstone(tombstone.id, auditEvent.id);
+    }
 
     res.json(snapshot);
   });

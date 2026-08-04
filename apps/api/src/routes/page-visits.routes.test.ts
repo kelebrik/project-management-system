@@ -7,8 +7,14 @@ import {
   shouldRecordPageVisit,
 } from './page-visits.routes.js';
 
-function request(headers: Record<string, string>): Request {
+function request(
+  headers: Record<string, string>,
+  protocol = 'http',
+  host = headers.host,
+): Request {
   return {
+    protocol,
+    host,
     get(name: string) {
       return headers[name.toLowerCase()];
     },
@@ -31,6 +37,47 @@ test('page visit origin check accepts configured origins and silently rejects mi
     assert.equal(
       isTrustedPageVisitRequest(request({ origin: 'https://attacker.example' })),
       false,
+    );
+    assert.equal(isTrustedPageVisitRequest(request({ origin: 'null' })), false);
+  } finally {
+    if (previous === undefined) delete process.env.WEB_ORIGIN;
+    else process.env.WEB_ORIGIN = previous;
+  }
+});
+
+test('page visit origin check accepts the effective production origin behind a proxy', () => {
+  const previous = process.env.WEB_ORIGIN;
+  process.env.WEB_ORIGIN = 'http://localhost:5173';
+  try {
+    assert.equal(
+      isTrustedPageVisitRequest(
+        request(
+          { origin: 'https://tv-dashboard.rnd.dev.sberdevices.ru' },
+          'https',
+          'tv-dashboard.rnd.dev.sberdevices.ru',
+        ),
+      ),
+      true,
+    );
+    assert.equal(
+      isTrustedPageVisitRequest(
+        request(
+          { origin: 'https://attacker.example' },
+          'https',
+          'tv-dashboard.rnd.dev.sberdevices.ru',
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      isTrustedPageVisitRequest(
+        request(
+          { referer: 'https://tv-dashboard.rnd.dev.sberdevices.ru/projects/cvte968' },
+          'https',
+          'tv-dashboard.rnd.dev.sberdevices.ru',
+        ),
+      ),
+      true,
     );
   } finally {
     if (previous === undefined) delete process.env.WEB_ORIGIN;

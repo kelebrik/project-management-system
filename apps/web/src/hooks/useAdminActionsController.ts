@@ -761,17 +761,8 @@ export function useAdminActionsController({
           },
           "Не удалось сохранить пользователя",
         );
-        let savedUser = updatedUser;
-        if (draft.password.trim()) {
-          const passwordUser = await apiClient.post<SystemUser>(
-            `/api/users/${userId}/password`,
-            { password: draft.password },
-            "Не удалось сменить пароль",
-          );
-          savedUser = passwordUser;
-        }
         await reloadUsers();
-        replaceUser(savedUser);
+        replaceUser(updatedUser);
         await reloadAuditEvents();
         setNotice("Пользователь обновлен");
       } catch (saveError) {
@@ -793,6 +784,39 @@ export function useAdminActionsController({
       setSavingUserId,
       userDrafts,
     ],
+  );
+
+  const restoreWbsTombstone = useCallback(
+    async (tombstoneId: string) => {
+      if (
+        !(await confirm({
+          title: "Восстановить элементы Структуры?",
+          message:
+            "Удалённые элементы будут возвращены, после чего Структура и зависимости могут быть перенумерованы.",
+          confirmLabel: "Восстановить",
+          tone: "default",
+        }))
+      ) return;
+      setError(null);
+      setNotice(null);
+      try {
+        const result = await apiClient.post<{ restoredItemCount: number }>(
+          `/api/admin/wbs-tombstones/${tombstoneId}/restore`,
+          undefined,
+          "Не удалось восстановить элементы Структуры",
+        );
+        await reloadAuditEvents();
+        setNotice(`Элементы Структуры восстановлены: ${result.restoredItemCount}`);
+      } catch (restoreError) {
+        setError(
+          restoreError instanceof Error
+            ? restoreError.message
+            : "Не удалось восстановить элементы Структуры",
+        );
+        await reloadAuditEvents();
+      }
+    },
+    [confirm, reloadAuditEvents, setError, setNotice],
   );
 
   const createApiToken = useCallback(
@@ -988,5 +1012,6 @@ export function useAdminActionsController({
     importAdminConfig,
     createUser,
     saveUser,
+    restoreWbsTombstone,
   };
 }
