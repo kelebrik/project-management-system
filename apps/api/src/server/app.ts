@@ -44,6 +44,10 @@ export const startedAt = new Date();
 export function createApp() {
   const app = express();
 
+  if (isProduction) {
+    app.set('trust proxy', 1);
+  }
+
   app.use(express.json({ limit: '5mb' }));
   app.use(
     cors({
