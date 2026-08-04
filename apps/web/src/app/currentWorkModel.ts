@@ -7,7 +7,8 @@ const ACTIVE_STATUSES = new Set([
   "IN_REVIEW",
   "AT_RISK",
 ]);
-const EXCLUDED_STATUSES = new Set(["BLOCKED", "CANCELLED"]);
+const CURRENT_WORK_TYPES = new Set(["TASK", "DELIVERABLE"]);
+const EXCLUDED_STATUSES = new Set(["BLOCKED", "DONE", "CANCELLED"]);
 const CODE_COLLATOR = new Intl.Collator("ru", {
   numeric: true,
   sensitivity: "base",
@@ -56,20 +57,11 @@ function addWorkingDays(value: Date, days: number) {
 
 export function currentWorkDateRange(today = new Date()) {
   const currentDay = startOfLocalDay(today);
-  const closedSince = new Date(currentDay);
-  let includedWorkingDays = isWorkingDay(closedSince) ? 1 : 0;
-  while (includedWorkingDays < 5) {
-    closedSince.setDate(closedSince.getDate() - 1);
-    if (isWorkingDay(closedSince)) includedWorkingDays += 1;
-  }
-
   const daysUntilMonday = ((8 - currentDay.getDay()) % 7) || 7;
   const upcomingMonday = new Date(
     currentDay.getTime() + daysUntilMonday * DAY_MS,
   );
   return {
-    closedSince,
-    closedThrough: currentDay,
     upcomingMonday,
     upcomingThrough: addWorkingDays(upcomingMonday, 10),
   };
@@ -111,19 +103,11 @@ export function createCurrentWorkRows(
   const itemsById = new Map(items.map((item) => [item.id, item]));
 
   return items
-    .filter((item) => item.type === "TASK")
     .filter((item) => {
       const draft = draftFor(item, drafts);
+      if (!CURRENT_WORK_TYPES.has(draft.type)) return false;
       if (EXCLUDED_STATUSES.has(draft.status)) return false;
       if (ACTIVE_STATUSES.has(draft.status)) return true;
-      if (draft.status === "DONE") {
-        const closedAt = parseLocalDate(item.closedAt);
-        return Boolean(
-          closedAt &&
-            closedAt >= range.closedSince &&
-            closedAt <= range.closedThrough,
-        );
-      }
       if (draft.status === "NOT_STARTED") {
         const dueDate = parseLocalDate(draft.dueDate || null);
         return Boolean(

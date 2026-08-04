@@ -558,11 +558,38 @@ html {
     overflow-x: visible;
   }
 
-  .audit-row {
+  .audit-entry {
     border: 1px solid var(--border-3);
     border-radius: 8px;
     margin-bottom: 10px;
+    overflow: hidden;
+  }
+
+  .audit-entry .audit-row {
+    border: 0;
+    border-radius: 0;
+    margin-bottom: 0;
     min-width: 0;
+  }
+
+  .audit-changes {
+    min-width: 0;
+    padding: 8px 10px 10px;
+  }
+
+  .audit-change {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .audit-change em {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .audit-change i {
+    display: none;
   }
 
   .project-tree-row > span,

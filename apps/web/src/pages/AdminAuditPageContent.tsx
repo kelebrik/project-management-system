@@ -1,3 +1,4 @@
+import { auditFieldLabel } from "../app/labels";
 import { usePageContext } from "./PageContext";
 
 function auditChangeText(value: string | null | undefined) {
@@ -19,7 +20,6 @@ export function AdminAuditPageContent() {
   const {
     auditActionLabel,
     auditEvents,
-    auditFieldLabel,
     auditObjectLabel,
     dateTime,
     reloadAuditEvents,
