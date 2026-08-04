@@ -12,6 +12,7 @@ function read(filePath: string) {
 
 test("Docker runtime packages API, Web UI, startup migrations, and readiness probe", () => {
   const dockerfile = read("Dockerfile");
+  const runtimeDockerfile = dockerfile.split("FROM ${NODE_IMAGE} AS runtime")[1] ?? "";
   const compose = read("docker-compose.yml");
 
   assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) run prisma:generate/, "Docker build must generate Prisma client");
@@ -21,15 +22,17 @@ test("Docker runtime packages API, Web UI, startup migrations, and readiness pro
   assert.match(dockerfile, /debian-openssl-3\.0\.x/, "Docker build must target Debian Bookworm OpenSSL 3 engines");
   assert.match(dockerfile, /PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1/, "Docker build must skip prisma.sh checksum verification in isolated environments");
   assert.match(dockerfile, /ARG NPM_VERSION=11\.18\.0/, "Docker build must pin npm with fixed bundled sigstore");
-  assert.match(dockerfile, /npm install -g --ignore-scripts "npm@\$\{NPM_VERSION\}"/, "Docker build must update bundled npm in image stages");
+  assert.match(dockerfile, /npm install -g --ignore-scripts "npm@\$\{NPM_VERSION\}"/, "Docker build must pin npm in the build stage");
   assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) ci --include=dev --ignore-scripts|scripts\/ci-install\.sh/, "Docker build must install npm packages without prisma.sh postinstall downloads");
   assert.match(dockerfile, /(npm|scripts\/ci-npm\.sh) run build/, "Docker build must compile workspaces");
   assert.match(dockerfile, /apps\/web\/dist/, "Runtime image must include built Web UI");
   assert.match(dockerfile, /EXPOSE 3000/, "Runtime image must expose application port");
   assert.match(dockerfile, /docker-entrypoint\.sh/, "Runtime image must ship a startup entrypoint");
   assert.match(dockerfile, /ENTRYPOINT \["\/app\/docker-entrypoint\.sh"\]/, "Container start must run through the migration entrypoint");
-  assert.match(read("scripts/docker-entrypoint.sh"), /npm run prisma:deploy/, "Startup entrypoint must deploy migrations before the API starts");
-  assert.match(dockerfile, /"npm", "run", "start", "--workspace", "@pms\/api"/, "Container start must run the API");
+  assert.match(read("scripts/docker-entrypoint.sh"), /node \/app\/node_modules\/prisma\/build\/index\.js migrate deploy/, "Startup entrypoint must deploy migrations without npm");
+  assert.doesNotMatch(runtimeDockerfile, /npm install -g/, "Runtime stage must not install npm");
+  assert.match(runtimeDockerfile, /rm -rf \/usr\/local\/lib\/node_modules\/npm/, "Runtime image must remove the global npm toolchain");
+  assert.match(runtimeDockerfile, /CMD \["node", "apps\/api\/dist\/server\.js"\]/, "Container start must run the API directly with Node.js");
   assert.match(dockerfile, /USER node/, "Runtime image must run as a non-root user");
   assert.match(dockerfile, /--chown=node:node/, "Runtime files must be owned by the non-root user");
 
@@ -105,7 +108,7 @@ test("Kubernetes manifest follows corporate restricted-pod policies", () => {
   const combinedManifest = `${manifest}\n${migrateJob}`;
 
   assert.match(migrateJob, /kind: Job/, "Kubernetes deployment must provide a one-shot migration Job");
-  assert.match(migrateJob, /command: \["npm", "run", "prisma:deploy"\]/, "Migration Job must run prisma migrate deploy");
+  assert.match(migrateJob, /command: \["node", "\/app\/node_modules\/prisma\/build\/index\.js", "migrate", "deploy"\]/, "Migration Job must run Prisma without npm");
   assert.match(manifest, /kind: Deployment/, "Application must be deployed by a controller, not a bare Pod");
   assert.doesNotMatch(combinedManifest, /kind: Pod\b/, "Manifest must not define bare Pods");
   assert.match(combinedManifest, /kind: ServiceAccount/, "Manifest must define a dedicated ServiceAccount");

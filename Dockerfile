@@ -54,7 +54,6 @@ RUN scripts/ci-npm.sh run build
 RUN scripts/ci-npm.sh prune --omit=dev
 
 FROM ${NODE_IMAGE} AS runtime
-ARG NPM_VERSION
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -81,9 +80,6 @@ RUN echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99disable-
   && mkdir -p /tmp/.npm \
   && chown -R node:node /app /tmp/.npm
 
-RUN npm install -g --ignore-scripts "npm@${NPM_VERSION}" \
-  && npm --version
-
 COPY --from=deps --chown=node:node /opt/prisma-engines /opt/prisma-engines
 COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
@@ -96,11 +92,13 @@ COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/prisma.config.ts ./prisma.config.ts
 COPY --chown=node:node scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 
-RUN chmod +x /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh \
+  && rm -rf /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
 EXPOSE 3000
 
 USER node
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["npm", "run", "start", "--workspace", "@pms/api"]
+CMD ["node", "apps/api/dist/server.js"]

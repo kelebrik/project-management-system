@@ -35,7 +35,7 @@ spec:
         - name: migrate
           image: registry.example.corp/project-management-system:latest
           imagePullPolicy: IfNotPresent
-          command: ["npm", "run", "prisma:deploy"]
+          command: ["node", "/app/node_modules/prisma/build/index.js", "migrate", "deploy"]
           envFrom:
             - secretRef:
                 name: project-management-system-secrets

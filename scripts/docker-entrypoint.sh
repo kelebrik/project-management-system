@@ -2,6 +2,6 @@
 set -eu
 
 echo "Applying database migrations..." >&2
-npm run prisma:deploy
+node /app/node_modules/prisma/build/index.js migrate deploy
 
 exec "$@"

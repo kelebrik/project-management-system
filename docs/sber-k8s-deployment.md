@@ -4,8 +4,9 @@
 
 ## Что уже подготовлено в репозитории
 
-- `Dockerfile` поддерживает подмену базового образа через `--build-arg NODE_IMAGE=...` и фиксированной версии npm через `--build-arg NPM_VERSION=...`.
+- `Dockerfile` поддерживает подмену базового образа через `--build-arg NODE_IMAGE=...` и фиксированной версии npm для build-stage через `--build-arg NPM_VERSION=...`.
 - Runtime контейнер запускается от пользователя `node`, а не от `root`.
+- Runtime контейнер не содержит глобальный npm; Prisma migration job и API запускаются напрямую через `node`.
 - `.gitlab-ci.yml` не использует Docker-in-Docker и не поднимает service containers.
 - `deploy/k8s/project-management-system.yaml` использует `Deployment`, dedicated `ServiceAccount`, отключенный `automountServiceAccountToken`, `runAsNonRoot`, `allowPrivilegeEscalation: false`, `capabilities.drop: ALL`, `seccompProfile: RuntimeDefault`.
 
