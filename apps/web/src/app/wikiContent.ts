@@ -745,7 +745,7 @@ export const wikiGroups: WikiGroup[] = [
               "Email нормализуется в lower-case, дубликат возвращает 409.",
               "При смене пароля все userSession этого пользователя удаляются.",
               "Нельзя отключить или понизить последнего активного ADMIN.",
-              "Ответ API не возвращает passwordHash, только hasPassword.",
+              "Пользователи создаются по имени и email; пароль в приложении не задаётся и не хранится для входа.",
             ],
           },
           {
@@ -853,7 +853,7 @@ export const wikiGroups: WikiGroup[] = [
               "OpenAPI публикуется backend-приложением и покрывается integration-тестом на соответствие concrete Express routes.",
               "Мутирующие endpoints должны иметь security responses и проходить permission/project guards.",
               "API покрывает проекты, WBS, WBS dependencies, baseline, calendars, business requirements, Jira sync, issues, RAID, artifacts, saved views, search и admin back office.",
-              "Global search и read-only executive views доступны без логина, а записи требуют auth.",
+              "Все прикладные API, включая read-only представления и global search, требуют аутентификацию.",
             ],
           },
         ],
@@ -866,19 +866,19 @@ export const wikiGroups: WikiGroup[] = [
         keywords: ["auth", "keycloak", "OIDC", "audit", "health", "backup", "restore", "deploy", "prisma"],
         sections: [
           {
-            heading: "Локальная авторизация",
+            heading: "Сессия приложения",
             points: [
-              "Пароли хешируются scrypt с random salt и timingSafeEqual при проверке.",
               "Сессия хранится в UserSession как SHA-256 hash cookie-токена.",
               "Cookie HttpOnly, SameSite=Lax, Max-Age по AUTH_SESSION_DAYS. Secure включается в production, если AUTH_COOKIE_SECURE не false.",
               "Если сессия истекла, она удаляется. Если пользователь отключен, сессия не прикрепляется к request.",
-              "Если активного ADMIN с паролем нет, система поддерживает bootstrap admin flow.",
+              "Без активной сессии интерфейс и все прикладные API недоступны.",
             ],
           },
           {
             heading: "Keycloak/OIDC",
             points: [
               "Frontend поддерживает Keycloak login flow, а backend работает с итоговой пользовательской сессией приложения.",
+              "Keycloak является единственным способом пользовательской аутентификации; локальный вход по email и паролю отключен.",
               "OIDC не передает пароль пользователя приложению, поэтому Jira не может ходить в Jira с пользовательским логопассом.",
               "Доступ к Jira реализован сервисным аккаунтом через JIRA_EMAIL/JIRA_API_TOKEN в env контейнера.",
             ],

@@ -86,7 +86,7 @@ test("Smoke scripts cover security, performance, and migration checks", () => {
   const performance = read("scripts/performance-smoke.sh");
   const migration = read("scripts/migration-dry-run.sh");
 
-  assert.match(security, /GET \/api\/projects/, "Security smoke must verify public read-only projects");
+  assert.match(security, /GET \/api\/projects without auth/, "Security smoke must verify read protection");
   assert.match(security, /GET \/api\/openapi\.json/, "Security smoke must verify OpenAPI availability");
   assert.match(security, /GET \/api\/ready/, "Security smoke must verify readiness");
   assert.match(security, /POST \/api\/projects without auth/, "Security smoke must verify write protection");

@@ -293,32 +293,32 @@ export const openApiDocument = {
         },
       },
     },
-    "/api/auth/login": {
-      post: {
-        tags: ["Auth"],
-        summary: "Login and create session cookie",
-        responses: {
-          "200": { description: "Authenticated" },
-          "401": { description: "Invalid credentials" },
-        },
-      },
-    },
-    "/api/auth/setup-status": {
+    "/api/auth/keycloak/status": {
       get: {
         tags: ["Auth"],
-        summary: "Check whether the first administrator has to be bootstrapped",
+        summary: "Check whether Keycloak authentication is configured",
         responses: {
-          "200": { description: "Bootstrap status" },
+          "200": { description: "Keycloak configuration status" },
         },
       },
     },
-    "/api/auth/bootstrap": {
-      post: {
+    "/api/auth/keycloak/login": {
+      get: {
         tags: ["Auth"],
-        summary: "Create the first administrator account",
+        summary: "Start Keycloak authorization code flow",
         responses: {
-          "201": { description: "Administrator created and authenticated" },
-          "400": { description: "Validation error or bootstrap is disabled" },
+          "302": { description: "Redirect to Keycloak" },
+          "503": { description: "Keycloak is not configured" },
+        },
+      },
+    },
+    "/api/auth/keycloak/callback": {
+      get: {
+        tags: ["Auth"],
+        summary: "Complete Keycloak authorization code flow",
+        responses: {
+          "302": { description: "Session created and browser redirected to the application" },
+          "400": { description: "Invalid callback parameters or state" },
         },
       },
     },
@@ -400,7 +400,8 @@ export const openApiDocument = {
     "/api/projects": {
       get: {
         tags: ["Projects"],
-        summary: "List projects. Available without authentication in read-only mode.",
+        summary: "List projects",
+        security: [{ sessionCookie: [] }, { bearerApiToken: [] }],
         responses: {
           "200": {
             description: "Project list",
@@ -413,6 +414,7 @@ export const openApiDocument = {
               },
             },
           },
+          "401": { description: "Authentication required" },
         },
       },
       post: {
@@ -939,11 +941,6 @@ export const openApiDocument = {
     },
     "/api/users/{userId}": {
       patch: securedOperation(["Admin"], "Update user profile, role or active flag", [
-        pathParam("userId"),
-      ]),
-    },
-    "/api/users/{userId}/password": {
-      post: securedOperation(["Admin"], "Change user password and revoke sessions", [
         pathParam("userId"),
       ]),
     },

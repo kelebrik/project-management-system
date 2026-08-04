@@ -2,7 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Request } from 'express';
 
-import { externalBaseUrl } from './keycloak-auth.js';
+import { externalBaseUrl, keycloakUserRole } from './keycloak-auth.js';
+
+test('first Keycloak user becomes the system administrator', () => {
+  assert.equal(keycloakUserRole(null, 0), 'ADMIN');
+  assert.equal(keycloakUserRole('EXECUTIVE_VIEWER', 0), 'ADMIN');
+});
+
+test('later Keycloak users keep their provisioned role or get the viewer role', () => {
+  assert.equal(keycloakUserRole('PROJECT_MANAGER', 1), 'PROJECT_MANAGER');
+  assert.equal(keycloakUserRole(null, 1), 'EXECUTIVE_VIEWER');
+});
 
 function requestWithHeaders(headers: Record<string, string>, protocol = 'http') {
   return {

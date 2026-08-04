@@ -17,10 +17,10 @@ expect_code() {
   esac
 }
 
-expect_code "GET /api/projects" "200" "$BASE/api/projects"
+expect_code "GET /api/projects without auth" "401" "$BASE/api/projects"
 expect_code "GET /api/openapi.json" "200" "$BASE/api/openapi.json"
 expect_code "GET /api/ready" "200" "$BASE/api/ready"
-expect_code "POST /api/projects without auth" "400,401,403" \
+expect_code "POST /api/projects without auth" "401" \
   -X POST "$BASE/api/projects" \
   -H "Content-Type: application/json" \
   -d "{}"

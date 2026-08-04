@@ -6,7 +6,7 @@ const projectId = process.env.INTEGRATION_PROJECT_ID;
 const authCookie = process.env.INTEGRATION_AUTH_COOKIE;
 
 function workflowTest(name: string, options: { write?: boolean }, fn: () => Promise<void>) {
-  const missingReadContext = !baseUrl || !projectId;
+  const missingReadContext = !baseUrl || !projectId || !authCookie;
   const missingWriteContext = options.write && !authCookie;
 
   test(name, { skip: missingReadContext || missingWriteContext }, fn);
@@ -28,7 +28,7 @@ async function request(path: string, init?: RequestInit) {
   };
 }
 
-workflowTest("WBS and overview stay available for read-only executive views", {}, async () => {
+workflowTest("WBS and overview stay available for authenticated executive views", {}, async () => {
   assert.ok(projectId, "INTEGRATION_PROJECT_ID must be set");
 
   const [overview, wbs] = await Promise.all([

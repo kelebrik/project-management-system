@@ -1,7 +1,7 @@
 import type { ProjectModule } from "./projectModules";
 import type { ProjectAccessLevel } from "./domainTypes";
 
-export type AuthMode = "checking" | "setup" | "login" | "ready";
+export type AuthMode = "checking" | "login" | "ready";
 
 export type UserRole =
   | "ADMIN"
@@ -22,7 +22,6 @@ export type CurrentUser = {
 export type SystemUser = Omit<CurrentUser, "businessUnitAdminIds"> & {
   createdAt: string;
   updatedAt: string;
-  hasPassword: boolean;
 };
 
 export type ProjectAccessRecord = {
@@ -230,18 +229,11 @@ export type WebhookDraft = {
   isActive: boolean;
 };
 
-export type AuthFormState = {
-  email: string;
-  name: string;
-  password: string;
-};
-
 export type UserFormState = {
   email: string;
   name: string;
   role: UserRole;
   isActive: boolean;
-  password: string;
 };
 
 export type UserDraftState = {
@@ -249,7 +241,6 @@ export type UserDraftState = {
   name: string;
   role: UserRole;
   isActive: boolean;
-  password: string;
 };
 
 export type DictionaryItemDraft = {
