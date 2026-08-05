@@ -134,22 +134,16 @@ const projectNavItems: ProjectNavItem[] = [
     icon: <GanttChartSquare size={17} />,
   },
   {
-    key: "businessRequirements",
-    view: "project-business-requirements",
-    label: "Бизнес требования",
-    icon: <FileSpreadsheet size={17} />,
-  },
-  {
-    key: "passport",
-    view: "project-passport",
-    label: "Паспорт проекта",
-    icon: <FileText size={17} />,
-  },
-  {
     key: "structure",
     view: "project-current-work",
     label: "Текучка",
     icon: <ListTodo size={17} />,
+  },
+  {
+    key: "jiraWork",
+    view: "project-jira-work",
+    label: "Работы в Jira",
+    icon: <BriefcaseBusiness size={17} />,
   },
   {
     key: "structure",
@@ -158,10 +152,16 @@ const projectNavItems: ProjectNavItem[] = [
     icon: <ListChecks size={17} />,
   },
   {
-    key: "jiraWork",
-    view: "project-jira-work",
-    label: "Работы в Jira",
-    icon: <BriefcaseBusiness size={17} />,
+    key: "passport",
+    view: "project-passport",
+    label: "Паспорт проекта",
+    icon: <FileText size={17} />,
+  },
+  {
+    key: "businessRequirements",
+    view: "project-business-requirements",
+    label: "Бизнес требования",
+    icon: <FileSpreadsheet size={17} />,
   },
   {
     key: "issues",
