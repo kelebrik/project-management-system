@@ -212,7 +212,7 @@
   display: flex;
   gap: 8px;
   height: 32px;
-  left: calc(8px + var(--milestone-axis-title-left, 0px));
+  left: var(--milestone-axis-title-left, 8px);
   max-width: var(--milestone-axis-title-width, 320px);
   overflow: hidden;
   padding: 0 12px 0 14px;
