@@ -177,6 +177,7 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   assert.doesNotMatch(ciInstall, /prefer-offline/, "CI install wrapper must not force npm prefer-offline");
   assert.match(ciNpm, /ci-npm-env\.sh/, "CI npm wrapper must load shared npm registry settings");
   assert.match(ciNpmEnv, /nexus\.sberdevices\.ru\/repository\/npm/, "CI npm wrapper must default to the corporate Nexus npm registry");
+  assert.match(ciNpmEnv, /NPM_CONFIG_REPLACE_REGISTRY_HOST=npmjs/, "CI npm wrapper must redirect portable npmjs lock URLs through Nexus");
   assert.doesNotMatch(ciNpm, /registry\.npmjs\.org/, "CI npm wrapper must not default to public npmjs registry");
   assert.match(ciInstall, /ci-npm-env\.sh/, "CI install wrapper must load shared npm registry settings");
   assert.match(ciNpm, /npm-\$VERSION\.tgz/, "CI npm wrapper must bootstrap npm from a tarball");
@@ -187,4 +188,19 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
 
   assert.match(dockerfile, /ARG NODE_IMAGE/, "Docker build must allow replacing the base image with an approved registry image");
   assert.match(dockerfile, /FROM \$\{NODE_IMAGE\}/, "Docker stages must use the configurable base image");
+});
+
+test("package lock remains portable outside the corporate network", () => {
+  const packageLock = read("package-lock.json");
+
+  assert.doesNotMatch(
+    packageLock,
+    /nexus\.sberdevices\.ru\/repository\/npm/,
+    "package-lock.json must not pin package downloads to the corporate Nexus",
+  );
+  assert.match(
+    packageLock,
+    /https:\/\/registry\.npmjs\.org\//,
+    "package-lock.json must use the portable public npm registry host",
+  );
 });
