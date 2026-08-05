@@ -597,7 +597,7 @@ body.milestone-label-dragging * {
       [data-print-target="milestones-by-phase"],
       [data-print-target="project-schedule-print"]
     ) .milestone-axis-title {
-    left: calc(2mm + var(--milestone-axis-title-left, 0px));
+    left: var(--milestone-axis-title-left, 2mm);
     max-width: var(--milestone-axis-title-width, 320px);
     padding: 0 2mm;
   }
