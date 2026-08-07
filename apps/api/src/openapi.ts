@@ -325,6 +325,18 @@ export const openApiDocument = {
     "/api/auth/me": {
       get: securedOperation(["Auth"], "Current authenticated user"),
     },
+    "/api/auth/login": {
+      post: {
+        tags: ["Auth"],
+        summary: "Create a session with email and password",
+        security: [],
+        responses: {
+          "200": { description: "Authenticated session" },
+          "400": { description: "Invalid credentials payload" },
+          "401": { description: "Invalid email or password" },
+        },
+      },
+    },
     "/api/auth/logout": {
       post: securedOperation(["Auth"], "Destroy current session"),
     },

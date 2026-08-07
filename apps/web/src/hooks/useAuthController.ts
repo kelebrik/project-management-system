@@ -157,7 +157,7 @@ export function useAuthController({
       setCurrentUser(null);
       setAuthMode("login");
       setNotice(null);
-      setError("Для доступа к системе нужно войти через SSO");
+      setError("Для доступа к системе нужно войти");
     };
     window.addEventListener("pms-auth-required", onAuthRequired);
     return () => {
@@ -231,5 +231,26 @@ export function useAuthController({
     );
   }, []);
 
-  return { logout, keycloakStatus, loginWithKeycloak };
+  const loginWithPassword = useCallback(
+    async (email: string, password: string) => {
+      setError(null);
+      setNotice(null);
+      try {
+        const result = await apiClient.post<{ user: CurrentUser }>(
+          "/api/auth/login",
+          { email, password },
+          "Не удалось войти",
+        );
+        setCurrentUser(result.user);
+        setAuthMode("ready");
+      } catch (authError) {
+        setError(
+          authError instanceof Error ? authError.message : "Не удалось выполнить вход",
+        );
+      }
+    },
+    [setAuthMode, setCurrentUser, setError, setNotice],
+  );
+
+  return { logout, keycloakStatus, loginWithKeycloak, loginWithPassword };
 }

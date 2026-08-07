@@ -33,7 +33,14 @@ WEB_ORIGIN=https://<your-render-service>.onrender.com
 SEED_DEMO_DATA=false
 METRICS_TOKEN=<random secret>
 DATABASE_URL=<Render PostgreSQL internal connection string>
+LOCAL_AUTH_EMAIL=<cloud owner email>
+LOCAL_AUTH_BOOTSTRAP_PASSWORD=<one-time cloud owner password>
 ```
+
+The bootstrap password is never committed to the repository. It is accepted only
+for the configured active user while that user has no database password hash. The
+first successful login replaces it with a salted `scrypt` hash; remove
+`LOCAL_AUTH_BOOTSTRAP_PASSWORD` from Render afterwards.
 
 Optional for Jira sync:
 

@@ -4,7 +4,7 @@ import test from 'node:test';
 
 import { createApp } from './app.js';
 
-test('application data requires authentication and only Keycloak login is public', async (t) => {
+test('application data requires authentication while both login methods are public', async (t) => {
   const server = createApp().listen(0, '127.0.0.1');
   t.after(() => server.close());
   await once(server, 'listening');
@@ -16,7 +16,7 @@ test('application data requires authentication and only Keycloak login is public
   assert.equal(projects.status, 401);
 
   const localLogin = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST' });
-  assert.equal(localLogin.status, 401);
+  assert.equal(localLogin.status, 400);
 
   const keycloakStatus = await fetch(`${baseUrl}/api/auth/keycloak/status`);
   assert.equal(keycloakStatus.status, 200);

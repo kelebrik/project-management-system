@@ -45,7 +45,7 @@ Use the Blueprint flow and point Render to this repository. The included `render
 - one Node web service;
 - one PostgreSQL database;
 - environment variables for `DATABASE_URL`, `NODE_ENV`, `WEB_ORIGIN`, `SEED_DEMO_DATA`;
-- manual Jira secret variables.
+- manual local-auth and Jira secret variables.
 
 Render service settings if creating manually:
 
@@ -61,10 +61,16 @@ Render service settings if creating manually:
   - `SEED_DEMO_DATA=false`
   - `METRICS_TOKEN=<random secret>`
   - `DATABASE_URL=<Render PostgreSQL internal connection string>`
+  - `LOCAL_AUTH_EMAIL=<cloud owner email>`
+  - `LOCAL_AUTH_BOOTSTRAP_PASSWORD=<one-time cloud owner password>`
   - `JIRA_BASE_URL=<your Jira base URL>`
   - `JIRA_EMAIL=<integration user email>`
   - `JIRA_API_TOKEN=<Jira API token or service account password>`
   - `JIRA_MAX_RESULTS=100`
+
+`LOCAL_AUTH_BOOTSTRAP_PASSWORD` is used only when the matching active user has no
+stored password hash. The first successful login stores a salted `scrypt` hash in
+PostgreSQL; remove the bootstrap secret from Render after that login.
 
 ## Jira Strategy
 

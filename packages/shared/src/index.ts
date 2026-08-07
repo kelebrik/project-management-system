@@ -232,6 +232,11 @@ export const labels = {
   },
 } as const;
 
+export const loginSchema = z.object({
+  email: z.string().trim().email("Некорректный email").toLowerCase(),
+  password: z.string().min(1, "Введите пароль").max(256, "Пароль слишком длинный"),
+});
+
 export const createUserSchema = z.object({
   email: z.string().trim().email("Некорректный email").toLowerCase(),
   name: z.string().trim().min(2, "Укажите имя пользователя"),
