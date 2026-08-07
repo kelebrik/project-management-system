@@ -1,4 +1,4 @@
-import { KeyRound } from "lucide-react";
+import { ClipboardCheck, KeyRound } from "lucide-react";
 
 type AuthPageProps = {
   error: string | null;
@@ -17,10 +17,11 @@ export function AuthPage({
     <main className="auth-page">
       <section className="auth-card">
         <div className="brand auth-brand">
-          <div className="logo">УП</div>
-          <div>
-            <strong>Система УП</strong>
-            <span>Контур управления</span>
+          <div className="logo" aria-hidden="true">
+            <ClipboardCheck size={22} />
+          </div>
+          <div className="brand-text">
+            <b>Управление проектами</b>
           </div>
         </div>
         <div className="auth-title">
