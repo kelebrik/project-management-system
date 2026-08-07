@@ -16,6 +16,10 @@ test("authentication page offers only Keycloak SSO", () => {
   );
 
   assert.match(html, /Войти через SSO/);
+  assert.match(html, /Управление проектами/);
+  assert.match(html, /lucide-clipboard-check/);
+  assert.match(html, /aria-hidden="true"/);
+  assert.doesNotMatch(html, /Система УП|Контур управления/);
   assert.doesNotMatch(html, /type="password"/);
   assert.doesNotMatch(html, /Продолжить только просмотр/);
   assert.doesNotMatch(html, /<form/);

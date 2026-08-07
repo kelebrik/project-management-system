@@ -1,4 +1,4 @@
-import { KeyRound, LogOut, Users } from "lucide-react";
+import { ClipboardCheck, KeyRound, LogOut, Users } from "lucide-react";
 
 import { userRoleLabel } from "../app/adminHelpers";
 import type { CurrentUser } from "../app/adminTypes";
@@ -17,10 +17,11 @@ export function SidebarIdentity({
   return (
     <>
       <div className="brand">
-        <span className="brand-mark">УП</span>
+        <span className="brand-mark" aria-hidden="true">
+          <ClipboardCheck size={20} />
+        </span>
         <span className="brand-text">
-          <b>Система УП</b>
-          <small>Контур управления</small>
+          <b>Управление проектами</b>
         </span>
       </div>
       <div className="sidebar-user">
