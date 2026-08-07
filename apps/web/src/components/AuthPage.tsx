@@ -1,32 +1,18 @@
 import { KeyRound } from "lucide-react";
-import type { FormEvent } from "react";
-import type { AuthFormState, AuthMode } from "../app/adminTypes";
 
 type AuthPageProps = {
-  authForm: AuthFormState;
-  authMode: Extract<AuthMode, "setup" | "login">;
   error: string | null;
   keycloakEnabled: boolean;
-  onContinueReadOnly: () => void;
-  onFormChange: (form: AuthFormState) => void;
+  keycloakStatusResolved: boolean;
   onKeycloakLogin: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  submitting: boolean;
 };
 
 export function AuthPage({
-  authForm,
-  authMode,
   error,
   keycloakEnabled,
-  onContinueReadOnly,
-  onFormChange,
+  keycloakStatusResolved,
   onKeycloakLogin,
-  onSubmit,
-  submitting,
 }: AuthPageProps) {
-  const isSetup = authMode === "setup";
-
   return (
     <main className="auth-page">
       <section className="auth-card">
@@ -40,12 +26,8 @@ export function AuthPage({
         <div className="auth-title">
           <KeyRound size={22} />
           <div>
-            <h1>{isSetup ? "Первичная настройка" : "Вход в систему"}</h1>
-            <p>
-              {isSetup
-                ? "Создайте первого администратора системы"
-                : "Введите email и пароль пользователя"}
-            </p>
+            <h1>Вход в систему</h1>
+            <p>Используйте корпоративную учётную запись</p>
           </div>
         </div>
         {error && (
@@ -54,66 +36,17 @@ export function AuthPage({
             <span>{error}</span>
           </div>
         )}
-        <form className="auth-form" onSubmit={onSubmit}>
-          {authMode === "login" && keycloakEnabled && (
-            <>
-              <button type="button" onClick={onKeycloakLogin}>
-                Войти через SSO
-              </button>
-              <div className="auth-divider">или</div>
-            </>
-          )}
-          {isSetup && (
-            <label>
-              Имя администратора
-              <input
-                value={authForm.name}
-                onChange={(event) =>
-                  onFormChange({ ...authForm, name: event.target.value })
-                }
-                autoComplete="name"
-              />
-            </label>
-          )}
-          <label>
-            Email
-            <input
-              type="email"
-              value={authForm.email}
-              onChange={(event) =>
-                onFormChange({ ...authForm, email: event.target.value })
-              }
-              autoComplete="email"
-            />
-          </label>
-          <label>
-            Пароль
-            <input
-              type="password"
-              value={authForm.password}
-              onChange={(event) =>
-                onFormChange({ ...authForm, password: event.target.value })
-              }
-              autoComplete={isSetup ? "new-password" : "current-password"}
-            />
-          </label>
-          <button type="submit" disabled={submitting}>
-            {submitting
-              ? "Проверяю..."
-              : isSetup
-                ? "Создать администратора"
-                : "Войти"}
+        <div className="auth-form">
+          <button type="button" disabled={!keycloakEnabled} onClick={onKeycloakLogin}>
+            Войти через SSO
           </button>
-          {authMode === "login" && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={onContinueReadOnly}
-            >
-              Продолжить только просмотр
-            </button>
+          {keycloakStatusResolved && !keycloakEnabled && (
+            <div className="auth-error">
+              <strong>Вход недоступен</strong>
+              <span>Keycloak не настроен. Обратитесь к администратору.</span>
+            </div>
           )}
-        </form>
+        </div>
       </section>
     </main>
   );

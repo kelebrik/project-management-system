@@ -28,7 +28,7 @@ test("FAQ documents the current work selection rules", () => {
   const text = article?.sections.flatMap((section) => section.points).join(" ") ?? "";
 
   assert.ok(article);
-  assert.match(text, /последние пять рабочих дней/);
-  assert.match(text, /Провалено или Отменено/);
+  assert.match(text, /Задача и Результат/);
+  assert.match(text, /Провалено, Сделано или Отменено/);
   assert.match(text, /страницы Структура/);
 });

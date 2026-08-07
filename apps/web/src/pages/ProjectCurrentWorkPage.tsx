@@ -107,7 +107,7 @@ export function ProjectCurrentWorkPage() {
       <div className="panel-title">
         <div>
           <h2>Текучка</h2>
-          <p>Недавно закрытые, текущие и ближайшие работы проекта</p>
+          <p>Текущие и ближайшие работы проекта</p>
         </div>
       </div>
       {rows.length === 0 ? (

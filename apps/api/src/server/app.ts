@@ -13,7 +13,7 @@ import { createRisksRouter } from '../routes/risks.routes.js';
 import { createSavedViewsRouter } from '../routes/saved-views.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
 import { createWbsRouter } from '../routes/wbs.routes.js';
-import { attachAuth, currentUser, hashPassword, requireAdmin, requireAuth, requireAuthForWrites, userResponse, wouldRemoveLastAdmin } from './auth.js';
+import { attachAuth, currentUser, requireAdmin, requireAuth, userResponse, wouldRemoveLastAdmin } from './auth.js';
 import { businessUnitReadMiddleware } from './business-units.js';
 import { registerAuthRoutes } from './auth-routes.js';
 import { serverErrorMessage } from './errors.js';
@@ -43,6 +43,10 @@ export const startedAt = new Date();
 
 export function createApp() {
   const app = express();
+
+  if (isProduction) {
+    app.set('trust proxy', 1);
+  }
 
   app.use(express.json({ limit: '5mb' }));
   app.use(
@@ -100,6 +104,8 @@ export function createApp() {
   registerAuthRoutes(app);
   registerKeycloakAuthRoutes(app);
 
+  app.use('/api', requireAuth);
+
   app.use('/api', createPageVisitsRouter({ currentUser, requireAdmin }));
 
   app.use('/api', createBusinessUnitsRouter());
@@ -107,7 +113,6 @@ export function createApp() {
   app.use('/api', createSearchRouter());
   app.use('/api', createSavedViewsRouter({ currentUser, requireAuth }));
 
-  app.use('/api', requireAuthForWrites);
   app.use('/api', writePermissionMiddleware);
 
   app.use(
@@ -115,7 +120,6 @@ export function createApp() {
     createAdminRouter({
       requireAdmin,
       currentUser,
-      hashPassword,
       wouldRemoveLastAdmin,
       userResponse,
       startedAt,

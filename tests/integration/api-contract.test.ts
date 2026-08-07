@@ -2,14 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const baseUrl = process.env.INTEGRATION_BASE_URL;
+const authCookie = process.env.INTEGRATION_AUTH_COOKIE;
 
 function integrationTest(name: string, fn: () => Promise<void>) {
   test(name, { skip: !baseUrl }, fn);
 }
 
-async function getJson(path: string) {
+function authenticatedIntegrationTest(name: string, fn: () => Promise<void>) {
+  test(name, { skip: !baseUrl || !authCookie }, fn);
+}
+
+async function getJson(path: string, authenticated = false) {
   assert.ok(baseUrl, "INTEGRATION_BASE_URL must be set");
-  const response = await fetch(new URL(path, baseUrl));
+  const response = await fetch(new URL(path, baseUrl), {
+    headers: authenticated && authCookie ? { Cookie: authCookie } : undefined,
+  });
   const body = await response.text();
   return {
     status: response.status,
@@ -27,11 +34,10 @@ integrationTest("health endpoint exposes database and Jira readiness", async () 
   assert.equal(typeof response.json.jiraConfigured, "boolean");
 });
 
-integrationTest("read-only project data is available without login", async () => {
+integrationTest("project data requires authentication", async () => {
   const response = await getJson("/api/projects");
 
-  assert.equal(response.status, 200);
-  assert.ok(Array.isArray(response.json));
+  assert.equal(response.status, 401);
 });
 
 integrationTest("OpenAPI document is published by the API", async () => {
@@ -42,15 +48,15 @@ integrationTest("OpenAPI document is published by the API", async () => {
   assert.ok(response.json.paths["/api/projects"]);
 });
 
-integrationTest("overview endpoint returns executive source data for a project", async () => {
-  const projects = await getJson("/api/projects");
+authenticatedIntegrationTest("overview endpoint returns authenticated executive source data", async () => {
+  const projects = await getJson("/api/projects", true);
   const project = projects.json.find((item: { status: string }) => item.status !== "CLOSED") ?? projects.json[0];
 
   if (!project) {
     return;
   }
 
-  const overview = await getJson(`/api/projects/${project.id}/overview`);
+  const overview = await getJson(`/api/projects/${project.id}/overview`, true);
 
   assert.equal(overview.status, 200);
   assert.equal(overview.json.id, project.id);
@@ -60,7 +66,7 @@ integrationTest("overview endpoint returns executive source data for a project",
   assert.ok(Array.isArray(overview.json.criticalPath));
 });
 
-integrationTest("write endpoints require authentication", async () => {
+integrationTest("write endpoints also require authentication", async () => {
   assert.ok(baseUrl, "INTEGRATION_BASE_URL must be set");
   const response = await fetch(new URL("/api/projects", baseUrl), {
     method: "POST",

@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { changeUserPasswordSchema, createUserSchema, updateUserSchema } from '@pms/shared';
+import { createUserSchema, updateUserSchema } from '@pms/shared';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { recordAuditEvent } from '../../services/audit.js';
@@ -11,14 +11,13 @@ const userSelect = {
   name: true,
   role: true,
   isActive: true,
-  passwordHash: true,
   lastLoginAt: true,
   createdAt: true,
   updatedAt: true,
 } as const;
 
 export function registerAdminUserRoutes(router: Router, context: AdminRoutesContext) {
-  const { requireAdmin, currentUser, hashPassword, wouldRemoveLastAdmin, userResponse } = context;
+  const { requireAdmin, currentUser, wouldRemoveLastAdmin, userResponse } = context;
 
   router.get('/users', requireAdmin, async (_req, res) => {
     const users = await prisma.user.findMany({
@@ -42,7 +41,6 @@ export function registerAdminUserRoutes(router: Router, context: AdminRoutesCont
           name: parsed.data.name,
           role: parsed.data.role,
           isActive: parsed.data.isActive,
-          passwordHash: hashPassword(parsed.data.password),
         },
         select: userSelect,
       });
@@ -115,43 +113,6 @@ export function registerAdminUserRoutes(router: Router, context: AdminRoutesCont
         res.status(409).json({ error: 'Пользователь с таким email уже существует' });
         return;
       }
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        res.status(404).json({ error: 'Пользователь не найден' });
-        return;
-      }
-      throw error;
-    }
-  });
-
-  router.post('/users/:userId/password', requireAdmin, async (req, res) => {
-    const parsed = changeUserPasswordSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.flatten() });
-      return;
-    }
-    const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
-    if (!userId) {
-      res.status(400).json({ error: 'Пользователь не указан' });
-      return;
-    }
-
-    try {
-      const user = await prisma.user.update({
-        where: { id: userId },
-        data: { passwordHash: hashPassword(parsed.data.password) },
-        select: userSelect,
-      });
-      await prisma.userSession.deleteMany({ where: { userId: user.id } });
-      await recordAuditEvent({
-        req,
-        actor: currentUser(req),
-        action: 'user.password_change',
-        objectType: 'User',
-        objectId: user.id,
-        metadata: { sessionsRevoked: true },
-      });
-      res.json(userResponse(user));
-    } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         res.status(404).json({ error: 'Пользователь не найден' });
         return;

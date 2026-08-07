@@ -1,4 +1,5 @@
 import type { Express, Request } from 'express';
+import type { UserRole } from '@prisma/client';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { prisma } from '../db.js';
 import { recordAuditEvent } from '../services/audit.js';
@@ -23,6 +24,11 @@ type KeycloakProfile = {
   email: string;
   name: string;
 };
+
+export function keycloakUserRole(existingRole: UserRole | null, activeAdminCount: number): UserRole {
+  if (activeAdminCount === 0) return 'ADMIN';
+  return existingRole ?? 'EXECUTIVE_VIEWER';
+}
 
 const keycloakStateCookieName = process.env.KEYCLOAK_STATE_COOKIE_NAME ?? 'pms_keycloak_state';
 const defaultRedirectPath = '/';
@@ -210,13 +216,12 @@ async function upsertKeycloakUser(profile: KeycloakProfile) {
   const activeAdminCount = await prisma.user.count({
     where: { role: 'ADMIN', isActive: true },
   });
-  const shouldBootstrapAdmin = activeAdminCount === 0;
   if (existing) {
     const user = await prisma.user.update({
       where: { id: existing.id },
       data: {
         name: existing.name?.trim() ? existing.name : profile.name,
-        role: shouldBootstrapAdmin ? 'ADMIN' : existing.role,
+        role: keycloakUserRole(existing.role, activeAdminCount),
         isActive: true,
         lastLoginAt,
       },
@@ -235,7 +240,7 @@ async function upsertKeycloakUser(profile: KeycloakProfile) {
     data: {
       email: profile.email,
       name: profile.name,
-      role: shouldBootstrapAdmin ? 'ADMIN' : 'EXECUTIVE_VIEWER',
+      role: keycloakUserRole(null, activeAdminCount),
       isActive: true,
       lastLoginAt,
     },

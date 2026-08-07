@@ -29,14 +29,13 @@ function localIsoDate(value: Date) {
   ].join("-");
 }
 
-test("current work ranges use five recent weekdays and the next Monday", () => {
+test("current work range starts next Monday and spans ten working days", () => {
   const range = currentWorkDateRange(new Date(2026, 6, 20));
-  assert.equal(localIsoDate(range.closedSince), "2026-07-14");
   assert.equal(localIsoDate(range.upcomingMonday), "2026-07-27");
   assert.equal(localIsoDate(range.upcomingThrough), "2026-08-10");
 });
 
-test("current work selects recent done, active and upcoming not-started tasks", () => {
+test("current work selects active and upcoming tasks and deliverables", () => {
   const workPackage = item({
     id: "wp",
     code: "1",
@@ -49,7 +48,7 @@ test("current work selects recent done, active and upcoming not-started tasks", 
       item({ id: "done", parentId: "wp", code: "1.1", title: "Закрыто", status: "DONE", closedAt: "2026-07-17T12:00:00Z" }),
       item({ id: "active", parentId: "wp", code: "1.2", title: "В работе", status: "IN_PROGRESS" }),
       item({ id: "upcoming", parentId: "wp", code: "1.3", title: "Предстоит", dueDate: "2026-08-10", comment: "Важно" }),
-      item({ id: "old", parentId: "wp", code: "1.4", title: "Старое", status: "DONE", closedAt: "2026-07-13T12:00:00Z" }),
+      item({ id: "deliverable", parentId: "wp", code: "1.4", title: "Результат", type: "DELIVERABLE", status: "IN_REVIEW" }),
       item({ id: "later", parentId: "wp", code: "1.5", title: "Позже", dueDate: "2026-08-11" }),
       item({ id: "failed", parentId: "wp", code: "1.6", title: "Провалено", status: "BLOCKED", dueDate: "2026-08-10" }),
       item({ id: "cancelled", parentId: "wp", code: "1.7", title: "Отменено", status: "CANCELLED", closedAt: "2026-07-17T12:00:00Z" }),
@@ -58,9 +57,24 @@ test("current work selects recent done, active and upcoming not-started tasks", 
     new Date(2026, 6, 20),
   );
 
-  assert.deepEqual(rows.map((row) => row.id), ["done", "active", "upcoming"]);
+  assert.deepEqual(rows.map((row) => row.id), ["active", "upcoming", "deliverable"]);
   assert.equal(rows[0].workPackage, "1 Пакет");
-  assert.equal(rows[2].comment, "Важно");
+  assert.equal(rows[1].comment, "Важно");
+});
+
+test("current work uses edited type and immediately excludes edited done status", () => {
+  const source = item({ id: "work", code: "2.1", title: "Результат" });
+  const deliverableDraft = wbsToForm(source);
+  deliverableDraft.type = "DELIVERABLE";
+  deliverableDraft.status = "IN_PROGRESS";
+
+  assert.deepEqual(
+    createCurrentWorkRows([source], { work: deliverableDraft }).map((row) => row.id),
+    ["work"],
+  );
+
+  deliverableDraft.status = "DONE";
+  assert.deepEqual(createCurrentWorkRows([source], { work: deliverableDraft }), []);
 });
 
 test("current work uses edited structure values", () => {

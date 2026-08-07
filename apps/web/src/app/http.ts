@@ -15,11 +15,7 @@ export async function authenticatedFetch(
       ...init.headers,
     },
   });
-  const method = (init.method ?? "GET").toUpperCase();
-  if (
-    response.status === 401 &&
-    !["GET", "HEAD", "OPTIONS"].includes(method)
-  ) {
+  if (response.status === 401) {
     window.dispatchEvent(new CustomEvent("pms-auth-required"));
   }
   return response;

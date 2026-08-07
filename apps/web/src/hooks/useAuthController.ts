@@ -3,29 +3,22 @@ import {
   useEffect,
   useState,
   type Dispatch,
-  type FormEvent,
   type SetStateAction,
 } from "react";
 import { ApiError, apiBase, apiClient } from "../api/client";
-import type {
-  AuthFormState,
-  AuthMode,
-  CurrentUser,
-} from "../app/adminTypes";
+import type { AuthMode, CurrentUser } from "../app/adminTypes";
 import {
   canAccessAdminView,
   isAdminSectionViewName,
   isDevelopmentSectionViewName,
   writeProtectedViews,
   type AppView,
-  type ProjectSectionView,
 } from "../app/routes";
 import {
   normalizeProjectModulesForUi,
   projectModuleViewByKey,
   type ProjectModule,
 } from "../app/projectModules";
-import { emptyAuthForm } from "../app/formState";
 
 type OpenViewOptions = {
   replace?: boolean;
@@ -35,9 +28,6 @@ type OpenViewOptions = {
 type UseAuthControllerOptions = {
   authMode: AuthMode;
   setAuthMode: Dispatch<SetStateAction<AuthMode>>;
-  authForm: AuthFormState;
-  setAuthForm: Dispatch<SetStateAction<AuthFormState>>;
-  setAuthSubmitting: Dispatch<SetStateAction<boolean>>;
   setCurrentUser: Dispatch<SetStateAction<CurrentUser | null>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<string | null>>;
@@ -50,7 +40,6 @@ type UseAuthControllerOptions = {
   isAdminUser: boolean;
   isBusinessUnitAdmin: boolean;
   isBusinessUnitAdminResolved: boolean;
-  firstEnabledProjectView: ProjectSectionView;
   openView: (view: AppView, options?: OpenViewOptions) => void;
   resetAdminState: () => void;
 };
@@ -58,14 +47,12 @@ type UseAuthControllerOptions = {
 export type KeycloakAuthStatus = {
   enabled: boolean;
   hostname: string | null;
+  resolved: boolean;
 };
 
 export function useAuthController({
   authMode,
   setAuthMode,
-  authForm,
-  setAuthForm,
-  setAuthSubmitting,
   setCurrentUser,
   setLoading,
   setError,
@@ -78,13 +65,13 @@ export function useAuthController({
   isAdminUser,
   isBusinessUnitAdmin,
   isBusinessUnitAdminResolved,
-  firstEnabledProjectView,
   openView,
   resetAdminState,
 }: UseAuthControllerOptions) {
   const [keycloakStatus, setKeycloakStatus] = useState<KeycloakAuthStatus>({
     enabled: false,
     hostname: null,
+    resolved: false,
   });
 
   useEffect(() => {
@@ -103,23 +90,12 @@ export function useAuthController({
       } catch (authError) {
         if (cancelled) return;
         if (authError instanceof ApiError && authError.status === 401) {
-          try {
-            const setup = await apiClient.get<{ needsSetup: boolean }>(
-              "/api/auth/setup-status",
-              "Не удалось проверить первичную настройку",
-            );
-            if (cancelled) return;
-            setAuthMode(setup.needsSetup ? "setup" : "ready");
-          } catch (setupError) {
-            setAuthMode("ready");
-            setError(
-              setupError instanceof Error
-                ? setupError.message
-                : "Не удалось проверить первичную настройку",
-            );
-          }
+          setCurrentUser(null);
+          setAuthMode("login");
+          setError(null);
         } else {
-          setAuthMode("ready");
+          setCurrentUser(null);
+          setAuthMode("login");
           setError(
             authError instanceof Error
               ? authError.message
@@ -164,10 +140,12 @@ export function useAuthController({
     apiClient
       .get<KeycloakAuthStatus>("/api/auth/keycloak/status")
       .then((status) => {
-        if (!cancelled) setKeycloakStatus(status);
+        if (!cancelled) setKeycloakStatus({ ...status, resolved: true });
       })
       .catch(() => {
-        if (!cancelled) setKeycloakStatus({ enabled: false, hostname: null });
+        if (!cancelled) {
+          setKeycloakStatus({ enabled: false, hostname: null, resolved: true });
+        }
       });
     return () => {
       cancelled = true;
@@ -179,7 +157,7 @@ export function useAuthController({
       setCurrentUser(null);
       setAuthMode("login");
       setNotice(null);
-      setError("Для редактирования нужно войти в систему");
+      setError("Для доступа к системе нужно войти через SSO");
     };
     window.addEventListener("pms-auth-required", onAuthRequired);
     return () => {
@@ -228,52 +206,6 @@ export function useAuthController({
     setNotice,
   ]);
 
-  const submitAuth = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      setAuthSubmitting(true);
-      setError(null);
-      setNotice(null);
-      try {
-        const path =
-          authMode === "setup" ? "/api/auth/bootstrap" : "/api/auth/login";
-        const payload =
-          authMode === "setup"
-            ? authForm
-            : { email: authForm.email, password: authForm.password };
-        const result = await apiClient.post<{ user: CurrentUser }>(
-          path,
-          payload,
-          authMode === "setup"
-            ? "Не удалось создать администратора"
-            : "Не удалось войти",
-        );
-        setCurrentUser(result.user);
-        setAuthMode("ready");
-        setAuthForm(emptyAuthForm);
-        setNotice(authMode === "setup" ? "Администратор создан" : "Вход выполнен");
-      } catch (authError) {
-        setError(
-          authError instanceof Error
-            ? authError.message
-            : "Не удалось выполнить вход",
-        );
-      } finally {
-        setAuthSubmitting(false);
-      }
-    },
-    [
-      authForm,
-      authMode,
-      setAuthForm,
-      setAuthMode,
-      setAuthSubmitting,
-      setCurrentUser,
-      setError,
-      setNotice,
-    ],
-  );
-
   const logout = useCallback(async () => {
     setError(null);
     setNotice(null);
@@ -281,22 +213,11 @@ export function useAuthController({
       .post<null>("/api/auth/logout", undefined, "Не удалось выйти")
       .catch(() => null);
     setCurrentUser(null);
-    setAuthMode("ready");
-    if (writeProtectedViews.has(activeView)) {
-      openView(selectedProjectId ? firstEnabledProjectView : "portfolio", {
-        replace: true,
-        projectCode,
-      });
-    }
+    setAuthMode("login");
     resetAdminState();
-    setNotice("Включен режим только для просмотра");
+    setNotice(null);
   }, [
-    activeView,
-    firstEnabledProjectView,
-    openView,
-    projectCode,
     resetAdminState,
-    selectedProjectId,
     setAuthMode,
     setCurrentUser,
     setError,
@@ -310,5 +231,5 @@ export function useAuthController({
     );
   }, []);
 
-  return { submitAuth, logout, keycloakStatus, loginWithKeycloak };
+  return { logout, keycloakStatus, loginWithKeycloak };
 }

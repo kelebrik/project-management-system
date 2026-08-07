@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { UserRole } from '@prisma/client';
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { prisma } from '../db.js';
 
 const authCookieName = process.env.AUTH_COOKIE_NAME ?? 'pms_session';
@@ -88,21 +88,6 @@ export function safeUser(user: SafeUserSource): CurrentUser {
       user.businessUnitMemberships?.map((membership) => membership.businessUnitId) ??
       [],
   };
-}
-
-export function hashPassword(password: string) {
-  const salt = randomBytes(16).toString('base64url');
-  const hash = scryptSync(password, salt, 64).toString('base64url');
-  return `scrypt:${salt}:${hash}`;
-}
-
-export function verifyPassword(password: string, passwordHash: string | null) {
-  if (!passwordHash) return false;
-  const [scheme, salt, expectedHash] = passwordHash.split(':');
-  if (scheme !== 'scrypt' || !salt || !expectedHash) return false;
-  const expected = Buffer.from(expectedHash, 'base64url');
-  const actual = scryptSync(password, salt, expected.length);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 export function hashSessionToken(token: string) {
@@ -264,14 +249,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-export function requireAuthForWrites(req: Request, res: Response, next: NextFunction) {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-    next();
-    return;
-  }
-  requireAuth(req, res, next);
-}
-
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = currentUser(req);
   const apiToken = currentApiToken(req);
@@ -320,17 +297,6 @@ export function apiTokenHasPermission(token: AuthRequest['apiToken'], permission
   );
 }
 
-export async function hasConfiguredAdmin() {
-  const count = await prisma.user.count({
-    where: {
-      role: 'ADMIN',
-      isActive: true,
-      passwordHash: { not: null },
-    },
-  });
-  return count > 0;
-}
-
 export async function wouldRemoveLastAdmin(userId: string, data: { role?: UserRole; isActive?: boolean }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -354,9 +320,7 @@ export async function wouldRemoveLastAdmin(userId: string, data: { role?: UserRo
   return otherAdmins === 0;
 }
 
-export function userResponse(
-  user: SafeUserSource & { createdAt?: Date; updatedAt?: Date; passwordHash?: string | null },
-) {
+export function userResponse(user: SafeUserSource & { createdAt?: Date; updatedAt?: Date }) {
   return {
     id: user.id,
     email: user.email,
@@ -366,6 +330,5 @@ export function userResponse(
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-    hasPassword: Boolean(user.passwordHash),
   };
 }

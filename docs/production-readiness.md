@@ -48,17 +48,18 @@ INTEGRATION_BASE_URL=http://localhost:3000 npm run test:integration
 Проверяются:
 
 - `/api/health`;
-- публичный read-only `/api/projects`;
+- запрет анонимного доступа к `/api/projects`;
 - публикация `/api/openapi.json`;
 - чтение project overview;
 - запрет write-запросов без авторизации;
 - контракты WBS/overview.
 
-Если задать `INTEGRATION_PROJECT_ID`, дополнительно проверяется чтение Структуры конкретного проекта:
+Если задать `INTEGRATION_PROJECT_ID` и `INTEGRATION_AUTH_COOKIE`, дополнительно проверяется чтение Структуры конкретного проекта:
 
 ```bash
 INTEGRATION_BASE_URL=http://localhost:3000 \
 INTEGRATION_PROJECT_ID=<project-id> \
+INTEGRATION_AUTH_COOKIE='<session-cookie>' \
 npm run test:integration
 ```
 
@@ -221,7 +222,7 @@ PERF_MAX_AVG_MS=1000 \
 npm run smoke:performance
 ```
 
-Smoke-тесты не заменяют нагрузочное тестирование. Они нужны как быстрый post-deploy контроль доступности, read-only режима, OpenAPI и базовой задержки readiness endpoint.
+Smoke-тесты не заменяют нагрузочное тестирование. Они нужны как быстрый post-deploy контроль обязательной аутентификации, OpenAPI и базовой задержки readiness endpoint.
 
 ## Release Checklist
 
@@ -259,5 +260,5 @@ docker build \
 - настроить Jira через переменные окружения контейнера;
 - выпустить API token для интеграций, если нужен machine-to-machine доступ;
 - настроить webhook endpoints для корпоративных потребителей событий;
-- выполнить migration job отдельно от старта приложения: `npm run prisma:deploy`, compose `migrate` service или Kubernetes Job;
+- выполнить migration job отдельно от старта приложения: `node /app/node_modules/prisma/build/index.js migrate deploy`, compose `migrate` service или Kubernetes Job;
 - выполнить `npm run smoke:security` и `npm run smoke:performance` после деплоя.

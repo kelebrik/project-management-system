@@ -64,10 +64,8 @@ async function request<T>(
     }
   }
   if (!response.ok) {
-    const method = (options.method ?? "GET").toUpperCase();
     if (
       response.status === 401 &&
-      !["GET", "HEAD", "OPTIONS"].includes(method) &&
       typeof window !== "undefined"
     ) {
       window.dispatchEvent(new CustomEvent("pms-auth-required"));

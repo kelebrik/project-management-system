@@ -62,7 +62,7 @@ function phaseAxisTitlePreferredWidth(code: string | undefined, title: string) {
   );
 }
 
-function phaseAxisTitleStyle(
+export function phaseAxisTitleStyle(
   lane: MilestoneTimelineModel["lanes"][number],
   trackWidth: number,
 ) {
@@ -107,9 +107,10 @@ function phaseAxisTitleStyle(
     preferredWidth,
     Math.max(Math.min(PHASE_LABEL_MIN_WIDTH_PX, usableWidth), availableWidth),
   );
+  const leftOffset = usableWidth > 0 ? preferredGap.start / usableWidth : 0;
 
   return {
-    "--milestone-axis-title-left": `${Math.round(preferredGap.start)}px`,
+    "--milestone-axis-title-left": phaseTimelineLeft(leftOffset),
     "--milestone-axis-title-width": `${Math.round(width)}px`,
   } as CSSProperties;
 }
