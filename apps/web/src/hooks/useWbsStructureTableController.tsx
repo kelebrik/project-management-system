@@ -774,6 +774,10 @@ export function useWbsStructureTableController({
                 forecastStartDate: nextDate,
                 excelStartDate: nextDate,
               });
+              scheduleWbsSave(item.id, {
+                silent: true,
+                scheduleDriver: "dates",
+              });
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id, "dates")}
@@ -796,6 +800,10 @@ export function useWbsStructureTableController({
                 dueDate: nextDate,
                 forecastDueDate: nextDate,
                 excelEndDate: nextDate,
+              });
+              scheduleWbsSave(item.id, {
+                silent: true,
+                scheduleDriver: "dates",
               });
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
