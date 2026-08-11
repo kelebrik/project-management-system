@@ -81,7 +81,15 @@ test("Backup and restore scripts enforce production safety checks", () => {
   assert.match(restore, /pg_restore[\s\S]+--clean[\s\S]+--if-exists/, "Restore must replace existing schema objects safely");
 
   assert.match(drill, /RESTORE_DRILL_DATABASE_URL/, "Restore drill must target a separate database");
+  assert.match(
+    drill,
+    /RESTORE_DRILL_DATABASE_URL" = "\$DATABASE_URL/,
+    "Restore drill must reject the production database as its target",
+  );
   assert.match(drill, /npx prisma migrate deploy/, "Restore drill must validate migrations after restore");
+  assert.match(drill, /npx prisma migrate diff/, "Restore drill must verify the restored schema");
+  assert.match(drill, /--exit-code/, "Restore drill must fail when the restored schema differs");
+  assert.doesNotMatch(drill, /prisma migrate status/, "Restore drill must tolerate retired data migrations");
 });
 
 test("Smoke scripts cover security, performance, and migration checks", () => {
@@ -100,6 +108,7 @@ test("Smoke scripts cover security, performance, and migration checks", () => {
 
   assert.match(migration, /prisma migrate diff/, "Migration dry-run must produce Prisma schema diff");
   assert.match(migration, /MIGRATION_DRY_RUN_OUTPUT/, "Migration dry-run output must be configurable");
+  assert.doesNotMatch(migration, /prisma migrate status/, "Migration dry-run must tolerate retired data migrations");
 });
 
 test("Kubernetes manifest follows corporate restricted-pod policies", () => {
