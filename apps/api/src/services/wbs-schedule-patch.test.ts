@@ -172,6 +172,70 @@ test("WBS date edit survives stale full-row payload and recalculates duration", 
   assert.equal(phaseUpdate?.workDays, 4);
 });
 
+test("WBS bulk date edit keeps the requested 3.11.6 due date", () => {
+  const predecessor = {
+    id: "predecessor",
+    code: "3.11.5",
+    type: "TASK" as const,
+    status: "DONE" as const,
+    startDate: new Date("2026-07-07T00:00:00.000Z"),
+    dueDate: new Date("2026-08-07T00:00:00.000Z"),
+    forecastStartDate: new Date("2026-07-07T00:00:00.000Z"),
+    forecastDueDate: new Date("2026-08-07T00:00:00.000Z"),
+    ...emptyPredecessors,
+    leadLagDays: 0,
+    workDays: 24,
+    calendarDays: 32,
+    calendarCode: "CN" as const,
+    sortOrder: 10,
+  };
+  const task = {
+    id: "task-a",
+    code: "3.11.6",
+    type: "TASK" as const,
+    status: "IN_PROGRESS" as const,
+    startDate: new Date("2026-08-10T00:00:00.000Z"),
+    dueDate: new Date("2026-08-13T00:00:00.000Z"),
+    forecastStartDate: new Date("2026-08-10T00:00:00.000Z"),
+    forecastDueDate: new Date("2026-08-13T00:00:00.000Z"),
+    ...emptyPredecessors,
+    predecessor3: "3.11.5",
+    leadLagDays: 0,
+    workDays: 16,
+    calendarDays: 22,
+    calendarCode: "CN" as const,
+    sortOrder: 20,
+  };
+
+  const updates = calculateWbsScheduleUpdates(
+    [predecessor, task],
+    [
+      {
+        predecessorId: predecessor.id,
+        successorId: task.id,
+        type: "FS",
+        lagDays: 0,
+      },
+    ],
+    [],
+    {
+      changedItems: [
+        {
+          itemId: task.id,
+          changedFields: ["dueDate", "forecastDueDate"],
+        },
+      ],
+    },
+  );
+  const finalItems = applyTestScheduleUpdates([predecessor, task], updates);
+
+  assert.equal(
+    finalItems.find((item) => item.id === task.id)?.dueDate?.toISOString().slice(0, 10),
+    "2026-08-13",
+  );
+  assert.equal(finalItems.find((item) => item.id === task.id)?.workDays, 4);
+});
+
 test("WBS due date edit remains stable after a late stale full-row save", () => {
   const existingTask = {
     id: "task-a",

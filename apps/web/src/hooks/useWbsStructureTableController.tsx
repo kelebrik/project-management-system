@@ -728,18 +728,15 @@ export function useWbsStructureTableController({
                 status: nextStatus,
                 ...(nextStatus === "CANCELLED" ? { workDays: "0" } : {}),
               };
-              if (nextStatus === "CANCELLED") {
-                saveWbsDraftPatch(item.id, patch, {
-                  silent: true,
-                  scheduleDriver: "workDays",
-                });
-                return;
-              }
-              updateWbsDraft(item.id, patch);
+              cancelScheduledWbsSave(item.id);
+              saveWbsDraftPatch(item.id, patch, {
+                silent: true,
+                ...(nextStatus === "CANCELLED"
+                  ? { scheduleDriver: "workDays" as const }
+                  : {}),
+              });
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => scheduleWbsSave(item.id)}
           >
             <option value="NOT_STARTED">{wbsStatusLabel("NOT_STARTED")}</option>
             <option value="IN_PROGRESS">{wbsStatusLabel("IN_PROGRESS")}</option>
@@ -774,6 +771,10 @@ export function useWbsStructureTableController({
                 forecastStartDate: nextDate,
                 excelStartDate: nextDate,
               });
+              scheduleWbsSave(item.id, {
+                silent: true,
+                scheduleDriver: "dates",
+              });
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id, "dates")}
@@ -796,6 +797,10 @@ export function useWbsStructureTableController({
                 dueDate: nextDate,
                 forecastDueDate: nextDate,
                 excelEndDate: nextDate,
+              });
+              scheduleWbsSave(item.id, {
+                silent: true,
+                scheduleDriver: "dates",
               });
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
@@ -844,13 +849,16 @@ export function useWbsStructureTableController({
           <select
             value={draft.calendarCode}
             onChange={(event) => {
-              updateWbsDraft(item.id, {
-                calendarCode: event.target.value as ProjectCalendarCode,
-              });
+              cancelScheduledWbsSave(item.id);
+              saveWbsDraftPatch(
+                item.id,
+                {
+                  calendarCode: event.target.value as ProjectCalendarCode,
+                },
+                { silent: true },
+              );
             }}
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={() => scheduleWbsSave(item.id)}
           >
             <option value="RU">RU</option>
             <option value="CN">CN</option>
