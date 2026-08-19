@@ -655,10 +655,20 @@
 .jira-analytics-drilldown .icon-button,
 .jira-widget-editor .icon-button,
 .jira-analytics-toolbar .icon-button {
+  align-items: center;
+  box-sizing: border-box;
+  display: inline-flex;
   height: 30px;
+  justify-content: center;
   min-height: 30px;
   min-width: 30px;
+  padding: 0;
   width: 30px;
+}
+
+.jira-analytics-workspace button > svg {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .icon-button.danger {
