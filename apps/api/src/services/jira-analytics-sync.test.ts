@@ -3,12 +3,65 @@ import test from 'node:test';
 
 import type { JiraIssue } from '../jira.js';
 import {
+  criticalPriorityAtUpdate,
+  isJiraCriticalBugSlaViolation,
   syncJiraIssueAnalytics,
   type JiraAnalyticsActivityInput,
   type JiraAnalyticsSnapshotState,
   type JiraAnalyticsSyncStore,
   type JiraAnalyticsTransitionInput,
 } from './jira-analytics-sync.js';
+
+test('incomplete priority history preserves a previously known SLA start', () => {
+  assert.equal(
+    criticalPriorityAtUpdate(jiraIssue({
+      priority: 'Critical',
+      criticalPriorityAt: null,
+      transitionHistoryComplete: false,
+    })),
+    undefined,
+  );
+  assert.equal(
+    criticalPriorityAtUpdate(jiraIssue({
+      priority: 'Major',
+      criticalPriorityAt: null,
+      transitionHistoryComplete: false,
+    })),
+    null,
+  );
+});
+
+test('critical bug SLA violation uses Resolution date and a strict 30-day boundary', () => {
+  const startedAt = new Date('2026-05-01T09:00:00Z');
+  const issue = jiraIssue({
+    issueType: 'Bug',
+    priority: 'Critical',
+    criticalPriorityAt: startedAt,
+    transitionHistoryComplete: true,
+  });
+
+  assert.equal(
+    isJiraCriticalBugSlaViolation(
+      issue,
+      new Date('2026-05-31T09:00:00Z'),
+    ),
+    false,
+  );
+  assert.equal(
+    isJiraCriticalBugSlaViolation(
+      issue,
+      new Date('2026-06-01T09:00:00Z'),
+    ),
+    true,
+  );
+  assert.equal(
+    isJiraCriticalBugSlaViolation(
+      { ...issue, resolutionAt: new Date('2026-05-31T09:00:00Z') },
+      new Date('2026-06-15T09:00:00Z'),
+    ),
+    false,
+  );
+});
 
 function jiraIssue(patch: Partial<JiraIssue> = {}): JiraIssue {
   return {
@@ -22,8 +75,10 @@ function jiraIssue(patch: Partial<JiraIssue> = {}): JiraIssue {
     reporter: 'Petr',
     issueType: 'Task',
     resolution: null,
+    resolutionAt: null,
     sprint: null,
     createdAt: new Date('2026-08-01T09:00:00Z'),
+    criticalPriorityAt: null,
     updatedAt: new Date('2026-08-18T10:00:00Z'),
     transitions: [],
     transitionHistoryComplete: false,

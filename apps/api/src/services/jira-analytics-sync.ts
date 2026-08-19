@@ -1,4 +1,9 @@
 import type { Prisma } from '@prisma/client';
+import {
+  isJiraBugIssueType,
+  isJiraCriticalPriority,
+  jiraCriticalBugSlaHours,
+} from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
 
@@ -44,6 +49,28 @@ export type JiraAnalyticsSyncStore = {
     syncedAt: Date,
   ) => Promise<{ id: string }>;
 };
+
+export function criticalPriorityAtUpdate(issue: JiraIssue) {
+  if (isJiraCriticalPriority(issue.priority) && !issue.transitionHistoryComplete) {
+    return undefined;
+  }
+  return issue.criticalPriorityAt;
+}
+
+export function isJiraCriticalBugSlaViolation(issue: JiraIssue, now: Date) {
+  if (
+    !isJiraBugIssueType(issue.issueType) ||
+    !issue.transitionHistoryComplete ||
+    !issue.criticalPriorityAt
+  ) {
+    return false;
+  }
+  const finishedAt = issue.resolutionAt ?? now;
+  return (
+    finishedAt.getTime() - issue.criticalPriorityAt.getTime() >
+    jiraCriticalBugSlaHours * 3_600_000
+  );
+}
 
 export async function syncJiraIssueAnalytics(
   store: JiraAnalyticsSyncStore,
@@ -160,6 +187,8 @@ export function createPrismaJiraAnalyticsSyncStore(
           resolution: issue.resolution,
           sprint: issue.sprint,
           issueCreatedAt: issue.createdAt,
+          criticalPriorityAt: criticalPriorityAtUpdate(issue),
+          resolutionAt: issue.resolutionAt,
           commitCount: development.available ? development.commitCount : undefined,
           mergeRequestCount: development.available ? development.mergeRequestCount : undefined,
           developmentUpdatedAt: development.available ? development.updatedAt : undefined,
@@ -183,6 +212,8 @@ export function createPrismaJiraAnalyticsSyncStore(
           resolution: issue.resolution,
           sprint: issue.sprint,
           issueCreatedAt: issue.createdAt,
+          criticalPriorityAt: issue.criticalPriorityAt,
+          resolutionAt: issue.resolutionAt,
           commitCount: development.available ? development.commitCount : 0,
           mergeRequestCount: development.available ? development.mergeRequestCount : 0,
           developmentUpdatedAt: development.available ? development.updatedAt : null,

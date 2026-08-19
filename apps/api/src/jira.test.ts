@@ -3,10 +3,48 @@ import test from 'node:test';
 
 import {
   fetchJiraIssues,
+  jiraCriticalPriorityAt,
   jiraDevelopmentFromFields,
   jiraSprintFromFields,
   resolveJiraConfig,
 } from './jira.js';
+
+function jiraPriorityIssue(
+  currentPriority: string,
+  histories: Array<{
+    created: string;
+    fromPriority: string | null;
+    toPriority: string | null;
+  }>,
+  total = histories.length,
+) {
+  return {
+    key: 'PMS-42',
+    fields: {
+      summary: 'Priority SLA',
+      status: { name: 'Open' },
+      priority: { name: currentPriority },
+      assignee: null,
+      issuetype: { name: 'Bug' },
+      created: '2026-05-01T09:00:00.000Z',
+      updated: '2026-06-15T09:00:00.000Z',
+    },
+    changelog: {
+      startAt: 0,
+      maxResults: 100,
+      total,
+      histories: histories.map((history, index) => ({
+        id: `priority-${index}`,
+        created: history.created,
+        items: [{
+          fieldId: 'priority',
+          fromString: history.fromPriority,
+          toString: history.toPriority,
+        }],
+      })),
+    },
+  };
+}
 
 const jiraEnvKeys = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN'] as const;
 
@@ -34,6 +72,49 @@ test('jiraSprintFromFields identifies renamed Sprint fields by schema', () => {
     ),
     'Sprint 25',
   );
+});
+
+test('jiraCriticalPriorityAt starts at creation for an initially critical bug', () => {
+  const issue = jiraPriorityIssue('Critical', []);
+
+  assert.deepEqual(
+    jiraCriticalPriorityAt(issue),
+    new Date('2026-05-01T09:00:00.000Z'),
+  );
+});
+
+test('jiraCriticalPriorityAt starts when a lower priority is raised', () => {
+  const issue = jiraPriorityIssue('Blocker', [
+    {
+      created: '2026-05-20T12:30:00.000Z',
+      fromPriority: 'Major',
+      toPriority: 'Critical',
+    },
+    {
+      created: '2026-05-25T12:30:00.000Z',
+      fromPriority: 'Critical',
+      toPriority: 'Blocker',
+    },
+  ]);
+
+  assert.deepEqual(
+    jiraCriticalPriorityAt(issue),
+    new Date('2026-05-20T12:30:00.000Z'),
+  );
+});
+
+test('jiraCriticalPriorityAt excludes incomplete changelog history', () => {
+  const issue = jiraPriorityIssue(
+    'Critical',
+    [{
+      created: '2026-05-20T12:30:00.000Z',
+      fromPriority: 'Major',
+      toPriority: 'Critical',
+    }],
+    2,
+  );
+
+  assert.equal(jiraCriticalPriorityAt(issue), null);
 });
 
 test('jiraDevelopmentFromFields rejects opaque development payloads', () => {
@@ -176,10 +257,12 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
             key: 'PMS-42',
             fields: {
               summary: 'Blocked firmware smoke test',
-              status: { name: 'In Progress' },
+              status: { name: 'Resolved' },
               priority: { name: 'High' },
               assignee: { displayName: 'Ivan Petrov' },
               issuetype: { name: 'Bug' },
+              resolution: { name: 'Fixed' },
+              resolutiondate: '2026-05-23T09:00:00.000+0300',
               created: '2026-05-20T09:00:00.000+0300',
               updated: '2026-05-23T10:00:00.000+0300',
               customfield_10100: [
@@ -208,7 +291,7 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
                       field: 'status',
                       fieldId: 'status',
                       fromString: 'Open',
-                      toString: 'In Progress',
+                      toString: 'Resolved',
                     },
                   ],
                 },
@@ -234,31 +317,35 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
       (calls[0].init?.headers as Record<string, string>).Authorization,
       'Bearer secret',
     );
-    assert.deepEqual(JSON.parse(String(calls[0].init?.body)).expand, [
+    const searchBody = JSON.parse(String(calls[0].init?.body));
+    assert.deepEqual(searchBody.expand, [
       'names',
       'schema',
       'changelog',
     ]);
+    assert.ok(searchBody.fields.includes('resolutiondate'));
     assert.deepEqual(issues, [
       {
         jiraId: '10042',
         key: 'PMS-42',
         url: 'https://jira.example/browse/PMS-42',
         summary: 'Blocked firmware smoke test',
-        status: 'In Progress',
+        status: 'Resolved',
         priority: 'High',
         assignee: 'Ivan Petrov',
         reporter: null,
         issueType: 'Bug',
-        resolution: 'Unresolved',
+        resolution: 'Fixed',
+        resolutionAt: new Date('2026-05-23T09:00:00.000+0300'),
         sprint: 'Sprint 24',
         createdAt: new Date('2026-05-20T09:00:00.000+0300'),
+        criticalPriorityAt: null,
         updatedAt: new Date('2026-05-23T10:00:00.000+0300'),
         transitions: [
           {
             key: '2001:0',
             fromStatus: 'Open',
-            toStatus: 'In Progress',
+            toStatus: 'Resolved',
             transitionedAt: new Date('2026-05-21T11:00:00.000+0300'),
             actor: 'Petr Ivanov',
           },
@@ -272,6 +359,218 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
         },
       },
     ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssues loads every Jira search page', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const searchBodies: Array<Record<string, unknown>> = [];
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    searchBodies.push(body);
+    const startAt = Number(body.startAt);
+    const issueNumber = startAt + 1;
+    return new Response(
+      JSON.stringify({
+        startAt,
+        maxResults: 1,
+        total: 2,
+        issues: [
+          {
+            id: `1000${issueNumber}`,
+            key: `PMS-${issueNumber}`,
+            fields: {
+              summary: `Issue ${issueNumber}`,
+              status: { name: 'Open' },
+              priority: { name: 'Major' },
+              assignee: null,
+              issuetype: { name: 'Task' },
+              created: '2026-05-20T09:00:00.000Z',
+              updated: '2026-05-23T10:00:00.000Z',
+            },
+            changelog: { histories: [] },
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('project = PMS ORDER BY key ASC', {
+      fetchAllPages: true,
+    });
+
+    assert.deepEqual(searchBodies.map((body) => body.startAt), [0, 1]);
+    assert.deepEqual(issues.map((issue) => issue.key), ['PMS-1', 'PMS-2']);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssues keeps the configured result limit for ordinary searches', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let searchCalls = 0;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async () => {
+    searchCalls += 1;
+    return new Response(
+      JSON.stringify({
+        startAt: 0,
+        maxResults: 1,
+        total: 2,
+        issues: [
+          {
+            key: 'PMS-1',
+            fields: {
+              summary: 'Limited issue',
+              status: { name: 'Open' },
+              priority: { name: 'Major' },
+              assignee: null,
+              issuetype: { name: 'Task' },
+              updated: '2026-05-23T10:00:00.000Z',
+            },
+            changelog: { histories: [] },
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('project = PMS ORDER BY updated DESC');
+
+    assert.equal(searchCalls, 1);
+    assert.deepEqual(issues.map((issue) => issue.key), ['PMS-1']);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssues rejects overlapping Jira search pages', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as { startAt: number };
+    return new Response(
+      JSON.stringify({
+        startAt: body.startAt,
+        maxResults: 1,
+        total: 2,
+        issues: [
+          {
+            key: 'PMS-1',
+            fields: {
+              summary: 'Repeated issue',
+              status: { name: 'Open' },
+              priority: { name: 'Major' },
+              assignee: null,
+              issuetype: { name: 'Task' },
+              updated: '2026-05-23T10:00:00.000Z',
+            },
+            changelog: { histories: [] },
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssues('project = PMS ORDER BY key ASC', { fetchAllPages: true }),
+      /Jira search pages overlap at startAt 1/,
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssues loads changelog when search omits it', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: string[] = [];
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.endsWith('/rest/api/2/search')) {
+      return new Response(
+        JSON.stringify({
+          issues: [
+            {
+              key: 'PMS-45',
+              fields: {
+                summary: 'Critical issue without expanded changelog',
+                status: { name: 'Open' },
+                priority: { name: 'Critical' },
+                assignee: null,
+                issuetype: { name: 'Bug' },
+                created: '2026-05-01T09:00:00.000Z',
+                updated: '2026-06-15T09:00:00.000Z',
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        startAt: 0,
+        maxResults: 100,
+        total: 1,
+        values: [
+          {
+            id: 'priority-1',
+            created: '2026-05-20T12:30:00.000Z',
+            items: [
+              {
+                fieldId: 'priority',
+                fromString: 'Major',
+                toString: 'Critical',
+              },
+            ],
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('project = PMS');
+
+    assert.match(calls[1], /\/rest\/api\/2\/issue\/PMS-45\/changelog\?startAt=0/);
+    assert.equal(issues[0]?.transitionHistoryComplete, true);
+    assert.deepEqual(
+      issues[0]?.criticalPriorityAt,
+      new Date('2026-05-20T12:30:00.000Z'),
+    );
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);
@@ -516,6 +815,7 @@ test('fetchJiraIssues uses Jira Server search endpoint before v3 fallback endpoi
               issuetype: { name: 'Task' },
               updated: '2026-07-02T10:00:00.000+0300',
             },
+            changelog: { histories: [] },
           },
         ],
       }),
@@ -577,6 +877,7 @@ test('fetchJiraIssues resolves Jira saved filter id before search', async () => 
               issuetype: { name: 'Task' },
               updated: '2026-07-02T10:00:00.000+0300',
             },
+            changelog: { histories: [] },
           },
         ],
       }),
@@ -658,6 +959,7 @@ test('fetchJiraIssues normalizes bearer token prefix from env', async () => {
               issuetype: { name: 'Task' },
               updated: '2026-07-02T10:00:00.000+0300',
             },
+            changelog: { histories: [] },
           },
         ],
       }),
@@ -710,6 +1012,7 @@ test('fetchJiraIssues falls back to basic auth when bearer token is rejected', a
               issuetype: { name: 'Task' },
               updated: '2026-07-02T10:00:00.000+0300',
             },
+            changelog: { histories: [] },
           },
         ],
       }),
@@ -780,6 +1083,7 @@ test('fetchJiraIssues falls back when bearer search is treated as anonymous', as
               issuetype: { name: 'Task' },
               updated: '2026-07-02T10:00:00.000+0300',
             },
+            changelog: { histories: [] },
           },
         ],
       }),
@@ -843,6 +1147,7 @@ test('fetchJiraIssues falls back to Jira login derived from email local part', a
               issuetype: { name: 'Task' },
               updated: '2026-07-02T10:00:00.000+0300',
             },
+            changelog: { histories: [] },
           },
         ],
       }),
@@ -1138,6 +1443,7 @@ test('fetchJiraIssues falls back to basic auth when bearer returns HTML login pa
               issuetype: { name: 'Task' },
               updated: '2026-07-02T10:00:00.000+0300',
             },
+            changelog: { histories: [] },
           },
         ],
       }),

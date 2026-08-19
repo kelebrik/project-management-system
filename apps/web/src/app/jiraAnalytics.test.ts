@@ -3,7 +3,9 @@ import test from "node:test";
 
 import type { JiraIssueSnapshot } from "./domainTypes";
 import {
+  JIRA_ANALYTICS_DEFAULT_TEMPLATE,
   JIRA_ANALYTICS_TEMPLATES,
+  JIRA_CRITICAL_BUG_SLA_HOURS,
   evaluateJiraAnalyticsWidget,
   jiraAnalyticsCsv,
   normalizeJiraAnalyticsConfig,
@@ -23,8 +25,11 @@ function issue(patch: Partial<JiraIssueSnapshot> = {}): JiraIssueSnapshot {
     reporter: "Petr",
     issueType: "Task",
     resolution: null,
+    resolutionAt: null,
     sprint: null,
     issueCreatedAt: "2026-07-01T09:00:00Z",
+    criticalPriorityAt: null,
+    criticalSlaTracked: true,
     commitCount: 4,
     mergeRequestCount: 1,
     developmentUpdatedAt: "2026-07-09T12:00:00Z",
@@ -72,8 +77,19 @@ function issue(patch: Partial<JiraIssueSnapshot> = {}): JiraIssueSnapshot {
   };
 }
 
+function template(id: "unplanned" | "flow" | "critical-bugs-sla") {
+  const selected = JIRA_ANALYTICS_TEMPLATES.find((item) => item.id === id);
+  assert.ok(selected);
+  return selected;
+}
+
+test("unplanned work is the default Jira analytics template", () => {
+  assert.equal(JIRA_ANALYTICS_DEFAULT_TEMPLATE.id, "unplanned");
+  assert.equal(JIRA_ANALYTICS_TEMPLATES[0]?.id, "unplanned");
+});
+
 test("transition widget calculates duration percentiles from Jira changelog", () => {
-  const widget = JIRA_ANALYTICS_TEMPLATES[0].config.widgets[0];
+  const widget = template("flow").config.widgets[0];
   const result = evaluateJiraAnalyticsWidget(widget, [issue()], {
     periodDays: 30,
     now: new Date("2026-07-11T00:00:00Z"),
@@ -85,7 +101,7 @@ test("transition widget calculates duration percentiles from Jira changelog", ()
 });
 
 test("transition widget excludes incomplete Jira changelog", () => {
-  const widget = JIRA_ANALYTICS_TEMPLATES[0].config.widgets[0];
+  const widget = template("flow").config.widgets[0];
   const result = evaluateJiraAnalyticsWidget(
     widget,
     [issue({ transitionHistoryComplete: false })],
@@ -98,7 +114,7 @@ test("transition widget excludes incomplete Jira changelog", () => {
 
 test("transition count measures transitions rather than distinct tickets", () => {
   const widget = {
-    ...JIRA_ANALYTICS_TEMPLATES[0].config.widgets[0],
+    ...template("flow").config.widgets[0],
     metric: "count" as const,
   };
   const result = evaluateJiraAnalyticsWidget(widget, [issue()], {
@@ -110,7 +126,7 @@ test("transition count measures transitions rather than distinct tickets", () =>
 });
 
 test("unplanned template finds only tickets with empty sprint and development", () => {
-  const widget = JIRA_ANALYTICS_TEMPLATES[1].config.widgets[0];
+  const widget = template("unplanned").config.widgets[0];
   const result = evaluateJiraAnalyticsWidget(
     widget,
     [
@@ -132,7 +148,7 @@ test("unplanned template finds only tickets with empty sprint and development", 
 });
 
 test("unplanned commit metric uses current issue sprint and linked totals", () => {
-  const widget = JIRA_ANALYTICS_TEMPLATES[1].config.widgets[1];
+  const widget = template("unplanned").config.widgets[1];
   const result = evaluateJiraAnalyticsWidget(widget, [issue()], {
     periodDays: 30,
     now: new Date("2026-07-11T00:00:00Z"),
@@ -144,7 +160,7 @@ test("unplanned commit metric uses current issue sprint and linked totals", () =
 
 test("development event metrics ignore the initial cumulative baseline", () => {
   const widget = {
-    ...JIRA_ANALYTICS_TEMPLATES[1].config.widgets[1],
+    ...template("unplanned").config.widgets[1],
     source: "development" as const,
   };
   const baselineIssue = issue({
@@ -165,7 +181,7 @@ test("development event metrics ignore the initial cumulative baseline", () => {
 });
 
 test("CSV export contains source Jira records", () => {
-  const widget = JIRA_ANALYTICS_TEMPLATES[1].config.widgets[0];
+  const widget = template("unplanned").config.widgets[0];
   const result = evaluateJiraAnalyticsWidget(widget, [issue()], {
     periodDays: 30,
     now: new Date("2026-07-11T00:00:00Z"),
@@ -175,6 +191,105 @@ test("CSV export contains source Jira records", () => {
   assert.match(csv, /TV-101/);
   assert.match(csv, /https:\/\/jira\.example\/browse\/TV-101/);
   assert.match(csv, /"Commits"/);
+});
+
+test("critical bug SLA report includes unresolved tickets after 30 calendar days", () => {
+  const widget = template("critical-bugs-sla").config.widgets[2];
+  const result = evaluateJiraAnalyticsWidget(
+    widget,
+    [
+      issue({
+        issueType: "Bug",
+        priority: "Critical",
+        criticalPriorityAt: "2026-06-01T00:00:00Z",
+      }),
+    ],
+    { periodDays: 30, now: new Date("2026-07-02T00:00:01Z") },
+  );
+
+  assert.equal(result.value, 1);
+  assert.equal(result.records[0]?.durationHours, 31 * 24 + 1 / 3_600);
+});
+
+test("critical bug SLA report uses Resolution date and keeps only violations", () => {
+  const widget = template("critical-bugs-sla").config.widgets[2];
+  const startedAt = "2026-06-01T00:00:00Z";
+  const result = evaluateJiraAnalyticsWidget(
+    widget,
+    [
+      issue({
+        id: "late",
+        issueKey: "TV-201",
+        issueType: "Bug",
+        priority: "Blocker",
+        criticalPriorityAt: startedAt,
+        resolution: "Fixed",
+        resolutionAt: "2026-07-02T00:00:00Z",
+      }),
+      issue({
+        id: "on-time",
+        issueKey: "TV-202",
+        issueType: "Bug",
+        priority: "Critical",
+        criticalPriorityAt: startedAt,
+        resolution: "Fixed",
+        resolutionAt: "2026-07-01T00:00:00Z",
+      }),
+      issue({
+        id: "major",
+        issueKey: "TV-203",
+        issueType: "Bug",
+        priority: "Major",
+        criticalPriorityAt: startedAt,
+      }),
+    ],
+    { periodDays: 30, now: new Date("2026-08-01T00:00:00Z") },
+  );
+
+  assert.equal(result.value, 1);
+  assert.deepEqual(result.records.map((record) => record.issue.issueKey), ["TV-201"]);
+  assert.equal(result.records[0]?.durationHours, 31 * 24);
+  assert.equal(
+    JIRA_CRITICAL_BUG_SLA_HOURS,
+    720,
+  );
+});
+
+test("critical bug SLA report excludes tickets without complete priority history", () => {
+  const widget = template("critical-bugs-sla").config.widgets[2];
+  const result = evaluateJiraAnalyticsWidget(
+    widget,
+    [
+      issue({
+        issueType: "Bug",
+        priority: "Critical",
+        criticalPriorityAt: "2026-06-01T00:00:00Z",
+        transitionHistoryComplete: false,
+      }),
+    ],
+    { periodDays: 30, now: new Date("2026-08-01T00:00:00Z") },
+  );
+
+  assert.equal(result.value, 0);
+  assert.equal(result.records.length, 0);
+});
+
+test("critical bug SLA report excludes stale snapshots outside the dedicated query", () => {
+  const widget = template("critical-bugs-sla").config.widgets[2];
+  const result = evaluateJiraAnalyticsWidget(
+    widget,
+    [
+      issue({
+        issueType: "Bug",
+        priority: "Blocker",
+        criticalPriorityAt: "2026-06-01T00:00:00Z",
+        criticalSlaTracked: false,
+      }),
+    ],
+    { periodDays: 30, now: new Date("2026-08-01T00:00:00Z") },
+  );
+
+  assert.equal(result.records.length, 0);
 });
 
 test("saved dashboard normalization drops malformed widget fields", () => {
@@ -195,7 +310,7 @@ test("saved dashboard normalization drops malformed widget fields", () => {
     ],
   });
 
-  assert.equal(config.periodDays, 90);
+  assert.equal(config.periodDays, 30);
   assert.equal(config.assignee, "Ivan");
   assert.equal(config.widgets.length, 1);
   assert.equal(config.widgets[0].visualization, "number");
