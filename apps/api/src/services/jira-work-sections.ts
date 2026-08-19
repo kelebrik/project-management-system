@@ -73,7 +73,14 @@ export async function ensureDefaultJiraWorkSections(projectId: string) {
     include: {
       issues: {
         orderBy: { syncedAt: 'desc' },
-        include: { snapshot: true },
+        include: {
+          snapshot: {
+            include: {
+              statusTransitions: { orderBy: { transitionedAt: 'asc' } },
+              developmentActivities: { orderBy: { activityAt: 'desc' } },
+            },
+          },
+        },
       },
     },
   });

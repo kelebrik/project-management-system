@@ -46,7 +46,14 @@ export const projectDetailsInclude = {
     include: {
       issues: {
         orderBy: { syncedAt: 'desc' },
-        include: { snapshot: true },
+        include: {
+          snapshot: {
+            include: {
+              statusTransitions: { orderBy: { transitionedAt: 'asc' } },
+              developmentActivities: { orderBy: { activityAt: 'desc' } },
+            },
+          },
+        },
       },
     },
   },
@@ -59,7 +66,13 @@ export const projectDetailsInclude = {
       statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
     },
   },
-  jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
+  jiraSnapshots: {
+    orderBy: { updatedAt: 'desc' },
+    include: {
+      statusTransitions: { orderBy: { transitionedAt: 'asc' } },
+      developmentActivities: { orderBy: { activityAt: 'desc' } },
+    },
+  },
   overviews: { orderBy: { version: 'desc' }, take: 8 },
   milestones: { orderBy: { dueDate: 'asc' } },
   wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },

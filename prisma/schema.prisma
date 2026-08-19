@@ -712,24 +712,69 @@ model IssueStatusUpdate {
 }
 
 model JiraIssueSnapshot {
-  id           String                 @id @default(cuid())
-  projectId    String
-  issueKey     String
-  issueUrl     String
-  summary      String
-  status       String
-  priority     String
-  assignee     String?
-  reporter     String?
-  issueType    String
-  resolution   String?
-  sprint       String?
-  updatedAt    DateTime
-  syncedAt     DateTime               @default(now())
-  project      Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  workSections JiraWorkSectionIssue[]
+  id                        String                     @id @default(cuid())
+  projectId                 String
+  jiraId                    String?
+  issueKey                  String
+  issueUrl                  String
+  summary                   String
+  status                    String
+  priority                  String
+  assignee                  String?
+  reporter                  String?
+  issueType                 String
+  resolution                String?
+  sprint                    String?
+  issueCreatedAt            DateTime?
+  commitCount               Int                        @default(0)
+  mergeRequestCount         Int                        @default(0)
+  developmentUpdatedAt      DateTime?
+  developmentDataAvailable  Boolean                    @default(false)
+  developmentBaselineCaptured Boolean                  @default(false)
+  transitionHistoryComplete Boolean                    @default(false)
+  updatedAt                 DateTime
+  syncedAt                  DateTime                   @default(now())
+  project                   Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workSections              JiraWorkSectionIssue[]
+  statusTransitions         JiraIssueStatusTransition[]
+  developmentActivities     JiraDevelopmentActivity[]
 
   @@unique([projectId, issueKey])
+  @@index([projectId, syncedAt])
+  @@index([projectId, status])
+}
+
+model JiraIssueStatusTransition {
+  id             String            @id @default(cuid())
+  snapshotId     String
+  transitionKey  String
+  fromStatus     String?
+  toStatus       String
+  transitionedAt DateTime
+  actor          String?
+  createdAt      DateTime          @default(now())
+  snapshot       JiraIssueSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, transitionKey])
+  @@index([snapshotId, transitionedAt])
+  @@index([toStatus, transitionedAt])
+}
+
+model JiraDevelopmentActivity {
+  id                String            @id @default(cuid())
+  snapshotId        String
+  activityKey       String
+  activityAt        DateTime
+  commitCount       Int               @default(0)
+  mergeRequestCount Int               @default(0)
+  sprintAtObservation String?
+  isBaseline        Boolean           @default(false)
+  observedAt        DateTime          @default(now())
+  snapshot          JiraIssueSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, activityKey])
+  @@index([snapshotId, activityAt])
+  @@index([activityAt])
 }
 
 model JiraWorkSection {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export type JiraIssue = {
+  jiraId: string | null;
   key: string;
   url: string;
   summary: string;
@@ -11,23 +12,81 @@ export type JiraIssue = {
   issueType: string;
   resolution: string | null;
   sprint: string | null;
+  createdAt: Date | null;
   updatedAt: Date;
+  transitions: Array<{
+    key: string;
+    fromStatus: string | null;
+    toStatus: string;
+    transitionedAt: Date;
+    actor: string | null;
+  }>;
+  transitionHistoryComplete: boolean;
+  development: {
+    commitCount: number;
+    mergeRequestCount: number;
+    updatedAt: Date | null;
+    available: boolean;
+  };
 };
 
+const jiraChangelogSchema = z
+  .object({
+    startAt: z.number().int().nonnegative().optional(),
+    maxResults: z.number().int().nonnegative().optional(),
+    total: z.number().int().nonnegative().optional(),
+    histories: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          created: z.string(),
+          author: z
+            .object({
+              displayName: z.string().optional(),
+              name: z.string().optional(),
+            })
+            .nullable()
+            .optional(),
+          items: z.array(
+            z.object({
+              field: z.string().optional(),
+              fieldId: z.string().optional(),
+              fromString: z.string().nullable().optional(),
+              toString: z.string().nullable().optional(),
+            }),
+          ),
+        }),
+      )
+      .default([]),
+  })
+  .optional();
+
 const jiraSearchResponseSchema = z.object({
+  names: z.record(z.string(), z.string()).optional(),
+  schema: z
+    .record(
+      z.string(),
+      z.object({ custom: z.string().optional() }).passthrough(),
+    )
+    .optional(),
   issues: z.array(
     z.object({
+      id: z.string().optional(),
       key: z.string(),
-      fields: z.object({
-        summary: z.string().nullable(),
-        status: z.object({ name: z.string() }).nullable(),
-        priority: z.object({ name: z.string() }).nullable(),
-        assignee: z.object({ displayName: z.string() }).nullable(),
-        reporter: z.object({ displayName: z.string() }).nullable().optional(),
-        issuetype: z.object({ name: z.string() }).nullable(),
-        resolution: z.object({ name: z.string() }).nullable().optional(),
-        updated: z.string(),
-      }),
+      fields: z
+        .object({
+          summary: z.string().nullable(),
+          status: z.object({ name: z.string() }).nullable(),
+          priority: z.object({ name: z.string() }).nullable(),
+          assignee: z.object({ displayName: z.string() }).nullable(),
+          reporter: z.object({ displayName: z.string() }).nullable().optional(),
+          issuetype: z.object({ name: z.string() }).nullable(),
+          resolution: z.object({ name: z.string() }).nullable().optional(),
+          created: z.string().optional(),
+          updated: z.string(),
+        })
+        .passthrough(),
+      changelog: jiraChangelogSchema,
     }),
   ),
 });
@@ -268,6 +327,7 @@ function jiraSearchBody(jql: string, maxResults: number) {
   return JSON.stringify({
     jql,
     fields: [
+      '*navigable',
       'summary',
       'status',
       'priority',
@@ -275,10 +335,229 @@ function jiraSearchBody(jql: string, maxResults: number) {
       'reporter',
       'issuetype',
       'resolution',
+      'created',
       'updated',
     ],
+    expand: ['names', 'schema', 'changelog'],
     maxResults,
   });
+}
+
+function parseJiraDate(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+type SprintCandidate = {
+  name: string;
+  state: string;
+};
+
+function sprintCandidates(value: unknown): SprintCandidate[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => sprintCandidates(entry));
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const directName = typeof record.name === 'string' ? record.name.trim() : '';
+    const direct = directName
+      ? [{ name: directName, state: typeof record.state === 'string' ? record.state : '' }]
+      : [];
+    return [
+      ...direct,
+      ...Object.entries(record)
+        .filter(([key]) => key !== 'name' && key !== 'state')
+        .flatMap(([, entry]) => sprintCandidates(entry)),
+    ];
+  }
+  if (typeof value !== 'string' || !value.trim()) return [];
+
+  const names = [...value.matchAll(/name=([^,\]]+)/gi)];
+  if (names.length > 0) {
+    const state = value.match(/state=([^,\]]+)/i)?.[1]?.trim() ?? '';
+    return names.map((match) => ({
+      name: match[1]?.trim() ?? '',
+      state,
+    }));
+  }
+  return [{ name: value.trim(), state: '' }];
+}
+
+export function jiraSprintFromFields(
+  fields: Record<string, unknown>,
+  names: Record<string, string> = {},
+  schemas: Record<string, { custom?: string }> = {},
+) {
+  const sprintFieldKeys = new Set(
+    [...new Set([...Object.keys(names), ...Object.keys(schemas)])]
+      .filter((key) => {
+        const name = names[key]?.trim().toLowerCase();
+        const schemaKey = schemas[key]?.custom?.trim().toLowerCase();
+        return name === 'sprint' || schemaKey === 'com.pyxis.greenhopper.jira:gh-sprint';
+      }),
+  );
+  if ('sprint' in fields) sprintFieldKeys.add('sprint');
+  const candidates = [...sprintFieldKeys].flatMap((key) => sprintCandidates(fields[key]));
+  const selected =
+    candidates.find((candidate) => candidate.state.toUpperCase() === 'ACTIVE') ??
+    candidates.find((candidate) => candidate.state.toUpperCase() === 'FUTURE') ??
+    candidates.at(-1);
+  return selected?.name || null;
+}
+
+function embeddedJson(value: string) {
+  const normalized = value
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('\\"', '"');
+  const candidates = [normalized];
+  const jsonMarker = normalized.indexOf("json='");
+  if (jsonMarker >= 0) {
+    const start = jsonMarker + 6;
+    const end = normalized.lastIndexOf("'");
+    if (end > start) candidates.unshift(normalized.slice(start, end));
+  }
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate) as unknown;
+    } catch {
+      // Jira Server may wrap the JSON payload in a Java object string.
+    }
+  }
+  return null;
+}
+
+function developmentCount(value: unknown) {
+  if (!value || typeof value !== 'object') return 0;
+  const record = value as Record<string, unknown>;
+  const overall = record.overall;
+  if (overall && typeof overall === 'object') {
+    const count = (overall as Record<string, unknown>).count;
+    if (typeof count === 'number' && Number.isFinite(count)) return Math.max(0, count);
+  }
+  if (typeof record.count === 'number' && Number.isFinite(record.count)) {
+    return Math.max(0, record.count);
+  }
+  return 0;
+}
+
+function scanDevelopment(value: unknown, key = ''): {
+  commitCount: number;
+  mergeRequestCount: number;
+  updatedAt: Date | null;
+  recognized: boolean;
+} {
+  if (typeof value === 'string') {
+    const parsed = embeddedJson(value);
+    return parsed
+      ? scanDevelopment(parsed, key)
+      : {
+          commitCount: 0,
+          mergeRequestCount: 0,
+          updatedAt: parseJiraDate(value),
+          recognized: false,
+        };
+  }
+  if (Array.isArray(value)) {
+    return value.reduce(
+      (result, entry) => {
+        const next = scanDevelopment(entry, key);
+        return {
+          commitCount: Math.max(result.commitCount, next.commitCount),
+          mergeRequestCount: Math.max(result.mergeRequestCount, next.mergeRequestCount),
+          recognized: result.recognized || next.recognized,
+          updatedAt:
+            !result.updatedAt || (next.updatedAt && next.updatedAt > result.updatedAt)
+              ? next.updatedAt
+              : result.updatedAt,
+        };
+      },
+      { commitCount: 0, mergeRequestCount: 0, updatedAt: null, recognized: false } as {
+        commitCount: number;
+        mergeRequestCount: number;
+        updatedAt: Date | null;
+        recognized: boolean;
+      },
+    );
+  }
+  if (!value || typeof value !== 'object') {
+    return { commitCount: 0, mergeRequestCount: 0, updatedAt: null, recognized: false };
+  }
+
+  const record = value as Record<string, unknown>;
+  const normalizedKey = key.toLowerCase().replaceAll('_', '');
+  const isCommitGroup = /^(repository|commit|commits)$/.test(normalizedKey);
+  const isMergeRequestGroup = /(pullrequest|mergerequest)/.test(normalizedKey);
+  let commitCount = isCommitGroup
+    ? developmentCount(record)
+    : 0;
+  let mergeRequestCount = isMergeRequestGroup
+    ? developmentCount(record)
+    : 0;
+  let recognized = isCommitGroup || isMergeRequestGroup;
+  let updatedAt = parseJiraDate(record.lastUpdated ?? record.updatedAt);
+  for (const [childKey, childValue] of Object.entries(record)) {
+    const next = scanDevelopment(childValue, childKey);
+    commitCount = Math.max(commitCount, next.commitCount);
+    mergeRequestCount = Math.max(mergeRequestCount, next.mergeRequestCount);
+    recognized ||= next.recognized;
+    if (!updatedAt || (next.updatedAt && next.updatedAt > updatedAt)) {
+      updatedAt = next.updatedAt;
+    }
+  }
+  return { commitCount, mergeRequestCount, updatedAt, recognized };
+}
+
+export function jiraDevelopmentFromFields(
+  fields: Record<string, unknown>,
+  names: Record<string, string> = {},
+) {
+  const developmentFieldKeys = new Set(
+    Object.entries(names)
+      .filter(([, name]) => {
+        const normalized = name.trim().toLowerCase();
+        return normalized.includes('development') || normalized.includes('разработ');
+      })
+      .map(([key]) => key),
+  );
+  if ('development' in fields) developmentFieldKeys.add('development');
+  const values = [...developmentFieldKeys]
+    .filter((key) => fields[key] !== null && fields[key] !== undefined)
+    .map((key) => fields[key]);
+  const scanned = scanDevelopment(values);
+  return {
+    commitCount: scanned.commitCount,
+    mergeRequestCount: scanned.mergeRequestCount,
+    updatedAt: scanned.updatedAt,
+    available: values.length > 0 && scanned.recognized,
+  };
+}
+
+function jiraStatusTransitions(issue: JiraSearchResponse['issues'][number]) {
+  return (issue.changelog?.histories ?? []).flatMap((history, historyIndex) => {
+    const transitionedAt = parseJiraDate(history.created);
+    if (!transitionedAt) return [];
+    return history.items.flatMap((item, itemIndex) => {
+      if ((item.fieldId ?? item.field)?.toLowerCase() !== 'status' || !item.toString) return [];
+      return [
+        {
+          key: `${history.id ?? `${history.created}:${historyIndex}`}:${itemIndex}`,
+          fromStatus: item.fromString?.trim() || null,
+          toStatus: item.toString.trim(),
+          transitionedAt,
+          actor: history.author?.displayName?.trim() || history.author?.name?.trim() || null,
+        },
+      ];
+    });
+  });
+}
+
+function jiraTransitionHistoryComplete(issue: JiraSearchResponse['issues'][number]) {
+  if (!issue.changelog) return false;
+  const startAt = issue.changelog.startAt ?? 0;
+  const total = issue.changelog.total;
+  return startAt === 0 && (total === undefined || issue.changelog.histories.length >= total);
 }
 
 async function fetchJiraFilterJql(
@@ -793,20 +1072,30 @@ export async function fetchJiraIssuesWithMeta(
     );
   }
 
+  const names = parsed.names ?? {};
+  const schemas = parsed.schema ?? {};
   return {
-    issues: parsed.issues.map((issue) => ({
-      key: issue.key,
-      url: `${baseUrl}/browse/${issue.key}`,
-      summary: issue.fields.summary ?? issue.key,
-      status: issue.fields.status?.name ?? 'Unknown',
-      priority: issue.fields.priority?.name ?? 'None',
-      assignee: issue.fields.assignee?.displayName ?? null,
-      reporter: issue.fields.reporter?.displayName ?? null,
-      issueType: issue.fields.issuetype?.name ?? 'Issue',
-      resolution: issue.fields.resolution?.name ?? 'Unresolved',
-      sprint: null,
-      updatedAt: new Date(issue.fields.updated),
-    })),
+    issues: parsed.issues.map((issue) => {
+      const fields = issue.fields as Record<string, unknown> & typeof issue.fields;
+      return {
+        jiraId: issue.id ?? null,
+        key: issue.key,
+        url: `${baseUrl}/browse/${issue.key}`,
+        summary: issue.fields.summary ?? issue.key,
+        status: issue.fields.status?.name ?? 'Unknown',
+        priority: issue.fields.priority?.name ?? 'None',
+        assignee: issue.fields.assignee?.displayName ?? null,
+        reporter: issue.fields.reporter?.displayName ?? null,
+        issueType: issue.fields.issuetype?.name ?? 'Issue',
+        resolution: issue.fields.resolution?.name ?? 'Unresolved',
+        sprint: jiraSprintFromFields(fields, names, schemas),
+        createdAt: parseJiraDate(issue.fields.created),
+        updatedAt: new Date(issue.fields.updated),
+        transitions: jiraStatusTransitions(issue),
+        transitionHistoryComplete: jiraTransitionHistoryComplete(issue),
+        development: jiraDevelopmentFromFields(fields, names),
+      };
+    }),
     jiraUser,
   };
 }

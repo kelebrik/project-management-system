@@ -1,9 +1,55 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { fetchJiraIssues, resolveJiraConfig } from './jira.js';
+import {
+  fetchJiraIssues,
+  jiraDevelopmentFromFields,
+  jiraSprintFromFields,
+  resolveJiraConfig,
+} from './jira.js';
 
 const jiraEnvKeys = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN'] as const;
+
+test('jiraSprintFromFields reads active Jira Server sprint strings', () => {
+  assert.equal(
+    jiraSprintFromFields(
+      {
+        customfield_10100: [
+          'com.atlassian.greenhopper.service.sprint.Sprint@1[id=1,state=CLOSED,name=Sprint 23]',
+          'com.atlassian.greenhopper.service.sprint.Sprint@2[id=2,state=ACTIVE,name=Sprint 24]',
+        ],
+      },
+      { customfield_10100: 'Sprint' },
+    ),
+    'Sprint 24',
+  );
+});
+
+test('jiraSprintFromFields identifies renamed Sprint fields by schema', () => {
+  assert.equal(
+    jiraSprintFromFields(
+      { customfield_10100: [{ name: 'Sprint 25', state: 'ACTIVE' }] },
+      { customfield_10100: 'Iteration' },
+      { customfield_10100: { custom: 'com.pyxis.greenhopper.jira:gh-sprint' } },
+    ),
+    'Sprint 25',
+  );
+});
+
+test('jiraDevelopmentFromFields rejects opaque development payloads', () => {
+  assert.deepEqual(
+    jiraDevelopmentFromFields(
+      { customfield_10200: 'not a supported development summary' },
+      { customfield_10200: 'Development' },
+    ),
+    {
+      commitCount: 0,
+      mergeRequestCount: 0,
+      updatedAt: null,
+      available: false,
+    },
+  );
+});
 
 function snapshotJiraEnv() {
   return Object.fromEntries(jiraEnvKeys.map((key) => [key, process.env[key]])) as Record<
@@ -120,8 +166,13 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
 
     return new Response(
       JSON.stringify({
+        names: {
+          customfield_10100: 'Sprint',
+          customfield_10200: 'Development',
+        },
         issues: [
           {
+            id: '10042',
             key: 'PMS-42',
             fields: {
               summary: 'Blocked firmware smoke test',
@@ -129,7 +180,39 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
               priority: { name: 'High' },
               assignee: { displayName: 'Ivan Petrov' },
               issuetype: { name: 'Bug' },
+              created: '2026-05-20T09:00:00.000+0300',
               updated: '2026-05-23T10:00:00.000+0300',
+              customfield_10100: [
+                {
+                  name: 'Sprint 24',
+                  state: 'ACTIVE',
+                },
+              ],
+              customfield_10200: {
+                cachedValue: {
+                  summary: {
+                    repository: { overall: { count: 3, lastUpdated: '2026-05-23T09:30:00Z' } },
+                    pullrequest: { overall: { count: 1, lastUpdated: '2026-05-23T09:45:00Z' } },
+                  },
+                },
+              },
+            },
+            changelog: {
+              histories: [
+                {
+                  id: '2001',
+                  created: '2026-05-21T11:00:00.000+0300',
+                  author: { displayName: 'Petr Ivanov' },
+                  items: [
+                    {
+                      field: 'status',
+                      fieldId: 'status',
+                      fromString: 'Open',
+                      toString: 'In Progress',
+                    },
+                  ],
+                },
+              ],
             },
           },
         ],
@@ -151,8 +234,14 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
       (calls[0].init?.headers as Record<string, string>).Authorization,
       'Bearer secret',
     );
+    assert.deepEqual(JSON.parse(String(calls[0].init?.body)).expand, [
+      'names',
+      'schema',
+      'changelog',
+    ]);
     assert.deepEqual(issues, [
       {
+        jiraId: '10042',
         key: 'PMS-42',
         url: 'https://jira.example/browse/PMS-42',
         summary: 'Blocked firmware smoke test',
@@ -162,8 +251,25 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
         reporter: null,
         issueType: 'Bug',
         resolution: 'Unresolved',
-        sprint: null,
+        sprint: 'Sprint 24',
+        createdAt: new Date('2026-05-20T09:00:00.000+0300'),
         updatedAt: new Date('2026-05-23T10:00:00.000+0300'),
+        transitions: [
+          {
+            key: '2001:0',
+            fromStatus: 'Open',
+            toStatus: 'In Progress',
+            transitionedAt: new Date('2026-05-21T11:00:00.000+0300'),
+            actor: 'Petr Ivanov',
+          },
+        ],
+        transitionHistoryComplete: true,
+        development: {
+          commitCount: 3,
+          mergeRequestCount: 1,
+          updatedAt: new Date('2026-05-23T09:45:00Z'),
+          available: true,
+        },
       },
     ]);
   } finally {
