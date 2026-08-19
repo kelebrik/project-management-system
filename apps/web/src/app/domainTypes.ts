@@ -409,6 +409,9 @@ export type JiraIssueSnapshot = {
   resolution: string | null;
   sprint: string | null;
   issueCreatedAt: string | null;
+  criticalPriorityAt: string | null;
+  resolutionAt: string | null;
+  criticalSlaTracked: boolean;
   commitCount: number;
   mergeRequestCount: number;
   developmentUpdatedAt: string | null;

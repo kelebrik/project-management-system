@@ -1,5 +1,27 @@
 import { z } from "zod";
 
+export const jiraCriticalPriorities = ["Critical", "Blocker"] as const;
+export const jiraBugIssueTypes = ["Bug", "Ошибка", "Дефект"] as const;
+export const jiraCriticalBugSlaHours = 30 * 24;
+
+function normalizedJiraValue(value: string | null | undefined) {
+  return value?.trim().toLocaleLowerCase("ru") ?? "";
+}
+
+export function isJiraCriticalPriority(value: string | null | undefined) {
+  const normalized = normalizedJiraValue(value);
+  return jiraCriticalPriorities.some(
+    (priority) => normalizedJiraValue(priority) === normalized,
+  );
+}
+
+export function isJiraBugIssueType(value: string | null | undefined) {
+  const normalized = normalizedJiraValue(value);
+  return jiraBugIssueTypes.some(
+    (issueType) => normalizedJiraValue(issueType) === normalized,
+  );
+}
+
 export const appViewKeys = [
   "portfolio",
   "portfolio-v2",

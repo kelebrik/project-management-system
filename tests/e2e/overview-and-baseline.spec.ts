@@ -588,13 +588,16 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
       issueUrl: "https://tasks.sberdevices.ru/browse/TV-101",
       summary: "Собрать аналитический дашборд",
       status: "In Progress",
-      priority: "High",
+      priority: "Critical",
       assignee: "Разработчик",
       reporter: "Руководитель",
-      issueType: "Task",
+      issueType: "Bug",
       resolution: null,
+      resolutionAt: null,
       sprint: null,
       issueCreatedAt: isoDay(-10),
+      criticalPriorityAt: isoDay(-40),
+      criticalSlaTracked: true,
       commitCount: 3,
       mergeRequestCount: 1,
       developmentUpdatedAt: isoDay(-1),
@@ -634,12 +637,13 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
   await page.route("**/api/saved-views?*", (route) => route.fulfill({ json: [] }));
   await page.goto("/TV-OVERVIEW/jira-work");
 
-  await expect(page.getByRole("heading", { name: "Cycle time P50" })).toBeVisible();
-  await page
-    .getByRole("combobox", { name: "Дашборд", exact: true })
-    .selectOption("template:unplanned");
+  const dashboardSelect = page.getByRole("combobox", { name: "Дашборд", exact: true });
+  await expect(dashboardSelect).toHaveValue("template:unplanned");
   await expect(page.getByRole("combobox", { name: "Период событий" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
+  await dashboardSelect.selectOption("template:flow");
+  await expect(page.getByRole("heading", { name: "Cycle time P50" })).toBeVisible();
+  await dashboardSelect.selectOption("template:unplanned");
   await page
     .locator(".jira-analytics-widget")
     .filter({ hasText: "Вне Sprint с кодом" })
@@ -647,6 +651,19 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
     .click();
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" }).last()).toBeVisible();
   await expect(page.getByRole("link", { name: "TV-101" }).last()).toBeVisible();
+
+  await dashboardSelect.selectOption("template:critical-bugs-sla");
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Тикеты с нарушенным SLA" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "TV-101" }).first()).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await dashboardSelect.selectOption("template:unplanned");
 
   await page.getByRole("button", { name: "Редактировать" }).click();
   await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();

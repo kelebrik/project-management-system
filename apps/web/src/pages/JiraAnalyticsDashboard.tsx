@@ -19,17 +19,20 @@ import { apiClient } from "../api/client";
 import type { JiraIssueSnapshot, SavedView } from "../app/domainTypes";
 import {
   JIRA_ANALYTICS_FILTER_LABELS,
+  JIRA_ANALYTICS_DEFAULT_TEMPLATE,
   JIRA_ANALYTICS_GROUP_LABELS,
   JIRA_ANALYTICS_METRIC_LABELS,
   JIRA_ANALYTICS_OPERATOR_LABELS,
   JIRA_ANALYTICS_SOURCE_LABELS,
   JIRA_ANALYTICS_TEMPLATES,
   JIRA_ANALYTICS_VIEW_TYPE,
+  JIRA_CRITICAL_BUG_SLA_HOURS,
   cloneJiraAnalyticsConfig,
   createJiraAnalyticsFilter,
   createJiraAnalyticsWidget,
   evaluateJiraAnalyticsWidget,
   formatJiraAnalyticsMetric,
+  isJiraCriticalBug,
   jiraAnalyticsCsv,
   normalizeJiraAnalyticsConfig,
   type JiraAnalyticsDashboardConfig,
@@ -55,6 +58,13 @@ const METRICS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsMetric[]> = {
     "p95Duration",
   ],
   development: ["count", "commits", "mergeRequests"],
+  criticalBugs: [
+    "count",
+    "averageDuration",
+    "p50Duration",
+    "p85Duration",
+    "p95Duration",
+  ],
 };
 
 const GROUPS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsGroupBy[]> = {
@@ -68,6 +78,7 @@ const GROUPS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsGroupBy[]> = {
     "week",
   ],
   development: ["none", "status", "assignee", "sprint", "week"],
+  criticalBugs: ["none", "priority", "assignee", "status", "resolution"],
 };
 
 const FIELDS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsFilterField[]> = {
@@ -95,6 +106,13 @@ const FIELDS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsFilterField[]> 
     "sprint",
     "commitCount",
     "mergeRequestCount",
+  ],
+  criticalBugs: [
+    "status",
+    "assignee",
+    "priority",
+    "resolution",
+    "durationHours",
   ],
 };
 
@@ -126,6 +144,19 @@ function durationText(hours: number | null) {
   return hours === null ? "-" : formatJiraAnalyticsMetric("averageDuration", hours);
 }
 
+function dateText(value: Date | string | null | undefined) {
+  if (!value) return "-";
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function JiraAnalyticsTable({
   records,
   limit,
@@ -140,6 +171,57 @@ function JiraAnalyticsTable({
   });
   const visible = limit ? ordered.slice(0, limit) : ordered;
   if (visible.length === 0) return <div className="jira-analytics-empty">Нет данных</div>;
+  if (visible.every((record) => record.source === "criticalBugs")) {
+    return (
+      <div className="jira-analytics-table-wrap">
+        <table className="jira-analytics-table critical-sla">
+          <thead>
+            <tr>
+              <th>Тикет</th>
+              <th>Название</th>
+              <th>Приоритет</th>
+              <th>Исполнитель</th>
+              <th>Статус</th>
+              <th>Начало SLA</th>
+              <th>Resolution</th>
+              <th>Дедлайн</th>
+              <th>Просрочка</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((record) => {
+              const deadline = record.eventAt
+                ? new Date(
+                    record.eventAt.getTime() + JIRA_CRITICAL_BUG_SLA_HOURS * 3_600_000,
+                  )
+                : null;
+              const overdueHours = Math.max(
+                0,
+                (record.durationHours ?? 0) - JIRA_CRITICAL_BUG_SLA_HOURS,
+              );
+              return (
+                <tr key={record.id}>
+                  <td>
+                    <a href={record.issue.issueUrl} target="_blank" rel="noreferrer">
+                      {record.issue.issueKey}
+                    </a>
+                  </td>
+                  <td title={record.issue.summary}>{record.issue.summary}</td>
+                  <td><strong>{record.issue.priority}</strong></td>
+                  <td>{record.issue.assignee || "Не назначен"}</td>
+                  <td>{record.issue.status}</td>
+                  <td>{dateText(record.eventAt)}</td>
+                  <td>{record.issue.resolutionAt ? dateText(record.issue.resolutionAt) : "Не решен"}</td>
+                  <td>{dateText(deadline)}</td>
+                  <td>{durationText(overdueHours)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
   return (
     <div className="jira-analytics-table-wrap">
       <table className="jira-analytics-table">
@@ -430,14 +512,18 @@ export function JiraAnalyticsDashboard() {
     syncing,
   } = usePageContext();
   const [savedDashboards, setSavedDashboards] = useState<SavedView[]>([]);
-  const [selectedDashboard, setSelectedDashboard] = useState("template:flow");
+  const [selectedDashboard, setSelectedDashboard] = useState(
+    `template:${JIRA_ANALYTICS_DEFAULT_TEMPLATE.id}`,
+  );
   const [config, setConfig] = useState<JiraAnalyticsDashboardConfig>(() =>
-    cloneJiraAnalyticsConfig(JIRA_ANALYTICS_TEMPLATES[0].config),
+    cloneJiraAnalyticsConfig(JIRA_ANALYTICS_DEFAULT_TEMPLATE.config),
   );
   const [baseline, setBaseline] = useState<JiraAnalyticsDashboardConfig>(() =>
-    cloneJiraAnalyticsConfig(JIRA_ANALYTICS_TEMPLATES[0].config),
+    cloneJiraAnalyticsConfig(JIRA_ANALYTICS_DEFAULT_TEMPLATE.config),
   );
-  const [dashboardName, setDashboardName] = useState(JIRA_ANALYTICS_TEMPLATES[0].name);
+  const [dashboardName, setDashboardName] = useState(
+    JIRA_ANALYTICS_DEFAULT_TEMPLATE.name,
+  );
   const [isShared, setIsShared] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -453,6 +539,12 @@ export function JiraAnalyticsDashboard() {
   ).length;
   const developmentCoverage = issues.filter(
     (issue) => issue.developmentDataAvailable,
+  ).length;
+  const criticalBugs = issues.filter(
+    (issue) => issue.criticalSlaTracked && isJiraCriticalBug(issue),
+  );
+  const criticalPriorityCoverage = criticalBugs.filter(
+    (issue) => issue.transitionHistoryComplete && issue.criticalPriorityAt,
   ).length;
   const latestSync = issues
     .map((issue) => new Date(issue.syncedAt))
@@ -487,7 +579,9 @@ export function JiraAnalyticsDashboard() {
       ),
     [config, issues],
   );
-  const hasEventWidgets = config.widgets.some((widget) => widget.source !== "issues");
+  const hasEventWidgets = config.widgets.some((widget) =>
+    ["transitions", "development"].includes(widget.source),
+  );
   const selectedWidget = config.widgets.find((widget) => widget.id === selectedWidgetId) ?? null;
 
   const applySelection = (value: string) => {
@@ -496,7 +590,9 @@ export function JiraAnalyticsDashboard() {
     setSelectedWidgetId(null);
     setDrilldown(null);
     if (value.startsWith("template:")) {
-      const template = JIRA_ANALYTICS_TEMPLATES.find((item) => `template:${item.id}` === value) ?? JIRA_ANALYTICS_TEMPLATES[0];
+      const template = JIRA_ANALYTICS_TEMPLATES.find(
+        (item) => `template:${item.id}` === value,
+      ) ?? JIRA_ANALYTICS_DEFAULT_TEMPLATE;
       const next = cloneJiraAnalyticsConfig(template.config);
       setConfig(next);
       setBaseline(cloneJiraAnalyticsConfig(next));
@@ -596,7 +692,7 @@ export function JiraAnalyticsDashboard() {
             )}
           </select>
         </label>
-        <label title={hasEventWidgets ? "Период переходов и активности разработки" : "На текущие снапшоты тикетов период не влияет"}>
+        <label title={hasEventWidgets ? "Период переходов и активности разработки" : "На текущие тикеты и SLA-отчет период событий не влияет"}>
           <span>Период событий</span>
           <select aria-label="Период событий" disabled={!hasEventWidgets} value={config.periodDays} onChange={(event) => setConfig({ ...config, periodDays: Number(event.target.value) as JiraAnalyticsDashboardConfig["periodDays"] })}>
             <option value={30}>30 дней</option>
@@ -640,6 +736,11 @@ export function JiraAnalyticsDashboard() {
           <span className={developmentCoverage === issues.length ? "complete" : "partial"}>
             Development {developmentCoverage}/{issues.length}
           </span>
+          {criticalBugs.length > 0 && (
+            <span className={criticalPriorityCoverage === criticalBugs.length ? "complete" : "partial"}>
+              История SLA {criticalPriorityCoverage}/{criticalBugs.length}
+            </span>
+          )}
           {latestSync && (
             <small>
               Обновлено {latestSync.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}

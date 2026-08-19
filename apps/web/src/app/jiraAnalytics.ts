@@ -1,8 +1,18 @@
+import {
+  isJiraBugIssueType,
+  isJiraCriticalPriority,
+  jiraCriticalBugSlaHours,
+} from "@pms/shared";
+
 import type { JiraIssueSnapshot } from "./domainTypes";
 
 export const JIRA_ANALYTICS_VIEW_TYPE = "jira-analytics-dashboard";
 
-export type JiraAnalyticsSource = "issues" | "transitions" | "development";
+export type JiraAnalyticsSource =
+  | "issues"
+  | "transitions"
+  | "development"
+  | "criticalBugs";
 export type JiraAnalyticsMetric =
   | "count"
   | "averageDuration"
@@ -19,6 +29,7 @@ export type JiraAnalyticsGroupBy =
   | "priority"
   | "sprint"
   | "issueType"
+  | "resolution"
   | "fromStatus"
   | "toStatus"
   | "week";
@@ -102,6 +113,7 @@ export const JIRA_ANALYTICS_SOURCE_LABELS: Record<JiraAnalyticsSource, string> =
   issues: "Тикеты",
   transitions: "Переходы статусов",
   development: "Активность разработки",
+  criticalBugs: "SLA Critical/Blocker",
 };
 
 export const JIRA_ANALYTICS_METRIC_LABELS: Record<JiraAnalyticsMetric, string> = {
@@ -121,6 +133,7 @@ export const JIRA_ANALYTICS_GROUP_LABELS: Record<JiraAnalyticsGroupBy, string> =
   priority: "Приоритет",
   sprint: "Sprint",
   issueType: "Тип тикета",
+  resolution: "Решение",
   fromStatus: "Исходный статус",
   toStatus: "Новый статус",
   week: "Неделя",
@@ -190,55 +203,17 @@ function filter(
   return createJiraAnalyticsFilter(field, operator, value);
 }
 
+export const JIRA_CRITICAL_BUG_SLA_HOURS = jiraCriticalBugSlaHours;
+
 export const JIRA_ANALYTICS_TEMPLATES: Array<{
-  id: "flow" | "unplanned";
+  id: "unplanned" | "flow" | "critical-bugs-sla";
   name: string;
   description: string;
   config: JiraAnalyticsDashboardConfig;
 }> = [
   {
-    id: "flow",
-    name: "Поток разработки",
-    description: "Скорость прохождения статусов и структура текущей очереди",
-    config: {
-      version: 1,
-      periodDays: 90,
-      assignee: "",
-      widgets: [
-        {
-          ...createJiraAnalyticsWidget("transitions"),
-          id: "flow-p50",
-          title: "Cycle time P50",
-          metric: "p50Duration",
-        },
-        {
-          ...createJiraAnalyticsWidget("transitions"),
-          id: "flow-p85",
-          title: "Cycle time P85",
-          metric: "p85Duration",
-        },
-        {
-          ...createJiraAnalyticsWidget("issues"),
-          id: "flow-status",
-          title: "Тикеты по статусам",
-          groupBy: "status",
-          visualization: "bar",
-          width: "full",
-        },
-        {
-          ...createJiraAnalyticsWidget("transitions"),
-          id: "flow-longest",
-          title: "Самые долгие этапы",
-          metric: "averageDuration",
-          visualization: "table",
-          width: "full",
-        },
-      ],
-    },
-  },
-  {
     id: "unplanned",
-    name: "Работа вне плана",
+    name: "Работы вне плана",
     description: "Тикеты без Sprint с коммитами или merge requests",
     config: {
       version: 1,
@@ -287,7 +262,83 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
       ],
     },
   },
+  {
+    id: "flow",
+    name: "Поток разработки",
+    description: "Скорость прохождения статусов и структура текущей очереди",
+    config: {
+      version: 1,
+      periodDays: 90,
+      assignee: "",
+      widgets: [
+        {
+          ...createJiraAnalyticsWidget("transitions"),
+          id: "flow-p50",
+          title: "Cycle time P50",
+          metric: "p50Duration",
+        },
+        {
+          ...createJiraAnalyticsWidget("transitions"),
+          id: "flow-p85",
+          title: "Cycle time P85",
+          metric: "p85Duration",
+        },
+        {
+          ...createJiraAnalyticsWidget("issues"),
+          id: "flow-status",
+          title: "Тикеты по статусам",
+          groupBy: "status",
+          visualization: "bar",
+          width: "full",
+        },
+        {
+          ...createJiraAnalyticsWidget("transitions"),
+          id: "flow-longest",
+          title: "Самые долгие этапы",
+          metric: "averageDuration",
+          visualization: "table",
+          width: "full",
+        },
+      ],
+    },
+  },
+  {
+    id: "critical-bugs-sla",
+    name: "SLA багов Critical/Blocker",
+    description: "Баги, не получившие Resolution за 30 календарных дней",
+    config: {
+      version: 1,
+      periodDays: 30,
+      assignee: "",
+      widgets: [
+        {
+          ...createJiraAnalyticsWidget("criticalBugs"),
+          id: "critical-bugs-sla-count",
+          title: "Нарушили SLA 30 дней",
+          filters: [filter("durationHours", "greaterThan", String(JIRA_CRITICAL_BUG_SLA_HOURS))],
+        },
+        {
+          ...createJiraAnalyticsWidget("criticalBugs"),
+          id: "critical-bugs-sla-priority",
+          title: "Нарушения по приоритету",
+          groupBy: "priority",
+          visualization: "bar",
+          filters: [filter("durationHours", "greaterThan", String(JIRA_CRITICAL_BUG_SLA_HOURS))],
+        },
+        {
+          ...createJiraAnalyticsWidget("criticalBugs"),
+          id: "critical-bugs-sla-table",
+          title: "Тикеты с нарушенным SLA",
+          visualization: "table",
+          width: "full",
+          filters: [filter("durationHours", "greaterThan", String(JIRA_CRITICAL_BUG_SLA_HOURS))],
+        },
+      ],
+    },
+  },
 ];
+
+export const JIRA_ANALYTICS_DEFAULT_TEMPLATE = JIRA_ANALYTICS_TEMPLATES[0];
 
 export function cloneJiraAnalyticsConfig(config: JiraAnalyticsDashboardConfig) {
   return structuredClone(config);
@@ -295,7 +346,7 @@ export function cloneJiraAnalyticsConfig(config: JiraAnalyticsDashboardConfig) {
 
 export function normalizeJiraAnalyticsConfig(
   value: unknown,
-  fallback = JIRA_ANALYTICS_TEMPLATES[0].config,
+  fallback = JIRA_ANALYTICS_DEFAULT_TEMPLATE.config,
 ): JiraAnalyticsDashboardConfig {
   if (!value || typeof value !== "object") return cloneJiraAnalyticsConfig(fallback);
   const candidate = value as Record<string, unknown>;
@@ -434,6 +485,39 @@ function developmentRecords(issue: JiraIssueSnapshot): JiraAnalyticsRecord[] {
     }));
 }
 
+export function isJiraCriticalBug(issue: JiraIssueSnapshot) {
+  return isJiraBugIssueType(issue.issueType) && isJiraCriticalPriority(issue.priority);
+}
+
+function criticalBugRecord(
+  issue: JiraIssueSnapshot,
+  now: Date,
+): JiraAnalyticsRecord | null {
+  if (
+    !issue.criticalSlaTracked ||
+    !isJiraCriticalBug(issue) ||
+    !issue.transitionHistoryComplete
+  ) {
+    return null;
+  }
+  const startedAt = validDate(issue.criticalPriorityAt);
+  if (!startedAt) return null;
+  const resolutionAt = validDate(issue.resolutionAt);
+  const finishedAt = resolutionAt ?? now;
+  return {
+    id: `critical-bug:${issue.id}`,
+    source: "criticalBugs",
+    issue,
+    eventAt: startedAt,
+    durationHours: Math.max(0, (finishedAt.getTime() - startedAt.getTime()) / 3_600_000),
+    commitCount: issue.commitCount,
+    mergeRequestCount: issue.mergeRequestCount,
+    fromStatus: null,
+    toStatus: null,
+    sprint: issue.sprint,
+  };
+}
+
 export function jiraAnalyticsRecords(
   source: JiraAnalyticsSource,
   issues: JiraIssueSnapshot[],
@@ -442,6 +526,12 @@ export function jiraAnalyticsRecords(
 ) {
   const periodStart = new Date(now.getTime() - periodDays * 86_400_000);
   if (source === "issues") return issues.map(issueRecord);
+  if (source === "criticalBugs") {
+    return issues.flatMap((issue) => {
+      const record = criticalBugRecord(issue, now);
+      return record ? [record] : [];
+    });
+  }
   const records = issues.flatMap((issue) =>
     source === "transitions" ? transitionRecords(issue) : developmentRecords(issue),
   );
@@ -537,6 +627,7 @@ function groupLabel(record: JiraAnalyticsRecord, groupBy: JiraAnalyticsGroupBy) 
   if (groupBy === "priority") return record.issue.priority || "Без приоритета";
   if (groupBy === "sprint") return record.sprint || "Без Sprint";
   if (groupBy === "issueType") return record.issue.issueType || "Без типа";
+  if (groupBy === "resolution") return record.issue.resolution || "Без Resolution";
   if (groupBy === "fromStatus") return record.fromStatus || "Без статуса";
   if (groupBy === "toStatus") return record.toStatus || "Без статуса";
   if (groupBy === "week") return weekLabel(record.eventAt);
@@ -600,10 +691,16 @@ export function jiraAnalyticsCsv(records: JiraAnalyticsRecord[]) {
     "Summary",
     "Assignee",
     "Status",
+    "Priority",
+    "Issue type",
+    "Resolution",
+    "Resolution at",
     "Sprint",
     "From status",
     "To status",
     "Duration hours",
+    "SLA deadline",
+    "SLA overdue hours",
     "Commits",
     "Merge requests",
     "Event at",
@@ -615,10 +712,22 @@ export function jiraAnalyticsCsv(records: JiraAnalyticsRecord[]) {
       record.issue.summary,
       record.issue.assignee,
       record.issue.status,
+      record.issue.priority,
+      record.issue.issueType,
+      record.issue.resolution,
+      record.issue.resolutionAt,
       record.sprint,
       record.fromStatus,
       record.toStatus,
       record.durationHours === null ? "" : record.durationHours.toFixed(2),
+      record.source === "criticalBugs" && record.eventAt
+        ? new Date(
+            record.eventAt.getTime() + JIRA_CRITICAL_BUG_SLA_HOURS * 3_600_000,
+          ).toISOString()
+        : "",
+      record.source === "criticalBugs" && record.durationHours !== null
+        ? Math.max(0, record.durationHours - JIRA_CRITICAL_BUG_SLA_HOURS).toFixed(2)
+        : "",
       record.commitCount,
       record.mergeRequestCount,
       record.eventAt?.toISOString() ?? "",

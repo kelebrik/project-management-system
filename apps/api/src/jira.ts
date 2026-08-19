@@ -1,3 +1,4 @@
+import { isJiraCriticalPriority } from '@pms/shared';
 import { z } from 'zod';
 
 export type JiraIssue = {
@@ -11,8 +12,10 @@ export type JiraIssue = {
   reporter: string | null;
   issueType: string;
   resolution: string | null;
+  resolutionAt: Date | null;
   sprint: string | null;
   createdAt: Date | null;
+  criticalPriorityAt: Date | null;
   updatedAt: Date;
   transitions: Array<{
     key: string;
@@ -72,6 +75,9 @@ const jiraChangelogSchema = jiraChangelogPageSchema.optional();
 type JiraChangelogPage = z.infer<typeof jiraChangelogPageSchema>;
 
 const jiraSearchResponseSchema = z.object({
+  startAt: z.number().int().nonnegative().optional(),
+  maxResults: z.number().int().nonnegative().optional(),
+  total: z.number().int().nonnegative().optional(),
   names: z.record(z.string(), z.string()).optional(),
   schema: z
     .record(
@@ -92,6 +98,7 @@ const jiraSearchResponseSchema = z.object({
           reporter: z.object({ displayName: z.string() }).nullable().optional(),
           issuetype: z.object({ name: z.string() }).nullable(),
           resolution: z.object({ name: z.string() }).nullable().optional(),
+          resolutiondate: z.string().nullable().optional(),
           created: z.string().optional(),
           updated: z.string(),
         })
@@ -133,6 +140,7 @@ type JiraConfig = {
 
 type JiraConfigOptions = {
   baseUrl?: string;
+  fetchAllPages?: boolean;
 };
 
 type JiraIssueFetchResult = {
@@ -333,7 +341,7 @@ function savedFilterIdFromJql(jql: string) {
   return jql.trim().match(/^filter\s*=\s*"?(\d+)"?$/i)?.[1] ?? null;
 }
 
-function jiraSearchBody(jql: string, maxResults: number) {
+function jiraSearchBody(jql: string, maxResults: number, startAt = 0) {
   return JSON.stringify({
     jql,
     fields: [
@@ -345,10 +353,12 @@ function jiraSearchBody(jql: string, maxResults: number) {
       'reporter',
       'issuetype',
       'resolution',
+      'resolutiondate',
       'created',
       'updated',
     ],
     expand: ['names', 'schema', 'changelog'],
+    startAt,
     maxResults,
   });
 }
@@ -567,6 +577,40 @@ function jiraTransitionHistoryComplete(issue: JiraSearchResponse['issues'][numbe
   return jiraChangelogPageComplete(issue.changelog);
 }
 
+export function jiraCriticalPriorityAt(
+  issue: JiraSearchResponse['issues'][number],
+) {
+  if (
+    !isJiraCriticalPriority(issue.fields.priority?.name) ||
+    !jiraChangelogPageComplete(issue.changelog)
+  ) {
+    return null;
+  }
+
+  const createdAt = parseJiraDate(issue.fields.created);
+  const changes = (issue.changelog?.histories ?? [])
+    .flatMap((history) => {
+      const changedAt = parseJiraDate(history.created);
+      if (!changedAt) return [];
+      return history.items.flatMap((item) => {
+        const field = (item.fieldId ?? item.field)?.trim().toLowerCase();
+        if (field !== 'priority' && field !== 'приоритет') return [];
+        return [{
+          changedAt,
+          fromPriority: item.fromString?.trim() || null,
+          toPriority: item.toString?.trim() || null,
+        }];
+      });
+    })
+    .sort((left, right) => left.changedAt.getTime() - right.changedAt.getTime());
+
+  if (changes.length === 0 || isJiraCriticalPriority(changes[0]?.fromPriority)) {
+    return createdAt;
+  }
+
+  return changes.find((change) => isJiraCriticalPriority(change.toPriority))?.changedAt ?? null;
+}
+
 async function fetchJiraFilterJql(
   baseUrl: string,
   filterId: string,
@@ -692,6 +736,121 @@ async function fetchJiraSearch(
   return { parsed: null, status: lastStatus, body: lastErrorBody };
 }
 
+const JIRA_SEARCH_MAX_PAGES = 1_000;
+const JIRA_CHANGELOG_CONCURRENCY = 5;
+
+async function mapWithConcurrency<T, Result>(
+  values: readonly T[],
+  concurrency: number,
+  callback: (value: T) => Promise<Result>,
+) {
+  const results = new Array<Result>(values.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < values.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await callback(values[index]);
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(concurrency, values.length) },
+      () => worker(),
+    ),
+  );
+  return results;
+}
+
+async function fetchCompleteJiraSearch(
+  baseUrl: string,
+  jql: string,
+  requestedPageSize: number,
+  firstPage: JiraSearchResponse,
+  authHeaders: Record<string, string>,
+) {
+  const issuesByKey = new Map(firstPage.issues.map((issue) => [issue.key, issue]));
+  if (issuesByKey.size !== firstPage.issues.length) {
+    throw new Error('Jira search first page contains duplicate issue keys');
+  }
+  let names = firstPage.names;
+  let schema = firstPage.schema;
+  let page = firstPage;
+  let total = firstPage.total;
+
+  for (let pageIndex = 0; pageIndex < JIRA_SEARCH_MAX_PAGES; pageIndex += 1) {
+    const pageStartAt = page.startAt ?? (pageIndex === 0 ? 0 : undefined);
+    if (pageStartAt === undefined) {
+      throw new Error('Jira search pagination failed: response does not contain startAt');
+    }
+    const pageEnd = pageStartAt + page.issues.length;
+    const pageSize = Math.max(1, page.maxResults ?? requestedPageSize);
+    const reachedEnd =
+      total !== undefined ? pageEnd >= total : page.issues.length < pageSize;
+    if (reachedEnd) {
+      if (total !== undefined && issuesByKey.size !== total) {
+        throw new Error(
+          `Jira search pagination returned ${issuesByKey.size} unique issues, expected ${total}`,
+        );
+      }
+      return {
+        ...firstPage,
+        startAt: 0,
+        maxResults: issuesByKey.size,
+        total: total ?? issuesByKey.size,
+        names,
+        schema,
+        issues: Array.from(issuesByKey.values()),
+      } satisfies JiraSearchResponse;
+    }
+    if (page.issues.length === 0) {
+      throw new Error(
+        `Jira search pagination stopped at ${pageStartAt} before total ${total ?? 'unknown'}`,
+      );
+    }
+
+    const result = await fetchJiraSearch(
+      baseUrl,
+      jiraSearchBody(jql, requestedPageSize, pageEnd),
+      authHeaders,
+    );
+    if (!result.parsed) {
+      throw new Error(
+        `Jira search pagination failed at ${pageEnd}: ${result.status || 'unknown'} ${
+          result.body ? cleanJiraErrorBody(result.body) : ''
+        }`.trim(),
+      );
+    }
+
+    const returnedStartAt = result.parsed.startAt ?? pageEnd;
+    if (returnedStartAt !== pageEnd) {
+      throw new Error(
+        `Jira search pagination returned startAt ${returnedStartAt}, expected ${pageEnd}`,
+      );
+    }
+    if (
+      total !== undefined &&
+      result.parsed.total !== undefined &&
+      result.parsed.total !== total
+    ) {
+      throw new Error(
+        `Jira search total changed from ${total} to ${result.parsed.total} during pagination`,
+      );
+    }
+    page = { ...result.parsed, startAt: returnedStartAt };
+    const uniqueIssueCount = issuesByKey.size;
+    for (const issue of page.issues) issuesByKey.set(issue.key, issue);
+    if (issuesByKey.size - uniqueIssueCount !== page.issues.length) {
+      throw new Error(`Jira search pages overlap at startAt ${returnedStartAt}`);
+    }
+    names = { ...names, ...page.names };
+    schema = { ...schema, ...page.schema };
+    total = page.total ?? total;
+  }
+
+  throw new Error(`Jira search pagination exceeded ${JIRA_SEARCH_MAX_PAGES} pages`);
+}
+
 const JIRA_CHANGELOG_PAGE_SIZE = 100;
 const JIRA_CHANGELOG_MAX_PAGES = 100;
 
@@ -794,7 +953,7 @@ async function hydrateJiraIssueChangelog(
   issue: JiraSearchResponse['issues'][number],
   authHeaders: Record<string, string>,
 ) {
-  if (!issue.changelog || jiraChangelogPageComplete(issue.changelog)) return issue;
+  if (jiraChangelogPageComplete(issue.changelog)) return issue;
 
   const histories = [...(issue.changelog?.histories ?? [])];
   const historyKeys = new Set(histories.map(jiraChangelogHistoryKey));
@@ -859,10 +1018,11 @@ async function hydrateJiraSearchChangelogs(
   parsed: JiraSearchResponse,
   authHeaders: Record<string, string>,
 ) {
-  const issues: JiraSearchResponse['issues'] = [];
-  for (const issue of parsed.issues) {
-    issues.push(await hydrateJiraIssueChangelog(baseUrl, issue, authHeaders));
-  }
+  const issues = await mapWithConcurrency(
+    parsed.issues,
+    JIRA_CHANGELOG_CONCURRENCY,
+    (issue) => hydrateJiraIssueChangelog(baseUrl, issue, authHeaders),
+  );
   return { ...parsed, issues };
 }
 
@@ -1105,6 +1265,7 @@ export async function fetchJiraIssuesWithMeta(
   let authVerificationBody = '';
   let parsed: JiraSearchResponse | null = null;
   let successfulAuthHeaders: Record<string, string> | null = null;
+  let successfulJql = jql;
   let jiraUser: string | null = null;
   const expectedIdentities = expectedJiraIdentities(email);
 
@@ -1139,6 +1300,7 @@ export async function fetchJiraIssuesWithMeta(
       isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
     if (parsed) {
       successfulAuthHeaders = authAttempt.headers;
+      successfulJql = effectiveJql;
       break;
     }
   }
@@ -1182,6 +1344,7 @@ export async function fetchJiraIssuesWithMeta(
         isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
       if (parsed) {
         successfulAuthHeaders = { Cookie: session.cookie };
+        successfulJql = effectiveJql;
         break;
       }
     }
@@ -1226,6 +1389,7 @@ export async function fetchJiraIssuesWithMeta(
         isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
       if (parsed) {
         successfulAuthHeaders = { Cookie: login.cookie };
+        successfulJql = effectiveJql;
         break;
       }
     }
@@ -1263,9 +1427,18 @@ export async function fetchJiraIssuesWithMeta(
     );
   }
 
-  const hydrated = successfulAuthHeaders
-    ? await hydrateJiraSearchChangelogs(baseUrl, parsed, successfulAuthHeaders)
+  const completeSearch = options.fetchAllPages && successfulAuthHeaders
+    ? await fetchCompleteJiraSearch(
+        baseUrl,
+        successfulJql,
+        maxResults,
+        parsed,
+        successfulAuthHeaders,
+      )
     : parsed;
+  const hydrated = successfulAuthHeaders
+    ? await hydrateJiraSearchChangelogs(baseUrl, completeSearch, successfulAuthHeaders)
+    : completeSearch;
   const names = hydrated.names ?? {};
   const schemas = hydrated.schema ?? {};
   return {
@@ -1282,8 +1455,10 @@ export async function fetchJiraIssuesWithMeta(
         reporter: issue.fields.reporter?.displayName ?? null,
         issueType: issue.fields.issuetype?.name ?? 'Issue',
         resolution: issue.fields.resolution?.name ?? 'Unresolved',
+        resolutionAt: parseJiraDate(issue.fields.resolutiondate),
         sprint: jiraSprintFromFields(fields, names, schemas),
         createdAt: parseJiraDate(issue.fields.created),
+        criticalPriorityAt: jiraCriticalPriorityAt(issue),
         updatedAt: new Date(issue.fields.updated),
         transitions: jiraStatusTransitions(issue),
         transitionHistoryComplete: jiraTransitionHistoryComplete(issue),

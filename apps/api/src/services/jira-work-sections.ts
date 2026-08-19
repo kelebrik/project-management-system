@@ -1,3 +1,5 @@
+import { jiraBugIssueTypes, jiraCriticalPriorities } from '@pms/shared';
+
 import { prisma } from '../db.js';
 
 const DEFAULT_JIRA_WORK_SECTION_COUNT = 3;
@@ -34,6 +36,18 @@ export function jiraWorkSectionFilterToJql(value: string) {
 
 export function resolveJiraWorkSectionJql(jql: string, filterUrl: string) {
   return jiraWorkSectionFilterToJql(jql.trim() || filterUrl);
+}
+
+export function jiraCriticalPriorityJql(projectKey: string) {
+  const escapedProjectKey = projectKey
+    .trim()
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"');
+  if (!escapedProjectKey) return '';
+  const priorities = jiraCriticalPriorities
+    .map((priority) => `"${priority}"`)
+    .join(', ');
+  return `project = "${escapedProjectKey}" AND issuetype = "${jiraBugIssueTypes[0]}" AND priority in (${priorities}) AND created <= -30d ORDER BY created ASC, key ASC`;
 }
 
 export async function ensureDefaultJiraWorkSections(projectId: string) {
