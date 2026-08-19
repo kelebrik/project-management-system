@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const today = new Date();
 
@@ -638,7 +638,31 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
   await page.goto("/TV-OVERVIEW/jira-work");
 
   const dashboardSelect = page.getByRole("combobox", { name: "Дашборд", exact: true });
+  const iconOffset = async (button: Locator) =>
+    button.evaluate((element) => {
+      const icon = element.querySelector("svg");
+      if (!icon) throw new Error("Button icon is missing");
+      const buttonBox = element.getBoundingClientRect();
+      const iconBox = icon.getBoundingClientRect();
+      return {
+        x: iconBox.x + iconBox.width / 2 - (buttonBox.x + buttonBox.width / 2),
+        y: iconBox.y + iconBox.height / 2 - (buttonBox.y + buttonBox.height / 2),
+      };
+    });
   await expect(dashboardSelect).toHaveValue("template:unplanned");
+  const copyOffset = await iconOffset(
+    page.getByRole("button", { name: "Создать копию дашборда" }),
+  );
+  expect(Math.abs(copyOffset.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(copyOffset.y)).toBeLessThanOrEqual(1);
+  const refreshOffset = await iconOffset(
+    page.getByRole("button", { name: "Обновить" }),
+  );
+  expect(Math.abs(refreshOffset.y)).toBeLessThanOrEqual(1);
+  const editOffset = await iconOffset(
+    page.getByRole("button", { name: "Редактировать" }),
+  );
+  expect(Math.abs(editOffset.y)).toBeLessThanOrEqual(1);
   await expect(page.getByRole("combobox", { name: "Период событий" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
   await dashboardSelect.selectOption("template:flow");
@@ -666,6 +690,11 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
   await dashboardSelect.selectOption("template:unplanned");
 
   await page.getByRole("button", { name: "Редактировать" }).click();
+  const moveOffset = await iconOffset(
+    page.getByRole("button", { name: "Переместить вправо" }).first(),
+  );
+  expect(Math.abs(moveOffset.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(moveOffset.y)).toBeLessThanOrEqual(1);
   await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
   await page.getByRole("button", { name: "Добавить виджет" }).click();
   await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
