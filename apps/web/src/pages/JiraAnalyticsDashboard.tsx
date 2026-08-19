@@ -487,6 +487,7 @@ export function JiraAnalyticsDashboard() {
       ),
     [config, issues],
   );
+  const hasEventWidgets = config.widgets.some((widget) => widget.source !== "issues");
   const selectedWidget = config.widgets.find((widget) => widget.id === selectedWidgetId) ?? null;
 
   const applySelection = (value: string) => {
@@ -595,9 +596,9 @@ export function JiraAnalyticsDashboard() {
             )}
           </select>
         </label>
-        <label>
-          <span>Период</span>
-          <select value={config.periodDays} onChange={(event) => setConfig({ ...config, periodDays: Number(event.target.value) as JiraAnalyticsDashboardConfig["periodDays"] })}>
+        <label title={hasEventWidgets ? "Период переходов и активности разработки" : "На текущие снапшоты тикетов период не влияет"}>
+          <span>Период событий</span>
+          <select aria-label="Период событий" disabled={!hasEventWidgets} value={config.periodDays} onChange={(event) => setConfig({ ...config, periodDays: Number(event.target.value) as JiraAnalyticsDashboardConfig["periodDays"] })}>
             <option value={30}>30 дней</option>
             <option value={90}>90 дней</option>
             <option value={180}>180 дней</option>

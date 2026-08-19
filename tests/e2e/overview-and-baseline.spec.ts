@@ -638,6 +638,7 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
   await page
     .getByRole("combobox", { name: "Дашборд", exact: true })
     .selectOption("template:unplanned");
+  await expect(page.getByRole("combobox", { name: "Период событий" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
   await page
     .locator(".jira-analytics-widget")
