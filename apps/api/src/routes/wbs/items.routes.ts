@@ -257,12 +257,19 @@ export function registerWbsItemRoutes(router: Router) {
       }
     }
 
+    const schedulePatchesByItemId = new Map(
+      parsed.data.items.map((item) => [
+        item.id,
+        resolveWbsSchedulePatch(item.patch, existingById.get(item.id)!),
+      ]),
+    );
+
     const updatedItems = await prisma.$transaction(async (tx) => {
       const results = [];
       for (const item of parsed.data.items) {
         const existing = existingById.get(item.id)!;
         const patch = item.patch;
-        const schedulePatch = resolveWbsSchedulePatch(patch, existing);
+        const schedulePatch = schedulePatchesByItemId.get(item.id)!;
         const scheduleDateWrites = resolveWbsScheduleDateWrites(patch, schedulePatch);
         results.push(
           await tx.wbsItem.update({
@@ -318,7 +325,12 @@ export function registerWbsItemRoutes(router: Router) {
     if (parsed.data.renumber) {
       await renumberProjectWbs(project.id);
     }
-    await recalculateProjectWbsSchedule(project.id);
+    await recalculateProjectWbsSchedule(project.id, {
+      changedItems: parsed.data.items.map((item) => ({
+        itemId: item.id,
+        changedFields: schedulePatchesByItemId.get(item.id)!.changedFields,
+      })),
+    });
     await recalculateProjectWbsHierarchyStatuses(project.id);
     const snapshot = await getProjectWbsSnapshot(project.id);
 

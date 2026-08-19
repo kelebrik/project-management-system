@@ -34,7 +34,19 @@ function calculateWbsSchedulePass(
   options: WbsScheduleCalculationOptions = {},
 ) {
   const overridesByKey = buildCalendarOverrides(calendarOverrides);
-  const changedFields = new Set(options.changedFields ?? []);
+  const changedFieldsByItem = new Map<string, Set<string>>();
+  if (options.changedItemId) {
+    changedFieldsByItem.set(
+      options.changedItemId,
+      new Set(options.changedFields ?? []),
+    );
+  }
+  for (const changedItem of options.changedItems ?? []) {
+    changedFieldsByItem.set(
+      changedItem.itemId,
+      new Set(changedItem.changedFields),
+    );
+  }
   const itemsById = new Map(items.map((item) => [item.id, item]));
   const itemsByCode = new Map(items.map((item) => [item.code, item]));
   const childrenByParent = buildChildrenByParent(items, itemsById, itemsByCode);
@@ -150,11 +162,12 @@ function calculateWbsSchedulePass(
   const updatesById = new Map<string, WbsScheduleUpdate>();
 
   for (const item of scheduledOrder) {
+    const changedFields = changedFieldsByItem.get(item.id) ?? new Set<string>();
     const predecessorRefs = predecessorRefsByItem.get(item.id) ?? [];
     let nextStartDate = normalizedDate(item.startDate);
     let nextDueDate = normalizedDate(item.dueDate);
     let durationWorkDays = resolveDurationWorkDays(item);
-    const isChangedItem = item.id === options.changedItemId;
+    const isChangedItem = changedFieldsByItem.has(item.id);
     const isWorkDaysDrivenChange =
       isChangedItem && changedFields.has("workDays");
     const isDateDrivenChange =
@@ -434,6 +447,12 @@ export function calculateWbsScheduleUpdates(
   let currentItems = items;
   let previousUpdates: WbsScheduleUpdate[] = [];
   const initialChangedFields = [...(options.changedFields ?? [])];
+  const initialChangedItems = [...(options.changedItems ?? [])].map(
+    (changedItem) => ({
+      itemId: changedItem.itemId,
+      changedFields: [...changedItem.changedFields],
+    }),
+  );
 
   for (let iteration = 0; iteration < 20; iteration += 1) {
     const updates = calculateWbsSchedulePass(
@@ -443,6 +462,7 @@ export function calculateWbsScheduleUpdates(
       {
         ...options,
         changedFields: iteration === 0 ? initialChangedFields : [],
+        changedItems: iteration === 0 ? initialChangedItems : [],
       },
     );
     if (updates.length === 0) break;

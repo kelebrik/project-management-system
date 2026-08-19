@@ -35,7 +35,8 @@ npm run test:integration
 - OpenAPI покрывает реальные Express routes;
 - mutating endpoint задекларированы как защищенные;
 - миграции не содержат опасных `DROP TABLE` / `TRUNCATE` / неразрешенных `DELETE FROM`;
-- исторические Excel-миграции сохраняют явные приведения типов;
+- миграции не удаляют проекты и рабочий граф данных WBS, зависимостей, вех и baseline;
+- проектные и демонстрационные данные создаются через API или явный seed, а не через schema migrations;
 - Dockerfile/docker-compose содержат runtime, readiness, PostgreSQL, backup/restore;
 - backup/restore/security/performance smoke scripts синтаксически валидны и содержат обязательные safety checks.
 
@@ -159,6 +160,10 @@ DATABASE_URL='postgresql://user:password@host:5432/project_management_system?sch
 MIGRATION_DRY_RUN_OUTPUT=./migration-dry-run.sql \
 npm run migration:dry-run
 ```
+
+Исторические миграции, которые импортировали или перезаписывали проектные данные, намеренно удалены.
+Поэтому `prisma migrate status` не используется как production health-check: для проверки актуальности
+схемы применяются `prisma migrate deploy` и `prisma migrate diff`.
 
 ## Monitoring/logging
 

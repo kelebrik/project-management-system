@@ -8,13 +8,27 @@ const migrationsDir = path.join(repoRoot, "prisma/migrations");
 const migrationLockPath = path.join(migrationsDir, "migration_lock.toml");
 
 const allowedDataRewriteMigrations = new Set([
-  "20260513183000_import_test001_project_plan",
-  "20260514093000_wbs_excel_fields",
-  "20260518110000_restore_cvte_structure_from_excel",
   "20260609180000_jira_work_sections_three_defaults",
   "20260703130000_remove_admin_jira_settings",
   "20260703165000_remove_admin_import_permission",
 ]);
+
+const protectedProjectTables = [
+  "Project",
+  "WbsItem",
+  "WbsDependency",
+  "Milestone",
+  "WbsCommand",
+  "WbsBaseline",
+  "WbsBaselineItem",
+];
+
+function protectedDeletePattern(table: string) {
+  return new RegExp(
+    `\\bDELETE\\s+FROM\\s+(?:"?public"?\\s*\\.\\s*)?"${table}"(?=\\s|;|$)`,
+    "i",
+  );
+}
 
 const destructivePatterns = [
   { label: "DROP TABLE", pattern: /\bDROP\s+TABLE\b/i },
@@ -74,6 +88,31 @@ test("Migrations avoid destructive operations outside explicit historical data i
   assert.deepEqual(violations, [], `Unsafe migration operations found:\n${violations.join("\n")}`);
 });
 
+test("Migrations never delete live project planning data", () => {
+  const violations: string[] = [];
+
+  assert.match('DELETE FROM "WbsItem"\nWHERE "projectId" = 1;', protectedDeletePattern("WbsItem"));
+  assert.match(
+    'DELETE FROM public."WbsDependency" WHERE true;',
+    protectedDeletePattern("WbsDependency"),
+  );
+
+  for (const name of migrationNames()) {
+    const sql = migrationSql(name);
+    for (const table of protectedProjectTables) {
+      if (protectedDeletePattern(table).test(sql)) {
+        violations.push(`${name}: DELETE FROM ${table}`);
+      }
+    }
+  }
+
+  assert.deepEqual(
+    violations,
+    [],
+    `Migrations must not rewrite live project planning data:\n${violations.join("\n")}`,
+  );
+});
+
 test("Jira filter URL migration preserves existing section data", () => {
   const migration = migrationSql("20260717100000_jira_work_section_filter_url");
 
@@ -84,23 +123,17 @@ test("Jira filter URL migration preserves existing section data", () => {
   assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
 });
 
-test("Historical Excel migrations keep numeric casts explicit", () => {
-  const excelMigration = migrationSql("20260514093000_wbs_excel_fields");
-  const restoreMigration = migrationSql("20260518110000_restore_cvte_structure_from_excel");
+test("WBS Excel fields migration changes schema without rewriting project data", () => {
+  const excelMigration = migrationSql("20260514093000_wbs_excel_fields_schema_only");
 
   assert.match(
     excelMigration,
-    /"calendarDays"\s*=\s*excel_data\."calendarDays"::integer/,
-    "Excel import migration must cast calendarDays to integer on update",
+    /ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+"calendarDays"\s+INTEGER/i,
+    "Excel planning fields must remain available on a fresh database",
   );
   assert.doesNotMatch(
     excelMigration,
-    /"calendarDays"\s*=\s*excel_data\."calendarDays"\s*,/,
-    "Excel import migration must not assign text calendarDays directly",
-  );
-  assert.match(
-    restoreMigration,
-    /NULL::timestamp,\s*NULL::timestamp,\s*\d+::integer,\s*\d+::integer/,
-    "Restore migration should preserve typed date placeholders before explicitly typed integer day fields",
+    /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i,
+    "Schema migration must not rewrite project data",
   );
 });
