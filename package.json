@@ -47,6 +47,7 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
+    "deepmerge-ts": "8.0.1",
     "esbuild": "0.28.1",
     "semver": "7.8.5"
   },
