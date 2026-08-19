@@ -2,16 +2,18 @@ import { createIssueSchema, issueStatusUpdateSchema, updateIssueSchema } from '@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { fetchJiraIssuesWithMeta } from '../jira.js';
+import { fetchJiraIssuesWithMeta, type JiraIssue } from '../jira.js';
 import { currentUser } from '../server/auth.js';
 import { logEvent } from '../server/logger.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   createPrismaJiraAnalyticsSyncStore,
+  isJiraCriticalBugSlaViolation,
   syncJiraIssueAnalytics,
 } from '../services/jira-analytics-sync.js';
 import {
   ensureDefaultJiraWorkSections,
+  jiraCriticalPriorityJql,
   resolveJiraWorkSectionJql,
 } from '../services/jira-work-sections.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
@@ -112,6 +114,47 @@ const jiraSyncSchema = z.object({
     .enum(['https://tasks.dev.sberdevices.ru', 'https://tasks.sberdevices.ru'])
     .optional(),
 });
+
+const JIRA_ANALYTICS_SYNC_CONCURRENCY = 4;
+const JIRA_SLA_FLAG_BATCH_SIZE = 500;
+
+async function syncJiraAnalyticsIssues(
+  projectId: string,
+  issues: JiraIssue[],
+  syncedAt: Date,
+) {
+  const snapshots = new Array<{ id: string }>(issues.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < issues.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      snapshots[index] = await prisma.$transaction((transaction) =>
+        syncJiraIssueAnalytics(
+          createPrismaJiraAnalyticsSyncStore(transaction),
+          projectId,
+          issues[index],
+          syncedAt,
+        ),
+      );
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(JIRA_ANALYTICS_SYNC_CONCURRENCY, issues.length) },
+      () => worker(),
+    ),
+  );
+  return snapshots;
+}
+
+function jiraSlaFlagBatches(snapshotIds: string[]) {
+  const batches: string[][] = [];
+  for (let offset = 0; offset < snapshotIds.length; offset += JIRA_SLA_FLAG_BATCH_SIZE) {
+    batches.push(snapshotIds.slice(offset, offset + JIRA_SLA_FLAG_BATCH_SIZE));
+  }
+  return batches;
+}
 
 router.put('/projects/:projectId/jira-integration', async (req, res) => {
   const parsed = jiraIntegrationSchema.safeParse(req.body);
@@ -772,8 +815,13 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         jiraQuery: resolveJiraWorkSectionJql(section.jql, section.filterUrl),
       }))
       .filter((section) => section.jiraQuery);
+    const criticalPriorityJql = jiraCriticalPriorityJql(
+      project.jiraIntegration?.projectKey ?? '',
+    );
     const syncedAt = new Date();
-    let syncedIssues = 0;
+    const syncedIssueKeys = new Set<string>();
+    let criticalBugSlaIssues = 0;
+    let criticalBugSlaJiraUser: string | null = null;
     const sectionStats: Array<{
       id: string;
       title: string;
@@ -787,7 +835,7 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         baseUrl: parsedSync.data.baseUrl,
       });
       const issues = jiraResult.issues;
-      syncedIssues += issues.length;
+      for (const issue of issues) syncedIssueKeys.add(issue.key);
       sectionStats.push({
         id: section.id,
         title: section.title,
@@ -798,18 +846,7 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       await prisma.jiraWorkSectionIssue.deleteMany({
         where: { sectionId: section.id },
       });
-      const snapshots = await Promise.all(
-        issues.map((issue) =>
-          prisma.$transaction((transaction) =>
-            syncJiraIssueAnalytics(
-              createPrismaJiraAnalyticsSyncStore(transaction),
-              project.id,
-              issue,
-              syncedAt,
-            ),
-          ),
-        ),
-      );
+      const snapshots = await syncJiraAnalyticsIssues(project.id, issues, syncedAt);
       if (snapshots.length > 0) {
         await prisma.jiraWorkSectionIssue.createMany({
           data: snapshots.map((snapshot) => ({
@@ -820,6 +857,44 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
           skipDuplicates: true,
         });
       }
+    }
+
+    if (criticalPriorityJql) {
+      const jiraResult = await fetchJiraIssuesWithMeta(criticalPriorityJql, {
+        baseUrl: parsedSync.data.baseUrl,
+        fetchAllPages: true,
+      });
+      const criticalBugs = jiraResult.issues.filter((issue) =>
+        isJiraCriticalBugSlaViolation(issue, syncedAt),
+      );
+      criticalBugSlaIssues = criticalBugs.length;
+      criticalBugSlaJiraUser = jiraResult.jiraUser;
+      for (const issue of criticalBugs) syncedIssueKeys.add(issue.key);
+      const snapshots = await syncJiraAnalyticsIssues(
+        project.id,
+        criticalBugs,
+        syncedAt,
+      );
+      await prisma.$transaction([
+        prisma.jiraIssueSnapshot.updateMany({
+          where: { projectId: project.id, criticalSlaTracked: true },
+          data: { criticalSlaTracked: false },
+        }),
+        ...jiraSlaFlagBatches(snapshots.map((snapshot) => snapshot.id)).map(
+          (snapshotIds) => prisma.jiraIssueSnapshot.updateMany({
+            where: {
+              projectId: project.id,
+              id: { in: snapshotIds },
+            },
+            data: { criticalSlaTracked: true },
+          }),
+        ),
+      ]);
+    } else {
+      await prisma.jiraIssueSnapshot.updateMany({
+        where: { projectId: project.id, criticalSlaTracked: true },
+        data: { criticalSlaTracked: false },
+      });
     }
 
     if (project.jiraIntegration) {
@@ -833,16 +908,23 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       projectId: project.id,
       baseUrl: parsedSync.data.baseUrl ?? 'env',
       configuredSections: sectionsWithFilter.length,
-      syncedIssues,
+      syncedIssues: syncedIssueKeys.size,
+      criticalBugSlaIssues,
       sections: sectionStats,
     });
 
     res.json({
-      synced: syncedIssues,
+      synced: syncedIssueKeys.size,
+      criticalBugSlaIssues,
       configuredSections: sectionsWithFilter.length,
       totalSections: workSections.length,
       jiraUsers: Array.from(
-        new Set(sectionStats.map((section) => section.jiraUser).filter(Boolean)),
+        new Set(
+          [
+            ...sectionStats.map((section) => section.jiraUser),
+            criticalBugSlaJiraUser,
+          ].filter(Boolean),
+        ),
       ),
       sections: sectionStats,
     });

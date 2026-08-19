@@ -726,6 +726,9 @@ model JiraIssueSnapshot {
   resolution                String?
   sprint                    String?
   issueCreatedAt            DateTime?
+  criticalPriorityAt        DateTime?
+  resolutionAt              DateTime?
+  criticalSlaTracked        Boolean                    @default(false)
   commitCount               Int                        @default(0)
   mergeRequestCount         Int                        @default(0)
   developmentUpdatedAt      DateTime?
@@ -742,6 +745,7 @@ model JiraIssueSnapshot {
   @@unique([projectId, issueKey])
   @@index([projectId, syncedAt])
   @@index([projectId, status])
+  @@index([projectId, criticalSlaTracked])
 }
 
 model JiraIssueStatusTransition {
