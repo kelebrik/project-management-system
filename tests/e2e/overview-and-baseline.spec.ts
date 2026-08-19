@@ -560,6 +560,7 @@ test("Jira work sections expose separate JQL and filter URL fields", async ({
 }) => {
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/jira-work");
+  await page.getByRole("button", { name: "Данные Jira" }).click();
 
   const firstSection = page.locator(".jira-work-section").first();
   const collapsedHeight = await firstSection
@@ -572,6 +573,91 @@ test("Jira work sections expose separate JQL and filter URL fields", async ({
 
   await expect(firstSection.getByLabel("JQL", { exact: true })).toBeVisible();
   await expect(firstSection.getByLabel("Ссылка на фильтр")).toBeVisible();
+});
+
+test("Jira analytics offers templates, drill-down and widget editing", async ({
+  page,
+}) => {
+  const project = await mockAdminProject(page);
+  project.jiraSnapshots = [
+    {
+      id: "jira-snapshot-1",
+      projectId: project.id,
+      jiraId: "101",
+      issueKey: "TV-101",
+      issueUrl: "https://tasks.sberdevices.ru/browse/TV-101",
+      summary: "Собрать аналитический дашборд",
+      status: "In Progress",
+      priority: "High",
+      assignee: "Разработчик",
+      reporter: "Руководитель",
+      issueType: "Task",
+      resolution: null,
+      sprint: null,
+      issueCreatedAt: isoDay(-10),
+      commitCount: 3,
+      mergeRequestCount: 1,
+      developmentUpdatedAt: isoDay(-1),
+      developmentDataAvailable: true,
+      developmentBaselineCaptured: true,
+      transitionHistoryComplete: true,
+      updatedAt: isoDay(-1),
+      syncedAt: isoDay(0),
+      statusTransitions: [
+        {
+          id: "jira-transition-1",
+          snapshotId: "jira-snapshot-1",
+          transitionKey: "history-1:0",
+          fromStatus: "Open",
+          toStatus: "In Progress",
+          transitionedAt: isoDay(-5),
+          actor: "Разработчик",
+          createdAt: isoDay(0),
+        },
+      ],
+      developmentActivities: [
+        {
+          id: "jira-activity-1",
+          snapshotId: "jira-snapshot-1",
+          activityKey: "activity-1",
+          activityAt: isoDay(-1),
+          commitCount: 3,
+          mergeRequestCount: 1,
+          sprintAtObservation: null,
+          isBaseline: false,
+          observedAt: isoDay(0),
+        },
+      ],
+    },
+  ] as unknown as never[];
+  project._count.jiraSnapshots = 1;
+  await page.route("**/api/saved-views?*", (route) => route.fulfill({ json: [] }));
+  await page.goto("/TV-OVERVIEW/jira-work");
+
+  await expect(page.getByRole("heading", { name: "Cycle time P50" })).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Дашборд", exact: true })
+    .selectOption("template:unplanned");
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
+  await page
+    .locator(".jira-analytics-widget")
+    .filter({ hasText: "Вне Sprint с кодом" })
+    .locator(".jira-analytics-number")
+    .click();
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" }).last()).toBeVisible();
+  await expect(page.getByRole("link", { name: "TV-101" }).last()).toBeVisible();
+
+  await page.getByRole("button", { name: "Редактировать" }).click();
+  await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
+  await page.getByRole("button", { name: "Добавить виджет" }).click();
+  await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
 });
 
 test("project passport keeps the initial target and updates the current target", async ({
