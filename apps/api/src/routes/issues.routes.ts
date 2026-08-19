@@ -7,6 +7,10 @@ import { currentUser } from '../server/auth.js';
 import { logEvent } from '../server/logger.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
+  createPrismaJiraAnalyticsSyncStore,
+  syncJiraIssueAnalytics,
+} from '../services/jira-analytics-sync.js';
+import {
   ensureDefaultJiraWorkSections,
   resolveJiraWorkSectionJql,
 } from '../services/jira-work-sections.js';
@@ -795,154 +799,16 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         where: { sectionId: section.id },
       });
       const snapshots = await Promise.all(
-        issues.map(async (issue) => {
-          const existing = await prisma.jiraIssueSnapshot.findUnique({
-            where: {
-              projectId_issueKey: {
-                projectId: project.id,
-                issueKey: issue.key,
-              },
-            },
-            select: {
-              id: true,
-              status: true,
-              commitCount: true,
-              mergeRequestCount: true,
-              developmentBaselineCaptured: true,
-            },
-          });
-          const development = issue.development;
-          const transitions = [...issue.transitions];
-          if (
-            existing &&
-            existing.status !== issue.status &&
-            !transitions.some((transition) => transition.toStatus === issue.status)
-          ) {
-            transitions.push({
-              key: `sync:${issue.updatedAt.toISOString()}:${existing.status}:${issue.status}`,
-              fromStatus: existing.status,
-              toStatus: issue.status,
-              transitionedAt: syncedAt,
-              actor: null,
-            });
-          }
-          const commitDelta = development.available
-            ? Math.max(0, development.commitCount - (existing?.commitCount ?? 0))
-            : 0;
-          const mergeRequestDelta = development.available
-            ? Math.max(0, development.mergeRequestCount - (existing?.mergeRequestCount ?? 0))
-            : 0;
-          const persistEvents = async (snapshotId: string) => {
-            if (issue.transitionHistoryComplete) {
-              await prisma.jiraIssueStatusTransition.deleteMany({
-                where: {
-                  snapshotId,
-                  transitionKey: { startsWith: 'sync:' },
-                },
-              });
-            }
-            if (transitions.length > 0) {
-              await prisma.jiraIssueStatusTransition.createMany({
-                data: transitions.map((transition) => ({
-                  snapshotId,
-                  transitionKey: transition.key,
-                  fromStatus: transition.fromStatus,
-                  toStatus: transition.toStatus,
-                  transitionedAt: transition.transitionedAt,
-                  actor: transition.actor,
-                })),
-                skipDuplicates: true,
-              });
-            }
-            if (commitDelta > 0 || mergeRequestDelta > 0) {
-              const activityAt = development.updatedAt ?? syncedAt;
-              await prisma.jiraDevelopmentActivity.createMany({
-                data: [{
-                  snapshotId,
-                  activityKey: `counts:${development.commitCount}:${development.mergeRequestCount}`,
-                  activityAt,
-                  commitCount: commitDelta,
-                  mergeRequestCount: mergeRequestDelta,
-                  sprintAtObservation: issue.sprint,
-                  isBaseline: !existing?.developmentBaselineCaptured,
-                  observedAt: syncedAt,
-                }],
-                skipDuplicates: true,
-              });
-            }
-          };
-
-          if (existing) {
-            await persistEvents(existing.id);
-          }
-
-          const snapshot = await prisma.jiraIssueSnapshot.upsert({
-            where: {
-              projectId_issueKey: {
-                projectId: project.id,
-                issueKey: issue.key,
-              },
-            },
-            update: {
-              jiraId: issue.jiraId,
-              issueUrl: issue.url,
-              summary: issue.summary,
-              status: issue.status,
-              priority: issue.priority,
-              assignee: issue.assignee,
-              reporter: issue.reporter,
-              issueType: issue.issueType,
-              resolution: issue.resolution,
-              sprint: issue.sprint,
-              issueCreatedAt: issue.createdAt,
-              commitCount: development.available ? development.commitCount : undefined,
-              mergeRequestCount: development.available
-                ? development.mergeRequestCount
-                : undefined,
-              developmentUpdatedAt: development.available
-                ? development.updatedAt
-                : undefined,
-              developmentDataAvailable: development.available,
-              developmentBaselineCaptured: development.available ? true : undefined,
-              transitionHistoryComplete: issue.transitionHistoryComplete,
-              updatedAt: issue.updatedAt,
+        issues.map((issue) =>
+          prisma.$transaction((transaction) =>
+            syncJiraIssueAnalytics(
+              createPrismaJiraAnalyticsSyncStore(transaction),
+              project.id,
+              issue,
               syncedAt,
-            },
-            create: {
-              projectId: project.id,
-              jiraId: issue.jiraId,
-              issueKey: issue.key,
-              issueUrl: issue.url,
-              summary: issue.summary,
-              status: issue.status,
-              priority: issue.priority,
-              assignee: issue.assignee,
-              reporter: issue.reporter,
-              issueType: issue.issueType,
-              resolution: issue.resolution,
-              sprint: issue.sprint,
-              issueCreatedAt: issue.createdAt,
-              commitCount: development.available ? development.commitCount : 0,
-              mergeRequestCount: development.available
-                ? development.mergeRequestCount
-                : 0,
-              developmentUpdatedAt: development.available
-                ? development.updatedAt
-                : null,
-              developmentDataAvailable: development.available,
-              developmentBaselineCaptured: development.available,
-              transitionHistoryComplete: issue.transitionHistoryComplete,
-              updatedAt: issue.updatedAt,
-              syncedAt,
-            },
-          });
-
-          if (!existing) {
-            await persistEvents(snapshot.id);
-          }
-
-          return snapshot;
-        }),
+            ),
+          ),
+        ),
       );
       if (snapshots.length > 0) {
         await prisma.jiraWorkSectionIssue.createMany({
