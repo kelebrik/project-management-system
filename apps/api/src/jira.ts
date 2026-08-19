@@ -30,36 +30,46 @@ export type JiraIssue = {
   };
 };
 
-const jiraChangelogSchema = z
-  .object({
-    startAt: z.number().int().nonnegative().optional(),
-    maxResults: z.number().int().nonnegative().optional(),
-    total: z.number().int().nonnegative().optional(),
-    histories: z
-      .array(
-        z.object({
-          id: z.string().optional(),
-          created: z.string(),
-          author: z
-            .object({
-              displayName: z.string().optional(),
-              name: z.string().optional(),
-            })
-            .nullable()
-            .optional(),
-          items: z.array(
-            z.object({
-              field: z.string().optional(),
-              fieldId: z.string().optional(),
-              fromString: z.string().nullable().optional(),
-              toString: z.string().nullable().optional(),
-            }),
-          ),
-        }),
-      )
-      .default([]),
-  })
-  .optional();
+const jiraChangelogHistorySchema = z.object({
+  id: z.string().optional(),
+  created: z.string(),
+  author: z
+    .object({
+      displayName: z.string().optional(),
+      name: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
+  items: z.array(
+    z.object({
+      field: z.string().optional(),
+      fieldId: z.string().optional(),
+      fromString: z.string().nullable().optional(),
+      toString: z.string().nullable().optional(),
+    }),
+  ),
+});
+
+const jiraChangelogPageSchema = z.object({
+  startAt: z.number().int().nonnegative().optional(),
+  maxResults: z.number().int().nonnegative().optional(),
+  total: z.number().int().nonnegative().optional(),
+  histories: z.array(jiraChangelogHistorySchema).default([]),
+});
+
+const jiraChangelogValuesPageSchema = z.object({
+  startAt: z.number().int().nonnegative().optional(),
+  maxResults: z.number().int().nonnegative().optional(),
+  total: z.number().int().nonnegative().optional(),
+  values: z.array(jiraChangelogHistorySchema).default([]),
+});
+
+const jiraIssueChangelogResponseSchema = z.object({
+  changelog: jiraChangelogPageSchema,
+});
+
+const jiraChangelogSchema = jiraChangelogPageSchema.optional();
+type JiraChangelogPage = z.infer<typeof jiraChangelogPageSchema>;
 
 const jiraSearchResponseSchema = z.object({
   names: z.record(z.string(), z.string()).optional(),
@@ -554,10 +564,7 @@ function jiraStatusTransitions(issue: JiraSearchResponse['issues'][number]) {
 }
 
 function jiraTransitionHistoryComplete(issue: JiraSearchResponse['issues'][number]) {
-  if (!issue.changelog) return false;
-  const startAt = issue.changelog.startAt ?? 0;
-  const total = issue.changelog.total;
-  return startAt === 0 && (total === undefined || issue.changelog.histories.length >= total);
+  return jiraChangelogPageComplete(issue.changelog);
 }
 
 async function fetchJiraFilterJql(
@@ -683,6 +690,180 @@ async function fetchJiraSearch(
   }
 
   return { parsed: null, status: lastStatus, body: lastErrorBody };
+}
+
+const JIRA_CHANGELOG_PAGE_SIZE = 100;
+const JIRA_CHANGELOG_MAX_PAGES = 100;
+
+function jiraChangelogPageComplete(changelog: JiraChangelogPage | undefined) {
+  if (!changelog || (changelog.startAt ?? 0) !== 0) return false;
+  if (changelog.total !== undefined) return changelog.histories.length >= changelog.total;
+  if (changelog.maxResults !== undefined) {
+    return changelog.histories.length < changelog.maxResults;
+  }
+  return true;
+}
+
+function jiraChangelogHistoryKey(
+  history: z.infer<typeof jiraChangelogHistorySchema>,
+) {
+  return history.id ?? `${history.created}:${JSON.stringify(history.items)}`;
+}
+
+async function fetchJiraChangelogPage(
+  baseUrl: string,
+  issueKey: string,
+  startAt: number,
+  authHeaders: Record<string, string>,
+): Promise<JiraChangelogPage | null> {
+  const encodedKey = encodeURIComponent(issueKey);
+  const query = `startAt=${startAt}&maxResults=${JIRA_CHANGELOG_PAGE_SIZE}`;
+  const paths = [
+    `/rest/api/2/issue/${encodedKey}/changelog?${query}`,
+    `/rest/api/3/issue/${encodedKey}/changelog?${query}`,
+  ];
+
+  for (const path of paths) {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: { ...authHeaders, Accept: 'application/json' },
+    });
+    if ([400, 401, 403, 404, 405, 410].includes(response.status)) continue;
+    if (!response.ok) {
+      throw new Error(
+        `Jira changelog request failed for ${issueKey}: ${response.status} ${cleanJiraErrorBody(
+          await response.text(),
+        )}`,
+      );
+    }
+    if (!isJsonResponse(response)) continue;
+
+    const payload = await response.json();
+    const valuesPage = jiraChangelogValuesPageSchema.safeParse(payload);
+    if (valuesPage.success) {
+      return {
+        startAt: valuesPage.data.startAt,
+        maxResults: valuesPage.data.maxResults,
+        total: valuesPage.data.total,
+        histories: valuesPage.data.values,
+      };
+    }
+    const historiesPage = jiraChangelogPageSchema.safeParse(payload);
+    if (historiesPage.success) return historiesPage.data;
+  }
+
+  return null;
+}
+
+async function fetchJiraExpandedChangelog(
+  baseUrl: string,
+  issueKey: string,
+  authHeaders: Record<string, string>,
+): Promise<JiraChangelogPage | null> {
+  const encodedKey = encodeURIComponent(issueKey);
+  const paths = [
+    `/rest/api/2/issue/${encodedKey}?fields=updated&expand=changelog`,
+    `/rest/api/3/issue/${encodedKey}?fields=updated&expand=changelog`,
+  ];
+
+  for (const path of paths) {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: { ...authHeaders, Accept: 'application/json' },
+    });
+    if ([400, 401, 403, 404, 405, 410].includes(response.status)) continue;
+    if (!response.ok) {
+      throw new Error(
+        `Jira issue changelog request failed for ${issueKey}: ${response.status} ${cleanJiraErrorBody(
+          await response.text(),
+        )}`,
+      );
+    }
+    if (!isJsonResponse(response)) continue;
+    const parsed = jiraIssueChangelogResponseSchema.safeParse(await response.json());
+    if (parsed.success) return parsed.data.changelog;
+  }
+
+  return null;
+}
+
+async function hydrateJiraIssueChangelog(
+  baseUrl: string,
+  issue: JiraSearchResponse['issues'][number],
+  authHeaders: Record<string, string>,
+) {
+  if (!issue.changelog || jiraChangelogPageComplete(issue.changelog)) return issue;
+
+  const histories = [...(issue.changelog?.histories ?? [])];
+  const historyKeys = new Set(histories.map(jiraChangelogHistoryKey));
+  let total = issue.changelog?.total;
+  let nextStartAt = (issue.changelog?.startAt ?? 0) + histories.length;
+  let complete = false;
+  let dedicatedEndpointAvailable = true;
+
+  for (let pageIndex = 0; pageIndex < JIRA_CHANGELOG_MAX_PAGES; pageIndex += 1) {
+    const page = await fetchJiraChangelogPage(baseUrl, issue.key, nextStartAt, authHeaders);
+    if (!page) {
+      dedicatedEndpointAvailable = false;
+      break;
+    }
+
+    let added = 0;
+    for (const history of page.histories) {
+      const key = jiraChangelogHistoryKey(history);
+      if (historyKeys.has(key)) continue;
+      historyKeys.add(key);
+      histories.push(history);
+      added += 1;
+    }
+    total = page.total ?? total;
+    const pageStartAt = page.startAt ?? nextStartAt;
+    const pageEnd = pageStartAt + page.histories.length;
+    if (
+      page.histories.length === 0 ||
+      (total !== undefined && pageEnd >= total) ||
+      (total === undefined && page.histories.length < (page.maxResults ?? JIRA_CHANGELOG_PAGE_SIZE))
+    ) {
+      complete = total === undefined || histories.length >= total;
+      break;
+    }
+    if (pageEnd <= nextStartAt || added === 0) break;
+    nextStartAt = pageEnd;
+  }
+
+  if (complete) {
+    return {
+      ...issue,
+      changelog: {
+        startAt: 0,
+        maxResults: histories.length,
+        total: total ?? histories.length,
+        histories,
+      },
+    };
+  }
+
+  const expanded = await fetchJiraExpandedChangelog(baseUrl, issue.key, authHeaders);
+  if (!expanded) return issue;
+  const useExpanded =
+    jiraChangelogPageComplete(expanded) ||
+    !dedicatedEndpointAvailable ||
+    expanded.histories.length > histories.length;
+  return useExpanded ? { ...issue, changelog: expanded } : issue;
+}
+
+async function hydrateJiraSearchChangelogs(
+  baseUrl: string,
+  parsed: JiraSearchResponse,
+  authHeaders: Record<string, string>,
+) {
+  const issues: JiraSearchResponse['issues'] = [];
+  for (const issue of parsed.issues) {
+    issues.push(await hydrateJiraIssueChangelog(baseUrl, issue, authHeaders));
+  }
+  return { ...parsed, issues };
 }
 
 function jiraUserIdentities(user: z.infer<typeof jiraCurrentUserResponseSchema>) {
@@ -923,6 +1104,7 @@ export async function fetchJiraIssuesWithMeta(
   let sawAnonymousSearch = false;
   let authVerificationBody = '';
   let parsed: JiraSearchResponse | null = null;
+  let successfulAuthHeaders: Record<string, string> | null = null;
   let jiraUser: string | null = null;
   const expectedIdentities = expectedJiraIdentities(email);
 
@@ -955,7 +1137,10 @@ export async function fetchJiraIssuesWithMeta(
     }
     sawAnonymousSearch ||=
       isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
-    if (parsed) break;
+    if (parsed) {
+      successfulAuthHeaders = authAttempt.headers;
+      break;
+    }
   }
 
   if (!parsed) {
@@ -995,7 +1180,10 @@ export async function fetchJiraIssuesWithMeta(
       }
       sawAnonymousSearch ||=
         isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
-      if (parsed) break;
+      if (parsed) {
+        successfulAuthHeaders = { Cookie: session.cookie };
+        break;
+      }
     }
   }
 
@@ -1036,7 +1224,10 @@ export async function fetchJiraIssuesWithMeta(
       }
       sawAnonymousSearch ||=
         isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
-      if (parsed) break;
+      if (parsed) {
+        successfulAuthHeaders = { Cookie: login.cookie };
+        break;
+      }
     }
   }
 
@@ -1072,10 +1263,13 @@ export async function fetchJiraIssuesWithMeta(
     );
   }
 
-  const names = parsed.names ?? {};
-  const schemas = parsed.schema ?? {};
+  const hydrated = successfulAuthHeaders
+    ? await hydrateJiraSearchChangelogs(baseUrl, parsed, successfulAuthHeaders)
+    : parsed;
+  const names = hydrated.names ?? {};
+  const schemas = hydrated.schema ?? {};
   return {
-    issues: parsed.issues.map((issue) => {
+    issues: hydrated.issues.map((issue) => {
       const fields = issue.fields as Record<string, unknown> & typeof issue.fields;
       return {
         jiraId: issue.id ?? null,

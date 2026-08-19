@@ -278,6 +278,79 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
   }
 });
 
+test('fetchJiraIssues paginates incomplete issue changelog', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: string[] = [];
+  const history = (id: string, fromStatus: string, toStatus: string) => ({
+    id,
+    created: `2026-05-2${id}T10:00:00.000+0300`,
+    items: [{ fieldId: 'status', fromString: fromStatus, toString: toStatus }],
+  });
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.endsWith('/rest/api/2/search')) {
+      return new Response(
+        JSON.stringify({
+          issues: [
+            {
+              id: '10099',
+              key: 'PMS-99',
+              fields: {
+                summary: 'Long-running issue',
+                status: { name: 'Done' },
+                priority: { name: 'Medium' },
+                assignee: null,
+                issuetype: { name: 'Task' },
+                created: '2026-05-20T09:00:00.000+0300',
+                updated: '2026-05-23T10:00:00.000+0300',
+              },
+              changelog: {
+                startAt: 0,
+                maxResults: 1,
+                total: 3,
+                histories: [history('1', 'Open', 'In Progress')],
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const startAt = Number(new URL(url).searchParams.get('startAt'));
+    const pageHistory =
+      startAt === 1
+        ? history('2', 'In Progress', 'Review')
+        : history('3', 'Review', 'Done');
+    return new Response(
+      JSON.stringify({ startAt, maxResults: 1, total: 3, values: [pageHistory] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('project = PMS');
+
+    assert.equal(calls.length, 3);
+    assert.match(calls[1], /\/rest\/api\/2\/issue\/PMS-99\/changelog\?startAt=1/);
+    assert.match(calls[2], /\/rest\/api\/2\/issue\/PMS-99\/changelog\?startAt=2/);
+    assert.equal(issues[0]?.transitionHistoryComplete, true);
+    assert.deepEqual(
+      issues[0]?.transitions.map((transition) => transition.toStatus),
+      ['In Progress', 'Review', 'Done'],
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
 test('fetchJiraIssues accepts an empty result only after Jira confirms current user', async () => {
   const previousEnv = snapshotJiraEnv();
   const previousFetch = globalThis.fetch;
