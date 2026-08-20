@@ -37,6 +37,8 @@ services:
         sync: false
       - key: JIRA_API_TOKEN
         sync: false
+      - key: JIRA_SPRINT_FIELD_ID
+        value: customfield_10004
 
 databases:
   - name: project-management-system-db

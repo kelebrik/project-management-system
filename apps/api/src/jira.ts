@@ -14,6 +14,7 @@ export type JiraIssue = {
   resolution: string | null;
   resolutionAt: Date | null;
   sprint: string | null;
+  sprintAvailable: boolean;
   createdAt: Date | null;
   criticalPriorityAt: Date | null;
   updatedAt: Date;
@@ -109,16 +110,20 @@ const jiraSearchResponseSchema = z.object({
 });
 type JiraSearchResponse = z.infer<typeof jiraSearchResponseSchema>;
 
-const jiraFieldCatalogSchema = z.array(
-  z.object({
-    id: z.string(),
-    name: z.string(),
-    schema: z
-      .object({ custom: z.string().optional() })
-      .passthrough()
-      .optional(),
-  }).passthrough(),
-);
+const jiraRemoteIssueLinkSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  globalId: z.string().optional(),
+  relationship: z.string().optional(),
+  object: z
+    .object({
+      title: z.string().optional(),
+      url: z.string().optional(),
+    })
+    .passthrough()
+    .optional(),
+}).passthrough();
+
+const jiraRemoteIssueLinksSchema = z.array(z.unknown());
 
 const jiraFilterResponseSchema = z.object({
   jql: z.string(),
@@ -153,6 +158,7 @@ type JiraConfigOptions = {
   baseUrl?: string;
   fetchAllPages?: boolean;
   includeAnalyticsFields?: boolean;
+  remoteDevelopmentCache?: Map<string, JiraIssue['development']>;
 };
 
 type JiraIssueFetchResult = {
@@ -380,47 +386,12 @@ function jiraSearchBody(
   });
 }
 
-function jiraAnalyticsFieldIds(
-  fields: z.infer<typeof jiraFieldCatalogSchema>,
-) {
-  const fieldIds = fields.flatMap((field) => {
-    const name = field.name.trim().toLowerCase();
-    const schemaKey = field.schema?.custom?.trim().toLowerCase() ?? '';
-    // Only the Jira Software field is safe to scan; similarly named business fields are not.
-    const isDevelopment =
-      name === 'development' ||
-      name === 'разработка' ||
-      schemaKey.includes('devsummary') ||
-      schemaKey.includes('development-integration');
-    const isSprint =
-      name === 'sprint' || schemaKey === 'com.pyxis.greenhopper.jira:gh-sprint';
-    return isDevelopment || isSprint ? [field.id] : [];
-  });
-  return fieldIds.length > 0 ? fieldIds : null;
+function jiraSprintFieldId() {
+  return nonEmpty(process.env.JIRA_SPRINT_FIELD_ID) ?? 'customfield_10004';
 }
 
-async function fetchJiraAnalyticsFieldIds(
-  baseUrl: string,
-  authHeaders: Record<string, string>,
-) {
-  for (const path of ['/rest/api/2/field', '/rest/api/3/field']) {
-    const response = await fetch(`${baseUrl}${path}`, {
-      method: 'GET',
-      redirect: 'manual',
-      headers: { ...authHeaders, Accept: 'application/json' },
-    });
-    if (!response.ok || !isJsonResponse(response)) {
-      await response.text();
-      if ([404, 405, 410].includes(response.status)) continue;
-      return null;
-    }
-    try {
-      return jiraAnalyticsFieldIds(jiraFieldCatalogSchema.parse(await response.json()));
-    } catch {
-      return null;
-    }
-  }
-  return null;
+function jiraAnalyticsFieldIds() {
+  return [jiraSprintFieldId()];
 }
 
 function parseJiraDate(value: unknown) {
@@ -466,24 +437,17 @@ function sprintCandidates(value: unknown): SprintCandidate[] {
 
 export function jiraSprintFromFields(
   fields: Record<string, unknown>,
-  names: Record<string, string> = {},
-  schemas: Record<string, { custom?: string }> = {},
 ) {
-  const sprintFieldKeys = new Set(
-    [...new Set([...Object.keys(names), ...Object.keys(schemas)])]
-      .filter((key) => {
-        const name = names[key]?.trim().toLowerCase();
-        const schemaKey = schemas[key]?.custom?.trim().toLowerCase();
-        return name === 'sprint' || schemaKey === 'com.pyxis.greenhopper.jira:gh-sprint';
-      }),
-  );
-  if ('sprint' in fields) sprintFieldKeys.add('sprint');
-  const candidates = [...sprintFieldKeys].flatMap((key) => sprintCandidates(fields[key]));
+  const candidates = sprintCandidates(fields[jiraSprintFieldId()]);
   const selected =
     candidates.find((candidate) => candidate.state.toUpperCase() === 'ACTIVE') ??
     candidates.find((candidate) => candidate.state.toUpperCase() === 'FUTURE') ??
     candidates.at(-1);
   return selected?.name || null;
+}
+
+function jiraSprintAvailable(fields: Record<string, unknown>) {
+  return Object.hasOwn(fields, jiraSprintFieldId());
 }
 
 function embeddedJson(value: string) {
@@ -611,6 +575,83 @@ export function jiraDevelopmentFromFields(
     mergeRequestCount: scanned.mergeRequestCount,
     updatedAt: scanned.updatedAt,
     available: values.length > 0 && scanned.recognized,
+  };
+}
+
+export function jiraDevelopmentFromRemoteLinks(value: unknown): JiraIssue['development'] | null {
+  const parsed = jiraRemoteIssueLinksSchema.safeParse(value);
+  if (!parsed.success) return null;
+
+  const commits = new Set<string>();
+  const mergeRequests = new Set<string>();
+  for (const rawLink of parsed.data) {
+    const parsedLink = jiraRemoteIssueLinkSchema.safeParse(rawLink);
+    if (!parsedLink.success) continue;
+    const link = parsedLink.data;
+    const relationship = link.relationship?.trim().toLowerCase().replaceAll(/\s+/g, ' ') ?? '';
+    if (!/\bmentioned on\b/.test(relationship)) continue;
+    const title = link.object?.title?.trim() ?? '';
+    const url = link.object?.url?.trim() ?? '';
+    const normalizedTitle = title.toLowerCase();
+    const developmentLink = jiraDevelopmentLink(url);
+    const fallbackIdentity =
+      developmentLink?.identity ||
+      normalizedRemoteUrl(url) ||
+      link.globalId?.trim() ||
+      String(link.id ?? '');
+    if (!fallbackIdentity) continue;
+    if (developmentLink?.kind === 'merge-request') {
+      mergeRequests.add(developmentLink.identity);
+    } else if (developmentLink?.kind === 'commit') {
+      commits.add(developmentLink.identity);
+    } else if (/^merge[\s_-]?request\b/.test(normalizedTitle)) {
+      mergeRequests.add(fallbackIdentity);
+    } else if (/^commit\b/.test(normalizedTitle)) {
+      commits.add(fallbackIdentity);
+    }
+  }
+
+  return {
+    commitCount: commits.size,
+    mergeRequestCount: mergeRequests.size,
+    updatedAt: null,
+    available: true,
+  };
+}
+
+function normalizedRemoteUrl(value: string) {
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    return `${url.origin.toLowerCase()}${url.pathname.replace(/\/+$/, '').toLowerCase()}`;
+  } catch {
+    return value.split(/[?#]/, 1)[0]?.replace(/\/+$/, '').toLowerCase() ?? '';
+  }
+}
+
+function jiraDevelopmentLink(value: string) {
+  const normalized = normalizedRemoteUrl(value);
+  if (!normalized) return null;
+  const mergeRequest = normalized.match(/^(.*\/merge_requests\/[^/]+)(?:\/.*)?$/);
+  if (mergeRequest?.[1]) {
+    return { kind: 'merge-request' as const, identity: mergeRequest[1] };
+  }
+  const commit = normalized.match(/^(.*\/commits?\/[^/]+)(?:\/.*)?$/);
+  if (commit?.[1]) return { kind: 'commit' as const, identity: commit[1] };
+  return null;
+}
+
+function selectJiraDevelopment(
+  fieldDevelopment: JiraIssue['development'],
+  remoteDevelopment: JiraIssue['development'] | null,
+  remoteDevelopmentRequested: boolean,
+) {
+  if (!remoteDevelopmentRequested) return fieldDevelopment;
+  return remoteDevelopment ?? {
+    commitCount: 0,
+    mergeRequestCount: 0,
+    updatedAt: null,
+    available: false,
   };
 }
 
@@ -1074,17 +1115,90 @@ async function hydrateJiraIssueChangelog(
   return useExpanded ? { ...issue, changelog: expanded } : issue;
 }
 
-async function hydrateJiraSearchChangelogs(
+export async function fetchJiraRemoteDevelopment(
+  baseUrl: string,
+  issueKey: string,
+  authHeaders: Record<string, string>,
+) {
+  const encodedKey = encodeURIComponent(issueKey);
+  const paths = [
+    `/rest/api/2/issue/${encodedKey}/remotelink`,
+    `/rest/api/3/issue/${encodedKey}/remotelink`,
+  ];
+  for (const path of paths) {
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}${path}`, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: { ...authHeaders, Accept: 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      return null;
+    }
+    if ([400, 401, 403, 404, 405, 410].includes(response.status)) {
+      await response.text();
+      continue;
+    }
+    if (!response.ok) {
+      await response.text();
+      return null;
+    }
+    if (!isJsonResponse(response)) {
+      await response.text();
+      continue;
+    }
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      continue;
+    }
+    const development = jiraDevelopmentFromRemoteLinks(payload);
+    if (development) return development;
+  }
+  return null;
+}
+
+async function hydrateJiraSearchIssues(
   baseUrl: string,
   parsed: JiraSearchResponse,
   authHeaders: Record<string, string>,
+  includeRemoteDevelopment: boolean,
+  remoteDevelopmentCache?: Map<string, JiraIssue['development']>,
 ) {
-  const issues = await mapWithConcurrency(
+  const hydrated = await mapWithConcurrency(
     parsed.issues,
     JIRA_CHANGELOG_CONCURRENCY,
-    (issue) => hydrateJiraIssueChangelog(baseUrl, issue, authHeaders),
+    async (issue) => {
+      const cachedDevelopment = remoteDevelopmentCache?.get(issue.key);
+      const [hydratedIssue, fetchedRemoteDevelopment] = await Promise.all([
+        hydrateJiraIssueChangelog(baseUrl, issue, authHeaders),
+        includeRemoteDevelopment
+          ? cachedDevelopment ?? fetchJiraRemoteDevelopment(baseUrl, issue.key, authHeaders)
+          : Promise.resolve(null),
+      ]);
+      const remoteDevelopment = includeRemoteDevelopment
+        ? fetchedRemoteDevelopment ?? {
+            commitCount: 0,
+            mergeRequestCount: 0,
+            updatedAt: null,
+            available: false,
+          }
+        : null;
+      if (includeRemoteDevelopment && !cachedDevelopment && remoteDevelopment) {
+        remoteDevelopmentCache?.set(issue.key, remoteDevelopment);
+      }
+      return { issue: hydratedIssue, remoteDevelopment };
+    },
   );
-  return { ...parsed, issues };
+  return {
+    search: { ...parsed, issues: hydrated.map((entry) => entry.issue) },
+    remoteDevelopmentByKey: new Map(
+      hydrated.map((entry) => [entry.issue.key, entry.remoteDevelopment]),
+    ),
+  };
 }
 
 function jiraUserIdentities(user: z.infer<typeof jiraCurrentUserResponseSchema>) {
@@ -1346,7 +1460,7 @@ export async function fetchJiraIssuesWithMeta(
     }
 
     const analyticsFieldIds = options.includeAnalyticsFields
-      ? await fetchJiraAnalyticsFieldIds(baseUrl, authAttempt.headers)
+      ? jiraAnalyticsFieldIds()
       : null;
     const result = await fetchJiraSearchWithVerifiedEmptyResult(
       baseUrl,
@@ -1395,7 +1509,7 @@ export async function fetchJiraIssuesWithMeta(
 
       const authHeaders = { Cookie: session.cookie };
       const analyticsFieldIds = options.includeAnalyticsFields
-        ? await fetchJiraAnalyticsFieldIds(baseUrl, authHeaders)
+        ? jiraAnalyticsFieldIds()
         : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
@@ -1445,7 +1559,7 @@ export async function fetchJiraIssuesWithMeta(
 
       const authHeaders = { Cookie: login.cookie };
       const analyticsFieldIds = options.includeAnalyticsFields
-        ? await fetchJiraAnalyticsFieldIds(baseUrl, authHeaders)
+        ? jiraAnalyticsFieldIds()
         : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
@@ -1513,11 +1627,17 @@ export async function fetchJiraIssuesWithMeta(
         successfulAnalyticsFieldIds,
       )
     : parsed;
-  const hydrated = successfulAuthHeaders
-    ? await hydrateJiraSearchChangelogs(baseUrl, completeSearch, successfulAuthHeaders)
-    : completeSearch;
+  const hydratedData = successfulAuthHeaders
+    ? await hydrateJiraSearchIssues(
+        baseUrl,
+        completeSearch,
+        successfulAuthHeaders,
+        Boolean(options.includeAnalyticsFields),
+        options.remoteDevelopmentCache,
+      )
+    : { search: completeSearch, remoteDevelopmentByKey: new Map() };
+  const hydrated = hydratedData.search;
   const names = hydrated.names ?? {};
-  const schemas = hydrated.schema ?? {};
   return {
     issues: hydrated.issues.map((issue) => {
       const fields = issue.fields as Record<string, unknown> & typeof issue.fields;
@@ -1533,13 +1653,18 @@ export async function fetchJiraIssuesWithMeta(
         issueType: issue.fields.issuetype?.name ?? 'Issue',
         resolution: issue.fields.resolution?.name ?? 'Unresolved',
         resolutionAt: parseJiraDate(issue.fields.resolutiondate),
-        sprint: jiraSprintFromFields(fields, names, schemas),
+        sprint: jiraSprintFromFields(fields),
+        sprintAvailable: jiraSprintAvailable(fields),
         createdAt: parseJiraDate(issue.fields.created),
         criticalPriorityAt: jiraCriticalPriorityAt(issue),
         updatedAt: new Date(issue.fields.updated),
         transitions: jiraStatusTransitions(issue),
         transitionHistoryComplete: jiraTransitionHistoryComplete(issue),
-        development: jiraDevelopmentFromFields(fields, names),
+        development: selectJiraDevelopment(
+          jiraDevelopmentFromFields(fields, names),
+          hydratedData.remoteDevelopmentByKey.get(issue.key) ?? null,
+          Boolean(options.includeAnalyticsFields),
+        ),
       };
     }),
     jiraUser,
