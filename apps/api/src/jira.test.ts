@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
+  assertJiraReadOnlyRequest,
+  fetchJiraReadOnly,
   fetchJiraIssues,
   fetchJiraRemoteDevelopment,
   jiraCriticalPriorityAt,
@@ -54,6 +57,86 @@ const jiraEnvKeys = [
   'JIRA_API_TOKEN',
   'JIRA_SPRINT_FIELD_ID',
 ] as const;
+
+test('Jira request guard allows only known read and authentication operations', () => {
+  const allowedRequests: Array<[string, RequestInit?]> = [
+    ['https://jira.example/rest/api/2/filter/123'],
+    ['https://jira.example/rest/api/3/myself'],
+    ['https://jira.example/rest/api/2/issue/PMS-42?fields=updated'],
+    ['https://jira.example/rest/api/3/issue/PMS-42/changelog?startAt=0'],
+    ['https://jira.example/rest/api/2/issue/PMS-42/remotelink'],
+    ['https://jira.example/rest/api/2/search', { method: 'POST' }],
+    ['https://jira.example/rest/api/3/search/jql', { method: 'post' }],
+    ['https://jira.example/rest/auth/1/session', { method: 'POST' }],
+    ['https://jira.example/login.jsp', { method: 'POST' }],
+    ['https://jira.example/jira/rest/api/2/search', { method: 'POST' }],
+    ['https://jira.example/jira/rest/api/2/issue/PMS-42/changelog'],
+  ];
+
+  for (const [url, init] of allowedRequests) {
+    assert.doesNotThrow(() => assertJiraReadOnlyRequest(url, init));
+  }
+});
+
+test('Jira request guard blocks business-data writes and unknown endpoints', () => {
+  const blockedRequests: Array<[string, RequestInit]> = [
+    ['https://jira.example/rest/api/2/issue', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42', { method: 'PUT' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42', { method: 'PATCH' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42', { method: 'DELETE' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/comment', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/transitions', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/worklog', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/attachments', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/assignee', { method: 'PUT' }],
+    ['https://jira.example/rest/api/2/issueLink', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issueLink/123', { method: 'DELETE' }],
+    ['https://jira.example/rest/api/2/filter', { method: 'POST' }],
+  ];
+
+  for (const [url, init] of blockedRequests) {
+    assert.throws(
+      () => assertJiraReadOnlyRequest(url, init),
+      /Blocked non-read-only Jira request/,
+    );
+  }
+
+  assert.throws(
+    () => assertJiraReadOnlyRequest('not a URL'),
+    /Blocked invalid Jira request URL/,
+  );
+});
+
+test('Jira request wrapper disables automatic redirects', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    assert.equal(init?.redirect, 'manual');
+    return new Response('{}', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    await fetchJiraReadOnly('https://jira.example/rest/api/2/search', {
+      method: 'POST',
+      redirect: 'follow',
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Jira client has no direct fetch calls outside the read-only wrapper', async () => {
+  const source = await readFile(new URL('./jira.ts', import.meta.url), 'utf8');
+  const directFetchCalls = source.match(/\bfetch\s*\(/g) ?? [];
+
+  assert.equal(directFetchCalls.length, 1);
+  assert.match(
+    source,
+    /export function fetchJiraReadOnly[\s\S]*?return fetch\(url, \{ \.\.\.init, redirect: 'manual' \}\);/,
+  );
+});
 
 test('jiraSprintFromFields reads active Jira Server sprint strings', () => {
   assert.equal(

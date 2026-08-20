@@ -355,6 +355,50 @@ function jiraMyselfPaths() {
   return ['/rest/api/2/myself', '/rest/api/3/myself'];
 }
 
+const jiraReadOnlyGetPaths = [
+  /(?:^|\/)rest\/api\/[23]\/filter\/\d+$/,
+  /(?:^|\/)rest\/api\/[23]\/myself$/,
+  /(?:^|\/)rest\/api\/[23]\/issue\/[^/]+(?:\/(?:changelog|remotelink))?$/,
+];
+
+const jiraReadOnlyPostPaths = new Set([
+  'rest/api/2/search',
+  'rest/api/3/search/jql',
+  'rest/auth/1/session',
+  'login.jsp',
+]);
+
+export class JiraReadOnlyRequestError extends Error {
+  override name = 'JiraReadOnlyRequestError';
+}
+
+export function assertJiraReadOnlyRequest(urlValue: string | URL, init: RequestInit = {}) {
+  let url: URL;
+  try {
+    url = urlValue instanceof URL ? urlValue : new URL(urlValue);
+  } catch {
+    throw new JiraReadOnlyRequestError('Blocked invalid Jira request URL');
+  }
+  const method = (init.method ?? 'GET').toUpperCase();
+  const normalizedPath = url.pathname.replace(/^\/+/, '');
+  const allowed =
+    (method === 'GET' && jiraReadOnlyGetPaths.some((pattern) => pattern.test(url.pathname))) ||
+    (method === 'POST' && [...jiraReadOnlyPostPaths].some((path) =>
+      normalizedPath === path || normalizedPath.endsWith(`/${path}`)
+    ));
+
+  if (!allowed) {
+    throw new JiraReadOnlyRequestError(
+      `Blocked non-read-only Jira request: ${method} ${url.pathname}`,
+    );
+  }
+}
+
+export function fetchJiraReadOnly(url: string | URL, init: RequestInit = {}) {
+  assertJiraReadOnlyRequest(url, init);
+  return fetch(url, { ...init, redirect: 'manual' });
+}
+
 function savedFilterIdFromJql(jql: string) {
   return jql.trim().match(/^filter\s*=\s*"?(\d+)"?$/i)?.[1] ?? null;
 }
@@ -722,7 +766,7 @@ async function fetchJiraFilterJql(
 
   for (const [index, path] of paths.entries()) {
     const isLastPath = index === paths.length - 1;
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
       method: 'GET',
       redirect: 'manual',
       headers: {
@@ -781,7 +825,7 @@ async function fetchJiraSearch(
 
   for (const [index, path] of paths.entries()) {
     const isLastPath = index === paths.length - 1;
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
       method: 'POST',
       redirect: 'manual',
       headers: {
@@ -984,7 +1028,7 @@ async function fetchJiraChangelogPage(
   ];
 
   for (const path of paths) {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
       method: 'GET',
       redirect: 'manual',
       headers: { ...authHeaders, Accept: 'application/json' },
@@ -1028,7 +1072,7 @@ async function fetchJiraExpandedChangelog(
   ];
 
   for (const path of paths) {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
       method: 'GET',
       redirect: 'manual',
       headers: { ...authHeaders, Accept: 'application/json' },
@@ -1127,13 +1171,14 @@ export async function fetchJiraRemoteDevelopment(
   for (const path of paths) {
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}${path}`, {
+      response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
         method: 'GET',
         redirect: 'manual',
         headers: { ...authHeaders, Accept: 'application/json' },
         signal: AbortSignal.timeout(15_000),
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof JiraReadOnlyRequestError) throw error;
       return null;
     }
     if ([400, 401, 403, 404, 405, 410].includes(response.status)) {
@@ -1218,7 +1263,7 @@ async function fetchJiraCurrentUser(
 
   for (const [index, path] of paths.entries()) {
     const isLastPath = index === paths.length - 1;
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
       method: 'GET',
       redirect: 'manual',
       headers: {
@@ -1311,7 +1356,7 @@ async function fetchJiraSearchWithVerifiedEmptyResult(
 }
 
 async function fetchJiraSessionCookie(baseUrl: string, username: string, password: string) {
-  const response = await fetch(`${baseUrl}/rest/auth/1/session`, {
+  const response = await fetchJiraReadOnly(`${baseUrl}/rest/auth/1/session`, {
     method: 'POST',
     redirect: 'manual',
     headers: {
@@ -1353,7 +1398,7 @@ async function fetchJiraSessionCookie(baseUrl: string, username: string, passwor
 }
 
 async function fetchJiraWebLoginCookie(baseUrl: string, username: string, password: string) {
-  const response = await fetch(`${baseUrl}/login.jsp`, {
+  const response = await fetchJiraReadOnly(`${baseUrl}/login.jsp`, {
     method: 'POST',
     redirect: 'manual',
     headers: {
