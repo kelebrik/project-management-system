@@ -727,6 +727,7 @@ model JiraIssueSnapshot {
   sprint                    String?
   issueCreatedAt            DateTime?
   criticalPriorityAt        DateTime?
+  criticalEndPriority       String?
   resolutionAt              DateTime?
   criticalSlaTracked        Boolean                    @default(false)
   commitCount               Int                        @default(0)

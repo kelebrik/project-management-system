@@ -29,6 +29,7 @@ function issue(patch: Partial<JiraIssueSnapshot> = {}): JiraIssueSnapshot {
     sprint: null,
     issueCreatedAt: "2026-07-01T09:00:00Z",
     criticalPriorityAt: null,
+    criticalEndPriority: null,
     criticalSlaTracked: true,
     commitCount: 4,
     mergeRequestCount: 1,

@@ -410,6 +410,7 @@ export type JiraIssueSnapshot = {
   sprint: string | null;
   issueCreatedAt: string | null;
   criticalPriorityAt: string | null;
+  criticalEndPriority: string | null;
   resolutionAt: string | null;
   criticalSlaTracked: boolean;
   commitCount: number;

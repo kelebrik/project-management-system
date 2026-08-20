@@ -4,8 +4,10 @@ import { isJiraBugIssueType } from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
 import {
+  criticalEndPriorityUpdate,
   criticalPriorityAtUpdate,
   isJiraCriticalBugSlaCandidate,
+  jiraCriticalBugSlaSnapshotIds,
   replaceJiraCriticalSlaTracking,
   syncJiraIssueAnalytics,
   type JiraAnalyticsActivityInput,
@@ -41,32 +43,55 @@ test('incomplete priority history preserves a previously known SLA start', () =>
   );
 });
 
-test('critical bug SLA candidate may have a lower current priority', () => {
+test('resolved critical bug SLA candidate uses priority at Resolution', () => {
   assert.equal(
     isJiraCriticalBugSlaCandidate(jiraIssue({
       issueType: 'Дефект',
       priority: 'Major',
       criticalPriorityAt: new Date('2026-05-01T09:00:00Z'),
+      criticalEndPriority: 'Critical',
       transitionHistoryComplete: true,
     })),
     true,
   );
+  assert.equal(
+    isJiraCriticalBugSlaCandidate(jiraIssue({
+      issueType: 'Дефект',
+      priority: 'Critical',
+      criticalPriorityAt: new Date('2026-05-01T09:00:00Z'),
+      criticalEndPriority: 'Major',
+      transitionHistoryComplete: true,
+    })),
+    false,
+  );
 });
 
-test('critical bug SLA candidate accepts a conservative start from partial history', () => {
+test('unresolved critical bug SLA candidate requires a current critical priority', () => {
   assert.equal(
     isJiraCriticalBugSlaCandidate(jiraIssue({
       issueType: 'Bug - Production',
-      priority: 'Major',
+      priority: 'Critical',
       criticalPriorityAt: new Date('2026-05-01T09:00:00Z'),
+      criticalEndPriority: 'Critical',
       transitionHistoryComplete: false,
     })),
     true,
   );
   assert.equal(
     isJiraCriticalBugSlaCandidate(jiraIssue({
+      issueType: 'Bug - Production',
+      priority: 'Major',
+      criticalPriorityAt: new Date('2026-05-01T09:00:00Z'),
+      criticalEndPriority: 'Major',
+      transitionHistoryComplete: false,
+    })),
+    false,
+  );
+  assert.equal(
+    isJiraCriticalBugSlaCandidate(jiraIssue({
       issueType: 'Task',
       criticalPriorityAt: new Date('2026-05-01T09:00:00Z'),
+      criticalEndPriority: 'Critical',
     })),
     false,
   );
@@ -74,8 +99,35 @@ test('critical bug SLA candidate accepts a conservative start from partial histo
     isJiraCriticalBugSlaCandidate(jiraIssue({
       issueType: 'Bug',
       criticalPriorityAt: null,
+      criticalEndPriority: 'Critical',
     })),
     false,
+  );
+});
+
+test('partial resolved history preserves end priority only for the same Resolution date', () => {
+  const resolutionAt = new Date('2026-06-01T09:00:00Z');
+  const existing = {
+    ...existingSnapshot(),
+    resolutionAt,
+    criticalEndPriority: 'Blocker',
+  };
+
+  assert.equal(
+    criticalEndPriorityUpdate(jiraIssue({
+      resolutionAt: new Date(resolutionAt),
+      criticalEndPriority: null,
+      transitionHistoryComplete: false,
+    }), existing),
+    'Blocker',
+  );
+  assert.equal(
+    criticalEndPriorityUpdate(jiraIssue({
+      resolutionAt: new Date('2026-06-02T09:00:00Z'),
+      criticalEndPriority: null,
+      transitionHistoryComplete: false,
+    }), existing),
+    null,
   );
 });
 
@@ -116,6 +168,7 @@ function jiraIssue(patch: Partial<JiraIssue> = {}): JiraIssue {
     sprintAvailable: true,
     createdAt: new Date('2026-08-01T09:00:00Z'),
     criticalPriorityAt: null,
+    criticalEndPriority: 'High',
     updatedAt: new Date('2026-08-18T10:00:00Z'),
     transitions: [],
     transitionHistoryComplete: false,
@@ -172,6 +225,8 @@ function memoryStore(seed: JiraAnalyticsSnapshotState | null) {
         criticalPriorityAt: criticalPriorityAt === undefined
           ? (state.snapshot?.criticalPriorityAt ?? null)
           : criticalPriorityAt,
+        criticalEndPriority: issue.criticalEndPriority,
+        resolutionAt: issue.resolutionAt,
         commitCount: issue.development.available
           ? issue.development.commitCount
           : (state.snapshot?.commitCount ?? 0),
@@ -183,7 +238,12 @@ function memoryStore(seed: JiraAnalyticsSnapshotState | null) {
             (issue.development.commitCount > 0 || issue.development.mergeRequestCount > 0)) ||
           (state.snapshot?.developmentBaselineCaptured ?? false),
       };
-      return { id: state.snapshot.id };
+      return {
+        id: state.snapshot.id,
+        issueType: issue.issueType,
+        criticalPriorityAt: state.snapshot.criticalPriorityAt,
+        criticalEndPriority: state.snapshot.criticalEndPriority,
+      };
     },
   };
   return { activities, state, store, transitions };
@@ -194,6 +254,8 @@ const existingSnapshot = (): JiraAnalyticsSnapshotState => ({
   status: 'Open',
   sprint: null,
   criticalPriorityAt: null,
+  criticalEndPriority: null,
+  resolutionAt: null,
   commitCount: 0,
   mergeRequestCount: 0,
   developmentBaselineCaptured: false,
@@ -218,6 +280,41 @@ test('partial priority history keeps the earliest known SLA start', async () => 
   );
 
   assert.deepEqual(state.snapshot?.criticalPriorityAt, previousStart);
+});
+
+test('partial resolved history keeps a previously verified SLA candidate', async () => {
+  const resolutionAt = new Date('2026-06-01T09:00:00Z');
+  const previousStart = new Date('2026-05-01T09:00:00Z');
+  const { state, store } = memoryStore({
+    ...existingSnapshot(),
+    criticalPriorityAt: previousStart,
+    criticalEndPriority: 'Critical',
+    resolutionAt,
+  });
+
+  await syncJiraIssueAnalytics(
+    store,
+    'project-1',
+    jiraIssue({
+      issueType: 'Bug',
+      resolutionAt: new Date(resolutionAt),
+      criticalPriorityAt: null,
+      criticalEndPriority: null,
+      transitionHistoryComplete: false,
+    }),
+    new Date('2026-08-20T09:00:00Z'),
+  );
+
+  assert.deepEqual(state.snapshot?.criticalPriorityAt, previousStart);
+  assert.equal(state.snapshot?.criticalEndPriority, 'Critical');
+  assert.equal(
+    isJiraCriticalBugSlaCandidate({
+      issueType: 'Bug',
+      criticalPriorityAt: state.snapshot?.criticalPriorityAt ?? null,
+      criticalEndPriority: state.snapshot?.criticalEndPriority ?? null,
+    }),
+    true,
+  );
 });
 
 test('complete priority history clears an obsolete SLA start', async () => {
@@ -271,6 +368,32 @@ test('configured SLA sync replaces tracked snapshots in bounded batches', async 
       data: { criticalSlaTracked: true },
     },
   ]);
+});
+
+test('SLA tracking ids use the merged snapshot state returned by sync', () => {
+  assert.deepEqual(
+    jiraCriticalBugSlaSnapshotIds([
+      {
+        id: 'tracked',
+        issueType: 'Bug',
+        criticalPriorityAt: new Date('2026-05-01T09:00:00Z'),
+        criticalEndPriority: 'Critical',
+      },
+      {
+        id: 'wrong-end-priority',
+        issueType: 'Bug',
+        criticalPriorityAt: new Date('2026-05-01T09:00:00Z'),
+        criticalEndPriority: 'Major',
+      },
+      {
+        id: 'missing-start',
+        issueType: 'Bug',
+        criticalPriorityAt: null,
+        criticalEndPriority: 'Blocker',
+      },
+    ]),
+    ['tracked'],
+  );
 });
 
 test('repeated Jira sync does not duplicate transitions or development activity', async () => {

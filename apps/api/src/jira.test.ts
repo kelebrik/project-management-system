@@ -10,6 +10,7 @@ import {
   jiraCriticalPriorityAt,
   jiraDevelopmentFromFields,
   jiraDevelopmentFromRemoteLinks,
+  jiraPriorityAtResolution,
   jiraSprintFromFields,
   resolveJiraConfig,
 } from './jira.js';
@@ -22,6 +23,7 @@ function jiraPriorityIssue(
     toPriority: string | null;
   }>,
   total = histories.length,
+  resolutionAt: string | null = null,
 ) {
   return {
     key: 'PMS-42',
@@ -31,6 +33,7 @@ function jiraPriorityIssue(
       priority: { name: currentPriority },
       assignee: null,
       issuetype: { name: 'Bug' },
+      resolutiondate: resolutionAt,
       created: '2026-05-01T09:00:00.000Z',
       updated: '2026-06-15T09:00:00.000Z',
     },
@@ -270,6 +273,80 @@ test('jiraCriticalPriorityAt uses an explicit raise from incomplete history cons
       fromPriority: 'Critical',
       toPriority: 'Major',
     }], 2)),
+    null,
+  );
+});
+
+test('jiraPriorityAtResolution returns the priority active at Resolution', () => {
+  const resolvedAt = '2026-06-01T12:30:00.000Z';
+
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue('Major', [
+      {
+        created: '2026-05-20T12:30:00.000Z',
+        fromPriority: 'Major',
+        toPriority: 'Critical',
+      },
+      {
+        created: '2026-06-10T12:30:00.000Z',
+        fromPriority: 'Critical',
+        toPriority: 'Major',
+      },
+    ], 2, resolvedAt)),
+    'Critical',
+  );
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue('Critical', [
+      {
+        created: '2026-06-10T12:30:00.000Z',
+        fromPriority: 'Major',
+        toPriority: 'Critical',
+      },
+    ], 1, resolvedAt)),
+    'Major',
+  );
+});
+
+test('jiraPriorityAtResolution includes a priority change at the Resolution timestamp', () => {
+  const resolvedAt = '2026-06-01T12:30:00.000Z';
+
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue('Critical', [
+      {
+        created: resolvedAt,
+        fromPriority: 'Major',
+        toPriority: 'Critical',
+      },
+    ], 1, resolvedAt)),
+    'Critical',
+  );
+});
+
+test('jiraPriorityAtResolution uses current priority when it never changed', () => {
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue(
+      'Critical',
+      [],
+      0,
+      '2026-06-01T12:30:00.000Z',
+    )),
+    'Critical',
+  );
+});
+
+test('jiraPriorityAtResolution requires a Resolution date and complete history', () => {
+  assert.equal(jiraPriorityAtResolution(jiraPriorityIssue('Critical', [])), null);
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue(
+      'Critical',
+      [{
+        created: '2026-05-20T12:30:00.000Z',
+        fromPriority: 'Major',
+        toPriority: 'Critical',
+      }],
+      2,
+      '2026-06-01T12:30:00.000Z',
+    )),
     null,
   );
 });
@@ -656,6 +733,7 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
         sprintAvailable: true,
         createdAt: new Date('2026-05-20T09:00:00.000+0300'),
         criticalPriorityAt: null,
+        criticalEndPriority: 'High',
         updatedAt: new Date('2026-05-23T10:00:00.000+0300'),
         transitions: [
           {
