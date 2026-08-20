@@ -9,11 +9,12 @@ import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   createPrismaJiraAnalyticsSyncStore,
   isJiraCriticalBugSlaCandidate,
+  replaceJiraCriticalSlaTracking,
   syncJiraIssueAnalytics,
 } from '../services/jira-analytics-sync.js';
 import {
   ensureDefaultJiraWorkSections,
-  jiraCriticalPriorityJql,
+  jiraCriticalSlaSyncPlan,
   resolveJiraWorkSectionJql,
 } from '../services/jira-work-sections.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
@@ -116,7 +117,6 @@ const jiraSyncSchema = z.object({
 });
 
 const JIRA_ANALYTICS_SYNC_CONCURRENCY = 4;
-const JIRA_SLA_FLAG_BATCH_SIZE = 500;
 
 async function syncJiraAnalyticsIssues(
   projectId: string,
@@ -146,14 +146,6 @@ async function syncJiraAnalyticsIssues(
     ),
   );
   return snapshots;
-}
-
-function jiraSlaFlagBatches(snapshotIds: string[]) {
-  const batches: string[][] = [];
-  for (let offset = 0; offset < snapshotIds.length; offset += JIRA_SLA_FLAG_BATCH_SIZE) {
-    batches.push(snapshotIds.slice(offset, offset + JIRA_SLA_FLAG_BATCH_SIZE));
-  }
-  return batches;
 }
 
 router.put('/projects/:projectId/jira-integration', async (req, res) => {
@@ -815,13 +807,16 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         jiraQuery: resolveJiraWorkSectionJql(section.jql, section.filterUrl),
       }))
       .filter((section) => section.jiraQuery);
-    const criticalPriorityJql = jiraCriticalPriorityJql(
-      project.jiraIntegration?.projectKey ?? '',
-    );
     const syncedAt = new Date();
     const syncedIssueKeys = new Set<string>();
+    const sectionIssueKeys: string[] = [];
+    const storedSnapshotKeys = await prisma.jiraIssueSnapshot.findMany({
+      where: { projectId: project.id },
+      select: { issueKey: true },
+    });
     const remoteDevelopmentCache = new Map<string, JiraIssue['development']>();
     let criticalBugSlaIssues = 0;
+    let criticalBugSlaCandidates = 0;
     let criticalBugSlaJiraUser: string | null = null;
     const sectionStats: Array<{
       id: string;
@@ -838,7 +833,10 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         remoteDevelopmentCache,
       });
       const issues = jiraResult.issues;
-      for (const issue of issues) syncedIssueKeys.add(issue.key);
+      for (const issue of issues) {
+        syncedIssueKeys.add(issue.key);
+        sectionIssueKeys.push(issue.key);
+      }
       sectionStats.push({
         id: section.id,
         title: section.title,
@@ -862,13 +860,23 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       }
     }
 
-    if (criticalPriorityJql) {
-      const jiraResult = await fetchJiraIssuesWithMeta(criticalPriorityJql, {
+    const criticalSlaPlan = jiraCriticalSlaSyncPlan(
+      project.jiraIntegration?.projectKey ?? '',
+      [
+        ...storedSnapshotKeys.map((snapshot) => snapshot.issueKey),
+        ...sectionIssueKeys,
+      ],
+    );
+    const criticalBugSlaProjectKeys = criticalSlaPlan.projectKeys;
+    const criticalBugSlaConfigured = criticalSlaPlan.configured;
+    if (criticalSlaPlan.configured) {
+      const jiraResult = await fetchJiraIssuesWithMeta(criticalSlaPlan.jql, {
         baseUrl: parsedSync.data.baseUrl,
         fetchAllPages: true,
         includeAnalyticsFields: true,
         remoteDevelopmentCache,
       });
+      criticalBugSlaCandidates = jiraResult.issues.length;
       const criticalBugs = jiraResult.issues.filter(isJiraCriticalBugSlaCandidate);
       criticalBugSlaIssues = criticalBugs.length;
       criticalBugSlaJiraUser = jiraResult.jiraUser;
@@ -878,26 +886,13 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         criticalBugs,
         syncedAt,
       );
-      await prisma.$transaction([
-        prisma.jiraIssueSnapshot.updateMany({
-          where: { projectId: project.id, criticalSlaTracked: true },
-          data: { criticalSlaTracked: false },
-        }),
-        ...jiraSlaFlagBatches(snapshots.map((snapshot) => snapshot.id)).map(
-          (snapshotIds) => prisma.jiraIssueSnapshot.updateMany({
-            where: {
-              projectId: project.id,
-              id: { in: snapshotIds },
-            },
-            data: { criticalSlaTracked: true },
-          }),
+      await prisma.$transaction((transaction) =>
+        replaceJiraCriticalSlaTracking(
+          transaction,
+          project.id,
+          snapshots.map((snapshot) => snapshot.id),
         ),
-      ]);
-    } else {
-      await prisma.jiraIssueSnapshot.updateMany({
-        where: { projectId: project.id, criticalSlaTracked: true },
-        data: { criticalSlaTracked: false },
-      });
+      );
     }
 
     if (project.jiraIntegration) {
@@ -912,12 +907,18 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       baseUrl: parsedSync.data.baseUrl ?? 'env',
       configuredSections: sectionsWithFilter.length,
       syncedIssues: syncedIssueKeys.size,
+      criticalBugSlaConfigured,
+      criticalBugSlaProjectKeys,
+      criticalBugSlaCandidates,
       criticalBugSlaIssues,
       sections: sectionStats,
     });
 
     res.json({
       synced: syncedIssueKeys.size,
+      criticalBugSlaConfigured,
+      criticalBugSlaProjectKeys,
+      criticalBugSlaCandidates,
       criticalBugSlaIssues,
       configuredSections: sectionsWithFilter.length,
       totalSections: workSections.length,

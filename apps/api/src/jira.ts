@@ -681,10 +681,7 @@ function jiraTransitionHistoryComplete(issue: JiraSearchResponse['issues'][numbe
 export function jiraCriticalPriorityAt(
   issue: JiraSearchResponse['issues'][number],
 ) {
-  if (!jiraChangelogPageComplete(issue.changelog)) {
-    return null;
-  }
-
+  const historyComplete = jiraChangelogPageComplete(issue.changelog);
   const createdAt = parseJiraDate(issue.fields.created);
   const changes = (issue.changelog?.histories ?? [])
     .flatMap((history) => {
@@ -703,9 +700,11 @@ export function jiraCriticalPriorityAt(
     .sort((left, right) => left.changedAt.getTime() - right.changedAt.getTime());
 
   if (changes.length === 0) {
-    return isJiraCriticalPriority(issue.fields.priority?.name) ? createdAt : null;
+    return historyComplete && isJiraCriticalPriority(issue.fields.priority?.name)
+      ? createdAt
+      : null;
   }
-  if (isJiraCriticalPriority(changes[0]?.fromPriority)) {
+  if (historyComplete && isJiraCriticalPriority(changes[0]?.fromPriority)) {
     return createdAt;
   }
 

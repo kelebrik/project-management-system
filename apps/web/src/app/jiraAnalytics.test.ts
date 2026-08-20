@@ -280,7 +280,7 @@ test("critical bug SLA widget applies its configured threshold", () => {
   assert.equal(result.records[0]?.durationHours, 2);
 });
 
-test("critical bug SLA report excludes tickets without complete priority history", () => {
+test("critical bug SLA report keeps a conservative start from partial priority history", () => {
   const widget = template("critical-bugs-sla").config.widgets[2];
   const result = evaluateJiraAnalyticsWidget(
     widget,
@@ -295,8 +295,8 @@ test("critical bug SLA report excludes tickets without complete priority history
     { periodDays: 30, now: new Date("2026-08-01T00:00:00Z") },
   );
 
-  assert.equal(result.value, 0);
-  assert.equal(result.records.length, 0);
+  assert.equal(result.value, 1);
+  assert.equal(result.records.length, 1);
 });
 
 test("critical bug SLA report excludes stale snapshots outside the dedicated query", () => {

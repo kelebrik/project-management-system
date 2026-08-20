@@ -136,14 +136,22 @@ async function syncJira(options: { baseUrl?: string } = {}) {
       : [];
     const jiraUserText =
       jiraUsers.length > 0 ? ` Запрос выполнен от: ${jiraUsers.join(", ")}.` : "";
+    const criticalBugSlaConfigured = result.criticalBugSlaConfigured === true;
+    const criticalBugSlaCandidates =
+      typeof result.criticalBugSlaCandidates === "number" ? result.criticalBugSlaCandidates : 0;
+    const criticalBugSlaIssues =
+      typeof result.criticalBugSlaIssues === "number" ? result.criticalBugSlaIssues : 0;
+    const slaText = criticalBugSlaConfigured
+      ? ` SLA Critical/Blocker: ${criticalBugSlaIssues} багов из ${criticalBugSlaCandidates} кандидатов.`
+      : " SLA Critical/Blocker не настроен: не удалось определить Jira project key.";
     if (configuredSections === 0) {
-      setNotice("Jira: нет разделов с заполненным фильтром");
+      setNotice(`Jira: нет разделов с заполненным фильтром.${slaText}`);
     } else if (syncedCount === 0) {
       setNotice(
-        `Jira: синхронизация выполнена, тикетов не найдено.${jiraUserText} Проверь JQL и Browse-доступ сервисной учетки к ${options.baseUrl ?? "Jira"}`,
+        `Jira: синхронизация выполнена, тикетов не найдено.${jiraUserText}${slaText} Проверь JQL и Browse-доступ сервисной учетки к ${options.baseUrl ?? "Jira"}`,
       );
     } else {
-      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}.${jiraUserText}`);
+      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}.${jiraUserText}${slaText}`);
     }
   } catch (syncError) {
     setError(
