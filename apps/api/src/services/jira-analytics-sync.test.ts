@@ -4,7 +4,7 @@ import test from 'node:test';
 import type { JiraIssue } from '../jira.js';
 import {
   criticalPriorityAtUpdate,
-  isJiraCriticalBugSlaViolation,
+  isJiraCriticalBugSlaCandidate,
   syncJiraIssueAnalytics,
   type JiraAnalyticsActivityInput,
   type JiraAnalyticsSnapshotState,
@@ -27,39 +27,27 @@ test('incomplete priority history preserves a previously known SLA start', () =>
       criticalPriorityAt: null,
       transitionHistoryComplete: false,
     })),
-    null,
+    undefined,
+  );
+  assert.equal(
+    criticalPriorityAtUpdate(jiraIssue({
+      priority: 'Major',
+      criticalPriorityAt: new Date('2026-05-01T09:00:00Z'),
+      transitionHistoryComplete: false,
+    })),
+    undefined,
   );
 });
 
-test('critical bug SLA violation uses Resolution date and a strict 30-day boundary', () => {
-  const startedAt = new Date('2026-05-01T09:00:00Z');
-  const issue = jiraIssue({
-    issueType: 'Bug',
-    priority: 'Critical',
-    criticalPriorityAt: startedAt,
-    transitionHistoryComplete: true,
-  });
-
+test('critical bug SLA candidate may have a lower current priority', () => {
   assert.equal(
-    isJiraCriticalBugSlaViolation(
-      issue,
-      new Date('2026-05-31T09:00:00Z'),
-    ),
-    false,
-  );
-  assert.equal(
-    isJiraCriticalBugSlaViolation(
-      issue,
-      new Date('2026-06-01T09:00:00Z'),
-    ),
+    isJiraCriticalBugSlaCandidate(jiraIssue({
+      issueType: 'Дефект',
+      priority: 'Major',
+      criticalPriorityAt: new Date('2026-05-01T09:00:00Z'),
+      transitionHistoryComplete: true,
+    })),
     true,
-  );
-  assert.equal(
-    isJiraCriticalBugSlaViolation(
-      { ...issue, resolutionAt: new Date('2026-05-31T09:00:00Z') },
-      new Date('2026-06-15T09:00:00Z'),
-    ),
-    false,
   );
 });
 

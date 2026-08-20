@@ -1,4 +1,4 @@
-import { jiraBugIssueTypes, jiraCriticalPriorities } from '@pms/shared';
+import { jiraCriticalPriorities } from '@pms/shared';
 
 import { prisma } from '../db.js';
 
@@ -47,7 +47,7 @@ export function jiraCriticalPriorityJql(projectKey: string) {
   const priorities = jiraCriticalPriorities
     .map((priority) => `"${priority}"`)
     .join(', ');
-  return `project = "${escapedProjectKey}" AND issuetype = "${jiraBugIssueTypes[0]}" AND priority in (${priorities}) AND created <= -30d ORDER BY created ASC, key ASC`;
+  return `project = "${escapedProjectKey}" AND priority WAS IN (${priorities}) ORDER BY created ASC, key ASC`;
 }
 
 export async function ensureDefaultJiraWorkSections(projectId: string) {

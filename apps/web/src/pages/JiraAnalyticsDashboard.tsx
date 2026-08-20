@@ -292,6 +292,23 @@ function JiraAnalyticsWidgetCard({
   widget: JiraAnalyticsWidget;
 }) {
   const maxGroupValue = Math.max(1, ...result.groups.map((group) => group.value));
+  const transitionPercentile = widget.metric === "p50Duration"
+    ? 50
+    : widget.metric === "p85Duration"
+      ? 85
+      : widget.metric === "p95Duration"
+        ? 95
+        : null;
+  const subtitle = widget.source === "transitions" && transitionPercentile
+    ? `${transitionPercentile}% завершённых периодов в статусах не дольше`
+    : widget.source === "criticalBugs"
+      ? `От первого Critical/Blocker до Resolution · ${JIRA_ANALYTICS_METRIC_LABELS[widget.metric]}`
+      : `${JIRA_ANALYTICS_SOURCE_LABELS[widget.source]} · ${JIRA_ANALYTICS_METRIC_LABELS[widget.metric]}`;
+  const recordCountLabel = widget.source === "transitions"
+    ? "Периодов в статусах"
+    : widget.source === "development"
+      ? "Событий разработки"
+      : "Тикетов";
   return (
     <section
       className={`jira-analytics-widget width-${widget.width} ${selected ? "selected" : ""}`}
@@ -299,9 +316,7 @@ function JiraAnalyticsWidgetCard({
       <header>
         <div>
           <h3>{widget.title}</h3>
-          <small>
-            {JIRA_ANALYTICS_SOURCE_LABELS[widget.source]} · {JIRA_ANALYTICS_METRIC_LABELS[widget.metric]}
-          </small>
+          <small>{subtitle}</small>
         </div>
         <div className="jira-analytics-widget-actions">
           {result.records.length > 0 && (
@@ -334,7 +349,7 @@ function JiraAnalyticsWidgetCard({
           disabled={result.records.length === 0}
         >
           <strong>{result.formattedValue}</strong>
-          <span>{result.records.length.toLocaleString("ru-RU")} записей</span>
+          <span>{recordCountLabel}: {result.records.length.toLocaleString("ru-RU")}</span>
         </button>
       )}
 
@@ -685,11 +700,11 @@ export function JiraAnalyticsDashboard() {
             <optgroup label="Системные шаблоны">
               {JIRA_ANALYTICS_TEMPLATES.map((template) => <option key={template.id} value={`template:${template.id}`}>{template.name}</option>)}
             </optgroup>
-            {savedDashboards.length > 0 && (
-              <optgroup label="Сохраненные">
-                {savedDashboards.map((dashboard) => <option key={dashboard.id} value={`saved:${dashboard.id}`}>{dashboard.name}{dashboard.isShared ? " · общий" : ""}</option>)}
-              </optgroup>
-            )}
+            {savedDashboards.map((dashboard) => (
+              <option key={dashboard.id} value={`saved:${dashboard.id}`}>
+                {dashboard.isShared ? "Командный" : "Личный"} · {dashboard.name}
+              </option>
+            ))}
           </select>
         </label>
         <label title={hasEventWidgets ? "Период переходов и активности разработки" : "На текущие тикеты и SLA-отчет период событий не влияет"}>

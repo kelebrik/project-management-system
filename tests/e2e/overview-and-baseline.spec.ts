@@ -634,7 +634,18 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
     },
   ] as unknown as never[];
   project._count.jiraSnapshots = 1;
-  await page.route("**/api/saved-views?*", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/saved-views?*", (route) => route.fulfill({
+    json: [{
+      id: "saved-jira-dashboard-1",
+      ownerId: "admin-user",
+      projectId: project.id,
+      viewType: "jira-analytics-dashboard",
+      name: "Контроль команды",
+      config: {},
+      isShared: false,
+      sortOrder: 0,
+    }],
+  }));
   await page.goto("/TV-OVERVIEW/jira-work");
 
   const dashboardSelect = page.getByRole("combobox", { name: "Дашборд", exact: true });
@@ -650,6 +661,21 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
       };
     });
   await expect(dashboardSelect).toHaveValue("template:unplanned");
+  await expect(dashboardSelect.locator('optgroup[label="Сохраненные"]')).toHaveCount(0);
+  await expect(dashboardSelect.locator("option", { hasText: "Личный · Контроль команды" })).toHaveCount(1);
+  const dashboardSelectStyle = await dashboardSelect.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      lineHeight: style.lineHeight,
+      paddingBottom: style.paddingBottom,
+      paddingTop: style.paddingTop,
+    };
+  });
+  expect(dashboardSelectStyle).toEqual({
+    lineHeight: "32px",
+    paddingBottom: "0px",
+    paddingTop: "0px",
+  });
   const toolbarSelectBoxes = await Promise.all(
     [
       dashboardSelect,
@@ -691,7 +717,9 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
   await expect(page.getByRole("combobox", { name: "Период событий" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
   await dashboardSelect.selectOption("template:flow");
-  await expect(page.getByRole("heading", { name: "Cycle time P50" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
+  await expect(page.getByText("50% завершённых периодов в статусах не дольше")).toBeVisible();
+  await expect(page.getByText(/Периодов в статусах: 1/).first()).toBeVisible();
   await dashboardSelect.selectOption("template:unplanned");
   await page
     .locator(".jira-analytics-widget")

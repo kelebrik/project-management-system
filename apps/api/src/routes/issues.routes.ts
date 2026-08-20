@@ -8,7 +8,7 @@ import { logEvent } from '../server/logger.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   createPrismaJiraAnalyticsSyncStore,
-  isJiraCriticalBugSlaViolation,
+  isJiraCriticalBugSlaCandidate,
   syncJiraIssueAnalytics,
 } from '../services/jira-analytics-sync.js';
 import {
@@ -869,9 +869,7 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         includeAnalyticsFields: true,
         remoteDevelopmentCache,
       });
-      const criticalBugs = jiraResult.issues.filter((issue) =>
-        isJiraCriticalBugSlaViolation(issue, syncedAt),
-      );
+      const criticalBugs = jiraResult.issues.filter(isJiraCriticalBugSlaCandidate);
       criticalBugSlaIssues = criticalBugs.length;
       criticalBugSlaJiraUser = jiraResult.jiraUser;
       for (const issue of criticalBugs) syncedIssueKeys.add(issue.key);

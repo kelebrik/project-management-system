@@ -1,9 +1,5 @@
 import type { Prisma } from '@prisma/client';
-import {
-  isJiraBugIssueType,
-  isJiraCriticalPriority,
-  jiraCriticalBugSlaHours,
-} from '@pms/shared';
+import { isJiraBugIssueType } from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
 
@@ -52,24 +48,19 @@ export type JiraAnalyticsSyncStore = {
 };
 
 export function criticalPriorityAtUpdate(issue: JiraIssue) {
-  if (isJiraCriticalPriority(issue.priority) && !issue.transitionHistoryComplete) {
+  if (!issue.transitionHistoryComplete) {
     return undefined;
   }
   return issue.criticalPriorityAt;
 }
 
-export function isJiraCriticalBugSlaViolation(issue: JiraIssue, now: Date) {
-  if (
-    !isJiraBugIssueType(issue.issueType) ||
-    !issue.transitionHistoryComplete ||
-    !issue.criticalPriorityAt
-  ) {
-    return false;
-  }
-  const finishedAt = issue.resolutionAt ?? now;
+export function isJiraCriticalBugSlaCandidate(
+  issue: JiraIssue,
+): issue is JiraIssue & { criticalPriorityAt: Date } {
   return (
-    finishedAt.getTime() - issue.criticalPriorityAt.getTime() >
-    jiraCriticalBugSlaHours * 3_600_000
+    isJiraBugIssueType(issue.issueType) &&
+    issue.transitionHistoryComplete &&
+    issue.criticalPriorityAt !== null
   );
 }
 

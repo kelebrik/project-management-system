@@ -211,7 +211,7 @@ test("critical bug SLA report includes unresolved tickets after 30 calendar days
   assert.equal(result.records[0]?.durationHours, 31 * 24 + 1 / 3_600);
 });
 
-test("critical bug SLA report uses Resolution date and keeps only violations", () => {
+test("critical bug SLA report uses Resolution date and keeps downgraded violations", () => {
   const widget = template("critical-bugs-sla").config.widgets[2];
   const startedAt = "2026-06-01T00:00:00Z";
   const result = evaluateJiraAnalyticsWidget(
@@ -246,13 +246,38 @@ test("critical bug SLA report uses Resolution date and keeps only violations", (
     { periodDays: 30, now: new Date("2026-08-01T00:00:00Z") },
   );
 
-  assert.equal(result.value, 1);
-  assert.deepEqual(result.records.map((record) => record.issue.issueKey), ["TV-201"]);
+  assert.equal(result.value, 2);
+  assert.deepEqual(result.records.map((record) => record.issue.issueKey), ["TV-201", "TV-203"]);
   assert.equal(result.records[0]?.durationHours, 31 * 24);
   assert.equal(
     JIRA_CRITICAL_BUG_SLA_HOURS,
     720,
   );
+});
+
+test("critical bug SLA widget applies its configured threshold", () => {
+  const baseWidget = template("critical-bugs-sla").config.widgets[2];
+  const widget = {
+    ...baseWidget,
+    filters: baseWidget.filters.map((condition) => ({
+      ...condition,
+      value: "1",
+    })),
+  };
+  const result = evaluateJiraAnalyticsWidget(
+    widget,
+    [
+      issue({
+        issueType: "Bug",
+        priority: "Critical",
+        criticalPriorityAt: "2026-08-01T08:00:00Z",
+      }),
+    ],
+    { periodDays: 30, now: new Date("2026-08-01T10:00:00Z") },
+  );
+
+  assert.equal(result.value, 1);
+  assert.equal(result.records[0]?.durationHours, 2);
 });
 
 test("critical bug SLA report excludes tickets without complete priority history", () => {
