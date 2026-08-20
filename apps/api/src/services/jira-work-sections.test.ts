@@ -3,28 +3,15 @@ import test from 'node:test';
 
 import {
   defaultJiraWorkSectionTitle,
-  jiraCriticalPriorityJql,
   jiraCriticalPriorityProjectKeys,
-  jiraCriticalSlaSyncPlan,
+  jiraIssueKeyBatchJql,
+  jiraIssueKeyBatches,
+  jiraIssueKeyBatchDifference,
+  jiraIssueKeyBatchLossIsUnsafe,
   jiraProjectKeyFromIssueKey,
   jiraWorkSectionFilterToJql,
   resolveJiraWorkSectionJql,
 } from './jira-work-sections.js';
-
-test('jiraCriticalPriorityJql selects current and former Critical/Blocker issues', () => {
-  assert.equal(
-    jiraCriticalPriorityJql('TV'),
-    'project = "TV" AND priority WAS IN ("Critical", "Blocker") ORDER BY created ASC, key ASC',
-  );
-  assert.equal(jiraCriticalPriorityJql(''), '');
-});
-
-test('jiraCriticalPriorityJql supports multiple deterministic project keys', () => {
-  assert.equal(
-    jiraCriticalPriorityJql(['TV', 'QA', 'TV']),
-    'project IN ("QA", "TV") AND priority WAS IN ("Critical", "Blocker") ORDER BY created ASC, key ASC',
-  );
-});
 
 test('jiraCriticalPriorityProjectKeys combines configured and observed projects', () => {
   assert.deepEqual(
@@ -37,22 +24,25 @@ test('jiraCriticalPriorityProjectKeys combines configured and observed projects'
   assert.equal(jiraProjectKeyFromIssueKey('not-an-issue'), null);
 });
 
-test('jiraCriticalSlaSyncPlan replaces tracking only with an authoritative scope', () => {
-  assert.deepEqual(jiraCriticalSlaSyncPlan('', []), {
-    configured: false,
-    projectKeys: [],
-    jql: '',
-  });
-  assert.deepEqual(jiraCriticalSlaSyncPlan('TV', ['QA-1']), {
-    configured: true,
-    projectKeys: ['QA', 'TV'],
-    jql: 'project IN ("QA", "TV") AND priority WAS IN ("Critical", "Blocker") ORDER BY created ASC, key ASC',
-  });
-  assert.deepEqual(jiraCriticalSlaSyncPlan('', ['QA-1']), {
-    configured: true,
-    projectKeys: ['QA'],
-    jql: 'project = "QA" AND priority WAS IN ("Critical", "Blocker") ORDER BY created ASC, key ASC',
-  });
+test('jiraIssueKeyBatches validates, normalizes and batches issue keys', () => {
+  assert.deepEqual(jiraIssueKeyBatches(['sps-2', 'CVTE-1', 'SPS-2'], 2), [
+    ['CVTE-1', 'SPS-2'],
+  ]);
+  assert.equal(
+    jiraIssueKeyBatchJql(['sps-2', 'CVTE-1']),
+    'issuekey IN ("CVTE-1", "SPS-2") ORDER BY key ASC',
+  );
+  assert.throws(() => jiraIssueKeyBatches(['not-an-issue'], 50), /некорректный ключ/);
+});
+
+test('jiraIssueKeyBatchDifference rejects unexpected keys and excessive loss', () => {
+  assert.deepEqual(
+    jiraIssueKeyBatchDifference(['CVTE-1', 'SPS-2'], ['cvte-1', 'STAROS-3']),
+    { missingKeys: ['SPS-2'], unexpectedKeys: ['STAROS-3'] },
+  );
+  assert.equal(jiraIssueKeyBatchLossIsUnsafe(50, 10), false);
+  assert.equal(jiraIssueKeyBatchLossIsUnsafe(50, 11), true);
+  assert.equal(jiraIssueKeyBatchLossIsUnsafe(5, 2), true);
 });
 
 test('defaultJiraWorkSectionTitle uses one-based section numbering', () => {

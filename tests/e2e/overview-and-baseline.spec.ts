@@ -159,6 +159,11 @@ function projectFixture() {
       },
     },
     jiraIntegration: null,
+    jiraAnalyticsSettings: {
+      jiraLabel: "cvte968",
+      syncStatus: "CONFIGURED",
+      lastSyncedAt: null,
+    },
     targetDateChanges: [],
     wbsItems: [wbsItem],
     raidItems: [risk],
@@ -534,13 +539,13 @@ test("project creation keeps business units available when structure options fai
 });
 
 test("Jira work synchronization always uses production", async ({ page }) => {
-  let syncBody: { baseUrl?: string } | null = null;
+  let syncBody: { baseUrl?: string; label?: string } | null = null;
   await mockAdminProject(page);
   await page.route("**/api/projects/project-1/jira-work-sections", (route) =>
     route.fulfill({ json: { ok: true } }),
   );
   await page.route("**/api/projects/project-1/jira/sync", async (route) => {
-    syncBody = route.request().postDataJSON() as { baseUrl?: string };
+    syncBody = route.request().postDataJSON() as { baseUrl?: string; label?: string };
     await route.fulfill({
       json: { synced: 0, configuredSections: 0, jiraUsers: [] },
     });
@@ -553,6 +558,7 @@ test("Jira work synchronization always uses production", async ({ page }) => {
   await page.getByRole("button", { name: "Синхронизировать" }).click();
 
   await expect.poll(() => syncBody?.baseUrl).toBe("https://tasks.sberdevices.ru");
+  await expect.poll(() => syncBody?.label).toBe("cvte968");
 });
 
 test("Jira work sections expose separate JQL and filter URL fields", async ({
@@ -679,6 +685,7 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
   const toolbarSelectBoxes = await Promise.all(
     [
       dashboardSelect,
+      page.getByLabel("Лейбл Jira"),
       page.getByRole("combobox", { name: "Период событий" }),
       page.getByRole("combobox", { name: "Исполнитель" }),
     ].map((select) => select.boundingBox()),

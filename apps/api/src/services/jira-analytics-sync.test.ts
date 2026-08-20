@@ -4,8 +4,10 @@ import { isJiraBugIssueType } from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
 import {
+  acquireJiraAnalyticsSyncLock,
   criticalEndPriorityUpdate,
   criticalPriorityAtUpdate,
+  finalizeJiraLabelSync,
   isJiraCriticalBugSlaCandidate,
   jiraCriticalBugSlaSnapshotIds,
   replaceJiraCriticalSlaTracking,
@@ -15,6 +17,61 @@ import {
   type JiraAnalyticsSyncStore,
   type JiraAnalyticsTransitionInput,
 } from './jira-analytics-sync.js';
+
+test('Jira analytics sync lock is created idempotently and acquired atomically', async () => {
+  const calls: Array<{ operation: string; value: unknown }> = [];
+  const settings = {
+    createMany: async (value: unknown) => {
+      calls.push({ operation: 'createMany', value });
+      return { count: 0 };
+    },
+    updateMany: async (value: unknown) => {
+      calls.push({ operation: 'updateMany', value });
+      return { count: 1 };
+    },
+  } as Parameters<typeof acquireJiraAnalyticsSyncLock>[0];
+  const startedAt = new Date('2026-08-20T15:00:00Z');
+  const expiresAt = new Date('2026-08-20T15:05:00Z');
+
+  assert.equal(
+    await acquireJiraAnalyticsSyncLock(
+      settings,
+      'project-1',
+      'cvte968',
+      startedAt,
+      expiresAt,
+    ),
+    true,
+  );
+  assert.deepEqual(calls, [
+    {
+      operation: 'createMany',
+      value: {
+        data: [{ projectId: 'project-1', jiraLabel: 'cvte968', syncStatus: 'CONFIGURED' }],
+        skipDuplicates: true,
+      },
+    },
+    {
+      operation: 'updateMany',
+      value: {
+        where: {
+          projectId: 'project-1',
+          OR: [
+            { syncStartedAt: null },
+            { syncLockExpiresAt: null },
+            { syncLockExpiresAt: { lte: startedAt } },
+          ],
+        },
+        data: {
+          jiraLabel: 'cvte968',
+          syncStatus: 'SYNCING',
+          syncStartedAt: startedAt,
+          syncLockExpiresAt: expiresAt,
+        },
+      },
+    },
+  ]);
+});
 
 test('incomplete priority history preserves a previously known SLA start', () => {
   assert.equal(
@@ -366,6 +423,86 @@ test('configured SLA sync replaces tracked snapshots in bounded batches', async 
     {
       where: { projectId: 'project-1', id: { in: ['snapshot-3'] } },
       data: { criticalSlaTracked: true },
+    },
+  ]);
+});
+
+test('label sync finalization activates current snapshots before retiring stale scope', async () => {
+  const calls: Array<{ model: string; operation: string; value: unknown }> = [];
+  const transaction = {
+    jiraIssueSnapshot: {
+      updateMany: async (value: unknown) => {
+        calls.push({ model: 'snapshot', operation: 'updateMany', value });
+        return { count: 1 };
+      },
+    },
+    jiraWorkSectionIssue: {
+      deleteMany: async (value: unknown) => {
+        calls.push({ model: 'section', operation: 'deleteMany', value });
+        return { count: 1 };
+      },
+      createMany: async (value: unknown) => {
+        calls.push({ model: 'section', operation: 'createMany', value });
+        return { count: 1 };
+      },
+    },
+  } as Parameters<typeof finalizeJiraLabelSync>[0];
+  const syncedAt = new Date('2026-08-20T15:00:00Z');
+
+  await finalizeJiraLabelSync(
+    transaction,
+    'project-1',
+    syncedAt,
+    [{ sectionId: 'section-1', issueKeys: ['CVTE-1', 'MISSING-2'] }],
+    new Map([['CVTE-1', 'snapshot-1']]),
+    ['snapshot-1'],
+  );
+
+  assert.deepEqual(calls, [
+    {
+      model: 'snapshot',
+      operation: 'updateMany',
+      value: {
+        where: { projectId: 'project-1', syncedAt },
+        data: { retiredAt: null },
+      },
+    },
+    {
+      model: 'snapshot',
+      operation: 'updateMany',
+      value: {
+        where: { projectId: 'project-1', syncedAt: { lt: syncedAt }, retiredAt: null },
+        data: { retiredAt: syncedAt, criticalSlaTracked: false },
+      },
+    },
+    {
+      model: 'section',
+      operation: 'deleteMany',
+      value: { where: { sectionId: 'section-1' } },
+    },
+    {
+      model: 'section',
+      operation: 'createMany',
+      value: {
+        data: [{ sectionId: 'section-1', snapshotId: 'snapshot-1', syncedAt }],
+        skipDuplicates: true,
+      },
+    },
+    {
+      model: 'snapshot',
+      operation: 'updateMany',
+      value: {
+        where: { projectId: 'project-1', criticalSlaTracked: true },
+        data: { criticalSlaTracked: false },
+      },
+    },
+    {
+      model: 'snapshot',
+      operation: 'updateMany',
+      value: {
+        where: { projectId: 'project-1', id: { in: ['snapshot-1'] } },
+        data: { criticalSlaTracked: true },
+      },
     },
   ]);
 });

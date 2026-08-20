@@ -825,12 +825,13 @@ export const openApiDocument = {
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },
         ],
         requestBody: {
-          required: false,
+          required: true,
           content: {
             "application/json": {
               schema: {
                 type: "object",
                 properties: {
+                  label: { type: "string", minLength: 1, maxLength: 100 },
                   baseUrl: {
                     type: "string",
                     enum: [
@@ -839,6 +840,7 @@ export const openApiDocument = {
                     ],
                   },
                 },
+                required: ["label"],
               },
             },
           },
@@ -852,6 +854,13 @@ export const openApiDocument = {
                   type: "object",
                   properties: {
                     synced: { type: "number" },
+                    jiraLabel: { type: "string" },
+                    emptyScope: { type: "boolean" },
+                    warning: { type: "string" },
+                    criticalBugSlaConfigured: { type: "boolean" },
+                    criticalBugSlaScope: { type: "string", enum: ["label"] },
+                    criticalBugSlaCandidates: { type: "number" },
+                    criticalBugSlaIssues: { type: "number" },
                     configuredSections: { type: "number" },
                     totalSections: { type: "number" },
                     jiraUsers: {
@@ -876,7 +885,9 @@ export const openApiDocument = {
               },
             },
           },
+          "400": { description: "Invalid Jira label or sync parameters" },
           "404": { description: "Project not found" },
+          "409": { description: "Jira synchronization already running" },
           "502": { description: "Jira request failed" },
         },
       },

@@ -5,15 +5,39 @@ import test from 'node:test';
 import {
   assertJiraReadOnlyRequest,
   fetchJiraReadOnly,
+  fetchJiraIssueKeys,
   fetchJiraIssues,
   fetchJiraRemoteDevelopment,
   jiraCriticalPriorityAt,
+  jiraJqlWithLabelScope,
   jiraDevelopmentFromFields,
   jiraDevelopmentFromRemoteLinks,
   jiraPriorityAtResolution,
   jiraSprintFromFields,
   resolveJiraConfig,
 } from './jira.js';
+
+test('jiraJqlWithLabelScope preserves boolean precedence and top-level ordering', () => {
+  assert.equal(
+    jiraJqlWithLabelScope(
+      'project = CVTE OR project = SPS ORDER BY created DESC',
+      'cvte968',
+    ),
+    '(project = CVTE OR project = SPS) AND labels = "cvte968" ORDER BY created DESC',
+  );
+  assert.equal(
+    jiraJqlWithLabelScope('summary ~ "order by device"', 'cvte968'),
+    '(summary ~ "order by device") AND labels = "cvte968"',
+  );
+  assert.throws(
+    () => jiraJqlWithLabelScope('project = CVTE', 'bad label'),
+    /не должен содержать/,
+  );
+  assert.throws(
+    () => jiraJqlWithLabelScope('(project = CVTE', 'cvte968'),
+    /незакрытая строка или скобка/,
+  );
+});
 
 function jiraPriorityIssue(
   currentPriority: string,
@@ -816,6 +840,131 @@ test('fetchJiraIssues loads every Jira search page', async () => {
       return fields.includes('customfield_10004');
     }));
     assert.deepEqual(issues.map((issue) => issue.key), ['PMS-1', 'PMS-2']);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys keeps label discovery lightweight on every page', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    assert.match(url, /\/rest\/api\/2\/search$/);
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    calls.push({ url, body });
+    const startAt = Number(body.startAt);
+    return new Response(
+      JSON.stringify({
+        startAt,
+        maxResults: 1,
+        total: 2,
+        issues: [{ key: startAt === 0 ? 'cvte-1' : 'SPS-2' }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issueKeys = await fetchJiraIssueKeys(
+      'project = CVTE OR project = SPS ORDER BY created DESC',
+      {
+        fetchAllPages: true,
+        labelScope: 'cvte968',
+        pageSize: 1,
+      },
+    );
+
+    assert.deepEqual(issueKeys, ['CVTE-1', 'SPS-2']);
+    assert.equal(calls.length, 2);
+    for (const call of calls) {
+      assert.deepEqual(call.body.fields, []);
+      assert.equal(Object.hasOwn(call.body, 'expand'), false);
+      assert.equal(
+        call.body.jql,
+        '(project = CVTE OR project = SPS) AND labels = "cvte968" ORDER BY created DESC',
+      );
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys scopes a saved filter after resolving its JQL', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let searchBody: Record<string, unknown> | null = null;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith('/rest/api/2/filter/123')) {
+      return new Response(
+        JSON.stringify({ jql: 'project = CVTE ORDER BY priority DESC' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    searchBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({ startAt: 0, maxResults: 100, total: 1, issues: [{ key: 'CVTE-1' }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    assert.deepEqual(
+      await fetchJiraIssueKeys('filter = 123', { labelScope: 'cvte968' }),
+      ['CVTE-1'],
+    );
+    assert.equal(
+      searchBody?.jql,
+      '(project = CVTE) AND labels = "cvte968" ORDER BY priority DESC',
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys fails closed when discovery pages overlap', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const startAt = Number(body.startAt);
+    return new Response(
+      JSON.stringify({
+        startAt,
+        maxResults: 1,
+        total: 2,
+        issues: [{ key: 'CVTE-1' }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssueKeys('ORDER BY key ASC', {
+        fetchAllPages: true,
+        labelScope: 'cvte968',
+        pageSize: 1,
+      }),
+      /pages overlap/,
+    );
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);

@@ -73,6 +73,7 @@ export type ProjectListItem = {
   sortOrder: number;
   uiState: ProjectUiState | null;
   jiraIntegration: JiraIntegration | null;
+  jiraAnalyticsSettings?: JiraAnalyticsSettings | null;
   targetDateChanges: ProjectTargetDateChange[];
   wbsItems: WbsItem[];
   raidItems: RaidItem[];
@@ -111,6 +112,12 @@ export type JiraIntegration = {
   projectKey: string;
   issuesJql: string;
   openIssuesJql: string;
+  syncStatus: string;
+  lastSyncedAt: string | null;
+};
+
+export type JiraAnalyticsSettings = {
+  jiraLabel: string;
   syncStatus: string;
   lastSyncedAt: string | null;
 };

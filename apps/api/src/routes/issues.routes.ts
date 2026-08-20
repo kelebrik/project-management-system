@@ -1,26 +1,36 @@
 import {
   createIssueSchema,
-  isJiraBugIssueType,
   issueStatusUpdateSchema,
   updateIssueSchema,
 } from '@pms/shared';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { fetchJiraIssuesWithMeta, type JiraIssue } from '../jira.js';
+import {
+  fetchJiraIssueKeysWithMeta,
+  fetchJiraIssuesWithMeta,
+  resolveJiraConfig,
+  type JiraIssue,
+} from '../jira.js';
 import { currentUser } from '../server/auth.js';
 import { logEvent } from '../server/logger.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   createPrismaJiraAnalyticsSyncStore,
+  acquireJiraAnalyticsSyncLock,
+  finalizeJiraLabelSync,
   jiraCriticalBugSlaSnapshotIds,
-  replaceJiraCriticalSlaTracking,
   syncJiraIssueAnalytics,
   type JiraAnalyticsSyncedSnapshot,
 } from '../services/jira-analytics-sync.js';
 import {
   ensureDefaultJiraWorkSections,
-  jiraCriticalSlaSyncPlan,
+  jiraCriticalPriorityProjectKeys,
+  jiraIssueKeyBatchDifference,
+  jiraIssueKeyBatchJql,
+  jiraIssueKeyBatchLossIsUnsafe,
+  jiraIssueKeyBatches,
+  normalizedJiraIssueKeys,
   resolveJiraWorkSectionJql,
 } from '../services/jira-work-sections.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
@@ -120,9 +130,18 @@ const jiraSyncSchema = z.object({
   baseUrl: z
     .enum(['https://tasks.dev.sberdevices.ru', 'https://tasks.sberdevices.ru'])
     .optional(),
+  label: z
+    .string()
+    .trim()
+    .min(1, 'Укажите лейбл Jira')
+    .max(100)
+    .regex(/^[^\s"'\\]+$/, 'Лейбл не должен содержать пробелы, кавычки или обратный слеш'),
 });
 
 const JIRA_ANALYTICS_SYNC_CONCURRENCY = 4;
+const JIRA_ANALYTICS_SYNC_LOCK_MS = 5 * 60_000;
+const JIRA_ANALYTICS_SYNC_DEADLINE_MS = 4 * 60_000;
+const JIRA_ANALYTICS_BATCH_SIZE = 50;
 
 async function syncJiraAnalyticsIssues(
   projectId: string,
@@ -137,7 +156,7 @@ async function syncJiraAnalyticsIssues(
       nextIndex += 1;
       snapshots[index] = await prisma.$transaction((transaction) =>
         syncJiraIssueAnalytics(
-          createPrismaJiraAnalyticsSyncStore(transaction),
+          createPrismaJiraAnalyticsSyncStore(transaction, syncedAt),
           projectId,
           issues[index],
           syncedAt,
@@ -789,166 +808,240 @@ router.patch('/tasks/:taskId/jira-link', async (req, res) => {
 router.post('/projects/:projectId/jira/sync', async (req, res) => {
   const parsedSync = jiraSyncSchema.safeParse(req.body ?? {});
   if (!parsedSync.success) {
-    res.status(400).json({ error: parsedSync.error.flatten() });
+    res.status(400).json({
+      error: parsedSync.error.issues[0]?.message ?? 'Некорректные параметры Jira',
+    });
     return;
   }
 
   const project = await prisma.project.findUnique({
     where: { id: req.params.projectId },
-    include: {
-      jiraIntegration: true,
-    },
+    select: { id: true },
   });
-
   if (!project) {
     res.status(404).json({ error: 'Проект не найден' });
     return;
   }
 
+  const lockStartedAt = new Date();
+  const lockExpiresAt = new Date(lockStartedAt.getTime() + JIRA_ANALYTICS_SYNC_LOCK_MS);
+  const lockAcquired = await acquireJiraAnalyticsSyncLock(
+    prisma.jiraAnalyticsSettings,
+    project.id,
+    parsedSync.data.label,
+    lockStartedAt,
+    lockExpiresAt,
+  );
+  if (!lockAcquired) {
+    res.status(409).json({ error: 'Обновление Jira для этого проекта уже выполняется' });
+    return;
+  }
+
+  let finalSyncStatus = 'ERROR';
+  let finalSyncedAt: Date | null = null;
   try {
     const workSections = await ensureDefaultJiraWorkSections(project.id);
-    const sectionsWithFilter = workSections
-      .map((section) => ({
-        ...section,
-        jiraQuery: resolveJiraWorkSectionJql(section.jql, section.filterUrl),
-      }))
-      .filter((section) => section.jiraQuery);
+    const configuredSections = workSections.filter((section) =>
+      resolveJiraWorkSectionJql(section.jql, section.filterUrl));
     const syncedAt = new Date();
+    const deadlineAt = Date.now() + JIRA_ANALYTICS_SYNC_DEADLINE_MS;
     const syncedIssueKeys = new Set<string>();
-    const sectionIssueKeys: string[] = [];
-    const storedSnapshotKeys = await prisma.jiraIssueSnapshot.findMany({
-      where: { projectId: project.id },
-      select: { issueKey: true },
-    });
+    const snapshotIdByIssueKey = new Map<string, string>();
+    const trackedSnapshotIds: string[] = [];
+    const incompleteChangelogKeys: string[] = [];
+    const jiraUsers = new Set<string>();
     const remoteDevelopmentCache = new Map<string, JiraIssue['development']>();
-    let criticalBugSlaIssues = 0;
     let criticalBugSlaCandidates = 0;
-    let criticalBugSlaJiraUser: string | null = null;
+
+    const discovery = await fetchJiraIssueKeysWithMeta('ORDER BY key ASC', {
+      baseUrl: parsedSync.data.baseUrl,
+      fetchAllPages: true,
+      labelScope: parsedSync.data.label,
+      pageSize: 500,
+      deadlineAt,
+    });
+    if (discovery.jiraUser) jiraUsers.add(discovery.jiraUser);
+    const discoveredIssueKeys = normalizedJiraIssueKeys(discovery.issueKeys);
+    const criticalBugSlaProjectKeys = jiraCriticalPriorityProjectKeys('', discoveredIssueKeys);
+    const criticalBugSlaConfigured = true;
+
+    if (discoveredIssueKeys.length === 0) {
+      finalSyncStatus = 'EMPTY';
+      res.json({
+        synced: 0,
+        emptyScope: true,
+        jiraLabel: parsedSync.data.label,
+        criticalBugSlaConfigured,
+        criticalBugSlaScope: 'label',
+        criticalBugSlaProjectKeys,
+        criticalBugSlaCandidates: 0,
+        criticalBugSlaIssues: 0,
+        configuredSections: configuredSections.length,
+        totalSections: workSections.length,
+        jiraUsers: [...jiraUsers],
+        sections: [],
+        warning: 'По указанному лейблу тикеты не найдены; прежние данные сохранены',
+      });
+      return;
+    }
+
+    const configuredPageSize = resolveJiraConfig(process.env, {
+      baseUrl: parsedSync.data.baseUrl,
+    }).maxResults;
+    const batches = jiraIssueKeyBatches(
+      discoveredIssueKeys,
+      Math.min(JIRA_ANALYTICS_BATCH_SIZE, configuredPageSize),
+    );
+    for (const issueKeys of batches) {
+      const jiraResult = await fetchJiraIssuesWithMeta(jiraIssueKeyBatchJql(issueKeys), {
+        baseUrl: parsedSync.data.baseUrl,
+        fetchAllPages: true,
+        includeAnalyticsFields: true,
+        includeChangelog: true,
+        includeRemoteDevelopment: true,
+        labelScope: parsedSync.data.label,
+        remoteDevelopmentCache,
+        deadlineAt,
+      });
+      if (jiraResult.jiraUser) jiraUsers.add(jiraResult.jiraUser);
+      const { missingKeys, unexpectedKeys } = jiraIssueKeyBatchDifference(
+        issueKeys,
+        jiraResult.issues.map((issue) => issue.key),
+      );
+      if (unexpectedKeys.length > 0) {
+        throw new Error(`Jira вернула незапрошенные тикеты: ${unexpectedKeys.join(', ')}`);
+      }
+      if (jiraIssueKeyBatchLossIsUnsafe(issueKeys.length, missingKeys.length)) {
+        throw new Error(
+          `Jira не вернула слишком много запрошенных тикетов: ${missingKeys.join(', ')}`,
+        );
+      }
+      if (missingKeys.length > 0) {
+        logEvent('warn', 'jira.sync.batch_keys_missing', {
+          projectId: project.id,
+          missingKeys,
+        });
+      }
+      for (const issue of jiraResult.issues) {
+        syncedIssueKeys.add(issue.key.toUpperCase());
+        if (issue.criticalPriorityAt) criticalBugSlaCandidates += 1;
+        if (!issue.transitionHistoryComplete) incompleteChangelogKeys.push(issue.key);
+      }
+      const snapshots = await syncJiraAnalyticsIssues(project.id, jiraResult.issues, syncedAt);
+      jiraResult.issues.forEach((issue, index) => {
+        const snapshot = snapshots[index];
+        if (snapshot) snapshotIdByIssueKey.set(issue.key.toUpperCase(), snapshot.id);
+      });
+      trackedSnapshotIds.push(...jiraCriticalBugSlaSnapshotIds(snapshots));
+    }
+
+    if (snapshotIdByIssueKey.size === 0) {
+      throw new Error('Jira не вернула данные ни для одного найденного тикета');
+    }
+    if (incompleteChangelogKeys.length > 0) {
+      throw new Error(
+        `Jira вернула неполную историю изменений: ${incompleteChangelogKeys.slice(0, 20).join(', ')}`,
+      );
+    }
+
     const sectionStats: Array<{
       id: string;
       title: string;
       sortOrder: number;
       issues: number;
       jiraUser: string | null;
+      issueKeys: string[];
     }> = [];
-
-    for (const section of sectionsWithFilter) {
-      const jiraResult = await fetchJiraIssuesWithMeta(section.jiraQuery, {
-        baseUrl: parsedSync.data.baseUrl,
-        includeAnalyticsFields: true,
-        remoteDevelopmentCache,
-      });
-      const issues = jiraResult.issues;
-      for (const issue of issues) {
-        syncedIssueKeys.add(issue.key);
-        sectionIssueKeys.push(issue.key);
+    for (const section of workSections) {
+      const jiraQuery = resolveJiraWorkSectionJql(section.jql, section.filterUrl);
+      if (!jiraQuery) {
+        sectionStats.push({
+          id: section.id,
+          title: section.title,
+          sortOrder: section.sortOrder,
+          issues: 0,
+          jiraUser: null,
+          issueKeys: [],
+        });
+        continue;
       }
+      const jiraResult = await fetchJiraIssueKeysWithMeta(jiraQuery, {
+        baseUrl: parsedSync.data.baseUrl,
+        fetchAllPages: true,
+        labelScope: parsedSync.data.label,
+        pageSize: 500,
+        deadlineAt,
+      });
+      if (jiraResult.jiraUser) jiraUsers.add(jiraResult.jiraUser);
+      const issueKeys = normalizedJiraIssueKeys(jiraResult.issueKeys)
+        .filter((issueKey) => snapshotIdByIssueKey.has(issueKey));
       sectionStats.push({
         id: section.id,
         title: section.title,
         sortOrder: section.sortOrder,
-        issues: issues.length,
+        issues: issueKeys.length,
         jiraUser: jiraResult.jiraUser,
+        issueKeys,
       });
-      await prisma.jiraWorkSectionIssue.deleteMany({
-        where: { sectionId: section.id },
-      });
-      const snapshots = await syncJiraAnalyticsIssues(project.id, issues, syncedAt);
-      if (snapshots.length > 0) {
-        await prisma.jiraWorkSectionIssue.createMany({
-          data: snapshots.map((snapshot) => ({
-            sectionId: section.id,
-            snapshotId: snapshot.id,
-            syncedAt,
-          })),
-          skipDuplicates: true,
-        });
-      }
     }
 
-    const criticalSlaPlan = jiraCriticalSlaSyncPlan(
-      project.jiraIntegration?.projectKey ?? '',
-      [
-        ...storedSnapshotKeys.map((snapshot) => snapshot.issueKey),
-        ...sectionIssueKeys,
-      ],
-    );
-    const criticalBugSlaProjectKeys = criticalSlaPlan.projectKeys;
-    const criticalBugSlaConfigured = criticalSlaPlan.configured;
-    if (criticalSlaPlan.configured) {
-      const jiraResult = await fetchJiraIssuesWithMeta(criticalSlaPlan.jql, {
-        baseUrl: parsedSync.data.baseUrl,
-        fetchAllPages: true,
-        includeAnalyticsFields: true,
-        remoteDevelopmentCache,
-      });
-      criticalBugSlaCandidates = jiraResult.issues.length;
-      const criticalBugs = jiraResult.issues.filter((issue) =>
-        isJiraBugIssueType(issue.issueType));
-      criticalBugSlaJiraUser = jiraResult.jiraUser;
-      for (const issue of criticalBugs) syncedIssueKeys.add(issue.key);
-      const snapshots = await syncJiraAnalyticsIssues(
+    await prisma.$transaction(async (transaction) => {
+      await finalizeJiraLabelSync(
+        transaction,
         project.id,
-        criticalBugs,
         syncedAt,
+        sectionStats.map((section) => ({
+          sectionId: section.id,
+          issueKeys: section.issueKeys,
+        })),
+        snapshotIdByIssueKey,
+        trackedSnapshotIds,
       );
-      const trackedSnapshotIds = jiraCriticalBugSlaSnapshotIds(snapshots);
-      criticalBugSlaIssues = trackedSnapshotIds.length;
-      await prisma.$transaction((transaction) =>
-        replaceJiraCriticalSlaTracking(
-          transaction,
-          project.id,
-          trackedSnapshotIds,
-        ),
-      );
-    }
+    }, { maxWait: 10_000, timeout: 60_000 });
 
-    if (project.jiraIntegration) {
-      await prisma.jiraIntegration.update({
-        where: { id: project.jiraIntegration.id },
-        data: { syncStatus: 'OK', lastSyncedAt: syncedAt },
-      });
-    }
-
+    finalSyncStatus = 'OK';
+    finalSyncedAt = syncedAt;
+    const publicSectionStats = sectionStats.map(({ issueKeys: _issueKeys, ...section }) => section);
     logEvent('info', 'jira.sync.completed', {
       projectId: project.id,
       baseUrl: parsedSync.data.baseUrl ?? 'env',
-      configuredSections: sectionsWithFilter.length,
+      jiraLabel: parsedSync.data.label,
+      configuredSections: configuredSections.length,
       syncedIssues: syncedIssueKeys.size,
       criticalBugSlaConfigured,
+      criticalBugSlaScope: 'label',
       criticalBugSlaProjectKeys,
       criticalBugSlaCandidates,
-      criticalBugSlaIssues,
-      sections: sectionStats,
+      criticalBugSlaIssues: trackedSnapshotIds.length,
+      sections: publicSectionStats,
     });
 
     res.json({
       synced: syncedIssueKeys.size,
+      jiraLabel: parsedSync.data.label,
       criticalBugSlaConfigured,
+      criticalBugSlaScope: 'label',
       criticalBugSlaProjectKeys,
       criticalBugSlaCandidates,
-      criticalBugSlaIssues,
-      configuredSections: sectionsWithFilter.length,
+      criticalBugSlaIssues: trackedSnapshotIds.length,
+      configuredSections: configuredSections.length,
       totalSections: workSections.length,
-      jiraUsers: Array.from(
-        new Set(
-          [
-            ...sectionStats.map((section) => section.jiraUser),
-            criticalBugSlaJiraUser,
-          ].filter(Boolean),
-        ),
-      ),
-      sections: sectionStats,
+      jiraUsers: [...jiraUsers],
+      sections: publicSectionStats,
     });
   } catch (error) {
-    if (project.jiraIntegration) {
-      await prisma.jiraIntegration.update({
-        where: { id: project.jiraIntegration.id },
-        data: { syncStatus: 'ERROR' },
-      });
-    }
     res.status(502).json({
       error: error instanceof Error ? error.message : 'Не удалось синхронизировать Jira',
+    });
+  } finally {
+    await prisma.jiraAnalyticsSettings.updateMany({
+      where: { projectId: project.id, syncStartedAt: lockStartedAt },
+      data: {
+        syncStatus: finalSyncStatus,
+        lastSyncedAt: finalSyncedAt ?? undefined,
+        syncStartedAt: null,
+        syncLockExpiresAt: null,
+      },
     });
   }
 });

@@ -512,6 +512,7 @@
 }
 
 .jira-analytics-toolbar select,
+.jira-analytics-toolbar input,
 .jira-analytics-edit-meta input {
   font-size: 13px;
   height: 34px;
@@ -524,9 +525,20 @@
   padding-block: 0;
 }
 
+.jira-analytics-toolbar input {
+  box-sizing: border-box;
+  line-height: 32px;
+  padding-block: 0;
+}
+
 .jira-analytics-dashboard-select {
   flex: 0 1 280px;
   min-width: 190px;
+}
+
+.jira-analytics-label-field {
+  flex: 0 0 150px;
+  min-width: 120px;
 }
 
 .jira-analytics-toolbar-actions {
@@ -1302,11 +1314,15 @@
   .jira-analytics-toolbar {
     align-items: stretch;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(120px, 0.8fr) repeat(2, minmax(0, 1fr));
   }
 
   .jira-analytics-dashboard-select {
     grid-column: 1 / -1;
+  }
+
+  .jira-analytics-label-field {
+    min-width: 0;
   }
 
   .jira-analytics-toolbar-actions {

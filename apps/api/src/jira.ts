@@ -1,6 +1,8 @@
 import { isJiraCriticalPriority } from '@pms/shared';
 import { z } from 'zod';
 
+import { logEvent } from './server/logger.js';
+
 export type JiraIssue = {
   jiraId: string | null;
   key: string;
@@ -34,6 +36,11 @@ export type JiraIssue = {
     available: boolean;
   };
 };
+
+export function normalizedJiraIssueKey(issueKey: string) {
+  const normalized = issueKey.trim().toUpperCase();
+  return /^[A-Z][A-Z0-9_]*-\d+$/.test(normalized) ? normalized : null;
+}
 
 const jiraChangelogHistorySchema = z.object({
   id: z.string().optional(),
@@ -111,6 +118,15 @@ const jiraSearchResponseSchema = z.object({
 });
 type JiraSearchResponse = z.infer<typeof jiraSearchResponseSchema>;
 
+const jiraIssueKeySearchResponseSchema = z.object({
+  startAt: z.number().int().nonnegative().optional(),
+  maxResults: z.number().int().nonnegative().optional(),
+  total: z.number().int().nonnegative().optional(),
+  issues: z.array(z.object({ key: z.string() })),
+});
+type JiraIssueKeySearchResponse = z.infer<typeof jiraIssueKeySearchResponseSchema>;
+type JiraSearchPage = JiraSearchResponse | JiraIssueKeySearchResponse;
+
 const jiraRemoteIssueLinkSchema = z.object({
   id: z.union([z.string(), z.number()]).optional(),
   globalId: z.string().optional(),
@@ -159,6 +175,11 @@ type JiraConfigOptions = {
   baseUrl?: string;
   fetchAllPages?: boolean;
   includeAnalyticsFields?: boolean;
+  includeChangelog?: boolean;
+  includeRemoteDevelopment?: boolean;
+  labelScope?: string;
+  pageSize?: number;
+  deadlineAt?: number;
   remoteDevelopmentCache?: Map<string, JiraIssue['development']>;
 };
 
@@ -167,8 +188,13 @@ type JiraIssueFetchResult = {
   jiraUser: string | null;
 };
 
-type JiraSearchResult = {
-  parsed: JiraSearchResponse | null;
+export type JiraIssueKeyFetchResult = {
+  issueKeys: string[];
+  jiraUser: string | null;
+};
+
+type JiraSearchResult<SearchPage extends JiraSearchPage = JiraSearchResponse> = {
+  parsed: SearchPage | null;
   status: number;
   body: string;
   jiraUser?: string;
@@ -404,31 +430,105 @@ function savedFilterIdFromJql(jql: string) {
   return jql.trim().match(/^filter\s*=\s*"?(\d+)"?$/i)?.[1] ?? null;
 }
 
+type JiraSearchBodyOptions = {
+  analyticsFieldIds?: readonly string[] | null;
+  includeChangelog?: boolean;
+  keysOnly?: boolean;
+};
+
 function jiraSearchBody(
   jql: string,
   maxResults: number,
   startAt = 0,
-  analyticsFieldIds: readonly string[] | null = null,
+  options: JiraSearchBodyOptions = {},
 ) {
+  const analyticsFieldIds = options.analyticsFieldIds ?? null;
+  const keysOnly = options.keysOnly === true;
   return JSON.stringify({
     jql,
-    fields: [
-      ...(analyticsFieldIds ? analyticsFieldIds : ['*navigable']),
-      'summary',
-      'status',
-      'priority',
-      'assignee',
-      'reporter',
-      'issuetype',
-      'resolution',
-      'resolutiondate',
-      'created',
-      'updated',
-    ],
-    expand: ['names', 'schema', 'changelog'],
+    fields: keysOnly
+      ? []
+      : [
+          ...(analyticsFieldIds ? analyticsFieldIds : ['*navigable']),
+          'summary',
+          'status',
+          'priority',
+          'assignee',
+          'reporter',
+          'issuetype',
+          'resolution',
+          'resolutiondate',
+          'created',
+          'updated',
+        ],
+    ...(!keysOnly
+      ? {
+          expand: [
+            'names',
+            'schema',
+            ...(options.includeChangelog === false ? [] : ['changelog']),
+          ],
+        }
+      : {}),
     startAt,
     maxResults,
   });
+}
+
+const JIRA_LABEL_PATTERN = /^[^\s"'\\]+$/;
+
+function splitTopLevelJiraOrderBy(jql: string) {
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+  let depth = 0;
+  let orderByIndex = -1;
+  for (let index = 0; index < jql.length; index += 1) {
+    const character = jql[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (quote && character === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = quote === character ? null : quote ?? character;
+      continue;
+    }
+    if (quote) continue;
+    if (character === '(') depth += 1;
+    if (character === ')') {
+      depth -= 1;
+      if (depth < 0) throw new Error('Некорректные скобки в Jira JQL');
+      continue;
+    }
+    if (
+      depth === 0 &&
+      /^order\s+by\b/i.test(jql.slice(index)) &&
+      (index === 0 || /\s/.test(jql[index - 1] ?? ''))
+    ) {
+      orderByIndex = index;
+    }
+  }
+  if (quote || depth !== 0) throw new Error('Некорректный Jira JQL: незакрытая строка или скобка');
+  if (orderByIndex < 0) return { filter: jql.trim(), orderBy: '' };
+  return {
+    filter: jql.slice(0, orderByIndex).trim(),
+    orderBy: jql.slice(orderByIndex).trim(),
+  };
+}
+
+export function jiraJqlWithLabelScope(jql: string, label: string) {
+  const normalizedLabel = label.trim();
+  if (!JIRA_LABEL_PATTERN.test(normalizedLabel)) {
+    throw new Error('Лейбл Jira не должен содержать пробелы, кавычки или обратный слеш');
+  }
+  const { filter, orderBy } = splitTopLevelJiraOrderBy(jql);
+  const scopedFilter = filter
+    ? `(${filter}) AND labels = "${normalizedLabel}"`
+    : `labels = "${normalizedLabel}"`;
+  return `${scopedFilter}${orderBy ? ` ${orderBy}` : ''}`;
 }
 
 function jiraSprintFieldId() {
@@ -838,26 +938,63 @@ async function fetchJiraFilterJql(
   return { jql: null, status: lastStatus, body: lastErrorBody };
 }
 
-async function fetchJiraSearch(
+const JIRA_SEARCH_TIMEOUT_MS = 60_000;
+const JIRA_CHANGELOG_TIMEOUT_MS = 30_000;
+
+function jiraRequestTimeout(deadlineAt: number | undefined, requestTimeoutMs: number) {
+  const remainingMs = deadlineAt === undefined ? requestTimeoutMs : deadlineAt - Date.now();
+  if (remainingMs <= 0) {
+    throw new Error('Превышен общий лимит времени синхронизации Jira');
+  }
+  return AbortSignal.timeout(Math.max(1, Math.min(requestTimeoutMs, remainingMs)));
+}
+
+function jiraTimeoutError(error: unknown, operation: string) {
+  if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name)) {
+    return new Error(`${operation}: превышен лимит времени ожидания Jira`);
+  }
+  return error;
+}
+
+async function fetchJiraSearch<SearchPage extends JiraSearchPage = JiraSearchResponse>(
   baseUrl: string,
   searchBody: string,
   authHeaders: Record<string, string>,
-): Promise<JiraSearchResult> {
+  schema: z.ZodType<SearchPage> = jiraSearchResponseSchema as unknown as z.ZodType<SearchPage>,
+  deadlineAt?: number,
+): Promise<JiraSearchResult<SearchPage>> {
   let lastErrorBody = '';
   let lastStatus = 0;
   const paths = jiraSearchPaths();
 
   for (const [index, path] of paths.entries()) {
     const isLastPath = index === paths.length - 1;
-    const response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
-      method: 'POST',
-      redirect: 'manual',
-      headers: {
-        ...authHeaders,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: searchBody,
+    const startedAt = Date.now();
+    let response: Response;
+    try {
+      response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: {
+          ...authHeaders,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: searchBody,
+        signal: jiraRequestTimeout(deadlineAt, JIRA_SEARCH_TIMEOUT_MS),
+      });
+    } catch (error) {
+      logEvent('warn', 'jira.search.failed', {
+        path,
+        durationMs: Date.now() - startedAt,
+        reason: error instanceof Error ? error.name : 'unknown',
+      });
+      throw jiraTimeoutError(error, 'Поиск Jira');
+    }
+    logEvent(response.ok ? 'info' : 'warn', 'jira.search.completed', {
+      path,
+      status: response.status,
+      durationMs: Date.now() - startedAt,
     });
 
     if (response.ok) {
@@ -867,7 +1004,7 @@ async function fetchJiraSearch(
 
       try {
         return {
-          parsed: jiraSearchResponseSchema.parse(await response.json()),
+          parsed: schema.parse(await response.json()),
           status: response.status,
           body: '',
         };
@@ -937,6 +1074,8 @@ async function fetchCompleteJiraSearch(
   firstPage: JiraSearchResponse,
   authHeaders: Record<string, string>,
   analyticsFieldIds: readonly string[] | null,
+  includeChangelog: boolean,
+  deadlineAt?: number,
 ) {
   const issuesByKey = new Map(firstPage.issues.map((issue) => [issue.key, issue]));
   if (issuesByKey.size !== firstPage.issues.length) {
@@ -980,8 +1119,13 @@ async function fetchCompleteJiraSearch(
 
     const result = await fetchJiraSearch(
       baseUrl,
-      jiraSearchBody(jql, requestedPageSize, pageEnd, analyticsFieldIds),
+      jiraSearchBody(jql, requestedPageSize, pageEnd, {
+        analyticsFieldIds,
+        includeChangelog,
+      }),
       authHeaders,
+      jiraSearchResponseSchema,
+      deadlineAt,
     );
     if (!result.parsed) {
       throw new Error(
@@ -1020,6 +1164,88 @@ async function fetchCompleteJiraSearch(
   throw new Error(`Jira search pagination exceeded ${JIRA_SEARCH_MAX_PAGES} pages`);
 }
 
+const JIRA_LABEL_SCOPE_MAX_ISSUES = 10_000;
+
+async function fetchCompleteJiraIssueKeySearch(
+  baseUrl: string,
+  jql: string,
+  requestedPageSize: number,
+  firstPage: JiraIssueKeySearchResponse,
+  authHeaders: Record<string, string>,
+  deadlineAt?: number,
+) {
+  const issueKeys = new Set(firstPage.issues.map((issue) => issue.key));
+  if (issueKeys.size !== firstPage.issues.length) {
+    throw new Error('Jira key discovery first page contains duplicate issue keys');
+  }
+  let page = firstPage;
+  let observedTotal = firstPage.total;
+
+  for (let pageIndex = 0; pageIndex < JIRA_SEARCH_MAX_PAGES; pageIndex += 1) {
+    if (issueKeys.size > JIRA_LABEL_SCOPE_MAX_ISSUES) {
+      throw new Error(
+        `Лейбл Jira охватывает больше ${JIRA_LABEL_SCOPE_MAX_ISSUES} тикетов; уточните лейбл`,
+      );
+    }
+    const pageStartAt = page.startAt ?? (pageIndex === 0 ? 0 : undefined);
+    if (pageStartAt === undefined) {
+      throw new Error('Jira key discovery pagination does not contain startAt');
+    }
+    const pageEnd = pageStartAt + page.issues.length;
+    const pageSize = Math.max(1, page.maxResults ?? requestedPageSize);
+    const currentTotal = page.total ?? observedTotal;
+    const reachedEnd =
+      currentTotal !== undefined ? pageEnd >= currentTotal : page.issues.length < pageSize;
+    if (reachedEnd || page.issues.length === 0) {
+      if (currentTotal !== undefined && issueKeys.size !== currentTotal) {
+        throw new Error(
+          `Jira key discovery returned ${issueKeys.size} unique issues, expected ${currentTotal}`,
+        );
+      }
+      return [...issueKeys];
+    }
+
+    const result = await fetchJiraSearch(
+      baseUrl,
+      jiraSearchBody(jql, requestedPageSize, pageEnd, { keysOnly: true }),
+      authHeaders,
+      jiraIssueKeySearchResponseSchema,
+      deadlineAt,
+    );
+    if (!result.parsed) {
+      throw new Error(
+        `Jira key discovery pagination failed at ${pageEnd}: ${result.status || 'unknown'} ${
+          result.body ? cleanJiraErrorBody(result.body) : ''
+        }`.trim(),
+      );
+    }
+    const returnedStartAt = result.parsed.startAt ?? pageEnd;
+    if (returnedStartAt !== pageEnd) {
+      throw new Error(
+        `Jira key discovery returned startAt ${returnedStartAt}, expected ${pageEnd}`,
+      );
+    }
+    if (
+      observedTotal !== undefined &&
+      result.parsed.total !== undefined &&
+      result.parsed.total !== observedTotal
+    ) {
+      throw new Error(
+        `Jira key discovery total changed from ${observedTotal} to ${result.parsed.total}`,
+      );
+    }
+    page = { ...result.parsed, startAt: returnedStartAt };
+    const sizeBefore = issueKeys.size;
+    page.issues.forEach((issue) => issueKeys.add(issue.key));
+    if (issueKeys.size - sizeBefore !== page.issues.length) {
+      throw new Error(`Jira key discovery pages overlap at startAt ${returnedStartAt}`);
+    }
+    observedTotal = page.total ?? observedTotal;
+  }
+
+  throw new Error(`Jira key discovery exceeded ${JIRA_SEARCH_MAX_PAGES} pages`);
+}
+
 const JIRA_CHANGELOG_PAGE_SIZE = 100;
 const JIRA_CHANGELOG_MAX_PAGES = 100;
 
@@ -1043,6 +1269,7 @@ async function fetchJiraChangelogPage(
   issueKey: string,
   startAt: number,
   authHeaders: Record<string, string>,
+  deadlineAt?: number,
 ): Promise<JiraChangelogPage | null> {
   const encodedKey = encodeURIComponent(issueKey);
   const query = `startAt=${startAt}&maxResults=${JIRA_CHANGELOG_PAGE_SIZE}`;
@@ -1052,11 +1279,17 @@ async function fetchJiraChangelogPage(
   ];
 
   for (const path of paths) {
-    const response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
-      method: 'GET',
-      redirect: 'manual',
-      headers: { ...authHeaders, Accept: 'application/json' },
-    });
+    let response: Response;
+    try {
+      response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: { ...authHeaders, Accept: 'application/json' },
+        signal: jiraRequestTimeout(deadlineAt, JIRA_CHANGELOG_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw jiraTimeoutError(error, `Загрузка changelog Jira для ${issueKey}`);
+    }
     if ([400, 401, 403, 404, 405, 410].includes(response.status)) continue;
     if (!response.ok) {
       throw new Error(
@@ -1088,6 +1321,7 @@ async function fetchJiraExpandedChangelog(
   baseUrl: string,
   issueKey: string,
   authHeaders: Record<string, string>,
+  deadlineAt?: number,
 ): Promise<JiraChangelogPage | null> {
   const encodedKey = encodeURIComponent(issueKey);
   const paths = [
@@ -1096,11 +1330,17 @@ async function fetchJiraExpandedChangelog(
   ];
 
   for (const path of paths) {
-    const response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
-      method: 'GET',
-      redirect: 'manual',
-      headers: { ...authHeaders, Accept: 'application/json' },
-    });
+    let response: Response;
+    try {
+      response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: { ...authHeaders, Accept: 'application/json' },
+        signal: jiraRequestTimeout(deadlineAt, JIRA_CHANGELOG_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw jiraTimeoutError(error, `Загрузка changelog Jira для ${issueKey}`);
+    }
     if ([400, 401, 403, 404, 405, 410].includes(response.status)) continue;
     if (!response.ok) {
       throw new Error(
@@ -1121,6 +1361,7 @@ async function hydrateJiraIssueChangelog(
   baseUrl: string,
   issue: JiraSearchResponse['issues'][number],
   authHeaders: Record<string, string>,
+  deadlineAt?: number,
 ) {
   if (jiraChangelogPageComplete(issue.changelog)) return issue;
 
@@ -1132,7 +1373,13 @@ async function hydrateJiraIssueChangelog(
   let dedicatedEndpointAvailable = true;
 
   for (let pageIndex = 0; pageIndex < JIRA_CHANGELOG_MAX_PAGES; pageIndex += 1) {
-    const page = await fetchJiraChangelogPage(baseUrl, issue.key, nextStartAt, authHeaders);
+    const page = await fetchJiraChangelogPage(
+      baseUrl,
+      issue.key,
+      nextStartAt,
+      authHeaders,
+      deadlineAt,
+    );
     if (!page) {
       dedicatedEndpointAvailable = false;
       break;
@@ -1173,7 +1420,12 @@ async function hydrateJiraIssueChangelog(
     };
   }
 
-  const expanded = await fetchJiraExpandedChangelog(baseUrl, issue.key, authHeaders);
+  const expanded = await fetchJiraExpandedChangelog(
+    baseUrl,
+    issue.key,
+    authHeaders,
+    deadlineAt,
+  );
   if (!expanded) return issue;
   const useExpanded =
     jiraChangelogPageComplete(expanded) ||
@@ -1186,6 +1438,7 @@ export async function fetchJiraRemoteDevelopment(
   baseUrl: string,
   issueKey: string,
   authHeaders: Record<string, string>,
+  deadlineAt?: number,
 ) {
   const encodedKey = encodeURIComponent(issueKey);
   const paths = [
@@ -1199,10 +1452,13 @@ export async function fetchJiraRemoteDevelopment(
         method: 'GET',
         redirect: 'manual',
         headers: { ...authHeaders, Accept: 'application/json' },
-        signal: AbortSignal.timeout(15_000),
+        signal: jiraRequestTimeout(deadlineAt, 15_000),
       });
     } catch (error) {
       if (error instanceof JiraReadOnlyRequestError) throw error;
+      if (deadlineAt !== undefined && deadlineAt <= Date.now()) {
+        throw new Error('Превышен общий лимит времени синхронизации Jira');
+      }
       return null;
     }
     if ([400, 401, 403, 404, 405, 410].includes(response.status)) {
@@ -1233,8 +1489,10 @@ async function hydrateJiraSearchIssues(
   baseUrl: string,
   parsed: JiraSearchResponse,
   authHeaders: Record<string, string>,
+  includeChangelog: boolean,
   includeRemoteDevelopment: boolean,
   remoteDevelopmentCache?: Map<string, JiraIssue['development']>,
+  deadlineAt?: number,
 ) {
   const hydrated = await mapWithConcurrency(
     parsed.issues,
@@ -1242,9 +1500,16 @@ async function hydrateJiraSearchIssues(
     async (issue) => {
       const cachedDevelopment = remoteDevelopmentCache?.get(issue.key);
       const [hydratedIssue, fetchedRemoteDevelopment] = await Promise.all([
-        hydrateJiraIssueChangelog(baseUrl, issue, authHeaders),
+        includeChangelog
+          ? hydrateJiraIssueChangelog(baseUrl, issue, authHeaders, deadlineAt)
+          : Promise.resolve(issue),
         includeRemoteDevelopment
-          ? cachedDevelopment ?? fetchJiraRemoteDevelopment(baseUrl, issue.key, authHeaders)
+          ? cachedDevelopment ?? fetchJiraRemoteDevelopment(
+              baseUrl,
+              issue.key,
+              authHeaders,
+              deadlineAt,
+            )
           : Promise.resolve(null),
       ]);
       const remoteDevelopment = includeRemoteDevelopment
@@ -1353,13 +1618,23 @@ async function fetchJiraCurrentUser(
   };
 }
 
-async function fetchJiraSearchWithVerifiedEmptyResult(
+async function fetchJiraSearchWithVerifiedEmptyResult<
+  SearchPage extends JiraSearchPage = JiraSearchResponse,
+>(
   baseUrl: string,
   searchBody: string,
   authHeaders: Record<string, string>,
   expectedIdentities: string[],
-): Promise<JiraSearchResult> {
-  const result = await fetchJiraSearch(baseUrl, searchBody, authHeaders);
+  schema: z.ZodType<SearchPage> = jiraSearchResponseSchema as unknown as z.ZodType<SearchPage>,
+  deadlineAt?: number,
+): Promise<JiraSearchResult<SearchPage>> {
+  const result = await fetchJiraSearch(
+    baseUrl,
+    searchBody,
+    authHeaders,
+    schema,
+    deadlineAt,
+  );
   if (!result.parsed || result.parsed.issues.length > 0) return result;
 
   const currentUser = await fetchJiraCurrentUser(baseUrl, authHeaders, expectedIdentities);
@@ -1465,10 +1740,13 @@ export function resolveJiraConfig(
   const envBaseUrl = nonEmpty(env.JIRA_BASE_URL);
   const envEmail = nonEmpty(env.JIRA_EMAIL);
   const envToken = nonEmpty(env.JIRA_API_TOKEN);
-  const maxResults = Math.min(
+  const configuredMaxResults = Math.min(
     500,
     Math.max(1, Number(nonEmpty(env.JIRA_MAX_RESULTS) ?? 100) || 100),
   );
+  const maxResults = options.pageSize === undefined
+    ? configuredMaxResults
+    : Math.min(500, Math.max(1, Math.floor(options.pageSize)));
 
   return {
     enabled: true,
@@ -1492,6 +1770,38 @@ export async function fetchJiraIssuesWithMeta(
   jql: string,
   options: JiraConfigOptions = {},
 ): Promise<JiraIssueFetchResult> {
+  return fetchJiraDataWithMeta(jql, options, false) as Promise<JiraIssueFetchResult>;
+}
+
+export async function fetchJiraIssueKeys(
+  jql: string,
+  options: JiraConfigOptions = {},
+) {
+  return (await fetchJiraIssueKeysWithMeta(jql, options)).issueKeys;
+}
+
+export async function fetchJiraIssueKeysWithMeta(
+  jql: string,
+  options: JiraConfigOptions = {},
+): Promise<JiraIssueKeyFetchResult> {
+  const result = await fetchJiraDataWithMeta(
+    jql,
+    options,
+    true,
+  ) as JiraIssueKeyFetchResult;
+  const issueKeys = [...new Set(result.issueKeys.map((issueKey) => {
+    const normalized = normalizedJiraIssueKey(issueKey);
+    if (!normalized) throw new Error(`Jira вернула некорректный ключ тикета: ${issueKey}`);
+    return normalized;
+  }))];
+  return { ...result, issueKeys };
+}
+
+async function fetchJiraDataWithMeta(
+  jql: string,
+  options: JiraConfigOptions,
+  keysOnly: boolean,
+): Promise<JiraIssueFetchResult | JiraIssueKeyFetchResult> {
   const { enabled, baseUrl, email, token, maxResults } = resolveJiraConfig(process.env, options);
 
   if (!enabled || !baseUrl || !token) {
@@ -1506,12 +1816,30 @@ export async function fetchJiraIssuesWithMeta(
   let lastFailure: 'auth' | 'filter' = 'auth';
   let sawAnonymousSearch = false;
   let authVerificationBody = '';
-  let parsed: JiraSearchResponse | null = null;
+  let parsed: JiraSearchPage | null = null;
   let successfulAuthHeaders: Record<string, string> | null = null;
   let successfulJql = jql;
   let successfulAnalyticsFieldIds: string[] | null = null;
   let jiraUser: string | null = null;
   const expectedIdentities = expectedJiraIdentities(email);
+  const searchSchema = keysOnly
+    ? jiraIssueKeySearchResponseSchema
+    : jiraSearchResponseSchema;
+  const includeChangelog = options.includeChangelog !== false;
+  const includeRemoteDevelopment =
+    options.includeRemoteDevelopment ?? Boolean(options.includeAnalyticsFields);
+  const buildSearchBody = (effectiveJql: string, startAt: number) =>
+    jiraSearchBody(effectiveJql, maxResults, startAt, {
+      analyticsFieldIds: !keysOnly && options.includeAnalyticsFields
+        ? jiraAnalyticsFieldIds()
+        : null,
+      includeChangelog,
+      keysOnly,
+    });
+  const applyLabelScope = (effectiveJql: string) =>
+    options.labelScope
+      ? jiraJqlWithLabelScope(effectiveJql, options.labelScope)
+      : effectiveJql;
 
   for (const authAttempt of authAttempts) {
     attemptedMethods.push(authAttempt.label);
@@ -1527,14 +1855,17 @@ export async function fetchJiraIssuesWithMeta(
       effectiveJql = filter.jql;
     }
 
-    const analyticsFieldIds = options.includeAnalyticsFields
+    effectiveJql = applyLabelScope(effectiveJql);
+    const analyticsFieldIds = !keysOnly && options.includeAnalyticsFields
       ? jiraAnalyticsFieldIds()
       : null;
     const result = await fetchJiraSearchWithVerifiedEmptyResult(
       baseUrl,
-      jiraSearchBody(effectiveJql, maxResults, 0, analyticsFieldIds),
+      buildSearchBody(effectiveJql, 0),
       authAttempt.headers,
       expectedIdentities,
+      searchSchema,
+      options.deadlineAt,
     );
     parsed = result.parsed;
     jiraUser = result.jiraUser ?? jiraUser;
@@ -1576,14 +1907,17 @@ export async function fetchJiraIssuesWithMeta(
       }
 
       const authHeaders = { Cookie: session.cookie };
-      const analyticsFieldIds = options.includeAnalyticsFields
+      effectiveJql = applyLabelScope(effectiveJql);
+      const analyticsFieldIds = !keysOnly && options.includeAnalyticsFields
         ? jiraAnalyticsFieldIds()
         : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
-        jiraSearchBody(effectiveJql, maxResults, 0, analyticsFieldIds),
+        buildSearchBody(effectiveJql, 0),
         authHeaders,
         expectedIdentities,
+        searchSchema,
+        options.deadlineAt,
       );
       parsed = result.parsed;
       jiraUser = result.jiraUser ?? jiraUser;
@@ -1626,14 +1960,17 @@ export async function fetchJiraIssuesWithMeta(
       }
 
       const authHeaders = { Cookie: login.cookie };
-      const analyticsFieldIds = options.includeAnalyticsFields
+      effectiveJql = applyLabelScope(effectiveJql);
+      const analyticsFieldIds = !keysOnly && options.includeAnalyticsFields
         ? jiraAnalyticsFieldIds()
         : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
-        jiraSearchBody(effectiveJql, maxResults, 0, analyticsFieldIds),
+        buildSearchBody(effectiveJql, 0),
         authHeaders,
         expectedIdentities,
+        searchSchema,
+        options.deadlineAt,
       );
       parsed = result.parsed;
       jiraUser = result.jiraUser ?? jiraUser;
@@ -1685,23 +2022,43 @@ export async function fetchJiraIssuesWithMeta(
     );
   }
 
+  if (keysOnly) {
+    const keySearch = parsed as JiraIssueKeySearchResponse;
+    const issueKeys = options.fetchAllPages && successfulAuthHeaders
+      ? await fetchCompleteJiraIssueKeySearch(
+          baseUrl,
+          successfulJql,
+          maxResults,
+          keySearch,
+          successfulAuthHeaders,
+          options.deadlineAt,
+        )
+      : keySearch.issues.map((issue) => issue.key);
+    return { issueKeys, jiraUser };
+  }
+
+  const fullSearch = parsed as JiraSearchResponse;
   const completeSearch = options.fetchAllPages && successfulAuthHeaders
     ? await fetchCompleteJiraSearch(
         baseUrl,
         successfulJql,
         maxResults,
-        parsed,
+        fullSearch,
         successfulAuthHeaders,
         successfulAnalyticsFieldIds,
+        includeChangelog,
+        options.deadlineAt,
       )
-    : parsed;
+    : fullSearch;
   const hydratedData = successfulAuthHeaders
     ? await hydrateJiraSearchIssues(
         baseUrl,
         completeSearch,
         successfulAuthHeaders,
-        Boolean(options.includeAnalyticsFields),
+        includeChangelog,
+        includeRemoteDevelopment,
         options.remoteDevelopmentCache,
+        options.deadlineAt,
       )
     : { search: completeSearch, remoteDevelopmentByKey: new Map() };
   const hydrated = hydratedData.search;
@@ -1734,7 +2091,7 @@ export async function fetchJiraIssuesWithMeta(
         development: selectJiraDevelopment(
           jiraDevelopmentFromFields(fields, names),
           hydratedData.remoteDevelopmentByKey.get(issue.key) ?? null,
-          Boolean(options.includeAnalyticsFields),
+          includeRemoteDevelopment,
         ),
       };
     }),

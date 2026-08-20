@@ -101,7 +101,7 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
     wbsSort,
   } = deps;
 
-async function syncJira(options: { baseUrl?: string } = {}) {
+async function syncJira(options: { baseUrl?: string; label?: string } = {}) {
   if (!project) return;
   setSyncing(true);
   setError(null);
@@ -114,6 +114,7 @@ async function syncJira(options: { baseUrl?: string } = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseUrl: options.baseUrl,
+          label: options.label ?? project.jiraAnalyticsSettings?.jiraLabel ?? "",
         }),
       },
     );
@@ -144,7 +145,10 @@ async function syncJira(options: { baseUrl?: string } = {}) {
     const slaText = criticalBugSlaConfigured
       ? ` SLA Critical/Blocker: ${criticalBugSlaIssues} багов из ${criticalBugSlaCandidates} кандидатов.`
       : " SLA Critical/Blocker не настроен: не удалось определить Jira project key.";
-    if (configuredSections === 0) {
+    const warning = typeof result.warning === "string" ? result.warning : "";
+    if (warning) {
+      setNotice(`Jira: ${warning}.`);
+    } else if (configuredSections === 0) {
       setNotice(`Jira: нет разделов с заполненным фильтром.${slaText}`);
     } else if (syncedCount === 0) {
       setNotice(

@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { isJiraBugIssueType, isJiraCriticalPriority } from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
@@ -59,6 +59,51 @@ export type JiraAnalyticsSyncStore = {
 
 type JiraCriticalSlaTrackingTransaction = Pick<Prisma.TransactionClient, 'jiraIssueSnapshot'>;
 
+type JiraLabelSyncFinalizationTransaction = Pick<
+  Prisma.TransactionClient,
+  'jiraIssueSnapshot' | 'jiraWorkSectionIssue'
+>;
+
+export type JiraLabelSectionMembership = {
+  sectionId: string;
+  issueKeys: readonly string[];
+};
+
+type JiraAnalyticsSettingsDelegate = Pick<
+  PrismaClient['jiraAnalyticsSettings'],
+  'createMany' | 'updateMany'
+>;
+
+export async function acquireJiraAnalyticsSyncLock(
+  settings: JiraAnalyticsSettingsDelegate,
+  projectId: string,
+  jiraLabel: string,
+  startedAt: Date,
+  expiresAt: Date,
+) {
+  await settings.createMany({
+    data: [{ projectId, jiraLabel, syncStatus: 'CONFIGURED' }],
+    skipDuplicates: true,
+  });
+  const lock = await settings.updateMany({
+    where: {
+      projectId,
+      OR: [
+        { syncStartedAt: null },
+        { syncLockExpiresAt: null },
+        { syncLockExpiresAt: { lte: startedAt } },
+      ],
+    },
+    data: {
+      jiraLabel,
+      syncStatus: 'SYNCING',
+      syncStartedAt: startedAt,
+      syncLockExpiresAt: expiresAt,
+    },
+  });
+  return lock.count === 1;
+}
+
 export async function replaceJiraCriticalSlaTracking(
   transaction: JiraCriticalSlaTrackingTransaction,
   projectId: string,
@@ -78,6 +123,44 @@ export async function replaceJiraCriticalSlaTracking(
       data: { criticalSlaTracked: true },
     });
   }
+}
+
+export async function finalizeJiraLabelSync(
+  transaction: JiraLabelSyncFinalizationTransaction,
+  projectId: string,
+  syncedAt: Date,
+  sectionMemberships: readonly JiraLabelSectionMembership[],
+  snapshotIdByIssueKey: ReadonlyMap<string, string>,
+  trackedSnapshotIds: readonly string[],
+) {
+  await transaction.jiraIssueSnapshot.updateMany({
+    where: { projectId, syncedAt },
+    data: { retiredAt: null },
+  });
+  await transaction.jiraIssueSnapshot.updateMany({
+    where: { projectId, syncedAt: { lt: syncedAt }, retiredAt: null },
+    data: { retiredAt: syncedAt, criticalSlaTracked: false },
+  });
+  for (const section of sectionMemberships) {
+    await transaction.jiraWorkSectionIssue.deleteMany({
+      where: { sectionId: section.sectionId },
+    });
+    const links = section.issueKeys.flatMap((issueKey) => {
+      const snapshotId = snapshotIdByIssueKey.get(issueKey);
+      return snapshotId ? [{ sectionId: section.sectionId, snapshotId, syncedAt }] : [];
+    });
+    if (links.length > 0) {
+      await transaction.jiraWorkSectionIssue.createMany({
+        data: links,
+        skipDuplicates: true,
+      });
+    }
+  }
+  await replaceJiraCriticalSlaTracking(
+    transaction,
+    projectId,
+    trackedSnapshotIds,
+  );
 }
 
 export function criticalPriorityAtUpdate(issue: JiraIssue) {
@@ -220,6 +303,7 @@ export async function syncJiraIssueAnalytics(
 
 export function createPrismaJiraAnalyticsSyncStore(
   transaction: Prisma.TransactionClient,
+  newSnapshotRetiredAt: Date | null = null,
 ): JiraAnalyticsSyncStore {
   return {
     async findSnapshot(projectId, issueKey) {
@@ -312,6 +396,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           transitionHistoryComplete: issue.transitionHistoryComplete,
           updatedAt: issue.updatedAt,
           syncedAt,
+          retiredAt: newSnapshotRetiredAt,
         },
         select: {
           id: true,

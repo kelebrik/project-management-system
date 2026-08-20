@@ -541,6 +541,13 @@ export function JiraAnalyticsDashboard() {
   const [isShared, setIsShared] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [jiraLabelDraft, setJiraLabelDraft] = useState({
+    projectId: project.id,
+    value: project.jiraAnalyticsSettings?.jiraLabel ?? "",
+  });
+  const jiraLabel = jiraLabelDraft.projectId === project.id
+    ? jiraLabelDraft.value
+    : project.jiraAnalyticsSettings?.jiraLabel ?? "";
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
   const [drilldown, setDrilldown] = useState<{ title: string; records: JiraAnalyticsRecord[] } | null>(null);
   const issues = project.jiraSnapshots as JiraIssueSnapshot[];
@@ -559,6 +566,7 @@ export function JiraAnalyticsDashboard() {
     (issue) => issue.criticalPriorityAt && !Number.isNaN(new Date(issue.criticalPriorityAt).getTime()),
   ).length;
   const slaScopeConfigured = Boolean(
+    project.jiraAnalyticsSettings?.jiraLabel?.trim() ||
     project.jiraIntegration?.projectKey?.trim() ||
     issues.some((issue) => /^[A-Z][A-Z0-9_]*-\d+$/i.test(issue.issueKey)),
   );
@@ -708,6 +716,19 @@ export function JiraAnalyticsDashboard() {
             ))}
           </select>
         </label>
+        <label className="jira-analytics-label-field">
+          <span>Лейбл</span>
+          <input
+            aria-label="Лейбл Jira"
+            maxLength={100}
+            placeholder="cvte968"
+            value={jiraLabel}
+            onChange={(event) => setJiraLabelDraft({
+              projectId: project.id,
+              value: event.target.value,
+            })}
+          />
+        </label>
         <label title={hasEventWidgets ? "Период переходов и активности разработки" : "На текущие тикеты и SLA-отчет период событий не влияет"}>
           <span>Период событий</span>
           <select aria-label="Период событий" disabled={!hasEventWidgets} value={config.periodDays} onChange={(event) => setConfig({ ...config, periodDays: Number(event.target.value) as JiraAnalyticsDashboardConfig["periodDays"] })}>
@@ -727,7 +748,15 @@ export function JiraAnalyticsDashboard() {
         <div className="jira-analytics-toolbar-actions">
           <button type="button" className="icon-button" onClick={beginNewDashboard} aria-label="Создать копию дашборда" title="Создать копию"><Copy size={17} /></button>
           <button type="button" className="icon-button" onClick={exportAll} aria-label="Экспортировать дашборд" title="Экспорт CSV"><Download size={17} /></button>
-          <button type="button" className="button" onClick={() => syncJira({ baseUrl: "https://tasks.sberdevices.ru" })} disabled={syncing}>
+          <button
+            type="button"
+            className="button"
+            onClick={() => syncJira({
+              baseUrl: "https://tasks.sberdevices.ru",
+              label: jiraLabel.trim(),
+            })}
+            disabled={syncing || !jiraLabel.trim()}
+          >
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
             {syncing ? "Обновляю..." : "Обновить"}
           </button>
@@ -837,7 +866,17 @@ export function JiraAnalyticsDashboard() {
         <div className="jira-analytics-zero-state">
           <BarChart3 size={24} />
           <span>Нет синхронизированных тикетов Jira</span>
-          <button type="button" className="button" onClick={() => syncJira({ baseUrl: "https://tasks.sberdevices.ru" })} disabled={syncing}>Синхронизировать</button>
+          <button
+            type="button"
+            className="button"
+            onClick={() => syncJira({
+              baseUrl: "https://tasks.sberdevices.ru",
+              label: jiraLabel.trim(),
+            })}
+            disabled={syncing || !jiraLabel.trim()}
+          >
+            Синхронизировать
+          </button>
         </div>
       )}
     </div>
