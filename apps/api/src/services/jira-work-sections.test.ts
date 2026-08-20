@@ -8,10 +8,10 @@ import {
   resolveJiraWorkSectionJql,
 } from './jira-work-sections.js';
 
-test('jiraCriticalPriorityJql selects all eligible Critical and Blocker bugs', () => {
+test('jiraCriticalPriorityJql selects current and former Critical/Blocker issues', () => {
   assert.equal(
     jiraCriticalPriorityJql('TV'),
-    'project = "TV" AND issuetype = "Bug" AND priority in ("Critical", "Blocker") AND created <= -30d ORDER BY created ASC, key ASC',
+    'project = "TV" AND priority WAS IN ("Critical", "Blocker") ORDER BY created ASC, key ASC',
   );
   assert.equal(jiraCriticalPriorityJql(''), '');
 });

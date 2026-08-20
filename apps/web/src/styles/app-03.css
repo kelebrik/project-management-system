@@ -518,6 +518,12 @@
   min-height: 34px;
 }
 
+.jira-analytics-toolbar select {
+  box-sizing: border-box;
+  line-height: 32px;
+  padding-block: 0;
+}
+
 .jira-analytics-dashboard-select {
   flex: 0 1 280px;
   min-width: 190px;

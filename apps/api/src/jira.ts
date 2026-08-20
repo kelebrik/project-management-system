@@ -681,10 +681,7 @@ function jiraTransitionHistoryComplete(issue: JiraSearchResponse['issues'][numbe
 export function jiraCriticalPriorityAt(
   issue: JiraSearchResponse['issues'][number],
 ) {
-  if (
-    !isJiraCriticalPriority(issue.fields.priority?.name) ||
-    !jiraChangelogPageComplete(issue.changelog)
-  ) {
+  if (!jiraChangelogPageComplete(issue.changelog)) {
     return null;
   }
 
@@ -705,7 +702,10 @@ export function jiraCriticalPriorityAt(
     })
     .sort((left, right) => left.changedAt.getTime() - right.changedAt.getTime());
 
-  if (changes.length === 0 || isJiraCriticalPriority(changes[0]?.fromPriority)) {
+  if (changes.length === 0) {
+    return isJiraCriticalPriority(issue.fields.priority?.name) ? createdAt : null;
+  }
+  if (isJiraCriticalPriority(changes[0]?.fromPriority)) {
     return createdAt;
   }
 

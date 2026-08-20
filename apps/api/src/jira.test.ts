@@ -135,6 +135,36 @@ test('jiraCriticalPriorityAt starts when a lower priority is raised', () => {
   );
 });
 
+test('jiraCriticalPriorityAt keeps the first critical date after a later downgrade', () => {
+  const issue = jiraPriorityIssue('Major', [
+    {
+      created: '2026-05-20T12:30:00.000Z',
+      fromPriority: 'Minor',
+      toPriority: 'Critical',
+    },
+    {
+      created: '2026-06-01T12:30:00.000Z',
+      fromPriority: 'Critical',
+      toPriority: 'Major',
+    },
+  ]);
+
+  assert.deepEqual(
+    jiraCriticalPriorityAt(issue),
+    new Date('2026-05-20T12:30:00.000Z'),
+  );
+  assert.deepEqual(
+    jiraCriticalPriorityAt(jiraPriorityIssue('Major', [
+      {
+        created: '2026-06-01T12:30:00.000Z',
+        fromPriority: 'Critical',
+        toPriority: 'Major',
+      },
+    ])),
+    new Date('2026-05-01T09:00:00.000Z'),
+  );
+});
+
 test('jiraCriticalPriorityAt excludes incomplete changelog history', () => {
   const issue = jiraPriorityIssue(
     'Critical',

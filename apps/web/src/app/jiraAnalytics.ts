@@ -119,9 +119,9 @@ export const JIRA_ANALYTICS_SOURCE_LABELS: Record<JiraAnalyticsSource, string> =
 export const JIRA_ANALYTICS_METRIC_LABELS: Record<JiraAnalyticsMetric, string> = {
   count: "Количество",
   averageDuration: "Средняя длительность",
-  p50Duration: "Длительность P50",
-  p85Duration: "Длительность P85",
-  p95Duration: "Длительность P95",
+  p50Duration: "Медиана времени",
+  p85Duration: "85-й перцентиль времени",
+  p95Duration: "95-й перцентиль времени",
   commits: "Коммиты",
   mergeRequests: "Merge requests",
 };
@@ -274,13 +274,13 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
         {
           ...createJiraAnalyticsWidget("transitions"),
           id: "flow-p50",
-          title: "Cycle time P50",
+          title: "Медианное время в статусе",
           metric: "p50Duration",
         },
         {
           ...createJiraAnalyticsWidget("transitions"),
           id: "flow-p85",
-          title: "Cycle time P85",
+          title: "Время в статусе, P85",
           metric: "p85Duration",
         },
         {
@@ -486,7 +486,10 @@ function developmentRecords(issue: JiraIssueSnapshot): JiraAnalyticsRecord[] {
 }
 
 export function isJiraCriticalBug(issue: JiraIssueSnapshot) {
-  return isJiraBugIssueType(issue.issueType) && isJiraCriticalPriority(issue.priority);
+  return (
+    isJiraBugIssueType(issue.issueType) &&
+    (isJiraCriticalPriority(issue.priority) || Boolean(validDate(issue.criticalPriorityAt)))
+  );
 }
 
 function criticalBugRecord(
