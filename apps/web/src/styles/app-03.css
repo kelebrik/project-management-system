@@ -499,6 +499,18 @@
   gap: 4px;
 }
 
+.jira-analytics-toolbar > label {
+  align-content: end;
+  grid-template-rows: minmax(14px, auto) 34px;
+}
+
+.jira-analytics-toolbar > label > span {
+  line-height: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .jira-analytics-toolbar select,
 .jira-analytics-edit-meta input {
   font-size: 13px;
@@ -883,7 +895,7 @@
   gap: 12px;
   max-height: calc(100vh - 190px);
   overflow: auto;
-  padding: 0 0 14px 14px;
+  padding: 0 14px 14px;
   position: sticky;
   top: 76px;
 }
@@ -1310,7 +1322,7 @@
     border-left: 0;
     border-top: 1px solid var(--border);
     max-height: none;
-    padding: 12px 0 0;
+    padding: 12px;
     position: static;
   }
 

@@ -109,6 +109,17 @@ const jiraSearchResponseSchema = z.object({
 });
 type JiraSearchResponse = z.infer<typeof jiraSearchResponseSchema>;
 
+const jiraFieldCatalogSchema = z.array(
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    schema: z
+      .object({ custom: z.string().optional() })
+      .passthrough()
+      .optional(),
+  }).passthrough(),
+);
+
 const jiraFilterResponseSchema = z.object({
   jql: z.string(),
 });
@@ -141,6 +152,7 @@ type JiraConfig = {
 type JiraConfigOptions = {
   baseUrl?: string;
   fetchAllPages?: boolean;
+  includeAnalyticsFields?: boolean;
 };
 
 type JiraIssueFetchResult = {
@@ -341,11 +353,16 @@ function savedFilterIdFromJql(jql: string) {
   return jql.trim().match(/^filter\s*=\s*"?(\d+)"?$/i)?.[1] ?? null;
 }
 
-function jiraSearchBody(jql: string, maxResults: number, startAt = 0) {
+function jiraSearchBody(
+  jql: string,
+  maxResults: number,
+  startAt = 0,
+  analyticsFieldIds: readonly string[] | null = null,
+) {
   return JSON.stringify({
     jql,
     fields: [
-      '*navigable',
+      ...(analyticsFieldIds ? analyticsFieldIds : ['*navigable']),
       'summary',
       'status',
       'priority',
@@ -361,6 +378,49 @@ function jiraSearchBody(jql: string, maxResults: number, startAt = 0) {
     startAt,
     maxResults,
   });
+}
+
+function jiraAnalyticsFieldIds(
+  fields: z.infer<typeof jiraFieldCatalogSchema>,
+) {
+  const fieldIds = fields.flatMap((field) => {
+    const name = field.name.trim().toLowerCase();
+    const schemaKey = field.schema?.custom?.trim().toLowerCase() ?? '';
+    // Only the Jira Software field is safe to scan; similarly named business fields are not.
+    const isDevelopment =
+      name === 'development' ||
+      name === 'разработка' ||
+      schemaKey.includes('devsummary') ||
+      schemaKey.includes('development-integration');
+    const isSprint =
+      name === 'sprint' || schemaKey === 'com.pyxis.greenhopper.jira:gh-sprint';
+    return isDevelopment || isSprint ? [field.id] : [];
+  });
+  return fieldIds.length > 0 ? fieldIds : null;
+}
+
+async function fetchJiraAnalyticsFieldIds(
+  baseUrl: string,
+  authHeaders: Record<string, string>,
+) {
+  for (const path of ['/rest/api/2/field', '/rest/api/3/field']) {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: { ...authHeaders, Accept: 'application/json' },
+    });
+    if (!response.ok || !isJsonResponse(response)) {
+      await response.text();
+      if ([404, 405, 410].includes(response.status)) continue;
+      return null;
+    }
+    try {
+      return jiraAnalyticsFieldIds(jiraFieldCatalogSchema.parse(await response.json()));
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 function parseJiraDate(value: unknown) {
@@ -768,6 +828,7 @@ async function fetchCompleteJiraSearch(
   requestedPageSize: number,
   firstPage: JiraSearchResponse,
   authHeaders: Record<string, string>,
+  analyticsFieldIds: readonly string[] | null,
 ) {
   const issuesByKey = new Map(firstPage.issues.map((issue) => [issue.key, issue]));
   if (issuesByKey.size !== firstPage.issues.length) {
@@ -811,7 +872,7 @@ async function fetchCompleteJiraSearch(
 
     const result = await fetchJiraSearch(
       baseUrl,
-      jiraSearchBody(jql, requestedPageSize, pageEnd),
+      jiraSearchBody(jql, requestedPageSize, pageEnd, analyticsFieldIds),
       authHeaders,
     );
     if (!result.parsed) {
@@ -1266,6 +1327,7 @@ export async function fetchJiraIssuesWithMeta(
   let parsed: JiraSearchResponse | null = null;
   let successfulAuthHeaders: Record<string, string> | null = null;
   let successfulJql = jql;
+  let successfulAnalyticsFieldIds: string[] | null = null;
   let jiraUser: string | null = null;
   const expectedIdentities = expectedJiraIdentities(email);
 
@@ -1283,9 +1345,12 @@ export async function fetchJiraIssuesWithMeta(
       effectiveJql = filter.jql;
     }
 
+    const analyticsFieldIds = options.includeAnalyticsFields
+      ? await fetchJiraAnalyticsFieldIds(baseUrl, authAttempt.headers)
+      : null;
     const result = await fetchJiraSearchWithVerifiedEmptyResult(
       baseUrl,
-      jiraSearchBody(effectiveJql, maxResults),
+      jiraSearchBody(effectiveJql, maxResults, 0, analyticsFieldIds),
       authAttempt.headers,
       expectedIdentities,
     );
@@ -1301,6 +1366,7 @@ export async function fetchJiraIssuesWithMeta(
     if (parsed) {
       successfulAuthHeaders = authAttempt.headers;
       successfulJql = effectiveJql;
+      successfulAnalyticsFieldIds = analyticsFieldIds;
       break;
     }
   }
@@ -1327,10 +1393,14 @@ export async function fetchJiraIssuesWithMeta(
         effectiveJql = filter.jql;
       }
 
+      const authHeaders = { Cookie: session.cookie };
+      const analyticsFieldIds = options.includeAnalyticsFields
+        ? await fetchJiraAnalyticsFieldIds(baseUrl, authHeaders)
+        : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
-        jiraSearchBody(effectiveJql, maxResults),
-        { Cookie: session.cookie },
+        jiraSearchBody(effectiveJql, maxResults, 0, analyticsFieldIds),
+        authHeaders,
         expectedIdentities,
       );
       parsed = result.parsed;
@@ -1343,8 +1413,9 @@ export async function fetchJiraIssuesWithMeta(
       sawAnonymousSearch ||=
         isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
       if (parsed) {
-        successfulAuthHeaders = { Cookie: session.cookie };
+        successfulAuthHeaders = authHeaders;
         successfulJql = effectiveJql;
+        successfulAnalyticsFieldIds = analyticsFieldIds;
         break;
       }
     }
@@ -1372,10 +1443,14 @@ export async function fetchJiraIssuesWithMeta(
         effectiveJql = filter.jql;
       }
 
+      const authHeaders = { Cookie: login.cookie };
+      const analyticsFieldIds = options.includeAnalyticsFields
+        ? await fetchJiraAnalyticsFieldIds(baseUrl, authHeaders)
+        : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
-        jiraSearchBody(effectiveJql, maxResults),
-        { Cookie: login.cookie },
+        jiraSearchBody(effectiveJql, maxResults, 0, analyticsFieldIds),
+        authHeaders,
         expectedIdentities,
       );
       parsed = result.parsed;
@@ -1388,8 +1463,9 @@ export async function fetchJiraIssuesWithMeta(
       sawAnonymousSearch ||=
         isAnonymousFieldVisibilityError(result.body) || isJiraAuthVerificationFailure(result.body);
       if (parsed) {
-        successfulAuthHeaders = { Cookie: login.cookie };
+        successfulAuthHeaders = authHeaders;
         successfulJql = effectiveJql;
+        successfulAnalyticsFieldIds = analyticsFieldIds;
         break;
       }
     }
@@ -1434,6 +1510,7 @@ export async function fetchJiraIssuesWithMeta(
         maxResults,
         parsed,
         successfulAuthHeaders,
+        successfulAnalyticsFieldIds,
       )
     : parsed;
   const hydrated = successfulAuthHeaders
