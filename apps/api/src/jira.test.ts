@@ -3,8 +3,10 @@ import test from 'node:test';
 
 import {
   fetchJiraIssues,
+  fetchJiraRemoteDevelopment,
   jiraCriticalPriorityAt,
   jiraDevelopmentFromFields,
+  jiraDevelopmentFromRemoteLinks,
   jiraSprintFromFields,
   resolveJiraConfig,
 } from './jira.js';
@@ -46,31 +48,61 @@ function jiraPriorityIssue(
   };
 }
 
-const jiraEnvKeys = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN'] as const;
+const jiraEnvKeys = [
+  'JIRA_BASE_URL',
+  'JIRA_EMAIL',
+  'JIRA_API_TOKEN',
+  'JIRA_SPRINT_FIELD_ID',
+] as const;
 
 test('jiraSprintFromFields reads active Jira Server sprint strings', () => {
   assert.equal(
     jiraSprintFromFields(
       {
-        customfield_10100: [
+        customfield_10004: [
           'com.atlassian.greenhopper.service.sprint.Sprint@1[id=1,state=CLOSED,name=Sprint 23]',
           'com.atlassian.greenhopper.service.sprint.Sprint@2[id=2,state=ACTIVE,name=Sprint 24]',
         ],
       },
-      { customfield_10100: 'Sprint' },
     ),
     'Sprint 24',
   );
 });
 
-test('jiraSprintFromFields identifies renamed Sprint fields by schema', () => {
+test('jiraSprintFromFields supports an explicit field id override', () => {
+  const previous = process.env.JIRA_SPRINT_FIELD_ID;
+  process.env.JIRA_SPRINT_FIELD_ID = 'customfield_10100';
+  try {
+    assert.equal(
+      jiraSprintFromFields({
+        customfield_10100: [{ name: 'Sprint 25', state: 'ACTIVE' }],
+      }),
+      'Sprint 25',
+    );
+  } finally {
+    if (previous === undefined) delete process.env.JIRA_SPRINT_FIELD_ID;
+    else process.env.JIRA_SPRINT_FIELD_ID = previous;
+  }
+});
+
+test('jiraSprintFromFields prioritizes customfield_10004', () => {
   assert.equal(
     jiraSprintFromFields(
-      { customfield_10100: [{ name: 'Sprint 25', state: 'ACTIVE' }] },
-      { customfield_10100: 'Iteration' },
-      { customfield_10100: { custom: 'com.pyxis.greenhopper.jira:gh-sprint' } },
+      {
+        customfield_10004: [{ name: 'Target Sprint', state: 'ACTIVE' }],
+        customfield_10100: [{ name: 'Wrong Sprint', state: 'ACTIVE' }],
+      },
     ),
-    'Sprint 25',
+    'Target Sprint',
+  );
+  assert.equal(
+    jiraSprintFromFields(
+      {
+        customfield_10004: null,
+        customfield_10100: [{ name: 'Stale Sprint', state: 'ACTIVE' }],
+      },
+    ),
+    null,
   );
 });
 
@@ -130,6 +162,133 @@ test('jiraDevelopmentFromFields rejects opaque development payloads', () => {
       available: false,
     },
   );
+});
+
+test('jiraDevelopmentFromRemoteLinks counts unique GitLab mentions', () => {
+  assert.deepEqual(
+    jiraDevelopmentFromRemoteLinks([
+      {
+        globalId: 'gitlab-commit-1',
+        relationship: 'mentioned on',
+        object: { title: 'Commit - TV-101: debug', url: 'https://gitlab/repo/-/commit/aaa' },
+      },
+      {
+        globalId: 'gitlab-commit-1',
+        relationship: 'mentioned on',
+        object: {
+          title: 'Commit - Merge Request !42 squash',
+          url: 'https://gitlab/repo/-/commit/aaa',
+        },
+      },
+      {
+        relationship: 'mentioned on',
+        object: {
+          title: 'Commit - duplicate note link',
+          url: 'https://gitlab/repo/-/commit/aaa?ref_type=heads#note_1',
+        },
+      },
+      {
+        relationship: 'mentioned on',
+        object: { title: 'Merge Request !42', url: 'https://gitlab/repo/-/merge_requests/42' },
+      },
+      {
+        relationship: 'mentioned on',
+        object: {
+          title: 'Merge Request !42 diffs',
+          url: 'https://gitlab/repo/-/merge_requests/42/diffs#note_2',
+        },
+      },
+      {
+        relationship: 'is blocked by',
+        object: { title: 'Commit - unrelated', url: 'https://gitlab/repo/-/commit/bbb' },
+      },
+      { relationship: 'mentioned on', object: null },
+    ]),
+    {
+      commitCount: 1,
+      mergeRequestCount: 1,
+      updatedAt: null,
+      available: true,
+    },
+  );
+  assert.deepEqual(jiraDevelopmentFromRemoteLinks([]), {
+    commitCount: 0,
+    mergeRequestCount: 0,
+    updatedAt: null,
+    available: true,
+  });
+});
+
+test('fetchJiraRemoteDevelopment falls back to v3 and tolerates throttling', async () => {
+  const previousFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes('/rest/api/2/')) return new Response('', { status: 404 });
+    return new Response(
+      JSON.stringify([
+        {
+          relationship: 'mentioned on',
+          object: {
+            title: 'Commit - TV-101',
+            url: 'https://gitlab/repo/-/commit/aaa',
+          },
+        },
+      ]),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    assert.deepEqual(
+      await fetchJiraRemoteDevelopment('https://jira.example', 'TV-101', {}),
+      {
+        commitCount: 1,
+        mergeRequestCount: 0,
+        updatedAt: null,
+        available: true,
+      },
+    );
+    assert.deepEqual(calls, [
+      'https://jira.example/rest/api/2/issue/TV-101/remotelink',
+      'https://jira.example/rest/api/3/issue/TV-101/remotelink',
+    ]);
+
+    calls.length = 0;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      return url.includes('/rest/api/2/')
+        ? new Response('{bad json', {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        : new Response('[]', {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+    }) as typeof fetch;
+    assert.deepEqual(
+      await fetchJiraRemoteDevelopment('https://jira.example', 'TV-101', {}),
+      {
+        commitCount: 0,
+        mergeRequestCount: 0,
+        updatedAt: null,
+        available: true,
+      },
+    );
+    assert.equal(calls.length, 2);
+
+    calls.length = 0;
+    globalThis.fetch = (async () => new Response('', { status: 429 })) as typeof fetch;
+    assert.equal(
+      await fetchJiraRemoteDevelopment('https://jira.example', 'TV-101', {}),
+      null,
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });
 
 function snapshotJiraEnv() {
@@ -245,23 +404,33 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ url: String(input), init });
 
-    if (String(input).endsWith('/rest/api/2/field')) {
+    if (String(input).endsWith('/rest/api/2/issue/PMS-42/remotelink')) {
       return new Response(
         JSON.stringify([
+          ...['aaa', 'bbb', 'ccc', 'ddd'].map((sha) => ({
+            globalId: `gitlab-commit-${sha}`,
+            relationship: 'mentioned on',
+            object: {
+              title: `Commit - PMS-42: ${sha}`,
+              url: `https://gitlab.example/repo/-/commit/${sha}`,
+            },
+          })),
           {
-            id: 'customfield_10100',
-            name: 'Sprint',
-            schema: { custom: 'com.pyxis.greenhopper.jira:gh-sprint' },
-          },
-          {
-            id: 'customfield_10200',
-            name: 'Development',
-            schema: {
-              custom:
-                'com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf',
+            globalId: 'gitlab-mr-1',
+            relationship: 'mentioned on',
+            object: {
+              title: 'Merge Request !1',
+              url: 'https://gitlab.example/repo/-/merge_requests/1',
             },
           },
-          { id: 'customfield_10300', name: 'Дата начала разработки' },
+          {
+            globalId: 'gitlab-mr-2',
+            relationship: 'mentioned on',
+            object: {
+              title: 'Merge Request !2',
+              url: 'https://gitlab.example/repo/-/merge_requests/2',
+            },
+          },
         ]),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
@@ -270,8 +439,7 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
     return new Response(
       JSON.stringify({
         names: {
-          customfield_10100: 'Sprint',
-          customfield_10200: 'Development',
+          customfield_10004: 'Sprint',
         },
         issues: [
           {
@@ -287,20 +455,12 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
               resolutiondate: '2026-05-23T09:00:00.000+0300',
               created: '2026-05-20T09:00:00.000+0300',
               updated: '2026-05-23T10:00:00.000+0300',
-              customfield_10100: [
+              customfield_10004: [
                 {
                   name: 'Sprint 24',
                   state: 'ACTIVE',
                 },
               ],
-              customfield_10200: {
-                cachedValue: {
-                  summary: {
-                    repository: { overall: { count: 3, lastUpdated: '2026-05-23T09:30:00Z' } },
-                    pullrequest: { overall: { count: 1, lastUpdated: '2026-05-23T09:45:00Z' } },
-                  },
-                },
-              },
             },
             changelog: {
               histories: [
@@ -333,22 +493,25 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
     const issues = await fetchJiraIssues('project = PMS', { includeAnalyticsFields: true });
 
     assert.equal(calls.length, 2);
-    assert.equal(calls[0].url, 'https://jira.example/rest/api/2/field');
-    assert.equal(calls[1].url, 'https://jira.example/rest/api/2/search');
-    assert.equal(calls[1].init?.method, 'POST');
+    assert.equal(calls[0].url, 'https://jira.example/rest/api/2/search');
     assert.equal(
-      (calls[1].init?.headers as Record<string, string>).Authorization,
+      calls[1].url,
+      'https://jira.example/rest/api/2/issue/PMS-42/remotelink',
+    );
+    assert.equal(calls[0].init?.method, 'POST');
+    assert.equal(
+      (calls[0].init?.headers as Record<string, string>).Authorization,
       'Bearer secret',
     );
-    const searchBody = JSON.parse(String(calls[1].init?.body));
+    const searchBody = JSON.parse(String(calls[0].init?.body));
     assert.deepEqual(searchBody.expand, [
       'names',
       'schema',
       'changelog',
     ]);
     assert.ok(!searchBody.fields.includes('*navigable'));
-    assert.ok(searchBody.fields.includes('customfield_10100'));
-    assert.ok(searchBody.fields.includes('customfield_10200'));
+    assert.ok(searchBody.fields.includes('customfield_10004'));
+    assert.ok(!searchBody.fields.includes('customfield_10200'));
     assert.ok(!searchBody.fields.includes('customfield_10300'));
     assert.ok(searchBody.fields.includes('resolutiondate'));
     assert.deepEqual(issues, [
@@ -365,6 +528,7 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
         resolution: 'Fixed',
         resolutionAt: new Date('2026-05-23T09:00:00.000+0300'),
         sprint: 'Sprint 24',
+        sprintAvailable: true,
         createdAt: new Date('2026-05-20T09:00:00.000+0300'),
         criticalPriorityAt: null,
         updatedAt: new Date('2026-05-23T10:00:00.000+0300'),
@@ -379,9 +543,9 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
         ],
         transitionHistoryComplete: true,
         development: {
-          commitCount: 3,
-          mergeRequestCount: 1,
-          updatedAt: new Date('2026-05-23T09:45:00Z'),
+          commitCount: 4,
+          mergeRequestCount: 2,
+          updatedAt: null,
           available: true,
         },
       },
@@ -401,25 +565,11 @@ test('fetchJiraIssues loads every Jira search page', async () => {
   process.env.JIRA_EMAIL = 'bot@example.com';
   process.env.JIRA_API_TOKEN = 'secret';
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input).endsWith('/rest/api/2/field')) {
-      return new Response(
-        JSON.stringify([
-          {
-            id: 'customfield_10100',
-            name: 'Sprint',
-            schema: { custom: 'com.pyxis.greenhopper.jira:gh-sprint' },
-          },
-          {
-            id: 'customfield_10200',
-            name: 'Development',
-            schema: {
-              custom:
-                'com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf',
-            },
-          },
-        ]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      );
+    if (String(input).endsWith('/remotelink')) {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     searchBodies.push(body);
@@ -460,7 +610,7 @@ test('fetchJiraIssues loads every Jira search page', async () => {
     assert.deepEqual(searchBodies.map((body) => body.startAt), [0, 1]);
     assert.ok(searchBodies.every((body) => {
       const fields = body.fields as string[];
-      return fields.includes('customfield_10100') && fields.includes('customfield_10200');
+      return fields.includes('customfield_10004');
     }));
     assert.deepEqual(issues.map((issue) => issue.key), ['PMS-1', 'PMS-2']);
   } finally {

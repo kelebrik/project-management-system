@@ -820,6 +820,7 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     );
     const syncedAt = new Date();
     const syncedIssueKeys = new Set<string>();
+    const remoteDevelopmentCache = new Map<string, JiraIssue['development']>();
     let criticalBugSlaIssues = 0;
     let criticalBugSlaJiraUser: string | null = null;
     const sectionStats: Array<{
@@ -834,6 +835,7 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       const jiraResult = await fetchJiraIssuesWithMeta(section.jiraQuery, {
         baseUrl: parsedSync.data.baseUrl,
         includeAnalyticsFields: true,
+        remoteDevelopmentCache,
       });
       const issues = jiraResult.issues;
       for (const issue of issues) syncedIssueKeys.add(issue.key);
@@ -865,6 +867,7 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         baseUrl: parsedSync.data.baseUrl,
         fetchAllPages: true,
         includeAnalyticsFields: true,
+        remoteDevelopmentCache,
       });
       const criticalBugs = jiraResult.issues.filter((issue) =>
         isJiraCriticalBugSlaViolation(issue, syncedAt),
