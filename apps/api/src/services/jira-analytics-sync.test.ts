@@ -77,6 +77,7 @@ function jiraIssue(patch: Partial<JiraIssue> = {}): JiraIssue {
     resolution: null,
     resolutionAt: null,
     sprint: null,
+    sprintAvailable: true,
     createdAt: new Date('2026-08-01T09:00:00Z'),
     criticalPriorityAt: null,
     updatedAt: new Date('2026-08-18T10:00:00Z'),
@@ -128,6 +129,9 @@ function memoryStore(seed: JiraAnalyticsSnapshotState | null) {
       state.snapshot = {
         id: state.snapshot?.id ?? 'snapshot-1',
         status: issue.status,
+        sprint: issue.sprintAvailable
+          ? issue.sprint
+          : (state.snapshot?.sprint ?? null),
         commitCount: issue.development.available
           ? issue.development.commitCount
           : (state.snapshot?.commitCount ?? 0),
@@ -135,7 +139,8 @@ function memoryStore(seed: JiraAnalyticsSnapshotState | null) {
           ? issue.development.mergeRequestCount
           : (state.snapshot?.mergeRequestCount ?? 0),
         developmentBaselineCaptured:
-          issue.development.available ||
+          (issue.development.available &&
+            (issue.development.commitCount > 0 || issue.development.mergeRequestCount > 0)) ||
           (state.snapshot?.developmentBaselineCaptured ?? false),
       };
       return { id: state.snapshot.id };
@@ -147,6 +152,7 @@ function memoryStore(seed: JiraAnalyticsSnapshotState | null) {
 const existingSnapshot = (): JiraAnalyticsSnapshotState => ({
   id: 'snapshot-1',
   status: 'Open',
+  sprint: null,
   commitCount: 0,
   mergeRequestCount: 0,
   developmentBaselineCaptured: false,
@@ -179,6 +185,109 @@ test('repeated Jira sync does not duplicate transitions or development activity'
   assert.equal(memory.transitions.size, 1);
   assert.equal(memory.activities.size, 1);
   assert.equal([...memory.activities.values()][0]?.isBaseline, true);
+});
+
+test('first non-empty remote development observation remains a baseline', async () => {
+  const memory = memoryStore(existingSnapshot());
+
+  await syncJiraIssueAnalytics(
+    memory.store,
+    'project-1',
+    jiraIssue({
+      development: {
+        commitCount: 0,
+        mergeRequestCount: 0,
+        updatedAt: null,
+        available: true,
+      },
+    }),
+    new Date('2026-08-19T10:00:00Z'),
+  );
+  assert.equal(memory.state.snapshot?.developmentBaselineCaptured, false);
+
+  await syncJiraIssueAnalytics(
+    memory.store,
+    'project-1',
+    jiraIssue({
+      development: {
+        commitCount: 3,
+        mergeRequestCount: 0,
+        updatedAt: null,
+        available: true,
+      },
+    }),
+    new Date('2026-08-19T11:00:00Z'),
+  );
+
+  assert.equal(memory.activities.size, 1);
+  assert.equal([...memory.activities.values()][0]?.isBaseline, true);
+});
+
+test('development totals do not regress when remote links disappear', async () => {
+  const memory = memoryStore({
+    ...existingSnapshot(),
+    commitCount: 3,
+    developmentBaselineCaptured: true,
+  });
+
+  await syncJiraIssueAnalytics(
+    memory.store,
+    'project-1',
+    jiraIssue({
+      development: {
+        commitCount: 1,
+        mergeRequestCount: 0,
+        updatedAt: null,
+        available: true,
+      },
+    }),
+    new Date('2026-08-19T10:00:00Z'),
+  );
+  assert.equal(memory.state.snapshot?.commitCount, 3);
+  assert.equal(memory.activities.size, 0);
+
+  await syncJiraIssueAnalytics(
+    memory.store,
+    'project-1',
+    jiraIssue({
+      development: {
+        commitCount: 4,
+        mergeRequestCount: 0,
+        updatedAt: null,
+        available: true,
+      },
+    }),
+    new Date('2026-08-19T11:00:00Z'),
+  );
+  assert.equal(memory.state.snapshot?.commitCount, 4);
+  assert.equal([...memory.activities.values()][0]?.commitCount, 1);
+});
+
+test('an unavailable Sprint field preserves the snapshot and activity context', async () => {
+  const memory = memoryStore({
+    ...existingSnapshot(),
+    sprint: 'Sprint 24',
+    developmentBaselineCaptured: true,
+  });
+
+  await syncJiraIssueAnalytics(
+    memory.store,
+    'project-1',
+    jiraIssue({
+      sprint: null,
+      sprintAvailable: false,
+      development: {
+        commitCount: 1,
+        mergeRequestCount: 0,
+        updatedAt: null,
+        available: true,
+      },
+    }),
+    new Date('2026-08-19T10:00:00Z'),
+  );
+
+  assert.equal(memory.state.snapshot?.sprint, 'Sprint 24');
+  assert.equal([...memory.activities.values()][0]?.sprintAtObservation, 'Sprint 24');
 });
 
 test('status change without changelog creates one stable synthetic transition', async () => {

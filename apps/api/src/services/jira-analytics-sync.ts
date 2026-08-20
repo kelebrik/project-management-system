@@ -10,6 +10,7 @@ import type { JiraIssue } from '../jira.js';
 export type JiraAnalyticsSnapshotState = {
   id: string;
   status: string;
+  sprint: string | null;
   commitCount: number;
   mergeRequestCount: number;
   developmentBaselineCaptured: boolean;
@@ -79,7 +80,21 @@ export async function syncJiraIssueAnalytics(
   syncedAt: Date,
 ) {
   const existing = await store.findSnapshot(projectId, issue.key);
-  const development = issue.development;
+  const observedDevelopment = issue.development;
+  // Remote links are an "ever observed" signal: temporary removal must not erase history.
+  const development = observedDevelopment.available && existing
+    ? {
+        ...observedDevelopment,
+        commitCount: Math.max(observedDevelopment.commitCount, existing.commitCount),
+        mergeRequestCount: Math.max(
+          observedDevelopment.mergeRequestCount,
+          existing.mergeRequestCount,
+        ),
+      }
+    : observedDevelopment;
+  const issueForPersistence = development === observedDevelopment
+    ? issue
+    : { ...issue, development };
   const transitions = [...issue.transitions];
   if (
     existing &&
@@ -125,7 +140,7 @@ export async function syncJiraIssueAnalytics(
         activityAt,
         commitCount: commitDelta,
         mergeRequestCount: mergeRequestDelta,
-        sprintAtObservation: issue.sprint,
+        sprintAtObservation: issue.sprintAvailable ? issue.sprint : (existing?.sprint ?? null),
         isBaseline: !existing?.developmentBaselineCaptured,
         observedAt: syncedAt,
       });
@@ -133,7 +148,7 @@ export async function syncJiraIssueAnalytics(
   };
 
   if (existing) await persistEvents(existing.id);
-  const snapshot = await store.upsertSnapshot(projectId, issue, syncedAt);
+  const snapshot = await store.upsertSnapshot(projectId, issueForPersistence, syncedAt);
   if (!existing) await persistEvents(snapshot.id);
   return snapshot;
 }
@@ -148,6 +163,7 @@ export function createPrismaJiraAnalyticsSyncStore(
         select: {
           id: true,
           status: true,
+          sprint: true,
           commitCount: true,
           mergeRequestCount: true,
           developmentBaselineCaptured: true,
@@ -173,6 +189,9 @@ export function createPrismaJiraAnalyticsSyncStore(
     },
     async upsertSnapshot(projectId, issue, syncedAt) {
       const development = issue.development;
+      const hasDevelopmentBaseline =
+        development.available &&
+        (development.commitCount > 0 || development.mergeRequestCount > 0);
       return transaction.jiraIssueSnapshot.upsert({
         where: { projectId_issueKey: { projectId, issueKey: issue.key } },
         update: {
@@ -185,15 +204,16 @@ export function createPrismaJiraAnalyticsSyncStore(
           reporter: issue.reporter,
           issueType: issue.issueType,
           resolution: issue.resolution,
-          sprint: issue.sprint,
+          sprint: issue.sprintAvailable ? issue.sprint : undefined,
           issueCreatedAt: issue.createdAt,
           criticalPriorityAt: criticalPriorityAtUpdate(issue),
           resolutionAt: issue.resolutionAt,
           commitCount: development.available ? development.commitCount : undefined,
           mergeRequestCount: development.available ? development.mergeRequestCount : undefined,
-          developmentUpdatedAt: development.available ? development.updatedAt : undefined,
+          developmentUpdatedAt:
+            development.available && development.updatedAt ? development.updatedAt : undefined,
           developmentDataAvailable: development.available,
-          developmentBaselineCaptured: development.available ? true : undefined,
+          developmentBaselineCaptured: hasDevelopmentBaseline ? true : undefined,
           transitionHistoryComplete: issue.transitionHistoryComplete,
           updatedAt: issue.updatedAt,
           syncedAt,
@@ -218,7 +238,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           mergeRequestCount: development.available ? development.mergeRequestCount : 0,
           developmentUpdatedAt: development.available ? development.updatedAt : null,
           developmentDataAvailable: development.available,
-          developmentBaselineCaptured: development.available,
+          developmentBaselineCaptured: hasDevelopmentBaseline,
           transitionHistoryComplete: issue.transitionHistoryComplete,
           updatedAt: issue.updatedAt,
           syncedAt,
