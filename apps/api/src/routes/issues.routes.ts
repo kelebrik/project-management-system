@@ -833,6 +833,7 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     for (const section of sectionsWithFilter) {
       const jiraResult = await fetchJiraIssuesWithMeta(section.jiraQuery, {
         baseUrl: parsedSync.data.baseUrl,
+        includeAnalyticsFields: true,
       });
       const issues = jiraResult.issues;
       for (const issue of issues) syncedIssueKeys.add(issue.key);
@@ -863,6 +864,7 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       const jiraResult = await fetchJiraIssuesWithMeta(criticalPriorityJql, {
         baseUrl: parsedSync.data.baseUrl,
         fetchAllPages: true,
+        includeAnalyticsFields: true,
       });
       const criticalBugs = jiraResult.issues.filter((issue) =>
         isJiraCriticalBugSlaViolation(issue, syncedAt),

@@ -650,6 +650,31 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
       };
     });
   await expect(dashboardSelect).toHaveValue("template:unplanned");
+  const toolbarSelectBoxes = await Promise.all(
+    [
+      dashboardSelect,
+      page.getByRole("combobox", { name: "Период событий" }),
+      page.getByRole("combobox", { name: "Исполнитель" }),
+    ].map((select) => select.boundingBox()),
+  );
+  const toolbarSelectTops = toolbarSelectBoxes.map((box) => box?.y ?? 0);
+  const toolbarSelectHeights = toolbarSelectBoxes.map((box) => box?.height ?? 0);
+  expect(Math.max(...toolbarSelectTops) - Math.min(...toolbarSelectTops)).toBeLessThanOrEqual(1);
+  expect(Math.max(...toolbarSelectHeights) - Math.min(...toolbarSelectHeights)).toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 800, height: 800 });
+  const compactToolbarBoxes = await Promise.all(
+    [
+      page.getByRole("combobox", { name: "Период событий" }),
+      page.getByRole("combobox", { name: "Исполнитель" }),
+    ].map((select) => select.boundingBox()),
+  );
+  expect(Math.abs(
+    (compactToolbarBoxes[0]?.y ?? 0) - (compactToolbarBoxes[1]?.y ?? 0),
+  )).toBeLessThanOrEqual(1);
+  expect(Math.abs(
+    (compactToolbarBoxes[0]?.height ?? 0) - (compactToolbarBoxes[1]?.height ?? 0),
+  )).toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 1280, height: 800 });
   const copyOffset = await iconOffset(
     page.getByRole("button", { name: "Создать копию дашборда" }),
   );
@@ -696,10 +721,19 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
   expect(Math.abs(moveOffset.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(moveOffset.y)).toBeLessThanOrEqual(1);
   await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
+  const editorRightPadding = await page
+    .getByLabel("Настройки виджета")
+    .evaluate((editor) => getComputedStyle(editor).paddingRight);
+  expect(editorRightPadding).toBe("14px");
   await page.getByRole("button", { name: "Добавить виджет" }).click();
   await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
+  await expect
+    .poll(() => page.getByLabel("Настройки виджета").evaluate(
+      (editor) => getComputedStyle(editor).paddingRight,
+    ))
+    .toBe("12px");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,

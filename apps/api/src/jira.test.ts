@@ -245,6 +245,28 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ url: String(input), init });
 
+    if (String(input).endsWith('/rest/api/2/field')) {
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'customfield_10100',
+            name: 'Sprint',
+            schema: { custom: 'com.pyxis.greenhopper.jira:gh-sprint' },
+          },
+          {
+            id: 'customfield_10200',
+            name: 'Development',
+            schema: {
+              custom:
+                'com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf',
+            },
+          },
+          { id: 'customfield_10300', name: 'Дата начала разработки' },
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
     return new Response(
       JSON.stringify({
         names: {
@@ -308,21 +330,26 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
   }) as typeof fetch;
 
   try {
-    const issues = await fetchJiraIssues('project = PMS');
+    const issues = await fetchJiraIssues('project = PMS', { includeAnalyticsFields: true });
 
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, 'https://jira.example/rest/api/2/search');
-    assert.equal(calls[0].init?.method, 'POST');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, 'https://jira.example/rest/api/2/field');
+    assert.equal(calls[1].url, 'https://jira.example/rest/api/2/search');
+    assert.equal(calls[1].init?.method, 'POST');
     assert.equal(
-      (calls[0].init?.headers as Record<string, string>).Authorization,
+      (calls[1].init?.headers as Record<string, string>).Authorization,
       'Bearer secret',
     );
-    const searchBody = JSON.parse(String(calls[0].init?.body));
+    const searchBody = JSON.parse(String(calls[1].init?.body));
     assert.deepEqual(searchBody.expand, [
       'names',
       'schema',
       'changelog',
     ]);
+    assert.ok(!searchBody.fields.includes('*navigable'));
+    assert.ok(searchBody.fields.includes('customfield_10100'));
+    assert.ok(searchBody.fields.includes('customfield_10200'));
+    assert.ok(!searchBody.fields.includes('customfield_10300'));
     assert.ok(searchBody.fields.includes('resolutiondate'));
     assert.deepEqual(issues, [
       {
@@ -373,7 +400,27 @@ test('fetchJiraIssues loads every Jira search page', async () => {
   process.env.JIRA_BASE_URL = 'https://jira.example';
   process.env.JIRA_EMAIL = 'bot@example.com';
   process.env.JIRA_API_TOKEN = 'secret';
-  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith('/rest/api/2/field')) {
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'customfield_10100',
+            name: 'Sprint',
+            schema: { custom: 'com.pyxis.greenhopper.jira:gh-sprint' },
+          },
+          {
+            id: 'customfield_10200',
+            name: 'Development',
+            schema: {
+              custom:
+                'com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf',
+            },
+          },
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     searchBodies.push(body);
     const startAt = Number(body.startAt);
@@ -407,9 +454,14 @@ test('fetchJiraIssues loads every Jira search page', async () => {
   try {
     const issues = await fetchJiraIssues('project = PMS ORDER BY key ASC', {
       fetchAllPages: true,
+      includeAnalyticsFields: true,
     });
 
     assert.deepEqual(searchBodies.map((body) => body.startAt), [0, 1]);
+    assert.ok(searchBodies.every((body) => {
+      const fields = body.fields as string[];
+      return fields.includes('customfield_10100') && fields.includes('customfield_10200');
+    }));
     assert.deepEqual(issues.map((issue) => issue.key), ['PMS-1', 'PMS-2']);
   } finally {
     globalThis.fetch = previousFetch;
