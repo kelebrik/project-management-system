@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client';
-import { isJiraBugIssueType } from '@pms/shared';
+import { isJiraBugIssueType, isJiraCriticalPriority } from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
 
@@ -8,9 +8,18 @@ export type JiraAnalyticsSnapshotState = {
   status: string;
   sprint: string | null;
   criticalPriorityAt: Date | null;
+  criticalEndPriority: string | null;
+  resolutionAt: Date | null;
   commitCount: number;
   mergeRequestCount: number;
   developmentBaselineCaptured: boolean;
+};
+
+export type JiraAnalyticsSyncedSnapshot = {
+  id: string;
+  issueType: string;
+  criticalPriorityAt: Date | null;
+  criticalEndPriority: string | null;
 };
 
 export type JiraAnalyticsTransitionInput = {
@@ -45,7 +54,7 @@ export type JiraAnalyticsSyncStore = {
     projectId: string,
     issue: JiraIssue,
     syncedAt: Date,
-  ) => Promise<{ id: string }>;
+  ) => Promise<JiraAnalyticsSyncedSnapshot>;
 };
 
 type JiraCriticalSlaTrackingTransaction = Pick<Prisma.TransactionClient, 'jiraIssueSnapshot'>;
@@ -79,12 +88,38 @@ export function criticalPriorityAtUpdate(issue: JiraIssue) {
 }
 
 export function isJiraCriticalBugSlaCandidate(
-  issue: JiraIssue,
-): issue is JiraIssue & { criticalPriorityAt: Date } {
+  issue: Pick<JiraIssue, 'issueType' | 'criticalPriorityAt' | 'criticalEndPriority'>,
+) {
   return (
     isJiraBugIssueType(issue.issueType) &&
-    issue.criticalPriorityAt !== null
+    issue.criticalPriorityAt !== null &&
+    isJiraCriticalPriority(issue.criticalEndPriority)
   );
+}
+
+export function jiraCriticalBugSlaSnapshotIds(
+  snapshots: readonly JiraAnalyticsSyncedSnapshot[],
+) {
+  return snapshots
+    .filter(isJiraCriticalBugSlaCandidate)
+    .map((snapshot) => snapshot.id);
+}
+
+function sameDate(left: Date | null | undefined, right: Date | null | undefined) {
+  return left?.getTime() === right?.getTime();
+}
+
+export function criticalEndPriorityUpdate(
+  issue: JiraIssue,
+  existing: JiraAnalyticsSnapshotState | null,
+) {
+  if (!issue.resolutionAt || issue.transitionHistoryComplete) {
+    return issue.criticalEndPriority;
+  }
+  if (sameDate(existing?.resolutionAt, issue.resolutionAt)) {
+    return existing?.criticalEndPriority ?? null;
+  }
+  return null;
 }
 
 function earliestDate(left: Date | null | undefined, right: Date | null | undefined) {
@@ -115,12 +150,16 @@ export async function syncJiraIssueAnalytics(
   const criticalPriorityAt = issue.transitionHistoryComplete
     ? issue.criticalPriorityAt
     : earliestDate(existing?.criticalPriorityAt, issue.criticalPriorityAt);
+  const criticalEndPriority = criticalEndPriorityUpdate(issue, existing);
   const criticalPriorityUnchanged =
     criticalPriorityAt?.getTime() === issue.criticalPriorityAt?.getTime();
+  const criticalEndPriorityUnchanged = criticalEndPriority === issue.criticalEndPriority;
   const issueForPersistence =
-    development === observedDevelopment && criticalPriorityUnchanged
+    development === observedDevelopment &&
+    criticalPriorityUnchanged &&
+    criticalEndPriorityUnchanged
       ? issue
-      : { ...issue, development, criticalPriorityAt };
+      : { ...issue, development, criticalPriorityAt, criticalEndPriority };
   const transitions = [...issue.transitions];
   if (
     existing &&
@@ -191,6 +230,8 @@ export function createPrismaJiraAnalyticsSyncStore(
           status: true,
           sprint: true,
           criticalPriorityAt: true,
+          criticalEndPriority: true,
+          resolutionAt: true,
           commitCount: true,
           mergeRequestCount: true,
           developmentBaselineCaptured: true,
@@ -234,6 +275,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           sprint: issue.sprintAvailable ? issue.sprint : undefined,
           issueCreatedAt: issue.createdAt,
           criticalPriorityAt: criticalPriorityAtUpdate(issue),
+          criticalEndPriority: issue.criticalEndPriority,
           resolutionAt: issue.resolutionAt,
           commitCount: development.available ? development.commitCount : undefined,
           mergeRequestCount: development.available ? development.mergeRequestCount : undefined,
@@ -260,6 +302,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           sprint: issue.sprint,
           issueCreatedAt: issue.createdAt,
           criticalPriorityAt: issue.criticalPriorityAt,
+          criticalEndPriority: issue.criticalEndPriority,
           resolutionAt: issue.resolutionAt,
           commitCount: development.available ? development.commitCount : 0,
           mergeRequestCount: development.available ? development.mergeRequestCount : 0,
@@ -270,7 +313,12 @@ export function createPrismaJiraAnalyticsSyncStore(
           updatedAt: issue.updatedAt,
           syncedAt,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          issueType: true,
+          criticalPriorityAt: true,
+          criticalEndPriority: true,
+        },
       });
     },
   };

@@ -17,6 +17,7 @@ export type JiraIssue = {
   sprintAvailable: boolean;
   createdAt: Date | null;
   criticalPriorityAt: Date | null;
+  criticalEndPriority: string | null;
   updatedAt: Date;
   transitions: Array<{
     key: string;
@@ -727,7 +728,24 @@ export function jiraCriticalPriorityAt(
 ) {
   const historyComplete = jiraChangelogPageComplete(issue.changelog);
   const createdAt = parseJiraDate(issue.fields.created);
-  const changes = (issue.changelog?.histories ?? [])
+  const changes = jiraPriorityChanges(issue);
+
+  if (changes.length === 0) {
+    return historyComplete && isJiraCriticalPriority(issue.fields.priority?.name)
+      ? createdAt
+      : null;
+  }
+  if (historyComplete && isJiraCriticalPriority(changes[0]?.fromPriority)) {
+    return createdAt;
+  }
+
+  return changes.find((change) => isJiraCriticalPriority(change.toPriority))?.changedAt ?? null;
+}
+
+function jiraPriorityChanges(
+  issue: JiraSearchResponse['issues'][number],
+) {
+  return (issue.changelog?.histories ?? [])
     .flatMap((history) => {
       const changedAt = parseJiraDate(history.created);
       if (!changedAt) return [];
@@ -742,17 +760,23 @@ export function jiraCriticalPriorityAt(
       });
     })
     .sort((left, right) => left.changedAt.getTime() - right.changedAt.getTime());
+}
 
-  if (changes.length === 0) {
-    return historyComplete && isJiraCriticalPriority(issue.fields.priority?.name)
-      ? createdAt
-      : null;
-  }
-  if (historyComplete && isJiraCriticalPriority(changes[0]?.fromPriority)) {
-    return createdAt;
-  }
+export function jiraPriorityAtResolution(
+  issue: JiraSearchResponse['issues'][number],
+) {
+  const resolutionAt = parseJiraDate(issue.fields.resolutiondate);
+  if (!resolutionAt || !jiraChangelogPageComplete(issue.changelog)) return null;
 
-  return changes.find((change) => isJiraCriticalPriority(change.toPriority))?.changedAt ?? null;
+  const changes = jiraPriorityChanges(issue);
+  let priorityAtResolution = changes.length > 0
+    ? changes[0]?.fromPriority ?? null
+    : issue.fields.priority?.name?.trim() || null;
+  for (const change of changes) {
+    if (change.changedAt > resolutionAt) break;
+    priorityAtResolution = change.toPriority;
+  }
+  return priorityAtResolution;
 }
 
 async function fetchJiraFilterJql(
@@ -1701,6 +1725,9 @@ export async function fetchJiraIssuesWithMeta(
         sprintAvailable: jiraSprintAvailable(fields),
         createdAt: parseJiraDate(issue.fields.created),
         criticalPriorityAt: jiraCriticalPriorityAt(issue),
+        criticalEndPriority: parseJiraDate(issue.fields.resolutiondate)
+          ? jiraPriorityAtResolution(issue)
+          : issue.fields.priority?.name?.trim() || null,
         updatedAt: new Date(issue.fields.updated),
         transitions: jiraStatusTransitions(issue),
         transitionHistoryComplete: jiraTransitionHistoryComplete(issue),

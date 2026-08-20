@@ -1,4 +1,9 @@
-import { createIssueSchema, issueStatusUpdateSchema, updateIssueSchema } from '@pms/shared';
+import {
+  createIssueSchema,
+  isJiraBugIssueType,
+  issueStatusUpdateSchema,
+  updateIssueSchema,
+} from '@pms/shared';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -8,9 +13,10 @@ import { logEvent } from '../server/logger.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   createPrismaJiraAnalyticsSyncStore,
-  isJiraCriticalBugSlaCandidate,
+  jiraCriticalBugSlaSnapshotIds,
   replaceJiraCriticalSlaTracking,
   syncJiraIssueAnalytics,
+  type JiraAnalyticsSyncedSnapshot,
 } from '../services/jira-analytics-sync.js';
 import {
   ensureDefaultJiraWorkSections,
@@ -123,7 +129,7 @@ async function syncJiraAnalyticsIssues(
   issues: JiraIssue[],
   syncedAt: Date,
 ) {
-  const snapshots = new Array<{ id: string }>(issues.length);
+  const snapshots = new Array<JiraAnalyticsSyncedSnapshot>(issues.length);
   let nextIndex = 0;
   const worker = async () => {
     while (nextIndex < issues.length) {
@@ -877,8 +883,8 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         remoteDevelopmentCache,
       });
       criticalBugSlaCandidates = jiraResult.issues.length;
-      const criticalBugs = jiraResult.issues.filter(isJiraCriticalBugSlaCandidate);
-      criticalBugSlaIssues = criticalBugs.length;
+      const criticalBugs = jiraResult.issues.filter((issue) =>
+        isJiraBugIssueType(issue.issueType));
       criticalBugSlaJiraUser = jiraResult.jiraUser;
       for (const issue of criticalBugs) syncedIssueKeys.add(issue.key);
       const snapshots = await syncJiraAnalyticsIssues(
@@ -886,11 +892,13 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         criticalBugs,
         syncedAt,
       );
+      const trackedSnapshotIds = jiraCriticalBugSlaSnapshotIds(snapshots);
+      criticalBugSlaIssues = trackedSnapshotIds.length;
       await prisma.$transaction((transaction) =>
         replaceJiraCriticalSlaTracking(
           transaction,
           project.id,
-          snapshots.map((snapshot) => snapshot.id),
+          trackedSnapshotIds,
         ),
       );
     }
