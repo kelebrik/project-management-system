@@ -32,7 +32,6 @@ import {
   createJiraAnalyticsWidget,
   evaluateJiraAnalyticsWidget,
   formatJiraAnalyticsMetric,
-  isJiraCriticalBug,
   jiraAnalyticsCsv,
   normalizeJiraAnalyticsConfig,
   type JiraAnalyticsDashboardConfig,
@@ -555,12 +554,14 @@ export function JiraAnalyticsDashboard() {
   const developmentCoverage = issues.filter(
     (issue) => issue.developmentDataAvailable,
   ).length;
-  const criticalBugs = issues.filter(
-    (issue) => issue.criticalSlaTracked && isJiraCriticalBug(issue),
-  );
+  const criticalBugs = issues.filter((issue) => issue.criticalSlaTracked);
   const criticalPriorityCoverage = criticalBugs.filter(
-    (issue) => issue.transitionHistoryComplete && issue.criticalPriorityAt,
+    (issue) => issue.criticalPriorityAt && !Number.isNaN(new Date(issue.criticalPriorityAt).getTime()),
   ).length;
+  const slaScopeConfigured = Boolean(
+    project.jiraIntegration?.projectKey?.trim() ||
+    issues.some((issue) => /^[A-Z][A-Z0-9_]*-\d+$/i.test(issue.issueKey)),
+  );
   const latestSync = issues
     .map((issue) => new Date(issue.syncedAt))
     .filter((value) => !Number.isNaN(value.getTime()))
@@ -751,10 +752,12 @@ export function JiraAnalyticsDashboard() {
           <span className={developmentCoverage === issues.length ? "complete" : "partial"}>
             Development {developmentCoverage}/{issues.length}
           </span>
-          {criticalBugs.length > 0 && (
+          {slaScopeConfigured ? (
             <span className={criticalPriorityCoverage === criticalBugs.length ? "complete" : "partial"}>
-              История SLA {criticalPriorityCoverage}/{criticalBugs.length}
+              SLA-тикеты {criticalPriorityCoverage}/{criticalBugs.length}
             </span>
+          ) : (
+            <span className="partial">SLA не настроен: нет Jira project key</span>
           )}
           {latestSync && (
             <small>

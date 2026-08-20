@@ -38,16 +38,49 @@ export function resolveJiraWorkSectionJql(jql: string, filterUrl: string) {
   return jiraWorkSectionFilterToJql(jql.trim() || filterUrl);
 }
 
-export function jiraCriticalPriorityJql(projectKey: string) {
-  const escapedProjectKey = projectKey
-    .trim()
-    .replaceAll('\\', '\\\\')
-    .replaceAll('"', '\\"');
-  if (!escapedProjectKey) return '';
+function normalizedJiraProjectKeys(projectKeys: string | readonly string[]) {
+  return [...new Set((Array.isArray(projectKeys) ? projectKeys : [projectKeys])
+    .map((projectKey) => projectKey.trim())
+    .filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right))
+    .map((projectKey) => projectKey
+      .replaceAll('\\', '\\\\')
+      .replaceAll('"', '\\"'));
+}
+
+export function jiraProjectKeyFromIssueKey(issueKey: string) {
+  return issueKey.trim().match(/^([A-Z][A-Z0-9_]*)-\d+$/i)?.[1]?.toUpperCase() ?? null;
+}
+
+export function jiraCriticalPriorityProjectKeys(
+  configuredProjectKey: string,
+  issueKeys: readonly string[],
+) {
+  const observedProjectKeys = issueKeys
+    .map(jiraProjectKeyFromIssueKey)
+    .filter((projectKey): projectKey is string => Boolean(projectKey));
+  return normalizedJiraProjectKeys([configuredProjectKey, ...observedProjectKeys]);
+}
+
+export function jiraCriticalPriorityJql(projectKeys: string | readonly string[]) {
+  const normalizedProjectKeys = normalizedJiraProjectKeys(projectKeys);
+  if (normalizedProjectKeys.length === 0) return '';
   const priorities = jiraCriticalPriorities
     .map((priority) => `"${priority}"`)
     .join(', ');
-  return `project = "${escapedProjectKey}" AND priority WAS IN (${priorities}) ORDER BY created ASC, key ASC`;
+  const projectClause = normalizedProjectKeys.length === 1
+    ? `project = "${normalizedProjectKeys[0]}"`
+    : `project IN (${normalizedProjectKeys.map((projectKey) => `"${projectKey}"`).join(', ')})`;
+  return `${projectClause} AND priority WAS IN (${priorities}) ORDER BY created ASC, key ASC`;
+}
+
+export function jiraCriticalSlaSyncPlan(
+  configuredProjectKey: string,
+  issueKeys: readonly string[],
+) {
+  const projectKeys = jiraCriticalPriorityProjectKeys(configuredProjectKey, issueKeys);
+  const jql = jiraCriticalPriorityJql(projectKeys);
+  return { configured: Boolean(jql), projectKeys, jql };
 }
 
 export async function ensureDefaultJiraWorkSections(projectId: string) {

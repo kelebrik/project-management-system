@@ -1,8 +1,4 @@
-import {
-  isJiraBugIssueType,
-  isJiraCriticalPriority,
-  jiraCriticalBugSlaHours,
-} from "@pms/shared";
+import { jiraCriticalBugSlaHours } from "@pms/shared";
 
 import type { JiraIssueSnapshot } from "./domainTypes";
 
@@ -485,21 +481,13 @@ function developmentRecords(issue: JiraIssueSnapshot): JiraAnalyticsRecord[] {
     }));
 }
 
-export function isJiraCriticalBug(issue: JiraIssueSnapshot) {
-  return (
-    isJiraBugIssueType(issue.issueType) &&
-    (isJiraCriticalPriority(issue.priority) || Boolean(validDate(issue.criticalPriorityAt)))
-  );
-}
-
 function criticalBugRecord(
   issue: JiraIssueSnapshot,
   now: Date,
 ): JiraAnalyticsRecord | null {
   if (
     !issue.criticalSlaTracked ||
-    !isJiraCriticalBug(issue) ||
-    !issue.transitionHistoryComplete
+    !validDate(issue.criticalPriorityAt)
   ) {
     return null;
   }

@@ -7,6 +7,7 @@ export type JiraAnalyticsSnapshotState = {
   id: string;
   status: string;
   sprint: string | null;
+  criticalPriorityAt: Date | null;
   commitCount: number;
   mergeRequestCount: number;
   developmentBaselineCaptured: boolean;
@@ -47,8 +48,31 @@ export type JiraAnalyticsSyncStore = {
   ) => Promise<{ id: string }>;
 };
 
+type JiraCriticalSlaTrackingTransaction = Pick<Prisma.TransactionClient, 'jiraIssueSnapshot'>;
+
+export async function replaceJiraCriticalSlaTracking(
+  transaction: JiraCriticalSlaTrackingTransaction,
+  projectId: string,
+  snapshotIds: readonly string[],
+  batchSize = 500,
+) {
+  await transaction.jiraIssueSnapshot.updateMany({
+    where: { projectId, criticalSlaTracked: true },
+    data: { criticalSlaTracked: false },
+  });
+  for (let offset = 0; offset < snapshotIds.length; offset += batchSize) {
+    await transaction.jiraIssueSnapshot.updateMany({
+      where: {
+        projectId,
+        id: { in: snapshotIds.slice(offset, offset + batchSize) },
+      },
+      data: { criticalSlaTracked: true },
+    });
+  }
+}
+
 export function criticalPriorityAtUpdate(issue: JiraIssue) {
-  if (!issue.transitionHistoryComplete) {
+  if (!issue.transitionHistoryComplete && !issue.criticalPriorityAt) {
     return undefined;
   }
   return issue.criticalPriorityAt;
@@ -59,9 +83,14 @@ export function isJiraCriticalBugSlaCandidate(
 ): issue is JiraIssue & { criticalPriorityAt: Date } {
   return (
     isJiraBugIssueType(issue.issueType) &&
-    issue.transitionHistoryComplete &&
     issue.criticalPriorityAt !== null
   );
+}
+
+function earliestDate(left: Date | null | undefined, right: Date | null | undefined) {
+  if (!left) return right ?? null;
+  if (!right) return left;
+  return left <= right ? left : right;
 }
 
 export async function syncJiraIssueAnalytics(
@@ -83,9 +112,15 @@ export async function syncJiraIssueAnalytics(
         ),
       }
     : observedDevelopment;
-  const issueForPersistence = development === observedDevelopment
-    ? issue
-    : { ...issue, development };
+  const criticalPriorityAt = issue.transitionHistoryComplete
+    ? issue.criticalPriorityAt
+    : earliestDate(existing?.criticalPriorityAt, issue.criticalPriorityAt);
+  const criticalPriorityUnchanged =
+    criticalPriorityAt?.getTime() === issue.criticalPriorityAt?.getTime();
+  const issueForPersistence =
+    development === observedDevelopment && criticalPriorityUnchanged
+      ? issue
+      : { ...issue, development, criticalPriorityAt };
   const transitions = [...issue.transitions];
   if (
     existing &&
@@ -155,6 +190,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           id: true,
           status: true,
           sprint: true,
+          criticalPriorityAt: true,
           commitCount: true,
           mergeRequestCount: true,
           developmentBaselineCaptured: true,

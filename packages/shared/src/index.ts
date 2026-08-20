@@ -1,7 +1,14 @@
 import { z } from "zod";
 
 export const jiraCriticalPriorities = ["Critical", "Blocker"] as const;
-export const jiraBugIssueTypes = ["Bug", "Ошибка", "Дефект"] as const;
+export const jiraBugIssueTypes = [
+  "Bug",
+  "Bug Report",
+  "Defect",
+  "Баг",
+  "Ошибка",
+  "Дефект",
+] as const;
 export const jiraCriticalBugSlaHours = 30 * 24;
 
 function normalizedJiraValue(value: string | null | undefined) {
@@ -17,9 +24,11 @@ export function isJiraCriticalPriority(value: string | null | undefined) {
 
 export function isJiraBugIssueType(value: string | null | undefined) {
   const normalized = normalizedJiraValue(value);
-  return jiraBugIssueTypes.some(
+  if (jiraBugIssueTypes.some(
     (issueType) => normalizedJiraValue(issueType) === normalized,
-  );
+  )) return true;
+  return /^(bug|defect)(\s*[-:/(]|\s+report\b)/u.test(normalized) ||
+    /^(баг|ошибка|дефект)(\s*[-:/(]|$)/u.test(normalized);
 }
 
 export const appViewKeys = [

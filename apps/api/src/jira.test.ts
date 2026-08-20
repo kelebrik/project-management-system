@@ -248,7 +248,7 @@ test('jiraCriticalPriorityAt keeps the first critical date after a later downgra
   );
 });
 
-test('jiraCriticalPriorityAt excludes incomplete changelog history', () => {
+test('jiraCriticalPriorityAt uses an explicit raise from incomplete history conservatively', () => {
   const issue = jiraPriorityIssue(
     'Critical',
     [{
@@ -259,7 +259,19 @@ test('jiraCriticalPriorityAt excludes incomplete changelog history', () => {
     2,
   );
 
-  assert.equal(jiraCriticalPriorityAt(issue), null);
+  assert.deepEqual(
+    jiraCriticalPriorityAt(issue),
+    new Date('2026-05-20T12:30:00.000Z'),
+  );
+  assert.equal(jiraCriticalPriorityAt(jiraPriorityIssue('Critical', [], 1)), null);
+  assert.equal(
+    jiraCriticalPriorityAt(jiraPriorityIssue('Major', [{
+      created: '2026-05-20T12:30:00.000Z',
+      fromPriority: 'Critical',
+      toPriority: 'Major',
+    }], 2)),
+    null,
+  );
 });
 
 test('jiraDevelopmentFromFields rejects opaque development payloads', () => {
