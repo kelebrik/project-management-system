@@ -15,6 +15,7 @@ const savedViewSchema = z.object({
 });
 
 const savedViewPatchSchema = savedViewSchema.partial();
+const retiredJiraAnalyticsViewType = 'jira-analytics-dashboard';
 
 type SavedViewsContext = {
   currentUser: (req: Request) => any;
@@ -37,7 +38,9 @@ export function createSavedViewsRouter({ currentUser, requireAuth }: SavedViewsC
     const viewType = typeof req.query.viewType === 'string' ? req.query.viewType : undefined;
     const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
     const projectScope = await readableProjectWhere(req);
-    const filters: Prisma.SavedViewWhereInput[] = [];
+    const filters: Prisma.SavedViewWhereInput[] = [
+      { viewType: { not: retiredJiraAnalyticsViewType } },
+    ];
     if (viewType) filters.push({ viewType });
     if (projectId) filters.push({ OR: [{ projectId }, { projectId: null }] });
     filters.push({ OR: [{ projectId: null }, { project: projectScope }] });
@@ -54,6 +57,10 @@ export function createSavedViewsRouter({ currentUser, requireAuth }: SavedViewsC
     const parsed = savedViewSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+    if (parsed.data.viewType === retiredJiraAnalyticsViewType) {
+      res.status(400).json({ error: 'Для аналитики Jira используется общая конфигурация проекта' });
       return;
     }
     const user = currentUser(req);
@@ -105,6 +112,13 @@ export function createSavedViewsRouter({ currentUser, requireAuth }: SavedViewsC
       res.status(404).json({ error: 'Представление не найдено' });
       return;
     }
+    if (
+      before.viewType === retiredJiraAnalyticsViewType ||
+      parsed.data.viewType === retiredJiraAnalyticsViewType
+    ) {
+      res.status(400).json({ error: 'Для аналитики Jira используется общая конфигурация проекта' });
+      return;
+    }
     if (user?.role !== 'ADMIN' && before.ownerId !== user?.id) {
       res.status(403).json({ error: 'Недостаточно прав' });
       return;
@@ -147,6 +161,10 @@ export function createSavedViewsRouter({ currentUser, requireAuth }: SavedViewsC
     }
     const before = await prisma.savedView.findUnique({ where: { id: viewId } });
     if (!before) {
+      res.status(404).json({ error: 'Представление не найдено' });
+      return;
+    }
+    if (before.viewType === retiredJiraAnalyticsViewType) {
       res.status(404).json({ error: 'Представление не найдено' });
       return;
     }

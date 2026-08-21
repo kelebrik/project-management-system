@@ -2,8 +2,6 @@ import { jiraCriticalBugSlaHours } from "@pms/shared";
 
 import type { JiraIssueSnapshot } from "./domainTypes";
 
-export const JIRA_ANALYTICS_VIEW_TYPE = "jira-analytics-dashboard";
-
 export type JiraAnalyticsSource =
   | "issues"
   | "transitions"
@@ -339,13 +337,22 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
 
 export const JIRA_ANALYTICS_DEFAULT_TEMPLATE = JIRA_ANALYTICS_TEMPLATES[0];
 
+export const JIRA_ANALYTICS_DEFAULT_CONFIG: JiraAnalyticsDashboardConfig = {
+  version: 1,
+  periodDays: 90,
+  assignee: "",
+  widgets: JIRA_ANALYTICS_TEMPLATES.flatMap((template) =>
+    structuredClone(template.config.widgets),
+  ),
+};
+
 export function cloneJiraAnalyticsConfig(config: JiraAnalyticsDashboardConfig) {
   return structuredClone(config);
 }
 
 export function normalizeJiraAnalyticsConfig(
   value: unknown,
-  fallback = JIRA_ANALYTICS_DEFAULT_TEMPLATE.config,
+  fallback = JIRA_ANALYTICS_DEFAULT_CONFIG,
 ): JiraAnalyticsDashboardConfig {
   if (!value || typeof value !== "object") return cloneJiraAnalyticsConfig(fallback);
   const candidate = value as Record<string, unknown>;

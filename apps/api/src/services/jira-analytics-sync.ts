@@ -59,12 +59,12 @@ export type JiraAnalyticsSyncStore = {
 
 type JiraCriticalSlaTrackingTransaction = Pick<Prisma.TransactionClient, 'jiraIssueSnapshot'>;
 
-type JiraLabelSyncFinalizationTransaction = Pick<
+type JiraAnalyticsSyncFinalizationTransaction = Pick<
   Prisma.TransactionClient,
   'jiraIssueSnapshot' | 'jiraWorkSectionIssue'
 >;
 
-export type JiraLabelSectionMembership = {
+export type JiraAnalyticsSectionMembership = {
   sectionId: string;
   issueKeys: readonly string[];
 };
@@ -77,12 +77,18 @@ type JiraAnalyticsSettingsDelegate = Pick<
 export async function acquireJiraAnalyticsSyncLock(
   settings: JiraAnalyticsSettingsDelegate,
   projectId: string,
-  jiraLabel: string,
+  scope: { type: 'LABEL' | 'EPIC'; value: string },
   startedAt: Date,
   expiresAt: Date,
 ) {
   await settings.createMany({
-    data: [{ projectId, jiraLabel, syncStatus: 'CONFIGURED' }],
+    data: [{
+      projectId,
+      jiraScopeType: scope.type,
+      jiraScopeValue: scope.value,
+      jiraLabel: scope.type === 'LABEL' ? scope.value : '',
+      syncStatus: 'CONFIGURED',
+    }],
     skipDuplicates: true,
   });
   const lock = await settings.updateMany({
@@ -95,7 +101,9 @@ export async function acquireJiraAnalyticsSyncLock(
       ],
     },
     data: {
-      jiraLabel,
+      jiraScopeType: scope.type,
+      jiraScopeValue: scope.value,
+      jiraLabel: scope.type === 'LABEL' ? scope.value : '',
       syncStatus: 'SYNCING',
       syncStartedAt: startedAt,
       syncLockExpiresAt: expiresAt,
@@ -125,11 +133,11 @@ export async function replaceJiraCriticalSlaTracking(
   }
 }
 
-export async function finalizeJiraLabelSync(
-  transaction: JiraLabelSyncFinalizationTransaction,
+export async function finalizeJiraAnalyticsSync(
+  transaction: JiraAnalyticsSyncFinalizationTransaction,
   projectId: string,
   syncedAt: Date,
-  sectionMemberships: readonly JiraLabelSectionMembership[],
+  sectionMemberships: readonly JiraAnalyticsSectionMembership[],
   snapshotIdByIssueKey: ReadonlyMap<string, string>,
   trackedSnapshotIds: readonly string[],
 ) {

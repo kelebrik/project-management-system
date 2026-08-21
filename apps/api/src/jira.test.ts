@@ -9,6 +9,8 @@ import {
   fetchJiraIssues,
   fetchJiraRemoteDevelopment,
   jiraCriticalPriorityAt,
+  jiraJqlWithAnalyticsScope,
+  jiraJqlWithIssueKeys,
   jiraJqlWithLabelScope,
   jiraDevelopmentFromFields,
   jiraDevelopmentFromRemoteLinks,
@@ -36,6 +38,37 @@ test('jiraJqlWithLabelScope preserves boolean precedence and top-level ordering'
   assert.throws(
     () => jiraJqlWithLabelScope('(project = CVTE', 'cvte968'),
     /незакрытая строка или скобка/,
+  );
+});
+
+test('jiraJqlWithAnalyticsScope filters by epic key without losing ordering', () => {
+  assert.equal(
+    jiraJqlWithAnalyticsScope('statusCategory != Done ORDER BY key ASC', {
+      type: 'EPIC',
+      value: ' cvte-1778 ',
+    }),
+    '(statusCategory != Done) AND ("Epic Link" = "CVTE-1778" OR key = "CVTE-1778") ORDER BY key ASC',
+  );
+  assert.throws(
+    () => jiraJqlWithAnalyticsScope('ORDER BY key ASC', {
+      type: 'EPIC',
+      value: 'not-an-epic',
+    }),
+    /корректный код эпика/,
+  );
+});
+
+test('jiraJqlWithIssueKeys keeps discovered epic subtasks in a bounded query', () => {
+  assert.equal(
+    jiraJqlWithIssueKeys(
+      'statusCategory != Done ORDER BY updated DESC',
+      ['cvte-1778', 'cvte-1800', 'cvte-1801'],
+    ),
+    '(statusCategory != Done) AND issuekey IN ("CVTE-1778", "CVTE-1800", "CVTE-1801") ORDER BY updated DESC',
+  );
+  assert.throws(
+    () => jiraJqlWithIssueKeys('statusCategory != Done', ['not-an-issue']),
+    /Некорректный ключ тикета Jira/,
   );
 });
 
@@ -929,6 +962,36 @@ test('fetchJiraIssueKeys scopes a saved filter after resolving its JQL', async (
       searchBody?.jql,
       '(project = CVTE) AND labels = "cvte968" ORDER BY priority DESC',
     );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys reports invalid epic JQL without retrying authentication', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response(
+      JSON.stringify({ errorMessages: ["Field 'Epic Link' does not exist"] }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      fetchJiraIssueKeys('ORDER BY key ASC', {
+        analyticsScope: { type: 'EPIC', value: 'CVTE-1778' },
+      }),
+      /Jira request failed: 400.*Epic Link/,
+    );
+    assert.equal(calls, 1);
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);

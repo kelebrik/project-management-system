@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type { JiraIssueSnapshot } from "./domainTypes";
 import {
+  JIRA_ANALYTICS_DEFAULT_CONFIG,
   JIRA_ANALYTICS_DEFAULT_TEMPLATE,
   JIRA_ANALYTICS_TEMPLATES,
   JIRA_CRITICAL_BUG_SLA_HOURS,
@@ -87,6 +88,19 @@ function template(id: "unplanned" | "flow" | "critical-bugs-sla") {
 test("unplanned work is the default Jira analytics template", () => {
   assert.equal(JIRA_ANALYTICS_DEFAULT_TEMPLATE.id, "unplanned");
   assert.equal(JIRA_ANALYTICS_TEMPLATES[0]?.id, "unplanned");
+});
+
+test("shared Jira analytics page contains widgets from every system report", () => {
+  const expectedIds = JIRA_ANALYTICS_TEMPLATES.flatMap((item) =>
+    item.config.widgets.map((widget) => widget.id),
+  );
+
+  assert.deepEqual(
+    JIRA_ANALYTICS_DEFAULT_CONFIG.widgets.map((widget) => widget.id),
+    expectedIds,
+  );
+  assert.equal(new Set(expectedIds).size, expectedIds.length);
+  assert.equal(JIRA_ANALYTICS_DEFAULT_CONFIG.periodDays, 90);
 });
 
 test("transition widget calculates duration percentiles from Jira changelog", () => {
@@ -355,7 +369,7 @@ test("critical bug SLA report excludes stale snapshots outside the dedicated que
   assert.equal(result.records.length, 0);
 });
 
-test("saved dashboard normalization drops malformed widget fields", () => {
+test("shared dashboard normalization drops malformed widget fields", () => {
   const config = normalizeJiraAnalyticsConfig({
     periodDays: 42,
     assignee: "Ivan",
@@ -373,7 +387,7 @@ test("saved dashboard normalization drops malformed widget fields", () => {
     ],
   });
 
-  assert.equal(config.periodDays, 30);
+  assert.equal(config.periodDays, 90);
   assert.equal(config.assignee, "Ivan");
   assert.equal(config.widgets.length, 1);
   assert.equal(config.widgets[0].visualization, "number");

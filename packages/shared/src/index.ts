@@ -11,6 +11,73 @@ export const jiraBugIssueTypes = [
 ] as const;
 export const jiraCriticalBugSlaHours = 30 * 24;
 
+const jiraAnalyticsFilterSchema = z.object({
+  id: z.string().min(1).max(200),
+  field: z.enum([
+    "status",
+    "assignee",
+    "priority",
+    "sprint",
+    "issueType",
+    "resolution",
+    "fromStatus",
+    "toStatus",
+    "durationHours",
+    "commitCount",
+    "mergeRequestCount",
+    "hasDevelopment",
+  ]),
+  operator: z.enum([
+    "equals",
+    "notEquals",
+    "contains",
+    "empty",
+    "notEmpty",
+    "greaterThan",
+    "atLeast",
+  ]),
+  value: z.string().max(1000),
+});
+
+const jiraAnalyticsWidgetSchema = z.object({
+  id: z.string().min(1).max(200),
+  title: z.string().max(200),
+  source: z.enum(["issues", "transitions", "development", "criticalBugs"]),
+  metric: z.enum([
+    "count",
+    "averageDuration",
+    "p50Duration",
+    "p85Duration",
+    "p95Duration",
+    "commits",
+    "mergeRequests",
+  ]),
+  groupBy: z.enum([
+    "none",
+    "project",
+    "status",
+    "assignee",
+    "priority",
+    "sprint",
+    "issueType",
+    "resolution",
+    "fromStatus",
+    "toStatus",
+    "week",
+  ]),
+  visualization: z.enum(["number", "bar", "table"]),
+  filterLogic: z.enum(["and", "or"]),
+  filters: z.array(jiraAnalyticsFilterSchema).max(20),
+  width: z.enum(["half", "full"]),
+});
+
+export const jiraAnalyticsDashboardConfigSchema = z.object({
+  version: z.literal(1),
+  periodDays: z.union([z.literal(30), z.literal(90), z.literal(180), z.literal(365)]),
+  assignee: z.string().max(200),
+  widgets: z.array(jiraAnalyticsWidgetSchema).min(1).max(100),
+});
+
 function normalizedJiraValue(value: string | null | undefined) {
   return value?.trim().toLocaleLowerCase("ru") ?? "";
 }

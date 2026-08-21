@@ -490,8 +490,7 @@
   padding: 10px 0;
 }
 
-.jira-analytics-toolbar > label,
-.jira-analytics-edit-meta > label:not(.checkbox-line) {
+.jira-analytics-toolbar > label {
   color: var(--text-muted);
   display: grid;
   font-size: 11px;
@@ -512,8 +511,7 @@
 }
 
 .jira-analytics-toolbar select,
-.jira-analytics-toolbar input,
-.jira-analytics-edit-meta input {
+.jira-analytics-toolbar input {
   font-size: 13px;
   height: 34px;
   min-height: 34px;
@@ -531,14 +529,14 @@
   padding-block: 0;
 }
 
-.jira-analytics-dashboard-select {
-  flex: 0 1 280px;
-  min-width: 190px;
+.jira-analytics-scope-type {
+  flex: 0 0 150px;
+  min-width: 130px;
 }
 
-.jira-analytics-label-field {
-  flex: 0 0 150px;
-  min-width: 120px;
+.jira-analytics-scope-value {
+  flex: 0 0 180px;
+  min-width: 150px;
 }
 
 .jira-analytics-toolbar-actions {
@@ -585,24 +583,6 @@
   color: var(--text-muted);
   font-size: 11px;
   margin-left: auto;
-}
-
-.jira-analytics-edit-meta {
-  align-items: end;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  display: flex;
-  gap: 20px;
-  padding: 10px 12px;
-}
-
-.jira-analytics-edit-meta > label:first-child {
-  min-width: 260px;
-}
-
-.jira-analytics-edit-meta .checkbox-line {
-  margin-bottom: 7px;
 }
 
 .jira-analytics-edit-layout {
@@ -1314,26 +1294,17 @@
   .jira-analytics-toolbar {
     align-items: stretch;
     display: grid;
-    grid-template-columns: minmax(120px, 0.8fr) repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .jira-analytics-dashboard-select {
-    grid-column: 1 / -1;
-  }
-
-  .jira-analytics-label-field {
+  .jira-analytics-scope-type,
+  .jira-analytics-scope-value {
     min-width: 0;
   }
 
   .jira-analytics-toolbar-actions {
     grid-column: 1 / -1;
     margin-left: 0;
-  }
-
-  .jira-analytics-edit-meta {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 10px;
   }
 
   .jira-analytics-edit-layout.with-editor {
@@ -1380,7 +1351,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .jira-analytics-dashboard-select,
+  .jira-analytics-scope-type,
+  .jira-analytics-scope-value,
   .jira-analytics-toolbar-actions {
     grid-column: 1;
   }

@@ -146,6 +146,11 @@ enum PageVisitActorType {
   ANONYMOUS
 }
 
+enum JiraAnalyticsScopeType {
+  LABEL
+  EPIC
+}
+
 model BusinessUnit {
   id          String                   @id @default(cuid())
   code        String                   @unique
@@ -480,7 +485,10 @@ model JiraIntegration {
 model JiraAnalyticsSettings {
   id                String    @id @default(cuid())
   projectId         String    @unique
-  jiraLabel         String
+  jiraScopeType     JiraAnalyticsScopeType @default(LABEL)
+  jiraScopeValue    String
+  jiraLabel         String    @default("")
+  dashboardConfig   Json?
   syncStatus        String    @default("NOT_CONFIGURED")
   lastSyncedAt      DateTime?
   syncStartedAt     DateTime?

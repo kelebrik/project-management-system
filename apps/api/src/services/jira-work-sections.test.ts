@@ -8,7 +8,9 @@ import {
   jiraIssueKeyBatches,
   jiraIssueKeyBatchDifference,
   jiraIssueKeyBatchLossIsUnsafe,
+  jiraParentKeyBatchJql,
   jiraProjectKeyFromIssueKey,
+  jiraWorkSectionScopedJqls,
   jiraWorkSectionFilterToJql,
   resolveJiraWorkSectionJql,
 } from './jira-work-sections.js';
@@ -32,7 +34,25 @@ test('jiraIssueKeyBatches validates, normalizes and batches issue keys', () => {
     jiraIssueKeyBatchJql(['sps-2', 'CVTE-1']),
     'issuekey IN ("CVTE-1", "SPS-2") ORDER BY key ASC',
   );
+  assert.equal(
+    jiraParentKeyBatchJql(['sps-2', 'CVTE-1']),
+    'parent IN ("CVTE-1", "SPS-2") ORDER BY key ASC',
+  );
   assert.throws(() => jiraIssueKeyBatches(['not-an-issue'], 50), /некорректный ключ/);
+});
+
+test('jiraWorkSectionScopedJqls intersects sections with discovered epic issues and subtasks', () => {
+  assert.deepEqual(
+    jiraWorkSectionScopedJqls(
+      'statusCategory != Done ORDER BY updated DESC',
+      ['CVTE-1778', 'CVTE-1800', 'CVTE-1801'],
+      2,
+    ),
+    [
+      '(statusCategory != Done) AND issuekey IN ("CVTE-1778", "CVTE-1800") ORDER BY updated DESC',
+      '(statusCategory != Done) AND issuekey IN ("CVTE-1801") ORDER BY updated DESC',
+    ],
+  );
 });
 
 test('jiraIssueKeyBatchDifference rejects unexpected keys and excessive loss', () => {

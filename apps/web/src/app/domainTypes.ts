@@ -117,7 +117,9 @@ export type JiraIntegration = {
 };
 
 export type JiraAnalyticsSettings = {
-  jiraLabel: string;
+  jiraScopeType: "LABEL" | "EPIC";
+  jiraScopeValue: string;
+  dashboardConfig: Record<string, unknown> | null;
   syncStatus: string;
   lastSyncedAt: string | null;
 };

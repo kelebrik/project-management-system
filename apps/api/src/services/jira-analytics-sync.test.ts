@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isJiraBugIssueType } from '@pms/shared';
+import { isJiraBugIssueType, jiraAnalyticsDashboardConfigSchema } from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
 import {
   acquireJiraAnalyticsSyncLock,
   criticalEndPriorityUpdate,
   criticalPriorityAtUpdate,
-  finalizeJiraLabelSync,
+  finalizeJiraAnalyticsSync,
   isJiraCriticalBugSlaCandidate,
   jiraCriticalBugSlaSnapshotIds,
   replaceJiraCriticalSlaTracking,
@@ -37,7 +37,7 @@ test('Jira analytics sync lock is created idempotently and acquired atomically',
     await acquireJiraAnalyticsSyncLock(
       settings,
       'project-1',
-      'cvte968',
+      { type: 'LABEL', value: 'cvte968' },
       startedAt,
       expiresAt,
     ),
@@ -47,7 +47,13 @@ test('Jira analytics sync lock is created idempotently and acquired atomically',
     {
       operation: 'createMany',
       value: {
-        data: [{ projectId: 'project-1', jiraLabel: 'cvte968', syncStatus: 'CONFIGURED' }],
+        data: [{
+          projectId: 'project-1',
+          jiraScopeType: 'LABEL',
+          jiraScopeValue: 'cvte968',
+          jiraLabel: 'cvte968',
+          syncStatus: 'CONFIGURED',
+        }],
         skipDuplicates: true,
       },
     },
@@ -63,6 +69,8 @@ test('Jira analytics sync lock is created idempotently and acquired atomically',
           ],
         },
         data: {
+          jiraScopeType: 'LABEL',
+          jiraScopeValue: 'cvte968',
           jiraLabel: 'cvte968',
           syncStatus: 'SYNCING',
           syncStartedAt: startedAt,
@@ -71,6 +79,21 @@ test('Jira analytics sync lock is created idempotently and acquired atomically',
       },
     },
   ]);
+});
+
+test('shared Jira analytics config requires at least one structurally valid widget', () => {
+  assert.equal(jiraAnalyticsDashboardConfigSchema.safeParse({
+    version: 1,
+    periodDays: 90,
+    assignee: '',
+    widgets: [],
+  }).success, false);
+  assert.equal(jiraAnalyticsDashboardConfigSchema.safeParse({
+    version: 1,
+    periodDays: 90,
+    assignee: '',
+    widgets: [{ id: 'broken' }],
+  }).success, false);
 });
 
 test('incomplete priority history preserves a previously known SLA start', () => {
@@ -427,7 +450,7 @@ test('configured SLA sync replaces tracked snapshots in bounded batches', async 
   ]);
 });
 
-test('label sync finalization activates current snapshots before retiring stale scope', async () => {
+test('analytics sync finalization activates current snapshots before retiring stale scope', async () => {
   const calls: Array<{ model: string; operation: string; value: unknown }> = [];
   const transaction = {
     jiraIssueSnapshot: {
@@ -446,10 +469,10 @@ test('label sync finalization activates current snapshots before retiring stale 
         return { count: 1 };
       },
     },
-  } as Parameters<typeof finalizeJiraLabelSync>[0];
+  } as Parameters<typeof finalizeJiraAnalyticsSync>[0];
   const syncedAt = new Date('2026-08-20T15:00:00Z');
 
-  await finalizeJiraLabelSync(
+    await finalizeJiraAnalyticsSync(
     transaction,
     'project-1',
     syncedAt,

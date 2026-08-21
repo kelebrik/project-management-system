@@ -101,7 +101,11 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
     wbsSort,
   } = deps;
 
-async function syncJira(options: { baseUrl?: string; label?: string } = {}) {
+async function syncJira(options: {
+  baseUrl?: string;
+  scopeType?: "LABEL" | "EPIC";
+  scopeValue?: string;
+} = {}) {
   if (!project) return;
   setSyncing(true);
   setError(null);
@@ -114,7 +118,10 @@ async function syncJira(options: { baseUrl?: string; label?: string } = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseUrl: options.baseUrl,
-          label: options.label ?? project.jiraAnalyticsSettings?.jiraLabel ?? "",
+          scopeType:
+            options.scopeType ?? project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL",
+          scopeValue:
+            options.scopeValue ?? project.jiraAnalyticsSettings?.jiraScopeValue ?? "",
         }),
       },
     );

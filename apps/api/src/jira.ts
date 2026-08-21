@@ -177,10 +177,16 @@ type JiraConfigOptions = {
   includeAnalyticsFields?: boolean;
   includeChangelog?: boolean;
   includeRemoteDevelopment?: boolean;
+  analyticsScope?: JiraAnalyticsScope;
   labelScope?: string;
   pageSize?: number;
   deadlineAt?: number;
   remoteDevelopmentCache?: Map<string, JiraIssue['development']>;
+};
+
+export type JiraAnalyticsScope = {
+  type: 'LABEL' | 'EPIC';
+  value: string;
 };
 
 type JiraIssueFetchResult = {
@@ -524,11 +530,38 @@ export function jiraJqlWithLabelScope(jql: string, label: string) {
   if (!JIRA_LABEL_PATTERN.test(normalizedLabel)) {
     throw new Error('Лейбл Jira не должен содержать пробелы, кавычки или обратный слеш');
   }
+  return jiraJqlWithScopeFilter(jql, `labels = "${normalizedLabel}"`);
+}
+
+function jiraJqlWithScopeFilter(jql: string, scopeFilter: string) {
   const { filter, orderBy } = splitTopLevelJiraOrderBy(jql);
   const scopedFilter = filter
-    ? `(${filter}) AND labels = "${normalizedLabel}"`
-    : `labels = "${normalizedLabel}"`;
+    ? `(${filter}) AND ${scopeFilter}`
+    : scopeFilter;
   return `${scopedFilter}${orderBy ? ` ${orderBy}` : ''}`;
+}
+
+export function jiraJqlWithAnalyticsScope(jql: string, scope: JiraAnalyticsScope) {
+  if (scope.type === 'LABEL') return jiraJqlWithLabelScope(jql, scope.value);
+  const epicKey = normalizedJiraIssueKey(scope.value);
+  if (!epicKey) throw new Error('Укажите корректный код эпика Jira');
+  return jiraJqlWithScopeFilter(
+    jql,
+    `("Epic Link" = "${epicKey}" OR key = "${epicKey}")`,
+  );
+}
+
+export function jiraJqlWithIssueKeys(jql: string, issueKeys: readonly string[]) {
+  const normalizedIssueKeys = [...new Set(issueKeys.map((issueKey) => {
+    const normalized = normalizedJiraIssueKey(issueKey);
+    if (!normalized) throw new Error(`Некорректный ключ тикета Jira: ${issueKey}`);
+    return normalized;
+  }))].sort((left, right) => left.localeCompare(right));
+  if (normalizedIssueKeys.length === 0) throw new Error('Пустой список тикетов Jira');
+  return jiraJqlWithScopeFilter(
+    jql,
+    `issuekey IN (${normalizedIssueKeys.map((issueKey) => `"${issueKey}"`).join(', ')})`,
+  );
 }
 
 function jiraSprintFieldId() {
@@ -1836,9 +1869,12 @@ async function fetchJiraDataWithMeta(
       includeChangelog,
       keysOnly,
     });
-  const applyLabelScope = (effectiveJql: string) =>
-    options.labelScope
-      ? jiraJqlWithLabelScope(effectiveJql, options.labelScope)
+  const analyticsScope = options.analyticsScope ?? (
+    options.labelScope ? { type: 'LABEL' as const, value: options.labelScope } : null
+  );
+  const applyAnalyticsScope = (effectiveJql: string) =>
+    analyticsScope
+      ? jiraJqlWithAnalyticsScope(effectiveJql, analyticsScope)
       : effectiveJql;
 
   for (const authAttempt of authAttempts) {
@@ -1855,7 +1891,7 @@ async function fetchJiraDataWithMeta(
       effectiveJql = filter.jql;
     }
 
-    effectiveJql = applyLabelScope(effectiveJql);
+    effectiveJql = applyAnalyticsScope(effectiveJql);
     const analyticsFieldIds = !keysOnly && options.includeAnalyticsFields
       ? jiraAnalyticsFieldIds()
       : null;
@@ -1907,7 +1943,7 @@ async function fetchJiraDataWithMeta(
       }
 
       const authHeaders = { Cookie: session.cookie };
-      effectiveJql = applyLabelScope(effectiveJql);
+      effectiveJql = applyAnalyticsScope(effectiveJql);
       const analyticsFieldIds = !keysOnly && options.includeAnalyticsFields
         ? jiraAnalyticsFieldIds()
         : null;
@@ -1960,7 +1996,7 @@ async function fetchJiraDataWithMeta(
       }
 
       const authHeaders = { Cookie: login.cookie };
-      effectiveJql = applyLabelScope(effectiveJql);
+      effectiveJql = applyAnalyticsScope(effectiveJql);
       const analyticsFieldIds = !keysOnly && options.includeAnalyticsFields
         ? jiraAnalyticsFieldIds()
         : null;
