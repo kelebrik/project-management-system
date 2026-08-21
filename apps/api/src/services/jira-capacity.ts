@@ -13,8 +13,15 @@ export type JiraCapacitySampleInput = {
   scopeValue: string;
   sampleSize: number;
   storageBudgetGiB: number;
+  allocatedHistoryGiB: number;
   baseUrl?: string;
 };
+
+export type JiraCapacityLevel = 'NORMAL' | 'WARNING' | 'HIGH' | 'CRITICAL' | 'EXCEEDED';
+
+const CAPACITY_GATE_VERSIONS_PER_TICKET = 100 as const;
+const CAPACITY_THRESHOLDS = { warning: 70, high: 85, critical: 95 } as const;
+const DATABASE_OVERHEAD_MULTIPLIER = 1.5 as const;
 
 type MetricDistribution = {
   min: number;
@@ -25,6 +32,7 @@ type MetricDistribution = {
 };
 
 export type JiraCapacityReport = {
+  reportVersion: 2;
   generatedAt: string;
   mode: 'READ_ONLY';
   persisted: false;
@@ -43,6 +51,8 @@ export type JiraCapacityReport = {
     databaseWrites: false;
     issueContentInReport: false;
     attachmentsExcluded: boolean;
+    attachmentFieldExclusionHonored: boolean;
+    attachmentReferencesStripped: number;
     allowedMethodsObserved: boolean;
   };
   collection: {
@@ -71,21 +81,29 @@ export type JiraCapacityReport = {
     rawJsonGiB: number;
     estimatedDatabaseGiB: number;
     estimatedGzipArchiveGiB: number;
-    databaseWithBackupsGiB: number;
+    threeDatabaseCopiesGiB: number;
   }>;
   assumptions: {
     projectionUses: 'SAMPLE_P95';
-    databaseOverheadMultiplier: 1.5;
-    retainedBackupCopies: 3;
-    capacityGateVersionsPerTicket: 50;
+    databaseOverheadMultiplier: typeof DATABASE_OVERHEAD_MULTIPLIER;
+    referenceDatabaseCopies: 3;
+    capacityGateVersionsPerTicket: typeof CAPACITY_GATE_VERSIONS_PER_TICKET;
     storageBudgetGiB: number;
+    allocatedHistoryGiB: number;
     embeddedCommentsAndWorklogs: 'EXTRAPOLATED_WHEN_PAGED';
   };
   capacityGate: {
     status: 'PASS' | 'REVIEW_REQUIRED';
+    level: JiraCapacityLevel;
+    versionsPerTicket: typeof CAPACITY_GATE_VERSIONS_PER_TICKET;
     estimatedDatabaseGiB: number;
+    projectedTotalDatabaseGiB: number;
+    allocatedHistoryGiB: number;
     storageBudgetGiB: number;
+    utilizationPercent: number;
+    thresholdsPercent: typeof CAPACITY_THRESHOLDS;
     reasons: string[];
+    warnings: string[];
   };
 };
 
@@ -163,15 +181,28 @@ function projection(
 ) {
   const bytesInGiB = 1024 ** 3;
   const rawJsonGiB = tickets * versionsPerTicket * fullJsonP95 / bytesInGiB;
-  const estimatedDatabaseGiB = rawJsonGiB * 1.5;
+  const estimatedDatabaseGiB = estimateDatabaseGiB(tickets, versionsPerTicket, fullJsonP95);
   const estimatedGzipArchiveGiB = tickets * versionsPerTicket * gzipP95 / bytesInGiB;
   return {
     versionsPerTicket,
     rawJsonGiB: rounded(rawJsonGiB, 3),
     estimatedDatabaseGiB: rounded(estimatedDatabaseGiB, 3),
     estimatedGzipArchiveGiB: rounded(estimatedGzipArchiveGiB, 3),
-    databaseWithBackupsGiB: rounded(estimatedDatabaseGiB * 3, 3),
+    threeDatabaseCopiesGiB: rounded(estimatedDatabaseGiB * 3, 3),
   };
+}
+
+function estimateDatabaseGiB(tickets: number, versionsPerTicket: number, fullJsonP95: number) {
+  return tickets * versionsPerTicket * fullJsonP95
+    / 1024 ** 3 * DATABASE_OVERHEAD_MULTIPLIER;
+}
+
+export function jiraCapacityLevel(utilizationPercent: number): JiraCapacityLevel {
+  if (utilizationPercent > 100) return 'EXCEEDED';
+  if (utilizationPercent >= CAPACITY_THRESHOLDS.critical) return 'CRITICAL';
+  if (utilizationPercent >= CAPACITY_THRESHOLDS.high) return 'HIGH';
+  if (utilizationPercent >= CAPACITY_THRESHOLDS.warning) return 'WARNING';
+  return 'NORMAL';
 }
 
 export function buildJiraCapacityReport(input: {
@@ -179,6 +210,7 @@ export function buildJiraCapacityReport(input: {
   scopeValue: string;
   sampleSize: number;
   storageBudgetGiB: number;
+  allocatedHistoryGiB?: number;
   total: number;
   measurements: JiraCapacityIssueMeasurement[];
   requests: JiraReadOnlyRequestMetric[];
@@ -191,11 +223,35 @@ export function buildJiraCapacityReport(input: {
   const gzip = metricDistribution(measurements.map((item) => item.estimatedFullGzipBytes));
   const projections = ([10, 50, 100] as const).map((versions) =>
     projection(input.total, versions, fullJson.p95, gzip.p95));
-  const gateProjection = projections.find((item) => item.versionsPerTicket === 50)!;
+  const gateProjection = projection(
+    input.total,
+    CAPACITY_GATE_VERSIONS_PER_TICKET,
+    fullJson.p95,
+    gzip.p95,
+  );
+  const exactScopeDatabaseGiB = estimateDatabaseGiB(
+    input.total,
+    CAPACITY_GATE_VERSIONS_PER_TICKET,
+    fullJson.p95,
+  );
+  const allocatedHistoryGiB = input.allocatedHistoryGiB ?? 0;
+  const exactUtilizationPercent = (
+    (allocatedHistoryGiB + exactScopeDatabaseGiB) / input.storageBudgetGiB * 100
+  );
+  const utilizationPercent = rounded(exactUtilizationPercent, 2);
+  const capacityLevel = jiraCapacityLevel(exactUtilizationPercent);
   const attachmentsExcluded = measurements.every((item) => item.attachmentExcluded);
+  const attachmentFieldExclusionHonored = measurements.every(
+    (item) => item.attachmentFieldExclusionHonored,
+  );
+  const attachmentReferencesStripped = measurements.reduce(
+    (total, item) => total + item.attachmentReferencesStripped,
+    0,
+  );
   const allowedMethodsObserved = input.requests.every((request) =>
     request.method === 'GET' || request.method === 'POST');
   const capacityReasons: string[] = [];
+  const capacityWarnings: string[] = [];
   if (measurements.length === 0) capacityReasons.push('В выборке нет тикетов для измерения.');
   if (percent(measurements.map((item) => item.changelogComplete)) < 100) {
     capacityReasons.push('Не для всех тикетов получена полная история изменений.');
@@ -206,10 +262,25 @@ export function buildJiraCapacityReport(input: {
   if (measurements.some((item) => item.worklogs > 0 && item.worklogsIncluded === 0)) {
     capacityReasons.push('Jira не вернула ни одного worklog для экстраполяции объёма.');
   }
-  if (gateProjection.estimatedDatabaseGiB > input.storageBudgetGiB) {
-    capacityReasons.push('Прогноз для 50 версий на тикет превышает бюджет основной БД.');
+  if (capacityLevel === 'EXCEEDED') {
+    capacityReasons.push(
+      `Общий прогноз с учётом ${CAPACITY_GATE_VERSIONS_PER_TICKET} версий на тикет превышает бюджет истории Jira.`,
+    );
+  } else if (capacityLevel === 'CRITICAL') {
+    capacityReasons.push(
+      `Общий прогноз с учётом ${CAPACITY_GATE_VERSIONS_PER_TICKET} версий на тикет использует не менее 95% бюджета истории Jira.`,
+    );
+  } else if (capacityLevel === 'HIGH') {
+    capacityWarnings.push('Общий прогноз использует не менее 85% бюджета истории Jira.');
+  } else if (capacityLevel === 'WARNING') {
+    capacityWarnings.push('Общий прогноз использует не менее 70% бюджета истории Jira.');
   }
-  if (!attachmentsExcluded) capacityReasons.push('Jira вернула поле вложений вопреки исключению.');
+  if (!attachmentsExcluded) {
+    capacityReasons.push('После очистки снимка обнаружены структурированные данные вложений.');
+  }
+  if (!attachmentFieldExclusionHonored) {
+    capacityReasons.push('Jira вернула поле attachment вопреки явному исключению в запросе.');
+  }
 
   const byOperation = input.requests.reduce<Record<string, number>>((result, request) => {
     const operation = requestOperation(request.path);
@@ -218,6 +289,7 @@ export function buildJiraCapacityReport(input: {
   }, {});
 
   return {
+    reportVersion: 2,
     generatedAt: new Date().toISOString(),
     mode: 'READ_ONLY',
     persisted: false,
@@ -231,11 +303,15 @@ export function buildJiraCapacityReport(input: {
       strategy: 'OLDEST_AND_NEWEST',
     },
     security: {
-      status: attachmentsExcluded && allowedMethodsObserved ? 'PASS' : 'BLOCKED',
+      status: attachmentsExcluded && attachmentFieldExclusionHonored && allowedMethodsObserved
+        ? 'PASS'
+        : 'BLOCKED',
       jiraWrites: false,
       databaseWrites: false,
       issueContentInReport: false,
       attachmentsExcluded,
+      attachmentFieldExclusionHonored,
+      attachmentReferencesStripped,
       allowedMethodsObserved,
     },
     collection: {
@@ -262,17 +338,25 @@ export function buildJiraCapacityReport(input: {
     projections,
     assumptions: {
       projectionUses: 'SAMPLE_P95',
-      databaseOverheadMultiplier: 1.5,
-      retainedBackupCopies: 3,
-      capacityGateVersionsPerTicket: 50,
+      databaseOverheadMultiplier: DATABASE_OVERHEAD_MULTIPLIER,
+      referenceDatabaseCopies: 3,
+      capacityGateVersionsPerTicket: CAPACITY_GATE_VERSIONS_PER_TICKET,
       storageBudgetGiB: input.storageBudgetGiB,
+      allocatedHistoryGiB,
       embeddedCommentsAndWorklogs: 'EXTRAPOLATED_WHEN_PAGED',
     },
     capacityGate: {
       status: capacityReasons.length === 0 ? 'PASS' : 'REVIEW_REQUIRED',
+      level: capacityLevel,
+      versionsPerTicket: CAPACITY_GATE_VERSIONS_PER_TICKET,
       estimatedDatabaseGiB: gateProjection.estimatedDatabaseGiB,
+      projectedTotalDatabaseGiB: rounded(allocatedHistoryGiB + exactScopeDatabaseGiB, 3),
+      allocatedHistoryGiB,
       storageBudgetGiB: input.storageBudgetGiB,
+      utilizationPercent,
+      thresholdsPercent: CAPACITY_THRESHOLDS,
       reasons: capacityReasons,
+      warnings: capacityWarnings,
     },
   };
 }
@@ -310,6 +394,7 @@ export async function sampleJiraCapacity(
     scopeValue: input.scopeValue,
     sampleSize: input.sampleSize,
     storageBudgetGiB: input.storageBudgetGiB,
+    allocatedHistoryGiB: input.allocatedHistoryGiB,
     total: Math.max(result.oldest.total, result.newest.total),
     measurements: [
       ...(result.oldest.capacityMeasurements ?? []),

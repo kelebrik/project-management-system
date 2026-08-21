@@ -18,6 +18,7 @@ import {
   jiraPriorityAtResolution,
   jiraSprintFromFields,
   resolveJiraConfig,
+  sanitizeJiraCapacityPayload,
 } from './jira.js';
 
 test('jiraJqlWithLabelScope preserves boolean precedence and top-level ordering', () => {
@@ -203,7 +204,34 @@ test('capacity sampling asks for all fields except attachments', async () => {
   const source = await readFile(new URL('./jira.ts', import.meta.url), 'utf8');
 
   assert.match(source, /capacitySample\s*\? \['\*all', '-attachment'\]/);
-  assert.match(source, /key\.toLowerCase\(\) !== 'attachment'/);
+  assert.match(source, /function containsJiraAttachmentMetadata/);
+  assert.match(source, /adfType === 'media'/);
+});
+
+test('capacity sanitizer audits its output and strips nested attachment metadata', () => {
+  const clean = sanitizeJiraCapacityPayload({
+    fields: { custom: { content: [{ type: 'paragraph', text: 'kept' }] } },
+  });
+  assert.equal(clean.attachmentExcluded, true);
+  assert.equal(clean.attachmentReferencesStripped, 0);
+
+  const dirty = sanitizeJiraCapacityPayload({
+    fields: {
+      Attachments: [{ id: 'structured-attachment' }],
+      description: {
+        type: 'doc',
+        content: [{
+          type: 'mediaGroup',
+          content: [{ type: 'media', attrs: { id: 'adf-attachment', secret: 'must-go' } }],
+        }],
+      },
+    },
+    changelog: [{ field: 'Attachment', to: 'history-attachment' }],
+  });
+  assert.equal(dirty.attachmentExcluded, true);
+  assert.equal(dirty.attachmentReferencesStripped, 3);
+  assert.equal(JSON.stringify(dirty.payload).includes('must-go'), false);
+  assert.equal(JSON.stringify(dirty.payload).includes('history-attachment'), false);
 });
 
 test('jiraSprintFromFields reads active Jira Server sprint strings', () => {
@@ -852,11 +880,29 @@ test('capacity sampling measures paged content and verifies attachment exclusion
           issuetype: { name: 'Bug' },
           created: '2026-05-20T09:00:00.000Z',
           updated: '2026-05-23T10:00:00.000Z',
-          attachment: [{ id: 'must-not-be-measured', size: 999_999 }],
+          description: {
+            type: 'doc',
+            content: [{
+              type: 'mediaSingle',
+              content: [{
+                type: 'media',
+                attrs: { id: 'must-not-be-measured', payload: 'x'.repeat(100_000) },
+              }],
+            }],
+          },
           comment: { total: 3, comments: [{ body: 'one observed comment' }] },
           worklog: { total: 1, worklogs: [{ timeSpentSeconds: 60 }] },
         },
-        changelog: { startAt: 0, maxResults: 100, total: 0, histories: [] },
+        changelog: {
+          startAt: 0,
+          maxResults: 100,
+          total: 1,
+          histories: [{
+            id: 'attachment-history',
+            created: '2026-05-21T09:00:00.000Z',
+            items: [{ field: 'Attachment', toString: 'old-file.zip' }],
+          }],
+        },
       }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
@@ -873,7 +919,10 @@ test('capacity sampling measures paged content and verifies attachment exclusion
     assert.deepEqual((searchBody?.fields as string[]).slice(0, 2), ['*all', '-attachment']);
     assert.equal(result.capacityMeasurements?.[0]?.comments, 3);
     assert.equal(result.capacityMeasurements?.[0]?.commentsComplete, false);
-    assert.equal(result.capacityMeasurements?.[0]?.attachmentExcluded, false);
+    assert.equal(result.capacityMeasurements?.[0]?.attachmentExcluded, true);
+    assert.equal(result.capacityMeasurements?.[0]?.attachmentFieldExclusionHonored, true);
+    assert.equal(result.capacityMeasurements?.[0]?.attachmentReferencesStripped, 2);
+    assert.ok((result.capacityMeasurements?.[0]?.currentJsonBytes ?? 0) < 50_000);
     assert.ok(
       (result.capacityMeasurements?.[0]?.estimatedFullJsonBytes ?? 0) >
       (result.capacityMeasurements?.[0]?.currentJsonBytes ?? 0),

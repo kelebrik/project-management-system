@@ -40,6 +40,9 @@ import {
 } from '../services/jira-work-sections.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 
+export const JIRA_CAPACITY_DEFAULT_STORAGE_GIB = 5;
+export const JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB = 0;
+
 export function createIssuesRouter() {
   const router = Router();
 
@@ -166,7 +169,8 @@ const jiraCapacitySampleSchema = z.object({
   scopeType: z.enum(['LABEL', 'EPIC']),
   scopeValue: z.string().trim().min(1).max(100),
   sampleSize: z.number().int().min(10).max(100).default(20),
-  storageBudgetGiB: z.number().positive().max(10_000).default(50),
+  storageBudgetGiB: z.number().positive().max(10_000).default(JIRA_CAPACITY_DEFAULT_STORAGE_GIB),
+  allocatedHistoryGiB: z.number().nonnegative().max(10_000).default(JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB),
 }).superRefine((value, context) => {
   if (/[\u0000-\u001f]/.test(value.scopeValue)) {
     context.addIssue({ code: 'custom', path: ['scopeValue'], message: 'Недопустимое значение' });
@@ -928,6 +932,8 @@ router.post('/projects/:projectId/jira/capacity-sample', async (req, res) => {
       elapsedMs: report.collection.elapsedMs,
       securityGate: report.security.status,
       capacityGate: report.capacityGate.status,
+      capacityLevel: report.capacityGate.level,
+      capacityUtilizationPercent: report.capacityGate.utilizationPercent,
     });
     res.json(report);
   } catch (error) {

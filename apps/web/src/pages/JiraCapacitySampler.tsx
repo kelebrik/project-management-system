@@ -13,6 +13,7 @@ type Distribution = {
 };
 
 type CapacityReport = {
+  reportVersion: 2;
   generatedAt: string;
   mode: "READ_ONLY";
   persisted: false;
@@ -26,6 +27,8 @@ type CapacityReport = {
   security: {
     status: "PASS" | "BLOCKED";
     attachmentsExcluded: boolean;
+    attachmentFieldExclusionHonored: boolean;
+    attachmentReferencesStripped: number;
   };
   collection: {
     elapsedMs: number;
@@ -46,14 +49,28 @@ type CapacityReport = {
     rawJsonGiB: number;
     estimatedDatabaseGiB: number;
     estimatedGzipArchiveGiB: number;
-    databaseWithBackupsGiB: number;
+    threeDatabaseCopiesGiB: number;
   }>;
   capacityGate: {
     status: "PASS" | "REVIEW_REQUIRED";
+    level: "NORMAL" | "WARNING" | "HIGH" | "CRITICAL" | "EXCEEDED";
+    versionsPerTicket: number;
     estimatedDatabaseGiB: number;
+    projectedTotalDatabaseGiB: number;
+    allocatedHistoryGiB: number;
     storageBudgetGiB: number;
+    utilizationPercent: number;
     reasons: string[];
+    warnings: string[];
   };
+};
+
+const capacityLevelLabel: Record<CapacityReport["capacityGate"]["level"], string> = {
+  NORMAL: "норма",
+  WARNING: "предупреждение",
+  HIGH: "высокая загрузка",
+  CRITICAL: "критическая загрузка",
+  EXCEEDED: "бюджет превышен",
 };
 
 function formatBytes(value: number) {
@@ -72,7 +89,8 @@ export function JiraCapacitySampler() {
   const [scopeType, setScopeType] = useState<"LABEL" | "EPIC">("LABEL");
   const [scopeValue, setScopeValue] = useState("");
   const [sampleSize, setSampleSize] = useState(20);
-  const [storageBudgetGiB, setStorageBudgetGiB] = useState(50);
+  const [storageBudgetGiB, setStorageBudgetGiB] = useState(5);
+  const [allocatedHistoryGiB, setAllocatedHistoryGiB] = useState(0);
   const [running, setRunning] = useState(false);
   const [report, setReport] = useState<CapacityReport | null>(null);
 
@@ -85,7 +103,13 @@ export function JiraCapacitySampler() {
     try {
       const result = await apiClient.post<CapacityReport>(
         `/api/projects/${project.id}/jira/capacity-sample`,
-        { scopeType, scopeValue: scopeValue.trim(), sampleSize, storageBudgetGiB },
+        {
+          scopeType,
+          scopeValue: scopeValue.trim(),
+          sampleSize,
+          storageBudgetGiB,
+          allocatedHistoryGiB,
+        },
         "Не удалось выполнить замер ёмкости",
       );
       setReport(result);
@@ -114,7 +138,7 @@ export function JiraCapacitySampler() {
       <header>
         <div>
           <h3><DatabaseZap size={18} /> Ёмкость полной истории</h3>
-          <span>Этап 0 · только чтение · вложения исключены</span>
+          <span>Этап 0.1 · только чтение · вложения исключены</span>
         </div>
         {report && (
           <button className="icon-button" type="button" onClick={download} title="Скачать отчёт" aria-label="Скачать отчёт">
@@ -144,8 +168,12 @@ export function JiraCapacitySampler() {
           <input type="number" min={10} max={100} value={sampleSize} onChange={(event) => setSampleSize(Number(event.target.value))} />
         </label>
         <label>
-          <span>Бюджет БД, ГБ</span>
+          <span>Бюджет истории, ГиБ</span>
           <input type="number" min={1} max={10000} value={storageBudgetGiB} onChange={(event) => setStorageBudgetGiB(Number(event.target.value))} />
+        </label>
+        <label>
+          <span>Учтено ранее без текущей области, ГиБ</span>
+          <input type="number" min={0} max={10000} step="0.001" value={allocatedHistoryGiB} onChange={(event) => setAllocatedHistoryGiB(Number(event.target.value))} />
         </label>
         <button className="button primary" type="button" onClick={run} disabled={running || !scopeValue.trim()}>
           <Play size={16} /> {running ? "Измеряю..." : "Запустить замер"}
@@ -157,9 +185,19 @@ export function JiraCapacitySampler() {
           <div className="jira-capacity-gates">
             <span className={report.security.status === "PASS" ? "complete" : "blocked"}>
               <ShieldCheck size={15} /> Security: {report.security.status}
+              {report.security.attachmentReferencesStripped > 0
+                ? ` · удалено ссылок: ${report.security.attachmentReferencesStripped}`
+                : ""}
             </span>
-            <span className={report.capacityGate.status === "PASS" ? "complete" : "review"}>
+            <span className={
+              report.capacityGate.status === "PASS" && report.capacityGate.level === "NORMAL"
+                ? "complete"
+                : "review"
+            }>
               Capacity: {report.capacityGate.status === "PASS" ? "PASS" : "нужна проверка"}
+              {` · ${capacityLevelLabel[report.capacityGate.level]}`}
+              {` · ${report.capacityGate.utilizationPercent.toLocaleString("ru-RU")}%`}
+              {` · ${report.capacityGate.projectedTotalDatabaseGiB.toLocaleString("ru-RU")} / ${report.capacityGate.storageBudgetGiB.toLocaleString("ru-RU")} ГиБ`}
             </span>
           </div>
 
@@ -174,23 +212,24 @@ export function JiraCapacitySampler() {
 
           <div className="table-scroll">
             <table className="jira-capacity-table">
-              <thead><tr><th>Версий на тикет</th><th>JSON</th><th>Основная БД</th><th>Gzip-архив</th><th>БД + 3 копии</th></tr></thead>
+              <thead><tr><th>Версий на тикет</th><th>JSON</th><th>Основная БД</th><th>Gzip-архив</th><th>3 экземпляра БД (справочно)</th></tr></thead>
               <tbody>
                 {report.projections.map((item) => (
                   <tr key={item.versionsPerTicket}>
                     <td>{item.versionsPerTicket}</td>
-                    <td>{item.rawJsonGiB.toLocaleString("ru-RU")} ГБ</td>
-                    <td>{item.estimatedDatabaseGiB.toLocaleString("ru-RU")} ГБ</td>
-                    <td>{item.estimatedGzipArchiveGiB.toLocaleString("ru-RU")} ГБ</td>
-                    <td>{item.databaseWithBackupsGiB.toLocaleString("ru-RU")} ГБ</td>
+                    <td>{item.rawJsonGiB.toLocaleString("ru-RU")} ГиБ</td>
+                    <td>{item.estimatedDatabaseGiB.toLocaleString("ru-RU")} ГиБ</td>
+                    <td>{item.estimatedGzipArchiveGiB.toLocaleString("ru-RU")} ГиБ</td>
+                    <td>{item.threeDatabaseCopiesGiB.toLocaleString("ru-RU")} ГиБ</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {report.capacityGate.reasons.length > 0 && (
+          {(report.capacityGate.reasons.length > 0 || report.capacityGate.warnings.length > 0) && (
             <ul className="jira-capacity-reasons">
+              {report.capacityGate.warnings.map((warning) => <li key={warning}>{warning}</li>)}
               {report.capacityGate.reasons.map((reason) => <li key={reason}>{reason}</li>)}
             </ul>
           )}

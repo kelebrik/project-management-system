@@ -209,6 +209,8 @@ export type JiraCapacityIssueMeasurement = {
   worklogsComplete: boolean;
   developmentLinks: number;
   attachmentExcluded: boolean;
+  attachmentFieldExclusionHonored: boolean;
+  attachmentReferencesStripped: number;
 };
 
 export type JiraIssueFetchResult = {
@@ -919,15 +921,83 @@ function jiraTransitionHistoryComplete(issue: JiraSearchResponse['issues'][numbe
   return jiraChangelogPageComplete(issue.changelog);
 }
 
+function isJiraAttachmentKey(key: string) {
+  const normalized = key.trim().toLowerCase();
+  return normalized === 'attachment' || normalized === 'attachments';
+}
+
+function isJiraAttachmentRecord(value: Record<string, unknown>) {
+  const adfType = typeof value.type === 'string' ? value.type.trim().toLowerCase() : '';
+  if (
+    adfType === 'media'
+    || adfType === 'mediagroup'
+    || adfType === 'mediasingle'
+    || adfType === 'mediainline'
+  ) return true;
+  const changelogField = typeof (value.fieldId ?? value.field) === 'string'
+    ? String(value.fieldId ?? value.field).trim().toLowerCase()
+    : '';
+  if (changelogField === 'attachment' || changelogField === 'attachments') return true;
+  return typeof value.filename === 'string'
+    && ['mimeType', 'content', 'thumbnail'].some((key) => key in value);
+}
+
+function containsJiraAttachmentMetadata(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((entry) => containsJiraAttachmentMetadata(entry));
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  if (isJiraAttachmentRecord(record)) return true;
+  return Object.entries(record).some(
+    ([key, entry]) => isJiraAttachmentKey(key) || containsJiraAttachmentMetadata(entry),
+  );
+}
+
+function countJiraAttachmentMetadata(value: unknown): number {
+  if (Array.isArray(value)) {
+    return value.reduce((total, entry) => total + countJiraAttachmentMetadata(entry), 0);
+  }
+  if (!value || typeof value !== 'object') return 0;
+  const record = value as Record<string, unknown>;
+  const adfType = typeof record.type === 'string' ? record.type.trim().toLowerCase() : '';
+  const recordMatch = ['mediagroup', 'mediasingle', 'mediainline'].includes(adfType)
+    ? 0
+    : isJiraAttachmentRecord(record) ? 1 : 0;
+  return Object.entries(record).reduce(
+    (total, [key, entry]) => {
+      const nested = countJiraAttachmentMetadata(entry);
+      return total + (isJiraAttachmentKey(key) ? Math.max(1, nested) : nested);
+    },
+    recordMatch,
+  );
+}
+
 function sortedJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map((entry) => sortedJsonValue(entry));
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => {
+      const sorted = sortedJsonValue(entry);
+      return sorted === undefined ? [] : [sorted];
+    });
+  }
   if (!value || typeof value !== 'object') return value;
+  if (isJiraAttachmentRecord(value as Record<string, unknown>)) return undefined;
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => key.toLowerCase() !== 'attachment')
+      .filter(([key]) => !isJiraAttachmentKey(key))
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => [key, sortedJsonValue(entry)]),
+      .flatMap(([key, entry]) => {
+        const sorted = sortedJsonValue(entry);
+        return sorted === undefined ? [] : [[key, sorted] as const];
+      }),
   );
+}
+
+export function sanitizeJiraCapacityPayload(value: unknown) {
+  const payload = sortedJsonValue(value);
+  return {
+    payload,
+    attachmentExcluded: !containsJiraAttachmentMetadata(payload),
+    attachmentReferencesStripped: countJiraAttachmentMetadata(value),
+  };
 }
 
 function jiraEmbeddedCollection(value: unknown, arrayKey: string) {
@@ -960,14 +1030,17 @@ function measureJiraIssueCapacity(
   development: JiraIssue['development'] | null,
 ): JiraCapacityIssueMeasurement {
   const rawFields = issue.fields as Record<string, unknown>;
+  const attachmentFieldExclusionHonored = !Object.keys(rawFields).some(isJiraAttachmentKey);
+  const rawPayload = {
+    jiraId: issue.id ?? null,
+    fields: rawFields,
+    changelog: issue.changelog ?? null,
+  };
+  const sanitized = sanitizeJiraCapacityPayload(rawPayload);
   const fields = sortedJsonValue(rawFields) as Record<string, unknown>;
   const comment = jiraEmbeddedCollection(fields.comment, 'comments');
   const worklog = jiraEmbeddedCollection(fields.worklog, 'worklogs');
-  const payload = sortedJsonValue({
-    jiraId: issue.id ?? null,
-    fields,
-    changelog: issue.changelog ?? null,
-  });
+  const payload = sanitized.payload;
   const serialized = JSON.stringify(payload);
   const currentJsonBytes = Buffer.byteLength(serialized);
   const estimatedFullJsonBytes = Math.max(
@@ -1001,7 +1074,9 @@ function measureJiraIssueCapacity(
     worklogsIncluded: worklog.included,
     worklogsComplete: worklog.complete,
     developmentLinks: (development?.commitCount ?? 0) + (development?.mergeRequestCount ?? 0),
-    attachmentExcluded: !Object.keys(rawFields).some((key) => key.toLowerCase() === 'attachment'),
+    attachmentExcluded: sanitized.attachmentExcluded,
+    attachmentFieldExclusionHonored,
+    attachmentReferencesStripped: sanitized.attachmentReferencesStripped,
   };
 }
 

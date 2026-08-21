@@ -2,7 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Request, Response } from 'express';
 
-import { createIssuesRouter } from './issues.routes.js';
+import {
+  createIssuesRouter,
+  JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB,
+  JIRA_CAPACITY_DEFAULT_STORAGE_GIB,
+} from './issues.routes.js';
+
+test('Jira capacity sampler uses the approved global history defaults', () => {
+  assert.equal(JIRA_CAPACITY_DEFAULT_STORAGE_GIB, 5);
+  assert.equal(JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB, 0);
+});
 
 test('Jira capacity sampler rejects non-admin users before sampling', async () => {
   const router = createIssuesRouter() as unknown as {

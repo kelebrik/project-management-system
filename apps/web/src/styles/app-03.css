@@ -1238,7 +1238,7 @@
   align-items: end;
   display: grid;
   gap: 10px;
-  grid-template-columns: 150px minmax(180px, 1fr) 110px 140px auto;
+  grid-template-columns: 130px minmax(180px, 1fr) 90px 135px 135px auto;
 }
 
 .jira-capacity-controls label {
