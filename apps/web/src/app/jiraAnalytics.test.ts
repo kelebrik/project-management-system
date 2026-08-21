@@ -90,7 +90,7 @@ test("unplanned work is the default Jira analytics template", () => {
   assert.equal(JIRA_ANALYTICS_TEMPLATES[0]?.id, "unplanned");
 });
 
-test("shared Jira analytics page contains widgets from every system report", () => {
+test("shared Jira analytics config separates active and retrospective widgets", () => {
   const expectedIds = JIRA_ANALYTICS_TEMPLATES.flatMap((item) =>
     item.config.widgets.map((widget) => widget.id),
   );
@@ -101,6 +101,75 @@ test("shared Jira analytics page contains widgets from every system report", () 
   );
   assert.equal(new Set(expectedIds).size, expectedIds.length);
   assert.equal(JIRA_ANALYTICS_DEFAULT_CONFIG.periodDays, 90);
+  assert.deepEqual(
+    JIRA_ANALYTICS_DEFAULT_CONFIG.widgets
+      .filter((widget) => widget.section === "active")
+      .map((widget) => widget.id),
+    [
+      "unplanned-count",
+      "unplanned-commits",
+      "unplanned-assignees",
+      "unplanned-table",
+      "flow-status",
+    ],
+  );
+  assert.deepEqual(
+    JIRA_ANALYTICS_DEFAULT_CONFIG.widgets
+      .filter((widget) => widget.section === "retro")
+      .map((widget) => widget.id),
+    [
+      "flow-p50",
+      "flow-p85",
+      "flow-longest",
+      "critical-bugs-sla-count",
+      "critical-bugs-sla-project",
+      "critical-bugs-sla-table",
+    ],
+  );
+});
+
+test("active analytics excludes resolved and Cancelled issues from every widget", () => {
+  const widget = template("unplanned").config.widgets[0];
+  const result = evaluateJiraAnalyticsWidget(
+    widget,
+    [
+      issue({ id: "open-null", issueKey: "TV-101", resolution: null }),
+      issue({ id: "open-text", issueKey: "TV-102", resolution: "Unresolved" }),
+      issue({ id: "resolved", issueKey: "TV-103", resolution: "Fixed" }),
+      issue({ id: "cancelled", issueKey: "TV-104", status: "Cancelled", resolution: null }),
+      issue({ id: "canceled", issueKey: "TV-105", status: "Canceled", resolution: null }),
+      issue({ id: "cancelled-ru", issueKey: "TV-106", status: "Отменено", resolution: null }),
+    ],
+    {
+      periodDays: 30,
+      now: new Date("2026-07-11T00:00:00Z"),
+    },
+  );
+
+  assert.deepEqual(
+    result.records.map((record) => record.issue.issueKey),
+    ["TV-101", "TV-102"],
+  );
+});
+
+test("retro analytics keeps resolved and Cancelled history", () => {
+  const widget = {
+    ...template("flow").config.widgets[0],
+    metric: "count" as const,
+  };
+  const result = evaluateJiraAnalyticsWidget(
+    widget,
+    [
+      issue({ id: "resolved", issueKey: "TV-103", resolution: "Fixed" }),
+      issue({ id: "cancelled", issueKey: "TV-104", status: "Cancelled", resolution: null }),
+    ],
+    {
+      periodDays: 30,
+      now: new Date("2026-07-11T00:00:00Z"),
+    },
+  );
+
+  assert.equal(result.records.length, 4);
 });
 
 test("transition widget calculates duration percentiles from Jira changelog", () => {
@@ -393,4 +462,19 @@ test("shared dashboard normalization drops malformed widget fields", () => {
   assert.equal(config.widgets[0].visualization, "number");
   assert.equal(config.widgets[0].groupBy, "none");
   assert.deepEqual(config.widgets[0].filters, []);
+  assert.equal(config.widgets[0].section, "active");
+});
+
+test("old dashboard config moves duration and SLA widgets to retro", () => {
+  const config = normalizeJiraAnalyticsConfig({
+    periodDays: 90,
+    assignee: "",
+    widgets: [
+      { ...template("flow").config.widgets[0], section: undefined },
+      { ...template("critical-bugs-sla").config.widgets[0], section: undefined },
+      { ...template("unplanned").config.widgets[0], section: undefined },
+    ],
+  });
+
+  assert.deepEqual(config.widgets.map((widget) => widget.section), ["retro", "retro", "active"]);
 });

@@ -670,6 +670,9 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
     });
   await expect(scopeSelect).toHaveValue("LABEL");
   await expect(scopeSelect.locator("option")).toHaveText(["Лейбл", "Код эпика"]);
+  await expect(page.getByRole("button", { name: "В работе" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ретро" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Дашборды" })).toHaveCount(0);
   await expect(page.getByText("Командный доступ", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Название дашборда")).toHaveCount(0);
   const scopeSelectStyle = await scopeSelect.evaluate((element) => {
@@ -720,11 +723,23 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
     page.getByRole("button", { name: "Редактировать" }),
   );
   expect(Math.abs(editOffset.y)).toBeLessThanOrEqual(1);
-  await expect(page.getByRole("combobox", { name: "Период событий" })).toBeEnabled();
+  await expect(page.getByRole("combobox", { name: "Период событий" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Тикеты по статусам" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Ретро" }).click();
+  await expect(page.getByRole("combobox", { name: "Период событий" })).toBeEnabled();
   await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
   await expect(page.getByText("50% завершённых периодов в статусах не дольше")).toBeVisible();
   await expect(page.getByText(/Периодов в статусах: 1/).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Тикеты с нарушенным SLA" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "TV-101" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "В работе" }).click();
+
   await page
     .locator(".jira-analytics-widget")
     .filter({ hasText: "Вне Sprint с кодом" })
@@ -733,9 +748,6 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" }).last()).toBeVisible();
   await expect(page.getByRole("link", { name: "TV-101" }).last()).toBeVisible();
 
-  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Тикеты с нарушенным SLA" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "TV-101" }).first()).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
@@ -776,7 +788,7 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await page.getByRole("button", { name: "Сохранить" }).click();
   await expect.poll(() => savedWidgetCount).toBe(12);
   await page.getByRole("button", { name: "Данные Jira" }).click();
-  await page.getByRole("button", { name: "Дашборды" }).click();
+  await page.getByRole("button", { name: "В работе" }).click();
   await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
 });
 
@@ -801,12 +813,16 @@ test("Jira analytics hides widget settings from non-system administrators", asyn
   await page.goto("/TV-OVERVIEW/jira-work");
 
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Редактировать" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Настроить виджет" })).toHaveCount(0);
   await expect(page.getByRole("combobox", { name: "Способ отбора тикетов" })).toBeDisabled();
   await expect(page.getByLabel("Лейбл Jira")).toBeDisabled();
+  await page.getByRole("button", { name: "Ретро" }).click();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Редактировать" })).toHaveCount(0);
 });
 
 test("project passport keeps the initial target and updates the current target", async ({

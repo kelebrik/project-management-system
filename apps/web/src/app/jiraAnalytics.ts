@@ -1,4 +1,4 @@
-import { jiraCriticalBugSlaHours } from "@pms/shared";
+import { isJiraCancelledStatus, jiraCriticalBugSlaHours } from "@pms/shared";
 
 import type { JiraIssueSnapshot } from "./domainTypes";
 
@@ -16,6 +16,7 @@ export type JiraAnalyticsMetric =
   | "commits"
   | "mergeRequests";
 export type JiraAnalyticsVisualization = "number" | "bar" | "table";
+export type JiraAnalyticsSection = "active" | "retro";
 export type JiraAnalyticsGroupBy =
   | "none"
   | "project"
@@ -67,6 +68,7 @@ export type JiraAnalyticsWidget = {
   filterLogic: "and" | "or";
   filters: JiraAnalyticsFilter[];
   width: "half" | "full";
+  section: JiraAnalyticsSection;
 };
 
 export type JiraAnalyticsDashboardConfig = {
@@ -177,6 +179,7 @@ export function createJiraAnalyticsFilter(
 
 export function createJiraAnalyticsWidget(
   source: JiraAnalyticsSource = "issues",
+  section: JiraAnalyticsSection = "active",
 ): JiraAnalyticsWidget {
   return {
     id: uid("widget"),
@@ -188,6 +191,7 @@ export function createJiraAnalyticsWidget(
     filterLogic: "and",
     filters: [],
     width: "half",
+    section,
   };
 }
 
@@ -268,13 +272,13 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
       assignee: "",
       widgets: [
         {
-          ...createJiraAnalyticsWidget("transitions"),
+          ...createJiraAnalyticsWidget("transitions", "retro"),
           id: "flow-p50",
           title: "Медианное время в статусе",
           metric: "p50Duration",
         },
         {
-          ...createJiraAnalyticsWidget("transitions"),
+          ...createJiraAnalyticsWidget("transitions", "retro"),
           id: "flow-p85",
           title: "Время в статусе, P85",
           metric: "p85Duration",
@@ -288,7 +292,7 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
           width: "full",
         },
         {
-          ...createJiraAnalyticsWidget("transitions"),
+          ...createJiraAnalyticsWidget("transitions", "retro"),
           id: "flow-longest",
           title: "Самые долгие этапы",
           metric: "averageDuration",
@@ -308,13 +312,13 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
       assignee: "",
       widgets: [
         {
-          ...createJiraAnalyticsWidget("criticalBugs"),
+          ...createJiraAnalyticsWidget("criticalBugs", "retro"),
           id: "critical-bugs-sla-count",
           title: "Нарушили SLA 30 дней",
           filters: [filter("durationHours", "greaterThan", String(JIRA_CRITICAL_BUG_SLA_HOURS))],
         },
         {
-          ...createJiraAnalyticsWidget("criticalBugs"),
+          ...createJiraAnalyticsWidget("criticalBugs", "retro"),
           id: "critical-bugs-sla-project",
           title: "Нарушения по проектам",
           groupBy: "project",
@@ -323,7 +327,7 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
           filters: [filter("durationHours", "greaterThan", String(JIRA_CRITICAL_BUG_SLA_HOURS))],
         },
         {
-          ...createJiraAnalyticsWidget("criticalBugs"),
+          ...createJiraAnalyticsWidget("criticalBugs", "retro"),
           id: "critical-bugs-sla-table",
           title: "Тикеты с нарушенным SLA",
           visualization: "table",
@@ -380,6 +384,14 @@ export function normalizeJiraAnalyticsConfig(
     const visualization = ["number", "bar", "table"].includes(String(raw.visualization))
       ? (raw.visualization as JiraAnalyticsVisualization)
       : "number";
+    const section: JiraAnalyticsSection = raw.section === "active" || raw.section === "retro"
+      ? raw.section
+      : source === "criticalBugs" || (
+          source === "transitions" &&
+          ["averageDuration", "p50Duration", "p85Duration", "p95Duration"].includes(metric)
+        )
+        ? "retro"
+        : "active";
     const filters = Array.isArray(raw.filters)
       ? raw.filters.flatMap((value) => {
           if (!value || typeof value !== "object") return [];
@@ -413,6 +425,7 @@ export function normalizeJiraAnalyticsConfig(
       filterLogic: raw.filterLogic === "or" ? "or" as const : "and" as const,
       filters,
       width: raw.width === "full" ? "full" as const : "half" as const,
+      section,
     }];
   });
   return {
@@ -539,6 +552,12 @@ export function jiraAnalyticsRecords(
   return records.filter((record) => record.eventAt && record.eventAt >= periodStart && record.eventAt <= now);
 }
 
+export function jiraIssueIsInWorkScope(issue: JiraIssueSnapshot) {
+  const resolution = issue.resolution?.trim().toLocaleLowerCase("ru") ?? "";
+  return (resolution === "" || resolution === "unresolved") &&
+    !isJiraCancelledStatus(issue.status);
+}
+
 function recordValue(record: JiraAnalyticsRecord, field: JiraAnalyticsFilterField) {
   if (field === "fromStatus") return record.fromStatus;
   if (field === "toStatus") return record.toStatus;
@@ -642,7 +661,11 @@ function groupLabel(record: JiraAnalyticsRecord, groupBy: JiraAnalyticsGroupBy) 
 export function evaluateJiraAnalyticsWidget(
   widget: JiraAnalyticsWidget,
   issues: JiraIssueSnapshot[],
-  options: { periodDays: number; assignee?: string; now?: Date },
+  options: {
+    periodDays: number;
+    assignee?: string;
+    now?: Date;
+  },
 ): JiraAnalyticsResult {
   const records = jiraAnalyticsRecords(
     widget.source,
@@ -650,6 +673,7 @@ export function evaluateJiraAnalyticsWidget(
     options.periodDays,
     options.now,
   )
+    .filter((record) => widget.section !== "active" || jiraIssueIsInWorkScope(record.issue))
     .filter((record) => !options.assignee || record.issue.assignee === options.assignee)
     .filter((record) => {
       if (widget.filters.length === 0) return true;

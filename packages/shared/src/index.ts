@@ -9,6 +9,14 @@ export const jiraBugIssueTypes = [
   "Ошибка",
   "Дефект",
 ] as const;
+export const jiraCancelledStatuses = [
+  "Cancelled",
+  "Canceled",
+  "Отменён",
+  "Отменен",
+  "Отменено",
+  "Отменена",
+] as const;
 export const jiraCriticalBugSlaHours = 30 * 24;
 
 const jiraAnalyticsFilterSchema = z.object({
@@ -69,6 +77,7 @@ const jiraAnalyticsWidgetSchema = z.object({
   filterLogic: z.enum(["and", "or"]),
   filters: z.array(jiraAnalyticsFilterSchema).max(20),
   width: z.enum(["half", "full"]),
+  section: z.enum(["active", "retro"]).optional(),
 });
 
 export const jiraAnalyticsDashboardConfigSchema = z.object({
@@ -96,6 +105,13 @@ export function isJiraBugIssueType(value: string | null | undefined) {
   )) return true;
   return /^(bug|defect)(\s*[-:/(]|\s+report\b)/u.test(normalized) ||
     /^(баг|ошибка|дефект)(\s*[-:/(]|$)/u.test(normalized);
+}
+
+export function isJiraCancelledStatus(value: string | null | undefined) {
+  const normalized = normalizedJiraValue(value);
+  return jiraCancelledStatuses.some(
+    (status) => normalizedJiraValue(status) === normalized,
+  );
 }
 
 export const appViewKeys = [

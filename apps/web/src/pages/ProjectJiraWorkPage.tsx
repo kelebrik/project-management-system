@@ -1,4 +1,4 @@
-import { BarChart3, Database } from "lucide-react";
+import { BarChart3, Database, History } from "lucide-react";
 import { useState } from "react";
 
 import { JiraAnalyticsDashboard } from "./JiraAnalyticsDashboard";
@@ -6,10 +6,10 @@ import { JiraWorkDataSections } from "./JiraWorkDataSections";
 
 export const JIRA_PRODUCTION_BASE_URL = "https://tasks.sberdevices.ru";
 
-type JiraWorkView = "analytics" | "data";
+type JiraWorkView = "active" | "retro" | "data";
 
 export function ProjectJiraWorkPage() {
-  const [view, setView] = useState<JiraWorkView>("analytics");
+  const [view, setView] = useState<JiraWorkView>("active");
 
   return (
     <article className="jira-work-page">
@@ -21,10 +21,17 @@ export function ProjectJiraWorkPage() {
         <div className="jira-work-view-switch" aria-label="Раздел Работы в Jira">
           <button
             type="button"
-            className={view === "analytics" ? "active" : ""}
-            onClick={() => setView("analytics")}
+            className={view === "active" ? "active" : ""}
+            onClick={() => setView("active")}
           >
-            <BarChart3 size={16} /> Дашборды
+            <BarChart3 size={16} /> В работе
+          </button>
+          <button
+            type="button"
+            className={view === "retro" ? "active" : ""}
+            onClick={() => setView("retro")}
+          >
+            <History size={16} /> Ретро
           </button>
           <button
             type="button"
@@ -36,7 +43,9 @@ export function ProjectJiraWorkPage() {
         </div>
       </div>
 
-      {view === "analytics" ? <JiraAnalyticsDashboard /> : <JiraWorkDataSections />}
+      {view === "data"
+        ? <JiraWorkDataSections />
+        : <JiraAnalyticsDashboard section={view} />}
     </article>
   );
 }

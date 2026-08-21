@@ -158,6 +158,7 @@ export const openApiDocument = {
             items: { $ref: "#/components/schemas/JiraAnalyticsFilter" },
           },
           width: { type: "string", enum: ["half", "full"] },
+          section: { type: "string", enum: ["active", "retro"] },
         },
         required: ["id", "title", "source", "metric", "groupBy", "visualization", "filterLogic", "filters", "width"],
       },
