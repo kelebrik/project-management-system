@@ -77,7 +77,7 @@ const GROUPS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsGroupBy[]> = {
     "week",
   ],
   development: ["none", "status", "assignee", "sprint", "week"],
-  criticalBugs: ["none", "priority", "assignee", "status", "resolution"],
+  criticalBugs: ["none", "project", "priority", "assignee", "status", "resolution"],
 };
 
 const FIELDS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsFilterField[]> = {
@@ -353,26 +353,37 @@ function JiraAnalyticsWidgetCard({
       )}
 
       {widget.visualization === "bar" && (
-        <div className="jira-analytics-bars">
-          {result.groups.length > 0 ? (
-            result.groups.slice(0, 12).map((group) => (
-              <button
-                type="button"
-                className="jira-analytics-bar-row"
-                key={group.key}
-                onClick={() => onDrilldown(`${widget.title}: ${group.label}`, group.records)}
-              >
-                <span className="jira-analytics-bar-label">{group.label}</span>
-                <span className="jira-analytics-bar-track">
-                  <span style={{ width: `${Math.max(2, (group.value / maxGroupValue) * 100)}%` }} />
-                </span>
-                <b>{group.formattedValue}</b>
-              </button>
-            ))
-          ) : (
-            <div className="jira-analytics-empty">Нет данных для группировки</div>
+        <>
+          <div className="jira-analytics-bars">
+            {result.groups.length > 0 ? (
+              result.groups.slice(0, 12).map((group) => (
+                <button
+                  type="button"
+                  className="jira-analytics-bar-row"
+                  key={group.key}
+                  onClick={() => onDrilldown(`${widget.title}: ${group.label}`, group.records)}
+                >
+                  <span className="jira-analytics-bar-label">{group.label}</span>
+                  <span className="jira-analytics-bar-track">
+                    <span style={{ width: `${Math.max(2, (group.value / maxGroupValue) * 100)}%` }} />
+                  </span>
+                  <b>{group.formattedValue}</b>
+                </button>
+              ))
+            ) : (
+              <div className="jira-analytics-empty">Нет данных для группировки</div>
+            )}
+          </div>
+          {result.groups.length > 12 && (
+            <button
+              type="button"
+              className="jira-analytics-more"
+              onClick={() => onDrilldown(widget.title, result.records)}
+            >
+              Показано 12 из {result.groups.length} групп · Открыть все записи ({result.records.length})
+            </button>
           )}
-        </div>
+        </>
       )}
 
       {widget.visualization === "table" && (

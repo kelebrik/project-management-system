@@ -212,6 +212,43 @@ test("critical bug SLA report includes unresolved tickets after 30 calendar days
   assert.equal(result.records[0]?.durationHours, 31 * 24 + 1 / 3_600);
 });
 
+test("critical bug SLA project widget groups violations by Jira project key", () => {
+  const widget = template("critical-bugs-sla").config.widgets[1];
+  const criticalBug = {
+    issueType: "Bug",
+    priority: "Critical",
+    criticalPriorityAt: "2026-06-01T00:00:00Z",
+  };
+  const result = evaluateJiraAnalyticsWidget(
+    widget,
+    [
+      issue({ ...criticalBug, id: "cvte-1", issueKey: "CVTE-1778" }),
+      issue({ ...criticalBug, id: "cvte-2", issueKey: " cvte-1768 " }),
+      issue({ ...criticalBug, id: "sps-1", issueKey: "SPS-2549" }),
+      issue({ ...criticalBug, id: "staros-1", issueKey: "STAROS-40993" }),
+      issue({ ...criticalBug, id: "unknown-1", issueKey: "not-a-key" }),
+      issue({
+        ...criticalBug,
+        id: "on-time-1",
+        issueKey: "OTHER-1",
+        resolutionAt: "2026-06-11T00:00:00Z",
+      }),
+    ],
+    { periodDays: 30, now: new Date("2026-07-02T00:00:01Z") },
+  );
+
+  assert.equal(widget.title, "Нарушения по проектам");
+  assert.equal(widget.groupBy, "project");
+  assert.equal(widget.width, "full");
+  assert.deepEqual(Object.fromEntries(result.groups.map(({ label, value }) => [label, value])), {
+    CVTE: 2,
+    SPS: 1,
+    STAROS: 1,
+    "Без проекта": 1,
+  });
+  assert.equal(result.groups.some(({ label }) => label === "OTHER"), false);
+});
+
 test("critical bug SLA report uses Resolution date and keeps downgraded violations", () => {
   const widget = template("critical-bugs-sla").config.widgets[2];
   const startedAt = "2026-06-01T00:00:00Z";

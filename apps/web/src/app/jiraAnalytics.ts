@@ -20,6 +20,7 @@ export type JiraAnalyticsMetric =
 export type JiraAnalyticsVisualization = "number" | "bar" | "table";
 export type JiraAnalyticsGroupBy =
   | "none"
+  | "project"
   | "status"
   | "assignee"
   | "priority"
@@ -124,6 +125,7 @@ export const JIRA_ANALYTICS_METRIC_LABELS: Record<JiraAnalyticsMetric, string> =
 
 export const JIRA_ANALYTICS_GROUP_LABELS: Record<JiraAnalyticsGroupBy, string> = {
   none: "Без группировки",
+  project: "Проект Jira",
   status: "Текущий статус",
   assignee: "Исполнитель",
   priority: "Приоритет",
@@ -315,10 +317,11 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
         },
         {
           ...createJiraAnalyticsWidget("criticalBugs"),
-          id: "critical-bugs-sla-priority",
-          title: "Нарушения по приоритету",
-          groupBy: "priority",
+          id: "critical-bugs-sla-project",
+          title: "Нарушения по проектам",
+          groupBy: "project",
           visualization: "bar",
+          width: "full",
           filters: [filter("durationHours", "greaterThan", String(JIRA_CRITICAL_BUG_SLA_HOURS))],
         },
         {
@@ -613,6 +616,10 @@ function weekLabel(value: Date | null) {
 }
 
 function groupLabel(record: JiraAnalyticsRecord, groupBy: JiraAnalyticsGroupBy) {
+  if (groupBy === "project") {
+    const issueKey = record.issue.issueKey.trim().toUpperCase();
+    return issueKey.match(/^([A-Z][A-Z0-9_]*)-\d+$/)?.[1] ?? "Без проекта";
+  }
   if (groupBy === "status") return record.issue.status || "Без статуса";
   if (groupBy === "assignee") return record.issue.assignee || "Не назначен";
   if (groupBy === "priority") return record.issue.priority || "Без приоритета";
