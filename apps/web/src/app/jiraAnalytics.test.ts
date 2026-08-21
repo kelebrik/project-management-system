@@ -5,11 +5,15 @@ import type { JiraIssueSnapshot } from "./domainTypes";
 import {
   JIRA_ANALYTICS_DEFAULT_CONFIG,
   JIRA_ANALYTICS_DEFAULT_TEMPLATE,
+  JIRA_ANALYTICS_FIELDS_BY_SOURCE,
+  JIRA_ANALYTICS_GROUPS_BY_SOURCE,
+  JIRA_ANALYTICS_METRICS_BY_SOURCE,
   JIRA_ANALYTICS_TEMPLATES,
   JIRA_CRITICAL_BUG_SLA_HOURS,
   createJiraAnalyticsFilter,
   evaluateJiraAnalyticsWidget,
   jiraAnalyticsCsv,
+  jiraAnalyticsOperatorsFor,
   normalizeJiraAnalyticsConfig,
 } from "./jiraAnalytics";
 
@@ -89,6 +93,30 @@ function template(id: "unplanned" | "flow" | "critical-bugs-sla") {
 test("unplanned work is the default Jira analytics template", () => {
   assert.equal(JIRA_ANALYTICS_DEFAULT_TEMPLATE.id, "unplanned");
   assert.equal(JIRA_ANALYTICS_TEMPLATES[0]?.id, "unplanned");
+});
+
+test("analytics builder matrices expose the documented source options", () => {
+  assert.deepEqual(JIRA_ANALYTICS_METRICS_BY_SOURCE.criticalBugs, [
+    "count",
+    "averageDuration",
+    "p50Duration",
+    "p85Duration",
+    "p95Duration",
+  ]);
+  assert.deepEqual(JIRA_ANALYTICS_GROUPS_BY_SOURCE.criticalBugs, [
+    "none",
+    "project",
+    "priority",
+    "assignee",
+    "status",
+    "resolution",
+  ]);
+  assert.ok(JIRA_ANALYTICS_FIELDS_BY_SOURCE.criticalBugs.includes("durationHours"));
+  assert.deepEqual(jiraAnalyticsOperatorsFor("durationHours"), [
+    "greaterThan",
+    "atLeast",
+    "equals",
+  ]);
 });
 
 test("shared Jira analytics config separates active and retrospective widgets", () => {
@@ -278,7 +306,7 @@ test("CSV export contains source Jira records", () => {
   assert.match(csv, /"Commits"/);
 });
 
-test("critical bug SLA report includes unresolved tickets after 30 calendar days", () => {
+test("critical bug SLA report is not limited by the event period", () => {
   const widget = template("critical-bugs-sla").config.widgets[2];
   const result = evaluateJiraAnalyticsWidget(
     widget,

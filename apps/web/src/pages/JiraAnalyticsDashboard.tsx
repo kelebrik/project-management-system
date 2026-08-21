@@ -18,8 +18,11 @@ import { apiClient } from "../api/client";
 import type { JiraIssueSnapshot } from "../app/domainTypes";
 import {
   JIRA_ANALYTICS_DEFAULT_CONFIG,
+  JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   JIRA_ANALYTICS_FILTER_LABELS,
+  JIRA_ANALYTICS_GROUPS_BY_SOURCE,
   JIRA_ANALYTICS_GROUP_LABELS,
+  JIRA_ANALYTICS_METRICS_BY_SOURCE,
   JIRA_ANALYTICS_METRIC_LABELS,
   JIRA_ANALYTICS_OPERATOR_LABELS,
   JIRA_ANALYTICS_SOURCE_LABELS,
@@ -30,6 +33,8 @@ import {
   evaluateJiraAnalyticsWidget,
   formatJiraAnalyticsMetric,
   jiraAnalyticsCsv,
+  jiraAnalyticsFieldIsNumeric,
+  jiraAnalyticsOperatorsFor,
   normalizeJiraAnalyticsConfig,
   type JiraAnalyticsDashboardConfig,
   type JiraAnalyticsFilter,
@@ -44,86 +49,6 @@ import {
   type JiraAnalyticsWidget,
 } from "../app/jiraAnalytics";
 import { usePageContext } from "./PageContext";
-
-const METRICS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsMetric[]> = {
-  issues: ["count", "commits", "mergeRequests"],
-  transitions: [
-    "count",
-    "averageDuration",
-    "p50Duration",
-    "p85Duration",
-    "p95Duration",
-  ],
-  development: ["count", "commits", "mergeRequests"],
-  criticalBugs: [
-    "count",
-    "averageDuration",
-    "p50Duration",
-    "p85Duration",
-    "p95Duration",
-  ],
-};
-
-const GROUPS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsGroupBy[]> = {
-  issues: ["none", "status", "assignee", "priority", "sprint", "issueType"],
-  transitions: [
-    "none",
-    "status",
-    "assignee",
-    "fromStatus",
-    "toStatus",
-    "week",
-  ],
-  development: ["none", "status", "assignee", "sprint", "week"],
-  criticalBugs: ["none", "project", "priority", "assignee", "status", "resolution"],
-};
-
-const FIELDS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsFilterField[]> = {
-  issues: [
-    "status",
-    "assignee",
-    "priority",
-    "sprint",
-    "issueType",
-    "resolution",
-    "hasDevelopment",
-    "commitCount",
-    "mergeRequestCount",
-  ],
-  transitions: [
-    "status",
-    "assignee",
-    "fromStatus",
-    "toStatus",
-    "durationHours",
-  ],
-  development: [
-    "status",
-    "assignee",
-    "sprint",
-    "commitCount",
-    "mergeRequestCount",
-  ],
-  criticalBugs: [
-    "status",
-    "assignee",
-    "priority",
-    "resolution",
-    "durationHours",
-  ],
-};
-
-const NUMERIC_FIELDS = new Set<JiraAnalyticsFilterField>([
-  "durationHours",
-  "commitCount",
-  "mergeRequestCount",
-]);
-
-function operatorsFor(field: JiraAnalyticsFilterField): JiraAnalyticsFilterOperator[] {
-  if (NUMERIC_FIELDS.has(field)) return ["greaterThan", "atLeast", "equals"];
-  if (field === "hasDevelopment") return ["equals"];
-  return ["equals", "notEquals", "contains", "empty", "notEmpty"];
-}
 
 function downloadRecords(name: string, records: JiraAnalyticsRecord[]) {
   const blob = new Blob(["\ufeff", jiraAnalyticsCsv(records)], {
@@ -420,10 +345,10 @@ function JiraWidgetEditor({
       ),
     });
   const changeSource = (source: JiraAnalyticsSource) => {
-    const metric = METRICS_BY_SOURCE[source].includes(widget.metric)
+    const metric = JIRA_ANALYTICS_METRICS_BY_SOURCE[source].includes(widget.metric)
       ? widget.metric
-      : METRICS_BY_SOURCE[source][0];
-    const groupBy = GROUPS_BY_SOURCE[source].includes(widget.groupBy)
+      : JIRA_ANALYTICS_METRICS_BY_SOURCE[source][0];
+    const groupBy = JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].includes(widget.groupBy)
       ? widget.groupBy
       : "none";
     patchWidget({ source, metric, groupBy, filters: [] });
@@ -455,13 +380,13 @@ function JiraWidgetEditor({
       <label>
         Метрика
         <select value={widget.metric} onChange={(event) => patchWidget({ metric: event.target.value as JiraAnalyticsMetric })}>
-          {METRICS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_METRIC_LABELS[value]}</option>)}
+          {JIRA_ANALYTICS_METRICS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_METRIC_LABELS[value]}</option>)}
         </select>
       </label>
       <label>
         Группировка
         <select value={widget.groupBy} onChange={(event) => patchWidget({ groupBy: event.target.value as JiraAnalyticsGroupBy })}>
-          {GROUPS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_GROUP_LABELS[value]}</option>)}
+          {JIRA_ANALYTICS_GROUPS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_GROUP_LABELS[value]}</option>)}
         </select>
       </label>
       <fieldset>
@@ -498,12 +423,12 @@ function JiraWidgetEditor({
             <div className="jira-widget-filter" key={condition.id}>
               <select value={condition.field} onChange={(event) => {
                 const field = event.target.value as JiraAnalyticsFilterField;
-                updateFilter(condition.id, { field, operator: operatorsFor(field)[0], value: field === "hasDevelopment" ? "true" : "" });
+                updateFilter(condition.id, { field, operator: jiraAnalyticsOperatorsFor(field)[0], value: field === "hasDevelopment" ? "true" : "" });
               }}>
-                {FIELDS_BY_SOURCE[widget.source].map((field) => <option value={field} key={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}
+                {JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source].map((field) => <option value={field} key={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}
               </select>
               <select value={condition.operator} onChange={(event) => updateFilter(condition.id, { operator: event.target.value as JiraAnalyticsFilterOperator })}>
-                {operatorsFor(condition.field).map((operator) => <option value={operator} key={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}
+                {jiraAnalyticsOperatorsFor(condition.field).map((operator) => <option value={operator} key={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}
               </select>
               {needsValue && (condition.field === "hasDevelopment" ? (
                 <select value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })}>
@@ -511,7 +436,7 @@ function JiraWidgetEditor({
                   <option value="false">Нет</option>
                 </select>
               ) : (
-                <input type={NUMERIC_FIELDS.has(condition.field) ? "number" : "text"} value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })} />
+                <input type={jiraAnalyticsFieldIsNumeric(condition.field) ? "number" : "text"} value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })} />
               ))}
               <button type="button" className="icon-button danger" onClick={() => patchWidget({ filters: widget.filters.filter((item) => item.id !== condition.id) })} aria-label="Удалить условие"><Trash2 size={15} /></button>
             </div>
@@ -523,7 +448,7 @@ function JiraWidgetEditor({
         className="button jira-widget-add-filter"
         disabled={widget.filters.length >= 20}
         onClick={() => {
-          const field = FIELDS_BY_SOURCE[widget.source][0];
+          const field = JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source][0];
           patchWidget({ filters: [...widget.filters, createJiraAnalyticsFilter(field)] });
         }}
       >

@@ -1,12 +1,13 @@
-import { BarChart3, Database, History } from "lucide-react";
+import { BarChart3, Database, History, Sigma } from "lucide-react";
 import { useState } from "react";
 
+import { JiraAggregatesPage } from "./JiraAggregatesPage";
 import { JiraAnalyticsDashboard } from "./JiraAnalyticsDashboard";
 import { JiraWorkDataSections } from "./JiraWorkDataSections";
 
 export const JIRA_PRODUCTION_BASE_URL = "https://tasks.sberdevices.ru";
 
-type JiraWorkView = "active" | "retro" | "data";
+type JiraWorkView = "active" | "retro" | "data" | "aggregates";
 
 export function ProjectJiraWorkPage() {
   const [view, setView] = useState<JiraWorkView>("active");
@@ -40,12 +41,21 @@ export function ProjectJiraWorkPage() {
           >
             <Database size={16} /> Данные Jira
           </button>
+          <button
+            type="button"
+            className={view === "aggregates" ? "active" : ""}
+            onClick={() => setView("aggregates")}
+          >
+            <Sigma size={16} /> Агрегаты
+          </button>
         </div>
       </div>
 
-      {view === "data"
-        ? <JiraWorkDataSections />
-        : <JiraAnalyticsDashboard section={view} />}
+      {view === "data" ? <JiraWorkDataSections /> : null}
+      {view === "aggregates" ? <JiraAggregatesPage /> : null}
+      {view === "active" || view === "retro"
+        ? <JiraAnalyticsDashboard section={view} />
+        : null}
     </article>
   );
 }

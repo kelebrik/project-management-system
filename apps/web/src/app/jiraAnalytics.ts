@@ -169,6 +169,103 @@ export const JIRA_ANALYTICS_OPERATOR_LABELS: Record<
   atLeast: "не меньше",
 };
 
+export const JIRA_ANALYTICS_METRICS_BY_SOURCE: Record<
+  JiraAnalyticsSource,
+  JiraAnalyticsMetric[]
+> = {
+  issues: ["count", "commits", "mergeRequests"],
+  transitions: [
+    "count",
+    "averageDuration",
+    "p50Duration",
+    "p85Duration",
+    "p95Duration",
+  ],
+  development: ["count", "commits", "mergeRequests"],
+  criticalBugs: [
+    "count",
+    "averageDuration",
+    "p50Duration",
+    "p85Duration",
+    "p95Duration",
+  ],
+};
+
+export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
+  JiraAnalyticsSource,
+  JiraAnalyticsGroupBy[]
+> = {
+  issues: ["none", "status", "assignee", "priority", "sprint", "issueType"],
+  transitions: [
+    "none",
+    "status",
+    "assignee",
+    "fromStatus",
+    "toStatus",
+    "week",
+  ],
+  development: ["none", "status", "assignee", "sprint", "week"],
+  criticalBugs: ["none", "project", "priority", "assignee", "status", "resolution"],
+};
+
+export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
+  JiraAnalyticsSource,
+  JiraAnalyticsFilterField[]
+> = {
+  issues: [
+    "status",
+    "assignee",
+    "priority",
+    "sprint",
+    "issueType",
+    "resolution",
+    "hasDevelopment",
+    "commitCount",
+    "mergeRequestCount",
+  ],
+  transitions: [
+    "status",
+    "assignee",
+    "fromStatus",
+    "toStatus",
+    "durationHours",
+  ],
+  development: [
+    "status",
+    "assignee",
+    "sprint",
+    "commitCount",
+    "mergeRequestCount",
+  ],
+  criticalBugs: [
+    "status",
+    "assignee",
+    "priority",
+    "resolution",
+    "durationHours",
+  ],
+};
+
+const JIRA_ANALYTICS_NUMERIC_FIELDS = new Set<JiraAnalyticsFilterField>([
+  "durationHours",
+  "commitCount",
+  "mergeRequestCount",
+]);
+
+export function jiraAnalyticsOperatorsFor(
+  field: JiraAnalyticsFilterField,
+): JiraAnalyticsFilterOperator[] {
+  if (JIRA_ANALYTICS_NUMERIC_FIELDS.has(field)) {
+    return ["greaterThan", "atLeast", "equals"];
+  }
+  if (field === "hasDevelopment") return ["equals"];
+  return ["equals", "notEquals", "contains", "empty", "notEmpty"];
+}
+
+export function jiraAnalyticsFieldIsNumeric(field: JiraAnalyticsFilterField) {
+  return JIRA_ANALYTICS_NUMERIC_FIELDS.has(field);
+}
+
 function uid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }

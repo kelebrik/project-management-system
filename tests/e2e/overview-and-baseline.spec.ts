@@ -672,6 +672,8 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(scopeSelect.locator("option")).toHaveText(["Лейбл", "Код эпика"]);
   await expect(page.getByRole("button", { name: "В работе" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Ретро" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Данные Jira" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Агрегаты" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Дашборды" })).toHaveCount(0);
   await expect(page.getByText("Командный доступ", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Название дашборда")).toHaveCount(0);
@@ -738,6 +740,21 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByRole("heading", { name: "Тикеты с нарушенным SLA" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "TV-101" }).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Агрегаты" }).click();
+  await expect(page.getByRole("heading", { name: "Агрегаты Jira" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Источники записей" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "SLA Critical/Blocker", exact: true })).toBeVisible();
+  await expect(page.getByText(/Если тикет создан с таким приоритетом, SLA начинается от создания/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Текущие виджеты проекта" })).toBeVisible();
+  await expect(page.locator(".jira-aggregate-table.current-widgets").getByText("Нарушили SLA 30 дней")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.getByRole("button", { name: "В работе" }).click();
 
   await page
@@ -788,6 +805,8 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await page.getByRole("button", { name: "Сохранить" }).click();
   await expect.poll(() => savedWidgetCount).toBe(12);
   await page.getByRole("button", { name: "Данные Jira" }).click();
+  await page.getByRole("button", { name: "Агрегаты" }).click();
+  await expect(page.locator(".jira-aggregate-table.current-widgets").getByText("Новый виджет")).toBeVisible();
   await page.getByRole("button", { name: "В работе" }).click();
   await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
 });
