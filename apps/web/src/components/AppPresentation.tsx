@@ -92,12 +92,12 @@ type AppPresentationProps = {
   isProjectModuleEnabled: (key: any) => boolean;
   isReadOnly: boolean;
   keycloakEnabled: boolean;
+  keycloakStatusResolved: boolean;
   loading: boolean;
   logout: () => void;
   onAuthModeChange: (mode: "login" | "ready") => void;
   onErrorChange: (value: string | null) => void;
   onKeycloakLogin: () => void;
-  onPasswordLogin: (email: string, password: string) => Promise<void>;
   onNoticeChange: (value: string | null) => void;
   onSelectSearchResult: (result: any) => void;
   openView: (nextView: AppView, options?: { replace?: boolean; projectCode?: string | null }) => void;
@@ -189,12 +189,12 @@ export function AppPresentation({
   isProjectModuleEnabled,
   isReadOnly,
   keycloakEnabled,
+  keycloakStatusResolved,
   loading,
   logout,
   onAuthModeChange,
   onErrorChange,
   onKeycloakLogin,
-  onPasswordLogin,
   onNoticeChange,
   onSelectSearchResult,
   openView,
@@ -283,8 +283,8 @@ export function AppPresentation({
       <AuthPage
         error={error}
         keycloakEnabled={keycloakEnabled}
+        keycloakStatusResolved={keycloakStatusResolved}
         onKeycloakLogin={onKeycloakLogin}
-        onPasswordLogin={onPasswordLogin}
       />
     );
   }

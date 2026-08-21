@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Request, Response } from 'express';
 
-import { hashPassword, requireAuth, safeUser, verifyPassword } from './auth.js';
+import { requireAuth, safeUser } from './auth.js';
 
 test('safeUser serializes business unit administrator assignments', () => {
   const user = safeUser({
@@ -56,17 +56,4 @@ test('requireAuth rejects anonymous read requests', () => {
   assert.equal(statusCode, 401);
   assert.deepEqual(body, { error: 'Требуется вход в систему' });
   assert.equal(nextCalled, false);
-});
-
-test('verifyPassword rejects missing and malformed password hashes', async () => {
-  assert.equal(await verifyPassword('password', null), false);
-  assert.equal(await verifyPassword('password', 'not-a-scrypt-hash'), false);
-  assert.equal(await verifyPassword('password', 'scrypt:salt:%%%'), false);
-});
-
-test('password hashing creates a verifiable salted credential', async () => {
-  const passwordHash = await hashPassword('correct horse battery staple');
-
-  assert.equal(await verifyPassword('correct horse battery staple', passwordHash), true);
-  assert.equal(await verifyPassword('wrong password', passwordHash), false);
 });

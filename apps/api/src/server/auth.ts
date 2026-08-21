@@ -1,7 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { UserRole } from '@prisma/client';
-import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
-import { promisify } from 'node:util';
+import { createHash, randomBytes } from 'node:crypto';
 import { prisma } from '../db.js';
 
 const authCookieName = process.env.AUTH_COOKIE_NAME ?? 'pms_session';
@@ -12,7 +11,6 @@ const authCookieSecure =
 
 export const AUTH_COOKIE_SECURE = authCookieSecure;
 export const AUTH_SESSION_DAYS = sessionDays;
-const scryptAsync = promisify(scrypt);
 
 export type CurrentUser = {
   id: string;
@@ -98,26 +96,6 @@ export function hashSessionToken(token: string) {
 
 export function hashApiToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
-}
-
-export async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString('base64url');
-  const hash = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `scrypt:${salt}:${hash.toString('base64url')}`;
-}
-
-export async function verifyPassword(password: string, passwordHash: string | null) {
-  if (!passwordHash) return false;
-  try {
-    const [scheme, salt, expectedHash] = passwordHash.split(':');
-    if (scheme !== 'scrypt' || !salt || !expectedHash) return false;
-    const expected = Buffer.from(expectedHash, 'base64url');
-    if (expected.length === 0) return false;
-    const actual = (await scryptAsync(password, salt, expected.length)) as Buffer;
-    return expected.length === actual.length && timingSafeEqual(expected, actual);
-  } catch {
-    return false;
-  }
 }
 
 function apiTokenScopes(value: unknown) {

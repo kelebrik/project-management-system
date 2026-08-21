@@ -386,7 +386,7 @@ function AppController() {
     projectId: project?.id ?? null,
     selectedProjectId,
   });
-  const { logout, keycloakStatus, loginWithKeycloak, loginWithPassword } = useAuthController({
+  const { logout, keycloakStatus, loginWithKeycloak } = useAuthController({
     authMode,
     setAuthMode,
     setCurrentUser,
@@ -936,10 +936,10 @@ function AppController() {
       isProjectModuleEnabled={isProjectModuleEnabled}
       isReadOnly={isReadOnly}
       keycloakEnabled={keycloakStatus.enabled}
+      keycloakStatusResolved={keycloakStatus.resolved}
       loading={loading}
       logout={logout}
       onKeycloakLogin={loginWithKeycloak}
-      onPasswordLogin={loginWithPassword}
       onAuthModeChange={setAuthMode}
       onErrorChange={setError}
       onNoticeChange={setNotice}

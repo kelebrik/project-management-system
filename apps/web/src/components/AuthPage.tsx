@@ -1,33 +1,18 @@
 import { ClipboardCheck, KeyRound } from "lucide-react";
-import { useState, type FormEvent } from "react";
 
 type AuthPageProps = {
   error: string | null;
   keycloakEnabled: boolean;
+  keycloakStatusResolved: boolean;
   onKeycloakLogin: () => void;
-  onPasswordLogin: (email: string, password: string) => Promise<void>;
 };
 
 export function AuthPage({
   error,
   keycloakEnabled,
+  keycloakStatusResolved,
   onKeycloakLogin,
-  onPasswordLogin,
 }: AuthPageProps) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const submitPasswordLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSubmitting(true);
-    try {
-      await onPasswordLogin(email, password);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <main className="auth-page">
       <section className="auth-card">
@@ -43,7 +28,7 @@ export function AuthPage({
           <KeyRound size={22} />
           <div>
             <h1>Вход в систему</h1>
-            <p>Введите email и пароль пользователя</p>
+            <p>Используйте корпоративную учётную запись</p>
           </div>
         </div>
         {error && (
@@ -52,39 +37,17 @@ export function AuthPage({
             <span>{error}</span>
           </div>
         )}
-        <form className="auth-form" onSubmit={submitPasswordLogin}>
-          {keycloakEnabled && (
-            <>
-              <button type="button" onClick={onKeycloakLogin}>
-                Войти через SSO
-              </button>
-              <div className="auth-divider">или</div>
-            </>
-          )}
-          <label>
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              autoComplete="email"
-              required
-            />
-          </label>
-          <label>
-            Пароль
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </label>
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Проверяю..." : "Войти"}
+        <div className="auth-form">
+          <button type="button" disabled={!keycloakEnabled} onClick={onKeycloakLogin}>
+            Войти через SSO
           </button>
-        </form>
+          {keycloakStatusResolved && !keycloakEnabled && (
+            <div className="auth-error">
+              <strong>Вход недоступен</strong>
+              <span>Keycloak не настроен. Обратитесь к администратору.</span>
+            </div>
+          )}
+        </div>
       </section>
     </main>
   );

@@ -1,5 +1,3 @@
-import { jiraBugIssueTypes, jiraCriticalPriorities } from '@pms/shared';
-
 import { prisma } from '../db.js';
 import { jiraJqlWithIssueKeys, normalizedJiraIssueKey } from '../jira.js';
 

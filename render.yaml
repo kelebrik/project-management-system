@@ -15,10 +15,6 @@ services:
         value: "false"
       - key: WEB_ORIGIN
         value: "https://project-management-system-lorj.onrender.com"
-      - key: LOCAL_AUTH_EMAIL
-        value: "kelebrik@gmail.com"
-      - key: LOCAL_AUTH_BOOTSTRAP_PASSWORD
-        sync: false
       - key: PAGE_VISIT_RETENTION_DAYS
         value: "30"
       - key: METRICS_TOKEN
