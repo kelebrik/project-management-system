@@ -828,6 +828,39 @@ export const openApiDocument = {
         pathParam("milestoneId"),
       ]),
     },
+    "/api/projects/{projectId}/jira/capacity-sample": {
+      post: {
+        tags: ["Jira"],
+        summary: "Measure Jira history capacity using a redacted read-only sample (system admin only)",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["scopeType", "scopeValue"],
+                properties: {
+                  scopeType: { type: "string", enum: ["LABEL", "EPIC"] },
+                  scopeValue: { type: "string", minLength: 1, maxLength: 100 },
+                  sampleSize: { type: "integer", minimum: 10, maximum: 100, default: 20 },
+                  storageBudgetGiB: { type: "number", exclusiveMinimum: 0, default: 50 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Redacted capacity and security report" },
+          "400": { description: "Validation error" },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "404": { description: "Project not found" },
+          "502": { description: "Jira sampling failed" },
+        },
+      },
+    },
     "/api/projects/{projectId}/jira/sync": {
       post: {
         tags: ["Jira"],

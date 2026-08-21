@@ -1,4 +1,6 @@
 import { isJiraCriticalPriority } from '@pms/shared';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { gzipSync } from 'node:zlib';
 import { z } from 'zod';
 
 export type JiraIssue = {
@@ -159,12 +161,35 @@ type JiraConfigOptions = {
   baseUrl?: string;
   fetchAllPages?: boolean;
   includeAnalyticsFields?: boolean;
+  capacitySample?: boolean;
+  maxResults?: number;
   remoteDevelopmentCache?: Map<string, JiraIssue['development']>;
 };
 
-type JiraIssueFetchResult = {
+export type JiraCapacityIssueMeasurement = {
+  identity: string;
+  currentJsonBytes: number;
+  estimatedFullJsonBytes: number;
+  estimatedFullGzipBytes: number;
+  fieldCount: number;
+  changelogHistories: number;
+  changelogItems: number;
+  changelogComplete: boolean;
+  comments: number;
+  commentsIncluded: number;
+  commentsComplete: boolean;
+  worklogs: number;
+  worklogsIncluded: number;
+  worklogsComplete: boolean;
+  developmentLinks: number;
+  attachmentExcluded: boolean;
+};
+
+export type JiraIssueFetchResult = {
   issues: JiraIssue[];
   jiraUser: string | null;
+  total: number;
+  capacityMeasurements?: JiraCapacityIssueMeasurement[];
 };
 
 type JiraSearchResult = {
@@ -373,6 +398,15 @@ export class JiraReadOnlyRequestError extends Error {
   override name = 'JiraReadOnlyRequestError';
 }
 
+export type JiraReadOnlyRequestMetric = {
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+};
+
+const jiraReadOnlyRequestMetrics = new AsyncLocalStorage<JiraReadOnlyRequestMetric[]>();
+
 export function assertJiraReadOnlyRequest(urlValue: string | URL, init: RequestInit = {}) {
   let url: URL;
   try {
@@ -395,9 +429,36 @@ export function assertJiraReadOnlyRequest(urlValue: string | URL, init: RequestI
   }
 }
 
-export function fetchJiraReadOnly(url: string | URL, init: RequestInit = {}) {
+export async function fetchJiraReadOnly(url: string | URL, init: RequestInit = {}) {
   assertJiraReadOnlyRequest(url, init);
-  return fetch(url, { ...init, redirect: 'manual' });
+  const startedAt = performance.now();
+  const parsedUrl = url instanceof URL ? url : new URL(url);
+  try {
+    const response = await fetch(url, { ...init, redirect: 'manual' });
+    jiraReadOnlyRequestMetrics.getStore()?.push({
+      method: (init.method ?? 'GET').toUpperCase(),
+      path: parsedUrl.pathname,
+      status: response.status,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    });
+    return response;
+  } catch (error) {
+    jiraReadOnlyRequestMetrics.getStore()?.push({
+      method: (init.method ?? 'GET').toUpperCase(),
+      path: parsedUrl.pathname,
+      status: 0,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    });
+    throw error;
+  }
+}
+
+export async function captureJiraReadOnlyRequestMetrics<Result>(
+  callback: () => Promise<Result>,
+) {
+  const requests: JiraReadOnlyRequestMetric[] = [];
+  const result = await jiraReadOnlyRequestMetrics.run(requests, callback);
+  return { result, requests };
 }
 
 function savedFilterIdFromJql(jql: string) {
@@ -409,11 +470,14 @@ function jiraSearchBody(
   maxResults: number,
   startAt = 0,
   analyticsFieldIds: readonly string[] | null = null,
+  capacitySample = false,
 ) {
   return JSON.stringify({
     jql,
     fields: [
-      ...(analyticsFieldIds ? analyticsFieldIds : ['*navigable']),
+      ...(capacitySample
+        ? ['*all', '-attachment']
+        : analyticsFieldIds ? analyticsFieldIds : ['*navigable']),
       'summary',
       'status',
       'priority',
@@ -723,6 +787,92 @@ function jiraTransitionHistoryComplete(issue: JiraSearchResponse['issues'][numbe
   return jiraChangelogPageComplete(issue.changelog);
 }
 
+function sortedJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((entry) => sortedJsonValue(entry));
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key.toLowerCase() !== 'attachment')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, sortedJsonValue(entry)]),
+  );
+}
+
+function jiraEmbeddedCollection(value: unknown, arrayKey: string) {
+  if (!value || typeof value !== 'object') {
+    return { total: 0, included: 0, complete: true, currentBytes: 0, estimatedBytes: 0 };
+  }
+  const record = value as Record<string, unknown>;
+  const entries = Array.isArray(record[arrayKey]) ? record[arrayKey] : [];
+  const included = entries.length;
+  const totalValue = typeof record.total === 'number' ? record.total : included;
+  const total = Math.max(included, Math.max(0, Math.floor(totalValue)));
+  const currentBytes = Buffer.byteLength(JSON.stringify(sortedJsonValue(value)));
+  const entriesBytes = Buffer.byteLength(JSON.stringify(sortedJsonValue(entries)));
+  const fixedBytes = Math.max(0, currentBytes - entriesBytes);
+  const averageEntryBytes = included > 0 ? Math.max(0, entriesBytes - 2) / included : 0;
+  const estimatedBytes = total > included && included > 0
+    ? Math.ceil(fixedBytes + 2 + averageEntryBytes * total)
+    : currentBytes;
+  return {
+    total,
+    included,
+    complete: total <= included,
+    currentBytes,
+    estimatedBytes,
+  };
+}
+
+function measureJiraIssueCapacity(
+  issue: JiraSearchResponse['issues'][number],
+  development: JiraIssue['development'] | null,
+): JiraCapacityIssueMeasurement {
+  const rawFields = issue.fields as Record<string, unknown>;
+  const fields = sortedJsonValue(rawFields) as Record<string, unknown>;
+  const comment = jiraEmbeddedCollection(fields.comment, 'comments');
+  const worklog = jiraEmbeddedCollection(fields.worklog, 'worklogs');
+  const payload = sortedJsonValue({
+    jiraId: issue.id ?? null,
+    fields,
+    changelog: issue.changelog ?? null,
+  });
+  const serialized = JSON.stringify(payload);
+  const currentJsonBytes = Buffer.byteLength(serialized);
+  const estimatedFullJsonBytes = Math.max(
+    currentJsonBytes,
+    currentJsonBytes
+      - comment.currentBytes
+      - worklog.currentBytes
+      + comment.estimatedBytes
+      + worklog.estimatedBytes,
+  );
+  const compressionRatio = serialized.length > 0
+    ? gzipSync(serialized).byteLength / currentJsonBytes
+    : 1;
+
+  return {
+    identity: issue.id ?? issue.key,
+    currentJsonBytes,
+    estimatedFullJsonBytes,
+    estimatedFullGzipBytes: Math.ceil(estimatedFullJsonBytes * compressionRatio),
+    fieldCount: Object.keys(fields).length,
+    changelogHistories: issue.changelog?.histories.length ?? 0,
+    changelogItems: issue.changelog?.histories.reduce(
+      (total, history) => total + history.items.length,
+      0,
+    ) ?? 0,
+    changelogComplete: jiraChangelogPageComplete(issue.changelog),
+    comments: comment.total,
+    commentsIncluded: comment.included,
+    commentsComplete: comment.complete,
+    worklogs: worklog.total,
+    worklogsIncluded: worklog.included,
+    worklogsComplete: worklog.complete,
+    developmentLinks: (development?.commitCount ?? 0) + (development?.mergeRequestCount ?? 0),
+    attachmentExcluded: !Object.keys(rawFields).some((key) => key.toLowerCase() === 'attachment'),
+  };
+}
+
 export function jiraCriticalPriorityAt(
   issue: JiraSearchResponse['issues'][number],
 ) {
@@ -937,6 +1087,7 @@ async function fetchCompleteJiraSearch(
   firstPage: JiraSearchResponse,
   authHeaders: Record<string, string>,
   analyticsFieldIds: readonly string[] | null,
+  capacitySample: boolean,
 ) {
   const issuesByKey = new Map(firstPage.issues.map((issue) => [issue.key, issue]));
   if (issuesByKey.size !== firstPage.issues.length) {
@@ -980,7 +1131,7 @@ async function fetchCompleteJiraSearch(
 
     const result = await fetchJiraSearch(
       baseUrl,
-      jiraSearchBody(jql, requestedPageSize, pageEnd, analyticsFieldIds),
+      jiraSearchBody(jql, requestedPageSize, pageEnd, analyticsFieldIds, capacitySample),
       authHeaders,
     );
     if (!result.parsed) {
@@ -1467,7 +1618,10 @@ export function resolveJiraConfig(
   const envToken = nonEmpty(env.JIRA_API_TOKEN);
   const maxResults = Math.min(
     500,
-    Math.max(1, Number(nonEmpty(env.JIRA_MAX_RESULTS) ?? 100) || 100),
+    Math.max(
+      1,
+      options.maxResults ?? (Number(nonEmpty(env.JIRA_MAX_RESULTS) ?? 100) || 100),
+    ),
   );
 
   return {
@@ -1532,7 +1686,13 @@ export async function fetchJiraIssuesWithMeta(
       : null;
     const result = await fetchJiraSearchWithVerifiedEmptyResult(
       baseUrl,
-      jiraSearchBody(effectiveJql, maxResults, 0, analyticsFieldIds),
+      jiraSearchBody(
+        effectiveJql,
+        maxResults,
+        0,
+        analyticsFieldIds,
+        Boolean(options.capacitySample),
+      ),
       authAttempt.headers,
       expectedIdentities,
     );
@@ -1581,7 +1741,13 @@ export async function fetchJiraIssuesWithMeta(
         : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
-        jiraSearchBody(effectiveJql, maxResults, 0, analyticsFieldIds),
+        jiraSearchBody(
+          effectiveJql,
+          maxResults,
+          0,
+          analyticsFieldIds,
+          Boolean(options.capacitySample),
+        ),
         authHeaders,
         expectedIdentities,
       );
@@ -1631,7 +1797,13 @@ export async function fetchJiraIssuesWithMeta(
         : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
-        jiraSearchBody(effectiveJql, maxResults, 0, analyticsFieldIds),
+        jiraSearchBody(
+          effectiveJql,
+          maxResults,
+          0,
+          analyticsFieldIds,
+          Boolean(options.capacitySample),
+        ),
         authHeaders,
         expectedIdentities,
       );
@@ -1693,6 +1865,7 @@ export async function fetchJiraIssuesWithMeta(
         parsed,
         successfulAuthHeaders,
         successfulAnalyticsFieldIds,
+        Boolean(options.capacitySample),
       )
     : parsed;
   const hydratedData = successfulAuthHeaders
@@ -1706,6 +1879,13 @@ export async function fetchJiraIssuesWithMeta(
     : { search: completeSearch, remoteDevelopmentByKey: new Map() };
   const hydrated = hydratedData.search;
   const names = hydrated.names ?? {};
+  const capacityMeasurements = options.capacitySample
+    ? hydrated.issues.map((issue) =>
+        measureJiraIssueCapacity(
+          issue,
+          hydratedData.remoteDevelopmentByKey.get(issue.key) ?? null,
+        ))
+    : undefined;
   return {
     issues: hydrated.issues.map((issue) => {
       const fields = issue.fields as Record<string, unknown> & typeof issue.fields;
@@ -1739,5 +1919,7 @@ export async function fetchJiraIssuesWithMeta(
       };
     }),
     jiraUser,
+    total: completeSearch.total ?? completeSearch.issues.length,
+    capacityMeasurements,
   };
 }

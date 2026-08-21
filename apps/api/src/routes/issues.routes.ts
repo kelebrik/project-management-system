@@ -18,6 +18,7 @@ import {
   syncJiraIssueAnalytics,
   type JiraAnalyticsSyncedSnapshot,
 } from '../services/jira-analytics-sync.js';
+import { sampleJiraCapacity } from '../services/jira-capacity.js';
 import {
   ensureDefaultJiraWorkSections,
   jiraCriticalSlaSyncPlan,
@@ -120,6 +121,20 @@ const jiraSyncSchema = z.object({
   baseUrl: z
     .enum(['https://tasks.dev.sberdevices.ru', 'https://tasks.sberdevices.ru'])
     .optional(),
+});
+
+const jiraCapacitySampleSchema = z.object({
+  scopeType: z.enum(['LABEL', 'EPIC']),
+  scopeValue: z.string().trim().min(1).max(100),
+  sampleSize: z.number().int().min(10).max(100).default(20),
+  storageBudgetGiB: z.number().positive().max(10_000).default(50),
+}).superRefine((value, context) => {
+  if (/[\u0000-\u001f]/.test(value.scopeValue)) {
+    context.addIssue({ code: 'custom', path: ['scopeValue'], message: 'Недопустимое значение' });
+  }
+  if (value.scopeType === 'EPIC' && !/^[A-Z][A-Z0-9_]*-\d+$/i.test(value.scopeValue)) {
+    context.addIssue({ code: 'custom', path: ['scopeValue'], message: 'Укажите код эпика, например CVTE-123' });
+  }
 });
 
 const JIRA_ANALYTICS_SYNC_CONCURRENCY = 4;
@@ -784,6 +799,55 @@ router.patch('/tasks/:taskId/jira-link', async (req, res) => {
   });
 
   res.json(updated);
+});
+
+router.post('/projects/:projectId/jira/capacity-sample', async (req, res) => {
+  if (currentUser(req)?.role !== 'ADMIN') {
+    res.status(403).json({ error: 'Замер ёмкости доступен только администратору системы' });
+    return;
+  }
+
+  const parsed = jiraCapacitySampleSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true, jiraIntegration: { select: { baseUrl: true } } },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
+    return;
+  }
+
+  try {
+    const report = await sampleJiraCapacity({
+      ...parsed.data,
+      baseUrl: project.jiraIntegration?.baseUrl,
+    });
+    logEvent('info', 'jira.capacity_sample.completed', {
+      projectId: project.id,
+      scopeType: report.scope.type,
+      tickets: report.scope.tickets,
+      observedSample: report.scope.observedSample,
+      requests: report.collection.requests,
+      elapsedMs: report.collection.elapsedMs,
+      securityGate: report.security.status,
+      capacityGate: report.capacityGate.status,
+    });
+    res.json(report);
+  } catch (error) {
+    logEvent('error', 'jira.capacity_sample.failed', {
+      projectId: project.id,
+      scopeType: parsed.data.scopeType,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    res.status(502).json({
+      error: error instanceof Error ? error.message : 'Не удалось выполнить замер Jira',
+    });
+  }
 });
 
 router.post('/projects/:projectId/jira/sync', async (req, res) => {

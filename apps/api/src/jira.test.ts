@@ -6,6 +6,7 @@ import {
   assertJiraReadOnlyRequest,
   fetchJiraReadOnly,
   fetchJiraIssues,
+  fetchJiraIssuesWithMeta,
   fetchJiraRemoteDevelopment,
   jiraCriticalPriorityAt,
   jiraDevelopmentFromFields,
@@ -137,8 +138,15 @@ test('Jira client has no direct fetch calls outside the read-only wrapper', asyn
   assert.equal(directFetchCalls.length, 1);
   assert.match(
     source,
-    /export function fetchJiraReadOnly[\s\S]*?return fetch\(url, \{ \.\.\.init, redirect: 'manual' \}\);/,
+    /export async function fetchJiraReadOnly[\s\S]*?await fetch\(url, \{ \.\.\.init, redirect: 'manual' \}\);/,
   );
+});
+
+test('capacity sampling asks for all fields except attachments', async () => {
+  const source = await readFile(new URL('./jira.ts', import.meta.url), 'utf8');
+
+  assert.match(source, /capacitySample\s*\? \['\*all', '-attachment'\]/);
+  assert.match(source, /key\.toLowerCase\(\) !== 'attachment'/);
 });
 
 test('jiraSprintFromFields reads active Jira Server sprint strings', () => {
@@ -753,6 +761,66 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
         },
       },
     ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('capacity sampling measures paged content and verifies attachment exclusion', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let searchBody: Record<string, unknown> | null = null;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith('/remotelink')) {
+      return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    searchBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({
+      startAt: 0,
+      maxResults: 10,
+      total: 123,
+      issues: [{
+        id: '10042',
+        key: 'PMS-42',
+        fields: {
+          summary: 'Capacity fixture',
+          status: { name: 'Open' },
+          priority: { name: 'Major' },
+          assignee: null,
+          issuetype: { name: 'Bug' },
+          created: '2026-05-20T09:00:00.000Z',
+          updated: '2026-05-23T10:00:00.000Z',
+          attachment: [{ id: 'must-not-be-measured', size: 999_999 }],
+          comment: { total: 3, comments: [{ body: 'one observed comment' }] },
+          worklog: { total: 1, worklogs: [{ timeSpentSeconds: 60 }] },
+        },
+        changelog: { startAt: 0, maxResults: 100, total: 0, histories: [] },
+      }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+
+  try {
+    const result = await fetchJiraIssuesWithMeta('labels = "cvte968"', {
+      capacitySample: true,
+      includeAnalyticsFields: true,
+      maxResults: 10,
+    });
+
+    assert.equal(result.total, 123);
+    assert.equal(searchBody?.maxResults, 10);
+    assert.deepEqual((searchBody?.fields as string[]).slice(0, 2), ['*all', '-attachment']);
+    assert.equal(result.capacityMeasurements?.[0]?.comments, 3);
+    assert.equal(result.capacityMeasurements?.[0]?.commentsComplete, false);
+    assert.equal(result.capacityMeasurements?.[0]?.attachmentExcluded, false);
+    assert.ok(
+      (result.capacityMeasurements?.[0]?.estimatedFullJsonBytes ?? 0) >
+      (result.capacityMeasurements?.[0]?.currentJsonBytes ?? 0),
+    );
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);
