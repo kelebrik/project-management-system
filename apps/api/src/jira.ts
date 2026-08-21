@@ -1,4 +1,6 @@
 import { isJiraCriticalPriority } from '@pms/shared';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { gzipSync } from 'node:zlib';
 import { z } from 'zod';
 
 import { logEvent } from './server/logger.js';
@@ -181,6 +183,7 @@ type JiraConfigOptions = {
   labelScope?: string;
   pageSize?: number;
   deadlineAt?: number;
+  capacitySample?: boolean;
   remoteDevelopmentCache?: Map<string, JiraIssue['development']>;
 };
 
@@ -189,9 +192,30 @@ export type JiraAnalyticsScope = {
   value: string;
 };
 
-type JiraIssueFetchResult = {
+export type JiraCapacityIssueMeasurement = {
+  identity: string;
+  currentJsonBytes: number;
+  estimatedFullJsonBytes: number;
+  estimatedFullGzipBytes: number;
+  fieldCount: number;
+  changelogHistories: number;
+  changelogItems: number;
+  changelogComplete: boolean;
+  comments: number;
+  commentsIncluded: number;
+  commentsComplete: boolean;
+  worklogs: number;
+  worklogsIncluded: number;
+  worklogsComplete: boolean;
+  developmentLinks: number;
+  attachmentExcluded: boolean;
+};
+
+export type JiraIssueFetchResult = {
   issues: JiraIssue[];
   jiraUser: string | null;
+  total: number;
+  capacityMeasurements?: JiraCapacityIssueMeasurement[];
 };
 
 export type JiraIssueKeyFetchResult = {
@@ -405,6 +429,15 @@ export class JiraReadOnlyRequestError extends Error {
   override name = 'JiraReadOnlyRequestError';
 }
 
+export type JiraReadOnlyRequestMetric = {
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+};
+
+const jiraReadOnlyRequestMetrics = new AsyncLocalStorage<JiraReadOnlyRequestMetric[]>();
+
 export function assertJiraReadOnlyRequest(urlValue: string | URL, init: RequestInit = {}) {
   let url: URL;
   try {
@@ -427,9 +460,36 @@ export function assertJiraReadOnlyRequest(urlValue: string | URL, init: RequestI
   }
 }
 
-export function fetchJiraReadOnly(url: string | URL, init: RequestInit = {}) {
+export async function fetchJiraReadOnly(url: string | URL, init: RequestInit = {}) {
   assertJiraReadOnlyRequest(url, init);
-  return fetch(url, { ...init, redirect: 'manual' });
+  const startedAt = performance.now();
+  const parsedUrl = url instanceof URL ? url : new URL(url);
+  try {
+    const response = await fetch(url, { ...init, redirect: 'manual' });
+    jiraReadOnlyRequestMetrics.getStore()?.push({
+      method: (init.method ?? 'GET').toUpperCase(),
+      path: parsedUrl.pathname,
+      status: response.status,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    });
+    return response;
+  } catch (error) {
+    jiraReadOnlyRequestMetrics.getStore()?.push({
+      method: (init.method ?? 'GET').toUpperCase(),
+      path: parsedUrl.pathname,
+      status: 0,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    });
+    throw error;
+  }
+}
+
+export async function captureJiraReadOnlyRequestMetrics<Result>(
+  callback: () => Promise<Result>,
+) {
+  const requests: JiraReadOnlyRequestMetric[] = [];
+  const result = await jiraReadOnlyRequestMetrics.run(requests, callback);
+  return { result, requests };
 }
 
 function savedFilterIdFromJql(jql: string) {
@@ -440,6 +500,7 @@ type JiraSearchBodyOptions = {
   analyticsFieldIds?: readonly string[] | null;
   includeChangelog?: boolean;
   keysOnly?: boolean;
+  capacitySample?: boolean;
 };
 
 function jiraSearchBody(
@@ -455,7 +516,9 @@ function jiraSearchBody(
     fields: keysOnly
       ? []
       : [
-          ...(analyticsFieldIds ? analyticsFieldIds : ['*navigable']),
+          ...(options.capacitySample
+            ? ['*all', '-attachment']
+            : analyticsFieldIds ? analyticsFieldIds : ['*navigable']),
           'summary',
           'status',
           'priority',
@@ -856,6 +919,92 @@ function jiraTransitionHistoryComplete(issue: JiraSearchResponse['issues'][numbe
   return jiraChangelogPageComplete(issue.changelog);
 }
 
+function sortedJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((entry) => sortedJsonValue(entry));
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key.toLowerCase() !== 'attachment')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, sortedJsonValue(entry)]),
+  );
+}
+
+function jiraEmbeddedCollection(value: unknown, arrayKey: string) {
+  if (!value || typeof value !== 'object') {
+    return { total: 0, included: 0, complete: true, currentBytes: 0, estimatedBytes: 0 };
+  }
+  const record = value as Record<string, unknown>;
+  const entries = Array.isArray(record[arrayKey]) ? record[arrayKey] : [];
+  const included = entries.length;
+  const totalValue = typeof record.total === 'number' ? record.total : included;
+  const total = Math.max(included, Math.max(0, Math.floor(totalValue)));
+  const currentBytes = Buffer.byteLength(JSON.stringify(sortedJsonValue(value)));
+  const entriesBytes = Buffer.byteLength(JSON.stringify(sortedJsonValue(entries)));
+  const fixedBytes = Math.max(0, currentBytes - entriesBytes);
+  const averageEntryBytes = included > 0 ? Math.max(0, entriesBytes - 2) / included : 0;
+  const estimatedBytes = total > included && included > 0
+    ? Math.ceil(fixedBytes + 2 + averageEntryBytes * total)
+    : currentBytes;
+  return {
+    total,
+    included,
+    complete: total <= included,
+    currentBytes,
+    estimatedBytes,
+  };
+}
+
+function measureJiraIssueCapacity(
+  issue: JiraSearchResponse['issues'][number],
+  development: JiraIssue['development'] | null,
+): JiraCapacityIssueMeasurement {
+  const rawFields = issue.fields as Record<string, unknown>;
+  const fields = sortedJsonValue(rawFields) as Record<string, unknown>;
+  const comment = jiraEmbeddedCollection(fields.comment, 'comments');
+  const worklog = jiraEmbeddedCollection(fields.worklog, 'worklogs');
+  const payload = sortedJsonValue({
+    jiraId: issue.id ?? null,
+    fields,
+    changelog: issue.changelog ?? null,
+  });
+  const serialized = JSON.stringify(payload);
+  const currentJsonBytes = Buffer.byteLength(serialized);
+  const estimatedFullJsonBytes = Math.max(
+    currentJsonBytes,
+    currentJsonBytes
+      - comment.currentBytes
+      - worklog.currentBytes
+      + comment.estimatedBytes
+      + worklog.estimatedBytes,
+  );
+  const compressionRatio = serialized.length > 0
+    ? gzipSync(serialized).byteLength / currentJsonBytes
+    : 1;
+
+  return {
+    identity: issue.id ?? issue.key,
+    currentJsonBytes,
+    estimatedFullJsonBytes,
+    estimatedFullGzipBytes: Math.ceil(estimatedFullJsonBytes * compressionRatio),
+    fieldCount: Object.keys(fields).length,
+    changelogHistories: issue.changelog?.histories.length ?? 0,
+    changelogItems: issue.changelog?.histories.reduce(
+      (total, history) => total + history.items.length,
+      0,
+    ) ?? 0,
+    changelogComplete: jiraChangelogPageComplete(issue.changelog),
+    comments: comment.total,
+    commentsIncluded: comment.included,
+    commentsComplete: comment.complete,
+    worklogs: worklog.total,
+    worklogsIncluded: worklog.included,
+    worklogsComplete: worklog.complete,
+    developmentLinks: (development?.commitCount ?? 0) + (development?.mergeRequestCount ?? 0),
+    attachmentExcluded: !Object.keys(rawFields).some((key) => key.toLowerCase() === 'attachment'),
+  };
+}
+
 export function jiraCriticalPriorityAt(
   issue: JiraSearchResponse['issues'][number],
 ) {
@@ -1108,6 +1257,7 @@ async function fetchCompleteJiraSearch(
   authHeaders: Record<string, string>,
   analyticsFieldIds: readonly string[] | null,
   includeChangelog: boolean,
+  capacitySample: boolean,
   deadlineAt?: number,
 ) {
   const issuesByKey = new Map(firstPage.issues.map((issue) => [issue.key, issue]));
@@ -1155,6 +1305,7 @@ async function fetchCompleteJiraSearch(
       jiraSearchBody(jql, requestedPageSize, pageEnd, {
         analyticsFieldIds,
         includeChangelog,
+        capacitySample,
       }),
       authHeaders,
       jiraSearchResponseSchema,
@@ -1868,6 +2019,7 @@ async function fetchJiraDataWithMeta(
         : null,
       includeChangelog,
       keysOnly,
+      capacitySample: !keysOnly && options.capacitySample === true,
     });
   const analyticsScope = options.analyticsScope ?? (
     options.labelScope ? { type: 'LABEL' as const, value: options.labelScope } : null
@@ -2083,6 +2235,7 @@ async function fetchJiraDataWithMeta(
         successfulAuthHeaders,
         successfulAnalyticsFieldIds,
         includeChangelog,
+        Boolean(options.capacitySample),
         options.deadlineAt,
       )
     : fullSearch;
@@ -2099,6 +2252,13 @@ async function fetchJiraDataWithMeta(
     : { search: completeSearch, remoteDevelopmentByKey: new Map() };
   const hydrated = hydratedData.search;
   const names = hydrated.names ?? {};
+  const capacityMeasurements = options.capacitySample
+    ? hydrated.issues.map((issue) =>
+        measureJiraIssueCapacity(
+          issue,
+          hydratedData.remoteDevelopmentByKey.get(issue.key) ?? null,
+        ))
+    : undefined;
   return {
     issues: hydrated.issues.map((issue) => {
       const fields = issue.fields as Record<string, unknown> & typeof issue.fields;
@@ -2132,5 +2292,7 @@ async function fetchJiraDataWithMeta(
       };
     }),
     jiraUser,
+    total: completeSearch.total ?? completeSearch.issues.length,
+    capacityMeasurements,
   };
 }
