@@ -7,6 +7,7 @@ import {
   JIRA_ANALYTICS_DEFAULT_TEMPLATE,
   JIRA_ANALYTICS_TEMPLATES,
   JIRA_CRITICAL_BUG_SLA_HOURS,
+  createJiraAnalyticsFilter,
   evaluateJiraAnalyticsWidget,
   jiraAnalyticsCsv,
   normalizeJiraAnalyticsConfig,
@@ -399,6 +400,50 @@ test("critical bug SLA widget applies its configured threshold", () => {
 
   assert.equal(result.value, 1);
   assert.equal(result.records[0]?.durationHours, 2);
+});
+
+test("Resolution filters treat Jira Unresolved values as empty", () => {
+  const baseWidget = template("critical-bugs-sla").config.widgets[2];
+  const criticalBug = {
+    issueType: "Bug",
+    priority: "Critical",
+    criticalPriorityAt: "2026-06-01T00:00:00Z",
+  };
+  const issues = [
+    issue({ ...criticalBug, id: "unresolved", issueKey: "SPS-2494", resolution: "Unresolved" }),
+    issue({ ...criticalBug, id: "unresolved-ru", issueKey: "SPS-2495", resolution: "Не решено" }),
+    issue({
+      ...criticalBug,
+      id: "resolved",
+      issueKey: "SPS-2496",
+      resolution: "Fixed",
+      resolutionAt: "2026-07-15T00:00:00Z",
+    }),
+  ];
+  const evaluate = (operator: "empty" | "notEmpty" | "equals" | "notEquals", value = "") =>
+    evaluateJiraAnalyticsWidget(
+      {
+        ...baseWidget,
+        filters: [createJiraAnalyticsFilter("resolution", operator, value)],
+      },
+      issues,
+      { periodDays: 30, now: new Date("2026-08-01T00:00:00Z") },
+    ).records.map((record) => record.issue.issueKey);
+
+  assert.deepEqual(evaluate("notEmpty"), ["SPS-2496"]);
+  assert.deepEqual(evaluate("empty"), ["SPS-2494", "SPS-2495"]);
+  assert.deepEqual(evaluate("equals", "Unresolved"), ["SPS-2494", "SPS-2495"]);
+  assert.deepEqual(evaluate("notEquals", "Unresolved"), ["SPS-2496"]);
+
+  const grouped = evaluateJiraAnalyticsWidget(
+    { ...baseWidget, filters: [], groupBy: "resolution" },
+    issues,
+    { periodDays: 30, now: new Date("2026-08-01T00:00:00Z") },
+  );
+  assert.deepEqual(
+    Object.fromEntries(grouped.groups.map(({ label, value }) => [label, value])),
+    { "Без Resolution": 2, Fixed: 1 },
+  );
 });
 
 test("critical bug SLA report keeps a conservative start from partial priority history", () => {

@@ -17,6 +17,14 @@ export const jiraCancelledStatuses = [
   "Отменено",
   "Отменена",
 ] as const;
+export const jiraUnresolvedResolutions = [
+  "",
+  "Unresolved",
+  "Не решен",
+  "Не решён",
+  "Не решено",
+  "Не решена",
+] as const;
 export const jiraCriticalBugSlaHours = 30 * 24;
 
 const jiraAnalyticsFilterSchema = z.object({
@@ -111,6 +119,13 @@ export function isJiraCancelledStatus(value: string | null | undefined) {
   const normalized = normalizedJiraValue(value);
   return jiraCancelledStatuses.some(
     (status) => normalizedJiraValue(status) === normalized,
+  );
+}
+
+export function isJiraUnresolvedResolution(value: string | null | undefined) {
+  const normalized = normalizedJiraValue(value);
+  return jiraUnresolvedResolutions.some(
+    (resolution) => normalizedJiraValue(resolution) === normalized,
   );
 }
 

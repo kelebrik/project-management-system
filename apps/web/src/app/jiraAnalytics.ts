@@ -1,4 +1,8 @@
-import { isJiraCancelledStatus, jiraCriticalBugSlaHours } from "@pms/shared";
+import {
+  isJiraCancelledStatus,
+  isJiraUnresolvedResolution,
+  jiraCriticalBugSlaHours,
+} from "@pms/shared";
 
 import type { JiraIssueSnapshot } from "./domainTypes";
 
@@ -553,8 +557,7 @@ export function jiraAnalyticsRecords(
 }
 
 export function jiraIssueIsInWorkScope(issue: JiraIssueSnapshot) {
-  const resolution = issue.resolution?.trim().toLocaleLowerCase("ru") ?? "";
-  return (resolution === "" || resolution === "unresolved") &&
+  return isJiraUnresolvedResolution(issue.resolution) &&
     !isJiraCancelledStatus(issue.status);
 }
 
@@ -568,13 +571,22 @@ function recordValue(record: JiraAnalyticsRecord, field: JiraAnalyticsFilterFiel
     return record.issue.commitCount > 0 || record.issue.mergeRequestCount > 0;
   }
   if (field === "sprint") return record.sprint;
+  if (field === "resolution") {
+    return isJiraUnresolvedResolution(record.issue.resolution)
+      ? null
+      : record.issue.resolution;
+  }
   return record.issue[field];
 }
 
 function filterMatches(record: JiraAnalyticsRecord, condition: JiraAnalyticsFilter) {
   const actual = recordValue(record, condition.field);
   const actualText = actual === null || actual === undefined ? "" : String(actual).trim();
-  const expected = condition.value.trim();
+  const expected = condition.field === "resolution" &&
+    ["equals", "notEquals"].includes(condition.operator) &&
+    isJiraUnresolvedResolution(condition.value)
+    ? ""
+    : condition.value.trim();
   if (condition.operator === "empty") return actualText === "";
   if (condition.operator === "notEmpty") return actualText !== "";
   if (condition.operator === "equals") {
@@ -651,7 +663,11 @@ function groupLabel(record: JiraAnalyticsRecord, groupBy: JiraAnalyticsGroupBy) 
   if (groupBy === "priority") return record.issue.priority || "Без приоритета";
   if (groupBy === "sprint") return record.sprint || "Без Sprint";
   if (groupBy === "issueType") return record.issue.issueType || "Без типа";
-  if (groupBy === "resolution") return record.issue.resolution || "Без Resolution";
+  if (groupBy === "resolution") {
+    return isJiraUnresolvedResolution(record.issue.resolution)
+      ? "Без Resolution"
+      : record.issue.resolution ?? "Без Resolution";
+  }
   if (groupBy === "fromStatus") return record.fromStatus || "Без статуса";
   if (groupBy === "toStatus") return record.toStatus || "Без статуса";
   if (groupBy === "week") return weekLabel(record.eventAt);
