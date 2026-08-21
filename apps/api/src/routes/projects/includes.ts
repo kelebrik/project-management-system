@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 export const projectInclude = {
   businessUnit: { select: { id: true, code: true, name: true } },
   jiraIntegration: true,
+  jiraAnalyticsSettings: true,
   wbsItems: {
     where: { type: { in: ['GOAL', 'TASK', 'DELIVERABLE'] } },
     orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
@@ -28,13 +29,18 @@ export const projectInclude = {
     },
   },
   _count: {
-    select: { tasks: true, issues: true, jiraSnapshots: true },
+    select: {
+      tasks: true,
+      issues: true,
+      jiraSnapshots: { where: { retiredAt: null } },
+    },
   },
 } satisfies Prisma.ProjectInclude;
 
 export const projectDetailsInclude = {
   businessUnit: { select: { id: true, code: true, name: true } },
   jiraIntegration: true,
+  jiraAnalyticsSettings: true,
   targetDateChanges: {
     orderBy: { createdAt: 'desc' },
     include: {
@@ -46,7 +52,14 @@ export const projectDetailsInclude = {
     include: {
       issues: {
         orderBy: { syncedAt: 'desc' },
-        include: { snapshot: true },
+        include: {
+          snapshot: {
+            include: {
+              statusTransitions: { orderBy: { transitionedAt: 'asc' } },
+              developmentActivities: { orderBy: { activityAt: 'desc' } },
+            },
+          },
+        },
       },
     },
   },
@@ -59,7 +72,14 @@ export const projectDetailsInclude = {
       statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
     },
   },
-  jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
+  jiraSnapshots: {
+    where: { retiredAt: null },
+    orderBy: { updatedAt: 'desc' },
+    include: {
+      statusTransitions: { orderBy: { transitionedAt: 'asc' } },
+      developmentActivities: { orderBy: { activityAt: 'desc' } },
+    },
+  },
   overviews: { orderBy: { version: 'desc' }, take: 8 },
   milestones: { orderBy: { dueDate: 'asc' } },
   wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },

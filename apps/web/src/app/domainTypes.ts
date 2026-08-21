@@ -73,6 +73,7 @@ export type ProjectListItem = {
   sortOrder: number;
   uiState: ProjectUiState | null;
   jiraIntegration: JiraIntegration | null;
+  jiraAnalyticsSettings?: JiraAnalyticsSettings | null;
   targetDateChanges: ProjectTargetDateChange[];
   wbsItems: WbsItem[];
   raidItems: RaidItem[];
@@ -111,6 +112,14 @@ export type JiraIntegration = {
   projectKey: string;
   issuesJql: string;
   openIssuesJql: string;
+  syncStatus: string;
+  lastSyncedAt: string | null;
+};
+
+export type JiraAnalyticsSettings = {
+  jiraScopeType: "LABEL" | "EPIC";
+  jiraScopeValue: string;
+  dashboardConfig: Record<string, unknown> | null;
   syncStatus: string;
   lastSyncedAt: string | null;
 };
@@ -397,6 +406,7 @@ export type Issue = {
 export type JiraIssueSnapshot = {
   id: string;
   projectId: string;
+  jiraId: string | null;
   issueKey: string;
   issueUrl: string;
   summary: string;
@@ -407,8 +417,44 @@ export type JiraIssueSnapshot = {
   issueType: string;
   resolution: string | null;
   sprint: string | null;
+  issueCreatedAt: string | null;
+  criticalPriorityAt: string | null;
+  criticalEndPriority: string | null;
+  resolutionAt: string | null;
+  criticalSlaTracked: boolean;
+  commitCount: number;
+  mergeRequestCount: number;
+  developmentUpdatedAt: string | null;
+  developmentDataAvailable: boolean;
+  developmentBaselineCaptured: boolean;
+  transitionHistoryComplete: boolean;
   updatedAt: string;
   syncedAt: string;
+  statusTransitions: JiraIssueStatusTransition[];
+  developmentActivities: JiraDevelopmentActivity[];
+};
+
+export type JiraIssueStatusTransition = {
+  id: string;
+  snapshotId: string;
+  transitionKey: string;
+  fromStatus: string | null;
+  toStatus: string;
+  transitionedAt: string;
+  actor: string | null;
+  createdAt: string;
+};
+
+export type JiraDevelopmentActivity = {
+  id: string;
+  snapshotId: string;
+  activityKey: string;
+  activityAt: string;
+  commitCount: number;
+  mergeRequestCount: number;
+  sprintAtObservation: string | null;
+  isBaseline: boolean;
+  observedAt: string;
 };
 
 export type JiraWorkSectionIssue = {

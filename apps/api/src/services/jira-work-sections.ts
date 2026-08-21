@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { jiraJqlWithIssueKeys, normalizedJiraIssueKey } from '../jira.js';
 
 const DEFAULT_JIRA_WORK_SECTION_COUNT = 3;
 
@@ -34,6 +35,94 @@ export function jiraWorkSectionFilterToJql(value: string) {
 
 export function resolveJiraWorkSectionJql(jql: string, filterUrl: string) {
   return jiraWorkSectionFilterToJql(jql.trim() || filterUrl);
+}
+
+function normalizedJiraProjectKeys(projectKeys: string | readonly string[]) {
+  return [...new Set((Array.isArray(projectKeys) ? projectKeys : [projectKeys])
+    .map((projectKey) => projectKey.trim())
+    .filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right))
+    .map((projectKey) => projectKey
+      .replaceAll('\\', '\\\\')
+      .replaceAll('"', '\\"'));
+}
+
+export function jiraProjectKeyFromIssueKey(issueKey: string) {
+  return normalizedJiraIssueKey(issueKey)?.split('-', 1)[0] ?? null;
+}
+
+export function isJiraIssueKey(issueKey: string) {
+  return jiraProjectKeyFromIssueKey(issueKey) !== null;
+}
+
+export function normalizedJiraIssueKeys(issueKeys: readonly string[]) {
+  return [...new Set(issueKeys.map((issueKey) => {
+    const normalized = issueKey.trim().toUpperCase();
+    if (!isJiraIssueKey(normalized)) {
+      throw new Error(`Jira вернула некорректный ключ тикета: ${issueKey}`);
+    }
+    return normalized;
+  }))].sort((left, right) => left.localeCompare(right));
+}
+
+export function jiraIssueKeyBatches(issueKeys: readonly string[], batchSize: number) {
+  const normalized = normalizedJiraIssueKeys(issueKeys);
+  const safeBatchSize = Math.max(1, Math.floor(batchSize));
+  return Array.from(
+    { length: Math.ceil(normalized.length / safeBatchSize) },
+    (_, index) => normalized.slice(index * safeBatchSize, (index + 1) * safeBatchSize),
+  );
+}
+
+export function jiraIssueKeyBatchJql(issueKeys: readonly string[]) {
+  const normalized = normalizedJiraIssueKeys(issueKeys);
+  if (normalized.length === 0) throw new Error('Пустая пачка ключей Jira');
+  return `issuekey IN (${normalized.map((issueKey) => `"${issueKey}"`).join(', ')}) ORDER BY key ASC`;
+}
+
+export function jiraParentKeyBatchJql(parentIssueKeys: readonly string[]) {
+  const normalized = normalizedJiraIssueKeys(parentIssueKeys);
+  if (normalized.length === 0) throw new Error('Пустая пачка родительских ключей Jira');
+  return `parent IN (${normalized.map((issueKey) => `"${issueKey}"`).join(', ')}) ORDER BY key ASC`;
+}
+
+export function jiraWorkSectionScopedJqls(
+  sectionJql: string,
+  synchronizedIssueKeys: readonly string[],
+  batchSize: number,
+) {
+  return jiraIssueKeyBatches(synchronizedIssueKeys, batchSize)
+    .map((issueKeys) => jiraJqlWithIssueKeys(sectionJql, issueKeys));
+}
+
+export function jiraIssueKeyBatchDifference(
+  requestedIssueKeys: readonly string[],
+  returnedIssueKeys: readonly string[],
+) {
+  const requested = new Set(normalizedJiraIssueKeys(requestedIssueKeys));
+  const returned = new Set(normalizedJiraIssueKeys(returnedIssueKeys));
+  return {
+    missingKeys: [...requested].filter((issueKey) => !returned.has(issueKey)),
+    unexpectedKeys: [...returned].filter((issueKey) => !requested.has(issueKey)),
+  };
+}
+
+export function jiraIssueKeyBatchLossIsUnsafe(
+  requestedCount: number,
+  missingCount: number,
+) {
+  if (requestedCount <= 0) return missingCount > 0;
+  return missingCount > Math.max(1, Math.floor(requestedCount * 0.2));
+}
+
+export function jiraCriticalPriorityProjectKeys(
+  configuredProjectKey: string,
+  issueKeys: readonly string[],
+) {
+  const observedProjectKeys = issueKeys
+    .map(jiraProjectKeyFromIssueKey)
+    .filter((projectKey): projectKey is string => Boolean(projectKey));
+  return normalizedJiraProjectKeys([configuredProjectKey, ...observedProjectKeys]);
 }
 
 export async function ensureDefaultJiraWorkSections(projectId: string) {
@@ -72,8 +161,16 @@ export async function ensureDefaultJiraWorkSections(projectId: string) {
     orderBy: { sortOrder: 'asc' },
     include: {
       issues: {
+        where: { snapshot: { retiredAt: null } },
         orderBy: { syncedAt: 'desc' },
-        include: { snapshot: true },
+        include: {
+          snapshot: {
+            include: {
+              statusTransitions: { orderBy: { transitionedAt: 'asc' } },
+              developmentActivities: { orderBy: { activityAt: 'desc' } },
+            },
+          },
+        },
       },
     },
   });

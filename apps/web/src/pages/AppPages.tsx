@@ -120,7 +120,7 @@ export function AppPages() {
         )}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
-        {project && activeView === "project-jira-work" && <ProjectJiraWorkPage />}
+        {project && activeView === "project-jira-work" && <ProjectJiraWorkPage key={project.id} />}
         {project && activeView === "project-issues" && <ProjectIssuesPage />}
         {project && activeView === "project-raid" && <ProjectRaidPage />}
         {project && activeView === "project-artifacts" && <ProjectArtifactsPage />}

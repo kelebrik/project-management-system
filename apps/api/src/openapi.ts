@@ -124,6 +124,60 @@ export const openApiDocument = {
         },
         required: ["error"],
       },
+      JiraAnalyticsFilter: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", minLength: 1, maxLength: 200 },
+          field: {
+            type: "string",
+            enum: ["status", "assignee", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "durationHours", "commitCount", "mergeRequestCount", "hasDevelopment"],
+          },
+          operator: {
+            type: "string",
+            enum: ["equals", "notEquals", "contains", "empty", "notEmpty", "greaterThan", "atLeast"],
+          },
+          value: { type: "string", maxLength: 1000 },
+        },
+        required: ["id", "field", "operator", "value"],
+      },
+      JiraAnalyticsWidget: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", minLength: 1, maxLength: 200 },
+          title: { type: "string", maxLength: 200 },
+          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
+          metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
+          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
+          visualization: { type: "string", enum: ["number", "bar", "table"] },
+          filterLogic: { type: "string", enum: ["and", "or"] },
+          filters: {
+            type: "array",
+            maxItems: 20,
+            items: { $ref: "#/components/schemas/JiraAnalyticsFilter" },
+          },
+          width: { type: "string", enum: ["half", "full"] },
+          section: { type: "string", enum: ["active", "retro"] },
+        },
+        required: ["id", "title", "source", "metric", "groupBy", "visualization", "filterLogic", "filters", "width"],
+      },
+      JiraAnalyticsDashboardConfig: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          version: { type: "integer", const: 1 },
+          periodDays: { type: "integer", enum: [30, 90, 180, 365] },
+          assignee: { type: "string", maxLength: 200 },
+          widgets: {
+            type: "array",
+            minItems: 1,
+            maxItems: 100,
+            items: { $ref: "#/components/schemas/JiraAnalyticsWidget" },
+          },
+        },
+        required: ["version", "periodDays", "assignee", "widgets"],
+      },
       Project: {
         type: "object",
         properties: {
@@ -816,6 +870,53 @@ export const openApiDocument = {
         pathParam("milestoneId"),
       ]),
     },
+    "/api/projects/{projectId}/jira/analytics-dashboard": {
+      patch: {
+        tags: ["Jira"],
+        summary: "Update the shared Jira analytics widgets as system administrator",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  config: { $ref: "#/components/schemas/JiraAnalyticsDashboardConfig" },
+                },
+                required: ["config"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Shared Jira analytics widgets updated",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    projectId: { type: "string" },
+                    jiraScopeType: { type: "string", enum: ["LABEL", "EPIC"] },
+                    jiraScopeValue: { type: "string" },
+                    dashboardConfig: { $ref: "#/components/schemas/JiraAnalyticsDashboardConfig" },
+                  },
+                  required: ["projectId", "jiraScopeType", "jiraScopeValue", "dashboardConfig"],
+                },
+              },
+            },
+          },
+          "400": { description: "Invalid Jira analytics configuration" },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator role required" },
+          "404": { description: "Project not found" },
+          "423": { description: "Closed project is read-only" },
+        },
+      },
+    },
     "/api/projects/{projectId}/jira/sync": {
       post: {
         tags: ["Jira"],
@@ -825,20 +926,32 @@ export const openApiDocument = {
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },
         ],
         requestBody: {
-          required: false,
+          required: true,
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                properties: {
-                  baseUrl: {
-                    type: "string",
-                    enum: [
-                      "https://tasks.dev.sberdevices.ru",
-                      "https://tasks.sberdevices.ru",
-                    ],
+                oneOf: [
+                  {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      scopeType: { const: "LABEL" },
+                      scopeValue: { type: "string", minLength: 1, maxLength: 100, pattern: "^[^\\s\"'\\\\]+$" },
+                      baseUrl: { type: "string", enum: ["https://tasks.dev.sberdevices.ru", "https://tasks.sberdevices.ru"] },
+                    },
+                    required: ["scopeType", "scopeValue"],
                   },
-                },
+                  {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      scopeType: { const: "EPIC" },
+                      scopeValue: { type: "string", minLength: 3, maxLength: 100, pattern: "^[A-Za-z][A-Za-z0-9_]*-[0-9]+$" },
+                      baseUrl: { type: "string", enum: ["https://tasks.dev.sberdevices.ru", "https://tasks.sberdevices.ru"] },
+                    },
+                    required: ["scopeType", "scopeValue"],
+                  },
+                ],
               },
             },
           },
@@ -852,6 +965,14 @@ export const openApiDocument = {
                   type: "object",
                   properties: {
                     synced: { type: "number" },
+                    jiraScopeType: { type: "string", enum: ["LABEL", "EPIC"] },
+                    jiraScopeValue: { type: "string" },
+                    emptyScope: { type: "boolean" },
+                    warning: { type: "string" },
+                    criticalBugSlaConfigured: { type: "boolean" },
+                    criticalBugSlaScope: { type: "string", enum: ["label", "epic"] },
+                    criticalBugSlaCandidates: { type: "number" },
+                    criticalBugSlaIssues: { type: "number" },
                     configuredSections: { type: "number" },
                     totalSections: { type: "number" },
                     jiraUsers: {
@@ -876,7 +997,12 @@ export const openApiDocument = {
               },
             },
           },
+          "400": { description: "Invalid Jira scope or sync parameters" },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator role required to change Jira scope" },
           "404": { description: "Project not found" },
+          "409": { description: "Jira synchronization already running" },
+          "423": { description: "Closed project is read-only" },
           "502": { description: "Jira request failed" },
         },
       },

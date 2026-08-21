@@ -15,7 +15,7 @@ export async function projectAuditSnapshot(projectId: string) {
         select: {
           tasks: true,
           issues: true,
-          jiraSnapshots: true,
+          jiraSnapshots: { where: { retiredAt: null } },
           milestones: true,
           wbsItems: true,
           wbsDependencies: true,

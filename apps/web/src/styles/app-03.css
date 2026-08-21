@@ -414,8 +414,800 @@
 
 .jira-work-page {
   display: grid;
-  gap: 16px;
+  gap: 14px;
   grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.jira-work-page-head {
+  align-items: end;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.jira-work-page-head h2 {
+  color: var(--text-heading);
+  font-size: 20px;
+  margin: 0;
+}
+
+.jira-work-page-head p {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 3px 0 0;
+}
+
+.jira-work-view-switch,
+.jira-widget-segments,
+.jira-widget-logic {
+  align-items: center;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: inline-flex;
+  padding: 2px;
+}
+
+.jira-work-view-switch button,
+.jira-widget-segments button,
+.jira-widget-logic button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+  justify-content: center;
+  min-height: 30px;
+  padding: 5px 10px;
+}
+
+.jira-work-view-switch button.active,
+.jira-widget-segments button.active,
+.jira-widget-logic button.active {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-heading);
+}
+
+.jira-analytics-workspace {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.jira-aggregates-reference {
+  display: grid;
+  gap: 26px;
+  min-width: 0;
+}
+
+.jira-aggregates-intro {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0 14px;
+}
+
+.jira-aggregates-intro h3,
+.jira-aggregates-section h3 {
+  color: var(--text-heading);
+  font-size: 16px;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.jira-aggregates-intro p,
+.jira-aggregate-note {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 5px 0 0;
+}
+
+.jira-aggregates-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.jira-aggregate-definitions,
+.jira-aggregate-source dl {
+  margin: 0;
+}
+
+.jira-aggregate-definitions > div,
+.jira-aggregate-source dl > div {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 150px minmax(0, 1fr);
+  padding: 10px 0;
+}
+
+.jira-aggregate-definitions dt,
+.jira-aggregate-source dt {
+  color: var(--text-heading);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.jira-aggregate-definitions dd,
+.jira-aggregate-source dd {
+  color: var(--text-body);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.jira-aggregate-source-list {
+  display: grid;
+}
+
+.jira-aggregate-source {
+  border-top: 1px solid var(--border-strong);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 230px minmax(0, 1fr);
+  padding: 14px 0;
+}
+
+.jira-aggregate-source > header h4 {
+  color: var(--text-heading);
+  font-size: 14px;
+  letter-spacing: 0;
+  margin: 0 0 4px;
+}
+
+.jira-aggregate-source > header span {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.jira-aggregate-table-wrap {
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.jira-aggregate-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 720px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.jira-aggregate-table th,
+.jira-aggregate-table td {
+  border-bottom: 1px solid var(--border);
+  line-height: 1.45;
+  padding: 9px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.jira-aggregate-table th {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.jira-aggregate-table td {
+  color: var(--text-body);
+}
+
+.jira-aggregate-plain-list {
+  display: grid;
+  gap: 3px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jira-aggregate-table th:first-child,
+.jira-aggregate-table td:first-child {
+  padding-left: 0;
+  width: 210px;
+}
+
+.jira-aggregate-table th:last-child,
+.jira-aggregate-table td:last-child {
+  padding-right: 0;
+}
+
+.jira-aggregate-table.source-matrix {
+  min-width: 1080px;
+}
+
+.jira-aggregate-table.source-matrix th:first-child,
+.jira-aggregate-table.source-matrix td:first-child {
+  width: 170px;
+}
+
+.jira-aggregate-table.current-widgets {
+  min-width: 1120px;
+}
+
+.jira-aggregate-table.current-widgets th:nth-child(1) { width: 90px; }
+.jira-aggregate-table.current-widgets th:nth-child(2) { width: 220px; }
+.jira-aggregate-table.current-widgets th:nth-child(3) { width: 150px; }
+.jira-aggregate-table.current-widgets th:nth-child(4) { width: 145px; }
+.jira-aggregate-table.current-widgets th:nth-child(5) { width: 150px; }
+
+.jira-analytics-toolbar {
+  align-items: end;
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 0;
+}
+
+.jira-analytics-toolbar > label {
+  color: var(--text-muted);
+  display: grid;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 4px;
+}
+
+.jira-analytics-toolbar > label {
+  align-content: end;
+  grid-template-rows: minmax(14px, auto) 34px;
+}
+
+.jira-analytics-toolbar > label > span {
+  line-height: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jira-analytics-toolbar select,
+.jira-analytics-toolbar input {
+  font-size: 13px;
+  height: 34px;
+  min-height: 34px;
+}
+
+.jira-analytics-toolbar select {
+  box-sizing: border-box;
+  line-height: 32px;
+  padding-block: 0;
+}
+
+.jira-analytics-toolbar input {
+  box-sizing: border-box;
+  line-height: 32px;
+  padding-block: 0;
+}
+
+.jira-analytics-scope-type {
+  flex: 0 0 150px;
+  min-width: 130px;
+}
+
+.jira-analytics-scope-value {
+  flex: 0 0 180px;
+  min-width: 150px;
+}
+
+.jira-analytics-toolbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.jira-analytics-toolbar-actions .button,
+.jira-widget-add-filter {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.jira-analytics-data-health {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  min-height: 22px;
+}
+
+.jira-analytics-data-health span {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 6px;
+}
+
+.jira-analytics-data-health span.complete {
+  background: var(--success-soft);
+  color: var(--success-800);
+}
+
+.jira-analytics-data-health span.partial {
+  background: var(--warning-soft);
+  color: var(--warning-800);
+}
+
+.jira-analytics-data-health small {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.jira-analytics-edit-layout {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.jira-analytics-edit-layout.with-editor {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.jira-analytics-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.jira-analytics-widget {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 164px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.jira-analytics-widget.width-half {
+  grid-column: span 6;
+}
+
+.jira-analytics-widget.width-full {
+  grid-column: span 12;
+}
+
+.jira-analytics-widget.selected {
+  border-color: var(--brand-border-strong);
+  box-shadow: 0 0 0 2px var(--brand-soft-2);
+}
+
+.jira-analytics-widget > header {
+  align-items: start;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 10px 12px;
+}
+
+.jira-analytics-widget h3,
+.jira-analytics-drilldown h3,
+.jira-widget-editor h3 {
+  color: var(--text-heading);
+  font-size: 14px;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.jira-analytics-widget header small {
+  color: var(--text-muted);
+  display: block;
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.jira-analytics-widget-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.jira-analytics-widget-actions .icon-button,
+.jira-analytics-drilldown .icon-button,
+.jira-widget-editor .icon-button,
+.jira-analytics-toolbar .icon-button {
+  align-items: center;
+  box-sizing: border-box;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0;
+  width: 30px;
+}
+
+.jira-analytics-workspace button > svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.icon-button.danger {
+  color: var(--danger);
+}
+
+.jira-analytics-number {
+  align-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  display: grid;
+  gap: 5px;
+  justify-items: start;
+  min-height: 108px;
+  padding: 16px;
+  text-align: left;
+  width: 100%;
+}
+
+.jira-analytics-number:not(:disabled):hover {
+  background: var(--surface-2);
+}
+
+.jira-analytics-number strong {
+  color: var(--text-strongest);
+  font-size: 30px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.jira-analytics-number span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.jira-analytics-bars {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px 12px;
+}
+
+.jira-analytics-bar-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text);
+  display: grid;
+  font-size: 12px;
+  gap: 10px;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(120px, 2fr) 64px;
+  min-height: 30px;
+  padding: 4px 6px;
+  text-align: left;
+  width: 100%;
+}
+
+.jira-analytics-bar-row:hover {
+  background: var(--surface-2);
+}
+
+.jira-analytics-bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jira-analytics-bar-track {
+  background: var(--surface-3);
+  border-radius: 3px;
+  display: block;
+  height: 8px;
+  overflow: hidden;
+}
+
+.jira-analytics-bar-track > span {
+  background: var(--brand-600);
+  border-radius: 3px;
+  display: block;
+  height: 100%;
+}
+
+.jira-analytics-bar-row:nth-child(3n + 2) .jira-analytics-bar-track > span {
+  background: var(--info-800);
+}
+
+.jira-analytics-bar-row:nth-child(3n) .jira-analytics-bar-track > span {
+  background: var(--warning);
+}
+
+.jira-analytics-bar-row b {
+  color: var(--text-heading);
+  text-align: right;
+}
+
+.jira-analytics-table-wrap {
+  min-width: 0;
+  overflow: auto;
+}
+
+.jira-analytics-table {
+  border-collapse: collapse;
+  min-width: 920px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.jira-analytics-table th,
+.jira-analytics-table td {
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  overflow: hidden;
+  padding: 8px 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.jira-analytics-table th {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 800;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.jira-analytics-table th:nth-child(1) { width: 92px; }
+.jira-analytics-table th:nth-child(2) { width: 240px; }
+.jira-analytics-table th:nth-child(3) { width: 150px; }
+.jira-analytics-table th:nth-child(4) { width: 190px; }
+.jira-analytics-table th:nth-child(5) { width: 130px; }
+.jira-analytics-table th:nth-child(6) { width: 82px; }
+.jira-analytics-table th:nth-child(7) { width: 105px; }
+
+.jira-analytics-table.critical-sla {
+  min-width: 1180px;
+}
+
+.jira-analytics-table.critical-sla th:nth-child(1) { width: 92px; }
+.jira-analytics-table.critical-sla th:nth-child(2) { width: 250px; }
+.jira-analytics-table.critical-sla th:nth-child(3) { width: 95px; }
+.jira-analytics-table.critical-sla th:nth-child(4) { width: 150px; }
+.jira-analytics-table.critical-sla th:nth-child(5) { width: 120px; }
+.jira-analytics-table.critical-sla th:nth-child(6),
+.jira-analytics-table.critical-sla th:nth-child(7),
+.jira-analytics-table.critical-sla th:nth-child(8) { width: 145px; }
+.jira-analytics-table.critical-sla th:nth-child(9) { width: 95px; }
+
+.jira-analytics-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.jira-analytics-table a {
+  color: var(--brand);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.jira-analytics-table a:hover {
+  text-decoration: underline;
+}
+
+.jira-analytics-more {
+  background: var(--surface-2);
+  border: 0;
+  border-radius: 0;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 9px;
+  width: 100%;
+}
+
+.jira-analytics-empty {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 12px;
+  justify-content: center;
+  min-height: 96px;
+  padding: 16px;
+}
+
+.jira-analytics-add-widget {
+  align-items: center;
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 7px;
+  grid-column: span 12;
+  justify-content: center;
+  min-height: 64px;
+}
+
+.jira-analytics-add-widget:hover {
+  background: var(--brand-soft);
+  border-color: var(--brand-border-strong);
+  color: var(--brand);
+}
+
+.jira-widget-editor {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - 190px);
+  overflow: auto;
+  padding: 0 14px 14px;
+  position: sticky;
+  top: 76px;
+}
+
+.jira-widget-editor > header {
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.jira-widget-editor > label {
+  color: var(--text-muted);
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 5px;
+}
+
+.jira-widget-editor input,
+.jira-widget-editor select {
+  font-size: 13px;
+  min-height: 34px;
+}
+
+.jira-widget-editor fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.jira-widget-editor legend,
+.jira-widget-filter-head > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 5px;
+}
+
+.jira-widget-segments {
+  display: flex;
+  width: 100%;
+}
+
+.jira-widget-segments button {
+  flex: 1;
+  min-width: 0;
+  padding-inline: 5px;
+}
+
+.jira-widget-filter-head {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
+}
+
+.jira-widget-filter-head > span {
+  margin: 0;
+}
+
+.jira-widget-logic button {
+  font-size: 11px;
+  min-height: 24px;
+  min-width: 36px;
+  padding: 2px 6px;
+}
+
+.jira-widget-filters {
+  display: grid;
+  gap: 8px;
+}
+
+.jira-widget-filter {
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  padding: 7px;
+}
+
+.jira-widget-filter > select,
+.jira-widget-filter > input {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.jira-widget-filter > button {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.jira-widget-add-filter {
+  justify-content: center;
+  width: 100%;
+}
+
+.jira-analytics-drilldown {
+  border-top: 2px solid var(--border-strong);
+  display: grid;
+  min-width: 0;
+}
+
+.jira-analytics-drilldown > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.jira-analytics-drilldown > header > div {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.jira-analytics-drilldown header span {
+  background: var(--surface-3);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 6px;
+}
+
+.jira-analytics-zero-state {
+  align-items: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  min-height: 90px;
+  padding: 16px;
+}
+
+.jira-work-data-view {
+  display: grid;
+  gap: 10px;
+}
+
+.jira-work-data-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .jira-work-sections {
@@ -436,8 +1228,18 @@
   background: var(--surface-2);
   display: grid;
   gap: 4px;
-  grid-template-columns: 26px minmax(180px, 420px);
+  grid-template-columns: 26px minmax(180px, 420px) auto;
   padding: 0 6px;
+}
+
+.jira-work-section-count {
+  background: var(--surface-3);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  justify-self: end;
+  padding: 2px 6px;
 }
 
 .jira-work-section-toggle {
@@ -639,8 +1441,54 @@
 }
 
 @media (max-width: 860px) {
+  .jira-work-page-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .jira-work-view-switch {
+    align-self: start;
+  }
+
+  .jira-aggregate-source {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jira-analytics-toolbar {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .jira-analytics-scope-type,
+  .jira-analytics-scope-value {
+    min-width: 0;
+  }
+
+  .jira-analytics-toolbar-actions {
+    grid-column: 1 / -1;
+    margin-left: 0;
+  }
+
+  .jira-analytics-edit-layout.with-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jira-widget-editor {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    max-height: none;
+    padding: 12px;
+    position: static;
+  }
+
+  .jira-analytics-widget.width-half,
+  .jira-analytics-widget.width-full {
+    grid-column: span 12;
+  }
+
   .jira-work-section-head {
-    grid-template-columns: 26px minmax(0, 1fr);
+    grid-template-columns: 26px minmax(0, 1fr) auto;
   }
 
   .jira-work-filter-field {
@@ -649,6 +1497,54 @@
 
   .jira-work-filter-field span {
     padding-top: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .jira-work-view-switch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .jira-work-view-switch button {
+    min-width: 0;
+  }
+
+  .jira-aggregate-definitions > div,
+  .jira-aggregate-source dl > div {
+    gap: 4px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jira-analytics-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jira-analytics-scope-type,
+  .jira-analytics-scope-value,
+  .jira-analytics-toolbar-actions {
+    grid-column: 1;
+  }
+
+  .jira-analytics-toolbar-actions {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .jira-analytics-toolbar-actions .button {
+    justify-content: center;
+  }
+
+  .jira-analytics-bar-row {
+    grid-template-columns: minmax(90px, 1fr) minmax(70px, 1fr) 56px;
+  }
+
+  .jira-analytics-zero-state {
+    align-items: stretch;
+    flex-direction: column;
+    text-align: center;
   }
 }
 

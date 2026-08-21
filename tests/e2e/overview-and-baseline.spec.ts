@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const today = new Date();
 
@@ -159,6 +159,13 @@ function projectFixture() {
       },
     },
     jiraIntegration: null,
+    jiraAnalyticsSettings: {
+      jiraScopeType: "LABEL",
+      jiraScopeValue: "cvte968",
+      dashboardConfig: null,
+      syncStatus: "CONFIGURED",
+      lastSyncedAt: null,
+    },
     targetDateChanges: [],
     wbsItems: [wbsItem],
     raidItems: [risk],
@@ -534,13 +541,17 @@ test("project creation keeps business units available when structure options fai
 });
 
 test("Jira work synchronization always uses production", async ({ page }) => {
-  let syncBody: { baseUrl?: string } | null = null;
+  let syncBody: {
+    baseUrl?: string;
+    scopeType?: string;
+    scopeValue?: string;
+  } | null = null;
   await mockAdminProject(page);
   await page.route("**/api/projects/project-1/jira-work-sections", (route) =>
     route.fulfill({ json: { ok: true } }),
   );
   await page.route("**/api/projects/project-1/jira/sync", async (route) => {
-    syncBody = route.request().postDataJSON() as { baseUrl?: string };
+    syncBody = route.request().postDataJSON() as typeof syncBody;
     await route.fulfill({
       json: { synced: 0, configuredSections: 0, jiraUsers: [] },
     });
@@ -553,6 +564,8 @@ test("Jira work synchronization always uses production", async ({ page }) => {
   await page.getByRole("button", { name: "Синхронизировать" }).click();
 
   await expect.poll(() => syncBody?.baseUrl).toBe("https://tasks.sberdevices.ru");
+  await expect.poll(() => syncBody?.scopeType).toBe("LABEL");
+  await expect.poll(() => syncBody?.scopeValue).toBe("cvte968");
 });
 
 test("Jira work sections expose separate JQL and filter URL fields", async ({
@@ -560,6 +573,7 @@ test("Jira work sections expose separate JQL and filter URL fields", async ({
 }) => {
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/jira-work");
+  await page.getByRole("button", { name: "Данные Jira" }).click();
 
   const firstSection = page.locator(".jira-work-section").first();
   const collapsedHeight = await firstSection
@@ -572,6 +586,262 @@ test("Jira work sections expose separate JQL and filter URL fields", async ({
 
   await expect(firstSection.getByLabel("JQL", { exact: true })).toBeVisible();
   await expect(firstSection.getByLabel("Ссылка на фильтр")).toBeVisible();
+});
+
+test("Jira analytics shows all reports and lets only the admin edit shared widgets", async ({
+  page,
+}) => {
+  const project = await mockAdminProject(page);
+  project.jiraSnapshots = [
+    {
+      id: "jira-snapshot-1",
+      projectId: project.id,
+      jiraId: "101",
+      issueKey: "TV-101",
+      issueUrl: "https://tasks.sberdevices.ru/browse/TV-101",
+      summary: "Собрать аналитический дашборд",
+      status: "In Progress",
+      priority: "Critical",
+      assignee: "Разработчик",
+      reporter: "Руководитель",
+      issueType: "Bug",
+      resolution: null,
+      resolutionAt: null,
+      sprint: null,
+      issueCreatedAt: isoDay(-10),
+      criticalPriorityAt: isoDay(-40),
+      criticalSlaTracked: true,
+      commitCount: 3,
+      mergeRequestCount: 1,
+      developmentUpdatedAt: isoDay(-1),
+      developmentDataAvailable: true,
+      developmentBaselineCaptured: true,
+      transitionHistoryComplete: true,
+      updatedAt: isoDay(-1),
+      syncedAt: isoDay(0),
+      statusTransitions: [
+        {
+          id: "jira-transition-1",
+          snapshotId: "jira-snapshot-1",
+          transitionKey: "history-1:0",
+          fromStatus: "Open",
+          toStatus: "In Progress",
+          transitionedAt: isoDay(-5),
+          actor: "Разработчик",
+          createdAt: isoDay(0),
+        },
+      ],
+      developmentActivities: [
+        {
+          id: "jira-activity-1",
+          snapshotId: "jira-snapshot-1",
+          activityKey: "activity-1",
+          activityAt: isoDay(-1),
+          commitCount: 3,
+          mergeRequestCount: 1,
+          sprintAtObservation: null,
+          isBaseline: false,
+          observedAt: isoDay(0),
+        },
+      ],
+    },
+  ] as unknown as never[];
+  project._count.jiraSnapshots = 1;
+  let savedWidgetCount = 0;
+  await page.route("**/api/projects/project-1/jira/analytics-dashboard", async (route) => {
+    const body = route.request().postDataJSON() as { config?: { widgets?: unknown[] } };
+    savedWidgetCount = body.config?.widgets?.length ?? 0;
+    (project.jiraAnalyticsSettings as { dashboardConfig: unknown }).dashboardConfig = body.config;
+    await route.fulfill({ json: project.jiraAnalyticsSettings });
+  });
+  await page.goto("/TV-OVERVIEW/jira-work");
+
+  const scopeSelect = page.getByRole("combobox", { name: "Способ отбора тикетов" });
+  const iconOffset = async (button: Locator) =>
+    button.evaluate((element) => {
+      const icon = element.querySelector("svg");
+      if (!icon) throw new Error("Button icon is missing");
+      const buttonBox = element.getBoundingClientRect();
+      const iconBox = icon.getBoundingClientRect();
+      return {
+        x: iconBox.x + iconBox.width / 2 - (buttonBox.x + buttonBox.width / 2),
+        y: iconBox.y + iconBox.height / 2 - (buttonBox.y + buttonBox.height / 2),
+      };
+    });
+  await expect(scopeSelect).toHaveValue("LABEL");
+  await expect(scopeSelect.locator("option")).toHaveText(["Лейбл", "Код эпика"]);
+  await expect(page.getByRole("button", { name: "В работе" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ретро" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Данные Jira" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Агрегаты" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Дашборды" })).toHaveCount(0);
+  await expect(page.getByText("Командный доступ", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Название дашборда")).toHaveCount(0);
+  const scopeSelectStyle = await scopeSelect.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      lineHeight: style.lineHeight,
+      paddingBottom: style.paddingBottom,
+      paddingTop: style.paddingTop,
+    };
+  });
+  expect(scopeSelectStyle).toEqual({
+    lineHeight: "32px",
+    paddingBottom: "0px",
+    paddingTop: "0px",
+  });
+  const toolbarSelectBoxes = await Promise.all(
+    [
+      scopeSelect,
+      page.getByLabel("Лейбл Jira"),
+      page.getByRole("combobox", { name: "Период событий" }),
+      page.getByRole("combobox", { name: "Исполнитель" }),
+    ].map((select) => select.boundingBox()),
+  );
+  const toolbarSelectTops = toolbarSelectBoxes.map((box) => box?.y ?? 0);
+  const toolbarSelectHeights = toolbarSelectBoxes.map((box) => box?.height ?? 0);
+  expect(Math.max(...toolbarSelectTops) - Math.min(...toolbarSelectTops)).toBeLessThanOrEqual(1);
+  expect(Math.max(...toolbarSelectHeights) - Math.min(...toolbarSelectHeights)).toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 800, height: 800 });
+  const compactToolbarBoxes = await Promise.all(
+    [
+      page.getByRole("combobox", { name: "Период событий" }),
+      page.getByRole("combobox", { name: "Исполнитель" }),
+    ].map((select) => select.boundingBox()),
+  );
+  expect(Math.abs(
+    (compactToolbarBoxes[0]?.y ?? 0) - (compactToolbarBoxes[1]?.y ?? 0),
+  )).toBeLessThanOrEqual(1);
+  expect(Math.abs(
+    (compactToolbarBoxes[0]?.height ?? 0) - (compactToolbarBoxes[1]?.height ?? 0),
+  )).toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(page.getByRole("button", { name: "Создать копию дашборда" })).toHaveCount(0);
+  const refreshOffset = await iconOffset(
+    page.getByRole("button", { name: "Обновить" }),
+  );
+  expect(Math.abs(refreshOffset.y)).toBeLessThanOrEqual(1);
+  const editOffset = await iconOffset(
+    page.getByRole("button", { name: "Редактировать" }),
+  );
+  expect(Math.abs(editOffset.y)).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("combobox", { name: "Период событий" })).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Тикеты по статусам" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Ретро" }).click();
+  await expect(page.getByRole("combobox", { name: "Период событий" })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
+  await expect(page.getByText("50% завершённых периодов в статусах не дольше")).toBeVisible();
+  await expect(page.getByText(/Периодов в статусах: 1/).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Тикеты с нарушенным SLA" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "TV-101" }).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Агрегаты" }).click();
+  await expect(page.getByRole("heading", { name: "Агрегаты Jira" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Источники записей" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "SLA Critical/Blocker", exact: true })).toBeVisible();
+  await expect(page.getByText(/Если тикет создан с таким приоритетом, SLA начинается от создания/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Текущие виджеты проекта" })).toBeVisible();
+  await expect(page.locator(".jira-aggregate-table.current-widgets").getByText("Нарушили SLA 30 дней")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole("button", { name: "В работе" }).click();
+
+  await page
+    .locator(".jira-analytics-widget")
+    .filter({ hasText: "Вне Sprint с кодом" })
+    .locator(".jira-analytics-number")
+    .click();
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" }).last()).toBeVisible();
+  await expect(page.getByRole("link", { name: "TV-101" }).last()).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  await scopeSelect.selectOption("EPIC");
+  await expect(page.getByLabel("Код эпика Jira")).toHaveValue("");
+  await page.getByLabel("Код эпика Jira").fill("CVTE-1778");
+
+  await page.getByRole("button", { name: "Редактировать" }).click();
+  const moveOffset = await iconOffset(
+    page.getByRole("button", { name: "Переместить вправо" }).first(),
+  );
+  expect(Math.abs(moveOffset.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(moveOffset.y)).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
+  const editorRightPadding = await page
+    .getByLabel("Настройки виджета")
+    .evaluate((editor) => getComputedStyle(editor).paddingRight);
+  expect(editorRightPadding).toBe("14px");
+  await page.getByRole("button", { name: "Добавить виджет" }).click();
+  await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
+  await expect
+    .poll(() => page.getByLabel("Настройки виджета").evaluate(
+      (editor) => getComputedStyle(editor).paddingRight,
+    ))
+    .toBe("12px");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Сохранить" }).click();
+  await expect.poll(() => savedWidgetCount).toBe(12);
+  await page.getByRole("button", { name: "Данные Jira" }).click();
+  await page.getByRole("button", { name: "Агрегаты" }).click();
+  await expect(page.locator(".jira-aggregate-table.current-widgets").getByText("Новый виджет")).toBeVisible();
+  await page.getByRole("button", { name: "В работе" }).click();
+  await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
+});
+
+test("Jira analytics hides widget settings from non-system administrators", async ({ page }) => {
+  await mockAdminProject(page);
+  await page.unroute("**/api/auth/me");
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "viewer-1",
+          email: "viewer@example.test",
+          name: "Наблюдатель",
+          role: "EXECUTIVE_VIEWER",
+          isActive: true,
+          lastLoginAt: null,
+        },
+      },
+    }),
+  );
+
+  await page.goto("/TV-OVERVIEW/jira-work");
+
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Редактировать" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Настроить виджет" })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Способ отбора тикетов" })).toBeDisabled();
+  await expect(page.getByLabel("Лейбл Jira")).toBeDisabled();
+  await page.getByRole("button", { name: "Ретро" }).click();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Редактировать" })).toHaveCount(0);
 });
 
 test("project passport keeps the initial target and updates the current target", async ({

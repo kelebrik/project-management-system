@@ -51,6 +51,7 @@ GET/HEAD/OPTIONS доступны без авторизации в режиме 
 - `JIRA_BASE_URL`;
 - `JIRA_EMAIL`;
 - `JIRA_API_TOKEN`;
+- `JIRA_SPRINT_FIELD_ID` optional, default `customfield_10004`;
 - `JIRA_MAX_RESULTS` optional, default `100`, maximum `500`.
 
 Backend ходит в Jira от сервисного аккаунта из этих переменных.
