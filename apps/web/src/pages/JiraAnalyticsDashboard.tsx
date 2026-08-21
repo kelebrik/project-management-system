@@ -2,7 +2,6 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
-  Copy,
   Download,
   Pencil,
   Plus,
@@ -13,27 +12,29 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { apiClient } from "../api/client";
-import type { JiraIssueSnapshot, SavedView } from "../app/domainTypes";
+import type { JiraIssueSnapshot } from "../app/domainTypes";
 import {
+  JIRA_ANALYTICS_DEFAULT_CONFIG,
+  JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   JIRA_ANALYTICS_FILTER_LABELS,
-  JIRA_ANALYTICS_DEFAULT_TEMPLATE,
+  JIRA_ANALYTICS_GROUPS_BY_SOURCE,
   JIRA_ANALYTICS_GROUP_LABELS,
+  JIRA_ANALYTICS_METRICS_BY_SOURCE,
   JIRA_ANALYTICS_METRIC_LABELS,
   JIRA_ANALYTICS_OPERATOR_LABELS,
   JIRA_ANALYTICS_SOURCE_LABELS,
-  JIRA_ANALYTICS_TEMPLATES,
-  JIRA_ANALYTICS_VIEW_TYPE,
   JIRA_CRITICAL_BUG_SLA_HOURS,
   cloneJiraAnalyticsConfig,
   createJiraAnalyticsFilter,
   createJiraAnalyticsWidget,
   evaluateJiraAnalyticsWidget,
   formatJiraAnalyticsMetric,
-  isJiraCriticalBug,
   jiraAnalyticsCsv,
+  jiraAnalyticsFieldIsNumeric,
+  jiraAnalyticsOperatorsFor,
   normalizeJiraAnalyticsConfig,
   type JiraAnalyticsDashboardConfig,
   type JiraAnalyticsFilter,
@@ -42,91 +43,12 @@ import {
   type JiraAnalyticsGroupBy,
   type JiraAnalyticsMetric,
   type JiraAnalyticsRecord,
+  type JiraAnalyticsSection,
   type JiraAnalyticsSource,
   type JiraAnalyticsVisualization,
   type JiraAnalyticsWidget,
 } from "../app/jiraAnalytics";
 import { usePageContext } from "./PageContext";
-
-const METRICS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsMetric[]> = {
-  issues: ["count", "commits", "mergeRequests"],
-  transitions: [
-    "count",
-    "averageDuration",
-    "p50Duration",
-    "p85Duration",
-    "p95Duration",
-  ],
-  development: ["count", "commits", "mergeRequests"],
-  criticalBugs: [
-    "count",
-    "averageDuration",
-    "p50Duration",
-    "p85Duration",
-    "p95Duration",
-  ],
-};
-
-const GROUPS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsGroupBy[]> = {
-  issues: ["none", "status", "assignee", "priority", "sprint", "issueType"],
-  transitions: [
-    "none",
-    "status",
-    "assignee",
-    "fromStatus",
-    "toStatus",
-    "week",
-  ],
-  development: ["none", "status", "assignee", "sprint", "week"],
-  criticalBugs: ["none", "priority", "assignee", "status", "resolution"],
-};
-
-const FIELDS_BY_SOURCE: Record<JiraAnalyticsSource, JiraAnalyticsFilterField[]> = {
-  issues: [
-    "status",
-    "assignee",
-    "priority",
-    "sprint",
-    "issueType",
-    "resolution",
-    "hasDevelopment",
-    "commitCount",
-    "mergeRequestCount",
-  ],
-  transitions: [
-    "status",
-    "assignee",
-    "fromStatus",
-    "toStatus",
-    "durationHours",
-  ],
-  development: [
-    "status",
-    "assignee",
-    "sprint",
-    "commitCount",
-    "mergeRequestCount",
-  ],
-  criticalBugs: [
-    "status",
-    "assignee",
-    "priority",
-    "resolution",
-    "durationHours",
-  ],
-};
-
-const NUMERIC_FIELDS = new Set<JiraAnalyticsFilterField>([
-  "durationHours",
-  "commitCount",
-  "mergeRequestCount",
-]);
-
-function operatorsFor(field: JiraAnalyticsFilterField): JiraAnalyticsFilterOperator[] {
-  if (NUMERIC_FIELDS.has(field)) return ["greaterThan", "atLeast", "equals"];
-  if (field === "hasDevelopment") return ["equals"];
-  return ["equals", "notEquals", "contains", "empty", "notEmpty"];
-}
 
 function downloadRecords(name: string, records: JiraAnalyticsRecord[]) {
   const blob = new Blob(["\ufeff", jiraAnalyticsCsv(records)], {
@@ -292,6 +214,23 @@ function JiraAnalyticsWidgetCard({
   widget: JiraAnalyticsWidget;
 }) {
   const maxGroupValue = Math.max(1, ...result.groups.map((group) => group.value));
+  const transitionPercentile = widget.metric === "p50Duration"
+    ? 50
+    : widget.metric === "p85Duration"
+      ? 85
+      : widget.metric === "p95Duration"
+        ? 95
+        : null;
+  const subtitle = widget.source === "transitions" && transitionPercentile
+    ? `${transitionPercentile}% завершённых периодов в статусах не дольше`
+    : widget.source === "criticalBugs"
+      ? `От первого Critical/Blocker до Resolution · ${JIRA_ANALYTICS_METRIC_LABELS[widget.metric]}`
+      : `${JIRA_ANALYTICS_SOURCE_LABELS[widget.source]} · ${JIRA_ANALYTICS_METRIC_LABELS[widget.metric]}`;
+  const recordCountLabel = widget.source === "transitions"
+    ? "Периодов в статусах"
+    : widget.source === "development"
+      ? "Событий разработки"
+      : "Тикетов";
   return (
     <section
       className={`jira-analytics-widget width-${widget.width} ${selected ? "selected" : ""}`}
@@ -299,9 +238,7 @@ function JiraAnalyticsWidgetCard({
       <header>
         <div>
           <h3>{widget.title}</h3>
-          <small>
-            {JIRA_ANALYTICS_SOURCE_LABELS[widget.source]} · {JIRA_ANALYTICS_METRIC_LABELS[widget.metric]}
-          </small>
+          <small>{subtitle}</small>
         </div>
         <div className="jira-analytics-widget-actions">
           {result.records.length > 0 && (
@@ -320,7 +257,7 @@ function JiraAnalyticsWidgetCard({
               <button type="button" className="icon-button" onClick={() => onMove(-1)} disabled={index === 0} aria-label="Переместить влево" title="Переместить влево"><ChevronLeft size={16} /></button>
               <button type="button" className="icon-button" onClick={() => onMove(1)} disabled={index === total - 1} aria-label="Переместить вправо" title="Переместить вправо"><ChevronRight size={16} /></button>
               <button type="button" className="icon-button" onClick={onSelect} aria-label="Настроить виджет" title="Настроить"><Settings2 size={16} /></button>
-              <button type="button" className="icon-button danger" onClick={onRemove} aria-label="Удалить виджет" title="Удалить"><Trash2 size={16} /></button>
+              <button type="button" className="icon-button danger" onClick={onRemove} disabled={total === 1} aria-label="Удалить виджет" title="Удалить"><Trash2 size={16} /></button>
             </>
           )}
         </div>
@@ -334,31 +271,42 @@ function JiraAnalyticsWidgetCard({
           disabled={result.records.length === 0}
         >
           <strong>{result.formattedValue}</strong>
-          <span>{result.records.length.toLocaleString("ru-RU")} записей</span>
+          <span>{recordCountLabel}: {result.records.length.toLocaleString("ru-RU")}</span>
         </button>
       )}
 
       {widget.visualization === "bar" && (
-        <div className="jira-analytics-bars">
-          {result.groups.length > 0 ? (
-            result.groups.slice(0, 12).map((group) => (
-              <button
-                type="button"
-                className="jira-analytics-bar-row"
-                key={group.key}
-                onClick={() => onDrilldown(`${widget.title}: ${group.label}`, group.records)}
-              >
-                <span className="jira-analytics-bar-label">{group.label}</span>
-                <span className="jira-analytics-bar-track">
-                  <span style={{ width: `${Math.max(2, (group.value / maxGroupValue) * 100)}%` }} />
-                </span>
-                <b>{group.formattedValue}</b>
-              </button>
-            ))
-          ) : (
-            <div className="jira-analytics-empty">Нет данных для группировки</div>
+        <>
+          <div className="jira-analytics-bars">
+            {result.groups.length > 0 ? (
+              result.groups.slice(0, 12).map((group) => (
+                <button
+                  type="button"
+                  className="jira-analytics-bar-row"
+                  key={group.key}
+                  onClick={() => onDrilldown(`${widget.title}: ${group.label}`, group.records)}
+                >
+                  <span className="jira-analytics-bar-label">{group.label}</span>
+                  <span className="jira-analytics-bar-track">
+                    <span style={{ width: `${Math.max(2, (group.value / maxGroupValue) * 100)}%` }} />
+                  </span>
+                  <b>{group.formattedValue}</b>
+                </button>
+              ))
+            ) : (
+              <div className="jira-analytics-empty">Нет данных для группировки</div>
+            )}
+          </div>
+          {result.groups.length > 12 && (
+            <button
+              type="button"
+              className="jira-analytics-more"
+              onClick={() => onDrilldown(widget.title, result.records)}
+            >
+              Показано 12 из {result.groups.length} групп · Открыть все записи ({result.records.length})
+            </button>
           )}
-        </div>
+        </>
       )}
 
       {widget.visualization === "table" && (
@@ -397,10 +345,10 @@ function JiraWidgetEditor({
       ),
     });
   const changeSource = (source: JiraAnalyticsSource) => {
-    const metric = METRICS_BY_SOURCE[source].includes(widget.metric)
+    const metric = JIRA_ANALYTICS_METRICS_BY_SOURCE[source].includes(widget.metric)
       ? widget.metric
-      : METRICS_BY_SOURCE[source][0];
-    const groupBy = GROUPS_BY_SOURCE[source].includes(widget.groupBy)
+      : JIRA_ANALYTICS_METRICS_BY_SOURCE[source][0];
+    const groupBy = JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].includes(widget.groupBy)
       ? widget.groupBy
       : "none";
     patchWidget({ source, metric, groupBy, filters: [] });
@@ -414,7 +362,14 @@ function JiraWidgetEditor({
       </header>
       <label>
         Название
-        <input value={widget.title} onChange={(event) => patchWidget({ title: event.target.value })} />
+        <input maxLength={200} value={widget.title} onChange={(event) => patchWidget({ title: event.target.value })} />
+      </label>
+      <label>
+        Раздел
+        <select value={widget.section} onChange={(event) => patchWidget({ section: event.target.value as JiraAnalyticsSection })}>
+          <option value="active">В работе</option>
+          <option value="retro">Ретро</option>
+        </select>
       </label>
       <label>
         Источник
@@ -425,13 +380,13 @@ function JiraWidgetEditor({
       <label>
         Метрика
         <select value={widget.metric} onChange={(event) => patchWidget({ metric: event.target.value as JiraAnalyticsMetric })}>
-          {METRICS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_METRIC_LABELS[value]}</option>)}
+          {JIRA_ANALYTICS_METRICS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_METRIC_LABELS[value]}</option>)}
         </select>
       </label>
       <label>
         Группировка
         <select value={widget.groupBy} onChange={(event) => patchWidget({ groupBy: event.target.value as JiraAnalyticsGroupBy })}>
-          {GROUPS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_GROUP_LABELS[value]}</option>)}
+          {JIRA_ANALYTICS_GROUPS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_GROUP_LABELS[value]}</option>)}
         </select>
       </label>
       <fieldset>
@@ -468,12 +423,12 @@ function JiraWidgetEditor({
             <div className="jira-widget-filter" key={condition.id}>
               <select value={condition.field} onChange={(event) => {
                 const field = event.target.value as JiraAnalyticsFilterField;
-                updateFilter(condition.id, { field, operator: operatorsFor(field)[0], value: field === "hasDevelopment" ? "true" : "" });
+                updateFilter(condition.id, { field, operator: jiraAnalyticsOperatorsFor(field)[0], value: field === "hasDevelopment" ? "true" : "" });
               }}>
-                {FIELDS_BY_SOURCE[widget.source].map((field) => <option value={field} key={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}
+                {JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source].map((field) => <option value={field} key={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}
               </select>
               <select value={condition.operator} onChange={(event) => updateFilter(condition.id, { operator: event.target.value as JiraAnalyticsFilterOperator })}>
-                {operatorsFor(condition.field).map((operator) => <option value={operator} key={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}
+                {jiraAnalyticsOperatorsFor(condition.field).map((operator) => <option value={operator} key={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}
               </select>
               {needsValue && (condition.field === "hasDevelopment" ? (
                 <select value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })}>
@@ -481,7 +436,7 @@ function JiraWidgetEditor({
                   <option value="false">Нет</option>
                 </select>
               ) : (
-                <input type={NUMERIC_FIELDS.has(condition.field) ? "number" : "text"} value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })} />
+                <input type={jiraAnalyticsFieldIsNumeric(condition.field) ? "number" : "text"} value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })} />
               ))}
               <button type="button" className="icon-button danger" onClick={() => patchWidget({ filters: widget.filters.filter((item) => item.id !== condition.id) })} aria-label="Удалить условие"><Trash2 size={15} /></button>
             </div>
@@ -491,8 +446,9 @@ function JiraWidgetEditor({
       <button
         type="button"
         className="button jira-widget-add-filter"
+        disabled={widget.filters.length >= 20}
         onClick={() => {
-          const field = FIELDS_BY_SOURCE[widget.source][0];
+          const field = JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source][0];
           patchWidget({ filters: [...widget.filters, createJiraAnalyticsFilter(field)] });
         }}
       >
@@ -502,31 +458,59 @@ function JiraWidgetEditor({
   );
 }
 
-export function JiraAnalyticsDashboard() {
+type JiraAnalyticsScopeType = "LABEL" | "EPIC";
+
+function jiraScopeValueIsValid(type: JiraAnalyticsScopeType, value: string) {
+  const normalized = value.trim();
+  return type === "LABEL"
+    ? normalized.length > 0 && /^[^\s"'\\]+$/.test(normalized)
+    : /^[A-Z][A-Z0-9_]*-\d+$/i.test(normalized);
+}
+
+export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSection }) {
   const {
     currentUser,
+    isClosedProject,
     project,
+    refreshProject,
     setError,
     setNotice,
     syncJira,
     syncing,
   } = usePageContext();
-  const [savedDashboards, setSavedDashboards] = useState<SavedView[]>([]);
-  const [selectedDashboard, setSelectedDashboard] = useState(
-    `template:${JIRA_ANALYTICS_DEFAULT_TEMPLATE.id}`,
-  );
   const [config, setConfig] = useState<JiraAnalyticsDashboardConfig>(() =>
-    cloneJiraAnalyticsConfig(JIRA_ANALYTICS_DEFAULT_TEMPLATE.config),
+    normalizeJiraAnalyticsConfig(
+      project.jiraAnalyticsSettings?.dashboardConfig,
+      JIRA_ANALYTICS_DEFAULT_CONFIG,
+    ),
   );
   const [baseline, setBaseline] = useState<JiraAnalyticsDashboardConfig>(() =>
-    cloneJiraAnalyticsConfig(JIRA_ANALYTICS_DEFAULT_TEMPLATE.config),
+    normalizeJiraAnalyticsConfig(
+      project.jiraAnalyticsSettings?.dashboardConfig,
+      JIRA_ANALYTICS_DEFAULT_CONFIG,
+    ),
   );
-  const [dashboardName, setDashboardName] = useState(
-    JIRA_ANALYTICS_DEFAULT_TEMPLATE.name,
-  );
-  const [isShared, setIsShared] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [jiraScopeDraft, setJiraScopeDraft] = useState<{
+    projectId: string;
+    type: JiraAnalyticsScopeType;
+    value: string;
+  }>({
+    projectId: project.id,
+    type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL",
+    value: project.jiraAnalyticsSettings?.jiraScopeValue ?? "",
+  });
+  const jiraScope = jiraScopeDraft.projectId === project.id
+    ? jiraScopeDraft
+    : {
+        projectId: project.id,
+        type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL" as const,
+        value: project.jiraAnalyticsSettings?.jiraScopeValue ?? "",
+      };
+  const scopeValueValid = jiraScopeValueIsValid(jiraScope.type, jiraScope.value);
+  const isSystemAdmin = currentUser?.role === "ADMIN";
+  const canEditWidgets = isSystemAdmin && !isClosedProject;
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
   const [drilldown, setDrilldown] = useState<{ title: string; records: JiraAnalyticsRecord[] } | null>(null);
   const issues = project.jiraSnapshots as JiraIssueSnapshot[];
@@ -540,84 +524,38 @@ export function JiraAnalyticsDashboard() {
   const developmentCoverage = issues.filter(
     (issue) => issue.developmentDataAvailable,
   ).length;
-  const criticalBugs = issues.filter(
-    (issue) => issue.criticalSlaTracked && isJiraCriticalBug(issue),
-  );
+  const criticalBugs = issues.filter((issue) => issue.criticalSlaTracked);
   const criticalPriorityCoverage = criticalBugs.filter(
-    (issue) => issue.transitionHistoryComplete && issue.criticalPriorityAt,
+    (issue) => issue.criticalPriorityAt && !Number.isNaN(new Date(issue.criticalPriorityAt).getTime()),
   ).length;
+  const slaScopeConfigured = Boolean(
+    project.jiraAnalyticsSettings?.jiraScopeValue?.trim() ||
+    project.jiraIntegration?.projectKey?.trim() ||
+    issues.some((issue) => /^[A-Z][A-Z0-9_]*-\d+$/i.test(issue.issueKey)),
+  );
   const latestSync = issues
     .map((issue) => new Date(issue.syncedAt))
     .filter((value) => !Number.isNaN(value.getTime()))
     .sort((left, right) => right.getTime() - left.getTime())[0];
 
-  useEffect(() => {
-    let cancelled = false;
-    apiClient
-      .get<SavedView[]>(
-        `/api/saved-views?viewType=${encodeURIComponent(JIRA_ANALYTICS_VIEW_TYPE)}&projectId=${encodeURIComponent(project.id)}`,
-        "Не удалось загрузить дашборды",
-      )
-      .then((views) => {
-        if (!cancelled) setSavedDashboards(views);
-      })
-      .catch(() => {
-        if (!cancelled) setSavedDashboards([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [project.id]);
-
+  const visibleWidgets = useMemo(
+    () => config.widgets.filter((widget) => widget.section === section),
+    [config.widgets, section],
+  );
   const results = useMemo(
     () =>
-      config.widgets.map((widget) =>
+      visibleWidgets.map((widget) =>
         evaluateJiraAnalyticsWidget(widget, issues, {
           periodDays: config.periodDays,
           assignee: config.assignee,
         }),
       ),
-    [config, issues],
+    [config.assignee, config.periodDays, issues, visibleWidgets],
   );
-  const hasEventWidgets = config.widgets.some((widget) =>
+  const hasEventWidgets = visibleWidgets.some((widget) =>
     ["transitions", "development"].includes(widget.source),
   );
-  const selectedWidget = config.widgets.find((widget) => widget.id === selectedWidgetId) ?? null;
-
-  const applySelection = (value: string) => {
-    setSelectedDashboard(value);
-    setEditing(false);
-    setSelectedWidgetId(null);
-    setDrilldown(null);
-    if (value.startsWith("template:")) {
-      const template = JIRA_ANALYTICS_TEMPLATES.find(
-        (item) => `template:${item.id}` === value,
-      ) ?? JIRA_ANALYTICS_DEFAULT_TEMPLATE;
-      const next = cloneJiraAnalyticsConfig(template.config);
-      setConfig(next);
-      setBaseline(cloneJiraAnalyticsConfig(next));
-      setDashboardName(template.name);
-      setIsShared(false);
-      return;
-    }
-    const saved = savedDashboards.find((item) => `saved:${item.id}` === value);
-    if (!saved) return;
-    const next = normalizeJiraAnalyticsConfig(saved.config);
-    setConfig(next);
-    setBaseline(cloneJiraAnalyticsConfig(next));
-    setDashboardName(saved.name);
-    setIsShared(saved.isShared);
-    void apiClient.post(`/api/saved-views/${saved.id}/use`).catch(() => undefined);
-  };
-
-  const beginNewDashboard = () => {
-    setSelectedDashboard("draft");
-    setDashboardName(`${dashboardName} — копия`);
-    setBaseline(cloneJiraAnalyticsConfig(config));
-    setIsShared(false);
-    setEditing(true);
-    setSelectedWidgetId(config.widgets[0]?.id ?? null);
-  };
+  const selectedWidget = visibleWidgets.find((widget) => widget.id === selectedWidgetId) ?? null;
 
   const updateWidget = (next: JiraAnalyticsWidget) =>
     setConfig((current) => ({
@@ -625,43 +563,39 @@ export function JiraAnalyticsDashboard() {
       widgets: current.widgets.map((widget) => (widget.id === next.id ? next : widget)),
     }));
 
-  const moveWidget = (index: number, direction: -1 | 1) => {
+  const moveWidget = (widgetId: string, direction: -1 | 1) => {
     setConfig((current) => {
       const widgets = [...current.widgets];
-      const target = index + direction;
-      if (target < 0 || target >= widgets.length) return current;
+      const sectionIndexes = widgets.flatMap((widget, index) =>
+        widget.section === section ? [index] : [],
+      );
+      const sectionIndex = sectionIndexes.findIndex((index) => widgets[index]?.id === widgetId);
+      const targetSectionIndex = sectionIndex + direction;
+      if (sectionIndex < 0 || targetSectionIndex < 0 || targetSectionIndex >= sectionIndexes.length) {
+        return current;
+      }
+      const index = sectionIndexes[sectionIndex];
+      const target = sectionIndexes[targetSectionIndex];
       [widgets[index], widgets[target]] = [widgets[target], widgets[index]];
       return { ...current, widgets };
     });
   };
 
   const saveDashboard = async () => {
-    if (!dashboardName.trim() || !currentUser) return;
+    if (!canEditWidgets) return;
     setSaving(true);
     setError(null);
     try {
-      const selectedSaved = selectedDashboard.startsWith("saved:")
-        ? savedDashboards.find((item) => `saved:${item.id}` === selectedDashboard)
-        : null;
-      const payload = {
-        projectId: project.id,
-        viewType: JIRA_ANALYTICS_VIEW_TYPE,
-        name: dashboardName.trim(),
-        config,
-        isShared,
-        sortOrder: 0,
-      };
-      const saved =
-        selectedSaved?.ownerId === currentUser.id
-          ? await apiClient.patch<SavedView>(`/api/saved-views/${selectedSaved.id}`, payload, "Не удалось сохранить дашборд")
-          : await apiClient.post<SavedView>("/api/saved-views", payload, "Не удалось создать дашборд");
-      setSavedDashboards((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
-      setSelectedDashboard(`saved:${saved.id}`);
+      await apiClient.patch(
+        `/api/projects/${project.id}/jira/analytics-dashboard`,
+        { config },
+        "Не удалось сохранить настройки аналитики Jira",
+      );
+      await refreshProject(project.id);
       setBaseline(cloneJiraAnalyticsConfig(config));
-      setDashboardName(saved.name);
       setEditing(false);
       setSelectedWidgetId(null);
-      setNotice("Аналитический дашборд сохранен");
+      setNotice("Настройки виджетов сохранены для проекта");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось сохранить дашборд");
     } finally {
@@ -672,25 +606,42 @@ export function JiraAnalyticsDashboard() {
   const exportAll = () => {
     const unique = new Map<string, JiraAnalyticsRecord>();
     results.flatMap((result) => result.records).forEach((record) => unique.set(record.id, record));
-    downloadRecords(dashboardName, [...unique.values()]);
+    downloadRecords(`jira-analytics-${project.code}-${section}`, [...unique.values()]);
   };
 
   return (
     <div className="jira-analytics-workspace">
       <div className="jira-analytics-toolbar">
-        <label className="jira-analytics-dashboard-select">
-          <span>Дашборд</span>
-          <select value={selectedDashboard} onChange={(event) => applySelection(event.target.value)}>
-            {selectedDashboard === "draft" && <option value="draft">Новый дашборд</option>}
-            <optgroup label="Системные шаблоны">
-              {JIRA_ANALYTICS_TEMPLATES.map((template) => <option key={template.id} value={`template:${template.id}`}>{template.name}</option>)}
-            </optgroup>
-            {savedDashboards.length > 0 && (
-              <optgroup label="Сохраненные">
-                {savedDashboards.map((dashboard) => <option key={dashboard.id} value={`saved:${dashboard.id}`}>{dashboard.name}{dashboard.isShared ? " · общий" : ""}</option>)}
-              </optgroup>
-            )}
+        <label className="jira-analytics-scope-type">
+          <span>Отбор тикетов</span>
+          <select
+            aria-label="Способ отбора тикетов"
+            disabled={!canEditWidgets}
+            value={jiraScope.type}
+            onChange={(event) => setJiraScopeDraft({
+              projectId: project.id,
+              type: event.target.value as JiraAnalyticsScopeType,
+              value: "",
+            })}
+          >
+            <option value="LABEL">Лейбл</option>
+            <option value="EPIC">Код эпика</option>
           </select>
+        </label>
+        <label className="jira-analytics-scope-value">
+          <span>{jiraScope.type === "LABEL" ? "Лейбл" : "Код эпика"}</span>
+          <input
+            aria-label={jiraScope.type === "LABEL" ? "Лейбл Jira" : "Код эпика Jira"}
+            maxLength={100}
+            disabled={!canEditWidgets}
+            placeholder={jiraScope.type === "LABEL" ? "cvte968" : "CVTE-1234"}
+            value={jiraScope.value}
+            onChange={(event) => setJiraScopeDraft({
+              projectId: project.id,
+              type: jiraScope.type,
+              value: event.target.value,
+            })}
+          />
         </label>
         <label title={hasEventWidgets ? "Период переходов и активности разработки" : "На текущие тикеты и SLA-отчет период событий не влияет"}>
           <span>Период событий</span>
@@ -709,22 +660,30 @@ export function JiraAnalyticsDashboard() {
           </select>
         </label>
         <div className="jira-analytics-toolbar-actions">
-          <button type="button" className="icon-button" onClick={beginNewDashboard} aria-label="Создать копию дашборда" title="Создать копию"><Copy size={17} /></button>
           <button type="button" className="icon-button" onClick={exportAll} aria-label="Экспортировать дашборд" title="Экспорт CSV"><Download size={17} /></button>
-          <button type="button" className="button" onClick={() => syncJira({ baseUrl: "https://tasks.sberdevices.ru" })} disabled={syncing}>
+          <button
+            type="button"
+            className="button"
+            onClick={() => syncJira({
+              baseUrl: "https://tasks.sberdevices.ru",
+              scopeType: jiraScope.type,
+              scopeValue: jiraScope.value.trim(),
+            })}
+            disabled={syncing || !scopeValueValid}
+          >
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
             {syncing ? "Обновляю..." : "Обновить"}
           </button>
-          {!editing ? (
-            <button type="button" className="button primary" onClick={() => { setBaseline(cloneJiraAnalyticsConfig(config)); setEditing(true); setSelectedWidgetId(config.widgets[0]?.id ?? null); }}>
+          {canEditWidgets && (!editing ? (
+            <button type="button" className="button primary" onClick={() => { setBaseline(cloneJiraAnalyticsConfig(config)); setEditing(true); setSelectedWidgetId(visibleWidgets[0]?.id ?? null); }}>
               <Pencil size={16} /> Редактировать
             </button>
           ) : (
             <>
               <button type="button" className="button" onClick={() => { setConfig(cloneJiraAnalyticsConfig(baseline)); setEditing(false); setSelectedWidgetId(null); }}><X size={16} /> Отменить</button>
-              <button type="button" className="button primary" onClick={saveDashboard} disabled={saving || !dashboardName.trim() || !currentUser}><Save size={16} /> {saving ? "Сохраняю..." : "Сохранить"}</button>
+              <button type="button" className="button primary" onClick={saveDashboard} disabled={saving}><Save size={16} /> {saving ? "Сохраняю..." : "Сохранить"}</button>
             </>
-          )}
+          ))}
         </div>
       </div>
 
@@ -736,10 +695,12 @@ export function JiraAnalyticsDashboard() {
           <span className={developmentCoverage === issues.length ? "complete" : "partial"}>
             Development {developmentCoverage}/{issues.length}
           </span>
-          {criticalBugs.length > 0 && (
+          {slaScopeConfigured ? (
             <span className={criticalPriorityCoverage === criticalBugs.length ? "complete" : "partial"}>
-              История SLA {criticalPriorityCoverage}/{criticalBugs.length}
+              SLA-тикеты {criticalPriorityCoverage}/{criticalBugs.length}
             </span>
+          ) : (
+            <span className="partial">SLA не настроен: нет Jira project key</span>
           )}
           {latestSync && (
             <small>
@@ -749,29 +710,16 @@ export function JiraAnalyticsDashboard() {
         </div>
       )}
 
-      {editing && (
-        <div className="jira-analytics-edit-meta">
-          <label>
-            Название дашборда
-            <input value={dashboardName} onChange={(event) => setDashboardName(event.target.value)} />
-          </label>
-          <label className="checkbox-line">
-            <input type="checkbox" checked={isShared} onChange={(event) => setIsShared(event.target.checked)} />
-            Командный доступ
-          </label>
-        </div>
-      )}
-
       <div className={`jira-analytics-edit-layout ${editing && selectedWidget ? "with-editor" : ""}`}>
         <div className="jira-analytics-grid">
-          {config.widgets.map((widget, index) => (
+          {visibleWidgets.map((widget, index) => (
             <JiraAnalyticsWidgetCard
-              dashboardName={dashboardName}
+              dashboardName={`jira-analytics-${project.code}`}
               editing={editing}
               index={index}
               key={widget.id}
               onDrilldown={(title, records) => setDrilldown({ title, records })}
-              onMove={(direction) => moveWidget(index, direction)}
+              onMove={(direction) => moveWidget(widget.id, direction)}
               onRemove={() => {
                 setConfig((current) => ({ ...current, widgets: current.widgets.filter((item) => item.id !== widget.id) }));
                 if (selectedWidgetId === widget.id) setSelectedWidgetId(null);
@@ -779,7 +727,7 @@ export function JiraAnalyticsDashboard() {
               onSelect={() => setSelectedWidgetId(widget.id)}
               result={results[index]}
               selected={editing && selectedWidgetId === widget.id}
-              total={config.widgets.length}
+              total={visibleWidgets.length}
               widget={widget}
             />
           ))}
@@ -787,8 +735,9 @@ export function JiraAnalyticsDashboard() {
             <button
               type="button"
               className="jira-analytics-add-widget"
+              disabled={config.widgets.length >= 100}
               onClick={() => {
-                const widget = createJiraAnalyticsWidget();
+                const widget = createJiraAnalyticsWidget("issues", section);
                 setConfig((current) => ({ ...current, widgets: [...current.widgets, widget] }));
                 setSelectedWidgetId(widget.id);
               }}
@@ -807,7 +756,7 @@ export function JiraAnalyticsDashboard() {
           <header>
             <div><TableProperties size={18} /><h3>{drilldown.title}</h3><span>{drilldown.records.length}</span></div>
             <div>
-              <button type="button" className="icon-button" onClick={() => downloadRecords(`${dashboardName}-${drilldown.title}`, drilldown.records)} aria-label="Экспортировать детализацию" title="Экспорт CSV"><Download size={16} /></button>
+              <button type="button" className="icon-button" onClick={() => downloadRecords(`jira-analytics-${project.code}-${drilldown.title}`, drilldown.records)} aria-label="Экспортировать детализацию" title="Экспорт CSV"><Download size={16} /></button>
               <button type="button" className="icon-button" onClick={() => setDrilldown(null)} aria-label="Закрыть детализацию"><X size={17} /></button>
             </div>
           </header>
@@ -819,7 +768,18 @@ export function JiraAnalyticsDashboard() {
         <div className="jira-analytics-zero-state">
           <BarChart3 size={24} />
           <span>Нет синхронизированных тикетов Jira</span>
-          <button type="button" className="button" onClick={() => syncJira({ baseUrl: "https://tasks.sberdevices.ru" })} disabled={syncing}>Синхронизировать</button>
+          <button
+            type="button"
+            className="button"
+            onClick={() => syncJira({
+              baseUrl: "https://tasks.sberdevices.ru",
+              scopeType: jiraScope.type,
+              scopeValue: jiraScope.value.trim(),
+            })}
+            disabled={syncing || !scopeValueValid}
+          >
+            Синхронизировать
+          </button>
         </div>
       )}
     </div>

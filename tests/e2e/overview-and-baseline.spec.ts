@@ -159,6 +159,13 @@ function projectFixture() {
       },
     },
     jiraIntegration: null,
+    jiraAnalyticsSettings: {
+      jiraScopeType: "LABEL",
+      jiraScopeValue: "cvte968",
+      dashboardConfig: null,
+      syncStatus: "CONFIGURED",
+      lastSyncedAt: null,
+    },
     targetDateChanges: [],
     wbsItems: [wbsItem],
     raidItems: [risk],
@@ -534,13 +541,17 @@ test("project creation keeps business units available when structure options fai
 });
 
 test("Jira work synchronization always uses production", async ({ page }) => {
-  let syncBody: { baseUrl?: string } | null = null;
+  let syncBody: {
+    baseUrl?: string;
+    scopeType?: string;
+    scopeValue?: string;
+  } | null = null;
   await mockAdminProject(page);
   await page.route("**/api/projects/project-1/jira-work-sections", (route) =>
     route.fulfill({ json: { ok: true } }),
   );
   await page.route("**/api/projects/project-1/jira/sync", async (route) => {
-    syncBody = route.request().postDataJSON() as { baseUrl?: string };
+    syncBody = route.request().postDataJSON() as typeof syncBody;
     await route.fulfill({
       json: { synced: 0, configuredSections: 0, jiraUsers: [] },
     });
@@ -553,6 +564,8 @@ test("Jira work synchronization always uses production", async ({ page }) => {
   await page.getByRole("button", { name: "Синхронизировать" }).click();
 
   await expect.poll(() => syncBody?.baseUrl).toBe("https://tasks.sberdevices.ru");
+  await expect.poll(() => syncBody?.scopeType).toBe("LABEL");
+  await expect.poll(() => syncBody?.scopeValue).toBe("cvte968");
 });
 
 test("Jira work sections expose separate JQL and filter URL fields", async ({
@@ -575,7 +588,7 @@ test("Jira work sections expose separate JQL and filter URL fields", async ({
   await expect(firstSection.getByLabel("Ссылка на фильтр")).toBeVisible();
 });
 
-test("Jira analytics offers templates, drill-down and widget editing", async ({
+test("Jira analytics shows all reports and lets only the admin edit shared widgets", async ({
   page,
 }) => {
   const project = await mockAdminProject(page);
@@ -634,10 +647,16 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
     },
   ] as unknown as never[];
   project._count.jiraSnapshots = 1;
-  await page.route("**/api/saved-views?*", (route) => route.fulfill({ json: [] }));
+  let savedWidgetCount = 0;
+  await page.route("**/api/projects/project-1/jira/analytics-dashboard", async (route) => {
+    const body = route.request().postDataJSON() as { config?: { widgets?: unknown[] } };
+    savedWidgetCount = body.config?.widgets?.length ?? 0;
+    (project.jiraAnalyticsSettings as { dashboardConfig: unknown }).dashboardConfig = body.config;
+    await route.fulfill({ json: project.jiraAnalyticsSettings });
+  });
   await page.goto("/TV-OVERVIEW/jira-work");
 
-  const dashboardSelect = page.getByRole("combobox", { name: "Дашборд", exact: true });
+  const scopeSelect = page.getByRole("combobox", { name: "Способ отбора тикетов" });
   const iconOffset = async (button: Locator) =>
     button.evaluate((element) => {
       const icon = element.querySelector("svg");
@@ -649,10 +668,32 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
         y: iconBox.y + iconBox.height / 2 - (buttonBox.y + buttonBox.height / 2),
       };
     });
-  await expect(dashboardSelect).toHaveValue("template:unplanned");
+  await expect(scopeSelect).toHaveValue("LABEL");
+  await expect(scopeSelect.locator("option")).toHaveText(["Лейбл", "Код эпика"]);
+  await expect(page.getByRole("button", { name: "В работе" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ретро" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Данные Jira" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Агрегаты" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Дашборды" })).toHaveCount(0);
+  await expect(page.getByText("Командный доступ", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Название дашборда")).toHaveCount(0);
+  const scopeSelectStyle = await scopeSelect.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      lineHeight: style.lineHeight,
+      paddingBottom: style.paddingBottom,
+      paddingTop: style.paddingTop,
+    };
+  });
+  expect(scopeSelectStyle).toEqual({
+    lineHeight: "32px",
+    paddingBottom: "0px",
+    paddingTop: "0px",
+  });
   const toolbarSelectBoxes = await Promise.all(
     [
-      dashboardSelect,
+      scopeSelect,
+      page.getByLabel("Лейбл Jira"),
       page.getByRole("combobox", { name: "Период событий" }),
       page.getByRole("combobox", { name: "Исполнитель" }),
     ].map((select) => select.boundingBox()),
@@ -675,11 +716,7 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
     (compactToolbarBoxes[0]?.height ?? 0) - (compactToolbarBoxes[1]?.height ?? 0),
   )).toBeLessThanOrEqual(1);
   await page.setViewportSize({ width: 1280, height: 800 });
-  const copyOffset = await iconOffset(
-    page.getByRole("button", { name: "Создать копию дашборда" }),
-  );
-  expect(Math.abs(copyOffset.x)).toBeLessThanOrEqual(1);
-  expect(Math.abs(copyOffset.y)).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("button", { name: "Создать копию дашборда" })).toHaveCount(0);
   const refreshOffset = await iconOffset(
     page.getByRole("button", { name: "Обновить" }),
   );
@@ -690,9 +727,36 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
   expect(Math.abs(editOffset.y)).toBeLessThanOrEqual(1);
   await expect(page.getByRole("combobox", { name: "Период событий" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
-  await dashboardSelect.selectOption("template:flow");
-  await expect(page.getByRole("heading", { name: "Cycle time P50" })).toBeVisible();
-  await dashboardSelect.selectOption("template:unplanned");
+  await expect(page.getByRole("heading", { name: "Тикеты по статусам" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Ретро" }).click();
+  await expect(page.getByRole("combobox", { name: "Период событий" })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
+  await expect(page.getByText("50% завершённых периодов в статусах не дольше")).toBeVisible();
+  await expect(page.getByText(/Периодов в статусах: 1/).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Тикеты с нарушенным SLA" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "TV-101" }).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Агрегаты" }).click();
+  await expect(page.getByRole("heading", { name: "Агрегаты Jira" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Источники записей" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "SLA Critical/Blocker", exact: true })).toBeVisible();
+  await expect(page.getByText(/Если тикет создан с таким приоритетом, SLA начинается от создания/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Текущие виджеты проекта" })).toBeVisible();
+  await expect(page.locator(".jira-aggregate-table.current-widgets").getByText("Нарушили SLA 30 дней")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole("button", { name: "В работе" }).click();
+
   await page
     .locator(".jira-analytics-widget")
     .filter({ hasText: "Вне Sprint с кодом" })
@@ -701,10 +765,6 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" }).last()).toBeVisible();
   await expect(page.getByRole("link", { name: "TV-101" }).last()).toBeVisible();
 
-  await dashboardSelect.selectOption("template:critical-bugs-sla");
-  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Тикеты с нарушенным SLA" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "TV-101" }).first()).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
@@ -712,7 +772,10 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
     ),
   ).toBe(true);
   await page.setViewportSize({ width: 1280, height: 800 });
-  await dashboardSelect.selectOption("template:unplanned");
+
+  await scopeSelect.selectOption("EPIC");
+  await expect(page.getByLabel("Код эпика Jira")).toHaveValue("");
+  await page.getByLabel("Код эпика Jira").fill("CVTE-1778");
 
   await page.getByRole("button", { name: "Редактировать" }).click();
   const moveOffset = await iconOffset(
@@ -739,6 +802,46 @@ test("Jira analytics offers templates, drill-down and widget editing", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
     ),
   ).toBe(true);
+  await page.getByRole("button", { name: "Сохранить" }).click();
+  await expect.poll(() => savedWidgetCount).toBe(12);
+  await page.getByRole("button", { name: "Данные Jira" }).click();
+  await page.getByRole("button", { name: "Агрегаты" }).click();
+  await expect(page.locator(".jira-aggregate-table.current-widgets").getByText("Новый виджет")).toBeVisible();
+  await page.getByRole("button", { name: "В работе" }).click();
+  await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
+});
+
+test("Jira analytics hides widget settings from non-system administrators", async ({ page }) => {
+  await mockAdminProject(page);
+  await page.unroute("**/api/auth/me");
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "viewer-1",
+          email: "viewer@example.test",
+          name: "Наблюдатель",
+          role: "EXECUTIVE_VIEWER",
+          isActive: true,
+          lastLoginAt: null,
+        },
+      },
+    }),
+  );
+
+  await page.goto("/TV-OVERVIEW/jira-work");
+
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Редактировать" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Настроить виджет" })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Способ отбора тикетов" })).toBeDisabled();
+  await expect(page.getByLabel("Лейбл Jira")).toBeDisabled();
+  await page.getByRole("button", { name: "Ретро" }).click();
+  await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Редактировать" })).toHaveCount(0);
 });
 
 test("project passport keeps the initial target and updates the current target", async ({

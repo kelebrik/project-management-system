@@ -1,8 +1,99 @@
 import { z } from "zod";
 
 export const jiraCriticalPriorities = ["Critical", "Blocker"] as const;
-export const jiraBugIssueTypes = ["Bug", "Ошибка", "Дефект"] as const;
+export const jiraBugIssueTypes = [
+  "Bug",
+  "Bug Report",
+  "Defect",
+  "Баг",
+  "Ошибка",
+  "Дефект",
+] as const;
+export const jiraCancelledStatuses = [
+  "Cancelled",
+  "Canceled",
+  "Отменён",
+  "Отменен",
+  "Отменено",
+  "Отменена",
+] as const;
+export const jiraUnresolvedResolutions = [
+  "",
+  "Unresolved",
+  "Не решен",
+  "Не решён",
+  "Не решено",
+  "Не решена",
+] as const;
 export const jiraCriticalBugSlaHours = 30 * 24;
+
+const jiraAnalyticsFilterSchema = z.object({
+  id: z.string().min(1).max(200),
+  field: z.enum([
+    "status",
+    "assignee",
+    "priority",
+    "sprint",
+    "issueType",
+    "resolution",
+    "fromStatus",
+    "toStatus",
+    "durationHours",
+    "commitCount",
+    "mergeRequestCount",
+    "hasDevelopment",
+  ]),
+  operator: z.enum([
+    "equals",
+    "notEquals",
+    "contains",
+    "empty",
+    "notEmpty",
+    "greaterThan",
+    "atLeast",
+  ]),
+  value: z.string().max(1000),
+});
+
+const jiraAnalyticsWidgetSchema = z.object({
+  id: z.string().min(1).max(200),
+  title: z.string().max(200),
+  source: z.enum(["issues", "transitions", "development", "criticalBugs"]),
+  metric: z.enum([
+    "count",
+    "averageDuration",
+    "p50Duration",
+    "p85Duration",
+    "p95Duration",
+    "commits",
+    "mergeRequests",
+  ]),
+  groupBy: z.enum([
+    "none",
+    "project",
+    "status",
+    "assignee",
+    "priority",
+    "sprint",
+    "issueType",
+    "resolution",
+    "fromStatus",
+    "toStatus",
+    "week",
+  ]),
+  visualization: z.enum(["number", "bar", "table"]),
+  filterLogic: z.enum(["and", "or"]),
+  filters: z.array(jiraAnalyticsFilterSchema).max(20),
+  width: z.enum(["half", "full"]),
+  section: z.enum(["active", "retro"]).optional(),
+});
+
+export const jiraAnalyticsDashboardConfigSchema = z.object({
+  version: z.literal(1),
+  periodDays: z.union([z.literal(30), z.literal(90), z.literal(180), z.literal(365)]),
+  assignee: z.string().max(200),
+  widgets: z.array(jiraAnalyticsWidgetSchema).min(1).max(100),
+});
 
 function normalizedJiraValue(value: string | null | undefined) {
   return value?.trim().toLocaleLowerCase("ru") ?? "";
@@ -17,8 +108,24 @@ export function isJiraCriticalPriority(value: string | null | undefined) {
 
 export function isJiraBugIssueType(value: string | null | undefined) {
   const normalized = normalizedJiraValue(value);
-  return jiraBugIssueTypes.some(
+  if (jiraBugIssueTypes.some(
     (issueType) => normalizedJiraValue(issueType) === normalized,
+  )) return true;
+  return /^(bug|defect)(\s*[-:/(]|\s+report\b)/u.test(normalized) ||
+    /^(баг|ошибка|дефект)(\s*[-:/(]|$)/u.test(normalized);
+}
+
+export function isJiraCancelledStatus(value: string | null | undefined) {
+  const normalized = normalizedJiraValue(value);
+  return jiraCancelledStatuses.some(
+    (status) => normalizedJiraValue(status) === normalized,
+  );
+}
+
+export function isJiraUnresolvedResolution(value: string | null | undefined) {
+  const normalized = normalizedJiraValue(value);
+  return jiraUnresolvedResolutions.some(
+    (resolution) => normalizedJiraValue(resolution) === normalized,
   );
 }
 

@@ -146,6 +146,11 @@ enum PageVisitActorType {
   ANONYMOUS
 }
 
+enum JiraAnalyticsScopeType {
+  LABEL
+  EPIC
+}
+
 model BusinessUnit {
   id          String                   @id @default(cuid())
   code        String                   @unique
@@ -215,6 +220,7 @@ model Project {
   children         Project[]           @relation("ProjectHierarchy")
   businessUnit     BusinessUnit        @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
   jiraIntegration  JiraIntegration?
+  jiraAnalyticsSettings JiraAnalyticsSettings?
   jiraWorkSections JiraWorkSection[]
   tasks            Task[]
   issues           Issue[]
@@ -476,6 +482,22 @@ model JiraIntegration {
   project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
+model JiraAnalyticsSettings {
+  id                String    @id @default(cuid())
+  projectId         String    @unique
+  jiraScopeType     JiraAnalyticsScopeType @default(LABEL)
+  jiraScopeValue    String
+  jiraLabel         String    @default("")
+  dashboardConfig   Json?
+  syncStatus        String    @default("NOT_CONFIGURED")
+  lastSyncedAt      DateTime?
+  syncStartedAt     DateTime?
+  syncLockExpiresAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
 model Task {
   id            String    @id @default(cuid())
   projectId     String
@@ -727,6 +749,7 @@ model JiraIssueSnapshot {
   sprint                    String?
   issueCreatedAt            DateTime?
   criticalPriorityAt        DateTime?
+  criticalEndPriority       String?
   resolutionAt              DateTime?
   criticalSlaTracked        Boolean                    @default(false)
   commitCount               Int                        @default(0)
@@ -737,6 +760,7 @@ model JiraIssueSnapshot {
   transitionHistoryComplete Boolean                    @default(false)
   updatedAt                 DateTime
   syncedAt                  DateTime                   @default(now())
+  retiredAt                 DateTime?
   project                   Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   workSections              JiraWorkSectionIssue[]
   statusTransitions         JiraIssueStatusTransition[]
@@ -746,6 +770,7 @@ model JiraIssueSnapshot {
   @@index([projectId, syncedAt])
   @@index([projectId, status])
   @@index([projectId, criticalSlaTracked])
+  @@index([projectId, retiredAt])
 }
 
 model JiraIssueStatusTransition {

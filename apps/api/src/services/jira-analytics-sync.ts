@@ -1,9 +1,5 @@
-import type { Prisma } from '@prisma/client';
-import {
-  isJiraBugIssueType,
-  isJiraCriticalPriority,
-  jiraCriticalBugSlaHours,
-} from '@pms/shared';
+import type { Prisma, PrismaClient } from '@prisma/client';
+import { isJiraBugIssueType, isJiraCriticalPriority } from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
 
@@ -11,9 +7,19 @@ export type JiraAnalyticsSnapshotState = {
   id: string;
   status: string;
   sprint: string | null;
+  criticalPriorityAt: Date | null;
+  criticalEndPriority: string | null;
+  resolutionAt: Date | null;
   commitCount: number;
   mergeRequestCount: number;
   developmentBaselineCaptured: boolean;
+};
+
+export type JiraAnalyticsSyncedSnapshot = {
+  id: string;
+  issueType: string;
+  criticalPriorityAt: Date | null;
+  criticalEndPriority: string | null;
 };
 
 export type JiraAnalyticsTransitionInput = {
@@ -48,29 +54,169 @@ export type JiraAnalyticsSyncStore = {
     projectId: string,
     issue: JiraIssue,
     syncedAt: Date,
-  ) => Promise<{ id: string }>;
+  ) => Promise<JiraAnalyticsSyncedSnapshot>;
 };
 
+type JiraCriticalSlaTrackingTransaction = Pick<Prisma.TransactionClient, 'jiraIssueSnapshot'>;
+
+type JiraAnalyticsSyncFinalizationTransaction = Pick<
+  Prisma.TransactionClient,
+  'jiraIssueSnapshot' | 'jiraWorkSectionIssue'
+>;
+
+export type JiraAnalyticsSectionMembership = {
+  sectionId: string;
+  issueKeys: readonly string[];
+};
+
+type JiraAnalyticsSettingsDelegate = Pick<
+  PrismaClient['jiraAnalyticsSettings'],
+  'createMany' | 'updateMany'
+>;
+
+export async function acquireJiraAnalyticsSyncLock(
+  settings: JiraAnalyticsSettingsDelegate,
+  projectId: string,
+  scope: { type: 'LABEL' | 'EPIC'; value: string },
+  startedAt: Date,
+  expiresAt: Date,
+) {
+  await settings.createMany({
+    data: [{
+      projectId,
+      jiraScopeType: scope.type,
+      jiraScopeValue: scope.value,
+      jiraLabel: scope.type === 'LABEL' ? scope.value : '',
+      syncStatus: 'CONFIGURED',
+    }],
+    skipDuplicates: true,
+  });
+  const lock = await settings.updateMany({
+    where: {
+      projectId,
+      OR: [
+        { syncStartedAt: null },
+        { syncLockExpiresAt: null },
+        { syncLockExpiresAt: { lte: startedAt } },
+      ],
+    },
+    data: {
+      jiraScopeType: scope.type,
+      jiraScopeValue: scope.value,
+      jiraLabel: scope.type === 'LABEL' ? scope.value : '',
+      syncStatus: 'SYNCING',
+      syncStartedAt: startedAt,
+      syncLockExpiresAt: expiresAt,
+    },
+  });
+  return lock.count === 1;
+}
+
+export async function replaceJiraCriticalSlaTracking(
+  transaction: JiraCriticalSlaTrackingTransaction,
+  projectId: string,
+  snapshotIds: readonly string[],
+  batchSize = 500,
+) {
+  await transaction.jiraIssueSnapshot.updateMany({
+    where: { projectId, criticalSlaTracked: true },
+    data: { criticalSlaTracked: false },
+  });
+  for (let offset = 0; offset < snapshotIds.length; offset += batchSize) {
+    await transaction.jiraIssueSnapshot.updateMany({
+      where: {
+        projectId,
+        id: { in: snapshotIds.slice(offset, offset + batchSize) },
+      },
+      data: { criticalSlaTracked: true },
+    });
+  }
+}
+
+export async function finalizeJiraAnalyticsSync(
+  transaction: JiraAnalyticsSyncFinalizationTransaction,
+  projectId: string,
+  syncedAt: Date,
+  sectionMemberships: readonly JiraAnalyticsSectionMembership[],
+  snapshotIdByIssueKey: ReadonlyMap<string, string>,
+  trackedSnapshotIds: readonly string[],
+) {
+  await transaction.jiraIssueSnapshot.updateMany({
+    where: { projectId, syncedAt },
+    data: { retiredAt: null },
+  });
+  await transaction.jiraIssueSnapshot.updateMany({
+    where: { projectId, syncedAt: { lt: syncedAt }, retiredAt: null },
+    data: { retiredAt: syncedAt, criticalSlaTracked: false },
+  });
+  for (const section of sectionMemberships) {
+    await transaction.jiraWorkSectionIssue.deleteMany({
+      where: { sectionId: section.sectionId },
+    });
+    const links = section.issueKeys.flatMap((issueKey) => {
+      const snapshotId = snapshotIdByIssueKey.get(issueKey);
+      return snapshotId ? [{ sectionId: section.sectionId, snapshotId, syncedAt }] : [];
+    });
+    if (links.length > 0) {
+      await transaction.jiraWorkSectionIssue.createMany({
+        data: links,
+        skipDuplicates: true,
+      });
+    }
+  }
+  await replaceJiraCriticalSlaTracking(
+    transaction,
+    projectId,
+    trackedSnapshotIds,
+  );
+}
+
 export function criticalPriorityAtUpdate(issue: JiraIssue) {
-  if (isJiraCriticalPriority(issue.priority) && !issue.transitionHistoryComplete) {
+  if (!issue.transitionHistoryComplete && !issue.criticalPriorityAt) {
     return undefined;
   }
   return issue.criticalPriorityAt;
 }
 
-export function isJiraCriticalBugSlaViolation(issue: JiraIssue, now: Date) {
-  if (
-    !isJiraBugIssueType(issue.issueType) ||
-    !issue.transitionHistoryComplete ||
-    !issue.criticalPriorityAt
-  ) {
-    return false;
-  }
-  const finishedAt = issue.resolutionAt ?? now;
+export function isJiraCriticalBugSlaCandidate(
+  issue: Pick<JiraIssue, 'issueType' | 'criticalPriorityAt' | 'criticalEndPriority'>,
+) {
   return (
-    finishedAt.getTime() - issue.criticalPriorityAt.getTime() >
-    jiraCriticalBugSlaHours * 3_600_000
+    isJiraBugIssueType(issue.issueType) &&
+    issue.criticalPriorityAt !== null &&
+    isJiraCriticalPriority(issue.criticalEndPriority)
   );
+}
+
+export function jiraCriticalBugSlaSnapshotIds(
+  snapshots: readonly JiraAnalyticsSyncedSnapshot[],
+) {
+  return snapshots
+    .filter(isJiraCriticalBugSlaCandidate)
+    .map((snapshot) => snapshot.id);
+}
+
+function sameDate(left: Date | null | undefined, right: Date | null | undefined) {
+  return left?.getTime() === right?.getTime();
+}
+
+export function criticalEndPriorityUpdate(
+  issue: JiraIssue,
+  existing: JiraAnalyticsSnapshotState | null,
+) {
+  if (!issue.resolutionAt || issue.transitionHistoryComplete) {
+    return issue.criticalEndPriority;
+  }
+  if (sameDate(existing?.resolutionAt, issue.resolutionAt)) {
+    return existing?.criticalEndPriority ?? null;
+  }
+  return null;
+}
+
+function earliestDate(left: Date | null | undefined, right: Date | null | undefined) {
+  if (!left) return right ?? null;
+  if (!right) return left;
+  return left <= right ? left : right;
 }
 
 export async function syncJiraIssueAnalytics(
@@ -92,9 +238,19 @@ export async function syncJiraIssueAnalytics(
         ),
       }
     : observedDevelopment;
-  const issueForPersistence = development === observedDevelopment
-    ? issue
-    : { ...issue, development };
+  const criticalPriorityAt = issue.transitionHistoryComplete
+    ? issue.criticalPriorityAt
+    : earliestDate(existing?.criticalPriorityAt, issue.criticalPriorityAt);
+  const criticalEndPriority = criticalEndPriorityUpdate(issue, existing);
+  const criticalPriorityUnchanged =
+    criticalPriorityAt?.getTime() === issue.criticalPriorityAt?.getTime();
+  const criticalEndPriorityUnchanged = criticalEndPriority === issue.criticalEndPriority;
+  const issueForPersistence =
+    development === observedDevelopment &&
+    criticalPriorityUnchanged &&
+    criticalEndPriorityUnchanged
+      ? issue
+      : { ...issue, development, criticalPriorityAt, criticalEndPriority };
   const transitions = [...issue.transitions];
   if (
     existing &&
@@ -155,6 +311,7 @@ export async function syncJiraIssueAnalytics(
 
 export function createPrismaJiraAnalyticsSyncStore(
   transaction: Prisma.TransactionClient,
+  newSnapshotRetiredAt: Date | null = null,
 ): JiraAnalyticsSyncStore {
   return {
     async findSnapshot(projectId, issueKey) {
@@ -164,6 +321,9 @@ export function createPrismaJiraAnalyticsSyncStore(
           id: true,
           status: true,
           sprint: true,
+          criticalPriorityAt: true,
+          criticalEndPriority: true,
+          resolutionAt: true,
           commitCount: true,
           mergeRequestCount: true,
           developmentBaselineCaptured: true,
@@ -207,6 +367,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           sprint: issue.sprintAvailable ? issue.sprint : undefined,
           issueCreatedAt: issue.createdAt,
           criticalPriorityAt: criticalPriorityAtUpdate(issue),
+          criticalEndPriority: issue.criticalEndPriority,
           resolutionAt: issue.resolutionAt,
           commitCount: development.available ? development.commitCount : undefined,
           mergeRequestCount: development.available ? development.mergeRequestCount : undefined,
@@ -233,6 +394,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           sprint: issue.sprint,
           issueCreatedAt: issue.createdAt,
           criticalPriorityAt: issue.criticalPriorityAt,
+          criticalEndPriority: issue.criticalEndPriority,
           resolutionAt: issue.resolutionAt,
           commitCount: development.available ? development.commitCount : 0,
           mergeRequestCount: development.available ? development.mergeRequestCount : 0,
@@ -242,8 +404,14 @@ export function createPrismaJiraAnalyticsSyncStore(
           transitionHistoryComplete: issue.transitionHistoryComplete,
           updatedAt: issue.updatedAt,
           syncedAt,
+          retiredAt: newSnapshotRetiredAt,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          issueType: true,
+          criticalPriorityAt: true,
+          criticalEndPriority: true,
+        },
       });
     },
   };

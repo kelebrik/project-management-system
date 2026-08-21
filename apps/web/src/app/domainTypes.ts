@@ -73,6 +73,7 @@ export type ProjectListItem = {
   sortOrder: number;
   uiState: ProjectUiState | null;
   jiraIntegration: JiraIntegration | null;
+  jiraAnalyticsSettings?: JiraAnalyticsSettings | null;
   targetDateChanges: ProjectTargetDateChange[];
   wbsItems: WbsItem[];
   raidItems: RaidItem[];
@@ -111,6 +112,14 @@ export type JiraIntegration = {
   projectKey: string;
   issuesJql: string;
   openIssuesJql: string;
+  syncStatus: string;
+  lastSyncedAt: string | null;
+};
+
+export type JiraAnalyticsSettings = {
+  jiraScopeType: "LABEL" | "EPIC";
+  jiraScopeValue: string;
+  dashboardConfig: Record<string, unknown> | null;
   syncStatus: string;
   lastSyncedAt: string | null;
 };
@@ -410,6 +419,7 @@ export type JiraIssueSnapshot = {
   sprint: string | null;
   issueCreatedAt: string | null;
   criticalPriorityAt: string | null;
+  criticalEndPriority: string | null;
   resolutionAt: string | null;
   criticalSlaTracked: boolean;
   commitCount: number;

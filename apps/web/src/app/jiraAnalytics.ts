@@ -1,12 +1,10 @@
 import {
-  isJiraBugIssueType,
-  isJiraCriticalPriority,
+  isJiraCancelledStatus,
+  isJiraUnresolvedResolution,
   jiraCriticalBugSlaHours,
 } from "@pms/shared";
 
 import type { JiraIssueSnapshot } from "./domainTypes";
-
-export const JIRA_ANALYTICS_VIEW_TYPE = "jira-analytics-dashboard";
 
 export type JiraAnalyticsSource =
   | "issues"
@@ -22,8 +20,10 @@ export type JiraAnalyticsMetric =
   | "commits"
   | "mergeRequests";
 export type JiraAnalyticsVisualization = "number" | "bar" | "table";
+export type JiraAnalyticsSection = "active" | "retro";
 export type JiraAnalyticsGroupBy =
   | "none"
+  | "project"
   | "status"
   | "assignee"
   | "priority"
@@ -72,6 +72,7 @@ export type JiraAnalyticsWidget = {
   filterLogic: "and" | "or";
   filters: JiraAnalyticsFilter[];
   width: "half" | "full";
+  section: JiraAnalyticsSection;
 };
 
 export type JiraAnalyticsDashboardConfig = {
@@ -119,15 +120,16 @@ export const JIRA_ANALYTICS_SOURCE_LABELS: Record<JiraAnalyticsSource, string> =
 export const JIRA_ANALYTICS_METRIC_LABELS: Record<JiraAnalyticsMetric, string> = {
   count: "Количество",
   averageDuration: "Средняя длительность",
-  p50Duration: "Длительность P50",
-  p85Duration: "Длительность P85",
-  p95Duration: "Длительность P95",
+  p50Duration: "Медиана времени",
+  p85Duration: "85-й перцентиль времени",
+  p95Duration: "95-й перцентиль времени",
   commits: "Коммиты",
   mergeRequests: "Merge requests",
 };
 
 export const JIRA_ANALYTICS_GROUP_LABELS: Record<JiraAnalyticsGroupBy, string> = {
   none: "Без группировки",
+  project: "Проект Jira",
   status: "Текущий статус",
   assignee: "Исполнитель",
   priority: "Приоритет",
@@ -167,6 +169,103 @@ export const JIRA_ANALYTICS_OPERATOR_LABELS: Record<
   atLeast: "не меньше",
 };
 
+export const JIRA_ANALYTICS_METRICS_BY_SOURCE: Record<
+  JiraAnalyticsSource,
+  JiraAnalyticsMetric[]
+> = {
+  issues: ["count", "commits", "mergeRequests"],
+  transitions: [
+    "count",
+    "averageDuration",
+    "p50Duration",
+    "p85Duration",
+    "p95Duration",
+  ],
+  development: ["count", "commits", "mergeRequests"],
+  criticalBugs: [
+    "count",
+    "averageDuration",
+    "p50Duration",
+    "p85Duration",
+    "p95Duration",
+  ],
+};
+
+export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
+  JiraAnalyticsSource,
+  JiraAnalyticsGroupBy[]
+> = {
+  issues: ["none", "status", "assignee", "priority", "sprint", "issueType"],
+  transitions: [
+    "none",
+    "status",
+    "assignee",
+    "fromStatus",
+    "toStatus",
+    "week",
+  ],
+  development: ["none", "status", "assignee", "sprint", "week"],
+  criticalBugs: ["none", "project", "priority", "assignee", "status", "resolution"],
+};
+
+export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
+  JiraAnalyticsSource,
+  JiraAnalyticsFilterField[]
+> = {
+  issues: [
+    "status",
+    "assignee",
+    "priority",
+    "sprint",
+    "issueType",
+    "resolution",
+    "hasDevelopment",
+    "commitCount",
+    "mergeRequestCount",
+  ],
+  transitions: [
+    "status",
+    "assignee",
+    "fromStatus",
+    "toStatus",
+    "durationHours",
+  ],
+  development: [
+    "status",
+    "assignee",
+    "sprint",
+    "commitCount",
+    "mergeRequestCount",
+  ],
+  criticalBugs: [
+    "status",
+    "assignee",
+    "priority",
+    "resolution",
+    "durationHours",
+  ],
+};
+
+const JIRA_ANALYTICS_NUMERIC_FIELDS = new Set<JiraAnalyticsFilterField>([
+  "durationHours",
+  "commitCount",
+  "mergeRequestCount",
+]);
+
+export function jiraAnalyticsOperatorsFor(
+  field: JiraAnalyticsFilterField,
+): JiraAnalyticsFilterOperator[] {
+  if (JIRA_ANALYTICS_NUMERIC_FIELDS.has(field)) {
+    return ["greaterThan", "atLeast", "equals"];
+  }
+  if (field === "hasDevelopment") return ["equals"];
+  return ["equals", "notEquals", "contains", "empty", "notEmpty"];
+}
+
+export function jiraAnalyticsFieldIsNumeric(field: JiraAnalyticsFilterField) {
+  return JIRA_ANALYTICS_NUMERIC_FIELDS.has(field);
+}
+
 function uid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -181,6 +280,7 @@ export function createJiraAnalyticsFilter(
 
 export function createJiraAnalyticsWidget(
   source: JiraAnalyticsSource = "issues",
+  section: JiraAnalyticsSection = "active",
 ): JiraAnalyticsWidget {
   return {
     id: uid("widget"),
@@ -192,6 +292,7 @@ export function createJiraAnalyticsWidget(
     filterLogic: "and",
     filters: [],
     width: "half",
+    section,
   };
 }
 
@@ -272,15 +373,15 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
       assignee: "",
       widgets: [
         {
-          ...createJiraAnalyticsWidget("transitions"),
+          ...createJiraAnalyticsWidget("transitions", "retro"),
           id: "flow-p50",
-          title: "Cycle time P50",
+          title: "Медианное время в статусе",
           metric: "p50Duration",
         },
         {
-          ...createJiraAnalyticsWidget("transitions"),
+          ...createJiraAnalyticsWidget("transitions", "retro"),
           id: "flow-p85",
-          title: "Cycle time P85",
+          title: "Время в статусе, P85",
           metric: "p85Duration",
         },
         {
@@ -292,7 +393,7 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
           width: "full",
         },
         {
-          ...createJiraAnalyticsWidget("transitions"),
+          ...createJiraAnalyticsWidget("transitions", "retro"),
           id: "flow-longest",
           title: "Самые долгие этапы",
           metric: "averageDuration",
@@ -312,21 +413,22 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
       assignee: "",
       widgets: [
         {
-          ...createJiraAnalyticsWidget("criticalBugs"),
+          ...createJiraAnalyticsWidget("criticalBugs", "retro"),
           id: "critical-bugs-sla-count",
           title: "Нарушили SLA 30 дней",
           filters: [filter("durationHours", "greaterThan", String(JIRA_CRITICAL_BUG_SLA_HOURS))],
         },
         {
-          ...createJiraAnalyticsWidget("criticalBugs"),
-          id: "critical-bugs-sla-priority",
-          title: "Нарушения по приоритету",
-          groupBy: "priority",
+          ...createJiraAnalyticsWidget("criticalBugs", "retro"),
+          id: "critical-bugs-sla-project",
+          title: "Нарушения по проектам",
+          groupBy: "project",
           visualization: "bar",
+          width: "full",
           filters: [filter("durationHours", "greaterThan", String(JIRA_CRITICAL_BUG_SLA_HOURS))],
         },
         {
-          ...createJiraAnalyticsWidget("criticalBugs"),
+          ...createJiraAnalyticsWidget("criticalBugs", "retro"),
           id: "critical-bugs-sla-table",
           title: "Тикеты с нарушенным SLA",
           visualization: "table",
@@ -340,13 +442,22 @@ export const JIRA_ANALYTICS_TEMPLATES: Array<{
 
 export const JIRA_ANALYTICS_DEFAULT_TEMPLATE = JIRA_ANALYTICS_TEMPLATES[0];
 
+export const JIRA_ANALYTICS_DEFAULT_CONFIG: JiraAnalyticsDashboardConfig = {
+  version: 1,
+  periodDays: 90,
+  assignee: "",
+  widgets: JIRA_ANALYTICS_TEMPLATES.flatMap((template) =>
+    structuredClone(template.config.widgets),
+  ),
+};
+
 export function cloneJiraAnalyticsConfig(config: JiraAnalyticsDashboardConfig) {
   return structuredClone(config);
 }
 
 export function normalizeJiraAnalyticsConfig(
   value: unknown,
-  fallback = JIRA_ANALYTICS_DEFAULT_TEMPLATE.config,
+  fallback = JIRA_ANALYTICS_DEFAULT_CONFIG,
 ): JiraAnalyticsDashboardConfig {
   if (!value || typeof value !== "object") return cloneJiraAnalyticsConfig(fallback);
   const candidate = value as Record<string, unknown>;
@@ -374,6 +485,14 @@ export function normalizeJiraAnalyticsConfig(
     const visualization = ["number", "bar", "table"].includes(String(raw.visualization))
       ? (raw.visualization as JiraAnalyticsVisualization)
       : "number";
+    const section: JiraAnalyticsSection = raw.section === "active" || raw.section === "retro"
+      ? raw.section
+      : source === "criticalBugs" || (
+          source === "transitions" &&
+          ["averageDuration", "p50Duration", "p85Duration", "p95Duration"].includes(metric)
+        )
+        ? "retro"
+        : "active";
     const filters = Array.isArray(raw.filters)
       ? raw.filters.flatMap((value) => {
           if (!value || typeof value !== "object") return [];
@@ -407,6 +526,7 @@ export function normalizeJiraAnalyticsConfig(
       filterLogic: raw.filterLogic === "or" ? "or" as const : "and" as const,
       filters,
       width: raw.width === "full" ? "full" as const : "half" as const,
+      section,
     }];
   });
   return {
@@ -485,18 +605,13 @@ function developmentRecords(issue: JiraIssueSnapshot): JiraAnalyticsRecord[] {
     }));
 }
 
-export function isJiraCriticalBug(issue: JiraIssueSnapshot) {
-  return isJiraBugIssueType(issue.issueType) && isJiraCriticalPriority(issue.priority);
-}
-
 function criticalBugRecord(
   issue: JiraIssueSnapshot,
   now: Date,
 ): JiraAnalyticsRecord | null {
   if (
     !issue.criticalSlaTracked ||
-    !isJiraCriticalBug(issue) ||
-    !issue.transitionHistoryComplete
+    !validDate(issue.criticalPriorityAt)
   ) {
     return null;
   }
@@ -538,6 +653,11 @@ export function jiraAnalyticsRecords(
   return records.filter((record) => record.eventAt && record.eventAt >= periodStart && record.eventAt <= now);
 }
 
+export function jiraIssueIsInWorkScope(issue: JiraIssueSnapshot) {
+  return isJiraUnresolvedResolution(issue.resolution) &&
+    !isJiraCancelledStatus(issue.status);
+}
+
 function recordValue(record: JiraAnalyticsRecord, field: JiraAnalyticsFilterField) {
   if (field === "fromStatus") return record.fromStatus;
   if (field === "toStatus") return record.toStatus;
@@ -548,13 +668,22 @@ function recordValue(record: JiraAnalyticsRecord, field: JiraAnalyticsFilterFiel
     return record.issue.commitCount > 0 || record.issue.mergeRequestCount > 0;
   }
   if (field === "sprint") return record.sprint;
+  if (field === "resolution") {
+    return isJiraUnresolvedResolution(record.issue.resolution)
+      ? null
+      : record.issue.resolution;
+  }
   return record.issue[field];
 }
 
 function filterMatches(record: JiraAnalyticsRecord, condition: JiraAnalyticsFilter) {
   const actual = recordValue(record, condition.field);
   const actualText = actual === null || actual === undefined ? "" : String(actual).trim();
-  const expected = condition.value.trim();
+  const expected = condition.field === "resolution" &&
+    ["equals", "notEquals"].includes(condition.operator) &&
+    isJiraUnresolvedResolution(condition.value)
+    ? ""
+    : condition.value.trim();
   if (condition.operator === "empty") return actualText === "";
   if (condition.operator === "notEmpty") return actualText !== "";
   if (condition.operator === "equals") {
@@ -622,12 +751,20 @@ function weekLabel(value: Date | null) {
 }
 
 function groupLabel(record: JiraAnalyticsRecord, groupBy: JiraAnalyticsGroupBy) {
+  if (groupBy === "project") {
+    const issueKey = record.issue.issueKey.trim().toUpperCase();
+    return issueKey.match(/^([A-Z][A-Z0-9_]*)-\d+$/)?.[1] ?? "Без проекта";
+  }
   if (groupBy === "status") return record.issue.status || "Без статуса";
   if (groupBy === "assignee") return record.issue.assignee || "Не назначен";
   if (groupBy === "priority") return record.issue.priority || "Без приоритета";
   if (groupBy === "sprint") return record.sprint || "Без Sprint";
   if (groupBy === "issueType") return record.issue.issueType || "Без типа";
-  if (groupBy === "resolution") return record.issue.resolution || "Без Resolution";
+  if (groupBy === "resolution") {
+    return isJiraUnresolvedResolution(record.issue.resolution)
+      ? "Без Resolution"
+      : record.issue.resolution ?? "Без Resolution";
+  }
   if (groupBy === "fromStatus") return record.fromStatus || "Без статуса";
   if (groupBy === "toStatus") return record.toStatus || "Без статуса";
   if (groupBy === "week") return weekLabel(record.eventAt);
@@ -637,7 +774,11 @@ function groupLabel(record: JiraAnalyticsRecord, groupBy: JiraAnalyticsGroupBy) 
 export function evaluateJiraAnalyticsWidget(
   widget: JiraAnalyticsWidget,
   issues: JiraIssueSnapshot[],
-  options: { periodDays: number; assignee?: string; now?: Date },
+  options: {
+    periodDays: number;
+    assignee?: string;
+    now?: Date;
+  },
 ): JiraAnalyticsResult {
   const records = jiraAnalyticsRecords(
     widget.source,
@@ -645,6 +786,7 @@ export function evaluateJiraAnalyticsWidget(
     options.periodDays,
     options.now,
   )
+    .filter((record) => widget.section !== "active" || jiraIssueIsInWorkScope(record.issue))
     .filter((record) => !options.assignee || record.issue.assignee === options.assignee)
     .filter((record) => {
       if (widget.filters.length === 0) return true;

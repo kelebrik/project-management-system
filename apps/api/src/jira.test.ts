@@ -1,15 +1,76 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
+  assertJiraReadOnlyRequest,
+  fetchJiraReadOnly,
+  fetchJiraIssueKeys,
   fetchJiraIssues,
   fetchJiraRemoteDevelopment,
   jiraCriticalPriorityAt,
+  jiraJqlWithAnalyticsScope,
+  jiraJqlWithIssueKeys,
+  jiraJqlWithLabelScope,
   jiraDevelopmentFromFields,
   jiraDevelopmentFromRemoteLinks,
+  jiraPriorityAtResolution,
   jiraSprintFromFields,
   resolveJiraConfig,
 } from './jira.js';
+
+test('jiraJqlWithLabelScope preserves boolean precedence and top-level ordering', () => {
+  assert.equal(
+    jiraJqlWithLabelScope(
+      'project = CVTE OR project = SPS ORDER BY created DESC',
+      'cvte968',
+    ),
+    '(project = CVTE OR project = SPS) AND labels = "cvte968" ORDER BY created DESC',
+  );
+  assert.equal(
+    jiraJqlWithLabelScope('summary ~ "order by device"', 'cvte968'),
+    '(summary ~ "order by device") AND labels = "cvte968"',
+  );
+  assert.throws(
+    () => jiraJqlWithLabelScope('project = CVTE', 'bad label'),
+    /не должен содержать/,
+  );
+  assert.throws(
+    () => jiraJqlWithLabelScope('(project = CVTE', 'cvte968'),
+    /незакрытая строка или скобка/,
+  );
+});
+
+test('jiraJqlWithAnalyticsScope filters by epic key without losing ordering', () => {
+  assert.equal(
+    jiraJqlWithAnalyticsScope('statusCategory != Done ORDER BY key ASC', {
+      type: 'EPIC',
+      value: ' cvte-1778 ',
+    }),
+    '(statusCategory != Done) AND ("Epic Link" = "CVTE-1778" OR key = "CVTE-1778") ORDER BY key ASC',
+  );
+  assert.throws(
+    () => jiraJqlWithAnalyticsScope('ORDER BY key ASC', {
+      type: 'EPIC',
+      value: 'not-an-epic',
+    }),
+    /корректный код эпика/,
+  );
+});
+
+test('jiraJqlWithIssueKeys keeps discovered epic subtasks in a bounded query', () => {
+  assert.equal(
+    jiraJqlWithIssueKeys(
+      'statusCategory != Done ORDER BY updated DESC',
+      ['cvte-1778', 'cvte-1800', 'cvte-1801'],
+    ),
+    '(statusCategory != Done) AND issuekey IN ("CVTE-1778", "CVTE-1800", "CVTE-1801") ORDER BY updated DESC',
+  );
+  assert.throws(
+    () => jiraJqlWithIssueKeys('statusCategory != Done', ['not-an-issue']),
+    /Некорректный ключ тикета Jira/,
+  );
+});
 
 function jiraPriorityIssue(
   currentPriority: string,
@@ -19,6 +80,7 @@ function jiraPriorityIssue(
     toPriority: string | null;
   }>,
   total = histories.length,
+  resolutionAt: string | null = null,
 ) {
   return {
     key: 'PMS-42',
@@ -28,6 +90,7 @@ function jiraPriorityIssue(
       priority: { name: currentPriority },
       assignee: null,
       issuetype: { name: 'Bug' },
+      resolutiondate: resolutionAt,
       created: '2026-05-01T09:00:00.000Z',
       updated: '2026-06-15T09:00:00.000Z',
     },
@@ -54,6 +117,86 @@ const jiraEnvKeys = [
   'JIRA_API_TOKEN',
   'JIRA_SPRINT_FIELD_ID',
 ] as const;
+
+test('Jira request guard allows only known read and authentication operations', () => {
+  const allowedRequests: Array<[string, RequestInit?]> = [
+    ['https://jira.example/rest/api/2/filter/123'],
+    ['https://jira.example/rest/api/3/myself'],
+    ['https://jira.example/rest/api/2/issue/PMS-42?fields=updated'],
+    ['https://jira.example/rest/api/3/issue/PMS-42/changelog?startAt=0'],
+    ['https://jira.example/rest/api/2/issue/PMS-42/remotelink'],
+    ['https://jira.example/rest/api/2/search', { method: 'POST' }],
+    ['https://jira.example/rest/api/3/search/jql', { method: 'post' }],
+    ['https://jira.example/rest/auth/1/session', { method: 'POST' }],
+    ['https://jira.example/login.jsp', { method: 'POST' }],
+    ['https://jira.example/jira/rest/api/2/search', { method: 'POST' }],
+    ['https://jira.example/jira/rest/api/2/issue/PMS-42/changelog'],
+  ];
+
+  for (const [url, init] of allowedRequests) {
+    assert.doesNotThrow(() => assertJiraReadOnlyRequest(url, init));
+  }
+});
+
+test('Jira request guard blocks business-data writes and unknown endpoints', () => {
+  const blockedRequests: Array<[string, RequestInit]> = [
+    ['https://jira.example/rest/api/2/issue', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42', { method: 'PUT' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42', { method: 'PATCH' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42', { method: 'DELETE' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/comment', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/transitions', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/worklog', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/attachments', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issue/PMS-42/assignee', { method: 'PUT' }],
+    ['https://jira.example/rest/api/2/issueLink', { method: 'POST' }],
+    ['https://jira.example/rest/api/2/issueLink/123', { method: 'DELETE' }],
+    ['https://jira.example/rest/api/2/filter', { method: 'POST' }],
+  ];
+
+  for (const [url, init] of blockedRequests) {
+    assert.throws(
+      () => assertJiraReadOnlyRequest(url, init),
+      /Blocked non-read-only Jira request/,
+    );
+  }
+
+  assert.throws(
+    () => assertJiraReadOnlyRequest('not a URL'),
+    /Blocked invalid Jira request URL/,
+  );
+});
+
+test('Jira request wrapper disables automatic redirects', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    assert.equal(init?.redirect, 'manual');
+    return new Response('{}', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    await fetchJiraReadOnly('https://jira.example/rest/api/2/search', {
+      method: 'POST',
+      redirect: 'follow',
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Jira client has no direct fetch calls outside the read-only wrapper', async () => {
+  const source = await readFile(new URL('./jira.ts', import.meta.url), 'utf8');
+  const directFetchCalls = source.match(/\bfetch\s*\(/g) ?? [];
+
+  assert.equal(directFetchCalls.length, 1);
+  assert.match(
+    source,
+    /export function fetchJiraReadOnly[\s\S]*?return fetch\(url, \{ \.\.\.init, redirect: 'manual' \}\);/,
+  );
+});
 
 test('jiraSprintFromFields reads active Jira Server sprint strings', () => {
   assert.equal(
@@ -135,7 +278,37 @@ test('jiraCriticalPriorityAt starts when a lower priority is raised', () => {
   );
 });
 
-test('jiraCriticalPriorityAt excludes incomplete changelog history', () => {
+test('jiraCriticalPriorityAt keeps the first critical date after a later downgrade', () => {
+  const issue = jiraPriorityIssue('Major', [
+    {
+      created: '2026-05-20T12:30:00.000Z',
+      fromPriority: 'Minor',
+      toPriority: 'Critical',
+    },
+    {
+      created: '2026-06-01T12:30:00.000Z',
+      fromPriority: 'Critical',
+      toPriority: 'Major',
+    },
+  ]);
+
+  assert.deepEqual(
+    jiraCriticalPriorityAt(issue),
+    new Date('2026-05-20T12:30:00.000Z'),
+  );
+  assert.deepEqual(
+    jiraCriticalPriorityAt(jiraPriorityIssue('Major', [
+      {
+        created: '2026-06-01T12:30:00.000Z',
+        fromPriority: 'Critical',
+        toPriority: 'Major',
+      },
+    ])),
+    new Date('2026-05-01T09:00:00.000Z'),
+  );
+});
+
+test('jiraCriticalPriorityAt uses an explicit raise from incomplete history conservatively', () => {
   const issue = jiraPriorityIssue(
     'Critical',
     [{
@@ -146,7 +319,93 @@ test('jiraCriticalPriorityAt excludes incomplete changelog history', () => {
     2,
   );
 
-  assert.equal(jiraCriticalPriorityAt(issue), null);
+  assert.deepEqual(
+    jiraCriticalPriorityAt(issue),
+    new Date('2026-05-20T12:30:00.000Z'),
+  );
+  assert.equal(jiraCriticalPriorityAt(jiraPriorityIssue('Critical', [], 1)), null);
+  assert.equal(
+    jiraCriticalPriorityAt(jiraPriorityIssue('Major', [{
+      created: '2026-05-20T12:30:00.000Z',
+      fromPriority: 'Critical',
+      toPriority: 'Major',
+    }], 2)),
+    null,
+  );
+});
+
+test('jiraPriorityAtResolution returns the priority active at Resolution', () => {
+  const resolvedAt = '2026-06-01T12:30:00.000Z';
+
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue('Major', [
+      {
+        created: '2026-05-20T12:30:00.000Z',
+        fromPriority: 'Major',
+        toPriority: 'Critical',
+      },
+      {
+        created: '2026-06-10T12:30:00.000Z',
+        fromPriority: 'Critical',
+        toPriority: 'Major',
+      },
+    ], 2, resolvedAt)),
+    'Critical',
+  );
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue('Critical', [
+      {
+        created: '2026-06-10T12:30:00.000Z',
+        fromPriority: 'Major',
+        toPriority: 'Critical',
+      },
+    ], 1, resolvedAt)),
+    'Major',
+  );
+});
+
+test('jiraPriorityAtResolution includes a priority change at the Resolution timestamp', () => {
+  const resolvedAt = '2026-06-01T12:30:00.000Z';
+
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue('Critical', [
+      {
+        created: resolvedAt,
+        fromPriority: 'Major',
+        toPriority: 'Critical',
+      },
+    ], 1, resolvedAt)),
+    'Critical',
+  );
+});
+
+test('jiraPriorityAtResolution uses current priority when it never changed', () => {
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue(
+      'Critical',
+      [],
+      0,
+      '2026-06-01T12:30:00.000Z',
+    )),
+    'Critical',
+  );
+});
+
+test('jiraPriorityAtResolution requires a Resolution date and complete history', () => {
+  assert.equal(jiraPriorityAtResolution(jiraPriorityIssue('Critical', [])), null);
+  assert.equal(
+    jiraPriorityAtResolution(jiraPriorityIssue(
+      'Critical',
+      [{
+        created: '2026-05-20T12:30:00.000Z',
+        fromPriority: 'Major',
+        toPriority: 'Critical',
+      }],
+      2,
+      '2026-06-01T12:30:00.000Z',
+    )),
+    null,
+  );
 });
 
 test('jiraDevelopmentFromFields rejects opaque development payloads', () => {
@@ -531,6 +790,7 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
         sprintAvailable: true,
         createdAt: new Date('2026-05-20T09:00:00.000+0300'),
         criticalPriorityAt: null,
+        criticalEndPriority: 'High',
         updatedAt: new Date('2026-05-23T10:00:00.000+0300'),
         transitions: [
           {
@@ -613,6 +873,161 @@ test('fetchJiraIssues loads every Jira search page', async () => {
       return fields.includes('customfield_10004');
     }));
     assert.deepEqual(issues.map((issue) => issue.key), ['PMS-1', 'PMS-2']);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys keeps label discovery lightweight on every page', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    assert.match(url, /\/rest\/api\/2\/search$/);
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    calls.push({ url, body });
+    const startAt = Number(body.startAt);
+    return new Response(
+      JSON.stringify({
+        startAt,
+        maxResults: 1,
+        total: 2,
+        issues: [{ key: startAt === 0 ? 'cvte-1' : 'SPS-2' }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issueKeys = await fetchJiraIssueKeys(
+      'project = CVTE OR project = SPS ORDER BY created DESC',
+      {
+        fetchAllPages: true,
+        labelScope: 'cvte968',
+        pageSize: 1,
+      },
+    );
+
+    assert.deepEqual(issueKeys, ['CVTE-1', 'SPS-2']);
+    assert.equal(calls.length, 2);
+    for (const call of calls) {
+      assert.deepEqual(call.body.fields, []);
+      assert.equal(Object.hasOwn(call.body, 'expand'), false);
+      assert.equal(
+        call.body.jql,
+        '(project = CVTE OR project = SPS) AND labels = "cvte968" ORDER BY created DESC',
+      );
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys scopes a saved filter after resolving its JQL', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let searchBody: Record<string, unknown> | null = null;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith('/rest/api/2/filter/123')) {
+      return new Response(
+        JSON.stringify({ jql: 'project = CVTE ORDER BY priority DESC' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    searchBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({ startAt: 0, maxResults: 100, total: 1, issues: [{ key: 'CVTE-1' }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    assert.deepEqual(
+      await fetchJiraIssueKeys('filter = 123', { labelScope: 'cvte968' }),
+      ['CVTE-1'],
+    );
+    assert.equal(
+      searchBody?.jql,
+      '(project = CVTE) AND labels = "cvte968" ORDER BY priority DESC',
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys reports invalid epic JQL without retrying authentication', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response(
+      JSON.stringify({ errorMessages: ["Field 'Epic Link' does not exist"] }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      fetchJiraIssueKeys('ORDER BY key ASC', {
+        analyticsScope: { type: 'EPIC', value: 'CVTE-1778' },
+      }),
+      /Jira request failed: 400.*Epic Link/,
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys fails closed when discovery pages overlap', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const startAt = Number(body.startAt);
+    return new Response(
+      JSON.stringify({
+        startAt,
+        maxResults: 1,
+        total: 2,
+        issues: [{ key: 'CVTE-1' }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssueKeys('ORDER BY key ASC', {
+        fetchAllPages: true,
+        labelScope: 'cvte968',
+        pageSize: 1,
+      }),
+      /pages overlap/,
+    );
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);
