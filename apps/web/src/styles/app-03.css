@@ -1234,6 +1234,68 @@
   margin-top: 3px;
 }
 
+.jira-history-status {
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.jira-history-status-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.jira-history-status-heading h4 {
+  color: var(--text-heading);
+  font-size: 14px;
+  margin: 0;
+}
+
+.jira-history-status-heading span,
+.jira-history-cursor {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 3px 0 0;
+}
+
+.jira-history-retry-list {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.jira-history-retry-list > strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.jira-history-retry-list ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jira-history-retry-list li {
+  display: grid;
+  grid-template-columns: minmax(92px, auto) minmax(180px, auto) 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.jira-history-retry-list li span,
+.jira-history-retry-list li small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .jira-capacity-controls {
   align-items: end;
   display: grid;

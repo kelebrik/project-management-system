@@ -1,5 +1,5 @@
-import { DatabaseZap, Download, Play, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { DatabaseZap, Download, Play, RefreshCw, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 import { apiClient } from "../api/client";
 import { usePageContext } from "./PageContext";
@@ -65,6 +65,52 @@ type CapacityReport = {
   };
 };
 
+type HistoryStatus = {
+  reportVersion: 1;
+  generatedAt: string;
+  storage: {
+    budgetBytes: number;
+    databaseBytes: number;
+    utilizationPercent: number;
+    level: CapacityReport["capacityGate"]["level"];
+    newScopeBlocked: boolean;
+  };
+  global: HistoryAggregate;
+  project: HistoryAggregate;
+  retry: {
+    pending: number;
+    failedBatches: number;
+    oldestFailureAt: string | null;
+    nextRetryAt: string | null;
+    items: Array<{
+      issueKey: string;
+      reasonCode: string;
+      attempts: number;
+      firstFailedAt: string;
+      lastFailedAt: string;
+      nextRetryAt: string;
+      lastError: string;
+    }>;
+  };
+  cursor: {
+    updatedAt: string | null;
+    jiraIssueId: string | null;
+    lastFullReconciledAt: string | null;
+    fullCursorIssueKey: string | null;
+    fullStartedAt: string | null;
+  };
+};
+
+type HistoryAggregate = {
+  versions: number;
+  tickets: number;
+  payloadBytes: number;
+  averageBytes: number;
+  p95Bytes: number;
+  incompleteHydration: number;
+  attachmentReferencesStripped: number;
+};
+
 const capacityLevelLabel: Record<CapacityReport["capacityGate"]["level"], string> = {
   NORMAL: "норма",
   WARNING: "предупреждение",
@@ -76,7 +122,8 @@ const capacityLevelLabel: Record<CapacityReport["capacityGate"]["level"], string
 function formatBytes(value: number) {
   if (value < 1024) return `${Math.round(value)} Б`;
   if (value < 1024 ** 2) return `${(value / 1024).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} КБ`;
-  return `${(value / 1024 ** 2).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} МБ`;
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} МБ`;
+  return `${(value / 1024 ** 3).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ГиБ`;
 }
 
 function formatDuration(value: number) {
@@ -93,6 +140,32 @@ export function JiraCapacitySampler() {
   const [allocatedHistoryGiB, setAllocatedHistoryGiB] = useState(0);
   const [running, setRunning] = useState(false);
   const [report, setReport] = useState<CapacityReport | null>(null);
+  const [historyStatus, setHistoryStatus] = useState<HistoryStatus | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const loadHistoryStatus = useCallback(async () => {
+    if (currentUser?.role !== "ADMIN") return;
+    setHistoryLoading(true);
+    try {
+      const nextStatus = await apiClient.get<HistoryStatus>(
+        `/api/projects/${project.id}/jira/history-status`,
+        "Не удалось загрузить состояние истории Jira",
+      );
+      setHistoryStatus(nextStatus);
+      setAllocatedHistoryGiB((current) => current === 0
+        ? nextStatus.storage.databaseBytes / 1024 ** 3
+        : current);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось загрузить состояние истории Jira");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [currentUser?.role, project.id, setError]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadHistoryStatus(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadHistoryStatus]);
 
   if (currentUser?.role !== "ADMIN") return null;
 
@@ -146,6 +219,79 @@ export function JiraCapacitySampler() {
           </button>
         )}
       </header>
+
+      <div className="jira-history-status" aria-busy={historyLoading}>
+        <div className="jira-history-status-heading">
+          <div>
+            <h4>Фактическая история A1</h4>
+            <span>Глобальный бюджет основной БД · raw payload недоступен через API</span>
+          </div>
+          <button
+            className="icon-button"
+            type="button"
+            onClick={() => void loadHistoryStatus()}
+            disabled={historyLoading}
+            title="Обновить состояние истории"
+            aria-label="Обновить состояние истории"
+          >
+            <RefreshCw size={17} />
+          </button>
+        </div>
+        {historyStatus ? (
+          <>
+            <div className="jira-capacity-gates">
+              <span className={historyStatus.storage.level === "NORMAL" ? "complete" : "review"}>
+                Capacity · {capacityLevelLabel[historyStatus.storage.level]}
+                {` · ${historyStatus.storage.utilizationPercent.toLocaleString("ru-RU")}%`}
+                {` · ${formatBytes(historyStatus.storage.databaseBytes)} / ${formatBytes(historyStatus.storage.budgetBytes)}`}
+              </span>
+              <span className={historyStatus.retry.pending === 0 ? "complete" : "review"}>
+                Retry: {historyStatus.retry.pending.toLocaleString("ru-RU")}
+                {` · batch: ${historyStatus.retry.failedBatches.toLocaleString("ru-RU")}`}
+              </span>
+            </div>
+            <dl className="jira-capacity-summary">
+              <div><dt>Версий глобально</dt><dd>{historyStatus.global.versions.toLocaleString("ru-RU")}</dd></div>
+              <div><dt>Тикетов проекта</dt><dd>{historyStatus.project.tickets.toLocaleString("ru-RU")}</dd></div>
+              <div><dt>Версий проекта</dt><dd>{historyStatus.project.versions.toLocaleString("ru-RU")}</dd></div>
+              <div><dt>Средний снимок</dt><dd>{formatBytes(historyStatus.project.averageBytes)}</dd></div>
+              <div><dt>Снимок P95</dt><dd>{formatBytes(historyStatus.project.p95Bytes)}</dd></div>
+              <div><dt>Неполных снимков</dt><dd>{historyStatus.project.incompleteHydration.toLocaleString("ru-RU")}</dd></div>
+            </dl>
+            <p className="jira-history-cursor">
+              Курсор: {historyStatus.cursor.updatedAt
+                ? new Date(historyStatus.cursor.updatedAt).toLocaleString("ru-RU")
+                : "ещё не установлен"}
+              {historyStatus.cursor.lastFullReconciledAt
+                ? ` · полная сверка ${new Date(historyStatus.cursor.lastFullReconciledAt).toLocaleString("ru-RU")}`
+                : ""}
+              {historyStatus.cursor.fullCursorIssueKey
+                ? ` · полный импорт продолжится после ${historyStatus.cursor.fullCursorIssueKey}`
+                : ""}
+            </p>
+            {historyStatus.retry.items.length > 0 && (
+              <div className="jira-history-retry-list">
+                <strong>Ожидают повторной обработки</strong>
+                <ul>
+                  {historyStatus.retry.items.map((retry) => (
+                    <li key={retry.issueKey}>
+                      <b>{retry.issueKey}</b>
+                      <span>{retry.reasonCode} · попыток {retry.attempts}</span>
+                      <span>{retry.lastError}</span>
+                      <small>
+                        с {new Date(retry.firstFailedAt).toLocaleString("ru-RU")}
+                        {` · следующая ${new Date(retry.nextRetryAt).toLocaleString("ru-RU")}`}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="jira-history-cursor">{historyLoading ? "Загружаю состояние..." : "История ещё не измерена"}</p>
+        )}
+      </div>
 
       <div className="jira-capacity-controls">
         <label>

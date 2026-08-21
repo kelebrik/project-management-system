@@ -124,6 +124,19 @@ export const openApiDocument = {
         },
         required: ["error"],
       },
+      JiraHistoryAggregate: {
+        type: "object",
+        required: ["versions", "tickets", "payloadBytes", "averageBytes", "p95Bytes", "incompleteHydration", "attachmentReferencesStripped"],
+        properties: {
+          versions: { type: "integer" },
+          tickets: { type: "integer" },
+          payloadBytes: { type: "integer" },
+          averageBytes: { type: "integer" },
+          p95Bytes: { type: "integer" },
+          incompleteHydration: { type: "integer" },
+          attachmentReferencesStripped: { type: "integer" },
+        },
+      },
       JiraAnalyticsFilter: {
         type: "object",
         additionalProperties: false,
@@ -1041,10 +1054,115 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/history-status": {
+      get: {
+        tags: ["Jira", "Admin"],
+        summary: "Read attachment-free Jira history storage and retry diagnostics",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "200": {
+            description: "Stage A1 diagnostics without raw Jira payloads",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["reportVersion", "generatedAt", "storage", "global", "project", "retry", "cursor"],
+                  properties: {
+                    reportVersion: { type: "integer", enum: [1] },
+                    generatedAt: { type: "string", format: "date-time" },
+                    storage: {
+                      type: "object",
+                      required: ["budgetBytes", "databaseBytes", "utilizationPercent", "level", "newScopeBlocked"],
+                      properties: {
+                        budgetBytes: { type: "integer" },
+                        databaseBytes: { type: "integer" },
+                        utilizationPercent: { type: "number" },
+                        level: { type: "string", enum: ["NORMAL", "WARNING", "HIGH", "CRITICAL", "EXCEEDED"] },
+                        newScopeBlocked: { type: "boolean" },
+                      },
+                    },
+                    global: { $ref: "#/components/schemas/JiraHistoryAggregate" },
+                    project: { $ref: "#/components/schemas/JiraHistoryAggregate" },
+                    retry: {
+                      type: "object",
+                      required: ["pending", "failedBatches", "oldestFailureAt", "nextRetryAt", "items"],
+                      properties: {
+                        pending: { type: "integer" },
+                        failedBatches: { type: "integer" },
+                        oldestFailureAt: { type: ["string", "null"], format: "date-time" },
+                        nextRetryAt: { type: ["string", "null"], format: "date-time" },
+                        items: {
+                          type: "array",
+                          maxItems: 20,
+                          items: {
+                            type: "object",
+                            required: ["issueKey", "reasonCode", "attempts", "firstFailedAt", "lastFailedAt", "nextRetryAt", "lastError"],
+                            properties: {
+                              issueKey: { type: "string" },
+                              reasonCode: { type: "string" },
+                              attempts: { type: "integer" },
+                              firstFailedAt: { type: "string", format: "date-time" },
+                              lastFailedAt: { type: "string", format: "date-time" },
+                              nextRetryAt: { type: "string", format: "date-time" },
+                              lastError: { type: "string", maxLength: 240 },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    cursor: {
+                      type: "object",
+                      required: ["updatedAt", "jiraIssueId", "lastFullReconciledAt", "fullCursorIssueKey", "fullStartedAt"],
+                      properties: {
+                        updatedAt: { type: ["string", "null"], format: "date-time" },
+                        jiraIssueId: { type: ["string", "null"] },
+                        lastFullReconciledAt: { type: ["string", "null"], format: "date-time" },
+                        fullCursorIssueKey: { type: ["string", "null"] },
+                        fullStartedAt: { type: ["string", "null"], format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "404": { description: "Project not found" },
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/history/rebuild-projections": {
+      post: {
+        tags: ["Jira", "Admin"],
+        summary: "Rebuild current Jira projections from immutable observed versions",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "200": {
+            description: "Current Jira projections rebuilt without contacting Jira",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["rebuilt"],
+                  properties: { rebuilt: { type: "integer" } },
+                },
+              },
+            },
+          },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "404": { description: "Project not found" },
+          "409": { description: "Jira synchronization or projection rebuild already running" },
+        },
+      },
+    },
     "/api/projects/{projectId}/jira/sync": {
       post: {
         tags: ["Jira"],
-        summary: "Synchronize configured Jira work section filters into snapshots",
+        summary: "Synchronize Jira projections and immutable attachment-free history",
         security: [{ sessionCookie: [] }],
         parameters: [
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },

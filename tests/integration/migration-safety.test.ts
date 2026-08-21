@@ -137,3 +137,16 @@ test("WBS Excel fields migration changes schema without rewriting project data",
     "Schema migration must not rewrite project data",
   );
 });
+
+test("Jira history A1 migration is additive and keeps existing snapshots intact", () => {
+  const migration = migrationSql("20260821200000_jira_issue_history_a1");
+
+  assert.match(migration, /CREATE TABLE "JiraIssueVersion"/);
+  assert.match(migration, /CREATE TABLE "JiraIssueHistoryRetry"/);
+  assert.match(migration, /ADD COLUMN "currentVersionId" TEXT/);
+  const withoutForeignKeyActions = migration.replace(
+    /ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)/gi,
+    '',
+  );
+  assert.doesNotMatch(withoutForeignKeyActions, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+});

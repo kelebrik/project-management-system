@@ -8,6 +8,11 @@ export type JiraVersionCanonicalResult = {
   warnings: string[];
 };
 
+export type SanitizedJiraVersionPayload = {
+  payload: unknown;
+  attachmentReferencesStripped: number;
+};
+
 function unicodeScalarCompare(left: string, right: string) {
   const leftPoints = Array.from(left, (character) => character.codePointAt(0)!);
   const rightPoints = Array.from(right, (character) => character.codePointAt(0)!);
@@ -204,7 +209,10 @@ function normalizeSprintSet(fields: { [key: string]: JsonValue }, key: string) {
   });
 }
 
-function normalizeVersionDocument(document: JsonValue, warnings: string[]) {
+function normalizeVersionDocument(
+  document: JsonValue,
+  warnings: string[],
+) {
   const root = record(document);
   if (!root) throw new Error('Jira version document must be an object');
   const issue = record(root.issue);
@@ -219,8 +227,9 @@ function normalizeVersionDocument(document: JsonValue, warnings: string[]) {
     for (const key of ['components', 'versions', 'fixVersions']) {
       normalizeEntitySet(fields, key);
     }
-    normalizeSprintSet(fields, 'sprints');
-    normalizeSprintSet(fields, 'customfield_10004');
+    for (const key of ['sprints', 'customfield_10004']) {
+      normalizeSprintSet(fields, key);
+    }
   }
 
   if (Array.isArray(root.changelog)) {
@@ -293,6 +302,75 @@ function containsAttachmentMetadata(value: JsonValue): boolean {
       || normalizedKey === 'attachments'
       || containsAttachmentMetadata(entry);
   });
+}
+
+const transientJiraKeys = new Set([
+  'avatarurls',
+  'expand',
+  'iconurl',
+  'self',
+  'thumbnail',
+]);
+
+function isAttachmentKey(key: string) {
+  const normalized = key.trim().toLowerCase();
+  return normalized === 'attachment' || normalized === 'attachments';
+}
+
+function isAttachmentRecord(value: Record<string, unknown>) {
+  const type = typeof value.type === 'string' ? value.type.trim().toLowerCase() : '';
+  if (['media', 'mediagroup', 'mediasingle', 'mediainline'].includes(type)) return true;
+  const field = typeof (value.fieldId ?? value.field) === 'string'
+    ? String(value.fieldId ?? value.field).trim().toLowerCase()
+    : '';
+  if (field === 'attachment' || field === 'attachments') return true;
+  return typeof value.filename === 'string'
+    && ['mimeType', 'content', 'thumbnail'].some((key) => key in value);
+}
+
+function sanitizeVersionValue(value: unknown): { value: unknown; stripped: number } {
+  if (Array.isArray(value)) {
+    let stripped = 0;
+    const entries: unknown[] = [];
+    for (const entry of value) {
+      const sanitized = sanitizeVersionValue(entry);
+      stripped += sanitized.stripped;
+      if (sanitized.value !== undefined) entries.push(sanitized.value);
+    }
+    return { value: entries, stripped };
+  }
+  if (!value || typeof value !== 'object') return { value, stripped: 0 };
+  const source = value as Record<string, unknown>;
+  if (isAttachmentRecord(source)) return { value: undefined, stripped: 1 };
+
+  let stripped = 0;
+  const entries: Array<[string, unknown]> = [];
+  for (const [key, entry] of Object.entries(source)) {
+    if (isAttachmentKey(key)) {
+      const nested = sanitizeVersionValue(entry);
+      stripped += Math.max(1, nested.stripped);
+      continue;
+    }
+    if (transientJiraKeys.has(key.trim().toLowerCase())) continue;
+    const sanitized = sanitizeVersionValue(entry);
+    stripped += sanitized.stripped;
+    if (sanitized.value !== undefined) entries.push([key, sanitized.value]);
+  }
+  return { value: Object.fromEntries(entries), stripped };
+}
+
+export function sanitizeJiraVersionPayload(input: unknown): SanitizedJiraVersionPayload {
+  const sanitized = sanitizeVersionValue(input);
+  if (sanitized.value === undefined) throw new Error('Jira version payload was an attachment');
+  const payload = toJsonValue(sanitized.value);
+  if (payload === undefined) throw new Error('Jira version payload is missing');
+  if (containsAttachmentMetadata(payload)) {
+    throw new Error('Jira version payload still contains attachment metadata after sanitization');
+  }
+  return {
+    payload,
+    attachmentReferencesStripped: sanitized.stripped,
+  };
 }
 
 function canonicalJson(value: JsonValue): string {

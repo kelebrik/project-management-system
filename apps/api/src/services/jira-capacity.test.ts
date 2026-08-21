@@ -11,6 +11,7 @@ import {
 import {
   canonicalizeJiraVersionV1,
   hashJiraVersionV1,
+  sanitizeJiraVersionPayload,
 } from './jira-version-canonical.js';
 
 test('capacity scope JQL is controlled and escapes literals', () => {
@@ -128,6 +129,80 @@ test('stage A1 canonicalizer rejects payloads that bypass attachment sanitizatio
     }),
     /must be sanitized/,
   );
+});
+
+test('stage A1 sanitizer removes attachment and transient transport structures', () => {
+  const sanitized = sanitizeJiraVersionPayload({
+    issue: {
+      self: 'https://jira.example/rest/api/2/issue/1',
+      fields: {
+        attachment: [{ id: 'a-1', filename: 'secret.png' }],
+        description: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'keep me' }] },
+            { type: 'mediaSingle', content: [{ type: 'media', attrs: { id: 'a-1' } }] },
+          ],
+        },
+        iconUrl: 'https://jira.example/icon.png',
+      },
+    },
+    changelog: [{ field: 'Attachment', from: null, to: 'a-1' }],
+    comments: [{ body: 'attachment filename remains as business text' }],
+    worklogs: [],
+    remoteLinks: [],
+  });
+  const serialized = JSON.stringify(sanitized.payload);
+
+  assert.equal(sanitized.attachmentReferencesStripped, 3);
+  assert.equal(serialized.includes('secret.png'), false);
+  assert.equal(serialized.includes('mediaSingle'), false);
+  assert.equal(serialized.includes('icon.png'), false);
+  assert.equal(serialized.includes('keep me'), true);
+  assert.equal(serialized.includes('attachment filename remains'), true);
+  assert.doesNotThrow(() => hashJiraVersionV1(sanitized.payload));
+});
+
+test('stage A1 canonicalizer keeps schema-v1 sprint normalization independent of configuration', () => {
+  const result = canonicalizeJiraVersionV1({
+    issue: {
+      fields: {
+        sprints: [
+          'Sprint[id=10,state=ACTIVE,name=Later]',
+          'Sprint[id=9,state=CLOSED,name=Earlier]',
+        ],
+        customfield_12345: ['business order stays', 'unchanged'],
+      },
+    },
+    changelog: [],
+    comments: [],
+    worklogs: [],
+    remoteLinks: [],
+  });
+  const fields = JSON.parse(result.canonicalJson).issue.fields;
+
+  assert.match(fields.sprints[0], /id=9/);
+  assert.deepEqual(fields.customfield_12345, ['business order stays', 'unchanged']);
+});
+
+test('stage A1 timestamp grammar and business changes produce stable distinct hashes', () => {
+  const base = {
+    issue: { fields: { summary: 'A', created: '2026-08-21T12:00:00Z' } },
+    changelog: [{ id: '1', created: '2026-08-21T15:00:00+03:00', items: [] }],
+    comments: [{ id: '1', created: '2026-08-21T09:00:00-0300' }],
+    worklogs: [],
+    remoteLinks: [],
+  };
+  const first = hashJiraVersionV1(base);
+  const repeated = hashJiraVersionV1(structuredClone(base));
+  const changed = hashJiraVersionV1({
+    ...base,
+    issue: { fields: { ...base.issue.fields, summary: 'B' } },
+  });
+
+  assert.equal(first.warnings.length, 0);
+  assert.equal(first.contentHash, repeated.contentHash);
+  assert.notEqual(first.contentHash, changed.contentHash);
 });
 
 test('capacity report is redacted and projects the sample P95', () => {
