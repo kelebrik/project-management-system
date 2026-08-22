@@ -53,12 +53,7 @@ export const projectDetailsInclude = {
       issues: {
         orderBy: { syncedAt: 'desc' },
         include: {
-          snapshot: {
-            include: {
-              statusTransitions: { orderBy: { transitionedAt: 'asc' } },
-              developmentActivities: { orderBy: { activityAt: 'desc' } },
-            },
-          },
+          snapshot: true,
         },
       },
     },
@@ -75,10 +70,6 @@ export const projectDetailsInclude = {
   jiraSnapshots: {
     where: { retiredAt: null },
     orderBy: { updatedAt: 'desc' },
-    include: {
-      statusTransitions: { orderBy: { transitionedAt: 'asc' } },
-      developmentActivities: { orderBy: { activityAt: 'desc' } },
-    },
   },
   overviews: { orderBy: { version: 'desc' }, take: 8 },
   milestones: { orderBy: { dueDate: 'asc' } },

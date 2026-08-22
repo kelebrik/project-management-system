@@ -4,7 +4,7 @@ import {
   jiraAnalyticsDashboardConfigSchema,
   updateIssueSchema,
 } from '@pms/shared';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -32,6 +32,11 @@ import {
 } from '../services/jira-analytics-sync.js';
 import { sampleJiraCapacity } from '../services/jira-capacity.js';
 import {
+  jiraDashboardConfigHash,
+  jiraDashboardReferencedAggregateIds,
+  lockJiraAggregateProject,
+} from '../services/jira-aggregates.js';
+import {
   dueJiraHistoryRetryKeys,
   jiraHistoryDatabaseBytes,
   jiraHistoryNeedsFullReconciliation,
@@ -57,6 +62,7 @@ import {
   resolveJiraWorkSectionJql,
 } from '../services/jira-work-sections.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
+import { registerJiraAggregateRoutes } from './jira-aggregates.routes.js';
 
 export const JIRA_CAPACITY_DEFAULT_STORAGE_GIB = 5;
 export const JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB = 0;
@@ -92,6 +98,7 @@ export function jiraHistoryFullSweepState(
 
 export function createIssuesRouter() {
   const router = Router();
+  registerJiraAggregateRoutes(router);
 
 function isValidUrl(value: string) {
   try {
@@ -211,6 +218,15 @@ const jiraSyncSchema = z.discriminatedUnion('scopeType', [
 const jiraAnalyticsDashboardSchema = z.object({
   config: jiraAnalyticsDashboardConfigSchema,
 });
+
+class JiraDashboardAggregateReferenceError extends Error {
+  constructor(public readonly details: {
+    missingIds: string[];
+    scopeMismatches: Array<{ widgetId: string; aggregateId: string }>;
+  }) {
+    super('JIRA_DASHBOARD_AGGREGATE_REFERENCE_INVALID');
+  }
+}
 
 const jiraCapacitySampleSchema = z.object({
   scopeType: z.enum(['LABEL', 'EPIC']),
@@ -336,7 +352,6 @@ router.put('/projects/:projectId/jira-work-sections', async (req, res) => {
     res.status(404).json({ error: 'Проект не найден' });
     return;
   }
-
   await ensureDefaultJiraWorkSections(project.id);
   const sections = await prisma.$transaction(
     parsed.data.sections
@@ -365,12 +380,7 @@ router.put('/projects/:projectId/jira-work-sections', async (req, res) => {
             issues: {
               orderBy: { syncedAt: 'desc' },
               include: {
-                snapshot: {
-                  include: {
-                    statusTransitions: { orderBy: { transitionedAt: 'asc' } },
-                    developmentActivities: { orderBy: { activityAt: 'desc' } },
-                  },
-                },
+                snapshot: true,
               },
             },
           },
@@ -922,7 +932,11 @@ router.patch('/tasks/:taskId/jira-link', async (req, res) => {
 
 router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) => {
   const user = currentUser(req);
-  if (user?.role !== 'ADMIN') {
+  if (!user) {
+    res.status(401).json({ error: 'Требуется вход в систему' });
+    return;
+  }
+  if (user.role !== 'ADMIN') {
     res.status(403).json({ error: 'Настраивать виджеты может только системный администратор' });
     return;
   }
@@ -937,26 +951,87 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
   }
   const project = await prisma.project.findUnique({
     where: { id: req.params.projectId },
-    select: { id: true },
+    select: { id: true, status: true },
   });
   if (!project) {
     res.status(404).json({ error: 'Проект не найден' });
     return;
   }
-  const before = await prisma.jiraAnalyticsSettings.findUnique({
-    where: { projectId: project.id },
-  });
+  if (project.status === 'CLOSED') {
+    res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
+    return;
+  }
   const dashboardConfig = parsed.data.config as Prisma.InputJsonObject;
-  const settings = await prisma.jiraAnalyticsSettings.upsert({
-    where: { projectId: project.id },
-    create: {
-      projectId: project.id,
-      jiraScopeType: 'LABEL',
-      jiraScopeValue: '',
-      dashboardConfig,
-    },
-    update: { dashboardConfig },
-  });
+  let before;
+  let settings;
+  try {
+    ({ before, settings } = await prisma.$transaction(async (transaction) => {
+      await lockJiraAggregateProject(transaction, project.id);
+      const referencedIds = jiraDashboardReferencedAggregateIds(parsed.data.config);
+      const definitions = referencedIds.length > 0
+        ? await transaction.$queryRaw<Array<{ id: string; scope: string }>>(Prisma.sql`
+            SELECT "id", "scope"
+            FROM "JiraAggregateDefinition"
+            WHERE "projectId" = ${project.id}
+              AND "id" IN (${Prisma.join(referencedIds)})
+            FOR KEY SHARE
+          `)
+        : [];
+      const definitionsById = new Map(definitions.map((definition) => [definition.id, definition]));
+      const missingIds = referencedIds.filter((id) => !definitionsById.has(id));
+      const scopeMismatches = parsed.data.config.version === 2
+        ? parsed.data.config.widgets.flatMap((widget) => {
+            const definition = definitionsById.get(widget.aggregateId);
+            return definition && definition.scope !== widget.placement
+              ? [{ widgetId: widget.id, aggregateId: widget.aggregateId }]
+              : [];
+          })
+        : [];
+      if (missingIds.length > 0 || scopeMismatches.length > 0) {
+        throw new JiraDashboardAggregateReferenceError({ missingIds, scopeMismatches });
+      }
+      const lockedSettings = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id"
+        FROM "JiraAnalyticsSettings"
+        WHERE "projectId" = ${project.id}
+        FOR UPDATE
+      `);
+      const previous = lockedSettings[0]
+        ? await transaction.jiraAnalyticsSettings.findUnique({ where: { id: lockedSettings[0].id } })
+        : null;
+      const next = await transaction.jiraAnalyticsSettings.upsert({
+        where: { projectId: project.id },
+        create: {
+          projectId: project.id,
+          jiraScopeType: 'LABEL',
+          jiraScopeValue: '',
+          dashboardConfig,
+        },
+        update: { dashboardConfig },
+      });
+      if (parsed.data.config.version === 2) {
+        await transaction.jiraAnalyticsDashboardConversion.updateMany({
+          where: { projectId: project.id, rolledBackAt: null },
+          data: { convertedConfigHash: jiraDashboardConfigHash(parsed.data.config) },
+        });
+      } else {
+        await transaction.jiraAnalyticsDashboardConversion.updateMany({
+          where: { projectId: project.id, rolledBackAt: null },
+          data: { rolledBackAt: new Date() },
+        });
+      }
+      return { before: previous, settings: next };
+    }));
+  } catch (error) {
+    if (error instanceof JiraDashboardAggregateReferenceError) {
+      res.status(409).json({
+        error: 'Конфигурация ссылается на недоступные или несовместимые агрегаты',
+        ...error.details,
+      });
+      return;
+    }
+    throw error;
+  }
   await recordAuditEvent({
     req,
     actor: user,

@@ -134,3 +134,44 @@ test("OpenAPI keeps required production endpoints documented", () => {
     assert.ok(operations.has(operation), `Expected OpenAPI operation ${operation}`);
   }
 });
+
+test("OpenAPI describes the managed Jira aggregate concurrency and payload contract", () => {
+  const document = openApiDocument as unknown as {
+    components: { schemas: Record<string, Record<string, unknown>> };
+    paths: Record<string, Record<string, any>>;
+  };
+  const definition = document.components.schemas.JiraAggregateDefinition;
+  assert.equal(definition?.type, "object");
+  assert.equal(definition?.additionalProperties, false);
+  assert.equal("allOf" in (definition ?? {}), false);
+
+  const mutationPaths = [
+    "/api/projects/{projectId}/jira/aggregates",
+    "/api/projects/{projectId}/jira/aggregates/{aggregateId}",
+    "/api/projects/{projectId}/jira/aggregates/import-dashboard",
+    "/api/projects/{projectId}/jira/aggregates/convert-dashboard",
+    "/api/projects/{projectId}/jira/aggregates/rollback-dashboard",
+    "/api/projects/{projectId}/jira/analytics-dashboard",
+  ];
+  for (const apiPath of mutationPaths) {
+    for (const [method, operation] of Object.entries(document.paths[apiPath] ?? {})) {
+      if (method === "get") continue;
+      assert.ok(operation.responses?.["409"], `${method.toUpperCase()} ${apiPath} must document 409`);
+    }
+  }
+
+  for (const suffix of ["import-dashboard", "convert-dashboard", "rollback-dashboard"]) {
+    const operation = document.paths[`/api/projects/{projectId}/jira/aggregates/${suffix}`]?.post;
+    const schema = operation?.requestBody?.content?.["application/json"]?.schema;
+    assert.deepEqual(schema?.required, ["dryRun", "expectedConfigHash"]);
+  }
+
+  const preview = document.paths["/api/projects/{projectId}/jira/aggregates/preview"]?.post;
+  const previewProperties = preview?.requestBody?.content?.["application/json"]?.schema?.properties;
+  assert.ok(previewProperties?.groupKey);
+  assert.ok(previewProperties?.evaluatedAt);
+  assert.equal(
+    preview?.responses?.["200"]?.content?.["application/json"]?.schema?.$ref,
+    "#/components/schemas/JiraAggregateEvaluationResult",
+  );
+});
