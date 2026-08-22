@@ -52,6 +52,10 @@ test("Operations shell scripts are syntactically valid", () => {
     "scripts/restore-db.sh",
     "scripts/migration-dry-run.sh",
     "scripts/restore-drill.sh",
+    "scripts/db-integrity-common.sh",
+    "scripts/db-integrity-capture.sh",
+    "scripts/db-integrity-verify.sh",
+    "scripts/jira-history-a1-diagnostics.sh",
     "scripts/security-smoke.sh",
     "scripts/performance-smoke.sh",
     "scripts/docker-prisma-engines.sh",
@@ -64,6 +68,38 @@ test("Operations shell scripts are syntactically valid", () => {
   for (const script of scripts) {
     execFileSync("sh", ["-n", path.join(repoRoot, script)], { stdio: "pipe" });
   }
+
+  execFileSync(process.execPath, ["--check", path.join(repoRoot, "scripts/db-integrity-psql.mjs")], {
+    stdio: "pipe",
+  });
+});
+
+test("A1 production integrity tooling is read-only and fail-closed", () => {
+  const common = read("scripts/db-integrity-common.sh");
+  const capture = read("scripts/db-integrity-capture.sh");
+  const verify = read("scripts/db-integrity-verify.sh");
+  const diagnostics = read("scripts/jira-history-a1-diagnostics.sh");
+
+  assert.match(common, /default_transaction_read_only=on/);
+  assert.match(capture, /REPEATABLE READ READ ONLY/);
+  assert.match(capture, /pg_control_system\(\)/);
+  assert.match(capture, /pg_current_wal_lsn\(\)/);
+  assert.match(capture, /has_column_privilege/);
+  assert.match(capture, /pg_stat_activity/);
+  assert.match(capture, /pg_stat_clear_snapshot/);
+  assert.match(capture, /SELECT 1 \/ 0/);
+  assert.doesNotMatch(capture, /\\{2}quit\s+\d+/);
+  assert.match(capture, /has_function_privilege/);
+  assert.match(capture, /DB_INTEGRITY_BACKUP_EVIDENCE_FILE/);
+  assert.match(capture, /DB_INTEGRITY_IMAGE_MIGRATION_SHA256/);
+  assert.match(capture, /A1_CHECK/);
+  assert.match(verify, /db-integrity-compare\.mjs/);
+  assert.match(diagnostics, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/);
+  assert.match(diagnostics, /SELECT 1 \/ 0/);
+  assert.match(diagnostics, /NOT_CERTIFIED_CASCADE_DELETE/);
+  assert.match(common, /db-integrity-psql\.mjs/);
+  assert.doesNotMatch(common, /psql[^\n]*"\$DATABASE_URL"/);
+  assert.doesNotMatch(`${common}\n${capture}\n${verify}\n${diagnostics}`, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\s+(?:INTO|FROM|TABLE)\b/i);
 });
 
 test("Backup and restore scripts enforce production safety checks", () => {
