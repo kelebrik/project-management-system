@@ -42,6 +42,7 @@ import {
   latestJiraHistoryCursor,
   pendingJiraHistoryRetryKeys,
   queueJiraHistoryRetry,
+  redactJiraHistoryError,
   resolveJiraHistoryRetry,
 } from '../services/jira-history.js';
 import {
@@ -77,6 +78,16 @@ export function jiraHistoryIssueIsRetryEligible(
 ) {
   const normalized = issueKey.toUpperCase();
   return !pendingRetryKeys.has(normalized) || dueRetryKeys.has(normalized);
+}
+
+export function jiraHistoryFullSweepState(
+  fullReconciliation: boolean,
+  pendingDiscoveredRetries: number,
+) {
+  return {
+    returnToIncremental: fullReconciliation,
+    clean: fullReconciliation && pendingDiscoveredRetries === 0,
+  };
 }
 
 export function createIssuesRouter() {
@@ -1459,7 +1470,16 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       throw new Error('Ни одно наблюдение Jira не сохранено: см. диагностику истории');
     }
 
-    if (fullReconciliation) {
+    const remainingRetryKeys = await pendingJiraHistoryRetryKeys(prisma, project.id);
+    const pendingDiscoveredRetries = [...remainingRetryKeys]
+      .filter((issueKey) => discoveredSet.has(issueKey)).length;
+    const fullSweep = jiraHistoryFullSweepState(
+      fullReconciliation,
+      pendingDiscoveredRetries,
+    );
+    if (fullSweep.returnToIncremental) {
+      // A completed key sweep must return to incremental sync even when poison-pill
+      // issues remain on bounded retry backoff.
       finalFullReconciledAt = syncedAt;
       finalFullCursorIssueKey = null;
       finalHistoryCursor = {
@@ -1557,7 +1577,9 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       );
     }, { maxWait: 10_000, timeout: 60_000 });
 
-    finalSyncStatus = historyFailures.length > 0 ? 'OK_WITH_RETRIES' : 'OK';
+    finalSyncStatus = historyFailures.length > 0 || pendingDiscoveredRetries > 0
+      ? 'OK_WITH_RETRIES'
+      : 'OK';
     finalSyncedAt = syncedAt;
     const publicSectionStats = sectionStats.map(({ issueKeys: _issueKeys, ...section }) => section);
     logEvent('info', 'jira.sync.completed', {
@@ -1571,6 +1593,8 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       historyIssueTransactionsSucceeded: syncedIssueKeys.size,
       historyRetriesQueued: historyFailures.length,
       historyFullReconciliation: fullReconciliation,
+      historyFullReconciliationClean: fullSweep.clean,
+      historyPendingRetries: pendingDiscoveredRetries,
       criticalBugSlaConfigured,
       criticalBugSlaScope: parsedSync.data.scopeType.toLowerCase(),
       criticalBugSlaProjectKeys,
@@ -1585,6 +1609,8 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
         processed: historyIssueKeys.length,
         retriesQueued: historyFailures.length,
         fullReconciliation,
+        fullReconciliationClean: fullSweep.clean,
+        pendingRetries: pendingDiscoveredRetries,
         cursorUpdatedAt: finalHistoryCursor?.updatedAt.toISOString() ?? null,
         cursorJiraIssueId: finalHistoryCursor?.jiraIssueId ?? null,
       },
@@ -1602,7 +1628,9 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     });
   } catch (error) {
     res.status(502).json({
-      error: error instanceof Error ? error.message : 'Не удалось синхронизировать Jira',
+      error: error instanceof Error
+        ? redactJiraHistoryError(error.message)
+        : 'Не удалось синхронизировать Jira',
     });
   } finally {
     await prisma.jiraAnalyticsSettings.updateMany({

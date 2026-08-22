@@ -831,6 +831,24 @@ test('stage A1 locks each issue and never lets an older observation replace the 
   assert.equal(result.id, 'snapshot-1');
 });
 
+test('stage A1 advisory lock casts the PostgreSQL void result before Prisma deserializes it', async () => {
+  let queryText = '';
+  let queryValues: unknown[] = [];
+  const transaction = {
+    $queryRaw: async (query: { text: string; values: unknown[] }) => {
+      queryText = query.text;
+      queryValues = query.values;
+      return [{ lock: '' }];
+    },
+  } as unknown as Parameters<typeof createPrismaJiraAnalyticsSyncStore>[0];
+
+  const store = createPrismaJiraAnalyticsSyncStore(transaction);
+  await store.acquireIssueLock!('project-1', '1001');
+
+  assert.match(queryText, /pg_advisory_xact_lock\(.+\)::text AS lock/);
+  assert.deepEqual(queryValues, ['project-1:1001']);
+});
+
 test('stage A1 concurrent replay stores one immutable version and one current identity', async () => {
   const versions = new Map<string, string>();
   const currentVersionIds: string[] = [];

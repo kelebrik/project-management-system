@@ -19,6 +19,7 @@
     "test:unit": "npm run build --workspace @pms/shared && npm run test:unit --workspace @pms/api && npm run test:unit --workspace @pms/web",
     "test:unit:ci": "scripts/ci-test-unit.sh",
     "test:integration": "tsx --test \"tests/integration/**/*.test.ts\"",
+    "test:history:postgres": "scripts/test-jira-history-postgres.sh",
     "test:integration:ci": "scripts/ci-test-integration.sh",
     "test:e2e": "playwright test",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",

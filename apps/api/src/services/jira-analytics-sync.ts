@@ -500,8 +500,8 @@ export function createPrismaJiraAnalyticsSyncStore(
 ): JiraAnalyticsSyncStore {
   return {
     async acquireIssueLock(projectId, issueIdentity) {
-      await transaction.$queryRaw(
-        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${projectId}:${issueIdentity}`}, 0))`,
+      await transaction.$queryRaw<Array<{ lock: string }>>(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${projectId}:${issueIdentity}`}, 0))::text AS lock`,
       );
     },
     async findSnapshot(projectId, issueKey) {

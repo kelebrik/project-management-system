@@ -6,6 +6,7 @@ import { JiraReadOnlyRequestError } from '../jira.js';
 import {
   createIssuesRouter,
   isFatalJiraHistoryBatchError,
+  jiraHistoryFullSweepState,
   jiraHistoryIssueIsRetryEligible,
   jiraHistorySyncFailedCompletely,
   JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB,
@@ -35,6 +36,21 @@ test('Jira history applies retry backoff to newly discovered issues without snap
   assert.equal(jiraHistoryIssueIsRetryEligible('cvte-1', pending, new Set()), false);
   assert.equal(jiraHistoryIssueIsRetryEligible('CVTE-1', pending, new Set(['CVTE-1'])), true);
   assert.equal(jiraHistoryIssueIsRetryEligible('CVTE-2', pending, new Set()), true);
+});
+
+test('Jira history returns to incremental sync after a full sweep with pending retries', () => {
+  assert.deepEqual(jiraHistoryFullSweepState(true, 244), {
+    returnToIncremental: true,
+    clean: false,
+  });
+  assert.deepEqual(jiraHistoryFullSweepState(true, 0), {
+    returnToIncremental: true,
+    clean: true,
+  });
+  assert.deepEqual(jiraHistoryFullSweepState(false, 0), {
+    returnToIncremental: false,
+    clean: false,
+  });
 });
 
 test('Jira capacity sampler rejects non-admin users before sampling', async () => {

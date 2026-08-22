@@ -56,6 +56,7 @@ test("Operations shell scripts are syntactically valid", () => {
     "scripts/db-integrity-capture.sh",
     "scripts/db-integrity-verify.sh",
     "scripts/jira-history-a1-diagnostics.sh",
+    "scripts/test-jira-history-postgres.sh",
     "scripts/security-smoke.sh",
     "scripts/performance-smoke.sh",
     "scripts/docker-prisma-engines.sh",
@@ -72,6 +73,20 @@ test("Operations shell scripts are syntactically valid", () => {
   execFileSync(process.execPath, ["--check", path.join(repoRoot, "scripts/db-integrity-psql.mjs")], {
     stdio: "pipe",
   });
+});
+
+test("Jira history PostgreSQL race gate is explicit and fail-closed", () => {
+  const packageJson = read("package.json");
+  const gate = read("scripts/test-jira-history-postgres.sh");
+  const contract = read("docs/jira-analytics-stage-1a.md");
+
+  assert.match(packageJson, /"test:history:postgres": "scripts\/test-jira-history-postgres\.sh"/);
+  assert.match(gate, /JIRA_HISTORY_TEST_DATABASE_URL is required/);
+  assert.match(gate, /databaseName[\s\S]*\/test\/i/);
+  assert.match(gate, /prisma migrate deploy/);
+  assert.match(gate, /jira-history-race\.test\.ts/);
+  assert.match(contract, /npm run test:history:postgres/);
+  assert.match(contract, /skipped result does not satisfy[\s\S]*pre-merge gate/);
 });
 
 test("A1 production integrity tooling is read-only and fail-closed", () => {

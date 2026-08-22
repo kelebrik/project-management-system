@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Prisma, type PrismaClient } from '@prisma/client';
 
 export const JIRA_HISTORY_STORAGE_BUDGET_BYTES = 5 * 1024 ** 3;
@@ -20,9 +22,42 @@ export type JiraHistoryRetryInput = {
   failedAt: Date;
 };
 
+export function redactJiraHistoryError(message: string) {
+  return message
+    .replace(/([a-z][a-z0-9+.-]*:\/\/[^:\s/@]+:)[^@\s/]+@/gi, '$1***@')
+    .replace(/(["'](?:password|token|authorization)["']\s*:\s*["'])[^"']*(["'])/gi, '$1***$2')
+    .replace(/\b(authorization)(\s*[:=]\s*)(?:(?:bearer|basic)\s+)?[^\s,;&]+/gi, '$1$2***')
+    .replace(/\b(password|token)(\s*[:=]\s*)[^\s,;&]+/gi, '$1$2***')
+    .replace(/\b(bearer|basic)\s+[a-z0-9._~+/=-]+/gi, '$1 ***')
+    .replace(/\bATATT[a-z0-9_-]+\b/gi, '***');
+}
+
+export function jiraHistoryAdminError(reasonCode: string, message: string) {
+  const redacted = redactJiraHistoryError(message);
+  if (reasonCode !== 'PERSISTENCE_FAILED') return redacted.slice(0, 240);
+
+  const unsupportedType = redacted.match(
+    /failed to deserialize column of type ['"]?([a-z0-9_ ]{1,40})/i,
+  );
+  if (unsupportedType?.[1]) {
+    return `Prisma не может прочитать тип результата PostgreSQL: ${unsupportedType[1].trim()}`;
+  }
+  const prismaCode = redacted.match(/\bP\d{4}\b/)?.[0];
+  if (prismaCode) return `Ошибка сохранения Prisma ${prismaCode}`;
+  const permissionTarget = redacted.match(/permission denied for (?:table|sequence) ["']?([a-z0-9_]+)/i)?.[1];
+  if (permissionTarget) return `Нет доступа к объекту БД: ${permissionTarget}`;
+  const missingTarget = redacted.match(/(?:relation|column) ["']?([a-z0-9_.]+)["']? does not exist/i)?.[1];
+  if (missingTarget) return `В БД отсутствует объект: ${missingTarget}`;
+
+  const fingerprint = createHash('sha256').update(redacted, 'utf8').digest('hex').slice(0, 12);
+  return `Ошибка сохранения версии в базе данных · диагностика ${fingerprint}`;
+}
+
 function compactError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return message.replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1_000)
+  const normalized = message
+    .replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return redactJiraHistoryError(normalized).slice(0, 1_000)
     || 'Unknown Jira history error';
 }
 
@@ -35,12 +70,13 @@ export async function queueJiraHistoryRetry(
   prisma: PrismaClient,
   input: JiraHistoryRetryInput,
 ) {
+  const issueKey = input.issueKey.trim().toUpperCase();
   return prisma.$transaction(async (transaction) => {
     const existing = await transaction.jiraIssueHistoryRetry.findUnique({
       where: {
         projectId_issueKey: {
           projectId: input.projectId,
-          issueKey: input.issueKey,
+          issueKey,
         },
       },
       select: { attempts: true, firstFailedAt: true },
@@ -50,12 +86,12 @@ export async function queueJiraHistoryRetry(
       where: {
         projectId_issueKey: {
           projectId: input.projectId,
-          issueKey: input.issueKey,
+          issueKey,
         },
       },
       create: {
         projectId: input.projectId,
-        issueKey: input.issueKey,
+        issueKey,
         jiraIssueId: input.jiraIssueId,
         reasonCode: input.reasonCode,
         lastError: compactError(input.error),
@@ -89,7 +125,7 @@ export async function resolveJiraHistoryRetry(
   resolvedAt: Date,
 ) {
   await prisma.jiraIssueHistoryRetry.updateMany({
-    where: { projectId, issueKey, status: 'PENDING' },
+    where: { projectId, issueKey: issueKey.trim().toUpperCase(), status: 'PENDING' },
     data: { status: 'RESOLVED', resolvedAt },
   });
 }
@@ -301,9 +337,9 @@ export async function jiraHistoryStatus(prisma: PrismaClient, projectId: string)
         firstFailedAt: retry.firstFailedAt.toISOString(),
         lastFailedAt: retry.lastFailedAt.toISOString(),
         nextRetryAt: retry.nextRetryAt.toISOString(),
-        lastError: retry.reasonCode === 'PERSISTENCE_FAILED'
-          ? 'Ошибка сохранения версии в базе данных'
-          : retry.lastError.slice(0, 240),
+        // This endpoint is restricted to system administrators. Keep the storage
+        // error visible here so a failed import can be diagnosed without DB access.
+        lastError: jiraHistoryAdminError(retry.reasonCode, retry.lastError),
       })),
     },
     cursor: {

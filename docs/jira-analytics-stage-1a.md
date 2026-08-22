@@ -147,6 +147,20 @@ exist, the current projection must point to it, and the cursor must advance only
 replayed batch completes. A second test runs concurrent workers after lease expiry and
 asserts the same result.
 
+Run the PostgreSQL race gate before merging any change to history persistence or locking:
+
+```sh
+export JIRA_HISTORY_TEST_DATABASE_URL='postgresql://.../pms_history_test?schema=public'
+npm run test:history:postgres
+```
+
+The target must be a disposable database whose name contains `test`. The command fails
+when the variable is absent, applies committed migrations, and runs the real Prisma and
+PostgreSQL path, including the advisory transaction lock. The ordinary integration suite
+may skip this test when no database is configured; that skipped result does not satisfy
+the A1 pre-merge gate. Corporate CI prohibits service pods, so the gate uses a separately
+provisioned test database rather than starting PostgreSQL inside a runner pod.
+
 ## Access and observability
 
 Stage A1 exposes no raw snapshot API. Payload access is limited to the application service
