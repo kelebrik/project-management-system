@@ -189,4 +189,5 @@ history allocation. The system never resolves a warning by deleting history.
 - Read-only guard tests prove that A1 adds no Jira business-data write path.
 
 Only after these criteria pass does stage A2 add governed aggregate definitions and the
-admin constructor over typed fields and normalized events.
+admin constructor over typed fields and normalized events. The A2 contract is recorded in
+[`jira-analytics-stage-a2.md`](./jira-analytics-stage-a2.md).

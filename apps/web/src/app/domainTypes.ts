@@ -430,31 +430,6 @@ export type JiraIssueSnapshot = {
   transitionHistoryComplete: boolean;
   updatedAt: string;
   syncedAt: string;
-  statusTransitions: JiraIssueStatusTransition[];
-  developmentActivities: JiraDevelopmentActivity[];
-};
-
-export type JiraIssueStatusTransition = {
-  id: string;
-  snapshotId: string;
-  transitionKey: string;
-  fromStatus: string | null;
-  toStatus: string;
-  transitionedAt: string;
-  actor: string | null;
-  createdAt: string;
-};
-
-export type JiraDevelopmentActivity = {
-  id: string;
-  snapshotId: string;
-  activityKey: string;
-  activityAt: string;
-  commitCount: number;
-  mergeRequestCount: number;
-  sprintAtObservation: string | null;
-  isBaseline: boolean;
-  observedAt: string;
 };
 
 export type JiraWorkSectionIssue = {

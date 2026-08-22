@@ -150,3 +150,21 @@ test("Jira history A1 migration is additive and keeps existing snapshots intact"
   );
   assert.doesNotMatch(withoutForeignKeyActions, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
 });
+
+test("Jira analytics A2 migration is DDL-only and leaves A1 history untouched", () => {
+  const migration = migrationSql("20260822200000_jira_aggregate_definitions_a2");
+
+  assert.match(migration, /CREATE TABLE "JiraAggregateDefinition"/);
+  assert.match(migration, /CREATE TABLE "JiraAnalyticsDashboardConversion"/);
+  assert.match(migration, /JiraAggregateDefinition_projectId_fingerprint_key/);
+  assert.match(migration, /JiraAnalyticsDashboardConversion_projectId_key/);
+  const withoutForeignKeyActions = migration.replace(
+    /ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)/gi,
+    '',
+  );
+  assert.doesNotMatch(
+    withoutForeignKeyActions,
+    /\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/i,
+  );
+  assert.doesNotMatch(migration, /ALTER TABLE "JiraIssue(?:Version|Snapshot|HistoryRetry)"/i);
+});

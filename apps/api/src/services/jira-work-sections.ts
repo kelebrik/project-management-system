@@ -164,12 +164,7 @@ export async function ensureDefaultJiraWorkSections(projectId: string) {
         where: { snapshot: { retiredAt: null } },
         orderBy: { syncedAt: 'desc' },
         include: {
-          snapshot: {
-            include: {
-              statusTransitions: { orderBy: { transitionedAt: 'asc' } },
-              developmentActivities: { orderBy: { activityAt: 'desc' } },
-            },
-          },
+          snapshot: true,
         },
       },
     },

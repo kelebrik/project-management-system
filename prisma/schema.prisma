@@ -204,54 +204,56 @@ model BusinessUnitRolePermission {
 }
 
 model Project {
-  id                    String                       @id @default(cuid())
-  businessUnitId        String
-  parentId              String?
-  code                  String                       @unique
-  name                  String
-  portfolio             String
-  sponsor               String
-  projectManager        String
-  status                ProjectStatus                @default(ACTIVE)
-  rag                   RagStatus                    @default(GREEN)
-  startDate             DateTime
-  initialTargetDate     DateTime?
-  targetDate            DateTime
-  budgetPlanned         Decimal                      @db.Decimal(14, 2)
-  budgetForecast        Decimal                      @db.Decimal(14, 2)
-  scheduleVariance      Int                          @default(0)
-  progress              Int                          @default(0)
-  summary               String
-  sortOrder             Int                          @default(0)
-  uiState               Json?
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
-  parent                Project?                     @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children              Project[]                    @relation("ProjectHierarchy")
-  businessUnit          BusinessUnit                 @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  jiraIntegration       JiraIntegration?
-  jiraAnalyticsSettings JiraAnalyticsSettings?
-  jiraWorkSections      JiraWorkSection[]
-  tasks                 Task[]
-  issues                Issue[]
-  jiraSnapshots         JiraIssueSnapshot[]
-  jiraIssueVersions     JiraIssueVersion[]
-  jiraHistoryRetries    JiraIssueHistoryRetry[]
-  overviews             ExecutiveOverview[]
-  milestones            Milestone[]
-  wbsItems              WbsItem[]
-  wbsDependencies       WbsDependency[]
-  calendarOverrides     ProjectCalendarOverride[]
-  artifacts             ProjectArtifact[]
-  raidItems             RaidItem[]
-  changeRequests        ChangeRequest[]
-  targetDateChanges     ProjectTargetDateChange[]
-  wbsCommands           WbsCommand[]
-  wbsBaselines          WbsBaseline[]
-  wbsTombstones         WbsTombstone[]
-  savedViews            SavedView[]
-  projectAccesses       ProjectAccess[]
-  businessRequirements  ProjectBusinessRequirements?
+  id                       String                            @id @default(cuid())
+  businessUnitId           String
+  parentId                 String?
+  code                     String                            @unique
+  name                     String
+  portfolio                String
+  sponsor                  String
+  projectManager           String
+  status                   ProjectStatus                     @default(ACTIVE)
+  rag                      RagStatus                         @default(GREEN)
+  startDate                DateTime
+  initialTargetDate        DateTime?
+  targetDate               DateTime
+  budgetPlanned            Decimal                           @db.Decimal(14, 2)
+  budgetForecast           Decimal                           @db.Decimal(14, 2)
+  scheduleVariance         Int                               @default(0)
+  progress                 Int                               @default(0)
+  summary                  String
+  sortOrder                Int                               @default(0)
+  uiState                  Json?
+  createdAt                DateTime                          @default(now())
+  updatedAt                DateTime                          @updatedAt
+  parent                   Project?                          @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children                 Project[]                         @relation("ProjectHierarchy")
+  businessUnit             BusinessUnit                      @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  jiraIntegration          JiraIntegration?
+  jiraAnalyticsSettings    JiraAnalyticsSettings?
+  jiraAggregateDefinitions JiraAggregateDefinition[]
+  jiraDashboardConversion  JiraAnalyticsDashboardConversion?
+  jiraWorkSections         JiraWorkSection[]
+  tasks                    Task[]
+  issues                   Issue[]
+  jiraSnapshots            JiraIssueSnapshot[]
+  jiraIssueVersions        JiraIssueVersion[]
+  jiraHistoryRetries       JiraIssueHistoryRetry[]
+  overviews                ExecutiveOverview[]
+  milestones               Milestone[]
+  wbsItems                 WbsItem[]
+  wbsDependencies          WbsDependency[]
+  calendarOverrides        ProjectCalendarOverride[]
+  artifacts                ProjectArtifact[]
+  raidItems                RaidItem[]
+  changeRequests           ChangeRequest[]
+  targetDateChanges        ProjectTargetDateChange[]
+  wbsCommands              WbsCommand[]
+  wbsBaselines             WbsBaseline[]
+  wbsTombstones            WbsTombstone[]
+  savedViews               SavedView[]
+  projectAccesses          ProjectAccess[]
+  businessRequirements     ProjectBusinessRequirements?
 
   @@index([parentId])
   @@index([businessUnitId, status])
@@ -513,6 +515,49 @@ model JiraAnalyticsSettings {
   createdAt                   DateTime               @default(now())
   updatedAt                   DateTime               @updatedAt
   project                     Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model JiraAggregateDefinition {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  nameKey     String
+  description String   @default("")
+  source      String
+  metric      String
+  groupBy     String
+  scope       String
+  filterLogic String
+  filters     Json     @db.JsonB
+  periodMode  String
+  periodDays  Int?
+  timeZone    String   @default("Europe/Moscow")
+  fingerprint String   @db.Char(64)
+  sortOrder   Int      @default(0)
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, nameKey])
+  @@unique([projectId, fingerprint])
+  @@index([projectId, sortOrder, createdAt])
+}
+
+model JiraAnalyticsDashboardConversion {
+  id                  String    @id @default(cuid())
+  projectId           String    @unique
+  originalConfig      Json      @db.JsonB
+  originalConfigHash  String    @db.Char(64)
+  convertedConfigHash String    @db.Char(64)
+  convertedAt         DateTime  @default(now())
+  rolledBackAt        DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([convertedAt])
+  @@index([rolledBackAt])
 }
 
 model Task {
