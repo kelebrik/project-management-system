@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 import {
+  createJiraAnalyticsEvaluationAccumulator,
   evaluateJiraAnalyticsAggregate,
+  JiraAnalyticsEvaluationLimitError,
   jiraAnalyticsAggregateDraftSchema,
   type JiraAnalyticsAggregateDraft,
   type JiraAnalyticsIssueData,
@@ -15,9 +17,11 @@ import {
   jiraAggregateFingerprint,
   jiraAggregateIssueSelect,
   jiraDashboardConfigHash,
-  JIRA_AGGREGATE_MAX_ISSUES,
-  JiraAggregatePopulationLimitError,
-  loadJiraAggregateIssues,
+  JIRA_AGGREGATE_ISSUE_BATCH_SIZE,
+  JIRA_AGGREGATE_MAX_EVENTS,
+  JiraAggregateEventLimitError,
+  loadJiraAggregateIssueBatches,
+  loadJiraAnalyticsFacets,
   lockJiraAggregateProject,
   resolveSavedDashboard,
 } from './jira-aggregates.js';
@@ -77,6 +81,33 @@ const options = {
   page: 1,
   pageSize: 100,
 };
+
+function storedIssue(issueKey: string) {
+  return {
+    id: `snapshot-${issueKey}`,
+    issueKey,
+    issueUrl: `https://jira.example/browse/${issueKey}`,
+    summary: issueKey,
+    status: 'In Progress',
+    priority: 'Major',
+    assignee: 'User',
+    reporter: 'Reporter',
+    issueType: 'Bug',
+    resolution: null,
+    sprint: null,
+    issueCreatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    criticalPriorityAt: null,
+    resolutionAt: null,
+    criticalSlaTracked: false,
+    commitCount: 0,
+    mergeRequestCount: 0,
+    developmentDataAvailable: false,
+    transitionHistoryComplete: true,
+    updatedAt: new Date('2026-02-01T00:00:00.000Z'),
+    statusTransitions: [],
+    developmentActivities: [],
+  };
+}
 
 test('aggregate schema rejects source/metric/group/filter drift and empty numeric values', () => {
   assert.equal(jiraAnalyticsAggregateDraftSchema.safeParse(definition({
@@ -221,6 +252,58 @@ test('group drill-down scopes both records and aggregate value', () => {
   assert.equal(result.groups.length, 2);
 });
 
+test('batched accumulator preserves one-shot aggregate semantics', () => {
+  const issues = [
+    issue({
+      id: 'one',
+      issueKey: 'CVTE-1',
+      statusTransitions: [
+        { id: 't1', fromStatus: 'Open', toStatus: 'In Progress', transitionedAt: '2026-02-01T00:00:00.000Z' },
+        { id: 't2', fromStatus: 'In Progress', toStatus: 'QA', transitionedAt: '2026-02-10T00:00:00.000Z' },
+      ],
+    }),
+    issue({
+      id: 'two',
+      issueKey: 'CVTE-2',
+      issueCreatedAt: '2026-01-15T00:00:00.000Z',
+      statusTransitions: [
+        { id: 't3', fromStatus: 'Open', toStatus: 'QA', transitionedAt: '2026-02-20T00:00:00.000Z' },
+      ],
+    }),
+  ];
+  const aggregate = definition({
+    source: 'transitions',
+    metric: 'p85Duration',
+    groupBy: 'toStatus',
+    periodMode: 'DASHBOARD',
+  });
+  const pagedOptions = { ...options, page: 2, pageSize: 1 };
+  const oneShot = evaluateJiraAnalyticsAggregate(aggregate, issues, pagedOptions);
+  const batched = createJiraAnalyticsEvaluationAccumulator(aggregate, pagedOptions, {
+    maxGroups: 10,
+    maxPageWindow: 10,
+  });
+  batched.addIssues(issues.slice(0, 1));
+  batched.addIssues(issues.slice(1));
+  assert.deepEqual(batched.finish(), oneShot);
+});
+
+test('batched accumulator fails closed on group and page-window limits', () => {
+  assert.throws(
+    () => createJiraAnalyticsEvaluationAccumulator(definition(), { ...options, page: 2, pageSize: 10 }, {
+      maxPageWindow: 10,
+    }),
+    JiraAnalyticsEvaluationLimitError,
+  );
+  const grouped = createJiraAnalyticsEvaluationAccumulator(definition({ groupBy: 'status' }), options, {
+    maxGroups: 1,
+  });
+  assert.throws(
+    () => grouped.addIssues([issue({ id: 'one', status: 'Open' }), issue({ id: 'two', status: 'QA' })]),
+    JiraAnalyticsEvaluationLimitError,
+  );
+});
+
 test('saved invalid non-empty config produces unavailable widget instead of defaults', () => {
   const result = resolveSavedDashboard(
     { version: 1, periodDays: 90, assignee: '', widgets: [{ id: 'broken', title: 'Broken' }] },
@@ -310,21 +393,84 @@ test('aggregate DB selector cannot read immutable raw payloads', () => {
   assert.equal('versions' in jiraAggregateIssueSelect, false);
 });
 
-test('aggregate loader rejects an oversized project population without truncating', async () => {
-  let take = 0;
+test('aggregate batch loader uses a stable issue-key cursor and bounded batches', async () => {
+  const stored = Array.from(
+    { length: JIRA_AGGREGATE_ISSUE_BATCH_SIZE + 1 },
+    (_, index) => storedIssue(`CVTE-${String(index + 1).padStart(4, '0')}`),
+  );
+  let pageQueries = 0;
   const client = {
     jiraIssueSnapshot: {
-      findMany: async (query: { take: number }) => {
-        take = query.take;
-        return Array.from({ length: JIRA_AGGREGATE_MAX_ISSUES + 1 }, () => ({}));
+      count: async () => stored.length,
+      findMany: async (query: { cursor?: { projectId_issueKey?: { issueKey?: string } }; take: number }) => {
+        pageQueries += 1;
+        const cursor = query.cursor?.projectId_issueKey?.issueKey;
+        const start = cursor ? stored.findIndex((row) => row.issueKey === cursor) + 1 : 0;
+        return stored.slice(start, start + query.take);
       },
     },
-  } as unknown as Parameters<typeof loadJiraAggregateIssues>[0];
-  await assert.rejects(
-    () => loadJiraAggregateIssues(client, 'project-1'),
-    JiraAggregatePopulationLimitError,
-  );
-  assert.equal(take, JIRA_AGGREGATE_MAX_ISSUES + 1);
+    jiraIssueStatusTransition: { count: async () => 0 },
+    jiraDevelopmentActivity: { count: async () => 0 },
+  } as unknown as Parameters<typeof loadJiraAggregateIssueBatches>[0];
+  const batches: JiraAnalyticsIssueData[][] = [];
+  for await (const batch of loadJiraAggregateIssueBatches(client, 'project-1')) batches.push(batch);
+  assert.deepEqual(batches.map((batch) => batch.length), [JIRA_AGGREGATE_ISSUE_BATCH_SIZE, 1]);
+  assert.equal(pageQueries, 2);
+  assert.equal(batches[1]?.[0]?.issueKey, stored.at(-1)?.issueKey);
+});
+
+test('aggregate batch loader rejects nested event volume before reading snapshots', async () => {
+  let loaded = false;
+  const client = {
+    jiraIssueSnapshot: { count: async () => 1, findMany: async () => { loaded = true; return []; } },
+    jiraIssueStatusTransition: { count: async () => JIRA_AGGREGATE_MAX_EVENTS + 1 },
+    jiraDevelopmentActivity: { count: async () => 0 },
+  } as unknown as Parameters<typeof loadJiraAggregateIssueBatches>[0];
+  await assert.rejects(async () => {
+    for await (const _batch of loadJiraAggregateIssueBatches(client, 'project-1')) {
+      // The preflight limit must fail before the first batch.
+    }
+  }, JiraAggregateEventLimitError);
+  assert.equal(loaded, false);
+});
+
+test('analytics facets preserve active-scope semantics without exposing snapshots', async () => {
+  const client = {
+    jiraIssueSnapshot: {
+      findMany: async () => [
+        {
+          status: 'In Progress', resolution: null, assignee: 'Бета',
+          transitionHistoryComplete: true, developmentDataAvailable: true,
+          criticalSlaTracked: true, criticalPriorityAt: new Date('2026-01-01T00:00:00.000Z'),
+          syncedAt: new Date('2026-03-01T00:00:00.000Z'),
+        },
+        {
+          status: 'Cancelled', resolution: null, assignee: 'Альфа',
+          transitionHistoryComplete: false, developmentDataAvailable: false,
+          criticalSlaTracked: false, criticalPriorityAt: null,
+          syncedAt: new Date('2026-02-01T00:00:00.000Z'),
+        },
+        {
+          status: 'Done', resolution: 'Fixed', assignee: 'Бета',
+          transitionHistoryComplete: true, developmentDataAvailable: false,
+          criticalSlaTracked: true, criticalPriorityAt: null,
+          syncedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ],
+    },
+  } as unknown as Parameters<typeof loadJiraAnalyticsFacets>[0];
+  const facets = await loadJiraAnalyticsFacets(client, 'project-1');
+  assert.deepEqual(facets, {
+    issueCount: 3,
+    activeIssueCount: 1,
+    transitionHistoryCompleteCount: 2,
+    developmentDataAvailableCount: 1,
+    criticalSlaTrackedCount: 2,
+    criticalSlaReadyCount: 1,
+    latestSyncedAt: '2026-03-01T00:00:00.000Z',
+    assignees: ['Альфа', 'Бета'],
+    assigneesTruncated: false,
+  });
 });
 
 test('dashboard import is empty for NULL and deduplicates identical widget semantics', () => {

@@ -258,7 +258,6 @@ test("report builder creates and filters a project status report", async ({ page
       },
     ],
     jiraWorkSections: [],
-    jiraSnapshots: [],
     overviews: [],
     milestones: [],
     wbsDependencies: [],

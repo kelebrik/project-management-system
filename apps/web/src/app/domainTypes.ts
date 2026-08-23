@@ -124,12 +124,23 @@ export type JiraAnalyticsSettings = {
   lastSyncedAt: string | null;
 };
 
+export type JiraAnalyticsFacets = {
+  issueCount: number;
+  activeIssueCount: number;
+  transitionHistoryCompleteCount: number;
+  developmentDataAvailableCount: number;
+  criticalSlaTrackedCount: number;
+  criticalSlaReadyCount: number;
+  latestSyncedAt: string | null;
+  assignees: string[];
+  assigneesTruncated: boolean;
+};
+
 export type ProjectDetails = ProjectListItem & {
   tasks: Task[];
   issues: Issue[];
   closedIssues?: Issue[];
   jiraWorkSections: JiraWorkSection[];
-  jiraSnapshots: JiraIssueSnapshot[];
   overviews: ExecutiveOverview[];
   milestones: Milestone[];
   wbsItems: WbsItem[];

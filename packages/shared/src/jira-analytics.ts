@@ -630,6 +630,25 @@ export type JiraAnalyticsEvaluationResult = {
   pageSize: number;
 };
 
+export type JiraAnalyticsEvaluationLimits = {
+  maxGroups?: number;
+  maxPageWindow?: number;
+};
+
+export class JiraAnalyticsEvaluationLimitError extends Error {
+  constructor(
+    public readonly kind: "groups" | "pageWindow",
+    public readonly limit: number,
+  ) {
+    super(`JIRA_ANALYTICS_${kind === "groups" ? "GROUP" : "PAGE_WINDOW"}_LIMIT`);
+  }
+}
+
+export type JiraAnalyticsEvaluationAccumulator = {
+  addIssues: (issues: readonly JiraAnalyticsIssueData[]) => void;
+  finish: () => JiraAnalyticsEvaluationResult;
+};
+
 function validDate(value: string | null | undefined) {
   if (!value) return null;
   const parsed = new Date(value);
@@ -775,18 +794,43 @@ function percentile(values: number[], ratio: number) {
   return (ordered[lower] ?? 0) * (1 - weight) + (ordered[upper] ?? 0) * weight;
 }
 
-function metricValue(metric: JiraAnalyticsMetric, records: JiraAnalyticsResultRecord[]) {
-  if (metric === "count") return records.length;
-  if (metric === "commits") return records.reduce((sum, record) => sum + record.commitCount, 0);
-  if (metric === "mergeRequests") return records.reduce((sum, record) => sum + record.mergeRequestCount, 0);
-  const durations = records
-    .map((record) => record.durationHours)
-    .filter((value): value is number => value !== null && Number.isFinite(value));
-  if (durations.length === 0) return 0;
-  if (metric === "averageDuration") return durations.reduce((sum, value) => sum + value, 0) / durations.length;
-  if (metric === "p50Duration") return percentile(durations, 0.5);
-  if (metric === "p85Duration") return percentile(durations, 0.85);
-  return percentile(durations, 0.95);
+type MetricState = {
+  recordCount: number;
+  commitCount: number;
+  mergeRequestCount: number;
+  durationSum: number;
+  durations: number[];
+};
+
+function emptyMetricState(): MetricState {
+  return {
+    recordCount: 0,
+    commitCount: 0,
+    mergeRequestCount: 0,
+    durationSum: 0,
+    durations: [],
+  };
+}
+
+function addRecordToMetricState(state: MetricState, record: JiraAnalyticsResultRecord) {
+  state.recordCount += 1;
+  state.commitCount += record.commitCount;
+  state.mergeRequestCount += record.mergeRequestCount;
+  if (record.durationHours !== null && Number.isFinite(record.durationHours)) {
+    state.durationSum += record.durationHours;
+    state.durations.push(record.durationHours);
+  }
+}
+
+function metricValue(metric: JiraAnalyticsMetric, state: MetricState) {
+  if (metric === "count") return state.recordCount;
+  if (metric === "commits") return state.commitCount;
+  if (metric === "mergeRequests") return state.mergeRequestCount;
+  if (state.durations.length === 0) return 0;
+  if (metric === "averageDuration") return state.durationSum / state.durations.length;
+  if (metric === "p50Duration") return percentile(state.durations, 0.5);
+  if (metric === "p85Duration") return percentile(state.durations, 0.85);
+  return percentile(state.durations, 0.95);
 }
 
 function zonedDateParts(date: Date, timeZone: JiraAnalyticsTimeZone) {
@@ -865,73 +909,123 @@ export function evaluateJiraAnalyticsAggregate(
   issues: JiraAnalyticsIssueData[],
   options: JiraAnalyticsEvaluationOptions,
 ): JiraAnalyticsEvaluationResult {
+  const accumulator = createJiraAnalyticsEvaluationAccumulator(definition, options);
+  accumulator.addIssues(issues);
+  return accumulator.finish();
+}
+
+function sourceRecords(
+  definition: JiraAnalyticsAggregateDraft,
+  issue: JiraAnalyticsIssueData,
+  now: Date,
+) {
+  if (definition.source === "issues") return [issueRecord(issue)];
+  if (definition.source === "transitions") return transitionRecords(issue);
+  if (definition.source === "development") return developmentRecords(issue);
+  const record = criticalBugRecord(issue, now);
+  return record ? [record] : [];
+}
+
+function compareResultRecords(left: JiraAnalyticsResultRecord, right: JiraAnalyticsResultRecord) {
+  return (right.durationHours ?? -1) - (left.durationHours ?? -1) ||
+    (validDate(right.eventAt)?.getTime() ?? 0) - (validDate(left.eventAt)?.getTime() ?? 0) ||
+    codePointCompare(left.id, right.id);
+}
+
+export function createJiraAnalyticsEvaluationAccumulator(
+  definition: JiraAnalyticsAggregateDraft,
+  options: JiraAnalyticsEvaluationOptions,
+  limits: JiraAnalyticsEvaluationLimits = {},
+): JiraAnalyticsEvaluationAccumulator {
   const now = validDate(options.now);
   if (!now) throw new Error("INVALID_EVALUATED_AT");
   const periodDays = effectivePeriod(definition, options);
   const periodStart = periodDays === null ? null : new Date(now.getTime() - periodDays * 86_400_000);
-  let records = issues.flatMap((issue) => {
-    if (definition.source === "issues") return [issueRecord(issue)];
-    if (definition.source === "transitions") return transitionRecords(issue);
-    if (definition.source === "development") return developmentRecords(issue);
-    const record = criticalBugRecord(issue, now);
-    return record ? [record] : [];
-  });
-  if (periodStart) {
-    records = records.filter((record) => {
-      const eventAt = validDate(record.eventAt);
-      return eventAt !== null && eventAt >= periodStart && eventAt <= now;
-    });
-  }
-  records = records
-    .filter((record) => definition.scope !== "active" || jiraIssueIsInWorkScope(record.issue))
-    .filter((record) => !options.assignee || record.issue.assignee === options.assignee)
-    .filter((record) => {
-      if (definition.filters.length === 0) return true;
-      return definition.filterLogic === "or"
-        ? definition.filters.some((filter) => filterMatches(record, filter))
-        : definition.filters.every((filter) => filterMatches(record, filter));
-    });
-  const grouped = new Map<string, { label: string; records: JiraAnalyticsResultRecord[] }>();
-  if (definition.groupBy !== "none") {
-    for (const record of records) {
-      const identity = groupIdentity(record, definition.groupBy, definition.timeZone);
-      const current = grouped.get(identity.key);
-      if (current) current.records.push(record);
-      else grouped.set(identity.key, { label: identity.label, records: [record] });
-    }
-  }
-  const groups = [...grouped.entries()]
-    .map(([key, group]) => ({
-      key,
-      label: group.label,
-      value: metricValue(definition.metric, group.records),
-      recordCount: group.records.length,
-    }))
-    .sort((left, right) => right.value - left.value || codePointCompare(left.key, right.key));
-  const selectedRecords = options.groupKey
-    ? records.filter((record) => groupIdentity(record, definition.groupBy, definition.timeZone).key === options.groupKey)
-    : records;
-  const value = metricValue(definition.metric, selectedRecords);
-  selectedRecords.sort((left, right) =>
-    (right.durationHours ?? -1) - (left.durationHours ?? -1) ||
-    (validDate(right.eventAt)?.getTime() ?? 0) - (validDate(left.eventAt)?.getTime() ?? 0) ||
-    codePointCompare(left.id, right.id));
   const page = Math.max(1, options.page);
   const pageSize = Math.min(100, Math.max(1, options.pageSize));
   const offset = (page - 1) * pageSize;
+  const pageWindow = offset + pageSize;
+  if (limits.maxPageWindow !== undefined && pageWindow > limits.maxPageWindow) {
+    throw new JiraAnalyticsEvaluationLimitError("pageWindow", limits.maxPageWindow);
+  }
+
+  const allState = emptyMetricState();
+  const selectedState = options.groupKey ? emptyMetricState() : allState;
+  const grouped = new Map<string, { label: string; state: MetricState }>();
+  const selectedRecords: JiraAnalyticsResultRecord[] = [];
+
+  const recordMatches = (record: JiraAnalyticsResultRecord) => {
+    if (periodStart) {
+      const eventAt = validDate(record.eventAt);
+      if (eventAt === null || eventAt < periodStart || eventAt > now) return false;
+    }
+    if (definition.scope === "active" && !jiraIssueIsInWorkScope(record.issue)) return false;
+    if (options.assignee && record.issue.assignee !== options.assignee) return false;
+    if (definition.filters.length === 0) return true;
+    return definition.filterLogic === "or"
+      ? definition.filters.some((filter) => filterMatches(record, filter))
+      : definition.filters.every((filter) => filterMatches(record, filter));
+  };
+
   return {
-    evaluatedAt: now.toISOString(),
-    effective: {
-      periodDays,
-      periodSource: definition.periodMode,
-      timeZone: definition.timeZone,
-      assignee: options.assignee,
+    addIssues(issues) {
+      for (const issue of issues) {
+        for (const record of sourceRecords(definition, issue, now)) {
+          if (!recordMatches(record)) continue;
+          addRecordToMetricState(allState, record);
+
+          const identity = definition.groupBy !== "none" || options.groupKey
+            ? groupIdentity(record, definition.groupBy, definition.timeZone)
+            : null;
+          if (definition.groupBy !== "none" && identity) {
+            let group = grouped.get(identity.key);
+            if (!group) {
+              if (limits.maxGroups !== undefined && grouped.size >= limits.maxGroups) {
+                throw new JiraAnalyticsEvaluationLimitError("groups", limits.maxGroups);
+              }
+              group = { label: identity.label, state: emptyMetricState() };
+              grouped.set(identity.key, group);
+            }
+            addRecordToMetricState(group.state, record);
+          }
+
+          if (!options.groupKey || identity?.key === options.groupKey) {
+            if (selectedState !== allState) addRecordToMetricState(selectedState, record);
+            selectedRecords.push(record);
+            if (selectedRecords.length > pageWindow * 2) {
+              selectedRecords.sort(compareResultRecords);
+              selectedRecords.splice(pageWindow);
+            }
+          }
+        }
+      }
+      selectedRecords.sort(compareResultRecords);
+      selectedRecords.splice(pageWindow);
     },
-    value,
-    groups,
-    records: selectedRecords.slice(offset, offset + pageSize),
-    totalRecords: selectedRecords.length,
-    page,
-    pageSize,
+    finish() {
+      const groups = [...grouped.entries()]
+        .map(([key, group]) => ({
+          key,
+          label: group.label,
+          value: metricValue(definition.metric, group.state),
+          recordCount: group.state.recordCount,
+        }))
+        .sort((left, right) => right.value - left.value || codePointCompare(left.key, right.key));
+      return {
+        evaluatedAt: now.toISOString(),
+        effective: {
+          periodDays,
+          periodSource: definition.periodMode,
+          timeZone: definition.timeZone,
+          assignee: options.assignee,
+        },
+        value: metricValue(definition.metric, selectedState),
+        groups,
+        records: selectedRecords.slice(offset, pageWindow),
+        totalRecords: selectedState.recordCount,
+        page,
+        pageSize,
+      };
+    },
   };
 }

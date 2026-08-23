@@ -1,6 +1,8 @@
 import {
   JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
-  evaluateJiraAnalyticsAggregate,
+  createJiraAnalyticsEvaluationAccumulator,
+  isJiraCancelledStatus,
+  isJiraUnresolvedResolution,
   jiraAnalyticsAggregateDraftSchema,
   jiraAnalyticsDashboardV2Schema,
   jiraAnalyticsInlineWidgetReadSchema,
@@ -16,6 +18,7 @@ import {
   type JiraAnalyticsDashboardV2,
   type JiraAnalyticsEvaluationOptions,
   type JiraAnalyticsEvaluationResult,
+  type JiraAnalyticsEvaluationLimits,
   type JiraAnalyticsInlineWidget,
   type JiraAnalyticsIssueData,
 } from '@pms/shared';
@@ -24,10 +27,21 @@ import { createHash } from 'node:crypto';
 
 export const JIRA_AGGREGATE_MAX_BATCH_WIDGETS = 100;
 export const JIRA_AGGREGATE_MAX_ISSUES = 5_000;
+export const JIRA_AGGREGATE_MAX_EVENTS = 100_000;
+export const JIRA_AGGREGATE_MAX_GROUPS = 5_000;
+export const JIRA_AGGREGATE_MAX_PAGE_WINDOW = 10_000;
+export const JIRA_AGGREGATE_ISSUE_BATCH_SIZE = 250;
+export const JIRA_ANALYTICS_MAX_ASSIGNEES = 500;
 
 export class JiraAggregatePopulationLimitError extends Error {
   constructor(public readonly limit: number) {
     super('JIRA_AGGREGATE_POPULATION_LIMIT');
+  }
+}
+
+export class JiraAggregateEventLimitError extends Error {
+  constructor(public readonly limit: number) {
+    super('JIRA_AGGREGATE_EVENT_LIMIT');
   }
 }
 
@@ -194,20 +208,128 @@ function serializeIssue(issue: SelectedIssue): JiraAnalyticsIssueData {
   };
 }
 
-export async function loadJiraAggregateIssues(
-  client: Pick<PrismaClient, 'jiraIssueSnapshot'>,
+type JiraAggregateReadClient = Pick<
+  PrismaClient,
+  'jiraIssueSnapshot' | 'jiraIssueStatusTransition' | 'jiraDevelopmentActivity'
+>;
+
+async function ensureJiraAggregatePopulationWithinLimits(
+  client: JiraAggregateReadClient,
   projectId: string,
 ) {
+  const [issueCount, transitionCount, developmentCount] = await Promise.all([
+    client.jiraIssueSnapshot.count({ where: { projectId, retiredAt: null } }),
+    client.jiraIssueStatusTransition.count({
+      where: { snapshot: { projectId, retiredAt: null } },
+    }),
+    client.jiraDevelopmentActivity.count({
+      where: { snapshot: { projectId, retiredAt: null } },
+    }),
+  ]);
+  if (issueCount > JIRA_AGGREGATE_MAX_ISSUES) {
+    throw new JiraAggregatePopulationLimitError(JIRA_AGGREGATE_MAX_ISSUES);
+  }
+  if (transitionCount + developmentCount > JIRA_AGGREGATE_MAX_EVENTS) {
+    throw new JiraAggregateEventLimitError(JIRA_AGGREGATE_MAX_EVENTS);
+  }
+}
+
+export async function* loadJiraAggregateIssueBatches(
+  client: JiraAggregateReadClient,
+  projectId: string,
+): AsyncGenerator<JiraAnalyticsIssueData[]> {
+  await ensureJiraAggregatePopulationWithinLimits(client, projectId);
+  let cursorIssueKey: string | null = null;
+  let loadedIssues = 0;
+  let loadedEvents = 0;
+  while (true) {
+    const issues: SelectedIssue[] = await client.jiraIssueSnapshot.findMany({
+      where: { projectId, retiredAt: null },
+      select: jiraAggregateIssueSelect,
+      orderBy: { issueKey: 'asc' },
+      take: JIRA_AGGREGATE_ISSUE_BATCH_SIZE,
+      ...(cursorIssueKey
+        ? {
+            cursor: { projectId_issueKey: { projectId, issueKey: cursorIssueKey } },
+            skip: 1,
+          }
+        : {}),
+    });
+    if (issues.length === 0) return;
+    loadedIssues += issues.length;
+    loadedEvents += issues.reduce(
+      (total, issue) => total + issue.statusTransitions.length + issue.developmentActivities.length,
+      0,
+    );
+    if (loadedIssues > JIRA_AGGREGATE_MAX_ISSUES) {
+      throw new JiraAggregatePopulationLimitError(JIRA_AGGREGATE_MAX_ISSUES);
+    }
+    if (loadedEvents > JIRA_AGGREGATE_MAX_EVENTS) {
+      throw new JiraAggregateEventLimitError(JIRA_AGGREGATE_MAX_EVENTS);
+    }
+    yield issues.map(serializeIssue);
+    cursorIssueKey = issues.at(-1)?.issueKey ?? null;
+    if (issues.length < JIRA_AGGREGATE_ISSUE_BATCH_SIZE) return;
+  }
+}
+
+export type JiraAnalyticsFacets = {
+  issueCount: number;
+  activeIssueCount: number;
+  transitionHistoryCompleteCount: number;
+  developmentDataAvailableCount: number;
+  criticalSlaTrackedCount: number;
+  criticalSlaReadyCount: number;
+  latestSyncedAt: string | null;
+  assignees: string[];
+  assigneesTruncated: boolean;
+};
+
+export const jiraAnalyticsFacetSelect = {
+  status: true,
+  resolution: true,
+  assignee: true,
+  transitionHistoryComplete: true,
+  developmentDataAvailable: true,
+  criticalSlaTracked: true,
+  criticalPriorityAt: true,
+  syncedAt: true,
+} satisfies Prisma.JiraIssueSnapshotSelect;
+
+export async function loadJiraAnalyticsFacets(
+  client: Pick<PrismaClient, 'jiraIssueSnapshot'>,
+  projectId: string,
+): Promise<JiraAnalyticsFacets> {
   const issues = await client.jiraIssueSnapshot.findMany({
     where: { projectId, retiredAt: null },
-    select: jiraAggregateIssueSelect,
-    orderBy: [{ issueKey: 'asc' }, { id: 'asc' }],
+    select: jiraAnalyticsFacetSelect,
+    orderBy: { issueKey: 'asc' },
     take: JIRA_AGGREGATE_MAX_ISSUES + 1,
   });
   if (issues.length > JIRA_AGGREGATE_MAX_ISSUES) {
     throw new JiraAggregatePopulationLimitError(JIRA_AGGREGATE_MAX_ISSUES);
   }
-  return issues.map(serializeIssue);
+  const assignees = [...new Set(issues.flatMap((issue) => issue.assignee ? [issue.assignee] : []))]
+    .sort((left, right) => left.localeCompare(right, 'ru-RU'));
+  const latestSyncedAt = issues.reduce<Date | null>(
+    (latest, issue) => !latest || issue.syncedAt > latest ? issue.syncedAt : latest,
+    null,
+  );
+  return {
+    issueCount: issues.length,
+    activeIssueCount: issues.filter(
+      (issue) => isJiraUnresolvedResolution(issue.resolution) && !isJiraCancelledStatus(issue.status),
+    ).length,
+    transitionHistoryCompleteCount: issues.filter((issue) => issue.transitionHistoryComplete).length,
+    developmentDataAvailableCount: issues.filter((issue) => issue.developmentDataAvailable).length,
+    criticalSlaTrackedCount: issues.filter((issue) => issue.criticalSlaTracked).length,
+    criticalSlaReadyCount: issues.filter(
+      (issue) => issue.criticalSlaTracked && issue.criticalPriorityAt !== null,
+    ).length,
+    latestSyncedAt: latestSyncedAt?.toISOString() ?? null,
+    assignees: assignees.slice(0, JIRA_ANALYTICS_MAX_ASSIGNEES),
+    assigneesTruncated: assignees.length > JIRA_ANALYTICS_MAX_ASSIGNEES,
+  };
 }
 
 export async function lockJiraAggregateProject(
@@ -239,12 +361,26 @@ export function inlineWidgetDefinition(
   });
 }
 
-export function evaluateJiraAggregate(
+const jiraAggregateEvaluationLimits = {
+  maxGroups: JIRA_AGGREGATE_MAX_GROUPS,
+  maxPageWindow: JIRA_AGGREGATE_MAX_PAGE_WINDOW,
+} as const;
+
+export async function evaluateJiraAggregateFromDatabase(
+  client: JiraAggregateReadClient,
+  projectId: string,
   definition: JiraAnalyticsAggregateDraft,
-  issues: JiraAnalyticsIssueData[],
   options: JiraAnalyticsEvaluationOptions,
 ) {
-  return evaluateJiraAnalyticsAggregate(definition, issues, options);
+  const accumulator = createJiraAnalyticsEvaluationAccumulator(
+    definition,
+    options,
+    jiraAggregateEvaluationLimits,
+  );
+  for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
+    accumulator.addIssues(issues);
+  }
+  return accumulator.finish();
 }
 
 function unavailableWidget(
@@ -272,13 +408,16 @@ function unavailableWidget(
   };
 }
 
-export function resolveSavedDashboard(
+type JiraAggregateWidgetPlan = {
+  widget: JiraAggregateWidgetResult;
+  definition: JiraAnalyticsAggregateDraft | null;
+};
+
+function savedDashboardPlan(
   rawConfig: unknown,
   definitions: JiraAggregateDefinition[],
-  issues: JiraAnalyticsIssueData[],
-  options: JiraAnalyticsEvaluationOptions,
   selectedWidgetId?: string,
-): { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetResult[] } {
+): { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetPlan[] } {
   const configHash = jiraDashboardConfigHash(rawConfig);
   const config = rawConfig ?? JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1;
   const record = config && typeof config === 'object' ? config as Record<string, unknown> : {};
@@ -288,14 +427,17 @@ export function resolveSavedDashboard(
     return {
       configVersion: version,
       configHash,
-      widgets: [unavailableWidget(
-        '__dashboard__',
-        'Конфигурация дашборда недоступна',
-        'number',
-        'full',
-        'active',
-        'Конфигурация не содержит допустимого списка виджетов',
-      )],
+      widgets: [{
+        widget: unavailableWidget(
+          '__dashboard__',
+          'Конфигурация дашборда недоступна',
+          'number',
+          'full',
+          'active',
+          'Конфигурация не содержит допустимого списка виджетов',
+        ),
+        definition: null,
+      }],
     };
   }
   const definitionsById = new Map(definitions.map((definition) => [definition.id, definition]));
@@ -304,90 +446,177 @@ export function resolveSavedDashboard(
     ? indexedWidgets.filter(({ rawWidget }) => rawWidget && typeof rawWidget === 'object' &&
         (rawWidget as Record<string, unknown>).id === selectedWidgetId)
     : indexedWidgets;
-  const widgets = selectedWidgets.map(({ rawWidget, index }): JiraAggregateWidgetResult => {
+  const widgets = selectedWidgets.map(({ rawWidget, index }): JiraAggregateWidgetPlan => {
     if (version === 1) {
       const parsed = jiraAnalyticsInlineWidgetReadSchema.safeParse(rawWidget);
       if (!parsed.success) {
         const fallback = rawWidget && typeof rawWidget === 'object' ? rawWidget as Record<string, unknown> : {};
-        return unavailableWidget(
-          typeof fallback.id === 'string' ? fallback.id : `invalid-v1-${index}`,
-          typeof fallback.title === 'string' ? fallback.title : 'Недоступный виджет',
-          'number',
-          'half',
-          fallback.section === 'retro' ? 'retro' : 'active',
-          'Сохранённый виджет v1 не соответствует управляемому контракту',
-        );
+        return {
+          widget: unavailableWidget(
+            typeof fallback.id === 'string' ? fallback.id : `invalid-v1-${index}`,
+            typeof fallback.title === 'string' ? fallback.title : 'Недоступный виджет',
+            'number',
+            'half',
+            fallback.section === 'retro' ? 'retro' : 'active',
+            'Сохранённый виджет v1 не соответствует управляемому контракту',
+          ),
+          definition: null,
+        };
       }
       const widget = normalizeJiraAnalyticsInlineWidget(parsed.data);
       const definition = inlineWidgetDefinition(widget, index);
       return {
-        widgetId: widget.id,
-        title: widget.title,
-        visualization: widget.visualization,
-        width: widget.width,
-        placement: widget.section,
-        aggregateId: null,
-        aggregateName: definition.name,
-        source: definition.source,
-        metric: definition.metric,
-        groupBy: definition.groupBy,
-        status: 'OK',
-        result: evaluateJiraAggregate(definition, issues, options),
+        widget: {
+          widgetId: widget.id,
+          title: widget.title,
+          visualization: widget.visualization,
+          width: widget.width,
+          placement: widget.section,
+          aggregateId: null,
+          aggregateName: definition.name,
+          source: definition.source,
+          metric: definition.metric,
+          groupBy: definition.groupBy,
+          status: 'OK',
+        },
+        definition,
       };
     }
     const parsed = jiraAnalyticsReferencedWidgetSchema.safeParse(rawWidget);
     if (!parsed.success) {
       const fallback = rawWidget && typeof rawWidget === 'object' ? rawWidget as Record<string, unknown> : {};
-      return unavailableWidget(
-        typeof fallback.id === 'string' ? fallback.id : `invalid-v2-${index}`,
-        typeof fallback.title === 'string' ? fallback.title : 'Недоступный виджет',
-        'number',
-        'half',
-        fallback.placement === 'retro' ? 'retro' : 'active',
-        'Сохранённая ссылка v2 имеет некорректный формат',
-        typeof fallback.aggregateId === 'string' ? fallback.aggregateId : null,
-      );
+      return {
+        widget: unavailableWidget(
+          typeof fallback.id === 'string' ? fallback.id : `invalid-v2-${index}`,
+          typeof fallback.title === 'string' ? fallback.title : 'Недоступный виджет',
+          'number',
+          'half',
+          fallback.placement === 'retro' ? 'retro' : 'active',
+          'Сохранённая ссылка v2 имеет некорректный формат',
+          typeof fallback.aggregateId === 'string' ? fallback.aggregateId : null,
+        ),
+        definition: null,
+      };
     }
     const row = definitionsById.get(parsed.data.aggregateId);
     if (!row) {
-      return unavailableWidget(
-        parsed.data.id,
-        parsed.data.title,
-        parsed.data.visualization,
-        parsed.data.width,
-        parsed.data.placement,
-        'Определение агрегата удалено или недоступно',
-        parsed.data.aggregateId,
-      );
+      return {
+        widget: unavailableWidget(
+          parsed.data.id,
+          parsed.data.title,
+          parsed.data.visualization,
+          parsed.data.width,
+          parsed.data.placement,
+          'Определение агрегата удалено или недоступно',
+          parsed.data.aggregateId,
+        ),
+        definition: null,
+      };
     }
     const definition = jiraAggregateDraftFromRow(row);
     if (definition.scope !== parsed.data.placement) {
-      return unavailableWidget(
-        parsed.data.id,
-        parsed.data.title,
-        parsed.data.visualization,
-        parsed.data.width,
-        parsed.data.placement,
-        'Размещение виджета не соответствует области агрегата',
-        parsed.data.aggregateId,
-      );
+      return {
+        widget: unavailableWidget(
+          parsed.data.id,
+          parsed.data.title,
+          parsed.data.visualization,
+          parsed.data.width,
+          parsed.data.placement,
+          'Размещение виджета не соответствует области агрегата',
+          parsed.data.aggregateId,
+        ),
+        definition: null,
+      };
     }
     return {
-      widgetId: parsed.data.id,
-      title: parsed.data.title,
-      visualization: parsed.data.visualization,
-      width: parsed.data.width,
-      placement: parsed.data.placement,
-      aggregateId: row.id,
-      aggregateName: row.name,
-      source: definition.source,
-      metric: definition.metric,
-      groupBy: definition.groupBy,
-      status: 'OK',
-      result: evaluateJiraAggregate(definition, issues, options),
+      widget: {
+        widgetId: parsed.data.id,
+        title: parsed.data.title,
+        visualization: parsed.data.visualization,
+        width: parsed.data.width,
+        placement: parsed.data.placement,
+        aggregateId: row.id,
+        aggregateName: row.name,
+        source: definition.source,
+        metric: definition.metric,
+        groupBy: definition.groupBy,
+        status: 'OK',
+      },
+      definition,
     };
   });
   return { configVersion: version, configHash, widgets };
+}
+
+export function createSavedDashboardAccumulator(
+  rawConfig: unknown,
+  definitions: JiraAggregateDefinition[],
+  options: JiraAnalyticsEvaluationOptions,
+  selectedWidgetId?: string,
+  limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
+): {
+  addIssues: (issues: readonly JiraAnalyticsIssueData[]) => void;
+  finish: () => { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetResult[] };
+} {
+  const plan = savedDashboardPlan(rawConfig, definitions, selectedWidgetId);
+  const accumulators = plan.widgets.map((item) => item.definition
+    ? createJiraAnalyticsEvaluationAccumulator(item.definition, options, limits)
+    : null);
+  return {
+    addIssues(issues) {
+      accumulators.forEach((accumulator) => accumulator?.addIssues(issues));
+    },
+    finish() {
+      return {
+        configVersion: plan.configVersion,
+        configHash: plan.configHash,
+        widgets: plan.widgets.map((item, index) => {
+          const accumulator = accumulators[index];
+          return accumulator
+            ? { ...item.widget, result: accumulator.finish() }
+            : item.widget;
+        }),
+      };
+    },
+  };
+}
+
+export function resolveSavedDashboard(
+  rawConfig: unknown,
+  definitions: JiraAggregateDefinition[],
+  issues: JiraAnalyticsIssueData[],
+  options: JiraAnalyticsEvaluationOptions,
+  selectedWidgetId?: string,
+): { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetResult[] } {
+  const accumulator = createSavedDashboardAccumulator(
+    rawConfig,
+    definitions,
+    options,
+    selectedWidgetId,
+    {},
+  );
+  accumulator.addIssues(issues);
+  return accumulator.finish();
+}
+
+export async function evaluateSavedDashboardFromDatabase(
+  client: JiraAggregateReadClient,
+  projectId: string,
+  rawConfig: unknown,
+  definitions: JiraAggregateDefinition[],
+  options: JiraAnalyticsEvaluationOptions,
+  selectedWidgetId?: string,
+) {
+  const accumulator = createSavedDashboardAccumulator(
+    rawConfig,
+    definitions,
+    options,
+    selectedWidgetId,
+  );
+  for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
+    accumulator.addIssues(issues);
+  }
+  return accumulator.finish();
 }
 
 export type JiraAggregateImportPlanItem = {

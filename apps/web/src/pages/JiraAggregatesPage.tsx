@@ -16,8 +16,9 @@ import {
   type JiraAnalyticsSource,
 } from "@pms/shared";
 import { Database, Eye, History, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
+import type { JiraAnalyticsFacets } from "../app/domainTypes";
 import {
   JIRA_ANALYTICS_FILTER_LABELS,
   JIRA_ANALYTICS_GROUP_LABELS,
@@ -137,6 +138,10 @@ export function JiraAggregatesPage() {
   const { currentUser, isClosedProject, project, refreshProject, setError, setNotice } = usePageContext();
   const canEdit = currentUser?.role === "ADMIN" && !isClosedProject;
   const [catalog, setCatalog] = useState<AggregateCatalog | null>(null);
+  const [facetState, setFacetState] = useState<{
+    projectId: string;
+    data: JiraAnalyticsFacets;
+  } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<JiraAnalyticsAggregateDraft>(EMPTY_DRAFT);
   const [expectedVersion, setExpectedVersion] = useState<number | null>(null);
@@ -146,19 +151,30 @@ export function JiraAggregatesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [operationResult, setOperationResult] = useState<DashboardOperationResult | null>(null);
+  const loadSequenceRef = useRef(0);
 
   const loadCatalog = async (
     nextSelectedId?: string | null,
     options: { resetOperationResult?: boolean } = {},
   ) => {
+    const loadSequence = loadSequenceRef.current + 1;
+    loadSequenceRef.current = loadSequence;
     setLoading(true);
     if (options.resetOperationResult) setOperationResult(null);
     try {
-      const next = await apiClient.get<AggregateCatalog>(
-        `/api/projects/${project.id}/jira/aggregates`,
-        "Не удалось загрузить агрегаты Jira",
-      );
+      const [next, nextFacets] = await Promise.all([
+        apiClient.get<AggregateCatalog>(
+          `/api/projects/${project.id}/jira/aggregates`,
+          "Не удалось загрузить агрегаты Jira",
+        ),
+        apiClient.get<JiraAnalyticsFacets>(
+          `/api/projects/${project.id}/jira/analytics-facets`,
+          "Не удалось загрузить сводку данных Jira",
+        ),
+      ]);
+      if (loadSequenceRef.current !== loadSequence) return;
       setCatalog(next);
+      setFacetState({ projectId: project.id, data: nextFacets });
       const selected = next.definitions.find((item) => item.id === (nextSelectedId ?? selectedId))
         ?? next.definitions[0]
         ?? null;
@@ -186,9 +202,10 @@ export function JiraAggregatesPage() {
       }
       setPreview(null);
     } catch (error) {
+      if (loadSequenceRef.current !== loadSequence) return;
       setError(error instanceof Error ? error.message : "Не удалось загрузить агрегаты");
     } finally {
-      setLoading(false);
+      if (loadSequenceRef.current === loadSequence) setLoading(false);
     }
   };
 
@@ -202,11 +219,8 @@ export function JiraAggregatesPage() {
   const selected = catalog?.definitions.find((item) => item.id === selectedId) ?? null;
   const validation = jiraAnalyticsAggregateDraftSchema.safeParse(draft);
   const usesPeriod = jiraAnalyticsSourceUsesPeriod(draft.source);
-  const assignees = useMemo(
-    () => [...new Set(project.jiraSnapshots.map((issue) => issue.assignee).filter(Boolean) as string[])]
-      .sort((left, right) => left.localeCompare(right, "ru-RU")),
-    [project.jiraSnapshots],
-  );
+  const facets = facetState?.projectId === project.id ? facetState.data : null;
+  const assignees = useMemo(() => facets?.assignees ?? [], [facets]);
 
   const selectDefinition = (definition: AggregateDefinition) => {
     setSelectedId(definition.id);

@@ -176,7 +176,6 @@ function projectFixture() {
     issues: [issue],
     closedIssues: [],
     jiraWorkSections: [],
-    jiraSnapshots: [],
     overviews: [],
     milestones: [],
     wbsDependencies: [],
@@ -297,6 +296,22 @@ async function mockManagedJiraAnalytics(
     page: 1,
     pageSize: 12,
   });
+
+  await page.route("**/api/projects/project-1/jira/analytics-facets", (route) =>
+    route.fulfill({
+      json: {
+        issueCount: 1,
+        activeIssueCount: 1,
+        transitionHistoryCompleteCount: 1,
+        developmentDataAvailableCount: 1,
+        criticalSlaTrackedCount: 1,
+        criticalSlaReadyCount: 1,
+        latestSyncedAt: evaluatedAt,
+        assignees: ["Разработчик"],
+        assigneesTruncated: false,
+      },
+    }),
+  );
 
   await page.route("**/api/projects/project-1/jira/aggregates", (route) =>
     route.fulfill({
@@ -792,35 +807,6 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   (project.jiraAnalyticsSettings as { dashboardConfig: unknown }).dashboardConfig = structuredClone(
     JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
   );
-  project.jiraSnapshots = [
-    {
-      id: "jira-snapshot-1",
-      projectId: project.id,
-      jiraId: "101",
-      issueKey: "TV-101",
-      issueUrl: "https://tasks.sberdevices.ru/browse/TV-101",
-      summary: "Собрать аналитический дашборд",
-      status: "In Progress",
-      priority: "Critical",
-      assignee: "Разработчик",
-      reporter: "Руководитель",
-      issueType: "Bug",
-      resolution: null,
-      resolutionAt: null,
-      sprint: null,
-      issueCreatedAt: isoDay(-10),
-      criticalPriorityAt: isoDay(-40),
-      criticalSlaTracked: true,
-      commitCount: 3,
-      mergeRequestCount: 1,
-      developmentUpdatedAt: isoDay(-1),
-      developmentDataAvailable: true,
-      developmentBaselineCaptured: true,
-      transitionHistoryComplete: true,
-      updatedAt: isoDay(-1),
-      syncedAt: isoDay(0),
-    },
-  ] as unknown as never[];
   project._count.jiraSnapshots = 1;
   await mockManagedJiraAnalytics(page, project);
   let savedWidgetCount = 0;

@@ -15,6 +15,7 @@ import {
   JIRA_CAPACITY_DEFAULT_STORAGE_GIB,
 } from './issues.routes.js';
 import { registerJiraAggregateRoutes } from './jira-aggregates.routes.js';
+import { projectDetailsInclude } from './projects/includes.js';
 
 function routeResponse() {
   let status = 200;
@@ -75,6 +76,11 @@ const aggregateDefinition = {
 test('Jira capacity sampler uses the approved global history defaults', () => {
   assert.equal(JIRA_CAPACITY_DEFAULT_STORAGE_GIB, 5);
   assert.equal(JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB, 0);
+});
+
+test('project details do not transport the top-level Jira analytics population', () => {
+  assert.equal('jiraSnapshots' in projectDetailsInclude, false);
+  assert.equal(projectDetailsInclude.jiraWorkSections.include.issues.include.snapshot, true);
 });
 
 test('Jira history stops batch fallback after global failures and deadlines', () => {
@@ -452,8 +458,11 @@ test('Jira aggregate preview returns 413 for an oversized project population', a
   const prisma = {
     project: { findUnique: async () => ({ id: 'project-1' }) },
     jiraIssueSnapshot: {
-      findMany: async () => Array.from({ length: 5_001 }, () => ({})),
+      count: async () => 5_001,
+      findMany: async () => [],
     },
+    jiraIssueStatusTransition: { count: async () => 0 },
+    jiraDevelopmentActivity: { count: async () => 0 },
   } as unknown as PrismaClient;
   const handle = aggregateRoute(
     prisma,
@@ -500,7 +509,9 @@ test('Jira dashboard evaluation coerces the query period for a viewer without an
   const prisma = {
     jiraAnalyticsSettings: { findUnique: async () => null },
     jiraAggregateDefinition: { findMany: async () => [] },
-    jiraIssueSnapshot: { findMany: async () => [] },
+    jiraIssueSnapshot: { count: async () => 0, findMany: async () => [] },
+    jiraIssueStatusTransition: { count: async () => 0 },
+    jiraDevelopmentActivity: { count: async () => 0 },
   } as unknown as PrismaClient;
   const handle = aggregateRoute(
     prisma,
@@ -516,6 +527,47 @@ test('Jira dashboard evaluation coerces the query period for a viewer without an
   } as unknown as Request, result.response);
   assert.equal(result.status(), 200);
   assert.ok(Array.isArray((result.payload() as { widgets?: unknown[] }).widgets));
+});
+
+test('Jira analytics facets follow project read access and return only compact data', async () => {
+  const prisma = {
+    jiraIssueSnapshot: {
+      findMany: async () => [{
+        status: 'In Progress',
+        resolution: null,
+        assignee: 'User',
+        transitionHistoryComplete: true,
+        developmentDataAvailable: false,
+        criticalSlaTracked: false,
+        criticalPriorityAt: null,
+        syncedAt: new Date('2026-08-23T10:00:00.000Z'),
+      }],
+    },
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/analytics-facets',
+    'get',
+    async () => true,
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1' },
+    currentUser: { id: 'viewer-1', role: 'EXECUTIVE_VIEWER' },
+  } as unknown as Request, result.response);
+  assert.equal(result.status(), 200);
+  assert.deepEqual(result.payload(), {
+    issueCount: 1,
+    activeIssueCount: 1,
+    transitionHistoryCompleteCount: 1,
+    developmentDataAvailableCount: 0,
+    criticalSlaTrackedCount: 0,
+    criticalSlaReadyCount: 0,
+    latestSyncedAt: '2026-08-23T10:00:00.000Z',
+    assignees: ['User'],
+    assigneesTruncated: false,
+  });
+  assert.equal('summary' in (result.payload() as Record<string, unknown>), false);
 });
 
 test('Jira dashboard import maps an expected hash mismatch to HTTP 409', async () => {

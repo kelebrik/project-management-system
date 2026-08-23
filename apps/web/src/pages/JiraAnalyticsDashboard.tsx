@@ -26,6 +26,7 @@ import {
 } from "@pms/shared";
 
 import { apiClient } from "../api/client";
+import type { JiraAnalyticsFacets } from "../app/domainTypes";
 import {
   JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   JIRA_ANALYTICS_FILTER_LABELS,
@@ -656,6 +657,10 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
   const [dashboardResults, setDashboardResults] = useState<DashboardResults | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [definitions, setDefinitions] = useState<AggregateDefinitionOption[]>([]);
+  const [facetState, setFacetState] = useState<{
+    projectId: string;
+    data: JiraAnalyticsFacets;
+  } | null>(null);
   const [editing, setEditing] = useState(false);
   const dashboardProjectIdRef = useRef(project.id);
   const [saving, setSaving] = useState(false);
@@ -680,8 +685,6 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
   const canEditWidgets = isSystemAdmin && !isClosedProject;
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
   const [drilldown, setDrilldown] = useState<{ title: string; records: JiraAnalyticsResultRecord[] } | null>(null);
-  const issues = project.jiraSnapshots;
-
   useEffect(() => {
     const projectChanged = dashboardProjectIdRef.current !== project.id;
     if (editing && !projectChanged) return;
@@ -706,6 +709,26 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
     });
     return () => { active = false; };
   }, [project.id, setError]);
+
+  useEffect(() => {
+    let active = true;
+    void apiClient.get<JiraAnalyticsFacets>(
+      `/api/projects/${project.id}/jira/analytics-facets`,
+      "Не удалось загрузить сводку данных Jira",
+    ).then((response) => {
+      if (active) setFacetState({ projectId: project.id, data: response });
+    }).catch((error) => {
+      if (active) {
+        setError(error instanceof Error ? error.message : "Не удалось загрузить сводку Jira");
+      }
+    });
+    return () => { active = false; };
+  }, [
+    project.id,
+    project.jiraAnalyticsSettings?.lastSyncedAt,
+    project.jiraIntegration?.lastSyncedAt,
+    setError,
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -736,33 +759,25 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
     config?.assignee,
     config?.periodDays,
     project.id,
+    project.jiraAnalyticsSettings?.lastSyncedAt,
+    project.jiraIntegration?.lastSyncedAt,
     storedDashboardConfigKey,
     setError,
   ]);
 
-  const assignees = useMemo(
-    () => [...new Set(issues.map((issue) => issue.assignee).filter(Boolean) as string[])].sort((left, right) => left.localeCompare(right, "ru")),
-    [issues],
-  );
-  const transitionCoverage = issues.filter(
-    (issue) => issue.transitionHistoryComplete,
-  ).length;
-  const developmentCoverage = issues.filter(
-    (issue) => issue.developmentDataAvailable,
-  ).length;
-  const criticalBugs = issues.filter((issue) => issue.criticalSlaTracked);
-  const criticalPriorityCoverage = criticalBugs.filter(
-    (issue) => issue.criticalPriorityAt && !Number.isNaN(new Date(issue.criticalPriorityAt).getTime()),
-  ).length;
+  const facets = facetState?.projectId === project.id ? facetState.data : null;
+  const assignees = facets?.assignees ?? [];
+  const issueCount = facets?.issueCount ?? 0;
+  const transitionCoverage = facets?.transitionHistoryCompleteCount ?? 0;
+  const developmentCoverage = facets?.developmentDataAvailableCount ?? 0;
+  const criticalBugsCount = facets?.criticalSlaTrackedCount ?? 0;
+  const criticalPriorityCoverage = facets?.criticalSlaReadyCount ?? 0;
   const slaScopeConfigured = Boolean(
     project.jiraAnalyticsSettings?.jiraScopeValue?.trim() ||
     project.jiraIntegration?.projectKey?.trim() ||
-    issues.some((issue) => /^[A-Z][A-Z0-9_]*-\d+$/i.test(issue.issueKey)),
+    issueCount > 0,
   );
-  const latestSync = issues
-    .map((issue) => new Date(issue.syncedAt))
-    .filter((value) => !Number.isNaN(value.getTime()))
-    .sort((left, right) => right.getTime() - left.getTime())[0];
+  const latestSync = facets?.latestSyncedAt ? new Date(facets.latestSyncedAt) : null;
 
   const visibleWidgets = useMemo(() => {
     const resultsById = new Map(
@@ -1066,22 +1081,22 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
         </div>
       )}
 
-      {issues.length > 0 && (
+      {issueCount > 0 && (
         <div className="jira-analytics-data-health" aria-label="Полнота аналитических данных">
-          <span className={transitionCoverage === issues.length ? "complete" : "partial"}>
-            История статусов {transitionCoverage}/{issues.length}
+          <span className={transitionCoverage === issueCount ? "complete" : "partial"}>
+            История статусов {transitionCoverage}/{issueCount}
           </span>
-          <span className={developmentCoverage === issues.length ? "complete" : "partial"}>
-            Development {developmentCoverage}/{issues.length}
+          <span className={developmentCoverage === issueCount ? "complete" : "partial"}>
+            Development {developmentCoverage}/{issueCount}
           </span>
           {slaScopeConfigured ? (
-            <span className={criticalPriorityCoverage === criticalBugs.length ? "complete" : "partial"}>
-              SLA-тикеты {criticalPriorityCoverage}/{criticalBugs.length}
+            <span className={criticalPriorityCoverage === criticalBugsCount ? "complete" : "partial"}>
+              SLA-тикеты {criticalPriorityCoverage}/{criticalBugsCount}
             </span>
           ) : (
             <span className="partial">SLA не настроен: нет Jira project key</span>
           )}
-          {latestSync && (
+          {latestSync && !Number.isNaN(latestSync.getTime()) && (
             <small>
               Обновлено {latestSync.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}
             </small>
@@ -1151,7 +1166,7 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
         </section>
       )}
 
-      {issues.length === 0 && (
+      {facets && issueCount === 0 && (
         <div className="jira-analytics-zero-state">
           <BarChart3 size={24} />
           <span>Нет синхронизированных тикетов Jira</span>

@@ -67,10 +67,6 @@ export const projectDetailsInclude = {
       statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
     },
   },
-  jiraSnapshots: {
-    where: { retiredAt: null },
-    orderBy: { updatedAt: 'desc' },
-  },
   overviews: { orderBy: { version: 'desc' }, take: 8 },
   milestones: { orderBy: { dueDate: 'asc' } },
   wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },

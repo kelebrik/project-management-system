@@ -3,6 +3,7 @@ import {
   jiraAnalyticsDashboardConfigSchema,
   jiraAnalyticsPeriodDays,
   jiraAnalyticsSourceUsesPeriod,
+  JiraAnalyticsEvaluationLimitError,
   type JiraAnalyticsAggregateDraft,
   type JiraAnalyticsEvaluationOptions,
 } from '@pms/shared';
@@ -16,7 +17,8 @@ import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   buildJiraAggregateImportPlan,
   convertJiraDashboardToV2,
-  evaluateJiraAggregate,
+  evaluateJiraAggregateFromDatabase,
+  evaluateSavedDashboardFromDatabase,
   jiraAggregateCreateData,
   jiraAggregateDraftFromRow,
   jiraAggregateFingerprint,
@@ -24,10 +26,10 @@ import {
   jiraAggregateUpdateData,
   jiraDashboardConfigHash,
   inspectJiraDashboardDefinitionUse,
+  JiraAggregateEventLimitError,
   JiraAggregatePopulationLimitError,
-  loadJiraAggregateIssues,
+  loadJiraAnalyticsFacets,
   lockJiraAggregateProject,
-  resolveSavedDashboard,
 } from '../services/jira-aggregates.js';
 
 const definitionBodySchema = z.object({
@@ -158,13 +160,34 @@ function requireSystemAdmin(
   return user;
 }
 
-function respondToPopulationLimit(error: unknown, res: Response) {
-  if (!(error instanceof JiraAggregatePopulationLimitError)) return false;
-  res.status(413).json({
-    error: `Для одного расчёта доступно не более ${error.limit.toLocaleString('ru-RU')} активных тикетов`,
-    limit: error.limit,
-  });
-  return true;
+function respondToAggregateLimit(error: unknown, res: Response) {
+  if (error instanceof JiraAggregatePopulationLimitError) {
+    res.status(413).json({
+      error: `Для одного расчёта доступно не более ${error.limit.toLocaleString('ru-RU')} активных тикетов`,
+      kind: 'issues',
+      limit: error.limit,
+    });
+    return true;
+  }
+  if (error instanceof JiraAggregateEventLimitError) {
+    res.status(413).json({
+      error: `Для одного расчёта доступно не более ${error.limit.toLocaleString('ru-RU')} событий Jira`,
+      kind: 'events',
+      limit: error.limit,
+    });
+    return true;
+  }
+  if (error instanceof JiraAnalyticsEvaluationLimitError) {
+    res.status(413).json({
+      error: error.kind === 'groups'
+        ? `Для одного расчёта доступно не более ${error.limit.toLocaleString('ru-RU')} групп`
+        : `Окно выдачи не должно превышать ${error.limit.toLocaleString('ru-RU')} записей`,
+      kind: error.kind,
+      limit: error.limit,
+    });
+    return true;
+  }
+  return false;
 }
 
 function evaluationOptions(
@@ -199,6 +222,21 @@ export function registerJiraAggregateRoutes(
   prisma: PrismaClient = defaultPrisma,
   canReadProject: typeof userCanReadProject = userCanReadProject,
 ) {
+  router.get('/projects/:projectId/jira/analytics-facets', async (req, res) => {
+    const access = await ensureProjectReadAccess(req.params.projectId, req, canReadProject);
+    if (!access.ok) {
+      res.status(access.status).json({ error: access.error });
+      return;
+    }
+    if (!ensureRuntimeIcu(res)) return;
+    try {
+      res.json(await loadJiraAnalyticsFacets(prisma, req.params.projectId));
+    } catch (error) {
+      if (respondToAggregateLimit(error, res)) return;
+      throw error;
+    }
+  });
+
   router.get('/projects/:projectId/jira/aggregates', async (req, res) => {
     const access = await ensureProjectReadAccess(req.params.projectId, req, canReadProject);
     if (!access.ok) {
@@ -434,14 +472,14 @@ export function registerJiraAggregateRoutes(
       return;
     }
     try {
-      const issues = await loadJiraAggregateIssues(prisma, req.params.projectId);
-      res.json(evaluateJiraAggregate(
+      res.json(await evaluateJiraAggregateFromDatabase(
+        prisma,
+        req.params.projectId,
         parsed.data.definition,
-        issues,
         evaluationOptions(parsed.data, parsed.data.definition),
       ));
     } catch (error) {
-      if (respondToPopulationLimit(error, res)) return;
+      if (respondToAggregateLimit(error, res)) return;
       if (error instanceof AggregateConflictError) {
         res.status(400).json({ error: conflictMessage(error) });
         return;
@@ -471,13 +509,17 @@ export function registerJiraAggregateRoutes(
     }
     try {
       const definition = jiraAggregateDraftFromRow(row);
-      const issues = await loadJiraAggregateIssues(prisma, req.params.projectId);
       res.json({
         definition: jiraAggregatePublicDefinition(row),
-        result: evaluateJiraAggregate(definition, issues, evaluationOptions(parsed.data, definition)),
+        result: await evaluateJiraAggregateFromDatabase(
+          prisma,
+          req.params.projectId,
+          definition,
+          evaluationOptions(parsed.data, definition),
+        ),
       });
     } catch (error) {
-      if (respondToPopulationLimit(error, res)) return;
+      if (respondToAggregateLimit(error, res)) return;
       if (error instanceof AggregateConflictError) {
         res.status(400).json({ error: conflictMessage(error) });
         return;
@@ -499,18 +541,18 @@ export function registerJiraAggregateRoutes(
       return;
     }
     try {
-      const [settings, definitions, issues] = await Promise.all([
+      const [settings, definitions] = await Promise.all([
         prisma.jiraAnalyticsSettings.findUnique({
           where: { projectId: req.params.projectId },
           select: { dashboardConfig: true },
         }),
         prisma.jiraAggregateDefinition.findMany({ where: { projectId: req.params.projectId } }),
-        loadJiraAggregateIssues(prisma, req.params.projectId),
       ]);
-      res.json(resolveSavedDashboard(
+      res.json(await evaluateSavedDashboardFromDatabase(
+        prisma,
+        req.params.projectId,
         settings?.dashboardConfig ?? null,
         definitions,
-        issues,
         {
           now: parsed.data.evaluatedAt ?? new Date().toISOString(),
           periodDays: parsed.data.periodDays,
@@ -522,7 +564,7 @@ export function registerJiraAggregateRoutes(
         parsed.data.widgetId,
       ));
     } catch (error) {
-      if (respondToPopulationLimit(error, res)) return;
+      if (respondToAggregateLimit(error, res)) return;
       throw error;
     }
   });

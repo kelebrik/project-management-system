@@ -78,7 +78,7 @@ const jiraAggregateErrorResponses = {
   "403": { description: "Permission denied" },
   "404": { description: "Resource not found" },
   "409": { description: "Version, usage, or dashboard configuration conflict" },
-  "413": { description: "The project analytics population exceeds the safe limit" },
+  "413": { description: "The project analytics issue, event, group, or page-window limit was exceeded" },
   "423": { description: "Project is closed and read-only" },
   "500": { description: "Runtime locale support is unavailable" },
 };
@@ -316,6 +316,26 @@ export const openApiDocument = {
           pageSize: { type: "integer", minimum: 1, maximum: 100 },
         },
         required: ["evaluatedAt", "effective", "value", "groups", "records", "totalRecords", "page", "pageSize"],
+      },
+      JiraAnalyticsFacets: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          issueCount: { type: "integer", minimum: 0 },
+          activeIssueCount: { type: "integer", minimum: 0 },
+          transitionHistoryCompleteCount: { type: "integer", minimum: 0 },
+          developmentDataAvailableCount: { type: "integer", minimum: 0 },
+          criticalSlaTrackedCount: { type: "integer", minimum: 0 },
+          criticalSlaReadyCount: { type: "integer", minimum: 0 },
+          latestSyncedAt: { type: ["string", "null"], format: "date-time" },
+          assignees: { type: "array", maxItems: 500, items: { type: "string" } },
+          assigneesTruncated: { type: "boolean" },
+        },
+        required: [
+          "issueCount", "activeIssueCount", "transitionHistoryCompleteCount",
+          "developmentDataAvailableCount", "criticalSlaTrackedCount", "criticalSlaReadyCount",
+          "latestSyncedAt", "assignees", "assigneesTruncated",
+        ],
       },
       Project: {
         type: "object",
@@ -1020,6 +1040,18 @@ export const openApiDocument = {
       patch: securedOperation(["Projects"], "Update manual project milestone", [
         pathParam("milestoneId"),
       ]),
+    },
+    "/api/projects/{projectId}/jira/analytics-facets": {
+      get: {
+        ...securedOperation(["Jira"], "Read compact Jira analytics coverage and filter facets", [projectIdParam]),
+        responses: {
+          "200": {
+            description: "Compact project-scoped Jira analytics facets",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/JiraAnalyticsFacets" } } },
+          },
+          ...jiraAggregateErrorResponses,
+        },
+      },
     },
     "/api/projects/{projectId}/jira/aggregates": {
       get: {
