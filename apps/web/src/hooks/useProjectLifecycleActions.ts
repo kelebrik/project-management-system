@@ -101,7 +101,11 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
     wbsSort,
   } = deps;
 
-async function syncJira(options: { baseUrl?: string } = {}) {
+async function syncJira(options: {
+  baseUrl?: string;
+  scopeType?: "LABEL" | "EPIC";
+  scopeValue?: string;
+} = {}) {
   if (!project) return;
   setSyncing(true);
   setError(null);
@@ -114,6 +118,10 @@ async function syncJira(options: { baseUrl?: string } = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseUrl: options.baseUrl,
+          scopeType:
+            options.scopeType ?? project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL",
+          scopeValue:
+            options.scopeValue ?? project.jiraAnalyticsSettings?.jiraScopeValue ?? "",
         }),
       },
     );
@@ -144,14 +152,23 @@ async function syncJira(options: { baseUrl?: string } = {}) {
     const slaText = criticalBugSlaConfigured
       ? ` SLA Critical/Blocker: ${criticalBugSlaIssues} багов из ${criticalBugSlaCandidates} кандидатов.`
       : " SLA Critical/Blocker не настроен: не удалось определить Jira project key.";
-    if (configuredSections === 0) {
+    const warning = typeof result.warning === "string" ? result.warning : "";
+    const historyRetries = typeof result.history?.retriesQueued === "number"
+      ? result.history.retriesQueued
+      : 0;
+    const retryText = historyRetries > 0
+      ? ` В очередь повторов: ${historyRetries}.`
+      : "";
+    if (warning) {
+      setNotice(`Jira: ${warning}.`);
+    } else if (configuredSections === 0) {
       setNotice(`Jira: нет разделов с заполненным фильтром.${slaText}`);
     } else if (syncedCount === 0) {
       setNotice(
         `Jira: синхронизация выполнена, тикетов не найдено.${jiraUserText}${slaText} Проверь JQL и Browse-доступ сервисной учетки к ${options.baseUrl ?? "Jira"}`,
       );
     } else {
-      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}.${jiraUserText}${slaText}`);
+      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}.${retryText}${jiraUserText}${slaText}`);
     }
   } catch (syncError) {
     setError(

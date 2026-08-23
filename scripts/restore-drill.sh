@@ -11,6 +11,11 @@ if [ -z "${RESTORE_DRILL_DATABASE_URL:-}" ]; then
   exit 1
 fi
 
+if [ "$RESTORE_DRILL_DATABASE_URL" = "$DATABASE_URL" ]; then
+  echo "RESTORE_DRILL_DATABASE_URL must point to a separate database" >&2
+  exit 1
+fi
+
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 BACKUP_FILE="$(DATABASE_URL="$DATABASE_URL" BACKUP_DIR="$BACKUP_DIR" scripts/backup-db.sh)"
 
@@ -19,6 +24,9 @@ RESTORE_CONFIRM=yes \
 scripts/restore-db.sh "$BACKUP_FILE"
 
 DATABASE_URL="$RESTORE_DRILL_DATABASE_URL" npx prisma migrate deploy
-DATABASE_URL="$RESTORE_DRILL_DATABASE_URL" npx prisma migrate status
+DATABASE_URL="$RESTORE_DRILL_DATABASE_URL" npx prisma migrate diff \
+  --from-url "$RESTORE_DRILL_DATABASE_URL" \
+  --to-schema-datamodel prisma/schema.prisma \
+  --exit-code
 
 echo "Restore drill completed from $BACKUP_FILE"

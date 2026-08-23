@@ -55,6 +55,10 @@ export type WbsScheduleUpdate = {
 export type WbsScheduleCalculationOptions = {
   changedItemId?: string;
   changedFields?: Iterable<string>;
+  changedItems?: Iterable<{
+    itemId: string;
+    changedFields: Iterable<string>;
+  }>;
 };
 
 export type WbsBaselineVarianceItem = {

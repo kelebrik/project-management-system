@@ -8,13 +8,27 @@ const migrationsDir = path.join(repoRoot, "prisma/migrations");
 const migrationLockPath = path.join(migrationsDir, "migration_lock.toml");
 
 const allowedDataRewriteMigrations = new Set([
-  "20260513183000_import_test001_project_plan",
-  "20260514093000_wbs_excel_fields",
-  "20260518110000_restore_cvte_structure_from_excel",
   "20260609180000_jira_work_sections_three_defaults",
   "20260703130000_remove_admin_jira_settings",
   "20260703165000_remove_admin_import_permission",
 ]);
+
+const protectedProjectTables = [
+  "Project",
+  "WbsItem",
+  "WbsDependency",
+  "Milestone",
+  "WbsCommand",
+  "WbsBaseline",
+  "WbsBaselineItem",
+];
+
+function protectedDeletePattern(table: string) {
+  return new RegExp(
+    `\\bDELETE\\s+FROM\\s+(?:"?public"?\\s*\\.\\s*)?"${table}"(?=\\s|;|$)`,
+    "i",
+  );
+}
 
 const destructivePatterns = [
   { label: "DROP TABLE", pattern: /\bDROP\s+TABLE\b/i },
@@ -74,6 +88,31 @@ test("Migrations avoid destructive operations outside explicit historical data i
   assert.deepEqual(violations, [], `Unsafe migration operations found:\n${violations.join("\n")}`);
 });
 
+test("Migrations never delete live project planning data", () => {
+  const violations: string[] = [];
+
+  assert.match('DELETE FROM "WbsItem"\nWHERE "projectId" = 1;', protectedDeletePattern("WbsItem"));
+  assert.match(
+    'DELETE FROM public."WbsDependency" WHERE true;',
+    protectedDeletePattern("WbsDependency"),
+  );
+
+  for (const name of migrationNames()) {
+    const sql = migrationSql(name);
+    for (const table of protectedProjectTables) {
+      if (protectedDeletePattern(table).test(sql)) {
+        violations.push(`${name}: DELETE FROM ${table}`);
+      }
+    }
+  }
+
+  assert.deepEqual(
+    violations,
+    [],
+    `Migrations must not rewrite live project planning data:\n${violations.join("\n")}`,
+  );
+});
+
 test("Jira filter URL migration preserves existing section data", () => {
   const migration = migrationSql("20260717100000_jira_work_section_filter_url");
 
@@ -84,23 +123,48 @@ test("Jira filter URL migration preserves existing section data", () => {
   assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
 });
 
-test("Historical Excel migrations keep numeric casts explicit", () => {
-  const excelMigration = migrationSql("20260514093000_wbs_excel_fields");
-  const restoreMigration = migrationSql("20260518110000_restore_cvte_structure_from_excel");
+test("WBS Excel fields migration changes schema without rewriting project data", () => {
+  const excelMigration = migrationSql("20260514093000_wbs_excel_fields_schema_only");
 
   assert.match(
     excelMigration,
-    /"calendarDays"\s*=\s*excel_data\."calendarDays"::integer/,
-    "Excel import migration must cast calendarDays to integer on update",
+    /ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+"calendarDays"\s+INTEGER/i,
+    "Excel planning fields must remain available on a fresh database",
   );
   assert.doesNotMatch(
     excelMigration,
-    /"calendarDays"\s*=\s*excel_data\."calendarDays"\s*,/,
-    "Excel import migration must not assign text calendarDays directly",
+    /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i,
+    "Schema migration must not rewrite project data",
   );
-  assert.match(
-    restoreMigration,
-    /NULL::timestamp,\s*NULL::timestamp,\s*\d+::integer,\s*\d+::integer/,
-    "Restore migration should preserve typed date placeholders before explicitly typed integer day fields",
+});
+
+test("Jira history A1 migration is additive and keeps existing snapshots intact", () => {
+  const migration = migrationSql("20260821200000_jira_issue_history_a1");
+
+  assert.match(migration, /CREATE TABLE "JiraIssueVersion"/);
+  assert.match(migration, /CREATE TABLE "JiraIssueHistoryRetry"/);
+  assert.match(migration, /ADD COLUMN "currentVersionId" TEXT/);
+  const withoutForeignKeyActions = migration.replace(
+    /ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)/gi,
+    '',
   );
+  assert.doesNotMatch(withoutForeignKeyActions, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+});
+
+test("Jira analytics A2 migration is DDL-only and leaves A1 history untouched", () => {
+  const migration = migrationSql("20260822200000_jira_aggregate_definitions_a2");
+
+  assert.match(migration, /CREATE TABLE "JiraAggregateDefinition"/);
+  assert.match(migration, /CREATE TABLE "JiraAnalyticsDashboardConversion"/);
+  assert.match(migration, /JiraAggregateDefinition_projectId_fingerprint_key/);
+  assert.match(migration, /JiraAnalyticsDashboardConversion_projectId_key/);
+  const withoutForeignKeyActions = migration.replace(
+    /ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)/gi,
+    '',
+  );
+  assert.doesNotMatch(
+    withoutForeignKeyActions,
+    /\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/i,
+  );
+  assert.doesNotMatch(migration, /ALTER TABLE "JiraIssue(?:Version|Snapshot|HistoryRetry)"/i);
 });

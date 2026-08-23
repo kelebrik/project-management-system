@@ -73,6 +73,7 @@ export type ProjectListItem = {
   sortOrder: number;
   uiState: ProjectUiState | null;
   jiraIntegration: JiraIntegration | null;
+  jiraAnalyticsSettings?: JiraAnalyticsSettings | null;
   targetDateChanges: ProjectTargetDateChange[];
   wbsItems: WbsItem[];
   raidItems: RaidItem[];
@@ -111,6 +112,14 @@ export type JiraIntegration = {
   projectKey: string;
   issuesJql: string;
   openIssuesJql: string;
+  syncStatus: string;
+  lastSyncedAt: string | null;
+};
+
+export type JiraAnalyticsSettings = {
+  jiraScopeType: "LABEL" | "EPIC";
+  jiraScopeValue: string;
+  dashboardConfig: Record<string, unknown> | null;
   syncStatus: string;
   lastSyncedAt: string | null;
 };

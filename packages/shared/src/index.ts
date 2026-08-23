@@ -1,35 +1,5 @@
 import { z } from "zod";
-
-export const jiraCriticalPriorities = ["Critical", "Blocker"] as const;
-export const jiraBugIssueTypes = [
-  "Bug",
-  "Bug Report",
-  "Defect",
-  "Баг",
-  "Ошибка",
-  "Дефект",
-] as const;
-export const jiraCriticalBugSlaHours = 30 * 24;
-
-function normalizedJiraValue(value: string | null | undefined) {
-  return value?.trim().toLocaleLowerCase("ru") ?? "";
-}
-
-export function isJiraCriticalPriority(value: string | null | undefined) {
-  const normalized = normalizedJiraValue(value);
-  return jiraCriticalPriorities.some(
-    (priority) => normalizedJiraValue(priority) === normalized,
-  );
-}
-
-export function isJiraBugIssueType(value: string | null | undefined) {
-  const normalized = normalizedJiraValue(value);
-  if (jiraBugIssueTypes.some(
-    (issueType) => normalizedJiraValue(issueType) === normalized,
-  )) return true;
-  return /^(bug|defect)(\s*[-:/(]|\s+report\b)/u.test(normalized) ||
-    /^(баг|ошибка|дефект)(\s*[-:/(]|$)/u.test(normalized);
-}
+export * from "./jira-analytics.js";
 
 export const appViewKeys = [
   "portfolio",

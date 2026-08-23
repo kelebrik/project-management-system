@@ -72,6 +72,34 @@ const projectIdParam = pathParam("projectId");
 const itemIdParam = pathParam("itemId");
 const issueIdParam = pathParam("issueId");
 
+const jiraAggregateErrorResponses = {
+  "400": { description: "Validation error" },
+  "401": { description: "Authentication required" },
+  "403": { description: "Permission denied" },
+  "404": { description: "Resource not found" },
+  "409": { description: "Version, usage, or dashboard configuration conflict" },
+  "413": { description: "The project analytics population exceeds the safe limit" },
+  "423": { description: "Project is closed and read-only" },
+  "500": { description: "Runtime locale support is unavailable" },
+};
+
+const jiraDashboardMigrationRequestBody = {
+  required: true,
+  content: {
+    "application/json": {
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          dryRun: { type: "boolean" },
+          expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+        },
+        required: ["dryRun", "expectedConfigHash"],
+      },
+    },
+  },
+};
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
@@ -123,6 +151,171 @@ export const openApiDocument = {
           error: { type: "string" },
         },
         required: ["error"],
+      },
+      JiraHistoryAggregate: {
+        type: "object",
+        required: ["versions", "tickets", "payloadBytes", "averageBytes", "p95Bytes", "incompleteHydration", "attachmentReferencesStripped"],
+        properties: {
+          versions: { type: "integer" },
+          tickets: { type: "integer" },
+          payloadBytes: { type: "integer" },
+          averageBytes: { type: "integer" },
+          p95Bytes: { type: "integer" },
+          incompleteHydration: { type: "integer" },
+          attachmentReferencesStripped: { type: "integer" },
+        },
+      },
+      JiraAnalyticsFilter: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", minLength: 1, maxLength: 200 },
+          field: {
+            type: "string",
+            enum: ["status", "assignee", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "durationHours", "commitCount", "mergeRequestCount", "hasDevelopment"],
+          },
+          operator: {
+            type: "string",
+            enum: ["equals", "notEquals", "contains", "empty", "notEmpty", "greaterThan", "atLeast"],
+          },
+          value: { type: "string", maxLength: 1000 },
+        },
+        required: ["id", "field", "operator", "value"],
+      },
+      JiraAnalyticsWidget: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", minLength: 1, maxLength: 200 },
+          title: { type: "string", maxLength: 200 },
+          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
+          metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
+          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
+          visualization: { type: "string", enum: ["number", "bar", "table"] },
+          filterLogic: { type: "string", enum: ["and", "or"] },
+          filters: {
+            type: "array",
+            maxItems: 20,
+            items: { $ref: "#/components/schemas/JiraAnalyticsFilter" },
+          },
+          width: { type: "string", enum: ["half", "full"] },
+          section: { type: "string", enum: ["active", "retro"] },
+        },
+        required: ["id", "title", "source", "metric", "groupBy", "visualization", "filterLogic", "filters", "width", "section"],
+      },
+      JiraAnalyticsReferencedWidget: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", minLength: 1, maxLength: 200 },
+          title: { type: "string", maxLength: 200 },
+          aggregateId: { type: "string", minLength: 1, maxLength: 200 },
+          visualization: { type: "string", enum: ["number", "bar", "table"] },
+          width: { type: "string", enum: ["half", "full"] },
+          placement: { type: "string", enum: ["active", "retro"] },
+        },
+        required: ["id", "title", "aggregateId", "visualization", "width", "placement"],
+      },
+      JiraAnalyticsDashboardConfigV1: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          version: { type: "integer", const: 1 },
+          periodDays: { type: "integer", enum: [30, 90, 180, 365] },
+          assignee: { type: "string", maxLength: 200 },
+          widgets: {
+            type: "array",
+            minItems: 1,
+            maxItems: 100,
+            items: { $ref: "#/components/schemas/JiraAnalyticsWidget" },
+          },
+        },
+        required: ["version", "periodDays", "assignee", "widgets"],
+      },
+      JiraAnalyticsDashboardConfigV2: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          version: { type: "integer", const: 2 },
+          periodDays: { type: "integer", enum: [30, 90, 180, 365] },
+          assignee: { type: "string", maxLength: 200 },
+          widgets: {
+            type: "array",
+            minItems: 1,
+            maxItems: 100,
+            items: { $ref: "#/components/schemas/JiraAnalyticsReferencedWidget" },
+          },
+        },
+        required: ["version", "periodDays", "assignee", "widgets"],
+      },
+      JiraAnalyticsDashboardConfig: {
+        oneOf: [
+          { $ref: "#/components/schemas/JiraAnalyticsDashboardConfigV1" },
+          { $ref: "#/components/schemas/JiraAnalyticsDashboardConfigV2" },
+        ],
+        discriminator: { propertyName: "version" },
+      },
+      JiraAggregateDraft: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 200 },
+          description: { type: "string", maxLength: 1000 },
+          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
+          metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
+          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
+          scope: { type: "string", enum: ["active", "retro"] },
+          filterLogic: { type: "string", enum: ["and", "or"] },
+          filters: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
+          periodMode: { type: "string", enum: ["NONE", "FIXED", "DASHBOARD"] },
+          periodDays: { type: ["integer", "null"], enum: [30, 90, 180, 365, null] },
+          timeZone: { type: "string", enum: ["Europe/Moscow", "UTC"] },
+          sortOrder: { type: "integer", minimum: 0, maximum: 10000 },
+        },
+        required: ["name", "description", "source", "metric", "groupBy", "scope", "filterLogic", "filters", "periodMode", "periodDays", "timeZone", "sortOrder"],
+      },
+      JiraAggregateDefinition: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" },
+          projectId: { type: "string" },
+          name: { type: "string", minLength: 1, maxLength: 200 },
+          description: { type: "string", maxLength: 1000 },
+          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
+          metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
+          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
+          scope: { type: "string", enum: ["active", "retro"] },
+          filterLogic: { type: "string", enum: ["and", "or"] },
+          filters: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
+          periodMode: { type: "string", enum: ["NONE", "FIXED", "DASHBOARD"] },
+          periodDays: { type: ["integer", "null"], enum: [30, 90, 180, 365, null] },
+          timeZone: { type: "string", enum: ["Europe/Moscow", "UTC"] },
+          sortOrder: { type: "integer", minimum: 0, maximum: 10000 },
+          fingerprint: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          version: { type: "integer", minimum: 1 },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+        required: [
+          "id", "projectId", "name", "description", "source", "metric", "groupBy",
+          "scope", "filterLogic", "filters", "periodMode", "periodDays", "timeZone",
+          "sortOrder", "fingerprint", "version", "createdAt", "updatedAt",
+        ],
+      },
+      JiraAggregateEvaluationResult: {
+        type: "object",
+        properties: {
+          evaluatedAt: { type: "string", format: "date-time" },
+          effective: { type: "object" },
+          value: { type: "number" },
+          groups: { type: "array", items: { type: "object" } },
+          records: { type: "array", items: { type: "object" } },
+          totalRecords: { type: "integer", minimum: 0 },
+          page: { type: "integer", minimum: 1 },
+          pageSize: { type: "integer", minimum: 1, maximum: 100 },
+        },
+        required: ["evaluatedAt", "effective", "value", "groups", "records", "totalRecords", "page", "pageSize"],
       },
       Project: {
         type: "object",
@@ -828,6 +1021,258 @@ export const openApiDocument = {
         pathParam("milestoneId"),
       ]),
     },
+    "/api/projects/{projectId}/jira/aggregates": {
+      get: {
+        ...securedOperation(["Jira"], "List managed Jira aggregate definitions", [projectIdParam]),
+        responses: {
+          "200": {
+            description: "Managed aggregate catalog and dashboard migration state",
+            content: { "application/json": { schema: {
+              type: "object",
+              properties: {
+                definitions: { type: "array", items: { $ref: "#/components/schemas/JiraAggregateDefinition" } },
+                dashboard: {
+                  type: "object",
+                  properties: {
+                    stored: { type: "boolean" },
+                    version: { type: ["integer", "null"], enum: [1, 2, null] },
+                    configHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+                    convertedConfigHash: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
+                    convertedAt: { type: ["string", "null"], format: "date-time" },
+                    rolledBackAt: { type: ["string", "null"], format: "date-time" },
+                  },
+                  required: ["stored", "version", "configHash", "convertedConfigHash", "convertedAt", "rolledBackAt"],
+                },
+              },
+              required: ["definitions", "dashboard"],
+            } } },
+          },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+      post: {
+        ...createOperation(["Jira"], "Create a managed Jira aggregate definition", [projectIdParam]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: { definition: { $ref: "#/components/schemas/JiraAggregateDraft" } },
+            required: ["definition"],
+          } } },
+        },
+        responses: {
+          "201": {
+            description: "Aggregate definition created",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/JiraAggregateDefinition" } } },
+          },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/aggregates/{aggregateId}": {
+      patch: {
+        ...securedOperation(["Jira"], "Update a managed Jira aggregate with optimistic locking", [projectIdParam, pathParam("aggregateId")]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              definition: { $ref: "#/components/schemas/JiraAggregateDraft" },
+              expectedVersion: { type: "integer", minimum: 1 },
+            },
+            required: ["definition", "expectedVersion"],
+          } } },
+        },
+        responses: {
+          "200": {
+            description: "Aggregate definition updated",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/JiraAggregateDefinition" } } },
+          },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+      delete: {
+        ...deleteOperation(["Jira"], "Delete an unused managed Jira aggregate", [projectIdParam, pathParam("aggregateId")]),
+        parameters: [
+          projectIdParam,
+          pathParam("aggregateId"),
+          { name: "expectedVersion", in: "query", required: true, schema: { type: "integer", minimum: 1 } },
+        ],
+        responses: {
+          "204": { description: "Aggregate definition deleted" },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/aggregates/preview": {
+      post: {
+        ...securedOperation(["Jira"], "Preview a Jira aggregate without saving it (system admin only)", [projectIdParam]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              definition: { $ref: "#/components/schemas/JiraAggregateDraft" },
+              periodDays: { type: "integer", enum: [30, 90, 180, 365] },
+              assignee: { type: "string", maxLength: 200 },
+              page: { type: "integer", minimum: 1 },
+              pageSize: { type: "integer", minimum: 1, maximum: 100 },
+              groupKey: { type: "string", maxLength: 500 },
+              evaluatedAt: { type: "string", format: "date-time" },
+            },
+            required: ["definition", "assignee"],
+          } } },
+        },
+        responses: {
+          "200": {
+            description: "Unsaved aggregate preview",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/JiraAggregateEvaluationResult" } } },
+          },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/aggregates/{aggregateId}/result": {
+      get: {
+        ...securedOperation(["Jira"], "Evaluate one saved Jira aggregate on server-side projections", [projectIdParam, pathParam("aggregateId")]),
+        parameters: [
+          projectIdParam,
+          pathParam("aggregateId"),
+          { name: "periodDays", in: "query", schema: { type: "integer", enum: [30, 90, 180, 365] } },
+          { name: "assignee", in: "query", required: true, schema: { type: "string", maxLength: 200 } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+          { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+          { name: "groupKey", in: "query", schema: { type: "string", maxLength: 500 } },
+          { name: "evaluatedAt", in: "query", schema: { type: "string", format: "date-time" } },
+        ],
+        responses: {
+          "200": {
+            description: "Saved aggregate definition and evaluation result",
+            content: { "application/json": { schema: {
+              type: "object",
+              properties: {
+                definition: { $ref: "#/components/schemas/JiraAggregateDefinition" },
+                result: { $ref: "#/components/schemas/JiraAggregateEvaluationResult" },
+              },
+              required: ["definition", "result"],
+            } } },
+          },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/aggregate-dashboard-results": {
+      get: {
+        ...securedOperation(["Jira"], "Evaluate all saved dashboard widgets on the server", [projectIdParam]),
+        parameters: [
+          projectIdParam,
+          { name: "periodDays", in: "query", required: true, schema: { type: "integer", enum: [30, 90, 180, 365] } },
+          { name: "assignee", in: "query", required: true, schema: { type: "string", maxLength: 200 } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+          { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+          { name: "groupKey", in: "query", schema: { type: "string", maxLength: 500 } },
+          { name: "widgetId", in: "query", schema: { type: "string", minLength: 1, maxLength: 200 } },
+          { name: "evaluatedAt", in: "query", schema: { type: "string", format: "date-time" } },
+        ],
+        responses: {
+          "200": {
+            description: "Server-evaluated dashboard widgets",
+            content: { "application/json": { schema: {
+              type: "object",
+              properties: {
+                configVersion: { type: "integer", enum: [1, 2] },
+                configHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+                widgets: { type: "array", maxItems: 100, items: { type: "object" } },
+              },
+              required: ["configVersion", "configHash", "widgets"],
+            } } },
+          },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/aggregates/import-dashboard": {
+      post: {
+        ...securedOperation(["Jira"], "Import reusable aggregate definitions from dashboard v1", [projectIdParam]),
+        requestBody: jiraDashboardMigrationRequestBody,
+        responses: {
+          "200": { description: "Import dry-run or applied import plan" },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/aggregates/convert-dashboard": {
+      post: {
+        ...securedOperation(["Jira"], "Convert dashboard v1 widgets to aggregate references v2", [projectIdParam]),
+        requestBody: jiraDashboardMigrationRequestBody,
+        responses: {
+          "200": { description: "Conversion dry-run or applied v2 dashboard" },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/aggregates/rollback-dashboard": {
+      post: {
+        ...securedOperation(["Jira"], "Roll back an A2 dashboard conversion from v2 to v1", [projectIdParam]),
+        requestBody: jiraDashboardMigrationRequestBody,
+        responses: {
+          "200": { description: "Rollback dry-run or restored v1 dashboard" },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/analytics-dashboard": {
+      patch: {
+        tags: ["Jira"],
+        summary: "Update the shared Jira analytics widgets as system administrator",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  config: { $ref: "#/components/schemas/JiraAnalyticsDashboardConfig" },
+                },
+                required: ["config"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Shared Jira analytics widgets updated",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    projectId: { type: "string" },
+                    jiraScopeType: { type: "string", enum: ["LABEL", "EPIC"] },
+                    jiraScopeValue: { type: "string" },
+                    dashboardConfig: { $ref: "#/components/schemas/JiraAnalyticsDashboardConfig" },
+                  },
+                  required: ["projectId", "jiraScopeType", "jiraScopeValue", "dashboardConfig"],
+                },
+              },
+            },
+          },
+          "400": { description: "Invalid Jira analytics configuration" },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator role required" },
+          "404": { description: "Project not found" },
+          "409": { description: "Referenced aggregate is missing or has an incompatible scope" },
+          "423": { description: "Closed project is read-only" },
+          "500": { description: "Runtime locale support is unavailable" },
+        },
+      },
+    },
     "/api/projects/{projectId}/jira/capacity-sample": {
       post: {
         tags: ["Jira"],
@@ -840,19 +1285,110 @@ export const openApiDocument = {
             "application/json": {
               schema: {
                 type: "object",
+                additionalProperties: false,
                 required: ["scopeType", "scopeValue"],
                 properties: {
                   scopeType: { type: "string", enum: ["LABEL", "EPIC"] },
                   scopeValue: { type: "string", minLength: 1, maxLength: 100 },
                   sampleSize: { type: "integer", minimum: 10, maximum: 100, default: 20 },
-                  storageBudgetGiB: { type: "number", exclusiveMinimum: 0, default: 50 },
+                  storageBudgetGiB: { type: "number", exclusiveMinimum: 0, default: 5 },
+                  allocatedHistoryGiB: { type: "number", minimum: 0, default: 0 },
                 },
               },
             },
           },
         },
         responses: {
-          "200": { description: "Redacted capacity and security report" },
+          "200": {
+            description: "Redacted capacity and security report (schema version 2)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["reportVersion", "scope", "security", "projections", "assumptions", "capacityGate"],
+                  properties: {
+                    reportVersion: { type: "integer", enum: [2] },
+                    scope: {
+                      type: "object",
+                      required: ["type", "value", "tickets", "requestedSample", "observedSample"],
+                      properties: {
+                        type: { type: "string", enum: ["LABEL", "EPIC"] },
+                        value: { type: "string" },
+                        tickets: { type: "integer" },
+                        requestedSample: { type: "integer" },
+                        observedSample: { type: "integer" },
+                      },
+                    },
+                    security: {
+                      type: "object",
+                      required: ["status", "jiraWrites", "databaseWrites", "issueContentInReport", "attachmentsExcluded", "attachmentFieldExclusionHonored", "attachmentReferencesStripped", "allowedMethodsObserved"],
+                      properties: {
+                        status: { type: "string", enum: ["PASS", "BLOCKED"] },
+                        jiraWrites: { type: "boolean", enum: [false] },
+                        databaseWrites: { type: "boolean", enum: [false] },
+                        issueContentInReport: { type: "boolean", enum: [false] },
+                        attachmentsExcluded: { type: "boolean" },
+                        attachmentFieldExclusionHonored: { type: "boolean" },
+                        attachmentReferencesStripped: { type: "integer", minimum: 0 },
+                        allowedMethodsObserved: { type: "boolean" },
+                      },
+                    },
+                    projections: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        required: ["versionsPerTicket", "rawJsonGiB", "estimatedDatabaseGiB", "estimatedGzipArchiveGiB", "threeDatabaseCopiesGiB"],
+                        properties: {
+                          versionsPerTicket: { type: "integer", enum: [10, 50, 100] },
+                          rawJsonGiB: { type: "number" },
+                          estimatedDatabaseGiB: { type: "number" },
+                          estimatedGzipArchiveGiB: { type: "number" },
+                          threeDatabaseCopiesGiB: { type: "number" },
+                        },
+                      },
+                    },
+                    assumptions: {
+                      type: "object",
+                      required: ["projectionUses", "databaseOverheadMultiplier", "referenceDatabaseCopies", "capacityGateVersionsPerTicket", "storageBudgetGiB", "allocatedHistoryGiB"],
+                      properties: {
+                        projectionUses: { type: "string", enum: ["SAMPLE_P95"] },
+                        databaseOverheadMultiplier: { type: "number" },
+                        referenceDatabaseCopies: { type: "integer" },
+                        capacityGateVersionsPerTicket: { type: "integer", enum: [100] },
+                        storageBudgetGiB: { type: "number" },
+                        allocatedHistoryGiB: { type: "number" },
+                      },
+                    },
+                    capacityGate: {
+                      type: "object",
+                      required: ["status", "level", "versionsPerTicket", "projectedTotalDatabaseGiB", "allocatedHistoryGiB", "storageBudgetGiB", "utilizationPercent", "thresholdsPercent", "reasons", "warnings"],
+                      properties: {
+                        status: { type: "string", enum: ["PASS", "REVIEW_REQUIRED"] },
+                        level: { type: "string", enum: ["NORMAL", "WARNING", "HIGH", "CRITICAL", "EXCEEDED"] },
+                        versionsPerTicket: { type: "integer", enum: [100] },
+                        estimatedDatabaseGiB: { type: "number" },
+                        projectedTotalDatabaseGiB: { type: "number" },
+                        allocatedHistoryGiB: { type: "number" },
+                        storageBudgetGiB: { type: "number" },
+                        utilizationPercent: { type: "number" },
+                        thresholdsPercent: {
+                          type: "object",
+                          required: ["warning", "high", "critical"],
+                          properties: {
+                            warning: { type: "number", enum: [70] },
+                            high: { type: "number", enum: [85] },
+                            critical: { type: "number", enum: [95] },
+                          },
+                        },
+                        reasons: { type: "array", items: { type: "string" } },
+                        warnings: { type: "array", items: { type: "string" } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           "400": { description: "Validation error" },
           "401": { description: "Authentication required" },
           "403": { description: "System administrator required" },
@@ -861,29 +1397,146 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/history-status": {
+      get: {
+        tags: ["Jira", "Admin"],
+        summary: "Read attachment-free Jira history storage and retry diagnostics",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "200": {
+            description: "Stage A1 diagnostics without raw Jira payloads",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["reportVersion", "generatedAt", "storage", "global", "project", "retry", "cursor"],
+                  properties: {
+                    reportVersion: { type: "integer", enum: [1] },
+                    generatedAt: { type: "string", format: "date-time" },
+                    storage: {
+                      type: "object",
+                      required: ["budgetBytes", "databaseBytes", "utilizationPercent", "level", "newScopeBlocked"],
+                      properties: {
+                        budgetBytes: { type: "integer" },
+                        databaseBytes: { type: "integer" },
+                        utilizationPercent: { type: "number" },
+                        level: { type: "string", enum: ["NORMAL", "WARNING", "HIGH", "CRITICAL", "EXCEEDED"] },
+                        newScopeBlocked: { type: "boolean" },
+                      },
+                    },
+                    global: { $ref: "#/components/schemas/JiraHistoryAggregate" },
+                    project: { $ref: "#/components/schemas/JiraHistoryAggregate" },
+                    retry: {
+                      type: "object",
+                      required: ["pending", "failedBatches", "oldestFailureAt", "nextRetryAt", "items"],
+                      properties: {
+                        pending: { type: "integer" },
+                        failedBatches: { type: "integer" },
+                        oldestFailureAt: { type: ["string", "null"], format: "date-time" },
+                        nextRetryAt: { type: ["string", "null"], format: "date-time" },
+                        items: {
+                          type: "array",
+                          maxItems: 20,
+                          items: {
+                            type: "object",
+                            required: ["issueKey", "reasonCode", "attempts", "firstFailedAt", "lastFailedAt", "nextRetryAt", "lastError"],
+                            properties: {
+                              issueKey: { type: "string" },
+                              reasonCode: { type: "string" },
+                              attempts: { type: "integer" },
+                              firstFailedAt: { type: "string", format: "date-time" },
+                              lastFailedAt: { type: "string", format: "date-time" },
+                              nextRetryAt: { type: "string", format: "date-time" },
+                              lastError: { type: "string", maxLength: 240 },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    cursor: {
+                      type: "object",
+                      required: ["updatedAt", "jiraIssueId", "lastFullReconciledAt", "fullCursorIssueKey", "fullStartedAt"],
+                      properties: {
+                        updatedAt: { type: ["string", "null"], format: "date-time" },
+                        jiraIssueId: { type: ["string", "null"] },
+                        lastFullReconciledAt: { type: ["string", "null"], format: "date-time" },
+                        fullCursorIssueKey: { type: ["string", "null"] },
+                        fullStartedAt: { type: ["string", "null"], format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "404": { description: "Project not found" },
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/history/rebuild-projections": {
+      post: {
+        tags: ["Jira", "Admin"],
+        summary: "Rebuild current Jira projections from immutable observed versions",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "200": {
+            description: "Current Jira projections rebuilt without contacting Jira",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["rebuilt"],
+                  properties: { rebuilt: { type: "integer" } },
+                },
+              },
+            },
+          },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "404": { description: "Project not found" },
+          "409": { description: "Jira synchronization or projection rebuild already running" },
+        },
+      },
+    },
     "/api/projects/{projectId}/jira/sync": {
       post: {
         tags: ["Jira"],
-        summary: "Synchronize configured Jira work section filters into snapshots",
+        summary: "Synchronize Jira projections and immutable attachment-free history",
         security: [{ sessionCookie: [] }],
         parameters: [
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },
         ],
         requestBody: {
-          required: false,
+          required: true,
           content: {
             "application/json": {
               schema: {
-                type: "object",
-                properties: {
-                  baseUrl: {
-                    type: "string",
-                    enum: [
-                      "https://tasks.dev.sberdevices.ru",
-                      "https://tasks.sberdevices.ru",
-                    ],
+                oneOf: [
+                  {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      scopeType: { const: "LABEL" },
+                      scopeValue: { type: "string", minLength: 1, maxLength: 100, pattern: "^[^\\s\"'\\\\]+$" },
+                      baseUrl: { type: "string", enum: ["https://tasks.dev.sberdevices.ru", "https://tasks.sberdevices.ru"] },
+                    },
+                    required: ["scopeType", "scopeValue"],
                   },
-                },
+                  {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      scopeType: { const: "EPIC" },
+                      scopeValue: { type: "string", minLength: 3, maxLength: 100, pattern: "^[A-Za-z][A-Za-z0-9_]*-[0-9]+$" },
+                      baseUrl: { type: "string", enum: ["https://tasks.dev.sberdevices.ru", "https://tasks.sberdevices.ru"] },
+                    },
+                    required: ["scopeType", "scopeValue"],
+                  },
+                ],
               },
             },
           },
@@ -897,6 +1550,14 @@ export const openApiDocument = {
                   type: "object",
                   properties: {
                     synced: { type: "number" },
+                    jiraScopeType: { type: "string", enum: ["LABEL", "EPIC"] },
+                    jiraScopeValue: { type: "string" },
+                    emptyScope: { type: "boolean" },
+                    warning: { type: "string" },
+                    criticalBugSlaConfigured: { type: "boolean" },
+                    criticalBugSlaScope: { type: "string", enum: ["label", "epic"] },
+                    criticalBugSlaCandidates: { type: "number" },
+                    criticalBugSlaIssues: { type: "number" },
                     configuredSections: { type: "number" },
                     totalSections: { type: "number" },
                     jiraUsers: {
@@ -921,7 +1582,12 @@ export const openApiDocument = {
               },
             },
           },
+          "400": { description: "Invalid Jira scope or sync parameters" },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator role required to change Jira scope" },
           "404": { description: "Project not found" },
+          "409": { description: "Jira synchronization already running" },
+          "423": { description: "Closed project is read-only" },
           "502": { description: "Jira request failed" },
         },
       },

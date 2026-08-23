@@ -56,7 +56,10 @@ export async function getProjectForOverviewGeneration(projectId: string) {
         orderBy: [{ decisionRequired: 'desc' }, { severity: 'desc' }, { updatedAt: 'desc' }],
         include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
       },
-      jiraSnapshots: { orderBy: { updatedAt: 'desc' } },
+      jiraSnapshots: {
+        where: { retiredAt: null },
+        orderBy: { updatedAt: 'desc' },
+      },
       milestones: { orderBy: { dueDate: 'asc' } },
       wbsItems: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] },
       wbsDependencies: {

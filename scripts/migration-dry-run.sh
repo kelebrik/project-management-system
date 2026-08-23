@@ -8,7 +8,6 @@ fi
 
 OUTPUT="${MIGRATION_DRY_RUN_OUTPUT:-./migration-dry-run.sql}"
 
-npx prisma migrate status
 npx prisma migrate diff \
   --from-url "$DATABASE_URL" \
   --to-schema-datamodel prisma/schema.prisma \

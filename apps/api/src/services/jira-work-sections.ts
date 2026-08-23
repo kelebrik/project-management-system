@@ -1,6 +1,5 @@
-import { jiraCriticalPriorities } from '@pms/shared';
-
 import { prisma } from '../db.js';
+import { jiraJqlWithIssueKeys, normalizedJiraIssueKey } from '../jira.js';
 
 const DEFAULT_JIRA_WORK_SECTION_COUNT = 3;
 
@@ -49,7 +48,71 @@ function normalizedJiraProjectKeys(projectKeys: string | readonly string[]) {
 }
 
 export function jiraProjectKeyFromIssueKey(issueKey: string) {
-  return issueKey.trim().match(/^([A-Z][A-Z0-9_]*)-\d+$/i)?.[1]?.toUpperCase() ?? null;
+  return normalizedJiraIssueKey(issueKey)?.split('-', 1)[0] ?? null;
+}
+
+export function isJiraIssueKey(issueKey: string) {
+  return jiraProjectKeyFromIssueKey(issueKey) !== null;
+}
+
+export function normalizedJiraIssueKeys(issueKeys: readonly string[]) {
+  return [...new Set(issueKeys.map((issueKey) => {
+    const normalized = issueKey.trim().toUpperCase();
+    if (!isJiraIssueKey(normalized)) {
+      throw new Error(`Jira вернула некорректный ключ тикета: ${issueKey}`);
+    }
+    return normalized;
+  }))].sort();
+}
+
+export function jiraIssueKeyBatches(issueKeys: readonly string[], batchSize: number) {
+  const normalized = normalizedJiraIssueKeys(issueKeys);
+  const safeBatchSize = Math.max(1, Math.floor(batchSize));
+  return Array.from(
+    { length: Math.ceil(normalized.length / safeBatchSize) },
+    (_, index) => normalized.slice(index * safeBatchSize, (index + 1) * safeBatchSize),
+  );
+}
+
+export function jiraIssueKeyBatchJql(issueKeys: readonly string[]) {
+  const normalized = normalizedJiraIssueKeys(issueKeys);
+  if (normalized.length === 0) throw new Error('Пустая пачка ключей Jira');
+  return `issuekey IN (${normalized.map((issueKey) => `"${issueKey}"`).join(', ')}) ORDER BY key ASC`;
+}
+
+export function jiraParentKeyBatchJql(parentIssueKeys: readonly string[]) {
+  const normalized = normalizedJiraIssueKeys(parentIssueKeys);
+  if (normalized.length === 0) throw new Error('Пустая пачка родительских ключей Jira');
+  return `parent IN (${normalized.map((issueKey) => `"${issueKey}"`).join(', ')}) ORDER BY key ASC`;
+}
+
+export function jiraWorkSectionScopedJqls(
+  sectionJql: string,
+  synchronizedIssueKeys: readonly string[],
+  batchSize: number,
+) {
+  return jiraIssueKeyBatches(synchronizedIssueKeys, batchSize)
+    .map((issueKeys) => jiraJqlWithIssueKeys(sectionJql, issueKeys));
+}
+
+export function jiraIssueKeyBatchDifference(
+  requestedIssueKeys: readonly string[],
+  returnedIssueKeys: readonly string[],
+) {
+  const requested = new Set(normalizedJiraIssueKeys(requestedIssueKeys));
+  const returned = new Set(normalizedJiraIssueKeys(returnedIssueKeys));
+  return {
+    missingKeys: [...requested].filter((issueKey) => !returned.has(issueKey)),
+    unexpectedKeys: [...returned].filter((issueKey) => !requested.has(issueKey)),
+  };
+}
+
+export function jiraIssueKeyBatchLossIsUnsafe(
+  requestedCount: number,
+  missingCount: number,
+) {
+  if (requestedCount <= 0) return missingCount > 0;
+  return missingCount > Math.max(1, Math.floor(requestedCount * 0.2));
 }
 
 export function jiraCriticalPriorityProjectKeys(
@@ -60,27 +123,6 @@ export function jiraCriticalPriorityProjectKeys(
     .map(jiraProjectKeyFromIssueKey)
     .filter((projectKey): projectKey is string => Boolean(projectKey));
   return normalizedJiraProjectKeys([configuredProjectKey, ...observedProjectKeys]);
-}
-
-export function jiraCriticalPriorityJql(projectKeys: string | readonly string[]) {
-  const normalizedProjectKeys = normalizedJiraProjectKeys(projectKeys);
-  if (normalizedProjectKeys.length === 0) return '';
-  const priorities = jiraCriticalPriorities
-    .map((priority) => `"${priority}"`)
-    .join(', ');
-  const projectClause = normalizedProjectKeys.length === 1
-    ? `project = "${normalizedProjectKeys[0]}"`
-    : `project IN (${normalizedProjectKeys.map((projectKey) => `"${projectKey}"`).join(', ')})`;
-  return `${projectClause} AND priority WAS IN (${priorities}) ORDER BY created ASC, key ASC`;
-}
-
-export function jiraCriticalSlaSyncPlan(
-  configuredProjectKey: string,
-  issueKeys: readonly string[],
-) {
-  const projectKeys = jiraCriticalPriorityProjectKeys(configuredProjectKey, issueKeys);
-  const jql = jiraCriticalPriorityJql(projectKeys);
-  return { configured: Boolean(jql), projectKeys, jql };
 }
 
 export async function ensureDefaultJiraWorkSections(projectId: string) {
@@ -119,14 +161,10 @@ export async function ensureDefaultJiraWorkSections(projectId: string) {
     orderBy: { sortOrder: 'asc' },
     include: {
       issues: {
+        where: { snapshot: { retiredAt: null } },
         orderBy: { syncedAt: 'desc' },
         include: {
-          snapshot: {
-            include: {
-              statusTransitions: { orderBy: { transitionedAt: 'asc' } },
-              developmentActivities: { orderBy: { activityAt: 'desc' } },
-            },
-          },
+          snapshot: true,
         },
       },
     },

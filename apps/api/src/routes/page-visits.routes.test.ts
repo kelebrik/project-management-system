@@ -39,6 +39,33 @@ test('page visit origin check accepts configured origins and silently rejects mi
       false,
     );
     assert.equal(isTrustedPageVisitRequest(request({ origin: 'null' })), false);
+    assert.equal(
+      isTrustedPageVisitRequest(
+        request({
+          origin: 'https://attacker.example',
+          'sec-fetch-site': 'same-origin',
+        }),
+      ),
+      true,
+    );
+    assert.equal(
+      isTrustedPageVisitRequest(
+        request({
+          origin: 'https://attacker.example',
+          'sec-fetch-site': 'cross-site',
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      isTrustedPageVisitRequest(
+        request({
+          origin: 'https://attacker.example',
+          'sec-fetch-site': 'same-site',
+        }),
+      ),
+      false,
+    );
   } finally {
     if (previous === undefined) delete process.env.WEB_ORIGIN;
     else process.env.WEB_ORIGIN = previous;
@@ -85,9 +112,10 @@ test('page visit origin check accepts the effective production origin behind a p
   }
 });
 
-test('system administrators are excluded while business unit administrators remain subjects', () => {
+test('system administrators are excluded while trusted visitors remain subjects', () => {
   assert.equal(shouldRecordPageVisit('ADMIN', true), false);
   assert.equal(shouldRecordPageVisit('EXECUTIVE_VIEWER', true), true);
+  assert.equal(shouldRecordPageVisit('EXECUTIVE_VIEWER', false), false);
   assert.equal(shouldRecordPageVisit(null, true), true);
   assert.equal(shouldRecordPageVisit(null, false), false);
 });

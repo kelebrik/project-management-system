@@ -5,6 +5,7 @@ import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import type { CurrentUser } from '../server/auth.js';
+import { logEvent } from '../server/logger.js';
 import {
   buildPageVisitAnalyticsReport,
   clampTimezoneOffset,
@@ -42,6 +43,8 @@ function configuredWebOrigins() {
 export function isTrustedPageVisitRequest(req: Request) {
   const allowed = configuredWebOrigins();
   if (allowed === '*') return true;
+  // Browser fetch metadata survives ingress Host/Proto rewrites and is not script-controlled.
+  if (req.get('sec-fetch-site') === 'same-origin') return true;
   const source = req.get('origin') ?? req.get('referer');
   if (!source) return false;
   try {
@@ -81,7 +84,20 @@ export function createPageVisitsRouter(context: PageVisitsRouterContext) {
 
   router.post('/page-visits', async (req, res) => {
     const user = context.currentUser(req);
-    if (!shouldRecordPageVisit(user?.role ?? null, isTrustedPageVisitRequest(req))) {
+    const trustedRequest = isTrustedPageVisitRequest(req);
+    if (!shouldRecordPageVisit(user?.role ?? null, trustedRequest)) {
+      if (!trustedRequest) {
+        logEvent('info', 'page_visit.rejected', {
+          reason: 'untrusted_source',
+          origin: req.get('origin') ?? null,
+          host: req.host,
+          protocol: req.protocol,
+          forwardedHost: req.get('x-forwarded-host') ?? null,
+          forwardedProto: req.get('x-forwarded-proto') ?? null,
+          fetchSite: req.get('sec-fetch-site') ?? null,
+          authenticated: Boolean(user),
+        });
+      }
       res.status(204).end();
       return;
     }

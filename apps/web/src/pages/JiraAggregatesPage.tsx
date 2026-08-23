@@ -1,0 +1,449 @@
+import {
+  JIRA_ANALYTICS_FIELDS_BY_SOURCE,
+  JIRA_ANALYTICS_GROUPS_BY_SOURCE,
+  JIRA_ANALYTICS_METRICS_BY_SOURCE,
+  jiraAnalyticsAggregateDraftSchema,
+  jiraAnalyticsOperatorsFor,
+  jiraAnalyticsSourceUsesPeriod,
+  type JiraAnalyticsAggregateDraft,
+  type JiraAnalyticsEvaluationResult,
+  type JiraAnalyticsFilter,
+  type JiraAnalyticsFilterField,
+  type JiraAnalyticsFilterOperator,
+  type JiraAnalyticsGroupBy,
+  type JiraAnalyticsMetric,
+  type JiraAnalyticsPeriodMode,
+  type JiraAnalyticsSource,
+} from "@pms/shared";
+import { Database, Eye, History, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { apiClient } from "../api/client";
+import {
+  JIRA_ANALYTICS_FILTER_LABELS,
+  JIRA_ANALYTICS_GROUP_LABELS,
+  JIRA_ANALYTICS_METRIC_LABELS,
+  JIRA_ANALYTICS_OPERATOR_LABELS,
+  JIRA_ANALYTICS_SOURCE_LABELS,
+  formatJiraAnalyticsMetric,
+} from "../app/jiraAnalytics";
+import { usePageContext } from "./PageContext";
+
+type AggregateDefinition = JiraAnalyticsAggregateDraft & {
+  id: string;
+  projectId: string;
+  fingerprint: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AggregateCatalog = {
+  definitions: AggregateDefinition[];
+  dashboard: {
+    stored: boolean;
+    version: number | null;
+    configHash: string;
+    convertedConfigHash: string | null;
+    convertedAt: string | null;
+    rolledBackAt: string | null;
+  };
+};
+
+type DashboardOperationResult = {
+  beforeHash?: string;
+  afterHash?: string;
+  sourceWidgets?: number;
+  items?: Array<{
+    name: string;
+    action: "REUSE" | "WOULD_CREATE" | "CREATED";
+  }>;
+};
+
+const EMPTY_DRAFT: JiraAnalyticsAggregateDraft = {
+  name: "Новый агрегат",
+  description: "",
+  source: "issues",
+  metric: "count",
+  groupBy: "none",
+  scope: "active",
+  filterLogic: "and",
+  filters: [],
+  periodMode: "NONE",
+  periodDays: null,
+  timeZone: "Europe/Moscow",
+  sortOrder: 0,
+};
+
+function newFilter(field: JiraAnalyticsFilterField): JiraAnalyticsFilter {
+  return {
+    id: `filter-${crypto.randomUUID()}`,
+    field,
+    operator: jiraAnalyticsOperatorsFor(field)[0],
+    value: field === "hasDevelopment" ? "true" : "",
+  };
+}
+
+function draftForSource(current: JiraAnalyticsAggregateDraft, source: JiraAnalyticsSource) {
+  return {
+    ...current,
+    source,
+    metric: JIRA_ANALYTICS_METRICS_BY_SOURCE[source][0],
+    groupBy: JIRA_ANALYTICS_GROUPS_BY_SOURCE[source][0],
+    filters: [],
+    periodMode: jiraAnalyticsSourceUsesPeriod(source) ? "DASHBOARD" as const : "NONE" as const,
+    periodDays: null,
+  } satisfies JiraAnalyticsAggregateDraft;
+}
+
+function Preview({ result, metric }: {
+  result: JiraAnalyticsEvaluationResult | null;
+  metric: JiraAnalyticsMetric;
+}) {
+  if (!result) return <div className="jira-aggregate-preview-empty">Предпросмотр не запускался</div>;
+  const remainder100 = result.totalRecords % 100;
+  const remainder10 = result.totalRecords % 10;
+  const recordsLabel = remainder10 === 1 && remainder100 !== 11
+    ? "запись"
+    : remainder10 >= 2 && remainder10 <= 4 && (remainder100 < 12 || remainder100 > 14)
+      ? "записи"
+      : "записей";
+  return (
+    <div className="jira-aggregate-preview">
+      <div className="jira-aggregate-preview-number">
+        <strong>{formatJiraAnalyticsMetric(metric, result.value)}</strong>
+        <span>{result.totalRecords.toLocaleString("ru-RU")} {recordsLabel}</span>
+      </div>
+      <dl>
+        <div><dt>Рассчитано</dt><dd>{new Date(result.evaluatedAt).toLocaleString("ru-RU")}</dd></div>
+        <div><dt>Период</dt><dd>{result.effective.periodDays ? `${result.effective.periodDays} дней` : "Не применяется"}</dd></div>
+        <div><dt>Часовой пояс</dt><dd>{result.effective.timeZone}</dd></div>
+      </dl>
+      {result.groups.length > 0 && (
+        <div className="jira-aggregate-preview-groups">
+          {result.groups.slice(0, 8).map((group) => (
+            <div key={group.key}>
+              <span>{group.label}</span>
+              <b>{formatJiraAnalyticsMetric(metric, group.value)}</b>
+              <small>{group.recordCount}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function JiraAggregatesPage() {
+  const { currentUser, isClosedProject, project, refreshProject, setError, setNotice } = usePageContext();
+  const canEdit = currentUser?.role === "ADMIN" && !isClosedProject;
+  const [catalog, setCatalog] = useState<AggregateCatalog | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<JiraAnalyticsAggregateDraft>(EMPTY_DRAFT);
+  const [expectedVersion, setExpectedVersion] = useState<number | null>(null);
+  const [preview, setPreview] = useState<JiraAnalyticsEvaluationResult | null>(null);
+  const [periodDays, setPeriodDays] = useState<30 | 90 | 180 | 365>(90);
+  const [assignee, setAssignee] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [operationResult, setOperationResult] = useState<DashboardOperationResult | null>(null);
+
+  const loadCatalog = async (
+    nextSelectedId?: string | null,
+    options: { resetOperationResult?: boolean } = {},
+  ) => {
+    setLoading(true);
+    if (options.resetOperationResult) setOperationResult(null);
+    try {
+      const next = await apiClient.get<AggregateCatalog>(
+        `/api/projects/${project.id}/jira/aggregates`,
+        "Не удалось загрузить агрегаты Jira",
+      );
+      setCatalog(next);
+      const selected = next.definitions.find((item) => item.id === (nextSelectedId ?? selectedId))
+        ?? next.definitions[0]
+        ?? null;
+      if (selected) {
+        setSelectedId(selected.id);
+        setDraft({
+          name: selected.name,
+          description: selected.description,
+          source: selected.source,
+          metric: selected.metric,
+          groupBy: selected.groupBy,
+          scope: selected.scope,
+          filterLogic: selected.filterLogic,
+          filters: structuredClone(selected.filters),
+          periodMode: selected.periodMode,
+          periodDays: selected.periodDays,
+          timeZone: selected.timeZone,
+          sortOrder: selected.sortOrder,
+        });
+        setExpectedVersion(selected.version);
+      } else {
+        setSelectedId(null);
+        setDraft({ ...EMPTY_DRAFT, sortOrder: next.definitions.length });
+        setExpectedVersion(null);
+      }
+      setPreview(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось загрузить агрегаты");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // The async catalog response is the external state synchronized by this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadCatalog(null, { resetOperationResult: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
+
+  const selected = catalog?.definitions.find((item) => item.id === selectedId) ?? null;
+  const validation = jiraAnalyticsAggregateDraftSchema.safeParse(draft);
+  const usesPeriod = jiraAnalyticsSourceUsesPeriod(draft.source);
+  const assignees = useMemo(
+    () => [...new Set(project.jiraSnapshots.map((issue) => issue.assignee).filter(Boolean) as string[])]
+      .sort((left, right) => left.localeCompare(right, "ru-RU")),
+    [project.jiraSnapshots],
+  );
+
+  const selectDefinition = (definition: AggregateDefinition) => {
+    setSelectedId(definition.id);
+    setDraft({
+      name: definition.name,
+      description: definition.description,
+      source: definition.source,
+      metric: definition.metric,
+      groupBy: definition.groupBy,
+      scope: definition.scope,
+      filterLogic: definition.filterLogic,
+      filters: structuredClone(definition.filters),
+      periodMode: definition.periodMode,
+      periodDays: definition.periodDays,
+      timeZone: definition.timeZone,
+      sortOrder: definition.sortOrder,
+    });
+    setExpectedVersion(definition.version);
+    setPreview(null);
+  };
+
+  const saveDefinition = async () => {
+    if (!canEdit || !validation.success) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = selectedId
+        ? await apiClient.patch<AggregateDefinition>(
+            `/api/projects/${project.id}/jira/aggregates/${selectedId}`,
+            { definition: validation.data, expectedVersion },
+            "Не удалось сохранить агрегат",
+          )
+        : await apiClient.post<AggregateDefinition>(
+            `/api/projects/${project.id}/jira/aggregates`,
+            { definition: validation.data },
+            "Не удалось создать агрегат",
+          );
+      await loadCatalog(saved.id, { resetOperationResult: true });
+      setNotice(selectedId ? "Агрегат обновлён" : "Агрегат создан");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось сохранить агрегат");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteDefinition = async () => {
+    if (!canEdit || !selectedId || expectedVersion === null) return;
+    if (!window.confirm(`Удалить агрегат «${selected?.name ?? draft.name}»?`)) return;
+    setSaving(true);
+    try {
+      await apiClient.delete(
+        `/api/projects/${project.id}/jira/aggregates/${selectedId}?expectedVersion=${expectedVersion}`,
+        "Не удалось удалить агрегат",
+      );
+      await loadCatalog(null, { resetOperationResult: true });
+      setNotice("Агрегат удалён");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось удалить агрегат");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const runPreview = async () => {
+    if (!canEdit || !validation.success) return;
+    setSaving(true);
+    try {
+      const result = await apiClient.post<JiraAnalyticsEvaluationResult>(
+        `/api/projects/${project.id}/jira/aggregates/preview`,
+        {
+          definition: validation.data,
+          ...(validation.data.periodMode === "DASHBOARD" ? { periodDays } : {}),
+          assignee,
+          page: 1,
+          pageSize: 12,
+        },
+        "Не удалось рассчитать агрегат",
+      );
+      setPreview(result);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось рассчитать агрегат");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const runDashboardOperation = async (
+    operation: "import-dashboard" | "convert-dashboard" | "rollback-dashboard",
+    dryRun: boolean,
+  ) => {
+    if (!canEdit || !catalog) return;
+    setSaving(true);
+    try {
+      const result = await apiClient.post<DashboardOperationResult>(
+        `/api/projects/${project.id}/jira/aggregates/${operation}`,
+        { dryRun, expectedConfigHash: catalog.dashboard.configHash },
+        "Операция с дашбордом не выполнена",
+      );
+      setOperationResult(result);
+      await loadCatalog(selectedId);
+      if (!dryRun) await refreshProject(project.id);
+      setNotice(dryRun ? "Проверка завершена без изменений" : "Операция завершена");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Операция с дашбордом не выполнена");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateFilter = (id: string, patch: Partial<JiraAnalyticsFilter>) => {
+    setDraft((current) => ({
+      ...current,
+      filters: current.filters.map((filter) => filter.id === id ? { ...filter, ...patch } : filter),
+    }));
+  };
+
+  if (loading && !catalog) return <div className="jira-aggregate-preview-empty">Загрузка агрегатов...</div>;
+
+  return (
+    <div className="jira-aggregate-builder">
+      <aside className="jira-aggregate-catalog">
+        <header>
+          <div><Database size={18} /><h3>Агрегаты</h3></div>
+          {canEdit && (
+            <button type="button" className="icon-button" aria-label="Создать агрегат" title="Создать агрегат" onClick={() => {
+              setSelectedId(null);
+              setExpectedVersion(null);
+              setDraft({ ...EMPTY_DRAFT, sortOrder: catalog?.definitions.length ?? 0 });
+              setPreview(null);
+            }}><Plus size={17} /></button>
+          )}
+        </header>
+        <div className="jira-aggregate-catalog-list">
+          {catalog?.definitions.map((definition) => (
+            <button type="button" className={definition.id === selectedId ? "active" : ""} key={definition.id} onClick={() => selectDefinition(definition)}>
+              <strong>{definition.name}</strong>
+              <span>{definition.scope === "active" ? "В работе" : "Ретро"} · {JIRA_ANALYTICS_SOURCE_LABELS[definition.source]}</span>
+            </button>
+          ))}
+          {catalog?.definitions.length === 0 && <span className="jira-aggregate-catalog-empty">Каталог пуст</span>}
+        </div>
+        {canEdit && catalog?.dashboard.stored && (
+          <section className="jira-aggregate-migration">
+            <h4>Дашборд v{catalog.dashboard.version ?? "?"}</h4>
+            {catalog.dashboard.version === 1 && (
+              <>
+                <button type="button" className="button" disabled={saving} onClick={() => runDashboardOperation("import-dashboard", true)}><Eye size={15} /> Проверить импорт</button>
+                <button type="button" className="button" disabled={saving} onClick={() => runDashboardOperation("import-dashboard", false)}><Database size={15} /> Импортировать</button>
+                <button type="button" className="button" disabled={saving || (catalog?.definitions.length ?? 0) === 0} onClick={() => runDashboardOperation("convert-dashboard", true)}><Eye size={15} /> Проверить v2</button>
+                <button type="button" className="button" disabled={saving || (catalog?.definitions.length ?? 0) === 0} onClick={() => runDashboardOperation("convert-dashboard", false)}><History size={15} /> Перевести в v2</button>
+              </>
+            )}
+            {catalog.dashboard.version === 2 && catalog.dashboard.convertedAt && !catalog.dashboard.rolledBackAt && (
+              <>
+                <button type="button" className="button" disabled={saving || catalog.dashboard.convertedConfigHash !== catalog.dashboard.configHash} onClick={() => runDashboardOperation("rollback-dashboard", true)}><Eye size={15} /> Проверить откат</button>
+                <button type="button" className="button" disabled={saving || catalog.dashboard.convertedConfigHash !== catalog.dashboard.configHash} onClick={() => runDashboardOperation("rollback-dashboard", false)}><RotateCcw size={15} /> Вернуть v1</button>
+                {catalog.dashboard.convertedConfigHash !== catalog.dashboard.configHash && (
+                  <div className="jira-aggregate-validation">Конфигурация v2 изменена после конвертации. Сохраните дашборд повторно и обновите каталог перед откатом.</div>
+                )}
+              </>
+            )}
+            {operationResult && (
+              <div className="jira-aggregate-operation-result" role="status">
+                {operationResult.items ? (
+                  <>
+                    <strong>{operationResult.sourceWidgets ?? 0} виджетов</strong>
+                    <span>Создать: {operationResult.items.filter((item) => item.action === "WOULD_CREATE" || item.action === "CREATED").length}</span>
+                    <span>Переиспользовать: {operationResult.items.filter((item) => item.action === "REUSE").length}</span>
+                  </>
+                ) : (
+                  <>
+                    <strong>Конфигурация проверена</strong>
+                    <span>{operationResult.beforeHash?.slice(0, 8) ?? "-"} → {operationResult.afterHash?.slice(0, 8) ?? "-"}</span>
+                  </>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+      </aside>
+
+      <main className="jira-aggregate-editor">
+        <header>
+          <div><h3>{selected ? selected.name : "Новый агрегат"}</h3><span>{selected ? `Версия ${selected.version}` : "Не сохранён"}</span></div>
+          {canEdit && (
+            <div>
+              {selected && <button type="button" className="icon-button danger" disabled={saving} onClick={deleteDefinition} aria-label="Удалить агрегат" title="Удалить"><Trash2 size={17} /></button>}
+              <button type="button" className="button" disabled={saving || !validation.success} onClick={runPreview}><Eye size={16} /> Рассчитать</button>
+              <button type="button" className="button primary" disabled={saving || !validation.success} onClick={saveDefinition}><Save size={16} /> Сохранить</button>
+            </div>
+          )}
+        </header>
+
+        <div className="jira-aggregate-editor-grid">
+          <section className="jira-aggregate-controls">
+            <label><span>Название</span><input disabled={!canEdit} maxLength={200} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+            <label><span>Описание</span><textarea disabled={!canEdit} maxLength={1000} rows={2} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+            <div className="jira-aggregate-control-row">
+              <label><span>Источник</span><select disabled={!canEdit} value={draft.source} onChange={(event) => setDraft(draftForSource(draft, event.target.value as JiraAnalyticsSource))}>{Object.entries(JIRA_ANALYTICS_SOURCE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+              <label><span>Область</span><select disabled={!canEdit} value={draft.scope} onChange={(event) => setDraft({ ...draft, scope: event.target.value as "active" | "retro" })}><option value="active">В работе</option><option value="retro">Ретро</option></select></label>
+            </div>
+            <div className="jira-aggregate-control-row">
+              <label><span>Метрика</span><select disabled={!canEdit} value={draft.metric} onChange={(event) => setDraft({ ...draft, metric: event.target.value as JiraAnalyticsMetric })}>{JIRA_ANALYTICS_METRICS_BY_SOURCE[draft.source].map((metric) => <option value={metric} key={metric}>{JIRA_ANALYTICS_METRIC_LABELS[metric]}</option>)}</select></label>
+              <label><span>Группировка</span><select disabled={!canEdit} value={draft.groupBy} onChange={(event) => setDraft({ ...draft, groupBy: event.target.value as JiraAnalyticsGroupBy })}>{JIRA_ANALYTICS_GROUPS_BY_SOURCE[draft.source].map((group) => <option value={group} key={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>
+            </div>
+            {usesPeriod && (
+              <div className="jira-aggregate-control-row">
+                <label><span>Период</span><select disabled={!canEdit} value={draft.periodMode} onChange={(event) => { const mode = event.target.value as JiraAnalyticsPeriodMode; setDraft({ ...draft, periodMode: mode, periodDays: mode === "FIXED" ? periodDays : null }); }}><option value="DASHBOARD">Из дашборда</option><option value="FIXED">Фиксированный</option></select></label>
+                <label><span>Дней</span><select disabled={!canEdit || draft.periodMode !== "FIXED"} value={draft.periodMode === "FIXED" ? draft.periodDays ?? periodDays : periodDays} onChange={(event) => { const value = Number(event.target.value) as 30 | 90 | 180 | 365; setPeriodDays(value); if (draft.periodMode === "FIXED") setDraft({ ...draft, periodDays: value }); }}>{[30, 90, 180, 365].map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+              </div>
+            )}
+            <div className="jira-aggregate-control-row">
+              <label><span>Часовой пояс</span><select disabled={!canEdit} value={draft.timeZone} onChange={(event) => setDraft({ ...draft, timeZone: event.target.value as "Europe/Moscow" | "UTC" })}><option value="Europe/Moscow">Europe/Moscow</option><option value="UTC">UTC</option></select></label>
+              <label><span>Исполнитель preview</span><select disabled={!canEdit} value={assignee} onChange={(event) => setAssignee(event.target.value)}><option value="">Все</option>{assignees.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>
+            </div>
+
+            <div className="jira-aggregate-filter-header">
+              <h4>Условия</h4>
+              <div className="jira-widget-logic"><button type="button" disabled={!canEdit} className={draft.filterLogic === "and" ? "active" : ""} onClick={() => setDraft({ ...draft, filterLogic: "and" })}>И</button><button type="button" disabled={!canEdit} className={draft.filterLogic === "or" ? "active" : ""} onClick={() => setDraft({ ...draft, filterLogic: "or" })}>ИЛИ</button></div>
+            </div>
+            <div className="jira-widget-filters">
+              {draft.filters.map((filter) => (
+                <div className="jira-widget-filter" key={filter.id}>
+                  <select disabled={!canEdit} value={filter.field} onChange={(event) => { const field = event.target.value as JiraAnalyticsFilterField; updateFilter(filter.id, { field, operator: jiraAnalyticsOperatorsFor(field)[0], value: field === "hasDevelopment" ? "true" : "" }); }}>{JIRA_ANALYTICS_FIELDS_BY_SOURCE[draft.source].map((field) => <option value={field} key={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}</select>
+                  <select disabled={!canEdit} value={filter.operator} onChange={(event) => updateFilter(filter.id, { operator: event.target.value as JiraAnalyticsFilterOperator, value: ["empty", "notEmpty"].includes(event.target.value) ? "" : filter.value })}>{jiraAnalyticsOperatorsFor(filter.field).map((operator) => <option value={operator} key={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}</select>
+                  {!["empty", "notEmpty"].includes(filter.operator) && (filter.field === "hasDevelopment" ? <select disabled={!canEdit} value={filter.value} onChange={(event) => updateFilter(filter.id, { value: event.target.value })}><option value="true">Да</option><option value="false">Нет</option></select> : <input disabled={!canEdit} type={["durationHours", "commitCount", "mergeRequestCount"].includes(filter.field) ? "number" : "text"} value={filter.value} onChange={(event) => updateFilter(filter.id, { value: event.target.value })} />)}
+                  {canEdit && <button type="button" className="icon-button danger" onClick={() => setDraft({ ...draft, filters: draft.filters.filter((item) => item.id !== filter.id) })} aria-label="Удалить условие"><Trash2 size={15} /></button>}
+                </div>
+              ))}
+            </div>
+            {canEdit && <button type="button" className="button" disabled={draft.filters.length >= 20} onClick={() => { const field = JIRA_ANALYTICS_FIELDS_BY_SOURCE[draft.source][0]; setDraft({ ...draft, filters: [...draft.filters, newFilter(field)] }); }}><Plus size={15} /> Условие</button>}
+            {!validation.success && <div className="jira-aggregate-validation">{validation.error.issues[0]?.message}</div>}
+          </section>
+          <section className="jira-aggregate-preview-panel"><h4>Результат</h4><Preview result={preview} metric={draft.metric} /></section>
+        </div>
+      </main>
+    </div>
+  );
+}

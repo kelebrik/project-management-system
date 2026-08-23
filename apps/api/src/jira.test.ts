@@ -5,16 +5,74 @@ import test from 'node:test';
 import {
   assertJiraReadOnlyRequest,
   fetchJiraReadOnly,
+  fetchJiraIssueKeys,
   fetchJiraIssues,
   fetchJiraIssuesWithMeta,
   fetchJiraRemoteDevelopment,
   jiraCriticalPriorityAt,
+  jiraJqlWithAnalyticsScope,
+  jiraJqlWithIssueKeys,
+  jiraJqlWithLabelScope,
   jiraDevelopmentFromFields,
   jiraDevelopmentFromRemoteLinks,
   jiraPriorityAtResolution,
   jiraSprintFromFields,
   resolveJiraConfig,
+  sanitizeJiraCapacityPayload,
 } from './jira.js';
+
+test('jiraJqlWithLabelScope preserves boolean precedence and top-level ordering', () => {
+  assert.equal(
+    jiraJqlWithLabelScope(
+      'project = CVTE OR project = SPS ORDER BY created DESC',
+      'cvte968',
+    ),
+    '(project = CVTE OR project = SPS) AND labels = "cvte968" ORDER BY created DESC',
+  );
+  assert.equal(
+    jiraJqlWithLabelScope('summary ~ "order by device"', 'cvte968'),
+    '(summary ~ "order by device") AND labels = "cvte968"',
+  );
+  assert.throws(
+    () => jiraJqlWithLabelScope('project = CVTE', 'bad label'),
+    /не должен содержать/,
+  );
+  assert.throws(
+    () => jiraJqlWithLabelScope('(project = CVTE', 'cvte968'),
+    /незакрытая строка или скобка/,
+  );
+});
+
+test('jiraJqlWithAnalyticsScope filters by epic key without losing ordering', () => {
+  assert.equal(
+    jiraJqlWithAnalyticsScope('statusCategory != Done ORDER BY key ASC', {
+      type: 'EPIC',
+      value: ' cvte-1778 ',
+    }),
+    '(statusCategory != Done) AND ("Epic Link" = "CVTE-1778" OR key = "CVTE-1778") ORDER BY key ASC',
+  );
+  assert.throws(
+    () => jiraJqlWithAnalyticsScope('ORDER BY key ASC', {
+      type: 'EPIC',
+      value: 'not-an-epic',
+    }),
+    /корректный код эпика/,
+  );
+});
+
+test('jiraJqlWithIssueKeys keeps discovered epic subtasks in a bounded query', () => {
+  assert.equal(
+    jiraJqlWithIssueKeys(
+      'statusCategory != Done ORDER BY updated DESC',
+      ['cvte-1778', 'cvte-1800', 'cvte-1801'],
+    ),
+    '(statusCategory != Done) AND issuekey IN ("CVTE-1778", "CVTE-1800", "CVTE-1801") ORDER BY updated DESC',
+  );
+  assert.throws(
+    () => jiraJqlWithIssueKeys('statusCategory != Done', ['not-an-issue']),
+    /Некорректный ключ тикета Jira/,
+  );
+});
 
 function jiraPriorityIssue(
   currentPriority: string,
@@ -68,6 +126,8 @@ test('Jira request guard allows only known read and authentication operations', 
     ['https://jira.example/rest/api/3/myself'],
     ['https://jira.example/rest/api/2/issue/PMS-42?fields=updated'],
     ['https://jira.example/rest/api/3/issue/PMS-42/changelog?startAt=0'],
+    ['https://jira.example/rest/api/2/issue/PMS-42/comment?startAt=0'],
+    ['https://jira.example/rest/api/2/issue/PMS-42/worklog?startAt=0'],
     ['https://jira.example/rest/api/2/issue/PMS-42/remotelink'],
     ['https://jira.example/rest/api/2/search', { method: 'POST' }],
     ['https://jira.example/rest/api/3/search/jql', { method: 'post' }],
@@ -145,8 +205,35 @@ test('Jira client has no direct fetch calls outside the read-only wrapper', asyn
 test('capacity sampling asks for all fields except attachments', async () => {
   const source = await readFile(new URL('./jira.ts', import.meta.url), 'utf8');
 
-  assert.match(source, /capacitySample\s*\? \['\*all', '-attachment'\]/);
-  assert.match(source, /key\.toLowerCase\(\) !== 'attachment'/);
+  assert.match(source, /options\.capacitySample \|\| options\.fullHistory[\s\S]*\['\*all', '-attachment'\]/);
+  assert.match(source, /function containsJiraAttachmentMetadata/);
+  assert.match(source, /adfType === 'media'/);
+});
+
+test('capacity sanitizer audits its output and strips nested attachment metadata', () => {
+  const clean = sanitizeJiraCapacityPayload({
+    fields: { custom: { content: [{ type: 'paragraph', text: 'kept' }] } },
+  });
+  assert.equal(clean.attachmentExcluded, true);
+  assert.equal(clean.attachmentReferencesStripped, 0);
+
+  const dirty = sanitizeJiraCapacityPayload({
+    fields: {
+      Attachments: [{ id: 'structured-attachment' }],
+      description: {
+        type: 'doc',
+        content: [{
+          type: 'mediaGroup',
+          content: [{ type: 'media', attrs: { id: 'adf-attachment', secret: 'must-go' } }],
+        }],
+      },
+    },
+    changelog: [{ field: 'Attachment', to: 'history-attachment' }],
+  });
+  assert.equal(dirty.attachmentExcluded, true);
+  assert.equal(dirty.attachmentReferencesStripped, 3);
+  assert.equal(JSON.stringify(dirty.payload).includes('must-go'), false);
+  assert.equal(JSON.stringify(dirty.payload).includes('history-attachment'), false);
 });
 
 test('jiraSprintFromFields reads active Jira Server sprint strings', () => {
@@ -795,11 +882,29 @@ test('capacity sampling measures paged content and verifies attachment exclusion
           issuetype: { name: 'Bug' },
           created: '2026-05-20T09:00:00.000Z',
           updated: '2026-05-23T10:00:00.000Z',
-          attachment: [{ id: 'must-not-be-measured', size: 999_999 }],
+          description: {
+            type: 'doc',
+            content: [{
+              type: 'mediaSingle',
+              content: [{
+                type: 'media',
+                attrs: { id: 'must-not-be-measured', payload: 'x'.repeat(100_000) },
+              }],
+            }],
+          },
           comment: { total: 3, comments: [{ body: 'one observed comment' }] },
           worklog: { total: 1, worklogs: [{ timeSpentSeconds: 60 }] },
         },
-        changelog: { startAt: 0, maxResults: 100, total: 0, histories: [] },
+        changelog: {
+          startAt: 0,
+          maxResults: 100,
+          total: 1,
+          histories: [{
+            id: 'attachment-history',
+            created: '2026-05-21T09:00:00.000Z',
+            items: [{ field: 'Attachment', toString: 'old-file.zip' }],
+          }],
+        },
       }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
@@ -808,7 +913,7 @@ test('capacity sampling measures paged content and verifies attachment exclusion
     const result = await fetchJiraIssuesWithMeta('labels = "cvte968"', {
       capacitySample: true,
       includeAnalyticsFields: true,
-      maxResults: 10,
+      pageSize: 10,
     });
 
     assert.equal(result.total, 123);
@@ -816,11 +921,116 @@ test('capacity sampling measures paged content and verifies attachment exclusion
     assert.deepEqual((searchBody?.fields as string[]).slice(0, 2), ['*all', '-attachment']);
     assert.equal(result.capacityMeasurements?.[0]?.comments, 3);
     assert.equal(result.capacityMeasurements?.[0]?.commentsComplete, false);
-    assert.equal(result.capacityMeasurements?.[0]?.attachmentExcluded, false);
+    assert.equal(result.capacityMeasurements?.[0]?.attachmentExcluded, true);
+    assert.equal(result.capacityMeasurements?.[0]?.attachmentFieldExclusionHonored, true);
+    assert.equal(result.capacityMeasurements?.[0]?.attachmentReferencesStripped, 2);
+    assert.ok((result.capacityMeasurements?.[0]?.currentJsonBytes ?? 0) < 50_000);
     assert.ok(
       (result.capacityMeasurements?.[0]?.estimatedFullJsonBytes ?? 0) >
       (result.capacityMeasurements?.[0]?.currentJsonBytes ?? 0),
     );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('stage A1 fetch hydrates and sanitizes a complete immutable history document', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: string[] = [];
+  let searchBody: Record<string, unknown> | null = null;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes('/comment?')) {
+      return new Response(JSON.stringify({
+        startAt: 0,
+        maxResults: 100,
+        total: 2,
+        comments: [
+          { id: '2', body: 'second', created: '2026-08-21T12:00:00+0300' },
+          { id: '1', body: 'first', created: '2026-08-21T11:00:00+0300' },
+        ],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (url.endsWith('/remotelink')) {
+      return new Response(JSON.stringify([{
+        id: 9,
+        self: 'https://jira.example/rest/api/2/issue/100/remotelink/9',
+        object: { title: 'Commit - CVTE-1', url: 'https://git.example/commit/1' },
+      }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    searchBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(JSON.stringify({
+      startAt: 0,
+      maxResults: 20,
+      total: 1,
+      names: { customfield_10008: 'Epic Link' },
+      issues: [{
+        id: '100',
+        key: 'CVTE-1',
+        self: 'https://jira.example/rest/api/2/issue/100',
+        fields: {
+          summary: 'A1 history',
+          status: { name: 'In Progress', statusCategory: { name: 'In Progress' } },
+          priority: { name: 'Major' },
+          assignee: null,
+          reporter: { displayName: 'Reporter' },
+          issuetype: { name: 'Task' },
+          resolution: null,
+          resolutiondate: null,
+          created: '2026-08-20T09:00:00+0300',
+          updated: '2026-08-21T10:00:00+0300',
+          labels: ['cvte968'],
+          customfield_10008: 'CVTE-EPIC-1',
+          customfield_10004: ['Sprint[id=9,state=ACTIVE,name=Sprint 9]'],
+          attachment: [{ id: 'a-1', filename: 'removed.bin' }],
+          description: { type: 'doc', content: [{ type: 'media', attrs: { id: 'a-1' } }] },
+          comment: { startAt: 0, maxResults: 1, total: 2, comments: [{ id: '1' }] },
+          worklog: {
+            startAt: 0,
+            maxResults: 1,
+            total: 1,
+            worklogs: [{ id: '1', started: '2026-08-21T09:00:00Z' }],
+          },
+        },
+        changelog: { startAt: 0, maxResults: 100, total: 0, histories: [] },
+      }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+
+  try {
+    const result = await fetchJiraIssuesWithMeta('issuekey = CVTE-1', {
+      includeAnalyticsFields: true,
+      includeChangelog: true,
+      includeRemoteDevelopment: true,
+      includeHistoryDocument: true,
+      pageSize: 20,
+    });
+    const issue = result.issues[0];
+    const document = JSON.stringify(issue?.history?.document);
+
+    assert.deepEqual((searchBody?.fields as string[]).slice(0, 2), ['*all', '-attachment']);
+    assert.ok(calls.some((url) => url.includes('/comment?')));
+    assert.equal(calls.some((url) => url.includes('/worklog?')), false);
+    assert.equal(issue?.history?.changelogComplete, true);
+    assert.equal(issue?.history?.commentsComplete, true);
+    assert.equal(issue?.history?.worklogsComplete, true);
+    assert.equal(issue?.history?.remoteLinksComplete, true);
+    assert.equal(issue?.history?.attachmentReferencesStripped, 2);
+    assert.equal(document.includes('removed.bin'), false);
+    assert.equal(document.includes('"media"'), false);
+    assert.equal(document.includes('"self"'), false);
+    assert.equal(document.includes('second'), true);
+    assert.equal(issue?.statusCategory, 'In Progress');
+    assert.equal(issue?.epicKey, 'CVTE-EPIC-1');
+    assert.deepEqual(issue?.labels, ['cvte968']);
+    assert.deepEqual(issue?.sprintIds, ['9']);
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);
@@ -884,6 +1094,161 @@ test('fetchJiraIssues loads every Jira search page', async () => {
       return fields.includes('customfield_10004');
     }));
     assert.deepEqual(issues.map((issue) => issue.key), ['PMS-1', 'PMS-2']);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys keeps label discovery lightweight on every page', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    assert.match(url, /\/rest\/api\/2\/search$/);
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    calls.push({ url, body });
+    const startAt = Number(body.startAt);
+    return new Response(
+      JSON.stringify({
+        startAt,
+        maxResults: 1,
+        total: 2,
+        issues: [{ key: startAt === 0 ? 'cvte-1' : 'SPS-2' }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issueKeys = await fetchJiraIssueKeys(
+      'project = CVTE OR project = SPS ORDER BY created DESC',
+      {
+        fetchAllPages: true,
+        labelScope: 'cvte968',
+        pageSize: 1,
+      },
+    );
+
+    assert.deepEqual(issueKeys, ['CVTE-1', 'SPS-2']);
+    assert.equal(calls.length, 2);
+    for (const call of calls) {
+      assert.deepEqual(call.body.fields, []);
+      assert.equal(Object.hasOwn(call.body, 'expand'), false);
+      assert.equal(
+        call.body.jql,
+        '(project = CVTE OR project = SPS) AND labels = "cvte968" ORDER BY created DESC',
+      );
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys scopes a saved filter after resolving its JQL', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let searchBody: Record<string, unknown> | null = null;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith('/rest/api/2/filter/123')) {
+      return new Response(
+        JSON.stringify({ jql: 'project = CVTE ORDER BY priority DESC' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    searchBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({ startAt: 0, maxResults: 100, total: 1, issues: [{ key: 'CVTE-1' }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    assert.deepEqual(
+      await fetchJiraIssueKeys('filter = 123', { labelScope: 'cvte968' }),
+      ['CVTE-1'],
+    );
+    assert.equal(
+      searchBody?.jql,
+      '(project = CVTE) AND labels = "cvte968" ORDER BY priority DESC',
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys reports invalid epic JQL without retrying authentication', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response(
+      JSON.stringify({ errorMessages: ["Field 'Epic Link' does not exist"] }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      fetchJiraIssueKeys('ORDER BY key ASC', {
+        analyticsScope: { type: 'EPIC', value: 'CVTE-1778' },
+      }),
+      /Jira request failed: 400.*Epic Link/,
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys fails closed when discovery pages overlap', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const startAt = Number(body.startAt);
+    return new Response(
+      JSON.stringify({
+        startAt,
+        maxResults: 1,
+        total: 2,
+        issues: [{ key: 'CVTE-1' }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssueKeys('ORDER BY key ASC', {
+        fetchAllPages: true,
+        labelScope: 'cvte968',
+        pageSize: 1,
+      }),
+      /pages overlap/,
+    );
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);
