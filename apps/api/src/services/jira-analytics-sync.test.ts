@@ -5,10 +5,12 @@ import { isJiraBugIssueType, jiraAnalyticsDashboardConfigSchema } from '@pms/sha
 import type { JiraIssue } from '../jira.js';
 import {
   acquireJiraAnalyticsSyncLock,
+  createPrismaJiraAnalyticsSyncStore,
   criticalEndPriorityUpdate,
   criticalPriorityAtUpdate,
   finalizeJiraAnalyticsSync,
   isJiraCriticalBugSlaCandidate,
+  jiraSnapshotDataFromObservedVersion,
   jiraCriticalBugSlaSnapshotIds,
   replaceJiraCriticalSlaTracking,
   syncJiraIssueAnalytics,
@@ -469,15 +471,22 @@ test('analytics sync finalization activates current snapshots before retiring st
         return { count: 1 };
       },
     },
+    jiraIssueHistoryRetry: {
+      updateMany: async (value: unknown) => {
+        calls.push({ model: 'retry', operation: 'updateMany', value });
+        return { count: 1 };
+      },
+    },
   } as Parameters<typeof finalizeJiraAnalyticsSync>[0];
   const syncedAt = new Date('2026-08-20T15:00:00Z');
 
-    await finalizeJiraAnalyticsSync(
+  await finalizeJiraAnalyticsSync(
     transaction,
     'project-1',
     syncedAt,
     [{ sectionId: 'section-1', issueKeys: ['CVTE-1', 'MISSING-2'] }],
     new Map([['CVTE-1', 'snapshot-1']]),
+    ['CVTE-1', 'MISSING-2'],
     ['snapshot-1'],
   );
 
@@ -486,7 +495,7 @@ test('analytics sync finalization activates current snapshots before retiring st
       model: 'snapshot',
       operation: 'updateMany',
       value: {
-        where: { projectId: 'project-1', syncedAt },
+        where: { projectId: 'project-1', id: { in: ['snapshot-1'] } },
         data: { retiredAt: null },
       },
     },
@@ -494,7 +503,11 @@ test('analytics sync finalization activates current snapshots before retiring st
       model: 'snapshot',
       operation: 'updateMany',
       value: {
-        where: { projectId: 'project-1', syncedAt: { lt: syncedAt }, retiredAt: null },
+        where: {
+          projectId: 'project-1',
+          id: { notIn: ['snapshot-1'] },
+          retiredAt: null,
+        },
         data: { retiredAt: syncedAt, criticalSlaTracked: false },
       },
     },
@@ -525,6 +538,18 @@ test('analytics sync finalization activates current snapshots before retiring st
       value: {
         where: { projectId: 'project-1', id: { in: ['snapshot-1'] } },
         data: { criticalSlaTracked: true },
+      },
+    },
+    {
+      model: 'retry',
+      operation: 'updateMany',
+      value: {
+        where: {
+          projectId: 'project-1',
+          status: 'PENDING',
+          issueKey: { notIn: ['CVTE-1', 'MISSING-2'] },
+        },
+        data: { status: 'RESOLVED', resolvedAt: syncedAt },
       },
     },
   ]);
@@ -763,4 +788,215 @@ test('retry after partial failure reuses the stable development activity key', a
   assert.equal(memory.activities.size, 1);
   assert.equal([...memory.activities.values()][0]?.activityKey, 'counts:2:1');
   assert.equal([...memory.activities.values()][0]?.isBaseline, true);
+});
+
+test('stage A1 locks each issue and never lets an older observation replace the projection', async () => {
+  const calls: string[] = [];
+  let makeCurrent: boolean | null = null;
+  const store: JiraAnalyticsSyncStore = {
+    async acquireIssueLock() {
+      calls.push('lock');
+    },
+    async findSnapshot() {
+      calls.push('find');
+      return {
+        ...existingSnapshot(),
+        issueType: 'Task',
+        updatedAt: new Date('2026-08-21T12:00:00Z'),
+      };
+    },
+    async deleteSyntheticTransitions() {},
+    async createTransitions() {},
+    async createDevelopmentActivity() {},
+    async upsertSnapshot() {
+      throw new Error('stale observation must not update the projection');
+    },
+    async persistObservedVersion(input) {
+      calls.push('version');
+      makeCurrent = input.makeCurrent;
+      return { versionId: 'version-old', created: true };
+    },
+  };
+
+  const result = await syncJiraIssueAnalytics(
+    store,
+    'project-1',
+    jiraIssue({ updatedAt: new Date('2026-08-21T11:00:00Z') }),
+    new Date('2026-08-21T13:00:00Z'),
+    'run-1',
+  );
+
+  assert.deepEqual(calls, ['lock', 'find', 'version']);
+  assert.equal(makeCurrent, false);
+  assert.equal(result.id, 'snapshot-1');
+});
+
+test('stage A1 advisory lock casts the PostgreSQL void result before Prisma deserializes it', async () => {
+  let queryText = '';
+  let queryValues: unknown[] = [];
+  const transaction = {
+    $queryRaw: async (query: { text: string; values: unknown[] }) => {
+      queryText = query.text;
+      queryValues = query.values;
+      return [{ lock: '' }];
+    },
+  } as unknown as Parameters<typeof createPrismaJiraAnalyticsSyncStore>[0];
+
+  const store = createPrismaJiraAnalyticsSyncStore(transaction);
+  await store.acquireIssueLock!('project-1', '1001');
+
+  assert.match(queryText, /pg_advisory_xact_lock\(.+\)::text AS lock/);
+  assert.deepEqual(queryValues, ['project-1:1001']);
+});
+
+test('stage A1 concurrent replay stores one immutable version and one current identity', async () => {
+  const versions = new Map<string, string>();
+  const currentVersionIds: string[] = [];
+  const transaction = {
+    jiraIssueVersion: {
+      createMany: async ({ data }: { data: Array<{ contentHash: string }> }) => {
+        const hash = data[0]!.contentHash;
+        if (versions.has(hash)) return { count: 0 };
+        versions.set(hash, `version-${versions.size + 1}`);
+        return { count: 1 };
+      },
+      findUniqueOrThrow: async ({ where }: {
+        where: { projectId_jiraIssueId_contentHash: { contentHash: string } };
+      }) => ({
+        id: versions.get(where.projectId_jiraIssueId_contentHash.contentHash),
+      }),
+    },
+    jiraIssueSnapshot: {
+      findUniqueOrThrow: async () => ({
+        issueUrl: issue.url,
+        summary: issue.summary,
+        status: issue.status,
+        priority: issue.priority,
+        assignee: issue.assignee,
+        reporter: issue.reporter,
+        issueType: issue.issueType,
+        resolution: issue.resolution,
+        sprint: issue.sprint,
+        issueCreatedAt: issue.createdAt,
+        criticalPriorityAt: issue.criticalPriorityAt,
+        criticalEndPriority: issue.criticalEndPriority,
+        resolutionAt: issue.resolutionAt,
+        commitCount: issue.development.commitCount,
+        mergeRequestCount: issue.development.mergeRequestCount,
+        developmentUpdatedAt: issue.development.updatedAt,
+        developmentDataAvailable: issue.development.available,
+        developmentBaselineCaptured: false,
+        transitionHistoryComplete: issue.transitionHistoryComplete,
+        updatedAt: issue.updatedAt,
+      }),
+      update: async ({ data }: { data: { currentVersionId: string } }) => {
+        currentVersionIds.push(data.currentVersionId);
+        return { id: 'snapshot-1' };
+      },
+    },
+  } as unknown as Parameters<typeof createPrismaJiraAnalyticsSyncStore>[0];
+  const store = createPrismaJiraAnalyticsSyncStore(transaction);
+  const issue = jiraIssue({
+    jiraId: '1001',
+    statusCategory: 'In Progress',
+    labels: ['cvte968'],
+    sprintIds: ['9'],
+    history: {
+      document: {
+        issue: {
+          id: '1001',
+          key: 'TV-101',
+          fields: {
+            summary: 'Observed once',
+            updated: '2026-08-18T13:00:00+0300',
+          },
+        },
+        changelog: [],
+        comments: [],
+        worklogs: [],
+        remoteLinks: [],
+      },
+      changelogComplete: true,
+      commentsComplete: true,
+      worklogsComplete: true,
+      remoteLinksComplete: true,
+      attachmentReferencesStripped: 0,
+    },
+  });
+  const input = {
+    projectId: 'project-1',
+    snapshotId: 'snapshot-1',
+    issue,
+    observedAt: new Date('2026-08-21T13:00:00Z'),
+    syncRunId: 'run-1',
+    makeCurrent: true,
+  };
+
+  const results = await Promise.all([
+    store.persistObservedVersion!(input),
+    store.persistObservedVersion!({ ...input, syncRunId: 'run-replay' }),
+  ]);
+
+  assert.equal(versions.size, 1);
+  assert.equal(results.filter((result) => result.created).length, 1);
+  assert.deepEqual(currentVersionIds, ['version-1', 'version-1']);
+});
+
+test('stage A1 current projection is rebuildable from its observed version', () => {
+  const version = {
+    id: 'version-1',
+    projectId: 'project-1',
+    jiraIssueId: '1001',
+    issueKey: 'TV-101',
+    issueUrl: 'https://jira.example/browse/TV-101',
+    summary: 'Rebuild projection',
+    status: 'Done',
+    priority: 'Blocker',
+    assignee: 'Ivan',
+    reporter: 'Petr',
+    issueType: 'Bug',
+    resolution: 'Fixed',
+    sprint: 'Sprint 24',
+    issueCreatedAt: new Date('2026-08-01T09:00:00Z'),
+    criticalPriorityAt: new Date('2026-08-02T09:00:00Z'),
+    criticalEndPriority: 'Blocker',
+    resolutionAt: new Date('2026-08-20T09:00:00Z'),
+    commitCount: 4,
+    mergeRequestCount: 2,
+    developmentUpdatedAt: new Date('2026-08-19T09:00:00Z'),
+    developmentDataAvailable: true,
+    developmentBaselineCaptured: true,
+    transitionHistoryComplete: true,
+    issueUpdatedAt: new Date('2026-08-20T10:00:00Z'),
+    observedAt: new Date('2026-08-21T10:00:00Z'),
+  };
+
+  assert.deepEqual(jiraSnapshotDataFromObservedVersion(version), {
+    projectId: 'project-1',
+    jiraId: '1001',
+    issueKey: 'TV-101',
+    issueUrl: 'https://jira.example/browse/TV-101',
+    summary: 'Rebuild projection',
+    status: 'Done',
+    priority: 'Blocker',
+    assignee: 'Ivan',
+    reporter: 'Petr',
+    issueType: 'Bug',
+    resolution: 'Fixed',
+    sprint: 'Sprint 24',
+    issueCreatedAt: version.issueCreatedAt,
+    criticalPriorityAt: version.criticalPriorityAt,
+    criticalEndPriority: 'Blocker',
+    resolutionAt: version.resolutionAt,
+    criticalSlaTracked: true,
+    commitCount: 4,
+    mergeRequestCount: 2,
+    developmentUpdatedAt: version.developmentUpdatedAt,
+    developmentDataAvailable: true,
+    developmentBaselineCaptured: true,
+    transitionHistoryComplete: true,
+    updatedAt: version.issueUpdatedAt,
+    syncedAt: version.observedAt,
+    currentVersionId: 'version-1',
+  });
 });
