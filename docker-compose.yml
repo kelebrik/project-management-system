@@ -21,9 +21,12 @@ services:
       WEBHOOK_TIMEOUT_MS: ${WEBHOOK_TIMEOUT_MS:-5000}
       WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS:-3}
       WEBHOOK_RETRY_BASE_MS: ${WEBHOOK_RETRY_BASE_MS:-500}
+      PMS_RUN_DATABASE_MIGRATIONS: "false"
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
         required: false
@@ -34,6 +37,25 @@ services:
       retries: 12
       start_period: 30s
     restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      args:
+        CI_JOB_TOKEN: ${CI_JOB_TOKEN:-}
+    image: project-management-system:local
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      PMS_RUN_DATABASE_MIGRATIONS: "true"
+    command: ["true"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+    restart: "no"
 
   postgres:
     profiles: ["local-db"]

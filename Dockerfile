@@ -1,6 +1,7 @@
 # ARG NODE_IMAGE=node:24-bookworm-slim
 ARG NODE_IMAGE=docker.sberdevices.ru/skopeo/docker.io/node:24.16.0-bookworm-slim
 ARG NPM_VERSION=11.18.0
+ARG VCS_REF=unknown
 
 FROM ${NODE_IMAGE} AS deps
 ARG NPM_VERSION
@@ -54,7 +55,10 @@ RUN scripts/ci-npm.sh run build
 RUN scripts/ci-npm.sh prune --omit=dev
 
 FROM ${NODE_IMAGE} AS runtime
+ARG VCS_REF
 WORKDIR /app
+
+LABEL org.opencontainers.image.revision="${VCS_REF}"
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -93,6 +97,7 @@ COPY --from=build --chown=node:node /app/prisma.config.ts ./prisma.config.ts
 COPY --chown=node:node scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 
 RUN chmod +x /app/docker-entrypoint.sh \
+  && printf '%s\n' "${VCS_REF}" > /app/RELEASE_REVISION \
   && rm -rf /usr/local/lib/node_modules/npm \
   && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
