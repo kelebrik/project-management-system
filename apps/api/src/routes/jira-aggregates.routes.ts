@@ -42,12 +42,13 @@ const expectedVersionQuerySchema = z.object({
   expectedVersion: z.coerce.number().int().min(1),
 }).strict();
 
-const periodDaysSchema = z.union(jiraAnalyticsPeriodDays.map((value) => z.literal(value)) as [
+const periodDaysValueSchema = z.union(jiraAnalyticsPeriodDays.map((value) => z.literal(value)) as [
   z.ZodLiteral<30>,
   z.ZodLiteral<90>,
   z.ZodLiteral<180>,
   z.ZodLiteral<365>,
 ]);
+const periodDaysSchema = z.coerce.number().pipe(periodDaysValueSchema);
 
 const evaluationSchema = z.object({
   periodDays: periodDaysSchema.optional(),

@@ -476,7 +476,7 @@ test('Jira aggregate preview returns 413 for an oversized project population', a
   assert.equal((result.payload() as { limit?: number }).limit, 5_000);
 });
 
-test('Jira dashboard evaluation allows an authenticated viewer without an explicit project grant', async () => {
+test('Jira dashboard evaluation requires an explicit runtime period before loading analytics', async () => {
   const prisma = {
     project: { findUnique: async () => ({ id: 'project-1' }) },
   } as unknown as PrismaClient;
@@ -494,6 +494,28 @@ test('Jira dashboard evaluation allows an authenticated viewer without an explic
   } as unknown as Request, result.response);
   assert.equal(result.status(), 400);
   assert.match(String((result.payload() as { error?: string }).error), /periodDays/);
+});
+
+test('Jira dashboard evaluation coerces the query period for a viewer without an explicit project grant', async () => {
+  const prisma = {
+    jiraAnalyticsSettings: { findUnique: async () => null },
+    jiraAggregateDefinition: { findMany: async () => [] },
+    jiraIssueSnapshot: { findMany: async () => [] },
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregate-dashboard-results',
+    'get',
+    async () => true,
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1' },
+    query: { periodDays: '90', assignee: '', page: '1', pageSize: '12' },
+    currentUser: { id: 'viewer-1', role: 'EXECUTIVE_VIEWER' },
+  } as unknown as Request, result.response);
+  assert.equal(result.status(), 200);
+  assert.ok(Array.isArray((result.payload() as { widgets?: unknown[] }).widgets));
 });
 
 test('Jira dashboard import maps an expected hash mismatch to HTTP 409', async () => {
