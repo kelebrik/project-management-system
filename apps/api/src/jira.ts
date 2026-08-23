@@ -1,7 +1,10 @@
 import { isJiraCriticalPriority } from '@pms/shared';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { gzipSync } from 'node:zlib';
 import { z } from 'zod';
 
 import { logEvent } from './server/logger.js';
+import { sanitizeJiraVersionPayload } from './services/jira-version-canonical.js';
 
 export type JiraIssue = {
   jiraId: string | null;
@@ -13,6 +16,11 @@ export type JiraIssue = {
   assignee: string | null;
   reporter: string | null;
   issueType: string;
+  statusCategory?: string | null;
+  parentKey?: string | null;
+  epicKey?: string | null;
+  labels?: string[];
+  sprintIds?: string[];
   resolution: string | null;
   resolutionAt: Date | null;
   sprint: string | null;
@@ -35,6 +43,14 @@ export type JiraIssue = {
     updatedAt: Date | null;
     available: boolean;
   };
+  history?: {
+    document: unknown;
+    changelogComplete: boolean;
+    commentsComplete: boolean;
+    worklogsComplete: boolean;
+    remoteLinksComplete: boolean;
+    attachmentReferencesStripped: number;
+  };
 };
 
 export function normalizedJiraIssueKey(issueKey: string) {
@@ -49,7 +65,7 @@ const jiraChangelogHistorySchema = z.object({
     .object({
       displayName: z.string().optional(),
       name: z.string().optional(),
-    })
+    }).passthrough()
     .nullable()
     .optional(),
   items: z.array(
@@ -58,9 +74,9 @@ const jiraChangelogHistorySchema = z.object({
       fieldId: z.string().optional(),
       fromString: z.string().nullable().optional(),
       toString: z.string().nullable().optional(),
-    }),
+    }).passthrough(),
   ),
-});
+}).passthrough();
 
 const jiraChangelogPageSchema = z.object({
   startAt: z.number().int().nonnegative().optional(),
@@ -101,21 +117,21 @@ const jiraSearchResponseSchema = z.object({
       fields: z
         .object({
           summary: z.string().nullable(),
-          status: z.object({ name: z.string() }).nullable(),
-          priority: z.object({ name: z.string() }).nullable(),
-          assignee: z.object({ displayName: z.string() }).nullable(),
-          reporter: z.object({ displayName: z.string() }).nullable().optional(),
-          issuetype: z.object({ name: z.string() }).nullable(),
-          resolution: z.object({ name: z.string() }).nullable().optional(),
+          status: z.object({ name: z.string() }).passthrough().nullable(),
+          priority: z.object({ name: z.string() }).passthrough().nullable(),
+          assignee: z.object({ displayName: z.string() }).passthrough().nullable(),
+          reporter: z.object({ displayName: z.string() }).passthrough().nullable().optional(),
+          issuetype: z.object({ name: z.string() }).passthrough().nullable(),
+          resolution: z.object({ name: z.string() }).passthrough().nullable().optional(),
           resolutiondate: z.string().nullable().optional(),
           created: z.string().optional(),
           updated: z.string(),
         })
         .passthrough(),
       changelog: jiraChangelogSchema,
-    }),
+    }).passthrough(),
   ),
-});
+}).passthrough();
 type JiraSearchResponse = z.infer<typeof jiraSearchResponseSchema>;
 
 const jiraIssueKeySearchResponseSchema = z.object({
@@ -181,6 +197,8 @@ type JiraConfigOptions = {
   labelScope?: string;
   pageSize?: number;
   deadlineAt?: number;
+  capacitySample?: boolean;
+  includeHistoryDocument?: boolean;
   remoteDevelopmentCache?: Map<string, JiraIssue['development']>;
 };
 
@@ -189,9 +207,32 @@ export type JiraAnalyticsScope = {
   value: string;
 };
 
-type JiraIssueFetchResult = {
+export type JiraCapacityIssueMeasurement = {
+  identity: string;
+  currentJsonBytes: number;
+  estimatedFullJsonBytes: number;
+  estimatedFullGzipBytes: number;
+  fieldCount: number;
+  changelogHistories: number;
+  changelogItems: number;
+  changelogComplete: boolean;
+  comments: number;
+  commentsIncluded: number;
+  commentsComplete: boolean;
+  worklogs: number;
+  worklogsIncluded: number;
+  worklogsComplete: boolean;
+  developmentLinks: number;
+  attachmentExcluded: boolean;
+  attachmentFieldExclusionHonored: boolean;
+  attachmentReferencesStripped: number;
+};
+
+export type JiraIssueFetchResult = {
   issues: JiraIssue[];
   jiraUser: string | null;
+  total: number;
+  capacityMeasurements?: JiraCapacityIssueMeasurement[];
 };
 
 export type JiraIssueKeyFetchResult = {
@@ -391,7 +432,7 @@ function jiraMyselfPaths() {
 const jiraReadOnlyGetPaths = [
   /(?:^|\/)rest\/api\/[23]\/filter\/\d+$/,
   /(?:^|\/)rest\/api\/[23]\/myself$/,
-  /(?:^|\/)rest\/api\/[23]\/issue\/[^/]+(?:\/(?:changelog|remotelink))?$/,
+  /(?:^|\/)rest\/api\/[23]\/issue\/[^/]+(?:\/(?:changelog|comment|worklog|remotelink))?$/,
 ];
 
 const jiraReadOnlyPostPaths = new Set([
@@ -404,6 +445,15 @@ const jiraReadOnlyPostPaths = new Set([
 export class JiraReadOnlyRequestError extends Error {
   override name = 'JiraReadOnlyRequestError';
 }
+
+export type JiraReadOnlyRequestMetric = {
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+};
+
+const jiraReadOnlyRequestMetrics = new AsyncLocalStorage<JiraReadOnlyRequestMetric[]>();
 
 export function assertJiraReadOnlyRequest(urlValue: string | URL, init: RequestInit = {}) {
   let url: URL;
@@ -427,9 +477,36 @@ export function assertJiraReadOnlyRequest(urlValue: string | URL, init: RequestI
   }
 }
 
-export function fetchJiraReadOnly(url: string | URL, init: RequestInit = {}) {
+export async function fetchJiraReadOnly(url: string | URL, init: RequestInit = {}) {
   assertJiraReadOnlyRequest(url, init);
-  return fetch(url, { ...init, redirect: 'manual' });
+  const startedAt = performance.now();
+  const parsedUrl = url instanceof URL ? url : new URL(url);
+  try {
+    const response = await fetch(url, { ...init, redirect: 'manual' });
+    jiraReadOnlyRequestMetrics.getStore()?.push({
+      method: (init.method ?? 'GET').toUpperCase(),
+      path: parsedUrl.pathname,
+      status: response.status,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    });
+    return response;
+  } catch (error) {
+    jiraReadOnlyRequestMetrics.getStore()?.push({
+      method: (init.method ?? 'GET').toUpperCase(),
+      path: parsedUrl.pathname,
+      status: 0,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    });
+    throw error;
+  }
+}
+
+export async function captureJiraReadOnlyRequestMetrics<Result>(
+  callback: () => Promise<Result>,
+) {
+  const requests: JiraReadOnlyRequestMetric[] = [];
+  const result = await jiraReadOnlyRequestMetrics.run(requests, callback);
+  return { result, requests };
 }
 
 function savedFilterIdFromJql(jql: string) {
@@ -440,6 +517,8 @@ type JiraSearchBodyOptions = {
   analyticsFieldIds?: readonly string[] | null;
   includeChangelog?: boolean;
   keysOnly?: boolean;
+  capacitySample?: boolean;
+  fullHistory?: boolean;
 };
 
 function jiraSearchBody(
@@ -455,7 +534,9 @@ function jiraSearchBody(
     fields: keysOnly
       ? []
       : [
-          ...(analyticsFieldIds ? analyticsFieldIds : ['*navigable']),
+          ...(options.capacitySample || options.fullHistory
+            ? ['*all', '-attachment']
+            : analyticsFieldIds ? analyticsFieldIds : ['*navigable']),
           'summary',
           'status',
           'priority',
@@ -564,8 +645,58 @@ export function jiraJqlWithIssueKeys(jql: string, issueKeys: readonly string[]) 
   );
 }
 
-function jiraSprintFieldId() {
+export function jiraSprintFieldId() {
   return nonEmpty(process.env.JIRA_SPRINT_FIELD_ID) ?? 'customfield_10004';
+}
+
+function jiraSprintIdsFromFields(fields: Record<string, unknown>) {
+  const ids = new Set<string>();
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      if (typeof record.id === 'string' || typeof record.id === 'number') {
+        ids.add(String(record.id));
+      }
+      Object.values(record).forEach(visit);
+      return;
+    }
+    if (typeof value !== 'string') return;
+    for (const match of value.matchAll(/(?:^|,|\[)id=(\d+)(?:,|\])/gi)) {
+      if (match[1]) ids.add(match[1]);
+    }
+  };
+  visit(fields[jiraSprintFieldId()]);
+  return [...ids].sort((left, right) => {
+    if (/^\d+$/.test(left) && /^\d+$/.test(right)) {
+      const difference = BigInt(left) - BigInt(right);
+      if (difference !== 0n) return difference < 0n ? -1 : 1;
+    }
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
+}
+
+function jiraStringArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((entry): entry is string => typeof entry === 'string'))]
+    .sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+}
+
+function jiraObjectString(value: unknown, key: string) {
+  if (typeof value === 'string') return value.trim() || null;
+  if (!value || typeof value !== 'object') return null;
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === 'string' ? candidate.trim() || null : null;
+}
+
+function jiraEpicKey(fields: Record<string, unknown>, names: Record<string, string>) {
+  const epicField = Object.entries(names).find(([, name]) =>
+    ['epic link', 'epic'].includes(name.trim().toLowerCase())
+  )?.[0];
+  return epicField ? jiraObjectString(fields[epicField], 'key') : null;
 }
 
 function jiraAnalyticsFieldIds() {
@@ -856,6 +987,165 @@ function jiraTransitionHistoryComplete(issue: JiraSearchResponse['issues'][numbe
   return jiraChangelogPageComplete(issue.changelog);
 }
 
+function isJiraAttachmentKey(key: string) {
+  const normalized = key.trim().toLowerCase();
+  return normalized === 'attachment' || normalized === 'attachments';
+}
+
+function isJiraAttachmentRecord(value: Record<string, unknown>) {
+  const adfType = typeof value.type === 'string' ? value.type.trim().toLowerCase() : '';
+  if (
+    adfType === 'media'
+    || adfType === 'mediagroup'
+    || adfType === 'mediasingle'
+    || adfType === 'mediainline'
+  ) return true;
+  const changelogField = typeof (value.fieldId ?? value.field) === 'string'
+    ? String(value.fieldId ?? value.field).trim().toLowerCase()
+    : '';
+  if (changelogField === 'attachment' || changelogField === 'attachments') return true;
+  return typeof value.filename === 'string'
+    && ['mimeType', 'content', 'thumbnail'].some((key) => key in value);
+}
+
+function containsJiraAttachmentMetadata(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((entry) => containsJiraAttachmentMetadata(entry));
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  if (isJiraAttachmentRecord(record)) return true;
+  return Object.entries(record).some(
+    ([key, entry]) => isJiraAttachmentKey(key) || containsJiraAttachmentMetadata(entry),
+  );
+}
+
+function countJiraAttachmentMetadata(value: unknown): number {
+  if (Array.isArray(value)) {
+    return value.reduce((total, entry) => total + countJiraAttachmentMetadata(entry), 0);
+  }
+  if (!value || typeof value !== 'object') return 0;
+  const record = value as Record<string, unknown>;
+  const adfType = typeof record.type === 'string' ? record.type.trim().toLowerCase() : '';
+  const recordMatch = ['mediagroup', 'mediasingle', 'mediainline'].includes(adfType)
+    ? 0
+    : isJiraAttachmentRecord(record) ? 1 : 0;
+  return Object.entries(record).reduce(
+    (total, [key, entry]) => {
+      const nested = countJiraAttachmentMetadata(entry);
+      return total + (isJiraAttachmentKey(key) ? Math.max(1, nested) : nested);
+    },
+    recordMatch,
+  );
+}
+
+function sortedJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => {
+      const sorted = sortedJsonValue(entry);
+      return sorted === undefined ? [] : [sorted];
+    });
+  }
+  if (!value || typeof value !== 'object') return value;
+  if (isJiraAttachmentRecord(value as Record<string, unknown>)) return undefined;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !isJiraAttachmentKey(key))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .flatMap(([key, entry]) => {
+        const sorted = sortedJsonValue(entry);
+        return sorted === undefined ? [] : [[key, sorted] as const];
+      }),
+  );
+}
+
+export function sanitizeJiraCapacityPayload(value: unknown) {
+  const payload = sortedJsonValue(value);
+  return {
+    payload,
+    attachmentExcluded: !containsJiraAttachmentMetadata(payload),
+    attachmentReferencesStripped: countJiraAttachmentMetadata(value),
+  };
+}
+
+function jiraEmbeddedCollection(value: unknown, arrayKey: string) {
+  if (!value || typeof value !== 'object') {
+    return { total: 0, included: 0, complete: true, currentBytes: 0, estimatedBytes: 0 };
+  }
+  const record = value as Record<string, unknown>;
+  const entries = Array.isArray(record[arrayKey]) ? record[arrayKey] : [];
+  const included = entries.length;
+  const totalValue = typeof record.total === 'number' ? record.total : included;
+  const total = Math.max(included, Math.max(0, Math.floor(totalValue)));
+  const currentBytes = Buffer.byteLength(JSON.stringify(sortedJsonValue(value)));
+  const entriesBytes = Buffer.byteLength(JSON.stringify(sortedJsonValue(entries)));
+  const fixedBytes = Math.max(0, currentBytes - entriesBytes);
+  const averageEntryBytes = included > 0 ? Math.max(0, entriesBytes - 2) / included : 0;
+  const estimatedBytes = total > included && included > 0
+    ? Math.ceil(fixedBytes + 2 + averageEntryBytes * total)
+    : currentBytes;
+  return {
+    total,
+    included,
+    complete: total <= included,
+    currentBytes,
+    estimatedBytes,
+  };
+}
+
+function measureJiraIssueCapacity(
+  issue: JiraSearchResponse['issues'][number],
+  development: JiraIssue['development'] | null,
+): JiraCapacityIssueMeasurement {
+  const rawFields = issue.fields as Record<string, unknown>;
+  const attachmentFieldExclusionHonored = !Object.keys(rawFields).some(isJiraAttachmentKey);
+  const rawPayload = {
+    jiraId: issue.id ?? null,
+    fields: rawFields,
+    changelog: issue.changelog ?? null,
+  };
+  const sanitized = sanitizeJiraCapacityPayload(rawPayload);
+  const fields = sortedJsonValue(rawFields) as Record<string, unknown>;
+  const comment = jiraEmbeddedCollection(fields.comment, 'comments');
+  const worklog = jiraEmbeddedCollection(fields.worklog, 'worklogs');
+  const payload = sanitized.payload;
+  const serialized = JSON.stringify(payload);
+  const currentJsonBytes = Buffer.byteLength(serialized);
+  const estimatedFullJsonBytes = Math.max(
+    currentJsonBytes,
+    currentJsonBytes
+      - comment.currentBytes
+      - worklog.currentBytes
+      + comment.estimatedBytes
+      + worklog.estimatedBytes,
+  );
+  const compressionRatio = serialized.length > 0
+    ? gzipSync(serialized).byteLength / currentJsonBytes
+    : 1;
+
+  return {
+    identity: issue.id ?? issue.key,
+    currentJsonBytes,
+    estimatedFullJsonBytes,
+    estimatedFullGzipBytes: Math.ceil(estimatedFullJsonBytes * compressionRatio),
+    fieldCount: Object.keys(fields).length,
+    changelogHistories: issue.changelog?.histories.length ?? 0,
+    changelogItems: issue.changelog?.histories.reduce(
+      (total, history) => total + history.items.length,
+      0,
+    ) ?? 0,
+    changelogComplete: jiraChangelogPageComplete(issue.changelog),
+    comments: comment.total,
+    commentsIncluded: comment.included,
+    commentsComplete: comment.complete,
+    worklogs: worklog.total,
+    worklogsIncluded: worklog.included,
+    worklogsComplete: worklog.complete,
+    developmentLinks: (development?.commitCount ?? 0) + (development?.mergeRequestCount ?? 0),
+    attachmentExcluded: sanitized.attachmentExcluded,
+    attachmentFieldExclusionHonored,
+    attachmentReferencesStripped: sanitized.attachmentReferencesStripped,
+  };
+}
+
 export function jiraCriticalPriorityAt(
   issue: JiraSearchResponse['issues'][number],
 ) {
@@ -1108,6 +1398,8 @@ async function fetchCompleteJiraSearch(
   authHeaders: Record<string, string>,
   analyticsFieldIds: readonly string[] | null,
   includeChangelog: boolean,
+  capacitySample: boolean,
+  fullHistory: boolean,
   deadlineAt?: number,
 ) {
   const issuesByKey = new Map(firstPage.issues.map((issue) => [issue.key, issue]));
@@ -1155,6 +1447,8 @@ async function fetchCompleteJiraSearch(
       jiraSearchBody(jql, requestedPageSize, pageEnd, {
         analyticsFieldIds,
         includeChangelog,
+        capacitySample,
+        fullHistory,
       }),
       authHeaders,
       jiraSearchResponseSchema,
@@ -1467,7 +1761,126 @@ async function hydrateJiraIssueChangelog(
   return useExpanded ? { ...issue, changelog: expanded } : issue;
 }
 
-export async function fetchJiraRemoteDevelopment(
+const JIRA_EMBEDDED_COLLECTION_PAGE_SIZE = 100;
+const JIRA_EMBEDDED_COLLECTION_MAX_PAGES = 100;
+
+type JiraHydratedCollection = {
+  entries: unknown[];
+  complete: boolean;
+};
+
+function embeddedJiraCollection(value: unknown, key: 'comments' | 'worklogs') {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const entries = Array.isArray(record[key]) ? record[key] : [];
+  const startAt = typeof record.startAt === 'number' ? record.startAt : 0;
+  const maxResults = typeof record.maxResults === 'number' ? record.maxResults : entries.length;
+  const total = typeof record.total === 'number' ? record.total : entries.length;
+  return { entries, startAt, maxResults, total };
+}
+
+function jiraCollectionEntryKey(value: unknown, index: number) {
+  if (value && typeof value === 'object') {
+    const id = (value as Record<string, unknown>).id;
+    if (typeof id === 'string' || typeof id === 'number') return `id:${id}`;
+  }
+  return `value:${index}:${JSON.stringify(value)}`;
+}
+
+async function fetchJiraCollectionPage(
+  baseUrl: string,
+  issueKey: string,
+  collection: 'comment' | 'worklog',
+  startAt: number,
+  authHeaders: Record<string, string>,
+  deadlineAt?: number,
+) {
+  const entryKey = collection === 'comment' ? 'comments' : 'worklogs';
+  const encodedKey = encodeURIComponent(issueKey);
+  const query = `startAt=${startAt}&maxResults=${JIRA_EMBEDDED_COLLECTION_PAGE_SIZE}`;
+  const paths = [
+    `/rest/api/2/issue/${encodedKey}/${collection}?${query}`,
+    `/rest/api/3/issue/${encodedKey}/${collection}?${query}`,
+  ];
+  for (const path of paths) {
+    let response: Response;
+    try {
+      response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: { ...authHeaders, Accept: 'application/json' },
+        signal: jiraRequestTimeout(deadlineAt, JIRA_CHANGELOG_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw jiraTimeoutError(error, `Загрузка ${collection} Jira для ${issueKey}`);
+    }
+    if ([400, 401, 403, 404, 405, 410].includes(response.status)) {
+      await response.text();
+      continue;
+    }
+    if (!response.ok || !isJsonResponse(response)) {
+      await response.text();
+      continue;
+    }
+    const payload = await response.json() as unknown;
+    const parsed = embeddedJiraCollection(payload, entryKey);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+async function hydrateJiraCollection(
+  baseUrl: string,
+  issueKey: string,
+  embedded: unknown,
+  collection: 'comment' | 'worklog',
+  authHeaders: Record<string, string>,
+  deadlineAt?: number,
+): Promise<JiraHydratedCollection> {
+  const entryKey = collection === 'comment' ? 'comments' : 'worklogs';
+  const initial = embeddedJiraCollection(embedded, entryKey);
+  if (initial && initial.startAt === 0 && initial.entries.length >= initial.total) {
+    return { entries: initial.entries, complete: true };
+  }
+
+  const entries: unknown[] = [];
+  const keys = new Set<string>();
+  let nextStartAt = 0;
+  let expectedTotal: number | undefined;
+  for (let pageIndex = 0; pageIndex < JIRA_EMBEDDED_COLLECTION_MAX_PAGES; pageIndex += 1) {
+    const page = await fetchJiraCollectionPage(
+      baseUrl,
+      issueKey,
+      collection,
+      nextStartAt,
+      authHeaders,
+      deadlineAt,
+    );
+    if (!page) return { entries, complete: false };
+    if (page.startAt !== nextStartAt) return { entries, complete: false };
+    if (expectedTotal !== undefined && page.total !== expectedTotal) {
+      return { entries, complete: false };
+    }
+    expectedTotal = page.total;
+    for (const [index, entry] of page.entries.entries()) {
+      const key = jiraCollectionEntryKey(entry, nextStartAt + index);
+      if (keys.has(key)) return { entries, complete: false };
+      keys.add(key);
+      entries.push(entry);
+    }
+    const pageEnd = page.startAt + page.entries.length;
+    if (pageEnd >= page.total) {
+      return { entries, complete: entries.length === page.total };
+    }
+    if (page.entries.length === 0 || pageEnd <= nextStartAt) {
+      return { entries, complete: false };
+    }
+    nextStartAt = pageEnd;
+  }
+  return { entries, complete: false };
+}
+
+export async function fetchJiraRemoteLinks(
   baseUrl: string,
   issueKey: string,
   authHeaders: Record<string, string>,
@@ -1512,10 +1925,32 @@ export async function fetchJiraRemoteDevelopment(
     } catch {
       continue;
     }
-    const development = jiraDevelopmentFromRemoteLinks(payload);
-    if (development) return development;
+    const parsed = jiraRemoteIssueLinksSchema.safeParse(payload);
+    if (parsed.success) return parsed.data;
   }
   return null;
+}
+
+export async function fetchJiraRemoteDevelopment(
+  baseUrl: string,
+  issueKey: string,
+  authHeaders: Record<string, string>,
+  deadlineAt?: number,
+) {
+  const links = await fetchJiraRemoteLinks(baseUrl, issueKey, authHeaders, deadlineAt);
+  return links ? jiraDevelopmentFromRemoteLinks(links) : null;
+}
+
+async function jiraHistoryRequestOrFallback<Result>(
+  request: Promise<Result>,
+  fallback: Result,
+) {
+  try {
+    return await request;
+  } catch (error) {
+    if (error instanceof JiraReadOnlyRequestError) throw error;
+    return fallback;
+  }
 }
 
 async function hydrateJiraSearchIssues(
@@ -1524,6 +1959,7 @@ async function hydrateJiraSearchIssues(
   authHeaders: Record<string, string>,
   includeChangelog: boolean,
   includeRemoteDevelopment: boolean,
+  includeHistoryDocument: boolean,
   remoteDevelopmentCache?: Map<string, JiraIssue['development']>,
   deadlineAt?: number,
 ) {
@@ -1532,19 +1968,61 @@ async function hydrateJiraSearchIssues(
     JIRA_CHANGELOG_CONCURRENCY,
     async (issue) => {
       const cachedDevelopment = remoteDevelopmentCache?.get(issue.key);
-      const [hydratedIssue, fetchedRemoteDevelopment] = await Promise.all([
+      const fields = issue.fields as Record<string, unknown> & typeof issue.fields;
+      const [hydratedIssue, remoteLinks, comments, worklogs] = await Promise.all([
         includeChangelog
-          ? hydrateJiraIssueChangelog(baseUrl, issue, authHeaders, deadlineAt)
+          ? includeHistoryDocument
+            ? jiraHistoryRequestOrFallback(
+                hydrateJiraIssueChangelog(baseUrl, issue, authHeaders, deadlineAt),
+                issue,
+              )
+            : hydrateJiraIssueChangelog(baseUrl, issue, authHeaders, deadlineAt)
           : Promise.resolve(issue),
-        includeRemoteDevelopment
-          ? cachedDevelopment ?? fetchJiraRemoteDevelopment(
+        includeRemoteDevelopment || includeHistoryDocument
+          ? includeHistoryDocument
+            ? jiraHistoryRequestOrFallback(
+                fetchJiraRemoteLinks(baseUrl, issue.key, authHeaders, deadlineAt),
+                null,
+              )
+            : Promise.resolve(null)
+          : Promise.resolve(null),
+        includeHistoryDocument
+          ? jiraHistoryRequestOrFallback(
+              hydrateJiraCollection(
+                baseUrl,
+                issue.key,
+                fields.comment,
+                'comment',
+                authHeaders,
+                deadlineAt,
+              ),
+              { entries: [], complete: false },
+            )
+          : Promise.resolve({ entries: [], complete: false }),
+        includeHistoryDocument
+          ? jiraHistoryRequestOrFallback(
+              hydrateJiraCollection(
+                baseUrl,
+                issue.key,
+                fields.worklog,
+                'worklog',
+                authHeaders,
+                deadlineAt,
+              ),
+              { entries: [], complete: false },
+            )
+          : Promise.resolve({ entries: [], complete: false }),
+      ]);
+      const fetchedRemoteDevelopment = remoteLinks
+        ? jiraDevelopmentFromRemoteLinks(remoteLinks)
+        : includeRemoteDevelopment && !includeHistoryDocument
+          ? cachedDevelopment ?? await fetchJiraRemoteDevelopment(
               baseUrl,
               issue.key,
               authHeaders,
               deadlineAt,
             )
-          : Promise.resolve(null),
-      ]);
+          : null;
       const remoteDevelopment = includeRemoteDevelopment
         ? fetchedRemoteDevelopment ?? {
             commitCount: 0,
@@ -1556,7 +2034,36 @@ async function hydrateJiraSearchIssues(
       if (includeRemoteDevelopment && !cachedDevelopment && remoteDevelopment) {
         remoteDevelopmentCache?.set(issue.key, remoteDevelopment);
       }
-      return { issue: hydratedIssue, remoteDevelopment };
+      const history = includeHistoryDocument
+        ? sanitizeJiraVersionPayload({
+            issue: {
+              ...hydratedIssue,
+              fields: {
+                ...(hydratedIssue.fields as Record<string, unknown>),
+                comment: undefined,
+                worklog: undefined,
+              },
+              changelog: undefined,
+            },
+            changelog: hydratedIssue.changelog?.histories ?? [],
+            comments: comments.entries,
+            worklogs: worklogs.entries,
+            remoteLinks: remoteLinks ?? [],
+          })
+        : null;
+      return {
+        issue: hydratedIssue,
+        remoteDevelopment,
+        history: history
+          ? {
+              ...history,
+              changelogComplete: jiraChangelogPageComplete(hydratedIssue.changelog),
+              commentsComplete: comments.complete,
+              worklogsComplete: worklogs.complete,
+              remoteLinksComplete: remoteLinks !== null,
+            }
+          : null,
+      };
     },
   );
   return {
@@ -1564,6 +2071,7 @@ async function hydrateJiraSearchIssues(
     remoteDevelopmentByKey: new Map(
       hydrated.map((entry) => [entry.issue.key, entry.remoteDevelopment]),
     ),
+    historyByKey: new Map(hydrated.map((entry) => [entry.issue.key, entry.history])),
   };
 }
 
@@ -1868,6 +2376,8 @@ async function fetchJiraDataWithMeta(
         : null,
       includeChangelog,
       keysOnly,
+      capacitySample: !keysOnly && options.capacitySample === true,
+      fullHistory: !keysOnly && options.includeHistoryDocument === true,
     });
   const analyticsScope = options.analyticsScope ?? (
     options.labelScope ? { type: 'LABEL' as const, value: options.labelScope } : null
@@ -2083,6 +2593,8 @@ async function fetchJiraDataWithMeta(
         successfulAuthHeaders,
         successfulAnalyticsFieldIds,
         includeChangelog,
+        Boolean(options.capacitySample),
+        Boolean(options.includeHistoryDocument),
         options.deadlineAt,
       )
     : fullSearch;
@@ -2093,15 +2605,31 @@ async function fetchJiraDataWithMeta(
         successfulAuthHeaders,
         includeChangelog,
         includeRemoteDevelopment,
+        Boolean(options.includeHistoryDocument),
         options.remoteDevelopmentCache,
         options.deadlineAt,
       )
-    : { search: completeSearch, remoteDevelopmentByKey: new Map() };
+    : {
+        search: completeSearch,
+        remoteDevelopmentByKey: new Map(),
+        historyByKey: new Map(),
+      };
   const hydrated = hydratedData.search;
   const names = hydrated.names ?? {};
+  const capacityMeasurements = options.capacitySample
+    ? hydrated.issues.map((issue) =>
+        measureJiraIssueCapacity(
+          issue,
+          hydratedData.remoteDevelopmentByKey.get(issue.key) ?? null,
+        ))
+    : undefined;
   return {
     issues: hydrated.issues.map((issue) => {
       const fields = issue.fields as Record<string, unknown> & typeof issue.fields;
+      const status = issue.fields.status as (typeof issue.fields.status & {
+        statusCategory?: { name?: unknown; key?: unknown };
+      });
+      const history = hydratedData.historyByKey.get(issue.key);
       return {
         jiraId: issue.id ?? null,
         key: issue.key,
@@ -2129,8 +2657,28 @@ async function fetchJiraDataWithMeta(
           hydratedData.remoteDevelopmentByKey.get(issue.key) ?? null,
           includeRemoteDevelopment,
         ),
+        ...(history
+          ? {
+              statusCategory: jiraObjectString(status?.statusCategory, 'name')
+                ?? jiraObjectString(status?.statusCategory, 'key'),
+              parentKey: jiraObjectString(fields.parent, 'key'),
+              epicKey: jiraEpicKey(fields, names),
+              labels: jiraStringArray(fields.labels),
+              sprintIds: jiraSprintIdsFromFields(fields),
+              history: {
+              document: history.payload,
+              changelogComplete: history.changelogComplete,
+              commentsComplete: history.commentsComplete,
+              worklogsComplete: history.worklogsComplete,
+              remoteLinksComplete: history.remoteLinksComplete,
+              attachmentReferencesStripped: history.attachmentReferencesStripped,
+              },
+            }
+          : {}),
       };
     }),
     jiraUser,
+    total: completeSearch.total ?? completeSearch.issues.length,
+    capacityMeasurements,
   };
 }

@@ -124,6 +124,19 @@ export const openApiDocument = {
         },
         required: ["error"],
       },
+      JiraHistoryAggregate: {
+        type: "object",
+        required: ["versions", "tickets", "payloadBytes", "averageBytes", "p95Bytes", "incompleteHydration", "attachmentReferencesStripped"],
+        properties: {
+          versions: { type: "integer" },
+          tickets: { type: "integer" },
+          payloadBytes: { type: "integer" },
+          averageBytes: { type: "integer" },
+          p95Bytes: { type: "integer" },
+          incompleteHydration: { type: "integer" },
+          attachmentReferencesStripped: { type: "integer" },
+        },
+      },
       JiraAnalyticsFilter: {
         type: "object",
         additionalProperties: false,
@@ -917,10 +930,239 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/capacity-sample": {
+      post: {
+        tags: ["Jira"],
+        summary: "Measure Jira history capacity using a redacted read-only sample (system admin only)",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                required: ["scopeType", "scopeValue"],
+                properties: {
+                  scopeType: { type: "string", enum: ["LABEL", "EPIC"] },
+                  scopeValue: { type: "string", minLength: 1, maxLength: 100 },
+                  sampleSize: { type: "integer", minimum: 10, maximum: 100, default: 20 },
+                  storageBudgetGiB: { type: "number", exclusiveMinimum: 0, default: 5 },
+                  allocatedHistoryGiB: { type: "number", minimum: 0, default: 0 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Redacted capacity and security report (schema version 2)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["reportVersion", "scope", "security", "projections", "assumptions", "capacityGate"],
+                  properties: {
+                    reportVersion: { type: "integer", enum: [2] },
+                    scope: {
+                      type: "object",
+                      required: ["type", "value", "tickets", "requestedSample", "observedSample"],
+                      properties: {
+                        type: { type: "string", enum: ["LABEL", "EPIC"] },
+                        value: { type: "string" },
+                        tickets: { type: "integer" },
+                        requestedSample: { type: "integer" },
+                        observedSample: { type: "integer" },
+                      },
+                    },
+                    security: {
+                      type: "object",
+                      required: ["status", "jiraWrites", "databaseWrites", "issueContentInReport", "attachmentsExcluded", "attachmentFieldExclusionHonored", "attachmentReferencesStripped", "allowedMethodsObserved"],
+                      properties: {
+                        status: { type: "string", enum: ["PASS", "BLOCKED"] },
+                        jiraWrites: { type: "boolean", enum: [false] },
+                        databaseWrites: { type: "boolean", enum: [false] },
+                        issueContentInReport: { type: "boolean", enum: [false] },
+                        attachmentsExcluded: { type: "boolean" },
+                        attachmentFieldExclusionHonored: { type: "boolean" },
+                        attachmentReferencesStripped: { type: "integer", minimum: 0 },
+                        allowedMethodsObserved: { type: "boolean" },
+                      },
+                    },
+                    projections: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        required: ["versionsPerTicket", "rawJsonGiB", "estimatedDatabaseGiB", "estimatedGzipArchiveGiB", "threeDatabaseCopiesGiB"],
+                        properties: {
+                          versionsPerTicket: { type: "integer", enum: [10, 50, 100] },
+                          rawJsonGiB: { type: "number" },
+                          estimatedDatabaseGiB: { type: "number" },
+                          estimatedGzipArchiveGiB: { type: "number" },
+                          threeDatabaseCopiesGiB: { type: "number" },
+                        },
+                      },
+                    },
+                    assumptions: {
+                      type: "object",
+                      required: ["projectionUses", "databaseOverheadMultiplier", "referenceDatabaseCopies", "capacityGateVersionsPerTicket", "storageBudgetGiB", "allocatedHistoryGiB"],
+                      properties: {
+                        projectionUses: { type: "string", enum: ["SAMPLE_P95"] },
+                        databaseOverheadMultiplier: { type: "number" },
+                        referenceDatabaseCopies: { type: "integer" },
+                        capacityGateVersionsPerTicket: { type: "integer", enum: [100] },
+                        storageBudgetGiB: { type: "number" },
+                        allocatedHistoryGiB: { type: "number" },
+                      },
+                    },
+                    capacityGate: {
+                      type: "object",
+                      required: ["status", "level", "versionsPerTicket", "projectedTotalDatabaseGiB", "allocatedHistoryGiB", "storageBudgetGiB", "utilizationPercent", "thresholdsPercent", "reasons", "warnings"],
+                      properties: {
+                        status: { type: "string", enum: ["PASS", "REVIEW_REQUIRED"] },
+                        level: { type: "string", enum: ["NORMAL", "WARNING", "HIGH", "CRITICAL", "EXCEEDED"] },
+                        versionsPerTicket: { type: "integer", enum: [100] },
+                        estimatedDatabaseGiB: { type: "number" },
+                        projectedTotalDatabaseGiB: { type: "number" },
+                        allocatedHistoryGiB: { type: "number" },
+                        storageBudgetGiB: { type: "number" },
+                        utilizationPercent: { type: "number" },
+                        thresholdsPercent: {
+                          type: "object",
+                          required: ["warning", "high", "critical"],
+                          properties: {
+                            warning: { type: "number", enum: [70] },
+                            high: { type: "number", enum: [85] },
+                            critical: { type: "number", enum: [95] },
+                          },
+                        },
+                        reasons: { type: "array", items: { type: "string" } },
+                        warnings: { type: "array", items: { type: "string" } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "400": { description: "Validation error" },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "404": { description: "Project not found" },
+          "502": { description: "Jira sampling failed" },
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/history-status": {
+      get: {
+        tags: ["Jira", "Admin"],
+        summary: "Read attachment-free Jira history storage and retry diagnostics",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "200": {
+            description: "Stage A1 diagnostics without raw Jira payloads",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["reportVersion", "generatedAt", "storage", "global", "project", "retry", "cursor"],
+                  properties: {
+                    reportVersion: { type: "integer", enum: [1] },
+                    generatedAt: { type: "string", format: "date-time" },
+                    storage: {
+                      type: "object",
+                      required: ["budgetBytes", "databaseBytes", "utilizationPercent", "level", "newScopeBlocked"],
+                      properties: {
+                        budgetBytes: { type: "integer" },
+                        databaseBytes: { type: "integer" },
+                        utilizationPercent: { type: "number" },
+                        level: { type: "string", enum: ["NORMAL", "WARNING", "HIGH", "CRITICAL", "EXCEEDED"] },
+                        newScopeBlocked: { type: "boolean" },
+                      },
+                    },
+                    global: { $ref: "#/components/schemas/JiraHistoryAggregate" },
+                    project: { $ref: "#/components/schemas/JiraHistoryAggregate" },
+                    retry: {
+                      type: "object",
+                      required: ["pending", "failedBatches", "oldestFailureAt", "nextRetryAt", "items"],
+                      properties: {
+                        pending: { type: "integer" },
+                        failedBatches: { type: "integer" },
+                        oldestFailureAt: { type: ["string", "null"], format: "date-time" },
+                        nextRetryAt: { type: ["string", "null"], format: "date-time" },
+                        items: {
+                          type: "array",
+                          maxItems: 20,
+                          items: {
+                            type: "object",
+                            required: ["issueKey", "reasonCode", "attempts", "firstFailedAt", "lastFailedAt", "nextRetryAt", "lastError"],
+                            properties: {
+                              issueKey: { type: "string" },
+                              reasonCode: { type: "string" },
+                              attempts: { type: "integer" },
+                              firstFailedAt: { type: "string", format: "date-time" },
+                              lastFailedAt: { type: "string", format: "date-time" },
+                              nextRetryAt: { type: "string", format: "date-time" },
+                              lastError: { type: "string", maxLength: 240 },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    cursor: {
+                      type: "object",
+                      required: ["updatedAt", "jiraIssueId", "lastFullReconciledAt", "fullCursorIssueKey", "fullStartedAt"],
+                      properties: {
+                        updatedAt: { type: ["string", "null"], format: "date-time" },
+                        jiraIssueId: { type: ["string", "null"] },
+                        lastFullReconciledAt: { type: ["string", "null"], format: "date-time" },
+                        fullCursorIssueKey: { type: ["string", "null"] },
+                        fullStartedAt: { type: ["string", "null"], format: "date-time" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "404": { description: "Project not found" },
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/history/rebuild-projections": {
+      post: {
+        tags: ["Jira", "Admin"],
+        summary: "Rebuild current Jira projections from immutable observed versions",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "200": {
+            description: "Current Jira projections rebuilt without contacting Jira",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["rebuilt"],
+                  properties: { rebuilt: { type: "integer" } },
+                },
+              },
+            },
+          },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "404": { description: "Project not found" },
+          "409": { description: "Jira synchronization or projection rebuild already running" },
+        },
+      },
+    },
     "/api/projects/{projectId}/jira/sync": {
       post: {
         tags: ["Jira"],
-        summary: "Synchronize configured Jira work section filters into snapshots",
+        summary: "Synchronize Jira projections and immutable attachment-free history",
         security: [{ sessionCookie: [] }],
         parameters: [
           { name: "projectId", in: "path", required: true, schema: { type: "string" } },

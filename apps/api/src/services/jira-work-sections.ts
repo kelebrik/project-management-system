@@ -62,7 +62,7 @@ export function normalizedJiraIssueKeys(issueKeys: readonly string[]) {
       throw new Error(`Jira вернула некорректный ключ тикета: ${issueKey}`);
     }
     return normalized;
-  }))].sort((left, right) => left.localeCompare(right));
+  }))].sort();
 }
 
 export function jiraIssueKeyBatches(issueKeys: readonly string[], batchSize: number) {

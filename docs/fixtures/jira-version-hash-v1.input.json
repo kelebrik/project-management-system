@@ -1,0 +1,37 @@
+{
+  "worklogs": [],
+  "issue": {
+    "key": "CVTE-1",
+    "fields": {
+      "updated": "2026-08-21T18:00:00+0300",
+      "summary": "Hash fixture",
+      "labels": ["zeta", "alpha"],
+      "created": "2026-08-20T10:00:00.123+0300"
+    },
+    "id": "10001"
+  },
+  "remoteLinks": [],
+  "comments": [
+    {
+      "updated": "2026-08-21T12:00:00+0300",
+      "id": "10",
+      "created": "2026-08-21T12:00:00+0300",
+      "body": "later"
+    },
+    {
+      "body": "earlier",
+      "created": "2026-08-21T08:00:00+0300",
+      "id": "9",
+      "updated": "2026-08-21T08:00:00+0300"
+    }
+  ],
+  "changelog": [
+    {
+      "items": [
+        { "to": "2", "field": "status", "from": "1", "fieldId": "status" }
+      ],
+      "id": "20",
+      "created": "2026-08-21T11:00:00+0300"
+    }
+  ]
+}

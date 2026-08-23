@@ -9,6 +9,7 @@ import {
 import type { JiraIssueSnapshot } from "../app/domainTypes";
 import type { JiraWorkSectionDraft } from "../app/formState";
 import { defaultJiraWorkSectionTitle } from "../app/jiraWorkSections";
+import { JiraCapacitySampler } from "./JiraCapacitySampler";
 import { usePageContext } from "./PageContext";
 
 export function JiraWorkDataSections() {
@@ -59,6 +60,8 @@ export function JiraWorkDataSections() {
 
   return (
     <div className="jira-work-data-view">
+      <JiraCapacitySampler />
+
       <div className="jira-work-data-actions">
         <button className="button" type="button" onClick={addSection}>
           Создать раздел
