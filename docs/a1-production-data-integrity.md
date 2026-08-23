@@ -20,8 +20,12 @@ Do not begin the maintenance window until all of these are true:
    drill result, RPO, and responsible DBA in a local evidence file. A capture
    manifest is not restorable and is not backup evidence.
 2. The deployed image is immutable and identified by its image ID/digest, not a
-   mutable tag. Its A1 `migration.sql` SHA-256 equals the file in this checkout.
-3. The checkout commit is the commit represented by that image.
+   mutable tag. Its A1 `migration.sql` SHA-256 equals the file in this checkout, its
+   complete `prisma/migrations` inventory equals the reviewed checkout, and A1 is the
+   newest migration in both. This prevents a candidate containing A2 from passing by
+   carrying an unchanged A1 file.
+3. The reviewed candidate commit is the revision represented by that image. Record the
+   final MR merge commit before building; do not infer revision identity from a tag.
 4. The database capture role has explicit `EXECUTE` on `pg_control_system()` and
    `pg_control_checkpoint()` (or is superuser), is a member of `pg_read_all_stats`, and can select
    every column and sequence. No user table has RLS. Missing access is a hard FAIL.
@@ -29,6 +33,10 @@ Do not begin the maintenance window until all of these are true:
    baseline, migration, and post-capture window. Monitoring roles may remain only
    when named in `DB_INTEGRITY_ALLOWED_ROLES`; the capture verifies that those roles
    have no table-write or elevated cluster privileges.
+6. The exact production capture role has already completed a trial
+   `integrity:capture baseline` against a restored clone. Checking grants by inspection
+   is not sufficient: the trial must exercise column, sequence, statistics, control
+   function, RLS, migration-boundary, and concurrent-session checks.
 
 The production database observed before this runbook was written was
 `tv_management`, with newest successful pre-A1 migration
@@ -80,6 +88,20 @@ history or the evidence directory.
    window. Keep a separate migration role/path available.
 5. Confirm no automatic rollout, liveness restart, or image entrypoint can execute a
    second `prisma migrate deploy`.
+
+The current repository does not satisfy item 5 without deployment overrides:
+
+- `deploy/k8s/project-management-system-migrate-job.yaml` has `backoffLimit: 2`
+  and `restartPolicy: OnFailure`; use `backoffLimit: 0` and `restartPolicy: Never`;
+- both Kubernetes manifests use mutable `latest`, and the application Deployment does
+  not override the image entrypoint; pin the same image digest and set the application
+  command to `node /app/apps/api/dist/server.js` during this release;
+- the Sber master pipeline launches AWX automatically and currently deploys mutable
+  `latest`; freeze master-triggered deployment for the window and use the reviewed
+  digest through an explicitly controlled AWX procedure;
+- the separate cloud Render service has commit-triggered `render-build`, which runs
+  `prisma migrate deploy` against its own database. Pause that service or prove the A1
+  revision cannot reach its configured branch during the window.
 
 The capture repeats the `pg_stat_activity` check at the beginning and end of each
 snapshot. Any unexpected client makes the run `ABORTED`; do not override it.
@@ -152,7 +174,13 @@ After a migration-integrity PASS, restore application-role connectivity and star
 service. Jira remains strictly read-only: the importer may read Jira and write only to
 this application's PostgreSQL database.
 
-Run one controlled Jira import, then execute:
+For each configured project, record the exact request body and run one controlled
+`POST /projects/:projectId/jira/sync`. A non-2xx response is a hard stop; do not start
+a retry pass. After the first pass, wait at least two minutes so first-attempt retry
+backoff has expired, then repeat the same request once for each project. HTTP 200 on
+this second pass is not evidence of success by itself.
+
+After the second pass, execute:
 
 ```sh
 npm run integrity:a1 -- /absolute/path/a1-run/a1-after-first-sync.tsv
@@ -160,8 +188,33 @@ npm run integrity:a1 -- /absolute/path/a1-run/a1-after-first-sync.tsv
 
 This diagnostic checks version shape, hydration completeness, relationships, the
 typed current projection, structural attachment exclusion, retry state, and cursor
-state without outputting payloads. Its structural `PASS` is not a lifetime
-immutability certificate. The report deliberately contains:
+state without outputting payloads. Also call
+`GET /projects/:projectId/jira/history-status` for every project in scope: the TSV
+contains only aggregate retry counts, while the endpoint identifies keys, reason
+codes, attempts, retry timestamps, and `storage.level`.
+
+Keep the rollout on hold when any of these conditions is true:
+
+1. `integrity:a1` exits non-zero or any TSV `CHECK` is not `true`.
+2. Either sync pass returned non-2xx.
+3. `storage.level` is not `NORMAL`.
+4. Any PENDING retry has a reason outside the closed allowlist
+   `{MISSING_HISTORY_DOCUMENT, INCOMPLETE_HYDRATION}`. In particular,
+   `PERSISTENCE_FAILED`, `MISSING_JIRA_ID`, `FETCH_ISSUE_FAILED`, `FETCH_MISSING`,
+   legacy `FETCH_BATCH_FAILED`, and every future/unknown reason are hard stops.
+5. Allowed PENDING retries exceed the global budget
+   `min(floor(0.01 * (SUMMARY tickets + SUMMARY pending_retries)), 5)`.
+
+Record every allowed pending key with project, reason, attempts, `firstFailedAt`,
+`nextRetryAt`, owner, and deadline. A key is closed only when a `JiraIssueVersion`
+exists for its `(projectId, issueKey)` and its retry row is `RESOLVED`; verify both by
+SQL. Neither `historyLastFullReconciledAt` nor `RESOLVED` alone proves closure because
+backoff keys can be skipped and out-of-scope keys can be resolved without a stored
+version. After an HTTP 502, preserve retry/cursor evidence: the next sync continues
+partially persisted retry and full-sweep state rather than starting cleanly.
+
+The diagnostic's structural `PASS` is not a lifetime immutability certificate. The
+report deliberately contains:
 
 - `NOT_CERTIFIED_CASCADE_DELETE` while project deletion can cascade into version
   history;
@@ -182,7 +235,8 @@ server timestamps, and LSN. A DBA then determines which branch applies:
 - **Transaction rolled back and every A1 object is absent:** the DBA may explicitly
   run `prisma migrate resolve --rolled-back 20260821200000_jira_issue_history_a1`.
   This run remains `ABORTED`, not PASS. The rolled-back row becomes part of a newly
-  captured baseline before a separate attempt.
+  captured baseline before a separate attempt. Keep the application stopped after
+  rollback: the current image entrypoint would otherwise apply A1 again immediately.
 - **Any A1 object exists, or the state is partial/unknown:** do not run `resolve`, do
   not drop objects, and do not retry. Preserve evidence and choose a reviewed
   forward-fix or restore/PITR procedure.
