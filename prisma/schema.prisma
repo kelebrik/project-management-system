@@ -151,6 +151,22 @@ enum JiraAnalyticsScopeType {
   EPIC
 }
 
+enum JiraSyncRunKind {
+  SYNC
+  BACKFILL
+}
+
+enum JiraSyncRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  SUCCEEDED_WITH_RETRIES
+  PAUSED_DEADLINE
+  STOPPED_CAPACITY
+  FAILED
+  CANCELLED
+}
+
 enum JiraIssueVersionProvenance {
   OBSERVED
   RECONSTRUCTED
@@ -239,6 +255,7 @@ model Project {
   jiraSnapshots            JiraIssueSnapshot[]
   jiraIssueVersions        JiraIssueVersion[]
   jiraHistoryRetries       JiraIssueHistoryRetry[]
+  jiraSyncRuns             JiraSyncRun[]
   overviews                ExecutiveOverview[]
   milestones               Milestone[]
   wbsItems                 WbsItem[]
@@ -507,6 +524,8 @@ model JiraAnalyticsSettings {
   lastSyncedAt                DateTime?
   syncStartedAt               DateTime?
   syncLockExpiresAt           DateTime?
+  syncRunId                   String?
+  syncFenceToken              Int?
   historyCursorUpdatedAt      DateTime?
   historyCursorJiraIssueId    String?
   historyLastFullReconciledAt DateTime?
@@ -515,6 +534,59 @@ model JiraAnalyticsSettings {
   createdAt                   DateTime               @default(now())
   updatedAt                   DateTime               @updatedAt
   project                     Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model JiraSyncRun {
+  id                         String                 @id @default(cuid())
+  projectId                  String
+  kind                       JiraSyncRunKind        @default(SYNC)
+  status                     JiraSyncRunStatus      @default(QUEUED)
+  phase                      String                 @default("PENDING")
+  activeSlot                 String?
+  historyWriteEnabled        Boolean
+  jiraScopeType              JiraAnalyticsScopeType
+  jiraScopeValue             String
+  jiraBaseUrl                String?
+  scopeChanged               Boolean                @default(false)
+  requestedById              String?
+  requestedByRole            String?
+  attempt                    Int                    @default(0)
+  deadlinePauseCount         Int                    @default(0)
+  maxAttempts                Int                    @default(3)
+  fenceToken                 Int                    @default(0)
+  workerId                   String?
+  leaseExpiresAt             DateTime?
+  heartbeatAt                DateTime?
+  deadlineAt                 DateTime?
+  enqueuedAt                 DateTime               @default(now())
+  startedAt                  DateTime?
+  finishedAt                 DateTime?
+  elapsedMs                  Int?
+  resumeCursorIssueKey       String?
+  resumedFromRunId           String?
+  discoveredIssueCount       Int                    @default(0)
+  hydratedIssueCount         Int                    @default(0)
+  versionsCreated            Int                    @default(0)
+  retriesQueued              Int                    @default(0)
+  jiraRequestCount           Int                    @default(0)
+  jiraRequestDurationMsTotal Int                    @default(0)
+  jiraRequestDurationMsMax   Int                    @default(0)
+  jiraRequestsByRoute        Json?                  @db.JsonB
+  jiraRequestsByStatusClass  Json?                  @db.JsonB
+  progressDone               Int                    @default(0)
+  progressTotal              Int                    @default(0)
+  progressUnit               String?
+  result                     Json?                  @db.JsonB
+  errorCode                  String?
+  errorMessage               String?
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+  project                    Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, activeSlot])
+  @@index([activeSlot, status, enqueuedAt])
+  @@index([projectId, enqueuedAt(sort: Desc)])
+  @@index([projectId, kind, status])
 }
 
 model JiraAggregateDefinition {
@@ -824,6 +896,7 @@ model JiraIssueSnapshot {
   syncedAt                    DateTime                    @default(now())
   retiredAt                   DateTime?
   currentVersionId            String?                     @unique
+  projectionUnversionedSince  DateTime?
   project                     Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   currentVersion              JiraIssueVersion?           @relation("JiraCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
   versions                    JiraIssueVersion[]          @relation("JiraSnapshotVersions")
@@ -836,6 +909,7 @@ model JiraIssueSnapshot {
   @@index([projectId, status])
   @@index([projectId, criticalSlaTracked])
   @@index([projectId, retiredAt])
+  @@index([projectId, projectionUnversionedSince])
 }
 
 model JiraIssueVersion {
@@ -893,6 +967,7 @@ model JiraIssueVersion {
   @@index([snapshotId, observedAt])
   @@index([projectId, status, priority])
   @@index([projectId, resolution, resolutionAt])
+  @@index([projectId, syncRunId])
   @@index([labels], type: Gin)
 }
 

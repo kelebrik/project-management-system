@@ -107,6 +107,18 @@ test("A1 production integrity tooling is read-only and fail-closed", () => {
   assert.match(capture, /has_function_privilege/);
   assert.match(capture, /DB_INTEGRITY_BACKUP_EVIDENCE_FILE/);
   assert.match(capture, /DB_INTEGRITY_IMAGE_MIGRATION_SHA256/);
+  assert.match(capture, /20260823180000_jira_sync_runs_backfill/);
+  assert.match(capture, /EXCLUDED_TABLES="'JiraSyncRun'"/);
+  assert.match(capture, /EXCLUDED_SETTINGS_COLUMNS="'syncRunId', 'syncFenceToken'"/);
+  assert.match(capture, /PRE_TARGET_MIGRATION does not immediately precede TARGET_MIGRATION/);
+  const durableRunsCaptureCase = capture.match(
+    /20260823180000_jira_sync_runs_backfill\)[\s\S]*?;;/,
+  )?.[0] ?? '';
+  assert.match(durableRunsCaptureCase, /EXCLUDED_VERSION_INDEX="'JiraIssueVersion_projectId_syncRunId_idx'"/);
+  assert.doesNotMatch(
+    durableRunsCaptureCase.replace('JiraIssueVersion_projectId_syncRunId_idx', ''),
+    /syncStatus|syncStartedAt|syncLockExpiresAt|JiraIssueVersion|JiraIssueHistoryRetry/,
+  );
   assert.match(capture, /A1_CHECK/);
   assert.match(verify, /db-integrity-compare\.mjs/);
   assert.match(diagnostics, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/);
@@ -125,6 +137,11 @@ test("Backup and restore scripts enforce production safety checks", () => {
   assert.match(backup, /pg_dump[\s\S]+--format=custom/, "Backup must use pg_dump custom format");
   assert.match(backup, /sha256(sum| utility)|shasum -a 256/, "Backup must create checksum when possible");
   assert.match(backup, /BACKUP_RETENTION_DAYS/, "Backup must support retention");
+  assert.match(backup, /pg_restore --list "\$FILE"/, "Backup must validate the custom archive without restoring it");
+  assert.doesNotMatch(backup, /pg_restore[^\n]*--dbname/, "Backup validation must never connect pg_restore to a database");
+  assert.match(backup, /manifest\.json\.tmp[\s\S]+mv "\$MANIFEST_TMP" "\$MANIFEST"/, "Backup manifest must be atomic");
+  assert.match(backup, /"bytes"[\s\S]+"sha256"[\s\S]+"durationMs"/, "Backup manifest must record actual size, checksum and duration");
+  assert.doesNotMatch(backup, /"databaseUrl"|"dsn"|"password"/, "Backup manifest must not expose connection secrets");
 
   assert.match(restore, /RESTORE_CONFIRM:-/, "Restore must require an explicit confirmation flag");
   assert.match(restore, /RESTORE_CONFIRM:-.*!= "yes"/, "Restore must refuse unsafe default execution");

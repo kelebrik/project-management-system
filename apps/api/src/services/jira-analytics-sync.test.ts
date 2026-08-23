@@ -4,7 +4,6 @@ import { isJiraBugIssueType, jiraAnalyticsDashboardConfigSchema } from '@pms/sha
 
 import type { JiraIssue } from '../jira.js';
 import {
-  acquireJiraAnalyticsSyncLock,
   createPrismaJiraAnalyticsSyncStore,
   criticalEndPriorityUpdate,
   criticalPriorityAtUpdate,
@@ -19,69 +18,6 @@ import {
   type JiraAnalyticsSyncStore,
   type JiraAnalyticsTransitionInput,
 } from './jira-analytics-sync.js';
-
-test('Jira analytics sync lock is created idempotently and acquired atomically', async () => {
-  const calls: Array<{ operation: string; value: unknown }> = [];
-  const settings = {
-    createMany: async (value: unknown) => {
-      calls.push({ operation: 'createMany', value });
-      return { count: 0 };
-    },
-    updateMany: async (value: unknown) => {
-      calls.push({ operation: 'updateMany', value });
-      return { count: 1 };
-    },
-  } as Parameters<typeof acquireJiraAnalyticsSyncLock>[0];
-  const startedAt = new Date('2026-08-20T15:00:00Z');
-  const expiresAt = new Date('2026-08-20T15:05:00Z');
-
-  assert.equal(
-    await acquireJiraAnalyticsSyncLock(
-      settings,
-      'project-1',
-      { type: 'LABEL', value: 'cvte968' },
-      startedAt,
-      expiresAt,
-    ),
-    true,
-  );
-  assert.deepEqual(calls, [
-    {
-      operation: 'createMany',
-      value: {
-        data: [{
-          projectId: 'project-1',
-          jiraScopeType: 'LABEL',
-          jiraScopeValue: 'cvte968',
-          jiraLabel: 'cvte968',
-          syncStatus: 'CONFIGURED',
-        }],
-        skipDuplicates: true,
-      },
-    },
-    {
-      operation: 'updateMany',
-      value: {
-        where: {
-          projectId: 'project-1',
-          OR: [
-            { syncStartedAt: null },
-            { syncLockExpiresAt: null },
-            { syncLockExpiresAt: { lte: startedAt } },
-          ],
-        },
-        data: {
-          jiraScopeType: 'LABEL',
-          jiraScopeValue: 'cvte968',
-          jiraLabel: 'cvte968',
-          syncStatus: 'SYNCING',
-          syncStartedAt: startedAt,
-          syncLockExpiresAt: expiresAt,
-        },
-      },
-    },
-  ]);
-});
 
 test('shared Jira analytics config requires at least one structurally valid widget', () => {
   assert.equal(jiraAnalyticsDashboardConfigSchema.safeParse({
@@ -508,7 +444,10 @@ test('analytics sync finalization activates current snapshots before retiring st
           id: { notIn: ['snapshot-1'] },
           retiredAt: null,
         },
-        data: { retiredAt: syncedAt, criticalSlaTracked: false },
+        data: {
+          retiredAt: syncedAt,
+          criticalSlaTracked: false,
+        },
       },
     },
     {

@@ -4,7 +4,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const A1_MIGRATION = '20260821200000_jira_issue_history_a1';
+const TARGET_MIGRATION = process.env.TARGET_MIGRATION
+  || '20260821200000_jira_issue_history_a1';
 const exactMetaKeys = [
   'system_identifier',
   'timeline_id',
@@ -127,7 +128,7 @@ function compareMaps(label, baseline, post) {
     const after = post.collections.get(group) ?? new Map();
     const keys = new Set([...before.keys(), ...after.keys()]);
     for (const key of [...keys].sort()) {
-      if (!before.has(key)) fail(`${label}: unexpected ${group} object after A1: ${key}`);
+      if (!before.has(key)) fail(`${label}: unexpected ${group} object after target migration: ${key}`);
       if (!after.has(key)) fail(`${label}: pre-existing ${group} object disappeared: ${key}`);
       if (before.get(key) !== after.get(key)) {
         fail(`${label}: pre-existing ${group} object changed: ${key}`);
@@ -187,21 +188,21 @@ function compare(baseline, post) {
     }
   }
 
-  if (baseline.migrations.length !== 0) fail('baseline already contains a successful A1 migration');
-  if (post.migrations.length !== 1) fail('post capture must contain exactly one successful A1 migration');
+  if (baseline.migrations.length !== 0) fail('baseline already contains the successful target migration');
+  if (post.migrations.length !== 1) fail('post capture must contain exactly one successful target migration');
   const migration = post.migrations[0];
-  if (migration.checksum !== migrationSha) fail('database A1 checksum differs from migration file');
-  if (migration.appliedSteps !== '1') fail('A1 applied_steps_count must be 1');
-  if (migration.rolledBackAt !== '') fail('successful A1 row must not be rolled back');
-  if (migration.logsNull !== 'true') fail('successful A1 row unexpectedly contains error logs');
-  if (migration.migrationName !== A1_MIGRATION) fail('unexpected migration name in A1 evidence');
+  if (migration.checksum !== migrationSha) fail('database migration checksum differs from the configured target file');
+  if (migration.appliedSteps !== '1') fail('target applied_steps_count must be 1');
+  if (migration.rolledBackAt !== '') fail('successful target migration must not be rolled back');
+  if (migration.logsNull !== 'true') fail('successful target migration unexpectedly contains error logs');
+  if (migration.migrationName !== TARGET_MIGRATION) fail('unexpected migration name in integrity evidence');
 
   const windowStart = parseTimestamp(singletonValue(baseline, 'META', 'server_timestamp'), 'baseline server');
   const windowEnd = parseTimestamp(singletonValue(post, 'META', 'server_timestamp'), 'post server');
   const migrationStart = parseTimestamp(migration.startedAt, 'migration start');
   const migrationEnd = parseTimestamp(migration.finishedAt, 'migration finish');
   if (windowStart > migrationStart || migrationStart > migrationEnd || migrationEnd > windowEnd) {
-    fail('A1 migration timestamps fall outside the captured server-time window');
+    fail('target migration timestamps fall outside the captured server-time window');
   }
 }
 
@@ -214,11 +215,10 @@ try {
   const baseline = readManifest(process.argv[2]);
   const post = readManifest(process.argv[3]);
   compare(baseline, post);
-  console.log('PASS: every pre-A1 row and normalized catalog object is unchanged; exactly one A1 migration was added.');
+  console.log('PASS: every pre-target row and normalized catalog object is unchanged; exactly one target migration was added.');
   console.log(`Baseline: ${path.resolve(process.argv[2])}`);
   console.log(`Post: ${path.resolve(process.argv[3])}`);
 } catch (error) {
   console.error(`FAIL: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 }
-

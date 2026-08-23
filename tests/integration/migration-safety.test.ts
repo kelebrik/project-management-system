@@ -175,3 +175,16 @@ test("Jira analytics C1 as-of reconstruction adds no database migration", () => 
   );
   assert.deepEqual(c1Migrations, []);
 });
+
+test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
+  const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
+  assert.match(migration, /CREATE TABLE "JiraSyncRun"/);
+  assert.match(migration, /ADD COLUMN "syncRunId" TEXT/);
+  assert.match(migration, /ADD COLUMN "projectionUnversionedSince" TIMESTAMP\(3\)/);
+  assert.match(migration, /JiraIssueVersion_projectId_syncRunId_idx/);
+  const withoutForeignKeyActions = migration.replace(
+    /ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)/gi,
+    "",
+  );
+  assert.doesNotMatch(withoutForeignKeyActions, /\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+});

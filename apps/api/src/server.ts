@@ -5,6 +5,7 @@ import { prisma } from './db.js';
 import { createApp } from './server/app.js';
 import { logEvent } from './server/logger.js';
 import { recalculateProjectWbsSchedule } from './services/wbs-schedule.js';
+import { createJiraSyncRunner } from './services/jira-sync-runner.js';
 
 const port = Number(process.env.PORT ?? 3000);
 const app = createApp();
@@ -56,7 +57,22 @@ async function recalculateActiveProjectSchedulesOnStartup() {
   });
 }
 
-app.listen(port, () => {
+const jiraSyncRunner = createJiraSyncRunner(prisma);
+const server = app.listen(port, () => {
   logEvent('info', 'api.listen', { port });
   void recalculateActiveProjectSchedulesOnStartup();
+  jiraSyncRunner.start();
 });
+
+let shuttingDown = false;
+async function shutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logEvent('info', 'api.shutdown', { signal });
+  server.close();
+  await jiraSyncRunner.stop();
+  await prisma.$disconnect();
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));

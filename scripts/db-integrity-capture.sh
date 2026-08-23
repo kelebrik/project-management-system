@@ -5,9 +5,33 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 . "$SCRIPT_DIR/db-integrity-common.sh"
 
-A1_MIGRATION="20260821200000_jira_issue_history_a1"
-PRE_A1_MIGRATION="20260821150000_jira_analytics_shared_dashboard_scope"
-A1_SQL="$REPO_ROOT/prisma/migrations/$A1_MIGRATION/migration.sql"
+TARGET_MIGRATION="${TARGET_MIGRATION:-20260821200000_jira_issue_history_a1}"
+PRE_TARGET_MIGRATION="${PRE_TARGET_MIGRATION:-}"
+TARGET_SQL="$REPO_ROOT/prisma/migrations/$TARGET_MIGRATION/migration.sql"
+
+case "$TARGET_MIGRATION" in
+  20260821200000_jira_issue_history_a1)
+    EXCLUDED_TABLES="'JiraIssueVersion', 'JiraIssueHistoryRetry'"
+    EXCLUDED_SETTINGS_COLUMNS="'historyCursorUpdatedAt', 'historyCursorJiraIssueId', 'historyLastFullReconciledAt', 'historyFullCursorIssueKey', 'historyFullStartedAt'"
+    EXCLUDED_SNAPSHOT_COLUMNS="'currentVersionId'"
+    EXCLUDED_SNAPSHOT_CONSTRAINT="'JiraIssueSnapshot_currentVersionId_fkey'"
+    EXCLUDED_SNAPSHOT_INDEX="'JiraIssueSnapshot_currentVersionId_key'"
+    EXCLUDED_VERSION_INDEX="''"
+    EXCLUDED_ENUMS="'JiraIssueVersionProvenance', 'JiraHistoryRetryStatus'"
+    ;;
+  20260823180000_jira_sync_runs_backfill)
+    EXCLUDED_TABLES="'JiraSyncRun'"
+    EXCLUDED_SETTINGS_COLUMNS="'syncRunId', 'syncFenceToken'"
+    EXCLUDED_SNAPSHOT_COLUMNS="'projectionUnversionedSince'"
+    EXCLUDED_SNAPSHOT_CONSTRAINT="''"
+    EXCLUDED_SNAPSHOT_INDEX="'JiraIssueSnapshot_projectId_projectionUnversionedSince_idx'"
+    EXCLUDED_VERSION_INDEX="'JiraIssueVersion_projectId_syncRunId_idx'"
+    EXCLUDED_ENUMS="'JiraSyncRunKind', 'JiraSyncRunStatus'"
+    ;;
+  *)
+    integrity_die "integrity invariants are not defined for target migration: $TARGET_MIGRATION"
+    ;;
+esac
 
 usage() {
   echo "Usage: $0 baseline|post OUTPUT_DIR" >&2
@@ -19,7 +43,7 @@ PHASE="$1"
 OUTPUT_DIR="$2"
 [ "$PHASE" = "baseline" ] || [ "$PHASE" = "post" ] || usage
 [ ! -e "$OUTPUT_DIR" ] || integrity_die "output path already exists: $OUTPUT_DIR"
-[ -f "$A1_SQL" ] || integrity_die "A1 migration file is missing: $A1_SQL"
+[ -f "$TARGET_SQL" ] || integrity_die "target migration file is missing: $TARGET_SQL"
 
 BACKUP_EVIDENCE="${DB_INTEGRITY_BACKUP_EVIDENCE_FILE:-}"
 [ -n "$BACKUP_EVIDENCE" ] || integrity_die "DB_INTEGRITY_BACKUP_EVIDENCE_FILE is required"
@@ -43,8 +67,8 @@ case "${DB_INTEGRITY_ALLOWED_ROLES:-postgres_exporter}" in
 esac
 ALLOWED_ROLES="${DB_INTEGRITY_ALLOWED_ROLES:-postgres_exporter}"
 
-A1_SHA="$(integrity_sha256 "$A1_SQL")"
-[ "$IMAGE_MIGRATION_SHA" = "$A1_SHA" ] || integrity_die \
+TARGET_SHA="$(integrity_sha256 "$TARGET_SQL")"
+[ "$IMAGE_MIGRATION_SHA" = "$TARGET_SHA" ] || integrity_die \
   "migration checksum in the deployed image differs from this checkout"
 
 OUTPUT_PARENT="$(dirname -- "$OUTPUT_DIR")"
@@ -58,21 +82,29 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 chmod 700 "$PARTIAL_DIR"
 
-# Prisma deploy must have no other committed migration to apply before A1.
+# Prisma deploy must have no other committed migration to apply before the target.
 EXPECTED_VALUES=""
+TARGET_FOUND=0
+DERIVED_PRE_TARGET_MIGRATION=""
 for migration_dir in "$REPO_ROOT"/prisma/migrations/*; do
   [ -d "$migration_dir" ] || continue
   migration_name="$(basename "$migration_dir")"
   case "$migration_name" in
     *[!0-9a-z_]*) integrity_die "invalid migration directory name: $migration_name" ;;
   esac
-  migration_stamp="${migration_name%%_*}"
-  if [ "$migration_stamp" -lt 20260821200000 ]; then
-    if [ -n "$EXPECTED_VALUES" ]; then EXPECTED_VALUES="$EXPECTED_VALUES,"; fi
-    EXPECTED_VALUES="${EXPECTED_VALUES}('${migration_name}')"
+  if [ "$migration_name" = "$TARGET_MIGRATION" ]; then
+    TARGET_FOUND=1
+    break
   fi
+  if [ -n "$EXPECTED_VALUES" ]; then EXPECTED_VALUES="$EXPECTED_VALUES,"; fi
+  EXPECTED_VALUES="${EXPECTED_VALUES}('${migration_name}')"
+  DERIVED_PRE_TARGET_MIGRATION="$migration_name"
 done
-[ -n "$EXPECTED_VALUES" ] || integrity_die "no pre-A1 migrations found"
+[ "$TARGET_FOUND" -eq 1 ] || integrity_die "target migration is absent from the ordered migration inventory"
+[ -n "$EXPECTED_VALUES" ] || integrity_die "no pre-target migrations found"
+[ -n "$PRE_TARGET_MIGRATION" ] || PRE_TARGET_MIGRATION="$DERIVED_PRE_TARGET_MIGRATION"
+[ "$PRE_TARGET_MIGRATION" = "$DERIVED_PRE_TARGET_MIGRATION" ] || integrity_die \
+  "PRE_TARGET_MIGRATION does not immediately precede TARGET_MIGRATION"
 
 cat > "$SQL_FILE" <<SQL_HEADER
 \\set capture_phase '$PHASE'
@@ -202,7 +234,7 @@ SELECT NOT EXISTS (
 ) AS assertion_ok \\gset
 \\if :assertion_ok
 \\else
-  \\warn 'ERROR: at least one committed pre-A1 migration is not successfully applied'
+  \\warn 'ERROR: at least one committed pre-target migration is not successfully applied'
   SELECT 1 / 0;
 \\endif
 
@@ -218,29 +250,29 @@ SELECT NOT EXISTS (
 
 SELECT COALESCE(max(migration_name) FILTER (
   WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
-), '') = '$PRE_A1_MIGRATION' AS assertion_ok
+), '') = '$PRE_TARGET_MIGRATION' AS assertion_ok
 FROM public._prisma_migrations
-WHERE migration_name < '$A1_MIGRATION' \\gset
+WHERE migration_name < '$TARGET_MIGRATION' \\gset
 \\if :assertion_ok
 \\else
-  \\warn 'ERROR: target is not at the expected pre-A1 migration boundary'
+  \\warn 'ERROR: target is not at the expected pre-target migration boundary'
   SELECT 1 / 0;
 \\endif
 
 SELECT CASE WHEN :'capture_phase' = 'baseline' THEN
   NOT EXISTS (
     SELECT 1 FROM public._prisma_migrations
-    WHERE migration_name = '$A1_MIGRATION'
+    WHERE migration_name = '$TARGET_MIGRATION'
       AND rolled_back_at IS NULL
   )
 ELSE
   (SELECT count(*) = 1 FROM public._prisma_migrations
-   WHERE migration_name = '$A1_MIGRATION'
+   WHERE migration_name = '$TARGET_MIGRATION'
      AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
 END AS assertion_ok \\gset
 \\if :assertion_ok
 \\else
-  \\warn 'ERROR: A1 migration state does not match the requested capture phase'
+  \\warn 'ERROR: target migration state does not match the requested capture phase'
   SELECT 1 / 0;
 \\endif
 
@@ -261,15 +293,15 @@ SELECT 'META', 'server_timestamp', clock_timestamp()::text;
 SELECT 'META', 'wal_lsn_bytes', pg_wal_lsn_diff(pg_current_wal_lsn(), '0/0')::numeric::text;
 SELECT 'META', 'current_role', current_user;
 
--- Stable table hashes use an explicit, catalog-generated JSON projection. Only the
--- six nullable A1 columns are omitted from their two pre-existing tables.
+-- Stable table hashes use an explicit, catalog-generated JSON projection. Only
+-- objects introduced by the selected target migration are omitted.
 SELECT format(
   'SELECT %L, %L, %L, count(*)::text, encode(sha256(convert_to(COALESCE(string_agg(row_hash, %L ORDER BY row_hash COLLATE "C"), %L), %L)), %L) FROM (SELECT encode(sha256(convert_to(jsonb_build_object(%s)::text, %L)), %L) AS row_hash FROM %I.%I t%s) rows',
   'TABLE', n.nspname, c.relname, '', '', 'UTF8', 'hex',
   string_agg(format('%L, to_jsonb(t.%I)', a.attname, a.attname), ', ' ORDER BY a.attnum),
   'UTF8', 'hex', n.nspname, c.relname,
   CASE WHEN n.nspname = 'public' AND c.relname = '_prisma_migrations'
-    THEN format(' WHERE NOT (migration_name = %L AND finished_at IS NOT NULL AND rolled_back_at IS NULL)', '$A1_MIGRATION')
+    THEN format(' WHERE NOT (migration_name = %L AND finished_at IS NOT NULL AND rolled_back_at IS NULL)', '$TARGET_MIGRATION')
     ELSE '' END
 )
 FROM pg_class c
@@ -278,14 +310,14 @@ JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdroppe
 WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
   AND n.nspname NOT LIKE 'pg_toast%'
   AND c.relkind IN ('r', 'p', 'm')
-  AND NOT (n.nspname = 'public' AND c.relname IN ('JiraIssueVersion', 'JiraIssueHistoryRetry'))
+  AND NOT (n.nspname = 'public' AND c.relname IN ($EXCLUDED_TABLES))
   AND NOT (
     n.nspname = 'public' AND c.relname = 'JiraAnalyticsSettings' AND a.attname IN (
-      'historyCursorUpdatedAt', 'historyCursorJiraIssueId',
-      'historyLastFullReconciledAt', 'historyFullCursorIssueKey', 'historyFullStartedAt'
+      $EXCLUDED_SETTINGS_COLUMNS
     )
   )
-  AND NOT (n.nspname = 'public' AND c.relname = 'JiraIssueSnapshot' AND a.attname = 'currentVersionId')
+  AND NOT (n.nspname = 'public' AND c.relname = 'JiraIssueSnapshot'
+    AND a.attname IN ($EXCLUDED_SNAPSHOT_COLUMNS))
 GROUP BY n.nspname, c.relname
 ORDER BY n.nspname, c.relname
 \\gexec
@@ -300,8 +332,8 @@ WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
 ORDER BY n.nspname, c.relname
 \\gexec
 
--- Old catalog objects are fingerprinted individually. Expected A1 additions are
--- excluded here and verified by named invariants below; every other addition,
+-- Old catalog objects are fingerprinted individually. Expected target additions
+-- are excluded here and verified by named invariants below; every other addition,
 -- deletion, rewrite, ACL/default/type change, or manual DDL changes the set/hash.
 SELECT 'CATALOG', 'relation', n.nspname || '.' || c.relname,
   encode(sha256(convert_to(jsonb_build_object(
@@ -314,7 +346,7 @@ FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
 WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg_toast%'
   AND c.relkind IN ('r', 'p', 'm', 'v', 'f', 'S')
-  AND NOT (n.nspname = 'public' AND c.relname IN ('JiraIssueVersion', 'JiraIssueHistoryRetry'))
+  AND NOT (n.nspname = 'public' AND c.relname IN ($EXCLUDED_TABLES))
 ORDER BY n.nspname, c.relname;
 
 SELECT 'CATALOG', 'column', n.nspname || '.' || c.relname || '.' || a.attname,
@@ -330,11 +362,11 @@ LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
 LEFT JOIN pg_collation coll ON coll.oid = a.attcollation
 WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg_toast%'
   AND c.relkind IN ('r', 'p', 'm', 'v', 'f') AND a.attnum > 0
-  AND NOT (n.nspname = 'public' AND c.relname IN ('JiraIssueVersion', 'JiraIssueHistoryRetry'))
+  AND NOT (n.nspname = 'public' AND c.relname IN ($EXCLUDED_TABLES))
   AND NOT (n.nspname = 'public' AND c.relname = 'JiraAnalyticsSettings' AND a.attname IN (
-    'historyCursorUpdatedAt', 'historyCursorJiraIssueId',
-    'historyLastFullReconciledAt', 'historyFullCursorIssueKey', 'historyFullStartedAt'))
-  AND NOT (n.nspname = 'public' AND c.relname = 'JiraIssueSnapshot' AND a.attname = 'currentVersionId')
+    $EXCLUDED_SETTINGS_COLUMNS))
+  AND NOT (n.nspname = 'public' AND c.relname = 'JiraIssueSnapshot'
+    AND a.attname IN ($EXCLUDED_SNAPSHOT_COLUMNS))
 ORDER BY n.nspname, c.relname, a.attnum;
 
 SELECT 'CATALOG', 'constraint', n.nspname || '.' || c.relname || '.' || con.conname,
@@ -346,10 +378,10 @@ SELECT 'CATALOG', 'constraint', n.nspname || '.' || c.relname || '.' || con.conn
 FROM pg_constraint con JOIN pg_class c ON c.oid = con.conrelid
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg_toast%'
-  AND NOT (n.nspname = 'public' AND c.relname IN ('JiraIssueVersion', 'JiraIssueHistoryRetry'))
+  AND NOT (n.nspname = 'public' AND c.relname IN ($EXCLUDED_TABLES))
   AND NOT (
     n.nspname = 'public' AND c.relname = 'JiraIssueSnapshot'
-    AND con.conname = 'JiraIssueSnapshot_currentVersionId_fkey'
+    AND con.conname IN ($EXCLUDED_SNAPSHOT_CONSTRAINT)
   )
 ORDER BY n.nspname, c.relname, con.conname;
 
@@ -363,10 +395,14 @@ FROM pg_index i JOIN pg_class idx ON idx.oid = i.indexrelid
 JOIN pg_namespace ns ON ns.oid = idx.relnamespace
 JOIN pg_class tbl ON tbl.oid = i.indrelid JOIN pg_namespace tn ON tn.oid = tbl.relnamespace
 WHERE ns.nspname NOT IN ('pg_catalog', 'information_schema') AND ns.nspname NOT LIKE 'pg_toast%'
-  AND NOT (tn.nspname = 'public' AND tbl.relname IN ('JiraIssueVersion', 'JiraIssueHistoryRetry'))
+  AND NOT (tn.nspname = 'public' AND tbl.relname IN ($EXCLUDED_TABLES))
   AND NOT (
     tn.nspname = 'public' AND tbl.relname = 'JiraIssueSnapshot'
-    AND idx.relname = 'JiraIssueSnapshot_currentVersionId_key'
+    AND idx.relname IN ($EXCLUDED_SNAPSHOT_INDEX)
+  )
+  AND NOT (
+    tn.nspname = 'public' AND tbl.relname = 'JiraIssueVersion'
+    AND idx.relname IN ($EXCLUDED_VERSION_INDEX)
   )
 ORDER BY ns.nspname, idx.relname;
 
@@ -376,7 +412,7 @@ SELECT 'CATALOG', 'trigger', n.nspname || '.' || c.relname || '.' || tg.tgname,
   )::text, 'UTF8')), 'hex')
 FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE NOT tg.tgisinternal AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-  AND NOT (n.nspname = 'public' AND c.relname IN ('JiraIssueVersion', 'JiraIssueHistoryRetry'))
+  AND NOT (n.nspname = 'public' AND c.relname IN ($EXCLUDED_TABLES))
 ORDER BY n.nspname, c.relname, tg.tgname;
 
 SELECT 'CATALOG', 'policy', n.nspname || '.' || c.relname || '.' || p.polname,
@@ -387,14 +423,14 @@ SELECT 'CATALOG', 'policy', n.nspname || '.' || c.relname || '.' || p.polname,
   )::text, 'UTF8')), 'hex')
 FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-  AND NOT (n.nspname = 'public' AND c.relname IN ('JiraIssueVersion', 'JiraIssueHistoryRetry'))
+  AND NOT (n.nspname = 'public' AND c.relname IN ($EXCLUDED_TABLES))
 ORDER BY n.nspname, c.relname, p.polname;
 
 SELECT 'CATALOG', 'rule', n.nspname || '.' || c.relname || '.' || r.rulename,
   encode(sha256(convert_to(pg_get_ruledef(r.oid, true), 'UTF8')), 'hex')
 FROM pg_rewrite r JOIN pg_class c ON c.oid = r.ev_class JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-  AND NOT (n.nspname = 'public' AND c.relname IN ('JiraIssueVersion', 'JiraIssueHistoryRetry'))
+  AND NOT (n.nspname = 'public' AND c.relname IN ($EXCLUDED_TABLES))
 ORDER BY n.nspname, c.relname, r.rulename;
 
 SELECT 'CATALOG', 'enum', n.nspname || '.' || typ.typname,
@@ -408,7 +444,7 @@ WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
   AND typ.typtype = 'e'
   AND NOT (
     n.nspname = 'public'
-    AND typ.typname IN ('JiraIssueVersionProvenance', 'JiraHistoryRetryStatus')
+    AND typ.typname IN ($EXCLUDED_ENUMS)
   )
 ORDER BY n.nspname, typ.typname;
 
@@ -452,6 +488,8 @@ FROM pg_shdescription descr
 ORDER BY descr.classoid, descr.objoid;
 
 -- Exact A1 postconditions. These run before the first application sync.
+SELECT '$TARGET_MIGRATION' = '20260821200000_jira_issue_history_a1' AS is_a1_target \\gset
+\\if :is_a1_target
 SELECT :'capture_phase' = 'baseline' AS is_baseline \gset
 \if :is_baseline
 SELECT 'A1_CHECK', 'new_tables',
@@ -535,12 +573,65 @@ SELECT 'A1_CHECK', 'expected_indexes',
       'JiraIssueHistoryRetry_status_nextRetryAt_idx','JiraIssueHistoryRetry_projectId_status_firstFailedAt_idx')) = 12)
   ::text;
 \endif
+\\else
+SELECT :'capture_phase' = 'baseline' AS is_baseline \\gset
+\\if :is_baseline
+SELECT 'A1_CHECK', 'new_tables', (to_regclass('public."JiraSyncRun"') IS NULL)::text;
+SELECT 'A1_CHECK', 'new_table_rows', true::text;
+SELECT 'A1_CHECK', 'new_columns_null', true::text;
+SELECT 'A1_CHECK', 'expected_columns',
+  ((SELECT count(*) FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND a.attnum > 0 AND NOT a.attisdropped
+      AND ((c.relname = 'JiraAnalyticsSettings' AND a.attname IN ('syncRunId','syncFenceToken'))
+        OR (c.relname = 'JiraIssueSnapshot' AND a.attname = 'projectionUnversionedSince'))) = 0)::text;
+SELECT 'A1_CHECK', 'expected_types',
+  ((SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
+    WHERE n.nspname='public' AND t.typname IN ('JiraSyncRunKind','JiraSyncRunStatus')) = 0)::text;
+SELECT 'A1_CHECK', 'expected_constraints',
+  ((SELECT count(*) FROM pg_constraint WHERE conname IN ('JiraSyncRun_pkey','JiraSyncRun_projectId_fkey')) = 0)::text;
+SELECT 'A1_CHECK', 'expected_indexes',
+  ((SELECT count(*) FROM pg_class WHERE relkind='i' AND (
+      relname LIKE 'JiraSyncRun_%'
+      OR relname = 'JiraIssueVersion_projectId_syncRunId_idx')) = 0)::text;
+\\else
+SELECT 'A1_CHECK', 'new_tables', (to_regclass('public."JiraSyncRun"') IS NOT NULL)::text;
+SELECT 'A1_CHECK', 'new_table_rows', ((SELECT count(*) FROM public."JiraSyncRun") = 0)::text;
+SELECT 'A1_CHECK', 'new_columns_null',
+  (NOT EXISTS (SELECT 1 FROM public."JiraAnalyticsSettings"
+    WHERE "syncRunId" IS NOT NULL OR "syncFenceToken" IS NOT NULL)
+   AND NOT EXISTS (SELECT 1 FROM public."JiraIssueSnapshot"
+    WHERE "projectionUnversionedSince" IS NOT NULL))::text;
+SELECT 'A1_CHECK', 'expected_columns',
+  ((SELECT count(*) FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND a.attnum > 0 AND NOT a.attisdropped
+      AND NOT a.attnotnull AND NOT EXISTS (
+        SELECT 1 FROM pg_attrdef d WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum)
+      AND ((c.relname = 'JiraAnalyticsSettings' AND a.attname IN ('syncRunId','syncFenceToken'))
+        OR (c.relname = 'JiraIssueSnapshot' AND a.attname = 'projectionUnversionedSince'))) = 3)::text;
+SELECT 'A1_CHECK', 'expected_types',
+  ((SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
+    WHERE n.nspname='public' AND t.typtype='e'
+      AND t.typname IN ('JiraSyncRunKind','JiraSyncRunStatus')) = 2)::text;
+SELECT 'A1_CHECK', 'expected_constraints',
+  ((SELECT count(*) FROM pg_constraint WHERE conname IN (
+    'JiraSyncRun_pkey','JiraSyncRun_projectId_fkey')) = 2)::text;
+SELECT 'A1_CHECK', 'expected_indexes',
+  ((SELECT count(*) FROM pg_class WHERE relkind='i' AND relname IN (
+    'JiraSyncRun_pkey','JiraSyncRun_projectId_activeSlot_key',
+    'JiraSyncRun_activeSlot_status_enqueuedAt_idx','JiraSyncRun_projectId_enqueuedAt_idx',
+    'JiraSyncRun_projectId_kind_status_idx',
+    'JiraIssueSnapshot_projectId_projectionUnversionedSince_idx',
+    'JiraIssueVersion_projectId_syncRunId_idx')) = 7)::text;
+\\endif
+\\endif
 
 SELECT 'A1_MIGRATION', id, checksum, started_at::text, finished_at::text,
   applied_steps_count::text, COALESCE(rolled_back_at::text, ''), (logs IS NULL)::text,
   migration_name
 FROM public._prisma_migrations
-WHERE migration_name = '$A1_MIGRATION'
+WHERE migration_name = '$TARGET_MIGRATION'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL;
 
 SELECT pg_stat_clear_snapshot() IS NULL AS stats_snapshot_cleared \gset
@@ -593,7 +684,7 @@ BACKUP_SHA="$(integrity_sha256 "$BACKUP_EVIDENCE")"
 GIT_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 {
   printf 'EVIDENCE\ttool_sha256\t%s\n' "$TOOL_SHA"
-  printf 'EVIDENCE\tmigration_sha256\t%s\n' "$A1_SHA"
+  printf 'EVIDENCE\tmigration_sha256\t%s\n' "$TARGET_SHA"
   printf 'EVIDENCE\timage_migration_sha256\t%s\n' "$IMAGE_MIGRATION_SHA"
   printf 'EVIDENCE\timage_id\t%s\n' "$IMAGE_ID"
   printf 'EVIDENCE\tgit_commit\t%s\n' "$GIT_COMMIT"

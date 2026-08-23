@@ -7,6 +7,13 @@ export const JIRA_HISTORY_CRITICAL_PERCENT = 95;
 export const JIRA_HISTORY_CURSOR_OVERLAP_MS = 5 * 60_000;
 export const JIRA_HISTORY_FULL_RECONCILIATION_MS = 7 * 24 * 60 * 60_000;
 
+export function jiraHistoryStorageBudgetBytes(env: NodeJS.ProcessEnv = process.env) {
+  const parsed = Number(env.JIRA_HISTORY_BUDGET_BYTES);
+  return Number.isSafeInteger(parsed) && parsed > 0
+    ? parsed
+    : JIRA_HISTORY_STORAGE_BUDGET_BYTES;
+}
+
 type JiraHistoryCursorValue = {
   updatedAt: Date;
   jiraIssueId: string;
@@ -70,8 +77,14 @@ export async function queueJiraHistoryRetry(
   prisma: PrismaClient,
   input: JiraHistoryRetryInput,
 ) {
-  const issueKey = input.issueKey.trim().toUpperCase();
-  return prisma.$transaction(async (transaction) => {
+  return prisma.$transaction((transaction) => queueJiraHistoryRetryInTransaction(transaction, input));
+}
+
+export async function queueJiraHistoryRetryInTransaction(
+  transaction: Prisma.TransactionClient,
+  input: JiraHistoryRetryInput,
+) {
+    const issueKey = input.issueKey.trim().toUpperCase();
     const existing = await transaction.jiraIssueHistoryRetry.findUnique({
       where: {
         projectId_issueKey: {
@@ -115,11 +128,10 @@ export async function queueJiraHistoryRetry(
         resolvedAt: null,
       },
     });
-  });
 }
 
 export async function resolveJiraHistoryRetry(
-  prisma: PrismaClient,
+  prisma: Pick<PrismaClient, 'jiraIssueHistoryRetry'>,
   projectId: string,
   issueKey: string,
   resolvedAt: Date,
@@ -235,6 +247,8 @@ export async function jiraHistoryStatus(prisma: PrismaClient, projectId: string)
     retryItems,
     failedBatches,
     settings,
+    unversionedProjections,
+    historyWriteGaps,
   ] = await Promise.all([
     jiraHistoryDatabaseBytes(prisma),
     prisma.$queryRaw<JiraHistoryAggregateRow[]>(Prisma.sql`
@@ -300,10 +314,20 @@ export async function jiraHistoryStatus(prisma: PrismaClient, projectId: string)
         historyFullStartedAt: true,
       },
     }),
+    prisma.jiraIssueSnapshot.count({
+      where: { projectId, retiredAt: null, projectionUnversionedSince: { not: null } },
+    }),
+    prisma.jiraSyncRun.aggregate({
+      where: { projectId, historyWriteEnabled: false, startedAt: { not: null } },
+      _count: { _all: true },
+      _min: { startedAt: true },
+      _max: { finishedAt: true },
+    }),
   ]);
   const global = globalRows[0];
   const project = projectRows[0];
-  const utilizationPercent = globalDatabaseBytes / JIRA_HISTORY_STORAGE_BUDGET_BYTES * 100;
+  const storageBudgetBytes = jiraHistoryStorageBudgetBytes();
+  const utilizationPercent = globalDatabaseBytes / storageBudgetBytes * 100;
   const serialize = (row: JiraHistoryAggregateRow | undefined) => ({
     versions: Number(row?.versions ?? 0n),
     tickets: Number(row?.tickets ?? 0n),
@@ -317,7 +341,7 @@ export async function jiraHistoryStatus(prisma: PrismaClient, projectId: string)
     reportVersion: 1 as const,
     generatedAt: new Date().toISOString(),
     storage: {
-      budgetBytes: JIRA_HISTORY_STORAGE_BUDGET_BYTES,
+      budgetBytes: storageBudgetBytes,
       databaseBytes: globalDatabaseBytes,
       utilizationPercent: Math.round(utilizationPercent * 100) / 100,
       level: jiraHistoryCapacityLevel(utilizationPercent),
@@ -349,5 +373,229 @@ export async function jiraHistoryStatus(prisma: PrismaClient, projectId: string)
       fullCursorIssueKey: settings?.historyFullCursorIssueKey ?? null,
       fullStartedAt: settings?.historyFullStartedAt?.toISOString() ?? null,
     },
+    historyWrite: {
+      enabled: jiraHistoryWriteEnabledForStatus(),
+      gapRuns: historyWriteGaps._count._all,
+      gapFirstAt: historyWriteGaps._min.startedAt?.toISOString() ?? null,
+      gapLastAt: historyWriteGaps._max.finishedAt?.toISOString() ?? null,
+    },
+    projections: {
+      unversioned: unversionedProjections,
+    },
   };
+}
+
+type JiraCompletenessAggregateRow = {
+  scopedTickets: bigint;
+  stableIdTickets: bigint;
+  observedTickets: bigint;
+  fullyHydratedTickets: bigint;
+  versions: bigint;
+  firstObservedAt: Date | null;
+  lastObservedAt: Date | null;
+  versionsMin: number | null;
+  versionsMax: number | null;
+  versionsAverage: number | null;
+  versionsP95: number | null;
+  bucket0: bigint;
+  bucket1: bigint;
+  bucket2To5: bigint;
+  bucket6To20: bigint;
+  bucket21To100: bigint;
+  bucketOver100: bigint;
+};
+
+export async function jiraBackfillCompleteness(
+  prisma: PrismaClient,
+  projectId: string,
+  options: { section?: 'tickets' | 'missing'; offset?: number; pageSize?: number } = {},
+) {
+  const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 50));
+  const offset = Math.max(0, options.offset ?? 0);
+  if (offset + pageSize > 10_000) {
+    const error = new Error('Окно выгрузки полноты Jira превышает 10000 строк') as Error & {
+      status?: number;
+      kind?: string;
+      limit?: number;
+    };
+    error.status = 413;
+    error.kind = 'JIRA_BACKFILL_COMPLETENESS';
+    error.limit = 10_000;
+    throw error;
+  }
+
+  const [rows, retries, retryReasons, gaps, latestBackfill, unversioned] = await Promise.all([
+    prisma.$queryRaw<JiraCompletenessAggregateRow[]>(Prisma.sql`
+      WITH per_ticket AS (
+        SELECT s."id", s."jiraId", s."currentVersionId", s."projectionUnversionedSince",
+               COUNT(v."id")::integer AS versions,
+               BOOL_OR(v."id" = s."currentVersionId"
+                 AND v."changelogComplete" AND v."commentsComplete"
+                 AND v."worklogsComplete" AND v."remoteLinksComplete") AS hydrated,
+               MIN(v."observedAt") AS first_observed,
+               MAX(v."observedAt") AS last_observed
+          FROM "JiraIssueSnapshot" s
+          LEFT JOIN "JiraIssueVersion" v ON v."snapshotId" = s."id"
+         WHERE s."projectId" = ${projectId} AND s."retiredAt" IS NULL
+         GROUP BY s."id", s."jiraId", s."currentVersionId", s."projectionUnversionedSince"
+      )
+      SELECT COUNT(*)::bigint AS "scopedTickets",
+             COUNT(*) FILTER (WHERE "jiraId" IS NOT NULL)::bigint AS "stableIdTickets",
+             COUNT(*) FILTER (WHERE "currentVersionId" IS NOT NULL
+               AND "projectionUnversionedSince" IS NULL)::bigint AS "observedTickets",
+             COUNT(*) FILTER (WHERE hydrated
+               AND "projectionUnversionedSince" IS NULL)::bigint AS "fullyHydratedTickets",
+             COALESCE(SUM(versions), 0)::bigint AS versions,
+             MIN(first_observed) AS "firstObservedAt",
+             MAX(last_observed) AS "lastObservedAt",
+             MIN(versions)::integer AS "versionsMin",
+             MAX(versions)::integer AS "versionsMax",
+             AVG(versions)::float8 AS "versionsAverage",
+             percentile_cont(0.95) WITHIN GROUP (ORDER BY versions)::float8 AS "versionsP95",
+             COUNT(*) FILTER (WHERE versions = 0)::bigint AS bucket0,
+             COUNT(*) FILTER (WHERE versions = 1)::bigint AS bucket1,
+             COUNT(*) FILTER (WHERE versions BETWEEN 2 AND 5)::bigint AS "bucket2To5",
+             COUNT(*) FILTER (WHERE versions BETWEEN 6 AND 20)::bigint AS "bucket6To20",
+             COUNT(*) FILTER (WHERE versions BETWEEN 21 AND 100)::bigint AS "bucket21To100",
+             COUNT(*) FILTER (WHERE versions > 100)::bigint AS "bucketOver100"
+        FROM per_ticket
+    `),
+    prisma.jiraIssueHistoryRetry.count({ where: { projectId, status: 'PENDING' } }),
+    prisma.jiraIssueHistoryRetry.groupBy({
+      by: ['reasonCode'],
+      where: { projectId, status: 'PENDING' },
+      _count: { _all: true },
+      orderBy: { reasonCode: 'asc' },
+    }),
+    prisma.jiraSyncRun.aggregate({
+      where: { projectId, historyWriteEnabled: false, startedAt: { not: null } },
+      _count: { _all: true },
+      _min: { startedAt: true },
+      _max: { finishedAt: true },
+    }),
+    prisma.jiraSyncRun.findFirst({
+      where: { projectId, kind: 'BACKFILL' },
+      orderBy: { enqueuedAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        enqueuedAt: true,
+        startedAt: true,
+        finishedAt: true,
+        elapsedMs: true,
+        discoveredIssueCount: true,
+        hydratedIssueCount: true,
+        versionsCreated: true,
+        retriesQueued: true,
+        jiraRequestCount: true,
+        jiraRequestDurationMsTotal: true,
+      },
+    }),
+    prisma.jiraIssueSnapshot.count({
+      where: { projectId, retiredAt: null, projectionUnversionedSince: { not: null } },
+    }),
+  ]);
+  const row = rows[0];
+  const denominator = Number(row?.stableIdTickets ?? 0n);
+  const observed = Number(row?.observedTickets ?? 0n);
+  const where = {
+    projectId,
+    retiredAt: null,
+    ...(options.section === 'missing' ? {
+      OR: [
+        { jiraId: null },
+        { currentVersionId: null },
+        { projectionUnversionedSince: { not: null } },
+      ],
+    } : {}),
+  } as const;
+  const [items, total] = await Promise.all([
+    prisma.jiraIssueSnapshot.findMany({
+      where,
+      orderBy: { issueKey: 'asc' },
+      skip: offset,
+      take: pageSize,
+      select: {
+        issueKey: true,
+        jiraId: true,
+        currentVersionId: true,
+        projectionUnversionedSince: true,
+        _count: { select: { versions: true } },
+      },
+    }),
+    prisma.jiraIssueSnapshot.count({ where }),
+  ]);
+  return {
+    reportVersion: 1 as const,
+    generatedAt: new Date().toISOString(),
+    historyWriteEnabled: jiraHistoryWriteEnabledForStatus(),
+    scope: {
+      tickets: Number(row?.scopedTickets ?? 0n),
+      stableJiraId: denominator,
+      withoutStableJiraId: Number(row?.scopedTickets ?? 0n) - denominator,
+      observed,
+      withoutObservedVersion: Math.max(0, denominator - observed),
+      fullyHydrated: Number(row?.fullyHydratedTickets ?? 0n),
+      coveragePercent: denominator === 0 ? null : Math.round(observed / denominator * 10_000) / 100,
+      unversionedProjection: unversioned,
+    },
+    versions: {
+      total: Number(row?.versions ?? 0n),
+      firstObservedAt: row?.firstObservedAt?.toISOString() ?? null,
+      lastObservedAt: row?.lastObservedAt?.toISOString() ?? null,
+      perTicket: {
+        min: row?.versionsMin ?? 0,
+        max: row?.versionsMax ?? 0,
+        average: Math.round((row?.versionsAverage ?? 0) * 100) / 100,
+        p95: Math.round((row?.versionsP95 ?? 0) * 100) / 100,
+        buckets: {
+          '0': Number(row?.bucket0 ?? 0n),
+          '1': Number(row?.bucket1 ?? 0n),
+          '2-5': Number(row?.bucket2To5 ?? 0n),
+          '6-20': Number(row?.bucket6To20 ?? 0n),
+          '21-100': Number(row?.bucket21To100 ?? 0n),
+          '>100': Number(row?.bucketOver100 ?? 0n),
+        },
+      },
+    },
+    retry: {
+      pending: retries,
+      byReason: retryReasons.map((entry) => ({
+        reasonCode: entry.reasonCode,
+        count: entry._count._all,
+      })),
+    },
+    historyWriteGap: {
+      runs: gaps._count._all,
+      firstAt: gaps._min.startedAt?.toISOString() ?? null,
+      lastAt: gaps._max.finishedAt?.toISOString() ?? null,
+    },
+    latestBackfill: latestBackfill ? {
+      ...latestBackfill,
+      enqueuedAt: latestBackfill.enqueuedAt.toISOString(),
+      startedAt: latestBackfill.startedAt?.toISOString() ?? null,
+      finishedAt: latestBackfill.finishedAt?.toISOString() ?? null,
+    } : null,
+    page: {
+      section: options.section ?? 'tickets',
+      offset,
+      pageSize,
+      total,
+      items: items.map((item) => ({
+        issueKey: item.issueKey,
+        stableJiraId: Boolean(item.jiraId),
+        observedVersion: Boolean(item.currentVersionId && !item.projectionUnversionedSince),
+        versions: item._count.versions,
+        projectionUnversionedSince: item.projectionUnversionedSince?.toISOString() ?? null,
+      })),
+    },
+    limitations: [
+      'Backfill сохраняет доступное текущее наблюдение и историю Jira, но не создаёт прошлые полные снимки задним числом.',
+      'Полнота прошлых состояний ограничена данными, которые Jira возвращает через changelog, comments и worklogs.',
+    ],
+  };
+}
+
+function jiraHistoryWriteEnabledForStatus(env: NodeJS.ProcessEnv = process.env) {
+  return env.JIRA_HISTORY_WRITE_ENABLED !== 'false';
 }

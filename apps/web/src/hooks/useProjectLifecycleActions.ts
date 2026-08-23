@@ -10,6 +10,7 @@ import {
 } from "../app/formState";
 import { apiBase, authenticatedFetch } from "../app/http";
 import { normalizeJiraWorkSectionDrafts } from "../app/jiraWorkSections";
+import { pollJiraSyncRun } from "../app/jiraSyncPolling";
 import {
   GANTT_PANEL_HEIGHT_DEFAULT,
   GANTT_PANEL_WIDTH_DEFAULT,
@@ -31,8 +32,36 @@ import { shouldApplyProjectSnapshotAfterWbsSave } from "../wbsProjectLoadGuard";
 
 type ProjectLifecycleActionsDeps = Record<string, any>;
 
+type JiraSyncRunState = {
+  status?: string;
+  pollAfterMs?: number;
+  error?: string | { message?: string };
+  result?: {
+    synced?: number;
+    configuredSections?: number;
+    jiraUsers?: unknown[];
+    criticalBugSlaConfigured?: boolean;
+    criticalBugSlaCandidates?: number;
+    criticalBugSlaIssues?: number;
+    warning?: string;
+    history?: {
+      retriesQueued?: number;
+      disabledReason?: string | null;
+    };
+  };
+};
+
+const JIRA_SYNC_CLIENT_POLL_MAX_MS = 15 * 60_000;
+
 export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
   const collapsedDefaultsProjectIdRef = useRef<string | null>(null);
+  const lifecycleMountedRef = useRef(true);
+  useEffect(() => {
+    lifecycleMountedRef.current = true;
+    return () => {
+      lifecycleMountedRef.current = false;
+    };
+  }, []);
   const {
     activeView,
     authMode,
@@ -125,13 +154,53 @@ async function syncJira(options: {
         }),
       },
     );
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.error ?? "Не удалось синхронизировать Jira");
+    const accepted = await response.json();
+    if (response.status === 409 && !accepted.statusUrl) {
+      throw new Error(accepted.error ?? "Обновление Jira для этого проекта уже выполняется");
     }
+    if (!response.ok && !(response.status === 409 && accepted.statusUrl)) {
+      throw new Error(accepted.error ?? "Не удалось синхронизировать Jira");
+    }
+    if (!accepted.statusUrl) {
+      throw new Error("Сервер не вернул адрес состояния синхронизации Jira");
+    }
+    const polling = await pollJiraSyncRun<JiraSyncRunState>({
+      initialDelayMs: Number(accepted.pollAfterMs) || 3_000,
+      maxDurationMs: JIRA_SYNC_CLIENT_POLL_MAX_MS,
+      wait: (delayMs) => new Promise((resolve) => window.setTimeout(resolve, delayMs)),
+      isCurrent: () => lifecycleMountedRef.current && projectRef.current?.id === project.id,
+      poll: async () => {
+        const statusResponse = await authenticatedFetch(`${apiBase}${accepted.statusUrl}`);
+        const state: JiraSyncRunState = await statusResponse.json();
+        if (!statusResponse.ok) {
+          throw new Error(
+            typeof state.error === "string"
+              ? state.error
+              : state.error?.message ?? "Не удалось получить состояние синхронизации Jira",
+          );
+        }
+        return state;
+      },
+    });
+    if (polling.outcome === "STALE") return;
+    const runState = polling.state;
+    if (polling.outcome === "FAILED") {
+      const runError = runState?.error;
+      throw new Error(
+        typeof runError === "string"
+          ? runError
+          : runError?.message ?? "Синхронизация Jira завершилась ошибкой",
+      );
+    }
+    if (polling.outcome === "BACKGROUND") {
+      setNotice("Синхронизация Jira продолжает выполняться в фоне. Результат появится после обновления страницы.");
+      return;
+    }
+    const result = runState?.result ?? {};
     const refreshed = await authenticatedFetch(
       `${apiBase}/api/projects/${project.id}/overview`,
     );
+    if (!lifecycleMountedRef.current || projectRef.current?.id !== project.id) return;
     applyProject(await refreshed.json());
     const syncedCount =
       typeof result.synced === "number" ? result.synced : 0;
@@ -159,23 +228,28 @@ async function syncJira(options: {
     const retryText = historyRetries > 0
       ? ` В очередь повторов: ${historyRetries}.`
       : "";
+    const historyText = result.history?.disabledReason === "CAPACITY_LIMIT"
+      ? " История не записывалась из-за лимита ёмкости; текущие данные обновлены."
+      : "";
     if (warning) {
-      setNotice(`Jira: ${warning}.`);
+      setNotice(`Jira: ${warning}.${historyText}`);
     } else if (configuredSections === 0) {
-      setNotice(`Jira: нет разделов с заполненным фильтром.${slaText}`);
+      setNotice(`Jira: нет разделов с заполненным фильтром.${slaText}${historyText}`);
     } else if (syncedCount === 0) {
       setNotice(
         `Jira: синхронизация выполнена, тикетов не найдено.${jiraUserText}${slaText} Проверь JQL и Browse-доступ сервисной учетки к ${options.baseUrl ?? "Jira"}`,
       );
     } else {
-      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}.${retryText}${jiraUserText}${slaText}`);
+      setNotice(`Jira: синхронизировано тикетов: ${syncedCount}.${retryText}${jiraUserText}${slaText}${historyText}`);
     }
   } catch (syncError) {
-    setError(
-      syncError instanceof Error
-        ? syncError.message
-        : "Не удалось синхронизировать Jira",
-    );
+    if (lifecycleMountedRef.current && projectRef.current?.id === project.id) {
+      setError(
+        syncError instanceof Error
+          ? syncError.message
+          : "Не удалось синхронизировать Jira",
+      );
+    }
   } finally {
     setSyncing(false);
   }

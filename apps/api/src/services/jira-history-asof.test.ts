@@ -67,11 +67,18 @@ function queryText(query: unknown) {
   return value.text ?? value.sql ?? '';
 }
 
-function mockAsOfClient(responses: unknown[][]) {
+function mockAsOfClient(
+  responses: unknown[][],
+  gapResponse = { runs: 0n, firstAt: null, lastAt: null, includesAsOf: false },
+) {
   const queries: string[] = [];
   const client = {
     $queryRaw: async (query: unknown) => {
-      queries.push(queryText(query));
+      const sql = queryText(query);
+      queries.push(sql);
+      if (/FROM "JiraSyncRun"/u.test(sql)) {
+        return [gapResponse];
+      }
       const response = responses.shift();
       if (!response) throw new Error('Unexpected as-of query');
       return response;
@@ -115,6 +122,26 @@ test('as-of evaluation counts one Jira ticket once even when 100 versions are el
   assert.match(sql, /s\."retiredAt" IS NULL OR s\."retiredAt" >/u);
   assert.doesNotMatch(sql, /"payload"|"validationWarnings"/u);
   assert.doesNotMatch(JSON.stringify(result), /payload|validationWarnings/u);
+});
+
+test('as-of quality stays unavailable after disabled writes until a clean reconciliation', async () => {
+  const { client, queries } = mockAsOfClient([
+    [{ versionRows: 1n, scopedTickets: 1n, earliestObservationAt: new Date('2026-01-01T00:00:00.000Z') }],
+    [{ tickets: 1n, ticketsRetiredAfterAsOf: 0n, stalenessP50: 0, stalenessP95: 0, stalenessMax: 0 }],
+  ], {
+    runs: 1n,
+    firstAt: new Date('2026-02-01T00:00:00.000Z'),
+    lastAt: new Date('2026-02-01T01:00:00.000Z'),
+    includesAsOf: true,
+  });
+
+  const prepared = await prepareJiraAsOfIssueBatches(client, 'project-1', asOf);
+  assert.equal(prepared.reconstruction.quality, 'UNAVAILABLE_HISTORY_WRITE_GAP');
+  assert.equal(prepared.reconstruction.historyWriteGap.includesAsOf, true);
+  const gapSql = queries.find((sql) => /FROM "JiraSyncRun"/u.test(sql)) ?? '';
+  assert.match(gapSql, /fullReconciliationClean/u);
+  assert.match(gapSql, /historyGapRecoveryClean/u);
+  assert.match(gapSql, /recovered_at IS NULL/u);
 });
 
 test('as-of before the first observation is explicit instead of a bare zero', async () => {

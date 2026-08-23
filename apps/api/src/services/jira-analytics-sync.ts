@@ -104,66 +104,79 @@ export async function rebuildJiraCurrentProjections(
   prisma: PrismaClient,
   projectId: string,
   batchSize = 200,
+  assertLease?: (transaction: Prisma.TransactionClient) => Promise<void>,
 ) {
   let rebuilt = 0;
+  const skippedUnversioned = await prisma.jiraIssueSnapshot.count({
+    where: { projectId, retiredAt: null, projectionUnversionedSince: { not: null } },
+  });
   let cursor: string | undefined;
   while (true) {
-    const snapshots = await prisma.jiraIssueSnapshot.findMany({
-      where: { projectId, currentVersionId: { not: null } },
-      orderBy: { id: 'asc' },
-      take: batchSize,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: {
-        id: true,
-        retiredAt: true,
-        currentVersion: {
-          select: {
-            id: true,
-            projectId: true,
-            jiraIssueId: true,
-            issueKey: true,
-            issueUrl: true,
-            summary: true,
-            status: true,
-            priority: true,
-            assignee: true,
-            reporter: true,
-            issueType: true,
-            resolution: true,
-            sprint: true,
-            issueCreatedAt: true,
-            criticalPriorityAt: true,
-            criticalEndPriority: true,
-            resolutionAt: true,
-            commitCount: true,
-            mergeRequestCount: true,
-            developmentUpdatedAt: true,
-            developmentDataAvailable: true,
-            developmentBaselineCaptured: true,
-            transitionHistoryComplete: true,
-            issueUpdatedAt: true,
-            observedAt: true,
+    const batch = await prisma.$transaction(async (transaction) => {
+      await assertLease?.(transaction);
+      const snapshots = await transaction.jiraIssueSnapshot.findMany({
+        where: {
+          projectId,
+          retiredAt: null,
+          currentVersionId: { not: null },
+          projectionUnversionedSince: null,
+        },
+        orderBy: { id: 'asc' },
+        take: batchSize,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        select: {
+          id: true,
+          retiredAt: true,
+          currentVersion: {
+            select: {
+              id: true,
+              projectId: true,
+              jiraIssueId: true,
+              issueKey: true,
+              issueUrl: true,
+              summary: true,
+              status: true,
+              priority: true,
+              assignee: true,
+              reporter: true,
+              issueType: true,
+              resolution: true,
+              sprint: true,
+              issueCreatedAt: true,
+              criticalPriorityAt: true,
+              criticalEndPriority: true,
+              resolutionAt: true,
+              commitCount: true,
+              mergeRequestCount: true,
+              developmentUpdatedAt: true,
+              developmentDataAvailable: true,
+              developmentBaselineCaptured: true,
+              transitionHistoryComplete: true,
+              issueUpdatedAt: true,
+              observedAt: true,
+            },
           },
         },
-      },
-    });
-    if (snapshots.length === 0) break;
-    const updates = snapshots.flatMap((snapshot) =>
-      snapshot.currentVersion
-        ? [prisma.jiraIssueSnapshot.update({
-            where: { id: snapshot.id },
-            data: jiraSnapshotDataFromObservedVersion(
-              snapshot.currentVersion,
-              snapshot.retiredAt === null,
-            ),
-          })]
-        : []
-    );
-    if (updates.length > 0) await prisma.$transaction(updates);
-    rebuilt += updates.length;
-    cursor = snapshots.at(-1)?.id;
+      });
+      let updated = 0;
+      for (const snapshot of snapshots) {
+        if (!snapshot.currentVersion) continue;
+        await transaction.jiraIssueSnapshot.update({
+          where: { id: snapshot.id },
+          data: jiraSnapshotDataFromObservedVersion(
+            snapshot.currentVersion,
+            snapshot.retiredAt === null,
+          ),
+        });
+        updated += 1;
+      }
+      return { updated, cursor: snapshots.at(-1)?.id, empty: snapshots.length === 0 };
+    }, { maxWait: 10_000, timeout: 60_000 });
+    if (batch.empty) break;
+    rebuilt += batch.updated;
+    cursor = batch.cursor;
   }
-  return rebuilt;
+  return { rebuilt, skippedUnversioned };
 }
 
 export type JiraAnalyticsTransitionInput = {
@@ -222,49 +235,6 @@ export type JiraAnalyticsSectionMembership = {
   issueKeys: readonly string[];
 };
 
-type JiraAnalyticsSettingsDelegate = Pick<
-  PrismaClient['jiraAnalyticsSettings'],
-  'createMany' | 'updateMany'
->;
-
-export async function acquireJiraAnalyticsSyncLock(
-  settings: JiraAnalyticsSettingsDelegate,
-  projectId: string,
-  scope: { type: 'LABEL' | 'EPIC'; value: string },
-  startedAt: Date,
-  expiresAt: Date,
-) {
-  await settings.createMany({
-    data: [{
-      projectId,
-      jiraScopeType: scope.type,
-      jiraScopeValue: scope.value,
-      jiraLabel: scope.type === 'LABEL' ? scope.value : '',
-      syncStatus: 'CONFIGURED',
-    }],
-    skipDuplicates: true,
-  });
-  const lock = await settings.updateMany({
-    where: {
-      projectId,
-      OR: [
-        { syncStartedAt: null },
-        { syncLockExpiresAt: null },
-        { syncLockExpiresAt: { lte: startedAt } },
-      ],
-    },
-    data: {
-      jiraScopeType: scope.type,
-      jiraScopeValue: scope.value,
-      jiraLabel: scope.type === 'LABEL' ? scope.value : '',
-      syncStatus: 'SYNCING',
-      syncStartedAt: startedAt,
-      syncLockExpiresAt: expiresAt,
-    },
-  });
-  return lock.count === 1;
-}
-
 export async function replaceJiraCriticalSlaTracking(
   transaction: JiraCriticalSlaTrackingTransaction,
   projectId: string,
@@ -306,7 +276,10 @@ export async function finalizeJiraAnalyticsSync(
       id: { notIn: activeSnapshotIds },
       retiredAt: null,
     },
-    data: { retiredAt: syncedAt, criticalSlaTracked: false },
+    data: {
+      retiredAt: syncedAt,
+      criticalSlaTracked: false,
+    },
   });
   for (const section of sectionMemberships) {
     await transaction.jiraWorkSectionIssue.deleteMany({
@@ -489,8 +462,9 @@ export async function syncJiraIssueAnalytics(
 export function createPrismaJiraAnalyticsSyncStore(
   transaction: Prisma.TransactionClient,
   newSnapshotRetiredAt: Date | null = null,
+  historyWriteEnabled = true,
 ): JiraAnalyticsSyncStore {
-  return {
+  const store: JiraAnalyticsSyncStore = {
     async acquireIssueLock(projectId, issueIdentity) {
       await transaction.$queryRaw<Array<{ lock: string }>>(
         Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${projectId}:${issueIdentity}`}, 0))::text AS lock`,
@@ -562,6 +536,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           transitionHistoryComplete: issue.transitionHistoryComplete,
           updatedAt: issue.updatedAt,
           syncedAt,
+          projectionUnversionedSince: historyWriteEnabled ? null : syncedAt,
         },
         create: {
           projectId,
@@ -589,6 +564,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           updatedAt: issue.updatedAt,
           syncedAt,
           retiredAt: newSnapshotRetiredAt,
+          projectionUnversionedSince: historyWriteEnabled ? null : syncedAt,
         },
         select: {
           id: true,
@@ -737,10 +713,12 @@ export function createPrismaJiraAnalyticsSyncStore(
       if (makeCurrent) {
         await transaction.jiraIssueSnapshot.update({
           where: { id: snapshotId },
-          data: { currentVersionId: version.id },
+          data: { currentVersionId: version.id, projectionUnversionedSince: null },
         });
       }
       return { versionId: version.id, created: created.count === 1 };
     },
   };
+  if (!historyWriteEnabled) delete store.persistObservedVersion;
+  return store;
 }

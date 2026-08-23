@@ -83,10 +83,10 @@ test('project details do not transport the top-level Jira analytics population',
   assert.equal(projectDetailsInclude.jiraWorkSections.include.issues.include.snapshot, true);
 });
 
-test('Jira history stops batch fallback after global failures and deadlines', () => {
+test('Jira history stops batch fallback after global failures but retries request timeouts', () => {
   assert.equal(isFatalJiraHistoryBatchError(new JiraReadOnlyRequestError('blocked')), true);
   assert.equal(isFatalJiraHistoryBatchError(new Error('Jira authentication failed')), true);
-  assert.equal(isFatalJiraHistoryBatchError(new Error('превышен лимит времени ожидания Jira')), true);
+  assert.equal(isFatalJiraHistoryBatchError(new Error('превышен лимит времени ожидания Jira')), false);
   assert.equal(isFatalJiraHistoryBatchError(new Error('temporary 500 response')), false);
 });
 

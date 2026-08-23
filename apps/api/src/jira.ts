@@ -455,6 +455,58 @@ export type JiraReadOnlyRequestMetric = {
 
 const jiraReadOnlyRequestMetrics = new AsyncLocalStorage<JiraReadOnlyRequestMetric[]>();
 
+export type JiraReadOnlyRequestSummary = {
+  count: number;
+  durationMsTotal: number;
+  durationMsMax: number;
+  byRoute: Record<string, number>;
+  byStatusClass: Record<string, number>;
+};
+
+const jiraReadOnlyRequestSummary = new AsyncLocalStorage<JiraReadOnlyRequestSummary>();
+const jiraReadOnlyRequestFailureSummaries = new WeakMap<object, JiraReadOnlyRequestSummary>();
+
+export class JiraSyncDeadlineError extends Error {
+  override name = 'JiraSyncDeadlineError';
+}
+
+export function jiraReadOnlyRouteTemplate(path: string) {
+  if (['search', 'filter', 'myself', 'auth', 'issue', 'changelog', 'comment', 'worklog', 'remotelink', 'other'].includes(path)) {
+    return path;
+  }
+  if (/\/rest\/api\/\d+\/search(?:\/jql)?\/?$/i.test(path)) return 'search';
+  if (/\/rest\/api\/\d+\/filter(?:\/\d+)?\/?$/i.test(path)) return 'filter';
+  if (/\/rest\/api\/\d+\/myself\/?$/i.test(path)) return 'myself';
+  if (/\/rest\/auth\/\d+\/session\/?$/i.test(path)) return 'auth';
+  if (/\/rest\/api\/\d+\/issue\/[^/]+\/changelog\/?$/i.test(path)) return 'changelog';
+  if (/\/rest\/api\/\d+\/issue\/[^/]+\/comment\/?$/i.test(path)) return 'comment';
+  if (/\/rest\/api\/\d+\/issue\/[^/]+\/worklog\/?$/i.test(path)) return 'worklog';
+  if (/\/rest\/api\/\d+\/issue\/[^/]+\/remotelink\/?$/i.test(path)) return 'remotelink';
+  if (/\/rest\/api\/\d+\/issue\/[^/]+\/?$/i.test(path)) return 'issue';
+  return 'other';
+}
+
+function jiraStatusClass(status: number) {
+  if (status === 0) return 'transport';
+  if (status >= 200 && status < 300) return '2xx';
+  if (status >= 300 && status < 400) return '3xx';
+  if (status >= 400 && status < 500) return '4xx';
+  return '5xx';
+}
+
+function recordJiraReadOnlyRequest(metric: JiraReadOnlyRequestMetric) {
+  jiraReadOnlyRequestMetrics.getStore()?.push(metric);
+  const summary = jiraReadOnlyRequestSummary.getStore();
+  if (!summary) return;
+  const route = jiraReadOnlyRouteTemplate(metric.path);
+  const statusClass = jiraStatusClass(metric.status);
+  summary.count += 1;
+  summary.durationMsTotal += metric.durationMs;
+  summary.durationMsMax = Math.max(summary.durationMsMax, metric.durationMs);
+  summary.byRoute[route] = (summary.byRoute[route] ?? 0) + 1;
+  summary.byStatusClass[statusClass] = (summary.byStatusClass[statusClass] ?? 0) + 1;
+}
+
 export function assertJiraReadOnlyRequest(urlValue: string | URL, init: RequestInit = {}) {
   let url: URL;
   try {
@@ -483,7 +535,7 @@ export async function fetchJiraReadOnly(url: string | URL, init: RequestInit = {
   const parsedUrl = url instanceof URL ? url : new URL(url);
   try {
     const response = await fetch(url, { ...init, redirect: 'manual' });
-    jiraReadOnlyRequestMetrics.getStore()?.push({
+    recordJiraReadOnlyRequest({
       method: (init.method ?? 'GET').toUpperCase(),
       path: parsedUrl.pathname,
       status: response.status,
@@ -491,7 +543,7 @@ export async function fetchJiraReadOnly(url: string | URL, init: RequestInit = {
     });
     return response;
   } catch (error) {
-    jiraReadOnlyRequestMetrics.getStore()?.push({
+    recordJiraReadOnlyRequest({
       method: (init.method ?? 'GET').toUpperCase(),
       path: parsedUrl.pathname,
       status: 0,
@@ -507,6 +559,32 @@ export async function captureJiraReadOnlyRequestMetrics<Result>(
   const requests: JiraReadOnlyRequestMetric[] = [];
   const result = await jiraReadOnlyRequestMetrics.run(requests, callback);
   return { result, requests };
+}
+
+export async function captureJiraReadOnlyRequestSummary<Result>(
+  callback: () => Promise<Result>,
+) {
+  const summary: JiraReadOnlyRequestSummary = {
+    count: 0,
+    durationMsTotal: 0,
+    durationMsMax: 0,
+    byRoute: {},
+    byStatusClass: {},
+  };
+  try {
+    const result = await jiraReadOnlyRequestSummary.run(summary, callback);
+    return { result, summary };
+  } catch (error) {
+    if ((typeof error === 'object' && error !== null) || typeof error === 'function') {
+      jiraReadOnlyRequestFailureSummaries.set(error, summary);
+    }
+    throw error;
+  }
+}
+
+export function jiraReadOnlyRequestSummaryForError(error: unknown) {
+  if ((typeof error !== 'object' || error === null) && typeof error !== 'function') return null;
+  return jiraReadOnlyRequestFailureSummaries.get(error) ?? null;
 }
 
 function savedFilterIdFromJql(jql: string) {
@@ -1267,7 +1345,7 @@ const JIRA_CHANGELOG_TIMEOUT_MS = 30_000;
 function jiraRequestTimeout(deadlineAt: number | undefined, requestTimeoutMs: number) {
   const remainingMs = deadlineAt === undefined ? requestTimeoutMs : deadlineAt - Date.now();
   if (remainingMs <= 0) {
-    throw new Error('Превышен общий лимит времени синхронизации Jira');
+    throw new JiraSyncDeadlineError('Превышен общий лимит времени синхронизации Jira');
   }
   return AbortSignal.timeout(Math.max(1, Math.min(requestTimeoutMs, remainingMs)));
 }
@@ -1901,9 +1979,11 @@ export async function fetchJiraRemoteLinks(
         signal: jiraRequestTimeout(deadlineAt, 15_000),
       });
     } catch (error) {
-      if (error instanceof JiraReadOnlyRequestError) throw error;
+      if (error instanceof JiraReadOnlyRequestError || error instanceof JiraSyncDeadlineError) {
+        throw error;
+      }
       if (deadlineAt !== undefined && deadlineAt <= Date.now()) {
-        throw new Error('Превышен общий лимит времени синхронизации Jira');
+        throw new JiraSyncDeadlineError('Превышен общий лимит времени синхронизации Jira');
       }
       return null;
     }
@@ -1948,7 +2028,9 @@ async function jiraHistoryRequestOrFallback<Result>(
   try {
     return await request;
   } catch (error) {
-    if (error instanceof JiraReadOnlyRequestError) throw error;
+    if (error instanceof JiraReadOnlyRequestError || error instanceof JiraSyncDeadlineError) {
+      throw error;
+    }
     return fallback;
   }
 }

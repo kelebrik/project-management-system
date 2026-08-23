@@ -22,6 +22,13 @@ export type JiraAsOfReconstruction = {
   earliestObservationAt: string | null;
   stalenessHours: { p50: number; p95: number; max: number } | null;
   beforeHistoryStart: boolean;
+  historyWriteGap: {
+    includesAsOf: boolean;
+    runs: number;
+    firstAt: string | null;
+    lastAt: string | null;
+  };
+  quality: 'AVAILABLE' | 'UNAVAILABLE_HISTORY_WRITE_GAP';
 };
 
 type JiraAsOfReadClient = Pick<PrismaClient, '$queryRaw'>;
@@ -41,6 +48,12 @@ type WinnerSummaryRow = {
 };
 
 type IssueIdRow = { jiraIssueId: string };
+type HistoryWriteGapRow = {
+  runs: bigint | number;
+  firstAt: Date | string | null;
+  lastAt: Date | string | null;
+  includesAsOf: boolean;
+};
 
 export type JiraAsOfVersionRow = {
   versionId: string;
@@ -240,6 +253,39 @@ export async function prepareJiraAsOfIssueBatches(
     FROM lagged
   `);
   const winners = winnerRows[0];
+  const gapRows = await client.$queryRaw<HistoryWriteGapRow[]>(Prisma.sql`
+    WITH disabled AS MATERIALIZED (
+      SELECT d."startedAt", d."finishedAt"
+        FROM "JiraSyncRun" d
+       WHERE d."projectId" = ${projectId}
+         AND NOT d."historyWriteEnabled"
+         AND d."startedAt" IS NOT NULL
+    ), gaps AS (
+      SELECT d.*,
+             (
+               SELECT MIN(r."finishedAt")
+                 FROM "JiraSyncRun" r
+                WHERE r."projectId" = ${projectId}
+                  AND r."historyWriteEnabled"
+                  AND r."status" IN ('SUCCEEDED', 'SUCCEEDED_WITH_RETRIES')
+                  AND r."finishedAt" > d."startedAt"
+                  AND (
+                    r."result" #>> '{history,fullReconciliationClean}' = 'true'
+                    OR r."result" #>> '{history,historyGapRecoveryClean}' = 'true'
+                  )
+             ) AS recovered_at
+        FROM disabled d
+    )
+    SELECT COUNT(*)::bigint AS runs,
+           MIN("startedAt") AS "firstAt",
+           MAX("finishedAt") AS "lastAt",
+           COALESCE(BOOL_OR(
+             "startedAt" <= ${asOf}
+             AND (recovered_at IS NULL OR ${asOf} < recovered_at)
+           ), false) AS "includesAsOf"
+      FROM gaps
+  `);
+  const historyWriteGap = gapRows[0];
   const tickets = numeric(winners?.tickets);
   const scopedTickets = numeric(population?.scopedTickets);
   const earliestObservationAt = iso(population?.earliestObservationAt);
@@ -262,6 +308,15 @@ export async function prepareJiraAsOfIssueBatches(
         }
       : null,
     beforeHistoryStart: scopedTickets > 0 && versionRows === 0,
+    historyWriteGap: {
+      includesAsOf: historyWriteGap?.includesAsOf ?? false,
+      runs: numeric(historyWriteGap?.runs),
+      firstAt: iso(historyWriteGap?.firstAt),
+      lastAt: iso(historyWriteGap?.lastAt),
+    },
+    quality: historyWriteGap?.includesAsOf
+      ? 'UNAVAILABLE_HISTORY_WRITE_GAP'
+      : 'AVAILABLE',
   };
   return {
     reconstruction,

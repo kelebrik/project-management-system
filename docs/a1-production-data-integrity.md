@@ -175,10 +175,14 @@ service. Jira remains strictly read-only: the importer may read Jira and write o
 this application's PostgreSQL database.
 
 For each configured project, record the exact request body and run one controlled
-`POST /projects/:projectId/jira/sync`. A non-2xx response is a hard stop; do not start
-a retry pass. After the first pass, wait at least two minutes so first-attempt retry
-backoff has expired, then repeat the same request once for each project. HTTP 200 on
-this second pass is not evidence of success by itself.
+`POST /projects/:projectId/jira/sync`. The accepted response is HTTP 202 with `runId`
+and `statusUrl`. Poll `statusUrl` no faster than `pollAfterMs` until `SUCCEEDED` or
+`SUCCEEDED_WITH_RETRIES`. `FAILED`, `CANCELLED`, `STOPPED_CAPACITY`, a missing run,
+or a non-2xx polling response is a hard stop. `PAUSED_DEADLINE` is not terminal: the
+durable worker resumes the same run from its checkpoint after reacquiring the lease.
+After the first terminal pass, wait at least two minutes so first-attempt retry backoff
+has expired, then repeat the same request once for each project. A successful terminal
+status on this second pass is not evidence of data integrity by itself.
 
 After the second pass, execute:
 
@@ -196,7 +200,7 @@ codes, attempts, retry timestamps, and `storage.level`.
 Keep the rollout on hold when any of these conditions is true:
 
 1. `integrity:a1` exits non-zero or any TSV `CHECK` is not `true`.
-2. Either sync pass returned non-2xx.
+2. Either sync pass failed to reach `SUCCEEDED` or `SUCCEEDED_WITH_RETRIES`.
 3. `storage.level` is not `NORMAL`.
 4. Any PENDING retry has a reason outside the closed allowlist
    `{MISSING_HISTORY_DOCUMENT, INCOMPLETE_HYDRATION}`. In particular,

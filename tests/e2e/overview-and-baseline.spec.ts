@@ -414,6 +414,35 @@ async function mockManagedJiraAnalytics(
           fullCursorIssueKey: null,
           fullStartedAt: null,
         },
+        historyWrite: {
+          enabled: true,
+          gapRuns: 0,
+          gapFirstAt: null,
+          gapLastAt: null,
+        },
+        projections: { unversioned: 0 },
+      },
+    }),
+  );
+  await page.route("**/api/projects/project-1/jira/backfill/completeness?**", (route) =>
+    route.fulfill({
+      json: {
+        generatedAt: evaluatedAt,
+        historyWriteEnabled: true,
+        scope: {
+          tickets: 1,
+          stableJiraId: 1,
+          withoutStableJiraId: 0,
+          observed: 1,
+          withoutObservedVersion: 0,
+          fullyHydrated: 1,
+          coveragePercent: 100,
+          unversionedProjection: 0,
+        },
+        versions: { total: 1, firstObservedAt: evaluatedAt, lastObservedAt: evaluatedAt },
+        retry: { pending: 0 },
+        historyWriteGap: { runs: 0, firstAt: null, lastAt: null },
+        latestBackfill: null,
       },
     }),
   );
@@ -783,19 +812,88 @@ test("Jira work synchronization always uses production", async ({ page }) => {
   await page.route("**/api/projects/project-1/jira/sync", async (route) => {
     syncBody = route.request().postDataJSON() as typeof syncBody;
     await route.fulfill({
-      json: { synced: 0, configuredSections: 0, jiraUsers: [] },
+      status: 202,
+      json: {
+        runId: "run-1",
+        status: "QUEUED",
+        statusUrl: "/api/projects/project-1/jira/sync-runs/run-1",
+        pollAfterMs: 3000,
+      },
     });
   });
+  await page.route("**/api/projects/project-1/jira/sync-runs/run-1", (route) =>
+    route.fulfill({
+      json: {
+        runId: "run-1",
+        status: "SUCCEEDED",
+        result: { synced: 0, configuredSections: 0, jiraUsers: [] },
+      },
+    }),
+  );
   await page.goto("/TV-OVERVIEW/jira-work");
 
   await expect(page.getByLabel("Окружение Jira")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "dev", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "prod", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Синхронизировать" }).click();
+  await page.getByRole("button", { name: "Обновить" }).click();
 
   await expect.poll(() => syncBody?.baseUrl).toBe("https://tasks.sberdevices.ru");
   await expect.poll(() => syncBody?.scopeType).toBe("LABEL");
   await expect.poll(() => syncBody?.scopeValue).toBe("cvte968");
+});
+
+test("Jira synchronization shows the server conflict when no active run is available", async ({ page }) => {
+  await mockAdminProject(page);
+  await page.route("**/api/projects/project-1/jira-work-sections", (route) =>
+    route.fulfill({ json: { ok: true } }),
+  );
+  await page.route("**/api/projects/project-1/jira/sync", (route) =>
+    route.fulfill({
+      status: 409,
+      json: {
+        error: "Обновление Jira для этого проекта уже выполняется",
+        runId: null,
+        statusUrl: null,
+      },
+    }),
+  );
+  await page.goto("/TV-OVERVIEW/jira-work");
+  await page.getByRole("button", { name: "Обновить" }).click();
+  await expect(page.getByText("Обновление Jira для этого проекта уже выполняется")).toBeVisible();
+});
+
+test("Jira backfill polling survives a transient status failure", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  await mockManagedJiraAnalytics(page, project);
+  let statusRequests = 0;
+  await page.route("**/api/projects/project-1/jira/backfill", (route) =>
+    route.fulfill({
+      status: 202,
+      json: {
+        runId: "backfill-1",
+        status: "QUEUED",
+        statusUrl: "/api/projects/project-1/jira/sync-runs/backfill-1",
+        pollAfterMs: 3_000,
+      },
+    }),
+  );
+  await page.route("**/api/projects/project-1/jira/sync-runs/backfill-1", (route) => {
+    statusRequests += 1;
+    if (statusRequests === 1) return route.abort("failed");
+    return route.fulfill({
+      json: { runId: "backfill-1", status: "SUCCEEDED", result: { synced: 1 } },
+    });
+  });
+
+  await page.goto("/TV-OVERVIEW/jira-work");
+  await page.getByRole("button", { name: "Данные Jira" }).click();
+  await page.getByRole("button", { name: "Полный импорт" }).click();
+
+  await expect(page.getByText("Полный импорт Jira завершён; отчёт полноты обновлён.")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole("button", { name: "Полный импорт" })).toBeEnabled();
+  expect(statusRequests).toBe(2);
 });
 
 test("Jira work sections expose separate JQL and filter URL fields", async ({
@@ -838,7 +936,24 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
     route.fulfill({ json: { sections: [] } }),
   );
   await page.route("**/api/projects/project-1/jira/sync", (route) =>
-    route.fulfill({ json: { synced: 1, configuredSections: 0, jiraUsers: [] } }),
+    route.fulfill({
+      status: 202,
+      json: {
+        runId: "run-1",
+        status: "QUEUED",
+        statusUrl: "/api/projects/project-1/jira/sync-runs/run-1",
+        pollAfterMs: 3000,
+      },
+    }),
+  );
+  await page.route("**/api/projects/project-1/jira/sync-runs/run-1", (route) =>
+    route.fulfill({
+      json: {
+        runId: "run-1",
+        status: "SUCCEEDED",
+        result: { synced: 1, configuredSections: 0, jiraUsers: [] },
+      },
+    }),
   );
   await page.goto("/TV-OVERVIEW/jira-work");
 

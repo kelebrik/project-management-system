@@ -10,13 +10,14 @@ const repoRoot = process.cwd();
 const comparator = path.join(repoRoot, 'scripts/db-integrity-compare.mjs');
 const psqlWrapper = path.join(repoRoot, 'scripts/db-integrity-psql.mjs');
 const a1Migration = '20260821200000_jira_issue_history_a1';
+const durableRunsMigration = '20260823180000_jira_sync_runs_backfill';
 const hash = 'a'.repeat(64);
 
 function sha256(value: string | Buffer) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function records(phase: 'baseline' | 'post') {
+function records(phase: 'baseline' | 'post', targetMigration = a1Migration) {
   const timestamp = phase === 'baseline' ? '2026-08-22 08:00:00+00' : '2026-08-22 08:05:00+00';
   const lsn = phase === 'baseline' ? '1000' : '2000';
   const meta = {
@@ -65,7 +66,7 @@ function records(phase: 'baseline' | 'post') {
   ];
   if (phase === 'post') {
     lines.push(
-      `A1_MIGRATION\tmigration-id\t${hash}\t2026-08-22 08:01:00+00\t2026-08-22 08:02:00+00\t1\t\ttrue\t${a1Migration}`,
+      `A1_MIGRATION\tmigration-id\t${hash}\t2026-08-22 08:01:00+00\t2026-08-22 08:02:00+00\t1\t\ttrue\t${targetMigration}`,
     );
   }
   lines.push(...Object.entries(evidence).map(([key, value]) => `EVIDENCE\t${key}\t${value}`));
@@ -81,10 +82,11 @@ function writeManifest(directory: string, lines: string[], complete = true) {
   if (complete) fs.writeFileSync(path.join(directory, 'COMPLETE'), `complete\t${digest}\n`);
 }
 
-function compare(baseline: string, post: string) {
+function compare(baseline: string, post: string, targetMigration = a1Migration) {
   return spawnSync(process.execPath, [comparator, baseline, post], {
     cwd: repoRoot,
     encoding: 'utf8',
+    env: { ...process.env, TARGET_MIGRATION: targetMigration },
   });
 }
 
@@ -98,6 +100,21 @@ test('A1 comparator accepts unchanged old data and the exact A1 delta', () => {
     const result = compare(baseline, post);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /^PASS:/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('integrity comparator accepts the configured durable-run migration target', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pms-integrity-target-'));
+  try {
+    const baseline = path.join(root, 'baseline');
+    const post = path.join(root, 'post');
+    writeManifest(baseline, records('baseline', durableRunsMigration));
+    writeManifest(post, records('post', durableRunsMigration));
+    const result = compare(baseline, post, durableRunsMigration);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /pre-target row/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -186,7 +203,7 @@ test('A1 comparator rejects target identity, WAL, and migration evidence regress
     {
       name: 'successful A1 row is missing',
       mutate: (lines) => lines.filter((line) => !line.startsWith('A1_MIGRATION\t')),
-      error: /exactly one successful A1 migration/,
+      error: /exactly one successful target migration/,
     },
     {
       name: 'successful A1 row is duplicated',
@@ -194,13 +211,13 @@ test('A1 comparator rejects target identity, WAL, and migration evidence regress
         const migration = lines.find((line) => line.startsWith('A1_MIGRATION\t'))!;
         return [...lines, migration.replace('migration-id', 'second-migration-id')];
       },
-      error: /exactly one successful A1 migration/,
+      error: /exactly one successful target migration/,
     },
     {
       name: 'database migration checksum differs',
       mutate: (lines) => lines.map((line) => line.startsWith('A1_MIGRATION\t')
         ? line.replace(`\t${hash}\t`, `\t${'c'.repeat(64)}\t`) : line),
-      error: /database A1 checksum differs/,
+      error: /database migration checksum differs/,
     },
   ];
 

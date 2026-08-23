@@ -347,11 +347,26 @@ export const openApiDocument = {
             ],
           },
           beforeHistoryStart: { type: "boolean" },
+          historyWriteGap: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              includesAsOf: { type: "boolean" },
+              runs: { type: "integer", minimum: 0 },
+              firstAt: { type: ["string", "null"], format: "date-time" },
+              lastAt: { type: ["string", "null"], format: "date-time" },
+            },
+            required: ["includesAsOf", "runs", "firstAt", "lastAt"],
+          },
+          quality: {
+            type: "string",
+            enum: ["AVAILABLE", "UNAVAILABLE_HISTORY_WRITE_GAP"],
+          },
         },
         required: [
           "mode", "provenance", "basis", "asOf", "tickets", "ticketsWithoutObservation",
           "ticketsRetiredAfterAsOf", "versionRowsScanned", "earliestObservationAt",
-          "stalenessHours", "beforeHistoryStart",
+          "stalenessHours", "beforeHistoryStart", "historyWriteGap", "quality",
         ],
       },
       JiraAnalyticsFacets: {
@@ -1560,8 +1575,11 @@ export const openApiDocument = {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["rebuilt"],
-                  properties: { rebuilt: { type: "integer" } },
+                  required: ["rebuilt", "skippedUnversioned"],
+                  properties: {
+                    rebuilt: { type: "integer" },
+                    skippedUnversioned: { type: "integer" },
+                  },
                 },
               },
             },
@@ -1613,41 +1631,18 @@ export const openApiDocument = {
           },
         },
         responses: {
-          "200": {
-            description: "Jira snapshots synchronized",
+          "202": {
+            description: "Durable Jira synchronization queued",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
+                  required: ["runId", "status", "statusUrl", "pollAfterMs"],
                   properties: {
-                    synced: { type: "number" },
-                    jiraScopeType: { type: "string", enum: ["LABEL", "EPIC"] },
-                    jiraScopeValue: { type: "string" },
-                    emptyScope: { type: "boolean" },
-                    warning: { type: "string" },
-                    criticalBugSlaConfigured: { type: "boolean" },
-                    criticalBugSlaScope: { type: "string", enum: ["label", "epic"] },
-                    criticalBugSlaCandidates: { type: "number" },
-                    criticalBugSlaIssues: { type: "number" },
-                    configuredSections: { type: "number" },
-                    totalSections: { type: "number" },
-                    jiraUsers: {
-                      type: "array",
-                      items: { type: "string" },
-                    },
-                    sections: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          id: { type: "string" },
-                          title: { type: "string" },
-                          sortOrder: { type: "number" },
-                          issues: { type: "number" },
-                          jiraUser: { type: ["string", "null"] },
-                        },
-                      },
-                    },
+                    runId: { type: "string" },
+                    status: { type: "string", enum: ["QUEUED"] },
+                    statusUrl: { type: "string" },
+                    pollAfterMs: { type: "integer", minimum: 3000 },
                   },
                 },
               },
@@ -1660,6 +1655,68 @@ export const openApiDocument = {
           "409": { description: "Jira synchronization already running" },
           "423": { description: "Closed project is read-only" },
           "502": { description: "Jira request failed" },
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/sync-runs/active": {
+      get: {
+        tags: ["Jira"],
+        summary: "Get the active durable Jira synchronization run",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "200": { description: "Active run or null" },
+          "401": { description: "Authentication required" },
+          "403": { description: "Project write access required" },
+          "404": { description: "Project not found" },
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/sync-runs/{runId}": {
+      get: {
+        tags: ["Jira"],
+        summary: "Poll a durable Jira synchronization run",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam, pathParam("runId")],
+        responses: {
+          "200": { description: "Run status, bounded progress, metrics and terminal result" },
+          "401": { description: "Authentication required" },
+          "403": { description: "Project write access required" },
+          "404": { description: "Run not found in this project" },
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/backfill": {
+      post: {
+        tags: ["Jira", "Admin"],
+        summary: "Queue a full attachment-free Jira history backfill",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "202": { description: "Backfill queued" },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "409": { description: "History disabled, capacity limit, or another Jira run is active" },
+          "423": { description: "Closed project is read-only" },
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/backfill/completeness": {
+      get: {
+        tags: ["Jira", "Admin"],
+        summary: "Get aggregate and bounded paged Jira history completeness",
+        security: [{ sessionCookie: [] }],
+        parameters: [
+          projectIdParam,
+          { name: "section", in: "query", schema: { type: "string", enum: ["tickets", "missing"] } },
+          { name: "offset", in: "query", schema: { type: "integer", minimum: 0 } },
+          { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+        ],
+        responses: {
+          "200": { description: "Completeness aggregate and one bounded ticket page" },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator required" },
+          "413": { description: "Requested page exceeds the 10000-row window" },
         },
       },
     },

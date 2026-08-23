@@ -15,7 +15,13 @@ const requestMetrics = {
 };
 const rateLimitBuckets = new Map<string, { windowStart: number; count: number }>();
 
-function metricRoute(req: Request) {
+export function metricRoute(req: Pick<Request, 'path'>) {
+  if (/^\/api\/projects\/[^/]+\/jira\/sync-runs\/active$/.test(req.path)) {
+    return '/api/projects/:projectId/jira/sync-runs/active';
+  }
+  if (/^\/api\/projects\/[^/]+\/jira\/sync-runs\/[^/]+$/.test(req.path)) {
+    return '/api/projects/:projectId/jira/sync-runs/:runId';
+  }
   if (req.path.startsWith('/api/projects/') && req.path.endsWith('/overview')) {
     return '/api/projects/:projectId/overview';
   }

@@ -4,31 +4,16 @@ import {
   jiraAnalyticsDashboardConfigSchema,
   updateIssueSchema,
 } from '@pms/shared';
-import { Prisma } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
+import { JiraSyncRunKind, Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import {
-  fetchJiraIssueKeysWithMeta,
-  fetchJiraIssuesWithMeta,
-  jiraJqlWithIssueKeys,
-  JiraReadOnlyRequestError,
-  resolveJiraConfig,
-  type JiraIssue,
-} from '../jira.js';
 import { currentUser } from '../server/auth.js';
 import { logEvent } from '../server/logger.js';
+import { ensureProjectWriteAccess } from '../server/project-access.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
-  createPrismaJiraAnalyticsSyncStore,
-  acquireJiraAnalyticsSyncLock,
-  finalizeJiraAnalyticsSync,
-  JiraHistoryObservationError,
-  jiraCriticalBugSlaSnapshotIds,
   rebuildJiraCurrentProjections,
-  syncJiraIssueAnalytics,
-  type JiraAnalyticsSyncedSnapshot,
 } from '../services/jira-analytics-sync.js';
 import { sampleJiraCapacity } from '../services/jira-capacity.js';
 import {
@@ -37,29 +22,27 @@ import {
   lockJiraAggregateProject,
 } from '../services/jira-aggregates.js';
 import {
-  dueJiraHistoryRetryKeys,
   jiraHistoryDatabaseBytes,
-  jiraHistoryNeedsFullReconciliation,
+  jiraBackfillCompleteness,
+  jiraHistoryStorageBudgetBytes,
   jiraHistoryStatus,
-  jiraHistoryUpdatedSinceJql,
   JIRA_HISTORY_CRITICAL_PERCENT,
-  JIRA_HISTORY_STORAGE_BUDGET_BYTES,
-  latestJiraHistoryCursor,
-  pendingJiraHistoryRetryKeys,
-  queueJiraHistoryRetry,
-  redactJiraHistoryError,
-  resolveJiraHistoryRetry,
 } from '../services/jira-history.js';
+import { notifyJiraSyncRunner } from '../services/jira-sync-runtime.js';
+import {
+  acquireJiraProjectionRebuildLease,
+  enqueueJiraSyncRun,
+  findActiveJiraSyncRun,
+  findJiraSyncRun,
+  jiraHistoryWriteEnabled,
+  JiraSyncFencedError,
+  JIRA_SYNC_POLL_AFTER_MS,
+  publicJiraSyncRun,
+  releaseJiraProjectionRebuildLease,
+  renewJiraProjectionRebuildLease,
+} from '../services/jira-sync-runs.js';
 import {
   ensureDefaultJiraWorkSections,
-  jiraCriticalPriorityProjectKeys,
-  jiraIssueKeyBatchDifference,
-  jiraIssueKeyBatchJql,
-  jiraIssueKeyBatches,
-  jiraParentKeyBatchJql,
-  jiraWorkSectionScopedJqls,
-  normalizedJiraIssueKeys,
-  resolveJiraWorkSectionJql,
 } from '../services/jira-work-sections.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 import { registerJiraAggregateRoutes } from './jira-aggregates.routes.js';
@@ -67,34 +50,12 @@ import { registerJiraAggregateRoutes } from './jira-aggregates.routes.js';
 export const JIRA_CAPACITY_DEFAULT_STORAGE_GIB = 5;
 export const JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB = 0;
 
-export function isFatalJiraHistoryBatchError(error: unknown) {
-  if (error instanceof JiraReadOnlyRequestError) return true;
-  const message = error instanceof Error ? error.message : String(error);
-  return /authentication|did not authenticate|unexpected Jira user|лимит времени|deadline|timed?\s*out/i.test(message);
-}
-
-export function jiraHistorySyncFailedCompletely(attempted: number, succeeded: number) {
-  return attempted > 0 && succeeded === 0;
-}
-
-export function jiraHistoryIssueIsRetryEligible(
-  issueKey: string,
-  pendingRetryKeys: ReadonlySet<string>,
-  dueRetryKeys: ReadonlySet<string>,
-) {
-  const normalized = issueKey.toUpperCase();
-  return !pendingRetryKeys.has(normalized) || dueRetryKeys.has(normalized);
-}
-
-export function jiraHistoryFullSweepState(
-  fullReconciliation: boolean,
-  pendingDiscoveredRetries: number,
-) {
-  return {
-    returnToIncremental: fullReconciliation,
-    clean: fullReconciliation && pendingDiscoveredRetries === 0,
-  };
-}
+export {
+  isFatalJiraHistoryBatchError,
+  jiraHistoryFullSweepState,
+  jiraHistoryIssueIsRetryEligible,
+  jiraHistorySyncFailedCompletely,
+} from '../services/jira-sync-pipeline.js';
 
 export function createIssuesRouter() {
   const router = Router();
@@ -242,67 +203,6 @@ const jiraCapacitySampleSchema = z.object({
     context.addIssue({ code: 'custom', path: ['scopeValue'], message: 'Укажите код эпика, например CVTE-123' });
   }
 });
-
-const JIRA_ANALYTICS_SYNC_CONCURRENCY = 4;
-const JIRA_ANALYTICS_SYNC_LOCK_MS = 5 * 60_000;
-const JIRA_ANALYTICS_SYNC_DEADLINE_MS = 4 * 60_000;
-const JIRA_ANALYTICS_BATCH_SIZE = 50;
-const JIRA_HISTORY_BATCH_SIZE = 20;
-
-async function syncJiraAnalyticsIssues(
-  projectId: string,
-  issues: JiraIssue[],
-  syncedAt: Date,
-  syncRunId: string,
-) {
-  const snapshots = new Array<JiraAnalyticsSyncedSnapshot | undefined>(issues.length);
-  const failures = new Array<{ issueKey: string; reasonCode: string; message: string }>();
-  let nextIndex = 0;
-  const worker = async () => {
-    while (nextIndex < issues.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      const issue = issues[index];
-      try {
-        snapshots[index] = await prisma.$transaction((transaction) =>
-          syncJiraIssueAnalytics(
-            createPrismaJiraAnalyticsSyncStore(transaction, syncedAt),
-            projectId,
-            issue,
-            syncedAt,
-            syncRunId,
-          ),
-        );
-        await resolveJiraHistoryRetry(prisma, projectId, issue.key, syncedAt);
-      } catch (error) {
-        const reasonCode = error instanceof JiraHistoryObservationError
-          ? error.reasonCode
-          : 'PERSISTENCE_FAILED';
-        await queueJiraHistoryRetry(prisma, {
-          projectId,
-          issueKey: issue.key,
-          jiraIssueId: issue.jiraId,
-          reasonCode,
-          error,
-          observedUpdatedAt: issue.updatedAt,
-          failedAt: syncedAt,
-        });
-        failures.push({
-          issueKey: issue.key,
-          reasonCode,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-  };
-  await Promise.all(
-    Array.from(
-      { length: Math.min(JIRA_ANALYTICS_SYNC_CONCURRENCY, issues.length) },
-      () => worker(),
-    ),
-  );
-  return { failures, snapshots };
-}
 
 router.put('/projects/:projectId/jira-integration', async (req, res) => {
   const parsed = jiraIntegrationSchema.safeParse(req.body);
@@ -1129,41 +1029,27 @@ router.post('/projects/:projectId/jira/history/rebuild-projections', async (req,
     return;
   }
   if (!project.jiraAnalyticsSettings) {
-    res.json({ rebuilt: 0 });
+    res.json({ rebuilt: 0, skippedUnversioned: 0 });
     return;
   }
-  const lockStartedAt = new Date();
-  const lockExpiresAt = new Date(lockStartedAt.getTime() + JIRA_ANALYTICS_SYNC_LOCK_MS);
-  const lock = await prisma.jiraAnalyticsSettings.updateMany({
-    where: {
-      projectId: project.id,
-      OR: [
-        { syncStartedAt: null },
-        { syncLockExpiresAt: null },
-        { syncLockExpiresAt: { lte: lockStartedAt } },
-      ],
-    },
-    data: {
-      syncStatus: 'REBUILDING_PROJECTIONS',
-      syncStartedAt: lockStartedAt,
-      syncLockExpiresAt: lockExpiresAt,
-    },
-  });
-  if (lock.count !== 1) {
+  const rebuildFence = await acquireJiraProjectionRebuildLease(prisma, project.id);
+  if (!rebuildFence) {
     res.status(409).json({ error: 'Обновление Jira для этого проекта уже выполняется' });
     return;
   }
   try {
-    res.json({ rebuilt: await rebuildJiraCurrentProjections(prisma, project.id) });
+    res.json(await rebuildJiraCurrentProjections(
+      prisma,
+      project.id,
+      200,
+      (transaction) => renewJiraProjectionRebuildLease(transaction, rebuildFence),
+    ));
   } finally {
-    await prisma.jiraAnalyticsSettings.updateMany({
-      where: { projectId: project.id, syncStartedAt: lockStartedAt },
-      data: {
-        syncStatus: project.jiraAnalyticsSettings.syncStatus,
-        syncStartedAt: null,
-        syncLockExpiresAt: null,
-      },
-    });
+    await releaseJiraProjectionRebuildLease(
+      prisma,
+      rebuildFence,
+      project.jiraAnalyticsSettings.syncStatus,
+    );
   }
 });
 
@@ -1178,21 +1064,12 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     });
     return;
   }
-
   const project = await prisma.project.findUnique({
     where: { id: req.params.projectId },
     select: {
       id: true,
       jiraAnalyticsSettings: {
-        select: {
-          jiraScopeType: true,
-          jiraScopeValue: true,
-          historyCursorUpdatedAt: true,
-          historyCursorJiraIssueId: true,
-          historyLastFullReconciledAt: true,
-          historyFullCursorIssueKey: true,
-          historyFullStartedAt: true,
-        },
+        select: { jiraScopeType: true, jiraScopeValue: true },
       },
     },
   });
@@ -1202,534 +1079,199 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
   }
   const user = currentUser(req);
   const storedScope = project.jiraAnalyticsSettings;
-  const changesStoredScope =
-    !storedScope ||
-    storedScope.jiraScopeType !== parsedSync.data.scopeType ||
-    storedScope.jiraScopeValue !== parsedSync.data.scopeValue;
+  const changesStoredScope = !storedScope
+    || storedScope.jiraScopeType !== parsedSync.data.scopeType
+    || storedScope.jiraScopeValue !== parsedSync.data.scopeValue;
   if (changesStoredScope && user?.role !== 'ADMIN') {
-    res.status(403).json({
-      error: 'Изменять отбор тикетов Jira может только системный администратор',
-    });
+    res.status(403).json({ error: 'Изменять отбор тикетов Jira может только системный администратор' });
     return;
   }
   if (changesStoredScope) {
     const historyBytes = await jiraHistoryDatabaseBytes(prisma);
-    const utilizationPercent = historyBytes / JIRA_HISTORY_STORAGE_BUDGET_BYTES * 100;
-    if (utilizationPercent >= JIRA_HISTORY_CRITICAL_PERCENT) {
+    if (historyBytes / jiraHistoryStorageBudgetBytes() * 100 >= JIRA_HISTORY_CRITICAL_PERCENT) {
       res.status(409).json({
-        error: 'История Jira заняла не менее 95% глобального бюджета 5 ГиБ. Подключение новой области заблокировано, существующие синхронизации продолжают работать.',
+        error: 'История Jira заняла не менее 95% доступного бюджета. Подключение новой области заблокировано.',
       });
       return;
     }
   }
-
-  const lockStartedAt = new Date();
-  const lockExpiresAt = new Date(lockStartedAt.getTime() + JIRA_ANALYTICS_SYNC_LOCK_MS);
-  const lockAcquired = await acquireJiraAnalyticsSyncLock(
-    prisma.jiraAnalyticsSettings,
-    project.id,
-    {
-      type: parsedSync.data.scopeType,
-      value: parsedSync.data.scopeValue,
-    },
-    lockStartedAt,
-    lockExpiresAt,
-  );
-  if (!lockAcquired) {
-    res.status(409).json({ error: 'Обновление Jira для этого проекта уже выполняется' });
-    return;
-  }
-  if (changesStoredScope) {
-    await prisma.jiraAnalyticsSettings.updateMany({
-      where: { projectId: project.id, syncStartedAt: lockStartedAt },
-      data: {
-        historyCursorUpdatedAt: null,
-        historyCursorJiraIssueId: null,
-        historyLastFullReconciledAt: null,
-        historyFullCursorIssueKey: null,
-        historyFullStartedAt: null,
-      },
-    });
-  }
-
-  let finalSyncStatus = 'ERROR';
-  let finalSyncedAt: Date | null = null;
-  let finalHistoryCursor: { updatedAt: Date; jiraIssueId: string } | null = null;
-  let finalFullReconciledAt: Date | null = null;
-  let finalFullCursorIssueKey: string | null | undefined;
-  let finalFullStartedAt: Date | null | undefined;
   try {
-    const workSections = await ensureDefaultJiraWorkSections(project.id);
-    const configuredSections = workSections.filter((section) =>
-      resolveJiraWorkSectionJql(section.jql, section.filterUrl));
-    const syncedAt = new Date();
-    const syncRunId = randomUUID();
-    const deadlineAt = Date.now() + JIRA_ANALYTICS_SYNC_DEADLINE_MS;
-    const syncedIssueKeys = new Set<string>();
-    const snapshotIdByIssueKey = new Map<string, string>();
-    const trackedSnapshotIds: string[] = [];
-    const historyFailures: Array<{ issueKey: string; reasonCode: string; message: string }> = [];
-    const jiraUsers = new Set<string>();
-    const remoteDevelopmentCache = new Map<string, JiraIssue['development']>();
-    let criticalBugSlaCandidates = 0;
-
-    const discovery = await fetchJiraIssueKeysWithMeta('ORDER BY key ASC', {
-      baseUrl: parsedSync.data.baseUrl,
-      fetchAllPages: true,
-      analyticsScope: {
-        type: parsedSync.data.scopeType,
-        value: parsedSync.data.scopeValue,
-      },
-      pageSize: 500,
-      deadlineAt,
-    });
-    if (discovery.jiraUser) jiraUsers.add(discovery.jiraUser);
-    let discoveredIssueKeys = normalizedJiraIssueKeys(discovery.issueKeys);
-    if (parsedSync.data.scopeType === 'EPIC' && discoveredIssueKeys.length > 0) {
-      const subtaskIssueKeys: string[] = [];
-      for (const parentIssueKeys of jiraIssueKeyBatches(
-        discoveredIssueKeys,
-        JIRA_ANALYTICS_BATCH_SIZE,
-      )) {
-        const subtasks = await fetchJiraIssueKeysWithMeta(
-          jiraParentKeyBatchJql(parentIssueKeys),
-          {
-            baseUrl: parsedSync.data.baseUrl,
-            fetchAllPages: true,
-            pageSize: 500,
-            deadlineAt,
-          },
-        );
-        if (subtasks.jiraUser) jiraUsers.add(subtasks.jiraUser);
-        subtaskIssueKeys.push(...subtasks.issueKeys);
-      }
-      discoveredIssueKeys = normalizedJiraIssueKeys([
-        ...discoveredIssueKeys,
-        ...subtaskIssueKeys,
-      ]);
-    }
-    const criticalBugSlaProjectKeys = jiraCriticalPriorityProjectKeys('', discoveredIssueKeys);
-    const criticalBugSlaConfigured = true;
-
-    if (discoveredIssueKeys.length === 0) {
-      finalSyncStatus = 'EMPTY';
-      res.json({
-        synced: 0,
-        emptyScope: true,
-        jiraScopeType: parsedSync.data.scopeType,
-        jiraScopeValue: parsedSync.data.scopeValue,
-        criticalBugSlaConfigured,
-        criticalBugSlaScope: parsedSync.data.scopeType.toLowerCase(),
-        criticalBugSlaProjectKeys,
-        criticalBugSlaCandidates: 0,
-        criticalBugSlaIssues: 0,
-        configuredSections: configuredSections.length,
-        totalSections: workSections.length,
-        jiraUsers: [...jiraUsers],
-        sections: [],
-        warning: parsedSync.data.scopeType === 'LABEL'
-          ? 'По указанному лейблу тикеты не найдены; прежние данные сохранены'
-          : 'По указанному коду эпика тикеты не найдены; прежние данные сохранены',
-      });
-      return;
-    }
-
-    const configuredPageSize = resolveJiraConfig(process.env, {
-      baseUrl: parsedSync.data.baseUrl,
-    }).maxResults;
-    for (const issueKeys of jiraIssueKeyBatches(discoveredIssueKeys, 500)) {
-      const existingSnapshots = await prisma.jiraIssueSnapshot.findMany({
-        where: { projectId: project.id, issueKey: { in: issueKeys } },
-        select: { id: true, issueKey: true },
-      });
-      existingSnapshots.forEach((snapshot) => {
-        snapshotIdByIssueKey.set(snapshot.issueKey.toUpperCase(), snapshot.id);
-      });
-    }
-
-    const storedCursor = !changesStoredScope
-      && storedScope?.historyCursorUpdatedAt
-      && storedScope.historyCursorJiraIssueId
-      ? {
-          updatedAt: storedScope.historyCursorUpdatedAt,
-          jiraIssueId: storedScope.historyCursorJiraIssueId,
-        }
-      : null;
-    finalHistoryCursor = storedCursor;
-    const fullReconciliation = !storedCursor
-      || changesStoredScope
-      || Boolean(storedScope?.historyFullCursorIssueKey)
-      || jiraHistoryNeedsFullReconciliation(storedScope?.historyLastFullReconciledAt, syncedAt);
-    const [dueRetryKeyList, pendingRetryKeys] = await Promise.all([
-      dueJiraHistoryRetryKeys(prisma, project.id, syncedAt),
-      pendingJiraHistoryRetryKeys(prisma, project.id),
-    ]);
-    const dueRetryKeys = new Set(dueRetryKeyList.map((issueKey) => issueKey.toUpperCase()));
-    const discoveredSet = new Set(discoveredIssueKeys);
-    const historyIssueKeySet = new Set<string>();
-    if (fullReconciliation) {
-      discoveredIssueKeys
-        .filter((issueKey) =>
-          !storedScope?.historyFullCursorIssueKey
-          || issueKey > storedScope.historyFullCursorIssueKey
-        )
-        .filter((issueKey) => jiraHistoryIssueIsRetryEligible(
-          issueKey,
-          pendingRetryKeys,
-          dueRetryKeys,
-        ))
-        .forEach((issueKey) => historyIssueKeySet.add(issueKey));
-      finalFullCursorIssueKey = storedScope?.historyFullCursorIssueKey ?? null;
-      finalFullStartedAt = storedScope?.historyFullStartedAt ?? syncedAt;
-    } else {
-      for (const issueKeys of jiraIssueKeyBatches(discoveredIssueKeys, 500)) {
-        const changed = await fetchJiraIssueKeysWithMeta(
-          jiraJqlWithIssueKeys(
-            jiraHistoryUpdatedSinceJql(storedCursor.updatedAt, new Date()),
-            issueKeys,
-          ),
-          {
-            baseUrl: parsedSync.data.baseUrl,
-            fetchAllPages: true,
-            pageSize: 500,
-            deadlineAt,
-          },
-        );
-        if (changed.jiraUser) jiraUsers.add(changed.jiraUser);
-        changed.issueKeys.forEach((issueKey) => {
-          const normalized = issueKey.toUpperCase();
-          if (jiraHistoryIssueIsRetryEligible(normalized, pendingRetryKeys, dueRetryKeys)) {
-            historyIssueKeySet.add(normalized);
-          }
-        });
-      }
-      discoveredIssueKeys
-        .filter((issueKey) => !snapshotIdByIssueKey.has(issueKey))
-        .filter((issueKey) => jiraHistoryIssueIsRetryEligible(
-          issueKey,
-          pendingRetryKeys,
-          dueRetryKeys,
-        ))
-        .forEach((issueKey) => historyIssueKeySet.add(issueKey));
-      finalFullReconciledAt = storedScope?.historyLastFullReconciledAt ?? null;
-    }
-    dueRetryKeys.forEach((issueKey) => {
-      const normalized = issueKey.toUpperCase();
-      if (discoveredSet.has(normalized)) historyIssueKeySet.add(normalized);
-    });
-    const historyIssueKeys = normalizedJiraIssueKeys([...historyIssueKeySet]);
-    if (fullReconciliation) {
-      await prisma.jiraAnalyticsSettings.updateMany({
-        where: { projectId: project.id, syncStartedAt: lockStartedAt },
-        data: { historyFullStartedAt: finalFullStartedAt },
-      });
-    }
-    const batches = jiraIssueKeyBatches(
-      historyIssueKeys,
-      Math.min(JIRA_HISTORY_BATCH_SIZE, configuredPageSize),
-    );
-    const checkpointHistoryBatch = async (issueKeys: readonly string[]) => {
-      if (!fullReconciliation) return;
-      const batchLastKey = issueKeys.at(-1) ?? null;
-      if (
-        batchLastKey
-        && (!finalFullCursorIssueKey || batchLastKey > finalFullCursorIssueKey)
-      ) {
-        finalFullCursorIssueKey = batchLastKey;
-      }
-      await prisma.jiraAnalyticsSettings.updateMany({
-        where: { projectId: project.id, syncStartedAt: lockStartedAt },
-        data: {
-          historyFullCursorIssueKey: finalFullCursorIssueKey,
-          historyFullStartedAt: finalFullStartedAt,
-        },
-      });
-    };
-    const fetchHistoryIssues = (issueKeys: readonly string[]) =>
-      fetchJiraIssuesWithMeta(jiraIssueKeyBatchJql(issueKeys), {
-        baseUrl: parsedSync.data.baseUrl,
-        fetchAllPages: true,
-        includeAnalyticsFields: true,
-        includeChangelog: true,
-        includeRemoteDevelopment: true,
-        includeHistoryDocument: true,
-        remoteDevelopmentCache,
-        deadlineAt,
-      });
-    const queueHistoryFetchFailure = async (
-      issueKey: string,
-      error: unknown,
-      reasonCode = 'FETCH_ISSUE_FAILED',
-    ) => {
-      await queueJiraHistoryRetry(prisma, {
-        projectId: project.id,
-        issueKey,
-        jiraIssueId: null,
-        reasonCode,
-        error,
-        observedUpdatedAt: null,
-        failedAt: syncedAt,
-      });
-      historyFailures.push({
-        issueKey,
-        reasonCode,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    };
-    const applyHistoryResult = async (
-      requestedIssueKeys: readonly string[],
-      jiraResult: Awaited<ReturnType<typeof fetchJiraIssuesWithMeta>>,
-    ) => {
-      if (jiraResult.jiraUser) jiraUsers.add(jiraResult.jiraUser);
-      const { missingKeys, unexpectedKeys } = jiraIssueKeyBatchDifference(
-        requestedIssueKeys,
-        jiraResult.issues.map((issue) => issue.key),
-      );
-      if (unexpectedKeys.length > 0) {
-        throw new Error(`Jira вернула незапрошенные тикеты: ${unexpectedKeys.join(', ')}`);
-      }
-      if (missingKeys.length > 0) {
-        logEvent('warn', 'jira.sync.batch_keys_missing', {
-          projectId: project.id,
-          missingKeys,
-        });
-        for (const issueKey of missingKeys) {
-          await queueHistoryFetchFailure(
-            issueKey,
-            'Jira did not return a discovered issue during history hydration',
-            'FETCH_MISSING',
-          );
-        }
-      }
-      finalHistoryCursor = latestJiraHistoryCursor(finalHistoryCursor, jiraResult.issues);
-      const syncResult = await syncJiraAnalyticsIssues(
-        project.id,
-        jiraResult.issues,
-        syncedAt,
-        syncRunId,
-      );
-      historyFailures.push(...syncResult.failures);
-      jiraResult.issues.forEach((issue, index) => {
-        const snapshot = syncResult.snapshots[index];
-        if (snapshot) {
-          syncedIssueKeys.add(issue.key.toUpperCase());
-          snapshotIdByIssueKey.set(issue.key.toUpperCase(), snapshot.id);
-        }
-      });
-    };
-    for (const issueKeys of batches) {
-      let jiraResult: Awaited<ReturnType<typeof fetchJiraIssuesWithMeta>>;
-      try {
-        jiraResult = await fetchHistoryIssues(issueKeys);
-      } catch (error) {
-        if (isFatalJiraHistoryBatchError(error)) throw error;
-        for (const issueKey of issueKeys) {
-          try {
-            await applyHistoryResult([issueKey], await fetchHistoryIssues([issueKey]));
-          } catch (issueError) {
-            if (isFatalJiraHistoryBatchError(issueError)) throw issueError;
-            await queueHistoryFetchFailure(issueKey, issueError);
-          }
-        }
-        await checkpointHistoryBatch(issueKeys);
-        continue;
-      }
-      await applyHistoryResult(issueKeys, jiraResult);
-      await checkpointHistoryBatch(issueKeys);
-    }
-
-    const freshHistoryAttempts = historyIssueKeys.filter(
-      (issueKey) => !pendingRetryKeys.has(issueKey),
-    ).length;
-    if (jiraHistorySyncFailedCompletely(freshHistoryAttempts, syncedIssueKeys.size)) {
-      throw new Error('Ни одно наблюдение Jira не сохранено: см. диагностику истории');
-    }
-
-    const remainingRetryKeys = await pendingJiraHistoryRetryKeys(prisma, project.id);
-    const pendingDiscoveredRetries = [...remainingRetryKeys]
-      .filter((issueKey) => discoveredSet.has(issueKey)).length;
-    const fullSweep = jiraHistoryFullSweepState(
-      fullReconciliation,
-      pendingDiscoveredRetries,
-    );
-    if (fullSweep.returnToIncremental) {
-      // A completed key sweep must return to incremental sync even when poison-pill
-      // issues remain on bounded retry backoff.
-      finalFullReconciledAt = syncedAt;
-      finalFullCursorIssueKey = null;
-      finalHistoryCursor = {
-        updatedAt: finalFullStartedAt ?? syncedAt,
-        jiraIssueId: '0',
-      };
-      finalFullStartedAt = null;
-    }
-
-    if (snapshotIdByIssueKey.size === 0) {
-      throw new Error('Не удалось сохранить данные ни для одного найденного тикета');
-    }
-    const activeSnapshots: JiraAnalyticsSyncedSnapshot[] = [];
-    const activeSnapshotIds = [...new Set(snapshotIdByIssueKey.values())];
-    for (let offset = 0; offset < activeSnapshotIds.length; offset += 500) {
-      activeSnapshots.push(...await prisma.jiraIssueSnapshot.findMany({
-        where: { id: { in: activeSnapshotIds.slice(offset, offset + 500) } },
-        select: {
-          id: true,
-          issueType: true,
-          criticalPriorityAt: true,
-          criticalEndPriority: true,
-        },
-      }));
-    }
-    criticalBugSlaCandidates = activeSnapshots.filter((snapshot) =>
-      snapshot.criticalPriorityAt !== null
-    ).length;
-    trackedSnapshotIds.push(...jiraCriticalBugSlaSnapshotIds(activeSnapshots));
-
-    const sectionStats: Array<{
-      id: string;
-      title: string;
-      sortOrder: number;
-      issues: number;
-      jiraUser: string | null;
-      issueKeys: string[];
-    }> = [];
-    for (const section of workSections) {
-      const jiraQuery = resolveJiraWorkSectionJql(section.jql, section.filterUrl);
-      if (!jiraQuery) {
-        sectionStats.push({
-          id: section.id,
-          title: section.title,
-          sortOrder: section.sortOrder,
-          issues: 0,
-          jiraUser: null,
-          issueKeys: [],
-        });
-        continue;
-      }
-      const sectionIssueKeys: string[] = [];
-      let sectionJiraUser: string | null = null;
-      for (const scopedJql of jiraWorkSectionScopedJqls(
-        jiraQuery,
-        [...snapshotIdByIssueKey.keys()],
-        JIRA_ANALYTICS_BATCH_SIZE,
-      )) {
-        const jiraResult = await fetchJiraIssueKeysWithMeta(scopedJql, {
-          baseUrl: parsedSync.data.baseUrl,
-          fetchAllPages: true,
-          pageSize: 500,
-          deadlineAt,
-        });
-        if (jiraResult.jiraUser) {
-          sectionJiraUser = jiraResult.jiraUser;
-          jiraUsers.add(jiraResult.jiraUser);
-        }
-        sectionIssueKeys.push(...jiraResult.issueKeys);
-      }
-      const issueKeys = normalizedJiraIssueKeys(sectionIssueKeys)
-        .filter((issueKey) => snapshotIdByIssueKey.has(issueKey));
-      sectionStats.push({
-        id: section.id,
-        title: section.title,
-        sortOrder: section.sortOrder,
-        issues: issueKeys.length,
-        jiraUser: sectionJiraUser,
-        issueKeys,
-      });
-    }
-
-    await prisma.$transaction(async (transaction) => {
-      await finalizeJiraAnalyticsSync(
-        transaction,
-        project.id,
-        syncedAt,
-        sectionStats.map((section) => ({
-          sectionId: section.id,
-          issueKeys: section.issueKeys,
-        })),
-        snapshotIdByIssueKey,
-        discoveredIssueKeys,
-        trackedSnapshotIds,
-      );
-    }, { maxWait: 10_000, timeout: 60_000 });
-
-    finalSyncStatus = historyFailures.length > 0 || pendingDiscoveredRetries > 0
-      ? 'OK_WITH_RETRIES'
-      : 'OK';
-    finalSyncedAt = syncedAt;
-    const publicSectionStats = sectionStats.map(({ issueKeys: _issueKeys, ...section }) => section);
-    logEvent('info', 'jira.sync.completed', {
+    const run = await enqueueJiraSyncRun(prisma, {
       projectId: project.id,
-      baseUrl: parsedSync.data.baseUrl ?? 'env',
-      jiraScopeType: parsedSync.data.scopeType,
-      jiraScopeValue: parsedSync.data.scopeValue,
-      configuredSections: configuredSections.length,
-      syncedIssues: snapshotIdByIssueKey.size,
-      historyIssuesProcessed: historyIssueKeys.length,
-      historyIssueTransactionsSucceeded: syncedIssueKeys.size,
-      historyRetriesQueued: historyFailures.length,
-      historyFullReconciliation: fullReconciliation,
-      historyFullReconciliationClean: fullSweep.clean,
-      historyPendingRetries: pendingDiscoveredRetries,
-      criticalBugSlaConfigured,
-      criticalBugSlaScope: parsedSync.data.scopeType.toLowerCase(),
-      criticalBugSlaProjectKeys,
-      criticalBugSlaCandidates,
-      criticalBugSlaIssues: trackedSnapshotIds.length,
-      sections: publicSectionStats,
+      kind: JiraSyncRunKind.SYNC,
+      scopeType: parsedSync.data.scopeType,
+      scopeValue: parsedSync.data.scopeValue,
+      jiraBaseUrl: parsedSync.data.baseUrl,
+      scopeChanged: changesStoredScope,
+      requestedById: user?.id,
+      requestedByRole: user?.role,
     });
-
-    res.json({
-      synced: snapshotIdByIssueKey.size,
-      history: {
-        processed: historyIssueKeys.length,
-        retriesQueued: historyFailures.length,
-        fullReconciliation,
-        fullReconciliationClean: fullSweep.clean,
-        pendingRetries: pendingDiscoveredRetries,
-        cursorUpdatedAt: finalHistoryCursor?.updatedAt.toISOString() ?? null,
-        cursorJiraIssueId: finalHistoryCursor?.jiraIssueId ?? null,
+    await recordAuditEvent({
+      req,
+      actor: user,
+      action: 'jira.sync.enqueue',
+      objectType: 'JiraSyncRun',
+      objectId: run.id,
+      projectId: project.id,
+      metadata: {
+        jiraScopeType: run.jiraScopeType,
+        jiraScopeValue: run.jiraScopeValue,
+        historyWriteEnabled: run.historyWriteEnabled,
       },
-      jiraScopeType: parsedSync.data.scopeType,
-      jiraScopeValue: parsedSync.data.scopeValue,
-      criticalBugSlaConfigured,
-      criticalBugSlaScope: parsedSync.data.scopeType.toLowerCase(),
-      criticalBugSlaProjectKeys,
-      criticalBugSlaCandidates,
-      criticalBugSlaIssues: trackedSnapshotIds.length,
-      configuredSections: configuredSections.length,
-      totalSections: workSections.length,
-      jiraUsers: [...jiraUsers],
-      sections: publicSectionStats,
+    });
+    notifyJiraSyncRunner();
+    res.status(202).json({
+      runId: run.id,
+      status: run.status,
+      statusUrl: `/api/projects/${project.id}/jira/sync-runs/${run.id}`,
+      pollAfterMs: JIRA_SYNC_POLL_AFTER_MS,
     });
   } catch (error) {
-    res.status(502).json({
-      error: error instanceof Error
-        ? redactJiraHistoryError(error.message)
-        : 'Не удалось синхронизировать Jira',
-    });
-  } finally {
-    await prisma.jiraAnalyticsSettings.updateMany({
-      where: { projectId: project.id, syncStartedAt: lockStartedAt },
-      data: {
-        syncStatus: finalSyncStatus,
-        lastSyncedAt: finalSyncedAt ?? undefined,
-        historyCursorUpdatedAt: finalSyncedAt ? finalHistoryCursor?.updatedAt ?? undefined : undefined,
-        historyCursorJiraIssueId: finalSyncedAt
-          ? finalHistoryCursor?.jiraIssueId ?? undefined
-          : undefined,
-        historyLastFullReconciledAt: finalSyncedAt
-          ? finalFullReconciledAt ?? undefined
-          : undefined,
-        historyFullCursorIssueKey: finalSyncedAt
-          ? finalFullCursorIssueKey
-          : undefined,
-        historyFullStartedAt: finalSyncedAt ? finalFullStartedAt : undefined,
-        syncStartedAt: null,
-        syncLockExpiresAt: null,
-      },
-    });
+    if (error instanceof JiraSyncFencedError || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
+      const active = await findActiveJiraSyncRun(prisma, project.id);
+      res.status(409).json({
+        error: 'Обновление Jira для этого проекта уже выполняется',
+        runId: active?.id ?? null,
+        statusUrl: active ? `/api/projects/${project.id}/jira/sync-runs/${active.id}` : null,
+      });
+      return;
+    }
+    throw error;
   }
 });
+
+router.get('/projects/:projectId/jira/sync-runs/active', async (req, res) => {
+  if (!(await ensureProjectWriteAccess(req.params.projectId, req, res))) return;
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
+    return;
+  }
+  const active = await findActiveJiraSyncRun(prisma, req.params.projectId);
+  res.json({ active: active ? publicJiraSyncRun(active) : null });
+});
+
+router.get('/projects/:projectId/jira/sync-runs/:runId', async (req, res) => {
+  if (!(await ensureProjectWriteAccess(req.params.projectId, req, res))) return;
+  const run = await findJiraSyncRun(prisma, req.params.projectId, req.params.runId);
+  if (!run) {
+    res.status(404).json({ error: 'Запуск синхронизации Jira не найден' });
+    return;
+  }
+  res.json(publicJiraSyncRun(run));
+});
+
+router.post('/projects/:projectId/jira/backfill', async (req, res) => {
+  if (currentUser(req)?.role !== 'ADMIN') {
+    res.status(403).json({ error: 'Полный импорт истории доступен только администратору системы' });
+    return;
+  }
+  if (!jiraHistoryWriteEnabled()) {
+    res.status(409).json({ error: 'Историческая запись Jira отключена настройкой сервера' });
+    return;
+  }
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: {
+      id: true,
+      jiraAnalyticsSettings: { select: { jiraScopeType: true, jiraScopeValue: true } },
+    },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
+    return;
+  }
+  if (!project.jiraAnalyticsSettings?.jiraScopeValue) {
+    res.status(409).json({ error: 'Сначала настройте и запустите обычную синхронизацию Jira' });
+    return;
+  }
+  const historyBytes = await jiraHistoryDatabaseBytes(prisma);
+  if (historyBytes / jiraHistoryStorageBudgetBytes() * 100 >= JIRA_HISTORY_CRITICAL_PERCENT) {
+    res.status(409).json({ error: 'Полный импорт остановлен: занято не менее 95% бюджета истории' });
+    return;
+  }
+  const user = currentUser(req);
+  try {
+    const run = await enqueueJiraSyncRun(prisma, {
+      projectId: project.id,
+      kind: JiraSyncRunKind.BACKFILL,
+      scopeType: project.jiraAnalyticsSettings.jiraScopeType,
+      scopeValue: project.jiraAnalyticsSettings.jiraScopeValue,
+      scopeChanged: false,
+      requestedById: user?.id,
+      requestedByRole: user?.role,
+    });
+    await recordAuditEvent({
+      req,
+      actor: user,
+      action: 'jira.history.backfill.enqueue',
+      objectType: 'JiraSyncRun',
+      objectId: run.id,
+      projectId: project.id,
+      metadata: {
+        jiraScopeType: run.jiraScopeType,
+        jiraScopeValue: run.jiraScopeValue,
+        historyWriteEnabled: run.historyWriteEnabled,
+      },
+    });
+    notifyJiraSyncRunner();
+    res.status(202).json({
+      runId: run.id,
+      status: run.status,
+      statusUrl: `/api/projects/${project.id}/jira/sync-runs/${run.id}`,
+      pollAfterMs: JIRA_SYNC_POLL_AFTER_MS,
+    });
+  } catch (error) {
+    if (error instanceof JiraSyncFencedError || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
+      const active = await findActiveJiraSyncRun(prisma, project.id);
+      res.status(409).json({
+        error: 'Обновление Jira для этого проекта уже выполняется',
+        runId: active?.id ?? null,
+        statusUrl: active ? `/api/projects/${project.id}/jira/sync-runs/${active.id}` : null,
+      });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.get('/projects/:projectId/jira/backfill/completeness', async (req, res) => {
+  if (currentUser(req)?.role !== 'ADMIN') {
+    res.status(403).json({ error: 'Отчёт полноты доступен только администратору системы' });
+    return;
+  }
+  const parsed = z.object({
+    section: z.enum(['tickets', 'missing']).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+    pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  }).safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true },
+  });
+  if (!project) {
+    res.status(404).json({ error: 'Проект не найден' });
+    return;
+  }
+  try {
+    res.json(await jiraBackfillCompleteness(prisma, project.id, parsed.data));
+  } catch (error) {
+    const bounded = error as Error & { status?: number; kind?: string; limit?: number };
+    if (bounded.status === 413) {
+      res.status(413).json({ error: bounded.message, kind: bounded.kind, limit: bounded.limit });
+      return;
+    }
+    throw error;
+  }
+});
+
 
   return router;
 }

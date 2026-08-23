@@ -1,7 +1,8 @@
 import { DatabaseZap, Download, Play, RefreshCw, ShieldCheck } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiClient } from "../api/client";
+import { pollJiraSyncRun } from "../app/jiraSyncPolling";
 import { usePageContext } from "./PageContext";
 
 type Distribution = {
@@ -99,6 +100,47 @@ type HistoryStatus = {
     fullCursorIssueKey: string | null;
     fullStartedAt: string | null;
   };
+  historyWrite?: {
+    enabled: boolean;
+    gapRuns: number;
+    gapFirstAt: string | null;
+    gapLastAt: string | null;
+  };
+  projections?: { unversioned: number };
+};
+
+const JIRA_BACKFILL_CLIENT_POLL_MAX_MS = 15 * 60_000;
+
+type BackfillCompleteness = {
+  generatedAt: string;
+  historyWriteEnabled: boolean;
+  scope: {
+    tickets: number;
+    stableJiraId: number;
+    withoutStableJiraId: number;
+    observed: number;
+    withoutObservedVersion: number;
+    fullyHydrated: number;
+    coveragePercent: number | null;
+    unversionedProjection: number;
+  };
+  versions: {
+    total: number;
+    firstObservedAt: string | null;
+    lastObservedAt: string | null;
+  };
+  retry: { pending: number };
+  historyWriteGap: { runs: number; firstAt: string | null; lastAt: string | null };
+  latestBackfill: {
+    status: string;
+    startedAt: string | null;
+    finishedAt: string | null;
+    elapsedMs: number | null;
+    discoveredIssueCount: number;
+    hydratedIssueCount: number;
+    versionsCreated: number;
+    jiraRequestCount: number;
+  } | null;
 };
 
 type HistoryAggregate = {
@@ -142,32 +184,122 @@ export function JiraCapacitySampler() {
   const [report, setReport] = useState<CapacityReport | null>(null);
   const [historyStatus, setHistoryStatus] = useState<HistoryStatus | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [completeness, setCompleteness] = useState<BackfillCompleteness | null>(null);
+  const mountedRef = useRef(true);
+  const projectIdRef = useRef(project.id);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    projectIdRef.current = project.id;
+  }, [project.id]);
+
+  const loadCompleteness = useCallback(async () => {
+    if (currentUser?.role !== "ADMIN") return;
+    const requestedProjectId = project.id;
+    try {
+      const nextCompleteness = await apiClient.get<BackfillCompleteness>(
+        `/api/projects/${requestedProjectId}/jira/backfill/completeness?pageSize=1`,
+        "Не удалось загрузить полноту истории Jira",
+      );
+      if (!mountedRef.current || projectIdRef.current !== requestedProjectId) return;
+      setCompleteness(nextCompleteness);
+    } catch (error) {
+      if (mountedRef.current && projectIdRef.current === requestedProjectId) {
+        setError(error instanceof Error ? error.message : "Не удалось загрузить полноту истории Jira");
+      }
+    }
+  }, [currentUser?.role, project.id, setError]);
 
   const loadHistoryStatus = useCallback(async () => {
     if (currentUser?.role !== "ADMIN") return;
+    const requestedProjectId = project.id;
     setHistoryLoading(true);
     try {
       const nextStatus = await apiClient.get<HistoryStatus>(
-        `/api/projects/${project.id}/jira/history-status`,
+        `/api/projects/${requestedProjectId}/jira/history-status`,
         "Не удалось загрузить состояние истории Jira",
       );
+      if (!mountedRef.current || projectIdRef.current !== requestedProjectId) return;
       setHistoryStatus(nextStatus);
       setAllocatedHistoryGiB((current) => current === 0
         ? nextStatus.storage.databaseBytes / 1024 ** 3
         : current);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Не удалось загрузить состояние истории Jira");
+      if (mountedRef.current && projectIdRef.current === requestedProjectId) {
+        setError(error instanceof Error ? error.message : "Не удалось загрузить состояние истории Jira");
+      }
     } finally {
-      setHistoryLoading(false);
+      if (mountedRef.current && projectIdRef.current === requestedProjectId) {
+        setHistoryLoading(false);
+      }
     }
   }, [currentUser?.role, project.id, setError]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => void loadHistoryStatus(), 0);
+    const timeout = window.setTimeout(() => {
+      void loadHistoryStatus();
+      void loadCompleteness();
+    }, 0);
     return () => window.clearTimeout(timeout);
-  }, [loadHistoryStatus]);
+  }, [loadCompleteness, loadHistoryStatus]);
 
   if (currentUser?.role !== "ADMIN") return null;
+
+  const runBackfill = async () => {
+    const requestedProjectId = project.id;
+    setBackfillRunning(true);
+    setError("");
+    try {
+      const accepted = await apiClient.post<{
+        statusUrl: string;
+        pollAfterMs: number;
+      }>(
+        `/api/projects/${requestedProjectId}/jira/backfill`,
+        {},
+        "Не удалось запустить полный импорт",
+      );
+      const polling = await pollJiraSyncRun<{
+        status: string;
+        pollAfterMs?: number;
+        error?: { message?: string } | null;
+      }>({
+        initialDelayMs: accepted.pollAfterMs,
+        maxDurationMs: JIRA_BACKFILL_CLIENT_POLL_MAX_MS,
+        wait: (delayMs) => new Promise((resolve) => window.setTimeout(resolve, delayMs)),
+        isCurrent: () => mountedRef.current && projectIdRef.current === requestedProjectId,
+        poll: () => apiClient.get<{
+          status: string;
+          pollAfterMs?: number;
+          error?: { message?: string } | null;
+        }>(accepted.statusUrl, "Не удалось получить состояние полного импорта"),
+      });
+      if (polling.outcome === "STALE") return;
+      if (polling.outcome === "FAILED") {
+        throw new Error(
+          polling.state?.error?.message ?? "Полный импорт Jira завершился ошибкой",
+        );
+      }
+      if (polling.outcome === "BACKGROUND") {
+        setNotice("Полный импорт Jira продолжает выполняться в фоне. Состояние можно проверить после обновления страницы.");
+        return;
+      }
+      await Promise.all([loadHistoryStatus(), loadCompleteness()]);
+      setNotice("Полный импорт Jira завершён; отчёт полноты обновлён.");
+    } catch (error) {
+      if (mountedRef.current) {
+        setError(error instanceof Error ? error.message : "Не удалось выполнить полный импорт Jira");
+      }
+    } finally {
+      setBackfillRunning(false);
+    }
+  };
 
   const run = async () => {
     if (!scopeValue.trim()) return;
@@ -226,16 +358,26 @@ export function JiraCapacitySampler() {
             <h4>Фактическая история A1</h4>
             <span>Глобальный бюджет основной БД · raw payload недоступен через API</span>
           </div>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={() => void loadHistoryStatus()}
-            disabled={historyLoading}
-            title="Обновить состояние истории"
-            aria-label="Обновить состояние истории"
-          >
-            <RefreshCw size={17} />
-          </button>
+          <div className="jira-history-status-actions">
+            <button
+              className="button"
+              type="button"
+              onClick={() => void runBackfill()}
+              disabled={backfillRunning || historyStatus?.historyWrite?.enabled !== true}
+            >
+              <Play size={16} /> {backfillRunning ? "Импортирую..." : "Полный импорт"}
+            </button>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => void Promise.all([loadHistoryStatus(), loadCompleteness()])}
+              disabled={historyLoading}
+              title="Обновить состояние истории"
+              aria-label="Обновить состояние истории"
+            >
+              <RefreshCw size={17} />
+            </button>
+          </div>
         </div>
         {historyStatus ? (
           <>
@@ -269,6 +411,35 @@ export function JiraCapacitySampler() {
                 ? ` · полный импорт продолжится после ${historyStatus.cursor.fullCursorIssueKey}`
                 : ""}
             </p>
+            {completeness && (
+              <div className="jira-backfill-completeness">
+                <h4>Полнота backfill</h4>
+                <dl className="jira-capacity-summary">
+                  <div><dt>Тикетов области</dt><dd>{completeness.scope.tickets.toLocaleString("ru-RU")}</dd></div>
+                  <div><dt>Стабильный Jira ID</dt><dd>{completeness.scope.stableJiraId.toLocaleString("ru-RU")}</dd></div>
+                  <div><dt>С текущей версией</dt><dd>{completeness.scope.observed.toLocaleString("ru-RU")}</dd></div>
+                  <div><dt>Полностью загружено</dt><dd>{completeness.scope.fullyHydrated.toLocaleString("ru-RU")}</dd></div>
+                  <div><dt>Покрытие</dt><dd>{completeness.scope.coveragePercent === null ? "-" : `${completeness.scope.coveragePercent}%`}</dd></div>
+                  <div><dt>Всего версий</dt><dd>{completeness.versions.total.toLocaleString("ru-RU")}</dd></div>
+                </dl>
+                <p className="jira-history-cursor">
+                  {completeness.latestBackfill
+                    ? `Последний backfill: ${completeness.latestBackfill.status}`
+                      + ` · ${completeness.latestBackfill.hydratedIssueCount}/${completeness.latestBackfill.discoveredIssueCount} тикетов`
+                      + ` · ${completeness.latestBackfill.jiraRequestCount} Jira-запросов`
+                      + (completeness.latestBackfill.elapsedMs === null
+                        ? ""
+                        : ` · ${formatDuration(completeness.latestBackfill.elapsedMs)}`)
+                    : "Backfill ещё не запускался"}
+                  {completeness.historyWriteGap.runs > 0
+                    ? ` · запусков без исторической записи: ${completeness.historyWriteGap.runs}`
+                    : ""}
+                  {completeness.scope.unversionedProjection > 0
+                    ? ` · проекций вне истории: ${completeness.scope.unversionedProjection}`
+                    : ""}
+                </p>
+              </div>
+            )}
             {historyStatus.retry.items.length > 0 && (
               <div className="jira-history-retry-list">
                 <strong>Ожидают повторной обработки</strong>
@@ -353,8 +524,36 @@ export function JiraCapacitySampler() {
             <div><dt>Снимок P50</dt><dd>{formatBytes(report.sample.estimatedFullJsonBytes.p50)}</dd></div>
             <div><dt>Снимок P95</dt><dd>{formatBytes(report.sample.estimatedFullJsonBytes.p95)}</dd></div>
             <div><dt>История полная</dt><dd>{report.sample.completeChangelogPercent}%</dd></div>
-            <div><dt>Jira-запросы</dt><dd>{report.collection.requests} · {formatDuration(report.collection.elapsedMs)}</dd></div>
+            <div>
+              <dt>Jira-запросы</dt>
+              <dd>
+                {report.collection.requests} · {formatDuration(report.collection.elapsedMs)}
+                {report.collection.failedRequests > 0 ? ` · ошибок ${report.collection.failedRequests}` : ""}
+              </dd>
+            </div>
           </dl>
+
+          <div className="table-scroll">
+            <table className="jira-capacity-table">
+              <thead><tr><th>Состав снимка</th><th>Минимум</th><th>P50</th><th>P95</th><th>Максимум</th></tr></thead>
+              <tbody>
+                {([
+                  ["Поля", report.sample.fields],
+                  ["Изменения changelog", report.sample.changelogHistories],
+                  ["Комментарии", report.sample.comments],
+                  ["Worklog", report.sample.worklogs],
+                ] as Array<[string, Distribution]>).map(([label, distribution]) => (
+                  <tr key={label}>
+                    <td>{label}</td>
+                    <td>{distribution.min.toLocaleString("ru-RU")}</td>
+                    <td>{distribution.p50.toLocaleString("ru-RU")}</td>
+                    <td>{distribution.p95.toLocaleString("ru-RU")}</td>
+                    <td>{distribution.max.toLocaleString("ru-RU")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           <div className="table-scroll">
             <table className="jira-capacity-table">

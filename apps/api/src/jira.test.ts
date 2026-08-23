@@ -4,11 +4,14 @@ import test from 'node:test';
 
 import {
   assertJiraReadOnlyRequest,
+  captureJiraReadOnlyRequestMetrics,
+  captureJiraReadOnlyRequestSummary,
   fetchJiraReadOnly,
   fetchJiraIssueKeys,
   fetchJiraIssues,
   fetchJiraIssuesWithMeta,
   fetchJiraRemoteDevelopment,
+  fetchJiraRemoteLinks,
   jiraCriticalPriorityAt,
   jiraJqlWithAnalyticsScope,
   jiraJqlWithIssueKeys,
@@ -16,10 +19,35 @@ import {
   jiraDevelopmentFromFields,
   jiraDevelopmentFromRemoteLinks,
   jiraPriorityAtResolution,
+  jiraReadOnlyRequestSummaryForError,
   jiraSprintFromFields,
+  JiraSyncDeadlineError,
   resolveJiraConfig,
   sanitizeJiraCapacityPayload,
 } from './jira.js';
+
+test('remote-link hydration preserves the fatal synchronization deadline', async () => {
+  const previousFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = (async () => {
+    requests += 1;
+    return new Response('[]', { status: 200 });
+  }) as typeof fetch;
+  try {
+    await assert.rejects(
+      fetchJiraRemoteLinks(
+        'https://jira.example',
+        'CVTE-1',
+        { Authorization: 'Bearer test' },
+        Date.now() - 1,
+      ),
+      JiraSyncDeadlineError,
+    );
+    assert.equal(requests, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
 
 test('jiraJqlWithLabelScope preserves boolean precedence and top-level ordering', () => {
   assert.equal(
@@ -186,6 +214,44 @@ test('Jira request wrapper disables automatic redirects', async () => {
       method: 'POST',
       redirect: 'follow',
     });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Jira request capture keeps full paths while durable summaries stay bounded', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{}', { status: 200 });
+
+  try {
+    const captured = await captureJiraReadOnlyRequestMetrics(() =>
+      captureJiraReadOnlyRequestSummary(() =>
+        fetchJiraReadOnly('https://jira.example/rest/api/2/issue/CVTE-1778/changelog')));
+    assert.equal(captured.requests[0]?.path, '/rest/api/2/issue/CVTE-1778/changelog');
+    assert.deepEqual(captured.result.summary.byRoute, { changelog: 1 });
+    assert.doesNotMatch(JSON.stringify(captured.result.summary), /CVTE-1778/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Jira request summary remains available when the captured operation fails', async () => {
+  const originalFetch = globalThis.fetch;
+  const failure = new Error('network unavailable');
+  globalThis.fetch = async () => {
+    throw failure;
+  };
+
+  try {
+    await assert.rejects(
+      captureJiraReadOnlyRequestSummary(() =>
+        fetchJiraReadOnly('https://jira.example/rest/api/2/issue/PMS-42')),
+      failure,
+    );
+    const summary = jiraReadOnlyRequestSummaryForError(failure);
+    assert.equal(summary?.count, 1);
+    assert.deepEqual(summary?.byRoute, { issue: 1 });
+    assert.deepEqual(summary?.byStatusClass, { transport: 1 });
   } finally {
     globalThis.fetch = originalFetch;
   }
