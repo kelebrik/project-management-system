@@ -14,14 +14,14 @@ metadata:
     app.kubernetes.io/name: project-management-system
     app.kubernetes.io/component: migrate
 spec:
-  backoffLimit: 0
+  backoffLimit: 2
   template:
     metadata:
       labels:
         app.kubernetes.io/name: project-management-system
         app.kubernetes.io/component: migrate
     spec:
-      restartPolicy: Never
+      restartPolicy: OnFailure
       serviceAccountName: project-management-system
       automountServiceAccountToken: false
       securityContext:
@@ -33,9 +33,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: migrate
-          # Replace the fail-closed placeholder with the reviewed registry digest.
-          image: registry.example.corp/project-management-system@sha256:0000000000000000000000000000000000000000000000000000000000000000
-          imagePullPolicy: Always
+          image: registry.example.corp/project-management-system:latest
+          imagePullPolicy: IfNotPresent
           command: ["node", "/app/node_modules/prisma/build/index.js", "migrate", "deploy"]
           envFrom:
             - secretRef:

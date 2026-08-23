@@ -38,31 +38,6 @@ Do not begin the maintenance window until all of these are true:
    is not sufficient: the trial must exercise column, sequence, statistics, control
    function, RLS, migration-boundary, and concurrent-session checks.
 
-Create the least-privilege capture membership for an existing login as a PostgreSQL
-administrator, then run the trial using that login:
-
-```sh
-psql --set=capture_login='<integrity-login>' \
-  --file=scripts/db-integrity-role.sql tv_management
-```
-
-The script rejects elevated roles and relation owners. It grants only the predefined
-read-all-data/read-all-statistics memberships and execution of the two control
-functions used by the capture. It sets read-only transactions as the login default;
-the capture independently enforces read-only mode on its own connection.
-
-Use a dedicated capture login. After the release evidence is complete, remove its
-temporary membership and role default:
-
-```sh
-psql --set=capture_login='<integrity-login>' \
-  --file=scripts/db-integrity-role-revoke.sql tv_management
-```
-
-Run provision and revoke as the same PostgreSQL administrator identity. The shared
-`pms_db_integrity` role remains as a `NOLOGIN` capability group after membership is
-removed; it cannot connect by itself and may be reused for later integrity windows.
-
 The production database observed before this runbook was written was
 `tv_management`, with newest successful pre-A1 migration
 `20260821150000_jira_analytics_shared_dashboard_scope` and no A1 tables. The
@@ -114,22 +89,16 @@ history or the evidence directory.
 5. Confirm no automatic rollout, liveness restart, or image entrypoint can execute a
    second `prisma migrate deploy`.
 
-The checked-in deployment examples enforce item 5 as follows:
+The current repository does not satisfy item 5 without deployment overrides:
 
-- the Kubernetes migration Job has `backoffLimit: 0` and `restartPolicy: Never`;
-- both Kubernetes manifests contain a deliberately unusable digest placeholder that
-  must be replaced with the same reviewed digest; the application command bypasses
-  the migration entrypoint;
-- the Sber master pipeline publishes a commit-specific image, verifies its embedded
-  revision and complete migration inventory, records the registry digest, scans that
-  digest, and exposes production deployment only as a manual action using the digest;
-- the image entrypoint does not migrate unless `PMS_RUN_DATABASE_MIGRATIONS=true` is
-  explicitly set. Do not set it on the application process; run the documented
-  one-shot migration command separately;
-- before the production window, the exact digest syntax must pass the manual
-  `deploy:nt-01` job against `tvmanagement_test`. The AWX template is external to this
-  repository; a successful test deployment is required evidence that it accepts
-  `registry/path@sha256:...` unchanged;
+- `deploy/k8s/project-management-system-migrate-job.yaml` has `backoffLimit: 2`
+  and `restartPolicy: OnFailure`; use `backoffLimit: 0` and `restartPolicy: Never`;
+- both Kubernetes manifests use mutable `latest`, and the application Deployment does
+  not override the image entrypoint; pin the same image digest and set the application
+  command to `node /app/apps/api/dist/server.js` during this release;
+- the Sber master pipeline launches AWX automatically and currently deploys mutable
+  `latest`; freeze master-triggered deployment for the window and use the reviewed
+  digest through an explicitly controlled AWX procedure;
 - the separate cloud Render service has commit-triggered `render-build`, which runs
   `prisma migrate deploy` against its own database. Pause that service or prove the A1
   revision cannot reach its configured branch during the window.
@@ -267,8 +236,7 @@ server timestamps, and LSN. A DBA then determines which branch applies:
   run `prisma migrate resolve --rolled-back 20260821200000_jira_issue_history_a1`.
   This run remains `ABORTED`, not PASS. The rolled-back row becomes part of a newly
   captured baseline before a separate attempt. Keep the application stopped after
-  rollback: starting the A1 application without its required schema is not a valid
-  recovery action.
+  rollback: the current image entrypoint would otherwise apply A1 again immediately.
 - **Any A1 object exists, or the state is partial/unknown:** do not run `resolve`, do
   not drop objects, and do not retry. Preserve evidence and choose a reviewed
   forward-fix or restore/PITR procedure.

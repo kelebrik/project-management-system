@@ -10,7 +10,7 @@ function read(filePath: string) {
   return fs.readFileSync(path.join(repoRoot, filePath), "utf8");
 }
 
-test("Docker runtime packages API, Web UI, explicit migrations, and readiness probe", () => {
+test("Docker runtime packages API, Web UI, startup migrations, and readiness probe", () => {
   const dockerfile = read("Dockerfile");
   const runtimeDockerfile = dockerfile.split("FROM ${NODE_IMAGE} AS runtime")[1] ?? "";
   const compose = read("docker-compose.yml");
@@ -28,10 +28,8 @@ test("Docker runtime packages API, Web UI, explicit migrations, and readiness pr
   assert.match(dockerfile, /apps\/web\/dist/, "Runtime image must include built Web UI");
   assert.match(dockerfile, /EXPOSE 3000/, "Runtime image must expose application port");
   assert.match(dockerfile, /docker-entrypoint\.sh/, "Runtime image must ship a startup entrypoint");
-  assert.match(dockerfile, /ENTRYPOINT \["\/app\/docker-entrypoint\.sh"\]/, "Container start must run through the controlled entrypoint");
-  const entrypoint = read("scripts/docker-entrypoint.sh");
-  assert.match(entrypoint, /PMS_RUN_DATABASE_MIGRATIONS:-false/, "Startup migrations must be disabled by default");
-  assert.match(entrypoint, /node \/app\/node_modules\/prisma\/build\/index\.js migrate deploy/, "Explicit migration mode must deploy migrations without npm");
+  assert.match(dockerfile, /ENTRYPOINT \["\/app\/docker-entrypoint\.sh"\]/, "Container start must run through the migration entrypoint");
+  assert.match(read("scripts/docker-entrypoint.sh"), /node \/app\/node_modules\/prisma\/build\/index\.js migrate deploy/, "Startup entrypoint must deploy migrations without npm");
   assert.doesNotMatch(runtimeDockerfile, /npm install -g/, "Runtime stage must not install npm");
   assert.match(runtimeDockerfile, /rm -rf \/usr\/local\/lib\/node_modules\/npm/, "Runtime image must remove the global npm toolchain");
   assert.match(runtimeDockerfile, /CMD \["node", "apps\/api\/dist\/server\.js"\]/, "Container start must run the API directly with Node.js");
@@ -39,13 +37,7 @@ test("Docker runtime packages API, Web UI, explicit migrations, and readiness pr
   assert.match(dockerfile, /--chown=node:node/, "Runtime files must be owned by the non-root user");
 
   assert.match(compose, /^\s+app:/m, "docker-compose must define app service");
-  assert.match(compose, /^\s+migrate:/m, "docker-compose must define a separate one-shot migration service");
-  assert.match(compose, /condition: service_completed_successfully/, "app must wait for the migration service");
-  assert.match(compose, /PMS_RUN_DATABASE_MIGRATIONS: "true"/, "only the migration service may opt into startup migrations");
-  const appService = compose.split(/^\s{2}app:/m)[1]?.split(/^\s{2}migrate:/m)[0] ?? "";
-  const migrateService = compose.split(/^\s{2}migrate:/m)[1]?.split(/^\s{2}postgres:/m)[0] ?? "";
-  assert.match(appService, /PMS_RUN_DATABASE_MIGRATIONS: "false"/, "app must override env_file and disable migrations");
-  assert.match(migrateService, /^\s{4}build:/m, "migration service must be buildable on a clean host");
+  assert.doesNotMatch(compose, /^\s+migrate:/m, "docker-compose must not define a separate migration service");
   assert.match(compose, /^\s+postgres:/m, "docker-compose must define postgres service");
   assert.match(compose, /env_file:\s*\n\s*- \.env/, "app must load runtime settings from .env");
   assert.match(compose, /DATABASE_URL: \$\{DATABASE_URL:\?Set DATABASE_URL in \.env\}/, "app must take DATABASE_URL from .env");
@@ -63,7 +55,6 @@ test("Operations shell scripts are syntactically valid", () => {
     "scripts/db-integrity-common.sh",
     "scripts/db-integrity-capture.sh",
     "scripts/db-integrity-verify.sh",
-    "scripts/verify-a1-buildah-image.sh",
     "scripts/jira-history-a1-diagnostics.sh",
     "scripts/test-jira-history-postgres.sh",
     "scripts/security-smoke.sh",
@@ -178,15 +169,6 @@ test("Kubernetes manifest follows corporate restricted-pod policies", () => {
 
   assert.match(migrateJob, /kind: Job/, "Kubernetes deployment must provide a one-shot migration Job");
   assert.match(migrateJob, /command: \["node", "\/app\/node_modules\/prisma\/build\/index\.js", "migrate", "deploy"\]/, "Migration Job must run Prisma without npm");
-  assert.match(migrateJob, /backoffLimit: 0/, "Migration Job must never retry A1 automatically");
-  assert.match(migrateJob, /restartPolicy: Never/, "Migration pod must not restart A1 automatically");
-  assert.doesNotMatch(combinedManifest, /:latest\b/, "Kubernetes manifests must not use mutable latest tags");
-  assert.match(combinedManifest, /@sha256:/, "Kubernetes manifests must require immutable image digests");
-  assert.match(combinedManifest, /imagePullPolicy: Always/, "digest-pinned workloads must always resolve through the registry");
-  const imageReferences = [...combinedManifest.matchAll(/^\s+image: (\S+)$/gm)].map((match) => match[1]);
-  assert.ok(imageReferences.length >= 2, "application and migration image references must be present");
-  assert.equal(new Set(imageReferences).size, 1, "application and migration must use the same image digest");
-  assert.match(manifest, /command: \["node", "\/app\/apps\/api\/dist\/server\.js"\]/, "Application must bypass the migration entrypoint");
   assert.match(manifest, /kind: Deployment/, "Application must be deployed by a controller, not a bare Pod");
   assert.doesNotMatch(combinedManifest, /kind: Pod\b/, "Manifest must not define bare Pods");
   assert.match(combinedManifest, /kind: ServiceAccount/, "Manifest must define a dedicated ServiceAccount");
@@ -231,14 +213,6 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
   assert.match(gitlabCi, /\.node_job:[\s\S]*stage: check/, "validation and test jobs must run in the same parallel check stage");
   assert.match(gitlabCi, /build_image:[\s\S]*extends: \.master_pipeline/, "build_image must run on merge requests to master and push to master");
   assert.match(gitlabCi, /build_image:[\s\S]*--build-arg CI_JOB_TOKEN="\$\{CI_JOB_TOKEN\}"/, "build_image must pass CI_JOB_TOKEN into the Docker build");
-  assert.match(gitlabCi, /--build-arg VCS_REF="\$\{CI_COMMIT_SHA\}"/, "image must embed the exact pipeline revision");
-  assert.match(gitlabCi, /verify-a1-buildah-image\.sh/, "image build must verify revision and migration inventory");
-  assert.match(gitlabCi, /buildah push --digestfile/, "image build must capture the registry digest");
-  assert.match(gitlabCi, /PMS_BUILT_IMAGE_REFERENCE/, "security and deployment jobs must consume the digest reference");
-  assert.doesNotMatch(gitlabCi, /echo "Pushing latest"/, "pipeline must not publish a mutable latest release");
-  const productionDeploy = gitlabCi.split(/^deploy:$/m)[1]?.split(/^deploy:nt-01:$/m)[0] ?? "";
-  assert.match(productionDeploy, /when: manual/, "production deployment must require an explicit manual action");
-  assert.match(productionDeploy, /allow_failure: false/, "production manual gate must remain blocking");
   assert.doesNotMatch(gitlabCi, /name:\s*"node:/, "CI must not default to public Docker Hub Node images");
   assert.match(gitlabCi, /PRISMA_ENGINES_BASE_URL:/, "CI must configure an internal Prisma engines package URL");
   assert.match(gitlabCi, /PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING:/, "CI must skip prisma.sh checksum verification in isolated environments");
@@ -274,24 +248,6 @@ test("GitLab CI avoids restricted Kubernetes runner patterns", () => {
 
   assert.match(dockerfile, /ARG NODE_IMAGE/, "Docker build must allow replacing the base image with an approved registry image");
   assert.match(dockerfile, /FROM \$\{NODE_IMAGE\}/, "Docker stages must use the configurable base image");
-});
-
-test("database integrity role is read-only, transitive-safe, and revocable", () => {
-  const provision = read("scripts/db-integrity-role.sql");
-  const revoke = read("scripts/db-integrity-role-revoke.sql");
-
-  assert.match(provision, /pg_read_all_data/);
-  assert.match(provision, /pg_read_all_stats/);
-  assert.match(provision, /pg_has_role\(:'capture_login', inherited_role\.oid, 'MEMBER'\)/);
-  assert.match(provision, /pg_has_role\(:'capture_login', relation\.relowner, 'MEMBER'\)/);
-  assert.match(provision, /has_table_privilege\(:'capture_login',[\s\S]*'INSERT'/);
-  assert.match(provision, /has_sequence_privilege\(:'capture_login',[\s\S]*'UPDATE'/);
-  assert.match(provision, /default_transaction_read_only = on/);
-  assert.doesNotMatch(provision, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\s+(?:INTO|FROM|TABLE)\b/i);
-  assert.match(revoke, /REVOKE pms_db_integrity FROM/);
-  assert.match(revoke, /RESET default_transaction_read_only/);
-  assert.match(revoke, /integrity_group_exists/);
-  assert.match(revoke, /\\if :membership_removed/);
 });
 
 test("package lock remains portable outside the corporate network", () => {

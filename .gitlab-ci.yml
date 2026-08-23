@@ -93,7 +93,7 @@ default:
 static-policy-check:
   extends: .node_job
   script:
-    - scripts/ci-npm.sh run test:integration -- --test-name-pattern "Docker runtime|Operations shell|Backup and restore|Smoke scripts|Kubernetes|GitLab CI|database integrity role"
+    - scripts/ci-npm.sh run test:integration -- --test-name-pattern "Docker runtime|Operations shell|Backup and restore|Smoke scripts|Kubernetes|GitLab CI"
 
 typecheck:
   extends: .node_job
@@ -166,58 +166,24 @@ build_image:
   before_script:
     - buildah login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" ${CI_REGISTRY}
   script:
-    - mkdir -p reports/release-image
     # increased ulimit otherwise buildah build fails with "too many open files"
     - |
-      LOCAL_IMAGE="${CI_REGISTRY_IMAGE}:build-${CI_PIPELINE_ID}-${CI_JOB_ID}"
       buildah build --ulimit nofile=65536:65536 \
         --build-arg CI_JOB_TOKEN="${CI_JOB_TOKEN}" \
         --build-arg NPM_VERSION="${PMS_CI_NPM_VERSION}" \
-        --build-arg VCS_REF="${CI_COMMIT_SHA}" \
-        -t "${LOCAL_IMAGE}" .
-      scripts/verify-a1-buildah-image.sh \
-        "${LOCAL_IMAGE}" \
-        "${CI_COMMIT_SHA}" \
-        reports/release-image
+        -t ${CI_REGISTRY_IMAGE} .
     - |
       if [[ "${CI_PIPELINE_SOURCE}" == "push" && "${CI_COMMIT_REF_NAME}" == "master" ]]; then
-        IMAGE_TAG="${CI_COMMIT_SHA}"
+        echo "Pushing latest"
+        buildah push ${CI_REGISTRY_IMAGE}
+        echo "Pushing ${CI_COMMIT_SHORT_SHA}"
+        buildah tag ${CI_REGISTRY_IMAGE} ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
+        buildah push ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
       else
-        IMAGE_TAG="MR-${CI_MERGE_REQUEST_IID}-${CI_COMMIT_SHA}"
+        echo "Pushing test image: ${CI_REGISTRY_IMAGE}:MR-${CI_MERGE_REQUEST_IID}"
+        buildah tag ${CI_REGISTRY_IMAGE} ${CI_REGISTRY_IMAGE}:MR-${CI_MERGE_REQUEST_IID}
+        buildah push ${CI_REGISTRY_IMAGE}:MR-${CI_MERGE_REQUEST_IID}
       fi
-      LOCAL_IMAGE="${CI_REGISTRY_IMAGE}:build-${CI_PIPELINE_ID}-${CI_JOB_ID}"
-      TAGGED_IMAGE="${CI_REGISTRY_IMAGE}:${IMAGE_TAG}"
-      buildah tag "${LOCAL_IMAGE}" "${TAGGED_IMAGE}"
-      buildah push --digestfile reports/release-image/image-digest.txt "${TAGGED_IMAGE}"
-      IMAGE_DIGEST="$(tr -d '\r\n' < reports/release-image/image-digest.txt)"
-      case "${IMAGE_DIGEST}" in
-        sha256:*) ;;
-        *) echo "Invalid pushed image digest: ${IMAGE_DIGEST}" >&2; exit 1 ;;
-      esac
-      IMAGE_DIGEST_HEX="${IMAGE_DIGEST#sha256:}"
-      case "${IMAGE_DIGEST_HEX}" in
-        *[!0-9a-f]*|'') echo "Invalid pushed image digest: ${IMAGE_DIGEST}" >&2; exit 1 ;;
-      esac
-      test "${#IMAGE_DIGEST_HEX}" -eq 64
-      printf 'PMS_BUILT_IMAGE_REFERENCE=%s@%s\n' "${CI_REGISTRY_IMAGE}" "${IMAGE_DIGEST}" \
-        > reports/release-image.env
-      printf '%s@%s\n' "${CI_REGISTRY_IMAGE}" "${IMAGE_DIGEST}" \
-        > reports/release-image/image-reference.txt
-  artifacts:
-    expire_in: 1 week
-    paths:
-      - reports/release-image/
-    reports:
-      dotenv: reports/release-image.env
-  after_script:
-    - |
-      LOCAL_IMAGE="${CI_REGISTRY_IMAGE}:build-${CI_PIPELINE_ID}-${CI_JOB_ID}"
-      if [[ "${CI_PIPELINE_SOURCE}" == "push" && "${CI_COMMIT_REF_NAME}" == "master" ]]; then
-        IMAGE_TAG="${CI_COMMIT_SHA}"
-      else
-        IMAGE_TAG="MR-${CI_MERGE_REQUEST_IID}-${CI_COMMIT_SHA}"
-      fi
-      buildah rmi "${LOCAL_IMAGE}" "${CI_REGISTRY_IMAGE}:${IMAGE_TAG}" || true
 
 container-security:
   <<: *tokens
@@ -229,7 +195,11 @@ container-security:
     <<: *service_tuz_vault
   rules:
     - <<: *rule_mr_to_master
+      variables:
+        CLOUD_CONTAINER_SECURITY_IMAGE: "${CI_REGISTRY_IMAGE}:MR-${CI_MERGE_REQUEST_IID}"
     - <<: *rule_push_master
+      variables:
+        CLOUD_CONTAINER_SECURITY_IMAGE: "${CI_REGISTRY_IMAGE}:latest"
   when: always
   needs:
     - job: build_image
@@ -237,8 +207,6 @@ container-security:
     - job: sca
 
   script:
-    - test -n "${PMS_BUILT_IMAGE_REFERENCE:-}"
-    - export CLOUD_CONTAINER_SECURITY_IMAGE="${PMS_BUILT_IMAGE_REFERENCE}"
     - source /opt/container-security.sh
   artifacts:
     when: always
@@ -260,14 +228,13 @@ container-security:
     GIT_STRATEGY: none
   script:
     - |
-      test -n "${PMS_BUILT_IMAGE_REFERENCE:-}"
       awx job_templates launch 378 \
         --conf.host "https://awx.rnd.dev.sberdevices.ru" \
         --conf.insecure \
         --conf.username "${USERNAME}" \
         --conf.password "${PASSWORD}" \
         --limit "${DEPLOY_LIMIT}" \
-        --extra_vars "{\"tv_management_image\": \"${PMS_BUILT_IMAGE_REFERENCE}\"}" \
+        --extra_vars "{\"tv_management_image\": \"registry.sberdevices.ru/rnd/infra/tv-project-management:${IMAGE_TAG}\"}" \
         --job_tags deploy_app \
         --monitor \
         --action-timeout 3600 \
@@ -278,9 +245,8 @@ deploy:
   extends: .deploy_awx
   rules:
     - <<: *rule_push_master
-      when: manual
-  allow_failure: false
   variables:
+    IMAGE_TAG: latest
     DEPLOY_LIMIT: tvmanagement_prod
 
 deploy:nt-01:
@@ -289,4 +255,5 @@ deploy:nt-01:
     - <<: *rule_mr_to_master
       when: manual
   variables:
+    IMAGE_TAG: MR-${CI_MERGE_REQUEST_IID}
     DEPLOY_LIMIT: tvmanagement_test
