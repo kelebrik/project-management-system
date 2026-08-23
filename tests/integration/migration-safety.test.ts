@@ -168,3 +168,10 @@ test("Jira analytics A2 migration is DDL-only and leaves A1 history untouched", 
   );
   assert.doesNotMatch(migration, /ALTER TABLE "JiraIssue(?:Version|Snapshot|HistoryRetry)"/i);
 });
+
+test("Jira analytics C1 as-of reconstruction adds no database migration", () => {
+  const c1Migrations = migrationNames().filter((name) =>
+    /jira.*(?:asof|as_of|reconstruct)|(?:asof|as_of).*jira/i.test(name),
+  );
+  assert.deepEqual(c1Migrations, []);
+});

@@ -331,13 +331,31 @@ async function mockManagedJiraAnalytics(
   await page.route("**/api/projects/project-1/jira/aggregates/preview", (route) => {
     const body = route.request().postDataJSON() as {
       definition: { source: string; metric: string; groupBy: string };
+      asOf?: string;
     };
+    const result = evaluationResult(
+      body.definition.source,
+      body.definition.metric,
+      body.definition.groupBy,
+    );
     return route.fulfill({
-      json: evaluationResult(
-        body.definition.source,
-        body.definition.metric,
-        body.definition.groupBy,
-      ),
+      json: body.asOf ? {
+        ...result,
+        evaluatedAt: body.asOf,
+        reconstruction: {
+          mode: "AS_OF",
+          provenance: "RECONSTRUCTED",
+          basis: "OBSERVED_VERSIONS",
+          asOf: body.asOf,
+          tickets: 1,
+          ticketsWithoutObservation: 0,
+          ticketsRetiredAfterAsOf: 0,
+          versionRowsScanned: 7,
+          earliestObservationAt: "2026-07-01T00:00:00.000Z",
+          stalenessHours: { p50: 0.1, p95: 0.5, max: 1 },
+          beforeHistoryStart: false,
+        },
+      } : result,
     });
   });
   await page.route("**/api/projects/project-1/jira/aggregates/import-dashboard", (route) =>
@@ -914,8 +932,16 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByRole("heading", { name: "Работа вне плана" })).toBeVisible();
   await expect(page.getByText("Тикеты без Sprint с активностью разработки")).toBeVisible();
   await expect(page.getByText("Предпросмотр не запускался")).toBeVisible();
+  const asOfInput = page.getByLabel("Состояние на дату");
+  await expect(asOfInput).toBeEnabled();
+  await asOfInput.fill("2026-08-01T12:00");
   await page.getByRole("button", { name: "Рассчитать" }).click();
   await expect(page.locator(".jira-aggregate-preview").getByText("1 запись")).toBeVisible();
+  await expect(page.getByText("Срез по наблюдённой истории")).toBeVisible();
+  await expect(page.getByText("Версий прочитано")).toBeVisible();
+  await page.getByLabel("Источник").selectOption("transitions");
+  await expect(asOfInput).toBeDisabled();
+  await expect(page.getByText("Для событийных источников используется период, а не срез состояния.")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(

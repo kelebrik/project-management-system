@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { prisma as defaultPrisma } from '../db.js';
 import { currentUser } from '../server/auth.js';
 import { userCanReadProject } from '../server/business-units.js';
+import { logEvent } from '../server/logger.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   buildJiraAggregateImportPlan,
@@ -31,6 +32,7 @@ import {
   loadJiraAnalyticsFacets,
   lockJiraAggregateProject,
 } from '../services/jira-aggregates.js';
+import { JiraAsOfVersionLimitError } from '../services/jira-history-asof.js';
 
 const definitionBodySchema = z.object({
   definition: jiraAnalyticsAggregateDraftSchema,
@@ -61,11 +63,15 @@ const evaluationSchema = z.object({
   evaluatedAt: z.string().datetime({ offset: true }).optional(),
 }).strict();
 
+const asOfEvaluationSchema = evaluationSchema.extend({
+  asOf: z.string().datetime({ offset: true }).optional(),
+});
+
 const dashboardEvaluationSchema = evaluationSchema.extend({
   widgetId: z.string().min(1).max(200).optional(),
 });
 
-const previewBodySchema = evaluationSchema.extend({
+const previewBodySchema = asOfEvaluationSchema.extend({
   definition: jiraAnalyticsAggregateDraftSchema,
 });
 
@@ -177,6 +183,14 @@ function respondToAggregateLimit(error: unknown, res: Response) {
     });
     return true;
   }
+  if (error instanceof JiraAsOfVersionLimitError) {
+    res.status(413).json({
+      error: `Для одного исторического расчёта доступно не более ${error.limit.toLocaleString('ru-RU')} наблюдённых версий`,
+      kind: 'versions',
+      limit: error.limit,
+    });
+    return true;
+  }
   if (error instanceof JiraAnalyticsEvaluationLimitError) {
     res.status(413).json({
       error: error.kind === 'groups'
@@ -191,7 +205,7 @@ function respondToAggregateLimit(error: unknown, res: Response) {
 }
 
 function evaluationOptions(
-  input: z.infer<typeof evaluationSchema>,
+  input: z.infer<typeof asOfEvaluationSchema>,
   definition: JiraAnalyticsAggregateDraft,
 ): JiraAnalyticsEvaluationOptions {
   if (definition.periodMode === 'DASHBOARD' && input.periodDays === undefined) {
@@ -201,13 +215,53 @@ function evaluationOptions(
     throw new AggregateConflictError('CONFIG_CHANGED', 'Фиксированный период нельзя переопределять');
   }
   return {
-    now: input.evaluatedAt ?? new Date().toISOString(),
+    now: input.asOf ?? input.evaluatedAt ?? new Date().toISOString(),
     periodDays: input.periodDays,
     assignee: input.assignee,
     page: input.page,
     pageSize: input.pageSize,
     groupKey: input.groupKey,
   };
+}
+
+function asOfDate(
+  input: z.infer<typeof asOfEvaluationSchema>,
+  definition: JiraAnalyticsAggregateDraft,
+) {
+  if (!input.asOf) return undefined;
+  if (input.evaluatedAt) {
+    throw new AggregateConflictError(
+      'CONFIG_CHANGED',
+      'Параметры asOf и evaluatedAt нельзя использовать одновременно',
+    );
+  }
+  if (jiraAnalyticsSourceUsesPeriod(definition.source)) {
+    throw new AggregateConflictError(
+      'CONFIG_CHANGED',
+      'Срез на дату доступен только для источников Тикеты и SLA Critical/Blocker',
+    );
+  }
+  const parsed = new Date(input.asOf);
+  if (parsed.getTime() > Date.now()) {
+    throw new AggregateConflictError('CONFIG_CHANGED', 'Дата исторического среза не может быть в будущем');
+  }
+  return parsed;
+}
+
+function logAsOfEvaluation(projectId: string, result: { evaluatedAt: string; reconstruction?: {
+  asOf: string;
+  tickets: number;
+  ticketsWithoutObservation: number;
+  versionRowsScanned: number;
+} }) {
+  if (!result.reconstruction) return;
+  logEvent('info', 'jira.analytics.as_of', {
+    projectId,
+    asOf: result.reconstruction.asOf,
+    tickets: result.reconstruction.tickets,
+    ticketsWithoutObservation: result.reconstruction.ticketsWithoutObservation,
+    versionRowsScanned: result.reconstruction.versionRowsScanned,
+  });
 }
 
 function conflictMessage(error: AggregateConflictError) {
@@ -472,12 +526,16 @@ export function registerJiraAggregateRoutes(
       return;
     }
     try {
-      res.json(await evaluateJiraAggregateFromDatabase(
+      const asOf = asOfDate(parsed.data, parsed.data.definition);
+      const result = await evaluateJiraAggregateFromDatabase(
         prisma,
         req.params.projectId,
         parsed.data.definition,
         evaluationOptions(parsed.data, parsed.data.definition),
-      ));
+        asOf,
+      );
+      logAsOfEvaluation(req.params.projectId, result);
+      res.json(result);
     } catch (error) {
       if (respondToAggregateLimit(error, res)) return;
       if (error instanceof AggregateConflictError) {
@@ -495,7 +553,7 @@ export function registerJiraAggregateRoutes(
       return;
     }
     if (!ensureRuntimeIcu(res)) return;
-    const parsed = evaluationSchema.safeParse(req.query);
+    const parsed = asOfEvaluationSchema.safeParse(req.query);
     if (!parsed.success) {
       res.status(400).json({ error: 'Некорректные параметры расчёта', details: parsed.error.flatten() });
       return;
@@ -509,14 +567,18 @@ export function registerJiraAggregateRoutes(
     }
     try {
       const definition = jiraAggregateDraftFromRow(row);
+      const asOf = asOfDate(parsed.data, definition);
+      const result = await evaluateJiraAggregateFromDatabase(
+        prisma,
+        req.params.projectId,
+        definition,
+        evaluationOptions(parsed.data, definition),
+        asOf,
+      );
+      logAsOfEvaluation(req.params.projectId, result);
       res.json({
         definition: jiraAggregatePublicDefinition(row),
-        result: await evaluateJiraAggregateFromDatabase(
-          prisma,
-          req.params.projectId,
-          definition,
-          evaluationOptions(parsed.data, definition),
-        ),
+        result,
       });
     } catch (error) {
       if (respondToAggregateLimit(error, res)) return;

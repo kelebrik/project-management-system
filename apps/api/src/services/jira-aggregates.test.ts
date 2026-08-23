@@ -599,10 +599,13 @@ test('dashboard conversion keeps presentation and replaces inline rules with ref
 
 test('aggregate read path cannot import Jira transport or select raw history payload', () => {
   const serviceSource = fs.readFileSync(new URL('./jira-aggregates.ts', import.meta.url), 'utf8');
+  const historySource = fs.readFileSync(new URL('./jira-history-asof.ts', import.meta.url), 'utf8');
   const routeSource = fs.readFileSync(new URL('../routes/jira-aggregates.routes.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(serviceSource, /from\s+['"][^'"]*jira(?:\.js)?['"]/u);
+  assert.doesNotMatch(historySource, /from\s+['"][^'"]*jira(?:\.js)?['"]/u);
   assert.doesNotMatch(routeSource, /from\s+['"][^'"]*jira(?:\.js)?['"]/u);
   assert.doesNotMatch(serviceSource, /\bpayload\s*:\s*true\b/u);
+  assert.doesNotMatch(historySource, /"payload"|"validationWarnings"/u);
   assert.doesNotMatch(routeSource, /\bpayload\s*:\s*true\b/u);
 });
 

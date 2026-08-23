@@ -314,8 +314,45 @@ export const openApiDocument = {
           totalRecords: { type: "integer", minimum: 0 },
           page: { type: "integer", minimum: 1 },
           pageSize: { type: "integer", minimum: 1, maximum: 100 },
+          reconstruction: { $ref: "#/components/schemas/JiraAsOfReconstruction" },
         },
         required: ["evaluatedAt", "effective", "value", "groups", "records", "totalRecords", "page", "pageSize"],
+      },
+      JiraAsOfReconstruction: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          mode: { type: "string", const: "AS_OF" },
+          provenance: { type: "string", const: "RECONSTRUCTED" },
+          basis: { type: "string", const: "OBSERVED_VERSIONS" },
+          asOf: { type: "string", format: "date-time" },
+          tickets: { type: "integer", minimum: 0 },
+          ticketsWithoutObservation: { type: "integer", minimum: 0 },
+          ticketsRetiredAfterAsOf: { type: "integer", minimum: 0 },
+          versionRowsScanned: { type: "integer", minimum: 0, maximum: 200000 },
+          earliestObservationAt: { type: ["string", "null"], format: "date-time" },
+          stalenessHours: {
+            oneOf: [
+              { type: "null" },
+              {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  p50: { type: "number", minimum: 0 },
+                  p95: { type: "number", minimum: 0 },
+                  max: { type: "number", minimum: 0 },
+                },
+                required: ["p50", "p95", "max"],
+              },
+            ],
+          },
+          beforeHistoryStart: { type: "boolean" },
+        },
+        required: [
+          "mode", "provenance", "basis", "asOf", "tickets", "ticketsWithoutObservation",
+          "ticketsRetiredAfterAsOf", "versionRowsScanned", "earliestObservationAt",
+          "stalenessHours", "beforeHistoryStart",
+        ],
       },
       JiraAnalyticsFacets: {
         type: "object",
@@ -1154,6 +1191,7 @@ export const openApiDocument = {
               pageSize: { type: "integer", minimum: 1, maximum: 100 },
               groupKey: { type: "string", maxLength: 500 },
               evaluatedAt: { type: "string", format: "date-time" },
+              asOf: { type: "string", format: "date-time" },
             },
             required: ["definition", "assignee"],
           } } },
@@ -1179,6 +1217,7 @@ export const openApiDocument = {
           { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
           { name: "groupKey", in: "query", schema: { type: "string", maxLength: 500 } },
           { name: "evaluatedAt", in: "query", schema: { type: "string", format: "date-time" } },
+          { name: "asOf", in: "query", schema: { type: "string", format: "date-time" } },
         ],
         responses: {
           "200": {

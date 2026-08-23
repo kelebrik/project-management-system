@@ -24,6 +24,7 @@ import {
 } from '@pms/shared';
 import { Prisma, type JiraAggregateDefinition, type PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { prepareJiraAsOfIssueBatches } from './jira-history-asof.js';
 
 export const JIRA_AGGREGATE_MAX_BATCH_WIDGETS = 100;
 export const JIRA_AGGREGATE_MAX_ISSUES = 5_000;
@@ -210,7 +211,7 @@ function serializeIssue(issue: SelectedIssue): JiraAnalyticsIssueData {
 
 type JiraAggregateReadClient = Pick<
   PrismaClient,
-  'jiraIssueSnapshot' | 'jiraIssueStatusTransition' | 'jiraDevelopmentActivity'
+  '$queryRaw' | 'jiraIssueSnapshot' | 'jiraIssueStatusTransition' | 'jiraDevelopmentActivity'
 >;
 
 async function ensureJiraAggregatePopulationWithinLimits(
@@ -371,12 +372,31 @@ export async function evaluateJiraAggregateFromDatabase(
   projectId: string,
   definition: JiraAnalyticsAggregateDraft,
   options: JiraAnalyticsEvaluationOptions,
+  asOf?: Date,
 ) {
   const accumulator = createJiraAnalyticsEvaluationAccumulator(
     definition,
     options,
     jiraAggregateEvaluationLimits,
   );
+  if (asOf) {
+    if (jiraAnalyticsSourceUsesPeriod(definition.source)) {
+      throw new Error('JIRA_ASOF_EVENT_SOURCE_UNSUPPORTED');
+    }
+    const prepared = await prepareJiraAsOfIssueBatches(client, projectId, asOf);
+    if (prepared.reconstruction.tickets > JIRA_AGGREGATE_MAX_ISSUES) {
+      throw new JiraAggregatePopulationLimitError(JIRA_AGGREGATE_MAX_ISSUES);
+    }
+    let loadedIssues = 0;
+    for await (const issues of prepared.batches) {
+      loadedIssues += issues.length;
+      if (loadedIssues > JIRA_AGGREGATE_MAX_ISSUES) {
+        throw new JiraAggregatePopulationLimitError(JIRA_AGGREGATE_MAX_ISSUES);
+      }
+      accumulator.addIssues(issues);
+    }
+    return { ...accumulator.finish(), reconstruction: prepared.reconstruction };
+  }
   for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
     accumulator.addIssues(issues);
   }

@@ -1,6 +1,6 @@
 # Jira analytics: stage B1 bounded evaluation and transport
 
-Status: implemented on the B1 cloud feature branch. B1 follows the verified A2
+Status: implemented on GitHub `main` and Sber `develop`. B1 follows the verified A2
 production deployment and does not require a database migration.
 
 B1 bounds API memory and browser transport without changing A2 aggregate semantics.

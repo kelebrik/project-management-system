@@ -60,6 +60,24 @@ type DashboardOperationResult = {
   }>;
 };
 
+type JiraAsOfReconstruction = {
+  mode: "AS_OF";
+  provenance: "RECONSTRUCTED";
+  basis: "OBSERVED_VERSIONS";
+  asOf: string;
+  tickets: number;
+  ticketsWithoutObservation: number;
+  ticketsRetiredAfterAsOf: number;
+  versionRowsScanned: number;
+  earliestObservationAt: string | null;
+  stalenessHours: { p50: number; p95: number; max: number } | null;
+  beforeHistoryStart: boolean;
+};
+
+type JiraAnalyticsPreviewResult = JiraAnalyticsEvaluationResult & {
+  reconstruction?: JiraAsOfReconstruction;
+};
+
 const EMPTY_DRAFT: JiraAnalyticsAggregateDraft = {
   name: "Новый агрегат",
   description: "",
@@ -84,6 +102,10 @@ function newFilter(field: JiraAnalyticsFilterField): JiraAnalyticsFilter {
   };
 }
 
+function localDateTimeValue(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
 function draftForSource(current: JiraAnalyticsAggregateDraft, source: JiraAnalyticsSource) {
   return {
     ...current,
@@ -97,7 +119,7 @@ function draftForSource(current: JiraAnalyticsAggregateDraft, source: JiraAnalyt
 }
 
 function Preview({ result, metric }: {
-  result: JiraAnalyticsEvaluationResult | null;
+  result: JiraAnalyticsPreviewResult | null;
   metric: JiraAnalyticsMetric;
 }) {
   if (!result) return <div className="jira-aggregate-preview-empty">Предпросмотр не запускался</div>;
@@ -110,6 +132,22 @@ function Preview({ result, metric }: {
       : "записей";
   return (
     <div className="jira-aggregate-preview">
+      {result.reconstruction && (
+        <div className={`jira-aggregate-reconstruction ${result.reconstruction.beforeHistoryStart || result.reconstruction.ticketsWithoutObservation > 0 ? "warning" : ""}`}>
+          <div><History size={16} /><strong>Срез по наблюдённой истории</strong></div>
+          <dl>
+            <div><dt>Состояние на</dt><dd>{new Date(result.reconstruction.asOf).toLocaleString("ru-RU")}</dd></div>
+            <div><dt>Тикетов</dt><dd>{result.reconstruction.tickets.toLocaleString("ru-RU")}</dd></div>
+            <div><dt>Без снимка</dt><dd>{result.reconstruction.ticketsWithoutObservation.toLocaleString("ru-RU")}</dd></div>
+            <div><dt>Версий прочитано</dt><dd>{result.reconstruction.versionRowsScanned.toLocaleString("ru-RU")}</dd></div>
+            {result.reconstruction.stalenessHours && (
+              <div><dt>Задержка P95 / max</dt><dd>{result.reconstruction.stalenessHours.p95.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} / {result.reconstruction.stalenessHours.max.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч</dd></div>
+            )}
+          </dl>
+          {result.reconstruction.beforeHistoryStart && <p>На выбранную дату нет наблюдённых снимков по тикетам в области. Значение не является подтверждённым нулём.</p>}
+          {!result.reconstruction.beforeHistoryStart && result.reconstruction.ticketsWithoutObservation > 0 && <p>Для части тикетов на выбранную дату ещё нет наблюдённого снимка.</p>}
+        </div>
+      )}
       <div className="jira-aggregate-preview-number">
         <strong>{formatJiraAnalyticsMetric(metric, result.value)}</strong>
         <span>{result.totalRecords.toLocaleString("ru-RU")} {recordsLabel}</span>
@@ -145,9 +183,11 @@ export function JiraAggregatesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<JiraAnalyticsAggregateDraft>(EMPTY_DRAFT);
   const [expectedVersion, setExpectedVersion] = useState<number | null>(null);
-  const [preview, setPreview] = useState<JiraAnalyticsEvaluationResult | null>(null);
+  const [preview, setPreview] = useState<JiraAnalyticsPreviewResult | null>(null);
   const [periodDays, setPeriodDays] = useState<30 | 90 | 180 | 365>(90);
   const [assignee, setAssignee] = useState("");
+  const [asOf, setAsOf] = useState("");
+  const [maxAsOf] = useState(() => localDateTimeValue(new Date()));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [operationResult, setOperationResult] = useState<DashboardOperationResult | null>(null);
@@ -240,6 +280,7 @@ export function JiraAggregatesPage() {
     });
     setExpectedVersion(definition.version);
     setPreview(null);
+    setAsOf("");
   };
 
   const saveDefinition = async () => {
@@ -289,7 +330,7 @@ export function JiraAggregatesPage() {
     if (!canEdit || !validation.success) return;
     setSaving(true);
     try {
-      const result = await apiClient.post<JiraAnalyticsEvaluationResult>(
+      const result = await apiClient.post<JiraAnalyticsPreviewResult>(
         `/api/projects/${project.id}/jira/aggregates/preview`,
         {
           definition: validation.data,
@@ -297,6 +338,7 @@ export function JiraAggregatesPage() {
           assignee,
           page: 1,
           pageSize: 12,
+          ...(asOf && !usesPeriod ? { asOf: new Date(asOf).toISOString() } : {}),
         },
         "Не удалось рассчитать агрегат",
       );
@@ -351,6 +393,7 @@ export function JiraAggregatesPage() {
               setExpectedVersion(null);
               setDraft({ ...EMPTY_DRAFT, sortOrder: catalog?.definitions.length ?? 0 });
               setPreview(null);
+              setAsOf("");
             }}><Plus size={17} /></button>
           )}
         </header>
@@ -420,12 +463,17 @@ export function JiraAggregatesPage() {
             <label><span>Название</span><input disabled={!canEdit} maxLength={200} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
             <label><span>Описание</span><textarea disabled={!canEdit} maxLength={1000} rows={2} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
             <div className="jira-aggregate-control-row">
-              <label><span>Источник</span><select disabled={!canEdit} value={draft.source} onChange={(event) => setDraft(draftForSource(draft, event.target.value as JiraAnalyticsSource))}>{Object.entries(JIRA_ANALYTICS_SOURCE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+              <label><span>Источник</span><select disabled={!canEdit} value={draft.source} onChange={(event) => { setDraft(draftForSource(draft, event.target.value as JiraAnalyticsSource)); setAsOf(""); setPreview(null); }}>{Object.entries(JIRA_ANALYTICS_SOURCE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
               <label><span>Область</span><select disabled={!canEdit} value={draft.scope} onChange={(event) => setDraft({ ...draft, scope: event.target.value as "active" | "retro" })}><option value="active">В работе</option><option value="retro">Ретро</option></select></label>
             </div>
             <div className="jira-aggregate-control-row">
               <label><span>Метрика</span><select disabled={!canEdit} value={draft.metric} onChange={(event) => setDraft({ ...draft, metric: event.target.value as JiraAnalyticsMetric })}>{JIRA_ANALYTICS_METRICS_BY_SOURCE[draft.source].map((metric) => <option value={metric} key={metric}>{JIRA_ANALYTICS_METRIC_LABELS[metric]}</option>)}</select></label>
               <label><span>Группировка</span><select disabled={!canEdit} value={draft.groupBy} onChange={(event) => setDraft({ ...draft, groupBy: event.target.value as JiraAnalyticsGroupBy })}>{JIRA_ANALYTICS_GROUPS_BY_SOURCE[draft.source].map((group) => <option value={group} key={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>
+            </div>
+            <div className="jira-aggregate-asof-control">
+              <label><span>Состояние на дату</span><input disabled={!canEdit || usesPeriod} type="datetime-local" value={asOf} max={maxAsOf} onChange={(event) => { setAsOf(event.target.value); setPreview(null); }} /></label>
+              <button type="button" className="icon-button" disabled={!canEdit || !asOf} onClick={() => { setAsOf(""); setPreview(null); }} aria-label="Сбросить исторический срез" title="Сейчас"><RotateCcw size={16} /></button>
+              {usesPeriod && <span>Для событийных источников используется период, а не срез состояния.</span>}
             </div>
             {usesPeriod && (
               <div className="jira-aggregate-control-row">

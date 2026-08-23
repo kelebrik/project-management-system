@@ -1,5 +1,7 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { isJiraBugIssueType, isJiraCriticalPriority } from '@pms/shared';
+import { isJiraCriticalBugSlaCandidate } from '@pms/shared';
+
+export { isJiraCriticalBugSlaCandidate } from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
 import { hashJiraVersionV1 } from './jira-version-canonical.js';
@@ -341,16 +343,6 @@ export function criticalPriorityAtUpdate(issue: JiraIssue) {
     return undefined;
   }
   return issue.criticalPriorityAt;
-}
-
-export function isJiraCriticalBugSlaCandidate(
-  issue: Pick<JiraIssue, 'issueType' | 'criticalPriorityAt' | 'criticalEndPriority'>,
-) {
-  return (
-    isJiraBugIssueType(issue.issueType) &&
-    issue.criticalPriorityAt !== null &&
-    isJiraCriticalPriority(issue.criticalEndPriority)
-  );
 }
 
 export function jiraCriticalBugSlaSnapshotIds(

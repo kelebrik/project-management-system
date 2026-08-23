@@ -184,6 +184,17 @@ export function isJiraBugIssueType(value: string | null | undefined) {
     /^(баг|ошибка|дефект)(\s*[-:/(]|$)/u.test(normalized);
 }
 
+export function isJiraCriticalBugSlaCandidate(issue: {
+  issueType: string | null | undefined;
+  criticalPriorityAt: string | Date | null | undefined;
+  criticalEndPriority: string | null | undefined;
+}) {
+  return isJiraBugIssueType(issue.issueType) &&
+    issue.criticalPriorityAt !== null &&
+    issue.criticalPriorityAt !== undefined &&
+    isJiraCriticalPriority(issue.criticalEndPriority);
+}
+
 export function isJiraCancelledStatus(value: string | null | undefined) {
   const normalized = normalizedJiraValue(value);
   return jiraCancelledStatuses.some(

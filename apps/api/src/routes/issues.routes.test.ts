@@ -485,6 +485,163 @@ test('Jira aggregate preview returns 413 for an oversized project population', a
   assert.equal((result.payload() as { limit?: number }).limit, 5_000);
 });
 
+test('Jira aggregate preview returns a distinct 413 for an oversized as-of history', async () => {
+  const prisma = {
+    $queryRaw: async () => [{
+      versionRows: 200_001n,
+      scopedTickets: 1n,
+      earliestObservationAt: new Date('2026-01-01T00:00:00.000Z'),
+    }],
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregates/preview',
+    'post',
+    async () => true,
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1' },
+    body: {
+      definition: aggregateDefinition,
+      assignee: '',
+      page: 1,
+      pageSize: 12,
+      asOf: '2026-08-01T00:00:00.000Z',
+    },
+    currentUser: { id: 'admin-1', role: 'ADMIN' },
+  } as unknown as Request, result.response);
+  assert.equal(result.status(), 413);
+  assert.deepEqual(result.payload(), {
+    error: 'Для одного исторического расчёта доступно не более 200 000 наблюдённых версий',
+    kind: 'versions',
+    limit: 200_000,
+  });
+});
+
+test('Jira aggregate as-of validation rejects ambiguous, future, and event-source requests', async () => {
+  const prisma = {} as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregates/preview',
+    'post',
+    async () => true,
+  );
+  const cases = [
+    {
+      body: {
+        definition: aggregateDefinition,
+        assignee: '',
+        asOf: '2026-08-01T00:00:00.000Z',
+        evaluatedAt: '2026-08-01T00:00:00.000Z',
+      },
+      error: /asOf и evaluatedAt/u,
+    },
+    {
+      body: {
+        definition: aggregateDefinition,
+        assignee: '',
+        asOf: '2099-01-01T00:00:00.000Z',
+      },
+      error: /в будущем/u,
+    },
+    {
+      body: {
+        definition: {
+          ...aggregateDefinition,
+          source: 'transitions',
+          metric: 'count',
+          periodMode: 'DASHBOARD',
+        },
+        periodDays: 90,
+        assignee: '',
+        asOf: '2026-08-01T00:00:00.000Z',
+      },
+      error: /Тикеты и SLA Critical\/Blocker/u,
+    },
+  ];
+  for (const item of cases) {
+    const result = routeResponse();
+    await handle({
+      params: { projectId: 'project-1' },
+      body: { page: 1, pageSize: 12, ...item.body },
+      currentUser: { id: 'admin-1', role: 'ADMIN' },
+    } as unknown as Request, result.response);
+    assert.equal(result.status(), 400);
+    assert.match(String((result.payload() as { error?: string }).error), item.error);
+  }
+});
+
+test('Jira saved aggregate result allows an authorized reader to request an as-of state', async () => {
+  const responses = [
+    [{ versionRows: 0n, scopedTickets: 0n, earliestObservationAt: null }],
+    [{ tickets: 0n, ticketsRetiredAfterAsOf: 0n, stalenessP50: null, stalenessP95: null, stalenessMax: null }],
+    [],
+  ];
+  const prisma = {
+    jiraAggregateDefinition: {
+      findFirst: async () => ({
+        id: 'aggregate-1',
+        projectId: 'project-1',
+        name: aggregateDefinition.name,
+        nameKey: 'count issues',
+        description: aggregateDefinition.description,
+        source: aggregateDefinition.source,
+        metric: aggregateDefinition.metric,
+        groupBy: aggregateDefinition.groupBy,
+        scope: aggregateDefinition.scope,
+        filterLogic: aggregateDefinition.filterLogic,
+        filters: aggregateDefinition.filters,
+        periodMode: aggregateDefinition.periodMode,
+        periodDays: aggregateDefinition.periodDays,
+        timeZone: aggregateDefinition.timeZone,
+        fingerprint: 'a'.repeat(64),
+        sortOrder: aggregateDefinition.sortOrder,
+        version: 1,
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+      }),
+    },
+    $queryRaw: async () => responses.shift() ?? [],
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregates/:aggregateId/result',
+    'get',
+    async () => true,
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1', aggregateId: 'aggregate-1' },
+    query: { assignee: '', asOf: '2026-08-01T00:00:00.000Z' },
+    currentUser: { id: 'viewer-1', role: 'EXECUTIVE_VIEWER' },
+  } as unknown as Request, result.response);
+
+  assert.equal(result.status(), 200);
+  assert.equal(
+    (result.payload() as { result?: { reconstruction?: { mode?: string } } })
+      .result?.reconstruction?.mode,
+    'AS_OF',
+  );
+});
+
+test('Jira dashboard endpoint rejects asOf instead of silently ignoring it', async () => {
+  const prisma = {} as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregate-dashboard-results',
+    'get',
+    async () => true,
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1' },
+    query: { periodDays: '90', assignee: '', asOf: '2026-08-01T00:00:00.000Z' },
+    currentUser: { id: 'viewer-1', role: 'EXECUTIVE_VIEWER' },
+  } as unknown as Request, result.response);
+  assert.equal(result.status(), 400);
+});
+
 test('Jira dashboard evaluation requires an explicit runtime period before loading analytics', async () => {
   const prisma = {
     project: { findUnique: async () => ({ id: 'project-1' }) },

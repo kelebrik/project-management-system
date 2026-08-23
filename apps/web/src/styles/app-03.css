@@ -686,6 +686,25 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.jira-aggregate-asof-control {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 38px;
+}
+
+.jira-aggregate-asof-control > label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.jira-aggregate-asof-control > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  grid-column: 1 / -1;
+}
+
 .jira-aggregate-filter-header {
   align-items: center;
   border-top: 1px solid var(--border);
@@ -717,6 +736,56 @@
 .jira-aggregate-preview {
   display: grid;
   gap: 16px;
+}
+
+.jira-aggregate-reconstruction {
+  background: var(--success-soft);
+  border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border));
+  border-radius: 5px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.jira-aggregate-reconstruction.warning {
+  background: var(--warning-soft);
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+}
+
+.jira-aggregate-reconstruction > div:first-child {
+  align-items: center;
+  color: var(--text-heading);
+  display: flex;
+  gap: 7px;
+}
+
+.jira-aggregate-reconstruction dl {
+  color: var(--text-muted);
+  display: grid;
+  font-size: 11px;
+  gap: 6px;
+  margin: 0;
+}
+
+.jira-aggregate-reconstruction dl > div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.jira-aggregate-reconstruction dt {
+  font-weight: 800;
+}
+
+.jira-aggregate-reconstruction dd {
+  color: var(--text-body);
+  margin: 0;
+}
+
+.jira-aggregate-reconstruction p {
+  color: var(--text-body);
+  font-size: 11px;
+  margin: 0;
 }
 
 .jira-aggregate-preview-number {
