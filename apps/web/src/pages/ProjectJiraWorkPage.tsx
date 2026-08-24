@@ -1,6 +1,8 @@
-import { BarChart3, Database, History, Pencil, Sigma } from "lucide-react";
+import { BarChart3, Database, History, Sigma } from "lucide-react";
 import { useState } from "react";
 
+import { apiClient } from "../api/client";
+import { useConfirm } from "../hooks/useConfirm";
 import { JiraAggregatesPage } from "./JiraAggregatesPage";
 import { JiraAnalyticsDashboard } from "./JiraAnalyticsDashboard";
 import { JiraWorkDataSections } from "./JiraWorkDataSections";
@@ -11,12 +13,54 @@ export const JIRA_PRODUCTION_BASE_URL = "https://tasks.sberdevices.ru";
 type JiraWorkView = "active" | "retro" | "data" | "aggregates";
 
 export function ProjectJiraWorkPage() {
-  const { currentUser, isClosedProject, project } = usePageContext();
+  const {
+    currentUser,
+    isClosedProject,
+    project,
+    setError,
+    setNotice,
+    syncing,
+  } = usePageContext();
+  const confirm = useConfirm();
   const [view, setView] = useState<JiraWorkView>("active");
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const dashboardVisible = view === "active" || view === "retro";
+  const [clearingProjectId, setClearingProjectId] = useState<string | null>(null);
+  const [jiraDataRevision, setJiraDataRevision] = useState(0);
   const dashboardEditing = editingProjectId === project.id;
+  const clearing = clearingProjectId === project.id;
   const canEditWidgets = currentUser?.role === "ADMIN" && !isClosedProject;
+
+  const clearJiraData = async () => {
+    if (!canEditWidgets || syncing || clearing) return;
+    const approved = await confirm({
+      title: "Очистить данные Jira проекта?",
+      message:
+        `Будут удалены все загруженные тикеты и их история только для проекта «${project.code} · ${project.name}». `
+        + "Настройки отбора и дашборды сохранятся. Для восстановления данных потребуется снова нажать «Обновить».",
+      confirmLabel: "Очистить данные",
+      tone: "danger",
+    });
+    if (!approved) return;
+    setClearingProjectId(project.id);
+    setError(null);
+    try {
+      const result = await apiClient.delete<{
+        ticketsDeleted: number;
+        versionsDeleted: number;
+      }>(
+        `/api/projects/${project.id}/jira/data`,
+        "Не удалось очистить данные Jira проекта",
+      );
+      setJiraDataRevision((revision) => revision + 1);
+      setNotice(
+        `Данные Jira проекта очищены: тикетов ${result.ticketsDeleted}, версий истории ${result.versionsDeleted}.`,
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось очистить данные Jira проекта");
+    } finally {
+      setClearingProjectId(null);
+    }
+  };
 
   return (
     <article className="jira-work-page">
@@ -26,15 +70,6 @@ export function ProjectJiraWorkPage() {
           <p>Аналитика потока и контроль работ</p>
         </div>
         <div className="jira-work-page-actions">
-          {dashboardVisible && canEditWidgets && !dashboardEditing && (
-            <button
-              type="button"
-              className="button"
-              onClick={() => setEditingProjectId(project.id)}
-            >
-              <Pencil size={16} /> Редактировать
-            </button>
-          )}
           <div className="jira-work-view-switch" aria-label="Раздел Работы в Jira">
             <button
               type="button"
@@ -68,13 +103,23 @@ export function ProjectJiraWorkPage() {
         </div>
       </div>
 
-      {view === "data" ? <JiraWorkDataSections /> : null}
+      {view === "data" ? (
+        <JiraWorkDataSections
+          clearing={clearing}
+          dataRevision={jiraDataRevision}
+          onClearData={() => void clearJiraData()}
+        />
+      ) : null}
       {view === "aggregates" ? <JiraAggregatesPage /> : null}
       {view === "active" || view === "retro"
         ? (
             <JiraAnalyticsDashboard
               editing={dashboardEditing}
+              clearing={clearing}
+              dataRevision={jiraDataRevision}
+              onClearData={() => void clearJiraData()}
               onEditingChange={(editing) => setEditingProjectId(editing ? project.id : null)}
+              onStartEditing={() => setEditingProjectId(project.id)}
               section={view}
             />
           )

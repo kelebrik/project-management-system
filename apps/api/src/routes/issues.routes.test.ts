@@ -199,6 +199,34 @@ test('Jira history diagnostics reject non-admin users before querying storage', 
   });
 });
 
+test('project Jira data clear rejects non-admin users before database writes', async () => {
+  const router = createIssuesRouter() as unknown as {
+    stack: Array<{
+      route?: {
+        path: string;
+        methods: Record<string, boolean>;
+        stack: Array<{ handle: (req: Request, res: Response) => Promise<void> }>;
+      };
+    }>;
+  };
+  const route = router.stack.find(
+    (layer) => layer.route?.path === '/projects/:projectId/jira/data'
+      && layer.route.methods.delete,
+  )?.route;
+  assert.ok(route);
+
+  const result = routeResponse();
+  await route.stack[0]!.handle({
+    params: { projectId: 'project-1' },
+    currentUser: { role: 'PROJECT_MANAGER' },
+  } as unknown as Request, result.response);
+
+  assert.equal(result.status(), 403);
+  assert.deepEqual(result.payload(), {
+    error: 'Очистка данных Jira доступна только администратору системы',
+  });
+});
+
 test('Jira projection rebuild rejects non-admin users before database writes', async () => {
   const router = createIssuesRouter() as unknown as {
     stack: Array<{

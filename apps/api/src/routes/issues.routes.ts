@@ -44,6 +44,12 @@ import {
 import {
   ensureDefaultJiraWorkSections,
 } from '../services/jira-work-sections.js';
+import {
+  clearJiraProjectData,
+  JiraProjectDataBusyError,
+  JiraProjectDataNotFoundError,
+  JiraProjectDataReadOnlyError,
+} from '../services/jira-project-data.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 import { registerJiraAggregateRoutes } from './jira-aggregates.routes.js';
 
@@ -1041,6 +1047,41 @@ router.get('/projects/:projectId/jira/history-status', async (req, res) => {
     return;
   }
   res.json(await jiraHistoryStatus(prisma, project.id));
+});
+
+router.delete('/projects/:projectId/jira/data', async (req, res) => {
+  const user = currentUser(req);
+  if (user?.role !== 'ADMIN') {
+    res.status(403).json({ error: 'Очистка данных Jira доступна только администратору системы' });
+    return;
+  }
+  try {
+    const result = await clearJiraProjectData(prisma, req.params.projectId);
+    await recordAuditEvent({
+      req,
+      actor: user,
+      action: 'jira.project_data.clear',
+      objectType: 'Project',
+      objectId: req.params.projectId,
+      projectId: req.params.projectId,
+      metadata: result,
+    });
+    res.json(result);
+  } catch (error) {
+    if (error instanceof JiraProjectDataNotFoundError) {
+      res.status(404).json({ error: 'Проект не найден' });
+      return;
+    }
+    if (error instanceof JiraProjectDataReadOnlyError) {
+      res.status(423).json({ error: 'Закрытый проект доступен только для чтения' });
+      return;
+    }
+    if (error instanceof JiraProjectDataBusyError) {
+      res.status(409).json({ error: 'Дождитесь завершения обновления Jira для этого проекта' });
+      return;
+    }
+    throw error;
+  }
 });
 
 router.post('/projects/:projectId/jira/history/rebuild-projections', async (req, res) => {

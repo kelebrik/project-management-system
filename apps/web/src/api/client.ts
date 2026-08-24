@@ -137,8 +137,8 @@ export const apiClient = {
       fallback,
     );
   },
-  delete(path: string, fallback?: string) {
-    return request<null>(path, { method: "DELETE" }, fallback);
+  delete<T = null>(path: string, fallback?: string) {
+    return request<T>(path, { method: "DELETE" }, fallback);
   },
   download,
 };

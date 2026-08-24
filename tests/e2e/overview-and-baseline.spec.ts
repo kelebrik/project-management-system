@@ -967,6 +967,19 @@ test("Jira data page owns the project scope and no longer exposes work sections"
 }) => {
   const project = await mockAdminProject(page);
   await mockManagedJiraAnalytics(page, project);
+  let clearRequests = 0;
+  await page.route("**/api/projects/project-1/jira/data", async (route) => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    clearRequests += 1;
+    await route.fulfill({
+      json: {
+        projectId: "project-1",
+        ticketsDeleted: 244,
+        versionsDeleted: 348,
+        retriesDeleted: 0,
+      },
+    });
+  });
   await page.goto("/TV-OVERVIEW/jira-work");
 
   await expect(page.getByRole("combobox", { name: "Способ отбора тикетов" })).toHaveCount(0);
@@ -977,6 +990,12 @@ test("Jira data page owns the project scope and no longer exposes work sections"
   await expect(page.getByLabel("Лейбл Jira")).toHaveValue("cvte968");
   await page.getByRole("combobox", { name: "Способ отбора тикетов" }).selectOption("EPIC");
   await page.getByLabel("Код эпика Jira").fill("CVTE-1234");
+  await expect(page.getByRole("button", { name: "Очистить" })).toBeVisible();
+  await page.getByRole("button", { name: "Очистить" }).click();
+  await expect(page.getByRole("dialog", { name: "Очистить данные Jira проекта?" })).toBeVisible();
+  await page.getByRole("button", { name: "Очистить данные" }).click();
+  await expect.poll(() => clearRequests).toBe(1);
+  await expect(page.getByText(/Данные Jira проекта очищены: тикетов 244/)).toBeVisible();
   await expect(page.locator(".jira-work-section")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Создать раздел" })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1048,8 +1067,6 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByText("Командный доступ", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Название дашборда")).toHaveCount(0);
   await page.getByRole("combobox", { name: "Исполнитель" }).selectOption("Разработчик");
-  await page.getByRole("button", { name: "Очистить" }).click();
-  await expect(page.getByRole("combobox", { name: "Исполнитель" })).toHaveValue("");
   const toolbarSelectBoxes = await Promise.all(
     [
       page.getByRole("combobox", { name: "Период событий" }),
@@ -1076,13 +1093,13 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await page.setViewportSize({ width: 1280, height: 800 });
 
   const editButton = page.getByRole("button", { name: "Редактировать" });
-  const viewSwitch = page.locator(".jira-work-view-switch");
-  const [editButtonBox, viewSwitchBox] = await Promise.all([
+  const clearButton = page.getByRole("button", { name: "Очистить" });
+  const [editButtonBox, clearButtonBox] = await Promise.all([
     editButton.boundingBox(),
-    viewSwitch.boundingBox(),
+    clearButton.boundingBox(),
   ]);
-  expect((editButtonBox?.x ?? 0) + (editButtonBox?.width ?? 0)).toBeLessThanOrEqual(
-    viewSwitchBox?.x ?? 0,
+  expect((clearButtonBox?.x ?? 0) + (clearButtonBox?.width ?? 0)).toBeLessThanOrEqual(
+    editButtonBox?.x ?? 0,
   );
   await expect(page.getByRole("button", { name: "Создать копию дашборда" })).toHaveCount(0);
   const refreshOffset = await iconOffset(
@@ -1104,9 +1121,8 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByRole("combobox", { name: "Период событий" })).toBeEnabled();
   await page.getByRole("combobox", { name: "Период событий" }).selectOption("180");
   await page.getByRole("combobox", { name: "Исполнитель" }).selectOption("Разработчик");
-  await page.getByRole("button", { name: "Очистить" }).click();
-  await expect(page.getByRole("combobox", { name: "Период событий" })).toHaveValue("90");
-  await expect(page.getByRole("combobox", { name: "Исполнитель" })).toHaveValue("");
+  await expect(page.getByRole("combobox", { name: "Период событий" })).toHaveValue("180");
+  await expect(page.getByRole("combobox", { name: "Исполнитель" })).toHaveValue("Разработчик");
   await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
   await expect(page.getByText("50% завершённых периодов в статусах не дольше")).toBeVisible();
   await expect(page.getByText(/Периодов в статусах: 1/).first()).toBeVisible();
@@ -1280,9 +1296,11 @@ test("Jira analytics hides widget settings from non-system administrators", asyn
   await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Редактировать" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Очистить" })).toHaveCount(0);
   await page.getByRole("button", { name: "Данные Jira" }).click();
   await expect(page.getByRole("combobox", { name: "Способ отбора тикетов" })).toBeDisabled();
   await expect(page.getByLabel("Лейбл Jira")).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Очистить" })).toHaveCount(0);
   await expect(page.locator(".jira-work-section")).toHaveCount(0);
 });
 

@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Download,
   Plus,
+  Pencil,
   RefreshCw,
   Save,
   Settings2,
@@ -638,12 +639,20 @@ function jiraScopeValueIsValid(type: JiraAnalyticsScopeType, value: string) {
 }
 
 export function JiraAnalyticsDashboard({
+  clearing,
+  dataRevision,
   editing,
+  onClearData,
   onEditingChange,
+  onStartEditing,
   section,
 }: {
+  clearing: boolean;
+  dataRevision: number;
   editing: boolean;
+  onClearData: () => void;
   onEditingChange: (editing: boolean) => void;
+  onStartEditing: () => void;
   section: JiraAnalyticsSection;
 }) {
   const {
@@ -717,6 +726,7 @@ export function JiraAnalyticsDashboard({
     });
     return () => { active = false; };
   }, [
+    dataRevision,
     project.id,
     project.jiraAnalyticsSettings?.lastSyncedAt,
     project.jiraIntegration?.lastSyncedAt,
@@ -751,6 +761,7 @@ export function JiraAnalyticsDashboard({
   }, [
     config?.assignee,
     config?.periodDays,
+    dataRevision,
     project.id,
     project.jiraAnalyticsSettings?.lastSyncedAt,
     project.jiraIntegration?.lastSyncedAt,
@@ -1031,21 +1042,24 @@ export function JiraAnalyticsDashboard({
               scopeType: jiraScope.type,
               scopeValue: jiraScope.value.trim(),
             })}
-            disabled={syncing || !scopeValueValid}
+            disabled={syncing || clearing || !scopeValueValid}
           >
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
             {syncing ? "Обновляю..." : "Обновить"}
           </button>
-          {config && !editing && (
+          {canEditWidgets && !editing && (
             <button
               type="button"
               className="button"
-              onClick={() => patchDashboardFilters({
-                assignee: "",
-                periodDays: 90,
-              })}
+              onClick={onClearData}
+              disabled={syncing || clearing}
             >
-              <X size={16} /> Очистить
+              <Trash2 size={16} /> {clearing ? "Очищаю..." : "Очистить"}
+            </button>
+          )}
+          {canEditWidgets && config && !editing && (
+            <button type="button" className="button" onClick={onStartEditing}>
+              <Pencil size={16} /> Редактировать
             </button>
           )}
           {canEditWidgets && config && editing && (
@@ -1160,7 +1174,7 @@ export function JiraAnalyticsDashboard({
               scopeType: jiraScope.type,
               scopeValue: jiraScope.value.trim(),
             })}
-            disabled={syncing || !scopeValueValid}
+            disabled={syncing || clearing || !scopeValueValid}
           >
             Синхронизировать
           </button>

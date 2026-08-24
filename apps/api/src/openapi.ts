@@ -1701,6 +1701,40 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/data": {
+      delete: {
+        tags: ["Jira", "Admin"],
+        summary: "Delete imported Jira ticket data for one project",
+        description: "Deletes only project-scoped Jira snapshots, immutable versions, derived events, memberships, and retry records. Jira scope and dashboard definitions are preserved.",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "200": {
+            description: "Project Jira data cleared",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["projectId", "ticketsDeleted", "versionsDeleted", "retriesDeleted"],
+                  properties: {
+                    projectId: { type: "string" },
+                    ticketsDeleted: { type: "integer", minimum: 0 },
+                    versionsDeleted: { type: "integer", minimum: 0 },
+                    retriesDeleted: { type: "integer", minimum: 0 },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Authentication required" },
+          "403": { description: "System administrator role required" },
+          "404": { description: "Project not found" },
+          "409": { description: "Jira synchronization is active for this project" },
+          "423": { description: "Closed project is read-only" },
+        },
+      },
+    },
     "/api/projects/{projectId}/jira/history/rebuild-projections": {
       post: {
         tags: ["Jira", "Admin"],

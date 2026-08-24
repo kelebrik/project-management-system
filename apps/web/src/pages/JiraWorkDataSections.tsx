@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { JiraCapacitySampler } from "./JiraCapacitySampler";
@@ -13,7 +13,15 @@ function scopeValueIsValid(type: JiraScopeType, value: string) {
     : /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(normalized);
 }
 
-export function JiraWorkDataSections() {
+export function JiraWorkDataSections({
+  clearing,
+  dataRevision,
+  onClearData,
+}: {
+  clearing: boolean;
+  dataRevision: number;
+  onClearData: () => void;
+}) {
   const {
     currentUser,
     isClosedProject,
@@ -83,15 +91,25 @@ export function JiraWorkDataSections() {
               scopeType: scope.type,
               scopeValue: scope.value.trim(),
             })}
-            disabled={syncing || !scopeValueValid}
+            disabled={syncing || clearing || !scopeValueValid}
           >
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
             {syncing ? "Обновляю..." : "Обновить"}
           </button>
+          {canEditScope && (
+            <button
+              type="button"
+              className="button"
+              onClick={onClearData}
+              disabled={syncing || clearing}
+            >
+              <Trash2 size={16} /> {clearing ? "Очищаю..." : "Очистить"}
+            </button>
+          )}
         </div>
       </section>
 
-      <JiraCapacitySampler />
+      <JiraCapacitySampler key={`${project.id}:${dataRevision}`} />
     </div>
   );
 }

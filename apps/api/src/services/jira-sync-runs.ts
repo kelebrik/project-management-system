@@ -7,6 +7,7 @@ import {
 
 import { redactJiraHistoryError } from './jira-history.js';
 import { JiraSyncDeadlineError } from '../jira.js';
+import { lockJiraProjectData } from './jira-project-data.js';
 
 export { JiraSyncDeadlineError } from '../jira.js';
 
@@ -151,6 +152,7 @@ export async function enqueueJiraSyncRun(
 ) {
   const historyWriteEnabled = jiraHistoryWriteEnabled();
   return prisma.$transaction(async (transaction) => {
+    await lockJiraProjectData(transaction, input.projectId);
     await transaction.jiraAnalyticsSettings.createMany({
       data: [{
         projectId: input.projectId,
