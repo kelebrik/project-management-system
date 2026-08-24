@@ -776,6 +776,17 @@ export type JiraAggregateImportPlanItem = {
   existingId: string | null;
 };
 
+export type JiraDashboardSwitchPlan = {
+  sourceStored: boolean;
+  sourceConfigHash: string;
+  effectiveConfigHash: string;
+  planHash: string;
+  legacy: JiraAnalyticsDashboardV1;
+  managed: JiraAnalyticsDashboardV2;
+  definitions: JiraAggregateDefinition[];
+  items: JiraAggregateImportPlanItem[];
+};
+
 function uniqueImportedName(base: string, occupied: Set<string>) {
   const normalizedBase = base.trim() || 'Агрегат без названия';
   let candidate = normalizedBase;
@@ -867,6 +878,67 @@ export function convertJiraDashboardToV2(
       };
     }),
   });
+}
+
+function plannedAggregateDefinition(
+  projectId: string,
+  item: JiraAggregateImportPlanItem,
+): JiraAggregateDefinition {
+  const timestamp = new Date(0);
+  return {
+    id: item.existingId ?? `planned-${item.fingerprint}`,
+    projectId,
+    ...item.definition,
+    nameKey: normalizeJiraAnalyticsName(item.definition.name),
+    filters: item.definition.filters as Prisma.JsonValue,
+    fingerprint: item.fingerprint,
+    version: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
+export function buildJiraDashboardSwitchPlan(
+  projectId: string,
+  rawConfig: unknown,
+  existing: JiraAggregateDefinition[],
+): JiraDashboardSwitchPlan {
+  if (rawConfig && typeof rawConfig === 'object' && (rawConfig as Record<string, unknown>).version === 2) {
+    throw new Error('DASHBOARD_NOT_V1');
+  }
+  const sourceStored = rawConfig !== null && rawConfig !== undefined;
+  const legacy = sourceStored
+    ? normalizeJiraAnalyticsDashboardV1(rawConfig)
+    : JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1;
+  if (!legacy) throw new Error('DASHBOARD_V1_INVALID');
+  const importPlan = buildJiraAggregateImportPlan(legacy, existing);
+  if (!importPlan.config) throw new Error('DASHBOARD_V1_INVALID');
+  const planned = importPlan.items.map((item) => plannedAggregateDefinition(projectId, item));
+  const plannedByFingerprint = new Map(planned.map((definition) => [definition.fingerprint, definition]));
+  const definitions = [
+    ...existing.filter((definition) => !plannedByFingerprint.has(definition.fingerprint)),
+    ...planned,
+  ];
+  const idsByFingerprint = new Map(planned.map((definition) => [definition.fingerprint, definition.id]));
+  const managed = convertJiraDashboardToV2(legacy, idsByFingerprint);
+  const effectiveConfigHash = jiraDashboardConfigHash(legacy);
+  const planHash = jiraDashboardConfigHash({
+    effectiveConfigHash,
+    widgetDefinitions: legacy.widgets.map((widget, index) => {
+      const draft = inlineWidgetDefinition(widget, index);
+      return { widgetId: widget.id, fingerprint: jiraAggregateFingerprint(draft) };
+    }),
+  });
+  return {
+    sourceStored,
+    sourceConfigHash: jiraDashboardConfigHash(rawConfig),
+    effectiveConfigHash,
+    planHash,
+    legacy,
+    managed,
+    definitions,
+    items: importPlan.items,
+  };
 }
 
 export function jiraDashboardReferencedAggregateIds(config: JiraAnalyticsDashboardConfig) {

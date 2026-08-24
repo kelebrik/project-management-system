@@ -177,6 +177,12 @@ enum JiraHistoryRetryStatus {
   RESOLVED
 }
 
+enum JiraAnalyticsRollbackState {
+  AVAILABLE
+  USED
+  CLOSED
+}
+
 model BusinessUnit {
   id          String                   @id @default(cuid())
   code        String                   @unique
@@ -617,19 +623,26 @@ model JiraAggregateDefinition {
 }
 
 model JiraAnalyticsDashboardConversion {
-  id                  String    @id @default(cuid())
-  projectId           String    @unique
-  originalConfig      Json      @db.JsonB
-  originalConfigHash  String    @db.Char(64)
-  convertedConfigHash String    @db.Char(64)
-  convertedAt         DateTime  @default(now())
-  rolledBackAt        DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                    String                     @id @default(cuid())
+  projectId             String                     @unique
+  originalConfig        Json                       @db.JsonB
+  originalConfigStored  Boolean                    @default(true)
+  sourceConfigHash      String                     @db.Char(64)
+  originalConfigHash    String                     @db.Char(64)
+  convertedConfigHash   String                     @db.Char(64)
+  createdDefinitionIds  Json                       @default("[]") @db.JsonB
+  attempt               Int                        @default(1)
+  rollbackState         JiraAnalyticsRollbackState @default(AVAILABLE)
+  convertedAt           DateTime                   @default(now())
+  rolledBackAt          DateTime?
+  rollbackFinalizedAt   DateTime?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  project               Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([convertedAt])
   @@index([rolledBackAt])
+  @@index([rollbackState])
 }
 
 model Task {

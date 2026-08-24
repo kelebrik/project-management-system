@@ -16,6 +16,7 @@ import {
   JIRA_CAPACITY_DEFAULT_STORAGE_GIB,
 } from './issues.routes.js';
 import { registerJiraAggregateRoutes } from './jira-aggregates.routes.js';
+import { buildJiraDashboardSwitchPlan, jiraDashboardConfigHash } from '../services/jira-aggregates.js';
 import { projectDetailsInclude } from './projects/includes.js';
 
 function routeResponse() {
@@ -277,6 +278,11 @@ test('Jira aggregate mutations reject non-admin users before database access', a
       path: '/projects/:projectId/jira/aggregates/convert-dashboard',
       method: 'post',
       error: 'Конвертация дашборда доступна только системному администратору',
+    },
+    {
+      path: '/projects/:projectId/jira/aggregates/switch-dashboard',
+      method: 'post',
+      error: 'Переключение дашборда доступно только системному администратору',
     },
     {
       path: '/projects/:projectId/jira/aggregates/rollback-dashboard',
@@ -801,4 +807,201 @@ test('Jira dashboard import maps a definition uniqueness race to HTTP 409', asyn
   } as unknown as Request, result.response);
   assert.equal(result.status(), 409);
   assert.match(String((result.payload() as { error?: string }).error), /уже существует/);
+});
+
+test('stage F switch dry-run reconciles the implicit default without opening a write transaction', async () => {
+  let writeTransactions = 0;
+  const prisma = {
+    project: { findUnique: async () => ({ status: 'ACTIVE' }) },
+    jiraAnalyticsSettings: { findUnique: async () => null },
+    jiraAggregateDefinition: { findMany: async () => [] },
+    jiraAnalyticsDashboardConversion: { findUnique: async () => null },
+    jiraIssueSnapshot: { count: async () => 0, findMany: async () => [] },
+    jiraIssueStatusTransition: { count: async () => 0 },
+    jiraDevelopmentActivity: { count: async () => 0 },
+    $transaction: async () => {
+      writeTransactions += 1;
+      throw new Error('write transaction must not run');
+    },
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregates/switch-dashboard',
+    'post',
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1' },
+    body: {
+      dryRun: true,
+      expectedConfigHash: jiraDashboardConfigHash(null),
+      periodDays: 90,
+      assignee: '',
+    },
+    currentUser: { id: 'admin-1', role: 'ADMIN' },
+  } as unknown as Request, result.response);
+  assert.equal(result.status(), 200);
+  assert.equal((result.payload() as { sourceStored?: boolean }).sourceStored, false);
+  assert.equal((result.payload() as { reconciliation?: { status: string } }).reconciliation?.status, 'MATCH');
+  assert.equal(writeTransactions, 0);
+});
+
+test('stage F rollback rejects a stale conversion attempt inside the serializable transaction', async () => {
+  const dashboard = {
+    version: 2,
+    periodDays: 90,
+    assignee: '',
+    widgets: [],
+  };
+  const currentHash = jiraDashboardConfigHash(dashboard);
+  const transaction = {
+    $queryRaw: async (query: { text: string }) => {
+      if (query.text.includes('pg_advisory_xact_lock')) return [{ lock: '' }];
+      if (query.text.includes('FROM "Project"')) return [{ status: 'ACTIVE' }];
+      return [{ id: 'settings-1', dashboardConfig: dashboard }];
+    },
+    jiraAnalyticsDashboardConversion: {
+      findUnique: async () => ({
+        id: 'conversion-1',
+        projectId: 'project-1',
+        attempt: 2,
+        rollbackState: 'AVAILABLE',
+        originalConfig: { version: 1, periodDays: 90, assignee: '', widgets: [] },
+        originalConfigStored: true,
+        sourceConfigHash: 'a'.repeat(64),
+        originalConfigHash: 'a'.repeat(64),
+        convertedConfigHash: currentHash,
+      }),
+    },
+  };
+  const prisma = {
+    project: { findUnique: async () => ({ status: 'ACTIVE' }) },
+    $transaction: async (callback: (client: typeof transaction) => Promise<unknown>) => callback(transaction),
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregates/rollback-dashboard',
+    'post',
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1' },
+    body: { dryRun: false, expectedConfigHash: currentHash, attempt: 1 },
+    currentUser: { id: 'admin-1', role: 'ADMIN' },
+  } as unknown as Request, result.response);
+  assert.equal(result.status(), 409);
+  assert.equal((result.payload() as { details?: { currentAttempt: number } }).details?.currentAttempt, 2);
+});
+
+test('stage F switch resets every conversion generation field atomically', async () => {
+  const legacy = {
+    version: 1 as const,
+    periodDays: 90 as const,
+    assignee: '',
+    widgets: [{
+      id: 'one',
+      title: 'One',
+      source: 'issues' as const,
+      metric: 'count' as const,
+      groupBy: 'none' as const,
+      visualization: 'number' as const,
+      filterLogic: 'and' as const,
+      filters: [],
+      width: 'half' as const,
+      section: 'active' as const,
+    }],
+  };
+  const planned = buildJiraDashboardSwitchPlan('project-1', legacy, []);
+  const definition = { ...planned.definitions[0], id: 'aggregate-1' };
+  const conversionUpdate: { data?: Record<string, unknown> } = {};
+  const settingsWrite: { data?: Record<string, unknown> } = {};
+  const auditWrite: { data?: Record<string, unknown> } = {};
+  let isolationLevel: unknown;
+  const transaction = {
+    $queryRaw: async (query: { text: string }) => {
+      if (query.text.includes('pg_advisory_xact_lock')) return [{ lock: '' }];
+      if (query.text.includes('FROM "Project"')) return [{ status: 'ACTIVE' }];
+      if (query.text.includes('FROM "JiraAnalyticsSettings"')) {
+        return [{ id: 'settings-1', dashboardConfig: legacy }];
+      }
+      return [{ id: 'conversion-1', attempt: 3, rollbackState: 'USED' }];
+    },
+    jiraAggregateDefinition: { findMany: async () => [definition] },
+    jiraAnalyticsSettings: {
+      upsert: async ({ update }: { update: Record<string, unknown> }) => {
+        settingsWrite.data = update;
+        return { id: 'settings-1', ...update };
+      },
+    },
+    jiraAnalyticsDashboardConversion: {
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        conversionUpdate.data = data;
+        return { id: 'conversion-1', attempt: data.attempt };
+      },
+    },
+    auditEvent: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        auditWrite.data = data;
+        return { id: 'audit-1' };
+      },
+    },
+  };
+  const prisma = {
+    project: { findUnique: async () => ({ status: 'ACTIVE' }) },
+    jiraAnalyticsSettings: { findUnique: async () => ({ dashboardConfig: legacy }) },
+    jiraAggregateDefinition: { findMany: async () => [definition] },
+    jiraAnalyticsDashboardConversion: {
+      findUnique: async () => ({ id: 'conversion-1', attempt: 3, rollbackState: 'USED' }),
+    },
+    jiraIssueSnapshot: { count: async () => 0, findMany: async () => [] },
+    jiraIssueStatusTransition: { count: async () => 0 },
+    jiraDevelopmentActivity: { count: async () => 0 },
+    $transaction: async (
+      callback: (client: typeof transaction) => Promise<unknown>,
+      options: { isolationLevel?: unknown },
+    ) => {
+      isolationLevel = options.isolationLevel;
+      return callback(transaction);
+    },
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregates/switch-dashboard',
+    'post',
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1' },
+    body: {
+      dryRun: false,
+      expectedConfigHash: jiraDashboardConfigHash(legacy),
+      periodDays: 90,
+      assignee: '',
+    },
+    currentUser: {
+      id: 'admin-1',
+      email: 'admin@example.test',
+      name: 'Admin',
+      role: 'ADMIN',
+    },
+    get: () => null,
+  } as unknown as Request, result.response);
+  assert.equal(result.status(), 200);
+  assert.equal((result.payload() as { attempt?: number }).attempt, 4);
+  assert.equal(isolationLevel, Prisma.TransactionIsolationLevel.Serializable);
+  assert.deepEqual(conversionUpdate.data, {
+    originalConfig: legacy,
+    originalConfigStored: true,
+    sourceConfigHash: jiraDashboardConfigHash(legacy),
+    originalConfigHash: jiraDashboardConfigHash(legacy),
+    convertedConfigHash: jiraDashboardConfigHash(settingsWrite.data?.dashboardConfig),
+    createdDefinitionIds: [],
+    rollbackState: 'AVAILABLE',
+    convertedAt: conversionUpdate.data?.convertedAt,
+    rolledBackAt: null,
+    rollbackFinalizedAt: null,
+    attempt: 4,
+  });
+  assert.equal((settingsWrite.data?.dashboardConfig as { version?: number }).version, 2);
+  assert.equal((auditWrite.data?.metadata as { attempt?: number }).attempt, 4);
 });

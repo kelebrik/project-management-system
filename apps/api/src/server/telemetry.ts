@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { prisma } from '../db.js';
 import { isJiraConfigured } from '../jira.js';
 import type { AuthRequest } from './auth.js';
 import { hashApiToken } from './auth.js';
@@ -13,6 +14,40 @@ const requestMetrics = {
   byRoute: new Map<string, number>(),
   durationsByRoute: new Map<string, number[]>(),
 };
+const legacyConversionGaugeTtlMs = 30_000;
+const legacyConversionGaugeTimeoutMs = 500;
+let legacyConversionGauge = { value: -1, loadedAt: 0 };
+let legacyConversionGaugeRefresh: Promise<void> | null = null;
+
+function refreshLegacyConversionGauge() {
+  if (!legacyConversionGaugeRefresh) {
+    legacyConversionGaugeRefresh = prisma.jiraAnalyticsDashboardConversion.count({
+      where: { rollbackState: 'AVAILABLE' },
+    }).then((value) => {
+      legacyConversionGauge = { value, loadedAt: Date.now() };
+    }).catch((error) => {
+      legacyConversionGauge = { ...legacyConversionGauge, loadedAt: Date.now() };
+      logEvent('warn', 'jira.analytics.legacy_conversion_metric_failed', {
+        errorType: error instanceof Error ? error.name : 'unknown',
+      });
+    }).finally(() => {
+      legacyConversionGaugeRefresh = null;
+    });
+  }
+  return legacyConversionGaugeRefresh;
+}
+
+async function availableLegacyConversions() {
+  if (Date.now() - legacyConversionGauge.loadedAt < legacyConversionGaugeTtlMs) {
+    return legacyConversionGauge.value;
+  }
+  const refresh = refreshLegacyConversionGauge();
+  await Promise.race([
+    refresh,
+    new Promise<void>((resolve) => setTimeout(resolve, legacyConversionGaugeTimeoutMs)),
+  ]);
+  return legacyConversionGauge.value;
+}
 const rateLimitBuckets = new Map<string, { windowStart: number; count: number }>();
 
 export function metricRoute(req: Pick<Request, 'path'>) {
@@ -99,7 +134,7 @@ export function rateLimitMiddleware(req: Request, res: Response, next: NextFunct
   next();
 }
 
-export function metricsHandler(req: Request, res: Response) {
+export async function metricsHandler(req: Request, res: Response) {
   if (requireMetricsToken && !metricsToken) {
     res.status(503).type('text/plain').send('metrics token is not configured\n');
     return;
@@ -129,6 +164,7 @@ export function metricsHandler(req: Request, res: Response) {
       ];
     })
     .join('\n');
+  const legacyConversions = await availableLegacyConversions();
   res.type('text/plain').send(
     [
       '# HELP pms_uptime_seconds Application uptime in seconds',
@@ -143,6 +179,9 @@ export function metricsHandler(req: Request, res: Response) {
       '# HELP pms_jira_configured Jira integration environment/configuration flag',
       '# TYPE pms_jira_configured gauge',
       `pms_jira_configured ${isJiraConfigured() ? 1 : 0}`,
+      '# HELP pms_jira_analytics_conversions_available_total Managed dashboards with an open legacy rollback window',
+      '# TYPE pms_jira_analytics_conversions_available_total gauge',
+      `pms_jira_analytics_conversions_available_total ${legacyConversions}`,
       '# HELP pms_http_requests_by_route_total Total API requests by normalized route',
       '# TYPE pms_http_requests_by_route_total counter',
       routeMetrics,

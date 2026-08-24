@@ -17,6 +17,7 @@ import { logEvent } from '../server/logger.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
   buildJiraAggregateImportPlan,
+  buildJiraDashboardSwitchPlan,
   convertJiraDashboardToV2,
   evaluateJiraAggregateFromDatabase,
   evaluateSavedDashboardFromDatabase,
@@ -88,6 +89,15 @@ const migrationBodySchema = z.object({
   expectedConfigHash: z.string().regex(/^[0-9a-f]{64}$/),
 }).strict();
 
+const switchBodySchema = migrationBodySchema.extend({
+  periodDays: periodDaysValueSchema,
+  assignee: z.string().max(200),
+});
+
+const rollbackBodySchema = migrationBodySchema.extend({
+  attempt: z.number().int().min(1),
+});
+
 const reconciliationBodySchema = z.object({
   expectedConfigHash: z.string().regex(/^[0-9a-f]{64}$/),
   periodDays: periodDaysValueSchema,
@@ -112,12 +122,38 @@ const aggregateAuditFields = [
 
 class AggregateConflictError extends Error {
   constructor(
-    public readonly code: 'VERSION' | 'IN_USE' | 'CONFIG_CHANGED' | 'MISSING_DEFINITION',
+    public readonly code: 'VERSION' | 'IN_USE' | 'CONFIG_CHANGED' | 'MISSING_DEFINITION' | 'SERIALIZATION',
     public readonly details?: unknown,
     public readonly auditDefinition?: JiraAggregateDefinition,
   ) {
     super(code);
   }
+}
+
+const SERIALIZABLE_RETRY_LIMIT = 3;
+
+function isSerializationConflict(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+}
+
+async function runSerializable<T>(
+  prisma: PrismaClient,
+  operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+) {
+  for (let retry = 0; retry < SERIALIZABLE_RETRY_LIMIT; retry += 1) {
+    try {
+      return await prisma.$transaction(operation, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      if (!isSerializationConflict(error)) throw error;
+      if (retry === SERIALIZABLE_RETRY_LIMIT - 1) {
+        throw new AggregateConflictError('SERIALIZATION', 'Конкурирующее изменение не завершилось');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25 * (2 ** retry)));
+    }
+  }
+  throw new AggregateConflictError('SERIALIZATION');
 }
 
 class AggregateNotFoundError extends Error {}
@@ -290,6 +326,7 @@ function conflictMessage(error: AggregateConflictError) {
   if (error.code === 'VERSION') return 'Определение уже изменено другим пользователем';
   if (error.code === 'IN_USE') return 'Агрегат используется виджетами и не может быть удалён';
   if (error.code === 'MISSING_DEFINITION') return 'Не все определения агрегатов доступны';
+  if (error.code === 'SERIALIZATION') return 'Данные изменяются параллельно, повторите операцию';
   return typeof error.details === 'string' ? error.details : 'Конфигурация дашборда изменилась';
 }
 
@@ -330,7 +367,18 @@ export function registerJiraAggregateRoutes(
       }),
       prisma.jiraAnalyticsDashboardConversion.findUnique({
         where: { projectId: req.params.projectId },
-        select: { convertedConfigHash: true, convertedAt: true, rolledBackAt: true },
+        select: {
+          id: true,
+          attempt: true,
+          sourceConfigHash: true,
+          originalConfigHash: true,
+          originalConfigStored: true,
+          convertedConfigHash: true,
+          convertedAt: true,
+          rolledBackAt: true,
+          rollbackState: true,
+          rollbackFinalizedAt: true,
+        },
       }),
     ]);
     const dashboardConfig = settings?.dashboardConfig ?? null;
@@ -342,9 +390,19 @@ export function registerJiraAggregateRoutes(
           ? Number((dashboardConfig as Prisma.JsonObject).version) || null
           : null,
         configHash: jiraDashboardConfigHash(dashboardConfig),
+        conversionId: conversion?.id ?? null,
+        attempt: conversion?.attempt ?? null,
+        sourceConfigHash: conversion?.sourceConfigHash ?? null,
+        originalConfigHash: conversion?.originalConfigHash ?? null,
+        originalConfigStored: conversion?.originalConfigStored ?? null,
         convertedConfigHash: conversion?.convertedConfigHash ?? null,
         convertedAt: conversion?.convertedAt.toISOString() ?? null,
         rolledBackAt: conversion?.rolledBackAt?.toISOString() ?? null,
+        rollbackState: conversion?.rollbackState ?? null,
+        rollbackFinalizedAt: conversion?.rollbackFinalizedAt?.toISOString() ?? null,
+        rollbackAvailableUntil: conversion?.rollbackState === 'AVAILABLE'
+          ? 'AVAILABLE_UNTIL_LEGACY_RETIREMENT'
+          : null,
       },
     });
   });
@@ -874,6 +932,248 @@ export function registerJiraAggregateRoutes(
     }
   });
 
+  router.post('/projects/:projectId/jira/aggregates/switch-dashboard', async (req, res) => {
+    const user = requireSystemAdmin(req, res, 'Переключение дашборда доступно только системному администратору');
+    if (!user) return;
+    if (!ensureRuntimeIcu(res) || !await ensureWritableProject(req.params.projectId, res, prisma)) return;
+    const parsed = switchBodySchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Некорректные параметры переключения', details: parsed.error.flatten() });
+      return;
+    }
+    try {
+      const [settings, definitions, previousConversion] = await Promise.all([
+        prisma.jiraAnalyticsSettings.findUnique({
+          where: { projectId: req.params.projectId },
+          select: { dashboardConfig: true },
+        }),
+        prisma.jiraAggregateDefinition.findMany({
+          where: { projectId: req.params.projectId },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+        }),
+        prisma.jiraAnalyticsDashboardConversion.findUnique({
+          where: { projectId: req.params.projectId },
+          select: { id: true, attempt: true, rollbackState: true },
+        }),
+      ]);
+      const rawConfig = settings?.dashboardConfig ?? null;
+      const currentHash = jiraDashboardConfigHash(rawConfig);
+      if (currentHash !== parsed.data.expectedConfigHash) {
+        throw new AggregateConflictError('CONFIG_CHANGED', { currentConfigHash: currentHash });
+      }
+      if (previousConversion?.rollbackState === 'CLOSED') {
+        throw new AggregateConflictError('CONFIG_CHANGED', 'Окно legacy-отката закрыто для этого проекта');
+      }
+      if (previousConversion?.rollbackState === 'AVAILABLE') {
+        throw new AggregateConflictError('CONFIG_CHANGED', 'Дашборд уже переключён на управляемые агрегаты');
+      }
+      const preflight = buildJiraDashboardSwitchPlan(req.params.projectId, rawConfig, definitions);
+      const reconciliation = await reconcileJiraDashboardFromDatabase(
+        prisma,
+        req.params.projectId,
+        preflight.legacy,
+        preflight.managed,
+        preflight.definitions,
+        {
+          now: new Date().toISOString(),
+          periodDays: parsed.data.periodDays,
+          assignee: parsed.data.assignee,
+          page: 1,
+          pageSize: 100,
+        },
+      );
+      const base = {
+        dryRun: parsed.data.dryRun,
+        sourceStored: preflight.sourceStored,
+        sourceConfigHash: preflight.sourceConfigHash,
+        effectiveConfigHash: preflight.effectiveConfigHash,
+        planHash: preflight.planHash,
+        sourceWidgets: preflight.legacy.widgets.length,
+        reconciliation,
+        items: preflight.items.map((item) => ({
+          fingerprint: item.fingerprint,
+          name: item.definition.name,
+          existingId: item.existingId,
+          action: item.existingId ? 'REUSE' : parsed.data.dryRun ? 'WOULD_CREATE' : 'CREATED',
+        })),
+      };
+      if (parsed.data.dryRun) {
+        res.json({
+          ...base,
+          conversionId: previousConversion?.id ?? null,
+          attempt: (previousConversion?.attempt ?? 0) + 1,
+          rollbackState: null,
+          rollbackAvailableUntil: 'AVAILABLE_UNTIL_LEGACY_RETIREMENT',
+        });
+        return;
+      }
+      if (reconciliation.status !== 'MATCH') {
+        throw new AggregateConflictError('CONFIG_CHANGED', {
+          reason: 'RECONCILIATION_MISMATCH',
+          reconciliation,
+        });
+      }
+      const switched = await runSerializable(prisma, async (transaction) => {
+        await lockJiraAggregateProject(transaction, req.params.projectId);
+        const projectRows = await transaction.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+          SELECT "status"
+          FROM "Project"
+          WHERE "id" = ${req.params.projectId}
+          FOR UPDATE
+        `);
+        if (!projectRows[0] || projectRows[0].status === 'CLOSED') {
+          throw new AggregateConflictError('CONFIG_CHANGED', 'Проект недоступен для переключения');
+        }
+        const settingsRows = await transaction.$queryRaw<Array<{ id: string; dashboardConfig: Prisma.JsonValue | null }>>(Prisma.sql`
+          SELECT "id", "dashboardConfig"
+          FROM "JiraAnalyticsSettings"
+          WHERE "projectId" = ${req.params.projectId}
+          FOR UPDATE
+        `);
+        const lockedRawConfig = settingsRows[0]?.dashboardConfig ?? null;
+        const lockedHash = jiraDashboardConfigHash(lockedRawConfig);
+        if (lockedHash !== parsed.data.expectedConfigHash) {
+          throw new AggregateConflictError('CONFIG_CHANGED', { currentConfigHash: lockedHash });
+        }
+        const conversionRows = await transaction.$queryRaw<Array<{
+          id: string;
+          attempt: number;
+          rollbackState: 'AVAILABLE' | 'USED' | 'CLOSED';
+        }>>(Prisma.sql`
+          SELECT "id", "attempt", "rollbackState"
+          FROM "JiraAnalyticsDashboardConversion"
+          WHERE "projectId" = ${req.params.projectId}
+          FOR UPDATE
+        `);
+        const previous = conversionRows[0] ?? null;
+        if (previous?.rollbackState === 'CLOSED') {
+          throw new AggregateConflictError('CONFIG_CHANGED', 'Окно legacy-отката закрыто для этого проекта');
+        }
+        if (previous?.rollbackState === 'AVAILABLE') {
+          throw new AggregateConflictError('CONFIG_CHANGED', 'Дашборд уже переключён на управляемые агрегаты');
+        }
+        const lockedDefinitions = await transaction.jiraAggregateDefinition.findMany({
+          where: { projectId: req.params.projectId },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+        });
+        const lockedPlan = buildJiraDashboardSwitchPlan(
+          req.params.projectId,
+          lockedRawConfig,
+          lockedDefinitions,
+        );
+        if (lockedPlan.planHash !== preflight.planHash) {
+          throw new AggregateConflictError('CONFIG_CHANGED', { currentPlanHash: lockedPlan.planHash });
+        }
+        const idsByFingerprint = new Map(
+          lockedPlan.items.flatMap((item) => item.existingId
+            ? [[item.fingerprint, item.existingId] as const]
+            : []),
+        );
+        const createdDefinitionIds: string[] = [];
+        for (const item of lockedPlan.items) {
+          if (item.existingId) continue;
+          const created = await transaction.jiraAggregateDefinition.create({
+            data: jiraAggregateCreateData(req.params.projectId, item.definition),
+          });
+          idsByFingerprint.set(item.fingerprint, created.id);
+          createdDefinitionIds.push(created.id);
+        }
+        const managed = convertJiraDashboardToV2(lockedPlan.legacy, idsByFingerprint);
+        const convertedConfigHash = jiraDashboardConfigHash(managed);
+        await transaction.jiraAnalyticsSettings.upsert({
+          where: { projectId: req.params.projectId },
+          create: {
+            projectId: req.params.projectId,
+            jiraScopeType: 'LABEL',
+            jiraScopeValue: '',
+            dashboardConfig: managed as Prisma.InputJsonObject,
+          },
+          update: { dashboardConfig: managed as Prisma.InputJsonObject },
+        });
+        const conversionData = {
+          originalConfig: lockedPlan.legacy as Prisma.InputJsonObject,
+          originalConfigStored: lockedPlan.sourceStored,
+          sourceConfigHash: lockedPlan.sourceConfigHash,
+          originalConfigHash: lockedPlan.effectiveConfigHash,
+          convertedConfigHash,
+          createdDefinitionIds,
+          rollbackState: 'AVAILABLE' as const,
+          convertedAt: new Date(),
+          rolledBackAt: null,
+          rollbackFinalizedAt: null,
+        };
+        const conversion = previous
+          ? await transaction.jiraAnalyticsDashboardConversion.update({
+              where: { id: previous.id },
+              data: { ...conversionData, attempt: previous.attempt + 1 },
+            })
+          : await transaction.jiraAnalyticsDashboardConversion.create({
+              data: { projectId: req.params.projectId, ...conversionData, attempt: 1 },
+            });
+        await transaction.auditEvent.create({
+          data: {
+            actorId: user.id,
+            actorEmail: user.email ?? null,
+            actorName: user.name ?? null,
+            action: 'jira.aggregate.dashboard.switch',
+            objectType: 'JiraAnalyticsDashboardConversion',
+            objectId: conversion.id,
+            projectId: req.params.projectId,
+            ipAddress: req.ip ?? null,
+            userAgent: req.get('user-agent') ?? null,
+            beforeValue: { dashboardConfig: lockedRawConfig } as Prisma.InputJsonObject,
+            afterValue: { dashboardConfig: managed } as Prisma.InputJsonObject,
+            metadata: {
+              conversionId: conversion.id,
+              attempt: conversion.attempt,
+              planHash: preflight.planHash,
+              reconciliationStatus: reconciliation.status,
+              createdDefinitionIds,
+            },
+          },
+        });
+        return {
+          conversionId: conversion.id,
+          attempt: conversion.attempt,
+          convertedConfigHash,
+          createdDefinitionIds,
+          items: lockedPlan.items.map((item) => ({
+            fingerprint: item.fingerprint,
+            name: item.definition.name,
+            existingId: item.existingId,
+            action: item.existingId ? 'REUSE' as const : 'CREATED' as const,
+          })),
+        };
+      });
+      res.json({
+        ...base,
+        conversionId: switched.conversionId,
+        attempt: switched.attempt,
+        afterHash: switched.convertedConfigHash,
+        items: switched.items,
+        rollbackState: 'AVAILABLE',
+        rollbackAvailableUntil: 'AVAILABLE_UNTIL_LEGACY_RETIREMENT',
+      });
+    } catch (error) {
+      if (respondToAggregateLimit(error, res)) return;
+      if (error instanceof AggregateConflictError) {
+        res.status(409).json({ error: conflictMessage(error), details: error.details ?? null });
+        return;
+      }
+      if (error instanceof Error && (
+        error.message === 'DASHBOARD_NOT_V1' || error.message === 'DASHBOARD_V1_INVALID'
+      )) {
+        res.status(409).json({ error: 'Переключить можно только корректный дашборд v1' });
+        return;
+      }
+      if (isPrismaUniqueConflict(error)) {
+        res.status(409).json({ error: 'Определения агрегатов изменились, повторите проверку' });
+        return;
+      }
+      throw error;
+    }
+  });
+
   router.post('/projects/:projectId/jira/aggregates/convert-dashboard', async (req, res) => {
     const user = requireSystemAdmin(req, res, 'Конвертация дашборда доступна только системному администратору');
     if (!user) {
@@ -883,6 +1183,10 @@ export function registerJiraAggregateRoutes(
     const parsed = migrationBodySchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ error: 'Некорректные параметры конвертации' });
+      return;
+    }
+    if (!parsed.data.dryRun) {
+      res.status(410).json({ error: 'Используйте управляемое переключение с обязательной сверкой v1/v2' });
       return;
     }
     try {
@@ -933,6 +1237,7 @@ export function registerJiraAggregateRoutes(
             create: {
               projectId: req.params.projectId,
               originalConfig: settings.dashboardConfig,
+              sourceConfigHash: currentHash,
               originalConfigHash: currentHash,
               convertedConfigHash: convertedHash,
             },
@@ -951,15 +1256,6 @@ export function registerJiraAggregateRoutes(
         }
         return { beforeHash: currentHash, afterHash: convertedHash, config: converted };
       });
-      await recordAuditEvent({
-        req,
-        actor: user,
-        action: parsed.data.dryRun ? 'jira.aggregate.convert.dry_run' : 'jira.aggregate.convert',
-        objectType: 'JiraAnalyticsSettings',
-        objectId: req.params.projectId,
-        projectId: req.params.projectId,
-        metadata: { beforeHash: outcome.beforeHash, afterHash: outcome.afterHash },
-      });
       res.json(outcome);
     } catch (error) {
       if (error instanceof AggregateConflictError) {
@@ -976,18 +1272,25 @@ export function registerJiraAggregateRoutes(
 
   router.post('/projects/:projectId/jira/aggregates/rollback-dashboard', async (req, res) => {
     const user = requireSystemAdmin(req, res, 'Откат дашборда доступен только системному администратору');
-    if (!user) {
-      return;
-    }
+    if (!user) return;
     if (!await ensureWritableProject(req.params.projectId, res, prisma)) return;
-    const parsed = migrationBodySchema.safeParse(req.body ?? {});
+    const parsed = rollbackBodySchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      res.status(400).json({ error: 'Некорректные параметры отката' });
+      res.status(400).json({ error: 'Некорректные параметры отката', details: parsed.error.flatten() });
       return;
     }
     try {
-      const outcome = await prisma.$transaction(async (transaction) => {
+      const outcome = await runSerializable(prisma, async (transaction) => {
         await lockJiraAggregateProject(transaction, req.params.projectId);
+        const projectRows = await transaction.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+          SELECT "status"
+          FROM "Project"
+          WHERE "id" = ${req.params.projectId}
+          FOR UPDATE
+        `);
+        if (!projectRows[0] || projectRows[0].status === 'CLOSED') {
+          throw new AggregateConflictError('CONFIG_CHANGED', 'Проект недоступен для отката');
+        }
         const settingsRows = await transaction.$queryRaw<Array<{ id: string; dashboardConfig: Prisma.JsonValue | null }>>(Prisma.sql`
           SELECT "id", "dashboardConfig"
           FROM "JiraAnalyticsSettings"
@@ -998,37 +1301,76 @@ export function registerJiraAggregateRoutes(
         const conversion = await transaction.jiraAnalyticsDashboardConversion.findUnique({
           where: { projectId: req.params.projectId },
         });
-        if (!settings || !conversion || conversion.rolledBackAt) {
+        if (!settings || !conversion || conversion.rollbackState !== 'AVAILABLE') {
           throw new AggregateConflictError('CONFIG_CHANGED', 'Активная конвертация для отката отсутствует');
+        }
+        if (conversion.attempt !== parsed.data.attempt) {
+          throw new AggregateConflictError('CONFIG_CHANGED', {
+            reason: 'CONVERSION_ATTEMPT_CHANGED',
+            currentAttempt: conversion.attempt,
+          });
         }
         const currentHash = jiraDashboardConfigHash(settings.dashboardConfig);
         if (currentHash !== parsed.data.expectedConfigHash || currentHash !== conversion.convertedConfigHash) {
           throw new AggregateConflictError('CONFIG_CHANGED', { currentConfigHash: currentHash });
         }
         if (!parsed.data.dryRun) {
+          const restoredConfig = conversion.originalConfigStored ? conversion.originalConfig : null;
+          await transaction.auditEvent.create({
+            data: {
+              actorId: user.id,
+              actorEmail: user.email ?? null,
+              actorName: user.name ?? null,
+              action: 'jira.aggregate.dashboard.rollback',
+              objectType: 'JiraAnalyticsDashboardConversion',
+              objectId: conversion.id,
+              projectId: req.params.projectId,
+              ipAddress: req.ip ?? null,
+              userAgent: req.get('user-agent') ?? null,
+              beforeValue: {
+                dashboardConfig: settings.dashboardConfig,
+                configHash: currentHash,
+              } as Prisma.InputJsonObject,
+              afterValue: {
+                dashboardConfig: restoredConfig,
+                configHash: conversion.sourceConfigHash,
+              } as Prisma.InputJsonObject,
+              metadata: {
+                conversionId: conversion.id,
+                attempt: conversion.attempt,
+                rollbackState: 'USED',
+              },
+            },
+          });
           await transaction.jiraAnalyticsSettings.update({
             where: { id: settings.id },
-            data: { dashboardConfig: conversion.originalConfig as Prisma.InputJsonObject },
+            data: {
+              dashboardConfig: conversion.originalConfigStored
+                ? conversion.originalConfig as Prisma.InputJsonObject
+                : Prisma.DbNull,
+            },
           });
           await transaction.jiraAnalyticsDashboardConversion.update({
             where: { id: conversion.id },
-            data: { rolledBackAt: new Date() },
+            data: {
+              rollbackState: 'USED',
+              rolledBackAt: new Date(),
+              rollbackFinalizedAt: null,
+            },
           });
         }
         return {
+          conversionId: conversion.id,
+          attempt: conversion.attempt,
           beforeHash: currentHash,
-          afterHash: conversion.originalConfigHash,
-          config: conversion.originalConfig,
+          afterHash: conversion.sourceConfigHash,
+          effectiveConfigHash: conversion.originalConfigHash,
+          sourceStored: conversion.originalConfigStored,
+          config: conversion.originalConfigStored ? conversion.originalConfig : null,
+          discardedConfig: settings.dashboardConfig,
+          rollbackState: parsed.data.dryRun ? 'AVAILABLE' : 'USED',
+          rollbackAvailableUntil: parsed.data.dryRun ? 'AVAILABLE_UNTIL_LEGACY_RETIREMENT' : null,
         };
-      });
-      await recordAuditEvent({
-        req,
-        actor: user,
-        action: parsed.data.dryRun ? 'jira.aggregate.rollback.dry_run' : 'jira.aggregate.rollback',
-        objectType: 'JiraAnalyticsSettings',
-        objectId: req.params.projectId,
-        projectId: req.params.projectId,
-        metadata: { beforeHash: outcome.beforeHash, afterHash: outcome.afterHash },
       });
       res.json(outcome);
     } catch (error) {

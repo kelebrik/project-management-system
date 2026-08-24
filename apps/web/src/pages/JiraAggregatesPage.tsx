@@ -46,16 +46,34 @@ type AggregateCatalog = {
     stored: boolean;
     version: number | null;
     configHash: string;
+    conversionId: string | null;
+    attempt: number | null;
+    sourceConfigHash: string | null;
+    originalConfigHash: string | null;
+    originalConfigStored: boolean | null;
     convertedConfigHash: string | null;
     convertedAt: string | null;
     rolledBackAt: string | null;
+    rollbackState: "AVAILABLE" | "USED" | "CLOSED" | null;
+    rollbackFinalizedAt: string | null;
+    rollbackAvailableUntil: "AVAILABLE_UNTIL_LEGACY_RETIREMENT" | null;
   };
 };
 
 type DashboardOperationResult = {
+  dryRun?: boolean;
+  conversionId?: string | null;
+  attempt?: number;
+  sourceStored?: boolean;
+  sourceConfigHash?: string;
+  effectiveConfigHash?: string;
+  planHash?: string;
+  rollbackState?: "AVAILABLE" | "USED" | "CLOSED" | null;
+  rollbackAvailableUntil?: "AVAILABLE_UNTIL_LEGACY_RETIREMENT" | null;
   beforeHash?: string;
   afterHash?: string;
   sourceWidgets?: number;
+  reconciliation?: DashboardReconciliationResult;
   items?: Array<{
     name: string;
     action: "REUSE" | "WOULD_CREATE" | "CREATED";
@@ -458,18 +476,32 @@ export function JiraAggregatesPage() {
   };
 
   const runDashboardOperation = async (
-    operation: "import-dashboard" | "convert-dashboard" | "rollback-dashboard",
+    operation: "switch-dashboard" | "rollback-dashboard",
     dryRun: boolean,
   ) => {
     if (!canEdit || !catalog) return;
+    if (operation === "rollback-dashboard" && catalog.dashboard.attempt === null) return;
     setSaving(true);
     try {
+      const body = operation === "switch-dashboard"
+        ? {
+            dryRun,
+            expectedConfigHash: catalog.dashboard.configHash,
+            periodDays,
+            assignee,
+          }
+        : {
+            dryRun,
+            expectedConfigHash: catalog.dashboard.configHash,
+            attempt: catalog.dashboard.attempt,
+          };
       const result = await apiClient.post<DashboardOperationResult>(
         `/api/projects/${project.id}/jira/aggregates/${operation}`,
-        { dryRun, expectedConfigHash: catalog.dashboard.configHash },
+        body,
         "Операция с дашбордом не выполнена",
       );
       setOperationResult(result);
+      if (result.reconciliation) setReconciliation(result.reconciliation);
       await loadCatalog(selectedId);
       if (!dryRun) await refreshProject(project.id);
       setNotice(dryRun ? "Проверка завершена без изменений" : "Операция завершена");
@@ -556,19 +588,18 @@ export function JiraAggregatesPage() {
           ))}
           {catalog?.definitions.length === 0 && <span className="jira-aggregate-catalog-empty">Каталог пуст</span>}
         </div>
-        {isSystemAdmin && catalog?.dashboard.stored && (
+        {isSystemAdmin && catalog && (
           <section className="jira-aggregate-migration">
-            <h4>Дашборд v{catalog.dashboard.version ?? "?"}</h4>
-            {canEdit && catalog.dashboard.version === 1 && (
+            <h4>Дашборд v{catalog.dashboard.version ?? 1}</h4>
+            {canEdit && (catalog.dashboard.version === 1 || !catalog.dashboard.stored) && (
               <>
-                <button type="button" className="button" disabled={saving} onClick={() => runDashboardOperation("import-dashboard", true)}><Eye size={15} /> Проверить импорт</button>
-                <button type="button" className="button" disabled={saving} onClick={() => runDashboardOperation("import-dashboard", false)}><Database size={15} /> Импортировать</button>
-                <button type="button" className="button" disabled={saving || (catalog?.definitions.length ?? 0) === 0} onClick={() => runDashboardOperation("convert-dashboard", true)}><Eye size={15} /> Проверить v2</button>
-                <button type="button" className="button" disabled={saving || (catalog?.definitions.length ?? 0) === 0} onClick={() => runDashboardOperation("convert-dashboard", false)}><History size={15} /> Перевести в v2</button>
+                <button type="button" className="button" disabled={saving} onClick={() => runDashboardOperation("switch-dashboard", true)}><Eye size={15} /> Проверить переключение</button>
+                <button type="button" className="button" disabled={saving} onClick={() => runDashboardOperation("switch-dashboard", false)}><History size={15} /> Переключить на v2</button>
               </>
             )}
-            {canEdit && catalog.dashboard.version === 2 && catalog.dashboard.convertedAt && !catalog.dashboard.rolledBackAt && (
+            {canEdit && catalog.dashboard.version === 2 && catalog.dashboard.rollbackState === "AVAILABLE" && (
               <>
+                <div className="jira-aggregate-operation-result"><strong>Откат доступен</strong><span>Конверсия {catalog.dashboard.attempt}</span></div>
                 <button type="button" className="button" disabled={saving || catalog.dashboard.convertedConfigHash !== catalog.dashboard.configHash} onClick={() => runDashboardOperation("rollback-dashboard", true)}><Eye size={15} /> Проверить откат</button>
                 <button type="button" className="button" disabled={saving || catalog.dashboard.convertedConfigHash !== catalog.dashboard.configHash} onClick={() => runDashboardOperation("rollback-dashboard", false)}><RotateCcw size={15} /> Вернуть v1</button>
                 {catalog.dashboard.convertedConfigHash !== catalog.dashboard.configHash && (
@@ -576,14 +607,17 @@ export function JiraAggregatesPage() {
                 )}
               </>
             )}
-            <button
-              type="button"
-              className="button"
-              disabled={saving || (catalog?.definitions.length ?? 0) === 0}
-              onClick={runReconciliation}
-            >
-              <Scale size={15} /> Сверить v1 и v2
-            </button>
+            {catalog.dashboard.rollbackState === "CLOSED" && <div className="jira-aggregate-validation">Окно legacy-отката закрыто</div>}
+            {catalog.dashboard.version === 2 && (
+              <button
+                type="button"
+                className="button"
+                disabled={saving || (catalog?.definitions.length ?? 0) === 0}
+                onClick={runReconciliation}
+              >
+                <Scale size={15} /> Сверить v1 и v2
+              </button>
+            )}
             <p className="jira-aggregate-migration-caveat">Сверка проверяет совпадение v1/v2 на одних данных, но не является независимой проверкой формул.</p>
             {operationResult && (
               <div className="jira-aggregate-operation-result" role="status">
@@ -592,6 +626,7 @@ export function JiraAggregatesPage() {
                     <strong>{operationResult.sourceWidgets ?? 0} виджетов</strong>
                     <span>Создать: {operationResult.items.filter((item) => item.action === "WOULD_CREATE" || item.action === "CREATED").length}</span>
                     <span>Переиспользовать: {operationResult.items.filter((item) => item.action === "REUSE").length}</span>
+                    {operationResult.reconciliation && <span>Сверка: {operationResult.reconciliation.status === "MATCH" ? "совпадает" : "есть расхождения"}</span>}
                   </>
                 ) : (
                   <>

@@ -12,6 +12,7 @@ import {
 import type { JiraAggregateDefinition } from '@prisma/client';
 import {
   buildJiraAggregateImportPlan,
+  buildJiraDashboardSwitchPlan,
   convertJiraDashboardToV2,
   inspectJiraDashboardDefinitionUse,
   jiraAggregateFingerprint,
@@ -676,6 +677,25 @@ test('dashboard conversion keeps presentation and replaces inline rules with ref
   });
 });
 
+test('stage F switch materializes the default v1 dashboard without changing its raw null hash', () => {
+  const first = buildJiraDashboardSwitchPlan('project-1', null, []);
+  assert.equal(first.sourceStored, false);
+  assert.equal(first.sourceConfigHash, jiraDashboardConfigHash(null));
+  assert.equal(first.legacy.version, 1);
+  assert.equal(first.managed.version, 2);
+  assert.ok(first.legacy.widgets.length > 0);
+  assert.ok(first.items.length > 0);
+
+  const persistedDefinitions = first.definitions.map((definition, index) => ({
+    ...definition,
+    id: `aggregate-${index + 1}`,
+  }));
+  const second = buildJiraDashboardSwitchPlan('project-1', null, persistedDefinitions);
+  assert.equal(second.planHash, first.planHash);
+  assert.equal(second.effectiveConfigHash, first.effectiveConfigHash);
+  assert.notEqual(jiraDashboardConfigHash(second.managed), jiraDashboardConfigHash(first.managed));
+});
+
 test('bounded aggregate CSV escapes spreadsheet formulas and exports typed records', () => {
   const result = evaluateJiraAnalyticsAggregate(
     definition({ scope: 'retro' }),
@@ -761,15 +781,23 @@ test('aggregate mutations use a project-scoped advisory transaction lock', async
   assert.deepEqual(queryValues, ['jira-aggregates:project-1']);
 });
 
-test('dashboard writes keep the active conversion hash synchronized under the aggregate lock', () => {
+test('dashboard writes keep the managed hash synchronized and block only engine version transitions', () => {
   const routeSource = fs.readFileSync(new URL('../routes/issues.routes.ts', import.meta.url), 'utf8');
   assert.match(routeSource, /lockJiraAggregateProject\(transaction, project\.id\)/u);
   assert.match(
     routeSource,
     /jiraAnalyticsDashboardConversion\.updateMany\([\s\S]*convertedConfigHash:\s*jiraDashboardConfigHash\(parsed\.data\.config\)/u,
   );
-  assert.match(
-    routeSource,
-    /jiraAnalyticsDashboardConversion\.updateMany\([\s\S]*rolledBackAt:\s*new Date\(\)/u,
-  );
+  assert.match(routeSource, /previousVersion: 1 \| 2 = previousRecord\?\.version === 2 \? 2 : 1/u);
+  assert.match(routeSource, /parsed\.data\.config\.version !== previousVersion/u);
+  assert.doesNotMatch(routeSource, /data:\s*\{\s*rolledBackAt:\s*new Date\(\)\s*\}/u);
+});
+
+test('stage F routes bind rollback to the conversion attempt and restore a raw default null', () => {
+  const routeSource = fs.readFileSync(new URL('../routes/jira-aggregates.routes.ts', import.meta.url), 'utf8');
+  assert.match(routeSource, /conversion\.attempt !== parsed\.data\.attempt/u);
+  assert.match(routeSource, /conversion\.originalConfigStored[\s\S]*Prisma\.DbNull/u);
+  assert.match(routeSource, /Prisma\.TransactionIsolationLevel\.Serializable/u);
+  assert.match(routeSource, /if \(parsed\.data\.dryRun\) \{[\s\S]*res\.json\([\s\S]*return;/u);
+  assert.match(routeSource, /rollbackState:\s*'USED'[\s\S]*rolledBackAt:\s*new Date\(\)/u);
 });

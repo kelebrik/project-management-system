@@ -100,6 +100,43 @@ const jiraDashboardMigrationRequestBody = {
   },
 };
 
+const jiraDashboardSwitchRequestBody = {
+  required: true,
+  content: {
+    "application/json": {
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          dryRun: { type: "boolean" },
+          expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          periodDays: { type: "integer", enum: [30, 90, 180, 365] },
+          assignee: { type: "string", maxLength: 200 },
+        },
+        required: ["dryRun", "expectedConfigHash", "periodDays", "assignee"],
+      },
+    },
+  },
+};
+
+const jiraDashboardRollbackRequestBody = {
+  required: true,
+  content: {
+    "application/json": {
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          dryRun: { type: "boolean" },
+          expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          attempt: { type: "integer", minimum: 1 },
+        },
+        required: ["dryRun", "expectedConfigHash", "attempt"],
+      },
+    },
+  },
+};
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
@@ -1160,11 +1197,19 @@ export const openApiDocument = {
                     stored: { type: "boolean" },
                     version: { type: ["integer", "null"], enum: [1, 2, null] },
                     configHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+                    conversionId: { type: ["string", "null"] },
+                    attempt: { type: ["integer", "null"], minimum: 1 },
+                    sourceConfigHash: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
+                    originalConfigHash: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
+                    originalConfigStored: { type: ["boolean", "null"] },
                     convertedConfigHash: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
                     convertedAt: { type: ["string", "null"], format: "date-time" },
                     rolledBackAt: { type: ["string", "null"], format: "date-time" },
+                    rollbackState: { type: ["string", "null"], enum: ["AVAILABLE", "USED", "CLOSED", null] },
+                    rollbackFinalizedAt: { type: ["string", "null"], format: "date-time" },
+                    rollbackAvailableUntil: { type: ["string", "null"], enum: ["AVAILABLE_UNTIL_LEGACY_RETIREMENT", null] },
                   },
-                  required: ["stored", "version", "configHash", "convertedConfigHash", "convertedAt", "rolledBackAt"],
+                  required: ["stored", "version", "configHash", "conversionId", "attempt", "sourceConfigHash", "originalConfigHash", "originalConfigStored", "convertedConfigHash", "convertedAt", "rolledBackAt", "rollbackState", "rollbackFinalizedAt", "rollbackAvailableUntil"],
                 },
               },
               required: ["definitions", "dashboard"],
@@ -1374,18 +1419,30 @@ export const openApiDocument = {
     },
     "/api/projects/{projectId}/jira/aggregates/convert-dashboard": {
       post: {
-        ...securedOperation(["Jira"], "Convert dashboard v1 widgets to aggregate references v2", [projectIdParam]),
+        ...securedOperation(["Jira"], "Deprecated dry-run for the former manual v1 to v2 conversion", [projectIdParam]),
+        deprecated: true,
         requestBody: jiraDashboardMigrationRequestBody,
         responses: {
-          "200": { description: "Conversion dry-run or applied v2 dashboard" },
+          "200": { description: "Legacy conversion dry-run" },
+          "410": { description: "Applied conversion was replaced by the reconciled switch endpoint" },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/aggregates/switch-dashboard": {
+      post: {
+        ...securedOperation(["Jira"], "Reconcile and atomically switch dashboard widgets to managed aggregate definitions", [projectIdParam]),
+        requestBody: jiraDashboardSwitchRequestBody,
+        responses: {
+          "200": { description: "Read-only preflight or applied stage F switch" },
           ...jiraAggregateErrorResponses,
         },
       },
     },
     "/api/projects/{projectId}/jira/aggregates/rollback-dashboard": {
       post: {
-        ...securedOperation(["Jira"], "Roll back an A2 dashboard conversion from v2 to v1", [projectIdParam]),
-        requestBody: jiraDashboardMigrationRequestBody,
+        ...securedOperation(["Jira"], "Roll back the current stage F conversion attempt from v2 to v1", [projectIdParam]),
+        requestBody: jiraDashboardRollbackRequestBody,
         responses: {
           "200": { description: "Rollback dry-run or restored v1 dashboard" },
           ...jiraAggregateErrorResponses,

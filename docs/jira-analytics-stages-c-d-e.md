@@ -55,3 +55,5 @@ Before enabling managed definitions for a project:
 6. accept the migration only when the API reports no mismatches, or document each intentional difference.
 
 All reconciliation metadata written to the audit log is compact operational metadata. Evaluated issue records and raw Jira payloads are not stored in audit events.
+
+The controlled production switch and rollback window are specified in [`jira-analytics-stage-f.md`](./jira-analytics-stage-f.md).

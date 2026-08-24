@@ -189,6 +189,16 @@ class JiraDashboardAggregateReferenceError extends Error {
   }
 }
 
+class JiraDashboardEngineStateError extends Error {
+  constructor(public readonly details: {
+    previousVersion: 1 | 2;
+    requestedVersion: 1 | 2;
+    rollbackState: string | null;
+  }) {
+    super('JIRA_DASHBOARD_ENGINE_STATE_INVALID');
+  }
+}
+
 const jiraCapacitySampleSchema = z.object({
   scopeType: z.enum(['LABEL', 'EPIC']),
   scopeValue: z.string().trim().min(1).max(100),
@@ -899,6 +909,23 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
       const previous = lockedSettings[0]
         ? await transaction.jiraAnalyticsSettings.findUnique({ where: { id: lockedSettings[0].id } })
         : null;
+      const conversion = await transaction.jiraAnalyticsDashboardConversion.findUnique({
+        where: { projectId: project.id },
+        select: { rollbackState: true },
+      });
+      const rollbackState = conversion?.rollbackState ?? null;
+      const previousRecord = previous?.dashboardConfig && typeof previous.dashboardConfig === 'object'
+        && !Array.isArray(previous.dashboardConfig)
+        ? previous.dashboardConfig as Prisma.JsonObject
+        : null;
+      const previousVersion: 1 | 2 = previousRecord?.version === 2 ? 2 : 1;
+      if (parsed.data.config.version !== previousVersion) {
+        throw new JiraDashboardEngineStateError({
+          previousVersion,
+          requestedVersion: parsed.data.config.version,
+          rollbackState,
+        });
+      }
       const next = await transaction.jiraAnalyticsSettings.upsert({
         where: { projectId: project.id },
         create: {
@@ -911,13 +938,8 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
       });
       if (parsed.data.config.version === 2) {
         await transaction.jiraAnalyticsDashboardConversion.updateMany({
-          where: { projectId: project.id, rolledBackAt: null },
+          where: { projectId: project.id, rollbackState: { in: ['AVAILABLE', 'CLOSED'] } },
           data: { convertedConfigHash: jiraDashboardConfigHash(parsed.data.config) },
-        });
-      } else {
-        await transaction.jiraAnalyticsDashboardConversion.updateMany({
-          where: { projectId: project.id, rolledBackAt: null },
-          data: { rolledBackAt: new Date() },
         });
       }
       return { before: previous, settings: next };
@@ -926,6 +948,15 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
     if (error instanceof JiraDashboardAggregateReferenceError) {
       res.status(409).json({
         error: 'Конфигурация ссылается на недоступные или несовместимые агрегаты',
+        ...error.details,
+      });
+      return;
+    }
+    if (error instanceof JiraDashboardEngineStateError) {
+      res.status(409).json({
+        error: error.details.requestedVersion === 1
+          ? 'Вернуть legacy-дашборд можно только через штатный откат'
+          : 'Сначала выполните управляемое переключение дашборда',
         ...error.details,
       });
       return;
