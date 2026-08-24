@@ -1321,6 +1321,87 @@ test('fetchJiraIssueKeys fails closed when discovery pages overlap', async () =>
   }
 });
 
+test('fetchJiraIssueKeys restarts one inconsistent discovery pass', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    calls += 1;
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const startAt = Number(body.startAt);
+    const firstPass = calls <= 2;
+    return new Response(
+      JSON.stringify({
+        startAt,
+        maxResults: 1,
+        total: firstPass && startAt === 1 ? 3 : 2,
+        issues: [{ key: startAt === 0 ? 'CVTE-1' : 'SPS-2' }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issueKeys = await fetchJiraIssueKeys('ORDER BY key ASC', {
+      fetchAllPages: true,
+      pageSize: 1,
+    });
+    assert.deepEqual(issueKeys, ['CVTE-1', 'SPS-2']);
+    assert.equal(calls, 4);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssueKeys rejects an unexpectedly empty discovery restart', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    calls += 1;
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const startAt = Number(body.startAt);
+    if (calls >= 2) {
+      return new Response(
+        JSON.stringify({ startAt, maxResults: 1, total: 0, issues: [] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    return new Response(
+      JSON.stringify({
+        startAt: 0,
+        maxResults: 1,
+        total: 2,
+        issues: [{ key: 'CVTE-1' }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssueKeys('ORDER BY key ASC', {
+        fetchAllPages: true,
+        pageSize: 1,
+      }),
+      /unexpectedly returned an empty scope/,
+    );
+    assert.equal(calls, 3);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
 test('fetchJiraIssues keeps the configured result limit for ordinary searches', async () => {
   const previousEnv = snapshotJiraEnv();
   const previousFetch = globalThis.fetch;
@@ -2424,6 +2505,138 @@ test('fetchJiraIssues summarizes HTML Jira errors without parsing tag content', 
         return true;
       },
     );
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('fetchJiraIssues retries a transient Jira gateway timeout', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let requests = 0;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async () => {
+    requests += 1;
+    if (requests === 1) {
+      return new Response('<html><body>Gateway timeout</body></html>', {
+        status: 504,
+        headers: { 'Retry-After': '0' },
+      });
+    }
+    return new Response(
+      JSON.stringify({
+        issues: [{
+          key: 'PMS-504',
+          fields: {
+            summary: 'Recovered Jira search',
+            status: { name: 'Open' },
+            priority: { name: 'Medium' },
+            assignee: null,
+            issuetype: { name: 'Task' },
+            updated: '2026-08-24T10:00:00.000+0300',
+          },
+          changelog: { histories: [] },
+        }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const issues = await fetchJiraIssues('project = PMS');
+    assert.equal(requests, 2);
+    assert.equal(issues[0]?.key, 'PMS-504');
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('Jira search retries every supported transient gateway status', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  try {
+    for (const status of [429, 502, 503]) {
+      let requests = 0;
+      globalThis.fetch = (async () => {
+        requests += 1;
+        return requests === 1
+          ? new Response('temporary failure', {
+              status,
+              headers: { 'Retry-After': '0' },
+            })
+          : new Response(
+              JSON.stringify({ issues: [{ key: `PMS-${status}` }] }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            );
+      }) as typeof fetch;
+      assert.deepEqual(await fetchJiraIssueKeys('project = PMS'), [`PMS-${status}`]);
+      assert.equal(requests, 2);
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('Jira search stops after the shared transient retry budget is exhausted', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let requests = 0;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async () => {
+    requests += 1;
+    return new Response('gateway timeout', {
+      status: 504,
+      headers: { 'Retry-After': '0' },
+    });
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssueKeys('project = PMS'),
+      /Jira request failed: 504 gateway timeout/,
+    );
+    assert.equal(requests, 3);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreJiraEnv(previousEnv);
+  }
+});
+
+test('Jira search does not schedule a retry beyond the synchronization deadline', async () => {
+  const previousEnv = snapshotJiraEnv();
+  const previousFetch = globalThis.fetch;
+  let requests = 0;
+
+  process.env.JIRA_BASE_URL = 'https://jira.example';
+  process.env.JIRA_EMAIL = 'bot@example.com';
+  process.env.JIRA_API_TOKEN = 'secret';
+  globalThis.fetch = (async () => {
+    requests += 1;
+    return new Response('rate limited', {
+      status: 429,
+      headers: { 'Retry-After': '3600' },
+    });
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => fetchJiraIssueKeys('project = PMS', { deadlineAt: Date.now() + 100 }),
+      (error) => error instanceof JiraSyncDeadlineError && /ответа 429/.test(error.message),
+    );
+    assert.equal(requests, 1);
   } finally {
     globalThis.fetch = previousFetch;
     restoreJiraEnv(previousEnv);

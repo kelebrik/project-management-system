@@ -55,6 +55,7 @@ import {
 const JIRA_ANALYTICS_SYNC_CONCURRENCY = 4;
 const JIRA_ANALYTICS_BATCH_SIZE = 50;
 const JIRA_HISTORY_BATCH_SIZE = 20;
+const JIRA_SYNC_DISCOVERY_PAGE_SIZE = 100;
 
 export function isFatalJiraHistoryBatchError(error: unknown) {
   if (
@@ -268,7 +269,7 @@ export async function runJiraSyncPipeline(
     baseUrl: run.jiraBaseUrl ?? undefined,
     fetchAllPages: true,
     analyticsScope: { type: run.jiraScopeType, value: run.jiraScopeValue },
-    pageSize: 500,
+    pageSize: JIRA_SYNC_DISCOVERY_PAGE_SIZE,
     deadlineAt,
   });
   if (discovery.jiraUser) jiraUsers.add(discovery.jiraUser);
@@ -280,7 +281,7 @@ export async function runJiraSyncPipeline(
       const subtasks = await fetchJiraIssueKeysWithMeta(jiraParentKeyBatchJql(parentIssueKeys), {
         baseUrl: run.jiraBaseUrl ?? undefined,
         fetchAllPages: true,
-        pageSize: 500,
+        pageSize: JIRA_SYNC_DISCOVERY_PAGE_SIZE,
         deadlineAt,
       });
       if (subtasks.jiraUser) jiraUsers.add(subtasks.jiraUser);
@@ -408,14 +409,17 @@ export async function runJiraSyncPipeline(
       syncedAt,
     );
   } else if (storedCursor) {
-    for (const issueKeys of jiraIssueKeyBatches(discoveredIssueKeys, 500)) {
+    for (const issueKeys of jiraIssueKeyBatches(
+      discoveredIssueKeys,
+      JIRA_SYNC_DISCOVERY_PAGE_SIZE,
+    )) {
       abortIfNeeded(options.signal);
       const changed = await fetchJiraIssueKeysWithMeta(
         jiraJqlWithIssueKeys(jiraHistoryUpdatedSinceJql(storedCursor.updatedAt, new Date()), issueKeys),
         {
           baseUrl: run.jiraBaseUrl ?? undefined,
           fetchAllPages: true,
-          pageSize: 500,
+          pageSize: JIRA_SYNC_DISCOVERY_PAGE_SIZE,
           deadlineAt,
         },
       );
@@ -645,7 +649,7 @@ export async function runJiraSyncPipeline(
       const jiraResult = await fetchJiraIssueKeysWithMeta(scopedJql, {
         baseUrl: run.jiraBaseUrl ?? undefined,
         fetchAllPages: true,
-        pageSize: 500,
+        pageSize: JIRA_SYNC_DISCOVERY_PAGE_SIZE,
         deadlineAt,
       });
       if (jiraResult.jiraUser) {

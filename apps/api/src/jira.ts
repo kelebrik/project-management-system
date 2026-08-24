@@ -247,6 +247,10 @@ type JiraSearchResult<SearchPage extends JiraSearchPage = JiraSearchResponse> = 
   jiraUser?: string;
 };
 
+type JiraSearchRetryBudget = {
+  remaining: number;
+};
+
 type JiraCurrentUserResult = {
   authenticated: boolean;
   identity?: string;
@@ -1341,6 +1345,10 @@ async function fetchJiraFilterJql(
 
 const JIRA_SEARCH_TIMEOUT_MS = 60_000;
 const JIRA_CHANGELOG_TIMEOUT_MS = 30_000;
+const JIRA_SEARCH_MAX_ATTEMPTS = 3;
+const JIRA_SEARCH_RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+const JIRA_SEARCH_RETRY_DELAYS_MS = [250, 750] as const;
+const JIRA_SEARCH_MAX_RETRY_AFTER_MS = 5_000;
 
 function jiraRequestTimeout(deadlineAt: number | undefined, requestTimeoutMs: number) {
   const remainingMs = deadlineAt === undefined ? requestTimeoutMs : deadlineAt - Date.now();
@@ -1357,12 +1365,28 @@ function jiraTimeoutError(error: unknown, operation: string) {
   return error;
 }
 
+function jiraSearchRetryDelay(response: Response, attempt: number) {
+  const retryAfter = response.headers.get('retry-after')?.trim();
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(seconds * 1_000, JIRA_SEARCH_MAX_RETRY_AFTER_MS);
+    }
+    const retryAt = Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) {
+      return Math.min(Math.max(0, retryAt - Date.now()), JIRA_SEARCH_MAX_RETRY_AFTER_MS);
+    }
+  }
+  return JIRA_SEARCH_RETRY_DELAYS_MS[attempt] ?? 0;
+}
+
 async function fetchJiraSearch<SearchPage extends JiraSearchPage = JiraSearchResponse>(
   baseUrl: string,
   searchBody: string,
   authHeaders: Record<string, string>,
   schema: z.ZodType<SearchPage> = jiraSearchResponseSchema as unknown as z.ZodType<SearchPage>,
   deadlineAt?: number,
+  retryBudget: JiraSearchRetryBudget = { remaining: JIRA_SEARCH_MAX_ATTEMPTS - 1 },
 ): Promise<JiraSearchResult<SearchPage>> {
   let lastErrorBody = '';
   let lastStatus = 0;
@@ -1370,69 +1394,112 @@ async function fetchJiraSearch<SearchPage extends JiraSearchPage = JiraSearchRes
 
   for (const [index, path] of paths.entries()) {
     const isLastPath = index === paths.length - 1;
-    const startedAt = Date.now();
-    let response: Response;
-    try {
-      response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
-        method: 'POST',
-        redirect: 'manual',
-        headers: {
-          ...authHeaders,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: searchBody,
-        signal: jiraRequestTimeout(deadlineAt, JIRA_SEARCH_TIMEOUT_MS),
-      });
-    } catch (error) {
-      logEvent('warn', 'jira.search.failed', {
-        path,
-        durationMs: Date.now() - startedAt,
-        reason: error instanceof Error ? error.name : 'unknown',
-      });
-      throw jiraTimeoutError(error, 'Поиск Jira');
-    }
-    logEvent(response.ok ? 'info' : 'warn', 'jira.search.completed', {
-      path,
-      status: response.status,
-      durationMs: Date.now() - startedAt,
-    });
-
-    if (response.ok) {
-      if (!isJsonResponse(response)) {
-        return { parsed: null, status: response.status, body: await response.text() };
-      }
-
+    for (let attempt = 0; attempt < JIRA_SEARCH_MAX_ATTEMPTS; attempt += 1) {
+      const startedAt = Date.now();
+      let response: Response;
       try {
-        return {
-          parsed: schema.parse(await response.json()),
-          status: response.status,
-          body: '',
-        };
+        response = await fetchJiraReadOnly(`${baseUrl}${path}`, {
+          method: 'POST',
+          redirect: 'manual',
+          headers: {
+            ...authHeaders,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: searchBody,
+          signal: jiraRequestTimeout(deadlineAt, JIRA_SEARCH_TIMEOUT_MS),
+        });
       } catch (error) {
-        return {
-          parsed: null,
-          status: response.status,
-          body: error instanceof Error ? error.message : 'Jira response is not valid JSON',
-        };
+        logEvent('warn', 'jira.search.failed', {
+          path,
+          attempt: attempt + 1,
+          durationMs: Date.now() - startedAt,
+          reason: error instanceof Error ? error.name : 'unknown',
+        });
+        throw jiraTimeoutError(error, 'Поиск Jira');
       }
-    }
+      logEvent(response.ok ? 'info' : 'warn', 'jira.search.completed', {
+        path,
+        attempt: attempt + 1,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+      });
 
-    lastStatus = response.status;
-    lastErrorBody =
-      response.status >= 300 && response.status < 400
-        ? `Redirected to ${response.headers.get('location') ?? 'unknown location'}`
-        : await response.text();
-    if (response.status === 400 && isAnonymousFieldVisibilityError(lastErrorBody)) {
-      return { parsed: null, status: lastStatus, body: lastErrorBody };
-    }
-    if (
-      [401, 403].includes(response.status) ||
-      (response.status >= 300 && response.status < 400)
-    ) {
-      return { parsed: null, status: lastStatus, body: lastErrorBody };
-    }
-    if (![404, 405, 410].includes(response.status) || isLastPath) {
+      if (response.ok) {
+        if (!isJsonResponse(response)) {
+          return { parsed: null, status: response.status, body: await response.text() };
+        }
+
+        try {
+          return {
+            parsed: schema.parse(await response.json()),
+            status: response.status,
+            body: '',
+          };
+        } catch (error) {
+          return {
+            parsed: null,
+            status: response.status,
+            body: error instanceof Error ? error.message : 'Jira response is not valid JSON',
+          };
+        }
+      }
+
+      lastStatus = response.status;
+      lastErrorBody =
+        response.status >= 300 && response.status < 400
+          ? `Redirected to ${response.headers.get('location') ?? 'unknown location'}`
+          : await response.text();
+      if (response.status === 400 && isAnonymousFieldVisibilityError(lastErrorBody)) {
+        return { parsed: null, status: lastStatus, body: lastErrorBody };
+      }
+      if (
+        [401, 403].includes(response.status) ||
+        (response.status >= 300 && response.status < 400)
+      ) {
+        return { parsed: null, status: lastStatus, body: lastErrorBody };
+      }
+      if (
+        JIRA_SEARCH_RETRYABLE_STATUSES.has(response.status) &&
+        attempt < JIRA_SEARCH_MAX_ATTEMPTS - 1 &&
+        retryBudget.remaining > 0
+      ) {
+        const delayMs = jiraSearchRetryDelay(response, attempt);
+        if (deadlineAt !== undefined && Date.now() + delayMs >= deadlineAt) {
+          logEvent('warn', 'jira.search.retry_skipped', {
+            path,
+            attempt: attempt + 1,
+            status: response.status,
+            reason: 'deadline',
+          });
+          throw new JiraSyncDeadlineError(
+            `Превышен общий лимит времени синхронизации Jira после ответа ${response.status}`,
+          );
+        }
+        retryBudget.remaining -= 1;
+        logEvent('warn', 'jira.search.retry_scheduled', {
+          path,
+          attempt: attempt + 1,
+          status: response.status,
+          delayMs,
+          retriesRemaining: retryBudget.remaining,
+        });
+        if (delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+        continue;
+      }
+      if (JIRA_SEARCH_RETRYABLE_STATUSES.has(response.status)) {
+        logEvent('warn', 'jira.search.retry_exhausted', {
+          path,
+          attempt: attempt + 1,
+          status: response.status,
+          retriesRemaining: retryBudget.remaining,
+        });
+      }
+      if ([404, 405, 410].includes(response.status) && !isLastPath) {
+        break;
+      }
       throw new Error(
         `Jira request failed: ${response.status} ${cleanJiraErrorBody(lastErrorBody)}`,
       );
@@ -1479,6 +1546,7 @@ async function fetchCompleteJiraSearch(
   capacitySample: boolean,
   fullHistory: boolean,
   deadlineAt?: number,
+  retryBudget?: JiraSearchRetryBudget,
 ) {
   const issuesByKey = new Map(firstPage.issues.map((issue) => [issue.key, issue]));
   if (issuesByKey.size !== firstPage.issues.length) {
@@ -1531,6 +1599,7 @@ async function fetchCompleteJiraSearch(
       authHeaders,
       jiraSearchResponseSchema,
       deadlineAt,
+      retryBudget,
     );
     if (!result.parsed) {
       throw new Error(
@@ -1571,17 +1640,22 @@ async function fetchCompleteJiraSearch(
 
 const JIRA_LABEL_SCOPE_MAX_ISSUES = 10_000;
 
-async function fetchCompleteJiraIssueKeySearch(
+class JiraIssueKeyPaginationConsistencyError extends Error {}
+
+async function fetchCompleteJiraIssueKeySearchPass(
   baseUrl: string,
   jql: string,
   requestedPageSize: number,
   firstPage: JiraIssueKeySearchResponse,
   authHeaders: Record<string, string>,
   deadlineAt?: number,
+  retryBudget?: JiraSearchRetryBudget,
 ) {
   const issueKeys = new Set(firstPage.issues.map((issue) => issue.key));
   if (issueKeys.size !== firstPage.issues.length) {
-    throw new Error('Jira key discovery first page contains duplicate issue keys');
+    throw new JiraIssueKeyPaginationConsistencyError(
+      'Jira key discovery first page contains duplicate issue keys',
+    );
   }
   let page = firstPage;
   let observedTotal = firstPage.total;
@@ -1603,7 +1677,7 @@ async function fetchCompleteJiraIssueKeySearch(
       currentTotal !== undefined ? pageEnd >= currentTotal : page.issues.length < pageSize;
     if (reachedEnd || page.issues.length === 0) {
       if (currentTotal !== undefined && issueKeys.size !== currentTotal) {
-        throw new Error(
+        throw new JiraIssueKeyPaginationConsistencyError(
           `Jira key discovery returned ${issueKeys.size} unique issues, expected ${currentTotal}`,
         );
       }
@@ -1616,6 +1690,7 @@ async function fetchCompleteJiraIssueKeySearch(
       authHeaders,
       jiraIssueKeySearchResponseSchema,
       deadlineAt,
+      retryBudget,
     );
     if (!result.parsed) {
       throw new Error(
@@ -1626,7 +1701,7 @@ async function fetchCompleteJiraIssueKeySearch(
     }
     const returnedStartAt = result.parsed.startAt ?? pageEnd;
     if (returnedStartAt !== pageEnd) {
-      throw new Error(
+      throw new JiraIssueKeyPaginationConsistencyError(
         `Jira key discovery returned startAt ${returnedStartAt}, expected ${pageEnd}`,
       );
     }
@@ -1635,7 +1710,7 @@ async function fetchCompleteJiraIssueKeySearch(
       result.parsed.total !== undefined &&
       result.parsed.total !== observedTotal
     ) {
-      throw new Error(
+      throw new JiraIssueKeyPaginationConsistencyError(
         `Jira key discovery total changed from ${observedTotal} to ${result.parsed.total}`,
       );
     }
@@ -1643,12 +1718,74 @@ async function fetchCompleteJiraIssueKeySearch(
     const sizeBefore = issueKeys.size;
     page.issues.forEach((issue) => issueKeys.add(issue.key));
     if (issueKeys.size - sizeBefore !== page.issues.length) {
-      throw new Error(`Jira key discovery pages overlap at startAt ${returnedStartAt}`);
+      throw new JiraIssueKeyPaginationConsistencyError(
+        `Jira key discovery pages overlap at startAt ${returnedStartAt}`,
+      );
     }
     observedTotal = page.total ?? observedTotal;
   }
 
   throw new Error(`Jira key discovery exceeded ${JIRA_SEARCH_MAX_PAGES} pages`);
+}
+
+async function fetchCompleteJiraIssueKeySearch(
+  baseUrl: string,
+  jql: string,
+  requestedPageSize: number,
+  firstPage: JiraIssueKeySearchResponse,
+  authHeaders: Record<string, string>,
+  deadlineAt?: number,
+  retryBudget?: JiraSearchRetryBudget,
+) {
+  try {
+    return await fetchCompleteJiraIssueKeySearchPass(
+      baseUrl,
+      jql,
+      requestedPageSize,
+      firstPage,
+      authHeaders,
+      deadlineAt,
+      retryBudget,
+    );
+  } catch (error) {
+    if (!(error instanceof JiraIssueKeyPaginationConsistencyError)) throw error;
+    logEvent('warn', 'jira.search.discovery_restarted', {
+      reason: error.message,
+    });
+  }
+
+  const restarted = await fetchJiraSearch(
+    baseUrl,
+    jiraSearchBody(jql, requestedPageSize, 0, { keysOnly: true }),
+    authHeaders,
+    jiraIssueKeySearchResponseSchema,
+    deadlineAt,
+    retryBudget,
+  );
+  if (!restarted.parsed) {
+    throw new Error(
+      `Jira key discovery restart failed: ${restarted.status || 'unknown'} ${
+        restarted.body ? cleanJiraErrorBody(restarted.body) : ''
+      }`.trim(),
+    );
+  }
+  if (
+    ((firstPage.total ?? firstPage.issues.length) > 0 || firstPage.issues.length > 0) &&
+    restarted.parsed.issues.length === 0
+  ) {
+    throw new Error(
+      'Jira key discovery restart unexpectedly returned an empty scope after a non-empty first pass',
+    );
+  }
+  return fetchCompleteJiraIssueKeySearchPass(
+    baseUrl,
+    jql,
+    requestedPageSize,
+    restarted.parsed,
+    authHeaders,
+    deadlineAt,
+    retryBudget,
+  );
 }
 
 const JIRA_CHANGELOG_PAGE_SIZE = 100;
@@ -2250,6 +2387,7 @@ async function fetchJiraSearchWithVerifiedEmptyResult<
   expectedIdentities: string[],
   schema: z.ZodType<SearchPage> = jiraSearchResponseSchema as unknown as z.ZodType<SearchPage>,
   deadlineAt?: number,
+  retryBudget?: JiraSearchRetryBudget,
 ): Promise<JiraSearchResult<SearchPage>> {
   const result = await fetchJiraSearch(
     baseUrl,
@@ -2257,6 +2395,7 @@ async function fetchJiraSearchWithVerifiedEmptyResult<
     authHeaders,
     schema,
     deadlineAt,
+    retryBudget,
   );
   if (!result.parsed || result.parsed.issues.length > 0) return result;
 
@@ -2445,6 +2584,7 @@ async function fetchJiraDataWithMeta(
   let successfulAnalyticsFieldIds: string[] | null = null;
   let jiraUser: string | null = null;
   const expectedIdentities = expectedJiraIdentities(email);
+  const searchRetryBudget = { remaining: JIRA_SEARCH_MAX_ATTEMPTS - 1 };
   const searchSchema = keysOnly
     ? jiraIssueKeySearchResponseSchema
     : jiraSearchResponseSchema;
@@ -2494,6 +2634,7 @@ async function fetchJiraDataWithMeta(
       expectedIdentities,
       searchSchema,
       options.deadlineAt,
+      searchRetryBudget,
     );
     parsed = result.parsed;
     jiraUser = result.jiraUser ?? jiraUser;
@@ -2546,6 +2687,7 @@ async function fetchJiraDataWithMeta(
         expectedIdentities,
         searchSchema,
         options.deadlineAt,
+        searchRetryBudget,
       );
       parsed = result.parsed;
       jiraUser = result.jiraUser ?? jiraUser;
@@ -2599,6 +2741,7 @@ async function fetchJiraDataWithMeta(
         expectedIdentities,
         searchSchema,
         options.deadlineAt,
+        searchRetryBudget,
       );
       parsed = result.parsed;
       jiraUser = result.jiraUser ?? jiraUser;
@@ -2660,6 +2803,7 @@ async function fetchJiraDataWithMeta(
           keySearch,
           successfulAuthHeaders,
           options.deadlineAt,
+          searchRetryBudget,
         )
       : keySearch.issues.map((issue) => issue.key);
     return { issueKeys, jiraUser };
@@ -2678,6 +2822,7 @@ async function fetchJiraDataWithMeta(
         Boolean(options.capacitySample),
         Boolean(options.includeHistoryDocument),
         options.deadlineAt,
+        searchRetryBudget,
       )
     : fullSearch;
   const hydratedData = successfulAuthHeaders

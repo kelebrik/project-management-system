@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { JiraSyncDeadlineError, jiraReadOnlyRouteTemplate } from '../jira.js';
@@ -42,6 +43,17 @@ test('global deadline is fatal while a per-request timeout remains retryable', (
     false,
   );
   assert.equal(isFatalJiraHistoryBatchError(new JiraSyncCapacityError('capacity')), true);
+});
+
+test('Jira sync bounds discovery pages and issue-key JQL batches', async () => {
+  const source = await readFile(new URL('./jira-sync-pipeline.ts', import.meta.url), 'utf8');
+  assert.match(source, /const JIRA_SYNC_DISCOVERY_PAGE_SIZE = 100;/);
+  assert.equal(source.match(/pageSize: JIRA_SYNC_DISCOVERY_PAGE_SIZE/g)?.length, 4);
+  assert.match(
+    source,
+    /jiraIssueKeyBatches\(\s*discoveredIssueKeys,\s*JIRA_SYNC_DISCOVERY_PAGE_SIZE,\s*\)/,
+  );
+  assert.doesNotMatch(source, /pageSize:\s*500/);
 });
 
 test('history resumes after its run checkpoint while explicit restarts ignore stale sweep cursors', () => {
