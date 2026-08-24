@@ -150,6 +150,7 @@ test("OpenAPI describes the managed Jira aggregate concurrency and payload contr
     "/api/projects/{projectId}/jira/aggregates/{aggregateId}",
     "/api/projects/{projectId}/jira/aggregates/import-dashboard",
     "/api/projects/{projectId}/jira/aggregates/convert-dashboard",
+    "/api/projects/{projectId}/jira/aggregates/switch-dashboard",
     "/api/projects/{projectId}/jira/aggregates/rollback-dashboard",
     "/api/projects/{projectId}/jira/aggregates/reconcile-dashboard",
     "/api/projects/{projectId}/jira/analytics-dashboard",
@@ -161,11 +162,23 @@ test("OpenAPI describes the managed Jira aggregate concurrency and payload contr
     }
   }
 
-  for (const suffix of ["import-dashboard", "convert-dashboard", "rollback-dashboard"]) {
+  const dashboardMigrationBodies = {
+    "import-dashboard": ["dryRun", "expectedConfigHash"],
+    "convert-dashboard": ["dryRun", "expectedConfigHash"],
+    "switch-dashboard": ["dryRun", "expectedConfigHash", "periodDays", "assignee"],
+    "rollback-dashboard": ["dryRun", "expectedConfigHash", "attempt"],
+  } as const;
+  for (const [suffix, required] of Object.entries(dashboardMigrationBodies)) {
     const operation = document.paths[`/api/projects/{projectId}/jira/aggregates/${suffix}`]?.post;
     const schema = operation?.requestBody?.content?.["application/json"]?.schema;
-    assert.deepEqual(schema?.required, ["dryRun", "expectedConfigHash"]);
+    assert.equal(schema?.additionalProperties, false, `${suffix} body must reject unknown fields`);
+    assert.deepEqual(schema?.required, required, `${suffix} required body fields`);
   }
+
+  const convertOperation =
+    document.paths["/api/projects/{projectId}/jira/aggregates/convert-dashboard"]?.post;
+  assert.equal(convertOperation?.deprecated, true);
+  assert.ok(convertOperation?.responses?.["410"]);
 
   const preview = document.paths["/api/projects/{projectId}/jira/aggregates/preview"]?.post;
   const previewProperties = preview?.requestBody?.content?.["application/json"]?.schema?.properties;
