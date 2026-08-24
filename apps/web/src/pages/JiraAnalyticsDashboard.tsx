@@ -3,7 +3,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Pencil,
   Plus,
   RefreshCw,
   Save,
@@ -638,7 +637,15 @@ function jiraScopeValueIsValid(type: JiraAnalyticsScopeType, value: string) {
     : /^[A-Z][A-Z0-9_]*-\d+$/i.test(normalized);
 }
 
-export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSection }) {
+export function JiraAnalyticsDashboard({
+  editing,
+  onEditingChange,
+  section,
+}: {
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
+  section: JiraAnalyticsSection;
+}) {
   const {
     currentUser,
     isClosedProject,
@@ -661,25 +668,12 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
     projectId: string;
     data: JiraAnalyticsFacets;
   } | null>(null);
-  const [editing, setEditing] = useState(false);
   const dashboardProjectIdRef = useRef(project.id);
   const [saving, setSaving] = useState(false);
-  const [jiraScopeDraft, setJiraScopeDraft] = useState<{
-    projectId: string;
-    type: JiraAnalyticsScopeType;
-    value: string;
-  }>({
-    projectId: project.id,
-    type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL",
+  const jiraScope = {
+    type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL" as JiraAnalyticsScopeType,
     value: project.jiraAnalyticsSettings?.jiraScopeValue ?? "",
-  });
-  const jiraScope = jiraScopeDraft.projectId === project.id
-    ? jiraScopeDraft
-    : {
-        projectId: project.id,
-        type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL" as const,
-        value: project.jiraAnalyticsSettings?.jiraScopeValue ?? "",
-      };
+  };
   const scopeValueValid = jiraScopeValueIsValid(jiraScope.type, jiraScope.value);
   const isSystemAdmin = currentUser?.role === "ADMIN";
   const canEditWidgets = isSystemAdmin && !isClosedProject;
@@ -693,7 +687,6 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
     // Stored changes are applied only when they cannot replace an active draft.
     setConfig(next);
     setBaseline(next ? structuredClone(next) : null);
-    setEditing(false);
     setSelectedWidgetId(null);
   }, [editing, project.id, storedDashboardConfigKey]);
 
@@ -838,7 +831,19 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
   const hasEventWidgets = visibleWidgets.some((widget) =>
     ["transitions", "development"].includes(widget.source),
   );
-  const selectedWidget = config?.widgets.find((widget) => widget.id === selectedWidgetId) ?? null;
+  const activeSelectedWidgetId = editing
+    ? selectedWidgetId ?? visibleWidgets[0]?.widgetId ?? null
+    : null;
+  const selectedWidget = config?.widgets.find((widget) => widget.id === activeSelectedWidgetId) ?? null;
+
+  const patchDashboardFilters = (
+    patch: Partial<Pick<JiraAnalyticsDashboardConfig, "assignee" | "periodDays">>,
+  ) => {
+    setConfig((current) => current ? ({ ...current, ...patch }) : current);
+    if (!editing) {
+      setBaseline((current) => current ? ({ ...current, ...patch }) : current);
+    }
+  };
 
   const updateWidget = (next: JiraAnalyticsWidget) =>
     setConfig((current) => current?.version === 1 ? ({
@@ -901,7 +906,7 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
       );
       await refreshProject(project.id);
       setBaseline(structuredClone(validation.data));
-      setEditing(false);
+      onEditingChange(false);
       setSelectedWidgetId(null);
       setNotice("Настройки виджетов сохранены для проекта");
     } catch (error) {
@@ -1000,40 +1005,9 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
   return (
     <div className="jira-analytics-workspace">
       <div className="jira-analytics-toolbar">
-        <label className="jira-analytics-scope-type">
-          <span>Отбор тикетов</span>
-          <select
-            aria-label="Способ отбора тикетов"
-            disabled={!canEditWidgets}
-            value={jiraScope.type}
-            onChange={(event) => setJiraScopeDraft({
-              projectId: project.id,
-              type: event.target.value as JiraAnalyticsScopeType,
-              value: "",
-            })}
-          >
-            <option value="LABEL">Лейбл</option>
-            <option value="EPIC">Код эпика</option>
-          </select>
-        </label>
-        <label className="jira-analytics-scope-value">
-          <span>{jiraScope.type === "LABEL" ? "Лейбл" : "Код эпика"}</span>
-          <input
-            aria-label={jiraScope.type === "LABEL" ? "Лейбл Jira" : "Код эпика Jira"}
-            maxLength={100}
-            disabled={!canEditWidgets}
-            placeholder={jiraScope.type === "LABEL" ? "cvte968" : "CVTE-1234"}
-            value={jiraScope.value}
-            onChange={(event) => setJiraScopeDraft({
-              projectId: project.id,
-              type: jiraScope.type,
-              value: event.target.value,
-            })}
-          />
-        </label>
         <label title={hasEventWidgets ? "Период переходов и активности разработки" : "На текущие тикеты и SLA-отчет период событий не влияет"}>
           <span>Период событий</span>
-          <select aria-label="Период событий" disabled={!hasEventWidgets || !config} value={config?.periodDays ?? 90} onChange={(event) => setConfig((current) => current ? ({ ...current, periodDays: Number(event.target.value) as JiraAnalyticsDashboardConfig["periodDays"] }) : current)}>
+          <select aria-label="Период событий" disabled={!hasEventWidgets || !config} value={config?.periodDays ?? 90} onChange={(event) => patchDashboardFilters({ periodDays: Number(event.target.value) as JiraAnalyticsDashboardConfig["periodDays"] })}>
             <option value={30}>30 дней</option>
             <option value={90}>90 дней</option>
             <option value={180}>180 дней</option>
@@ -1042,7 +1016,7 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
         </label>
         <label>
           <span>Исполнитель</span>
-          <select disabled={!config} value={config?.assignee ?? ""} onChange={(event) => setConfig((current) => current ? ({ ...current, assignee: event.target.value }) : current)}>
+          <select disabled={!config} value={config?.assignee ?? ""} onChange={(event) => patchDashboardFilters({ assignee: event.target.value })}>
             <option value="">Все</option>
             {assignees.map((assignee) => <option value={assignee} key={assignee}>{assignee}</option>)}
           </select>
@@ -1062,16 +1036,24 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
             {syncing ? "Обновляю..." : "Обновить"}
           </button>
-          {canEditWidgets && config && (!editing ? (
-            <button type="button" className="button primary" onClick={() => { setBaseline(structuredClone(config)); setEditing(true); setSelectedWidgetId(visibleWidgets[0]?.widgetId ?? null); }}>
-              <Pencil size={16} /> Редактировать
+          {config && !editing && (
+            <button
+              type="button"
+              className="button"
+              onClick={() => patchDashboardFilters({
+                assignee: "",
+                periodDays: 90,
+              })}
+            >
+              <X size={16} /> Очистить
             </button>
-          ) : (
+          )}
+          {canEditWidgets && config && editing && (
             <>
-              <button type="button" className="button" onClick={() => { setConfig(baseline ? structuredClone(baseline) : null); setEditing(false); setSelectedWidgetId(null); }}><X size={16} /> Отменить</button>
+              <button type="button" className="button" onClick={() => { setConfig(baseline ? structuredClone(baseline) : null); onEditingChange(false); setSelectedWidgetId(null); }}><X size={16} /> Отменить</button>
               <button type="button" className="button primary" onClick={saveDashboard} disabled={saving}><Save size={16} /> {saving ? "Сохраняю..." : "Сохранить"}</button>
             </>
-          ))}
+          )}
         </div>
       </div>
 
@@ -1119,11 +1101,11 @@ export function JiraAnalyticsDashboard({ section }: { section: JiraAnalyticsSect
               onMove={(direction) => moveWidget(widget.widgetId, direction)}
               onRemove={() => {
                 setConfig((current) => current ? ({ ...current, widgets: current.widgets.filter((item) => item.id !== widget.widgetId) } as JiraAnalyticsDashboardConfig) : current);
-                if (selectedWidgetId === widget.widgetId) setSelectedWidgetId(null);
+                if (activeSelectedWidgetId === widget.widgetId) setSelectedWidgetId(null);
               }}
               onSelect={() => setSelectedWidgetId(widget.widgetId)}
               result={widget.result ?? null}
-              selected={editing && selectedWidgetId === widget.widgetId}
+              selected={editing && activeSelectedWidgetId === widget.widgetId}
               total={visibleWidgets.length}
               widget={widget}
             />

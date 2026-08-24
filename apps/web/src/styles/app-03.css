@@ -438,6 +438,19 @@
   margin: 3px 0 0;
 }
 
+.jira-work-page-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.jira-work-page-actions > .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 .jira-work-view-switch,
 .jira-widget-segments,
 .jira-widget-logic {
@@ -1586,6 +1599,53 @@
   gap: 10px;
 }
 
+.jira-data-scope-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.jira-data-scope-panel h3 {
+  color: var(--text-heading);
+  font-size: 15px;
+  margin: 0;
+}
+
+.jira-data-scope-controls {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 180px minmax(220px, 1fr) auto;
+}
+
+.jira-data-scope-controls label {
+  display: grid;
+  gap: 5px;
+}
+
+.jira-data-scope-controls label > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.jira-data-scope-controls input,
+.jira-data-scope-controls select {
+  min-width: 0;
+  width: 100%;
+}
+
+.jira-data-scope-controls .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+  min-height: 38px;
+  white-space: nowrap;
+}
+
 .jira-capacity-tool {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2069,6 +2129,11 @@
     flex-direction: column;
   }
 
+  .jira-work-page-actions {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
   .jira-work-view-switch {
     align-self: start;
   }
@@ -2177,6 +2242,15 @@
 }
 
 @media (max-width: 560px) {
+  .jira-work-page-actions,
+  .jira-work-page-actions > .button {
+    width: 100%;
+  }
+
+  .jira-work-page-actions > .button {
+    justify-content: center;
+  }
+
   .jira-work-view-switch {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2218,7 +2292,8 @@
   }
 
   .jira-capacity-controls,
-  .jira-capacity-summary {
+  .jira-capacity-summary,
+  .jira-data-scope-controls {
     grid-template-columns: minmax(0, 1fr);
   }
 

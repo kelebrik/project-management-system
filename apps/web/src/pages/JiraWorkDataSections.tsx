@@ -1,204 +1,97 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
-import {
-  type Dispatch,
-  type KeyboardEvent,
-  type SetStateAction,
-  useState,
-} from "react";
+import { RefreshCw } from "lucide-react";
+import { useState } from "react";
 
-import type { JiraIssueSnapshot } from "../app/domainTypes";
-import type { JiraWorkSectionDraft } from "../app/formState";
-import { defaultJiraWorkSectionTitle } from "../app/jiraWorkSections";
 import { JiraCapacitySampler } from "./JiraCapacitySampler";
 import { usePageContext } from "./PageContext";
 
+type JiraScopeType = "LABEL" | "EPIC";
+
+function scopeValueIsValid(type: JiraScopeType, value: string) {
+  const normalized = value.trim();
+  return type === "LABEL"
+    ? normalized.length > 0 && !/[\s"'\\]/.test(normalized)
+    : /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(normalized);
+}
+
 export function JiraWorkDataSections() {
   const {
-    jiraWorkSectionDrafts,
+    currentUser,
+    isClosedProject,
     project,
-    saveJiraWorkSections,
-    savingJiraWorkSections,
-    setJiraWorkSectionDrafts,
+    syncJira,
+    syncing,
   } = usePageContext();
-  const [expandedSections, setExpandedSections] = useState<Set<number>>(
-    () => new Set(),
-  );
-  const [expandedJqlSections, setExpandedJqlSections] = useState<Set<number>>(
-    () => new Set(),
-  );
-  const toggleSetValue = (
-    setter: Dispatch<SetStateAction<Set<number>>>,
-    sortOrder: number,
-  ) => {
-    setter((current) => {
-      const next = new Set(current);
-      if (next.has(sortOrder)) next.delete(sortOrder);
-      else next.add(sortOrder);
-      return next;
-    });
-  };
-  const addSection = () => {
-    const nextSortOrder =
-      Math.max(-1, ...jiraWorkSectionDrafts.map((section: JiraWorkSectionDraft) => section.sortOrder)) +
-      1;
-    setJiraWorkSectionDrafts([
-      ...jiraWorkSectionDrafts,
-      {
-        id: null,
-        sortOrder: nextSortOrder,
-        title: defaultJiraWorkSectionTitle(nextSortOrder),
-        jql: "",
-        filterUrl: "",
-      },
-    ]);
-  };
-  const saveOnEnter = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    if (!savingJiraWorkSections) event.currentTarget.requestSubmit();
-  };
+  const [scopeDraft, setScopeDraft] = useState<{
+    projectId: string;
+    type: JiraScopeType;
+    value: string;
+  }>({
+    projectId: project.id,
+    type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL",
+    value: project.jiraAnalyticsSettings?.jiraScopeValue ?? "",
+  });
+
+  const scope = scopeDraft.projectId === project.id
+    ? scopeDraft
+    : {
+        projectId: project.id,
+        type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL" as JiraScopeType,
+        value: project.jiraAnalyticsSettings?.jiraScopeValue ?? "",
+      };
+  const canEditScope = currentUser?.role === "ADMIN" && !isClosedProject;
+  const scopeValueValid = scopeValueIsValid(scope.type, scope.value);
 
   return (
     <div className="jira-work-data-view">
+      <section className="jira-data-scope-panel">
+        <header>
+          <h3>Область синхронизации Jira</h3>
+        </header>
+        <div className="jira-data-scope-controls">
+          <label>
+            <span>Отбор тикетов</span>
+            <select
+              aria-label="Способ отбора тикетов"
+              disabled={!canEditScope}
+              value={scope.type}
+              onChange={(event) => setScopeDraft({
+                projectId: project.id,
+                type: event.target.value as JiraScopeType,
+                value: "",
+              })}
+            >
+              <option value="LABEL">Лейбл</option>
+              <option value="EPIC">Код эпика</option>
+            </select>
+          </label>
+          <label className="jira-data-scope-value">
+            <span>{scope.type === "LABEL" ? "Лейбл" : "Код эпика"}</span>
+            <input
+              aria-label={scope.type === "LABEL" ? "Лейбл Jira" : "Код эпика Jira"}
+              disabled={!canEditScope}
+              maxLength={100}
+              placeholder={scope.type === "LABEL" ? "cvte968" : "CVTE-1234"}
+              value={scope.value}
+              onChange={(event) => setScopeDraft({ ...scope, value: event.target.value })}
+            />
+          </label>
+          <button
+            type="button"
+            className="button"
+            onClick={() => syncJira({
+              baseUrl: "https://tasks.sberdevices.ru",
+              scopeType: scope.type,
+              scopeValue: scope.value.trim(),
+            })}
+            disabled={syncing || !scopeValueValid}
+          >
+            <RefreshCw size={16} className={syncing ? "spin" : ""} />
+            {syncing ? "Обновляю..." : "Обновить"}
+          </button>
+        </div>
+      </section>
+
       <JiraCapacitySampler />
-
-      <div className="jira-work-data-actions">
-        <button className="button" type="button" onClick={addSection}>
-          Создать раздел
-        </button>
-        <button
-          className="button primary"
-          type="submit"
-          form="jira-work-sections-form"
-          disabled={savingJiraWorkSections}
-        >
-          {savingJiraWorkSections ? "Сохраняю..." : "Сохранить разделы"}
-        </button>
-      </div>
-
-      <form
-        id="jira-work-sections-form"
-        className="jira-work-sections"
-        onKeyDown={saveOnEnter}
-        onSubmit={saveJiraWorkSections}
-        aria-busy={savingJiraWorkSections}
-      >
-        {jiraWorkSectionDrafts.map(
-          (section: JiraWorkSectionDraft) => {
-            const syncedSection = project.jiraWorkSections.find(
-              (entry: { sortOrder: number }) => entry.sortOrder === section.sortOrder,
-            );
-            const isCollapsed = !expandedSections.has(section.sortOrder);
-            const isJqlCollapsed = !expandedJqlSections.has(section.sortOrder);
-            const sectionIssues = syncedSection?.issues ?? [];
-            const updateSection = (patch: Partial<typeof section>) =>
-              setJiraWorkSectionDrafts(
-                jiraWorkSectionDrafts.map((entry: JiraWorkSectionDraft) =>
-                  entry.sortOrder === section.sortOrder ? { ...entry, ...patch } : entry,
-                ),
-              );
-            return (
-              <section
-                className={`jira-work-section ${isCollapsed ? "collapsed" : ""}`}
-                key={section.sortOrder}
-              >
-                <div className="jira-work-section-head">
-                  <button
-                    type="button"
-                    className="jira-work-section-toggle"
-                    onClick={() => toggleSetValue(setExpandedSections, section.sortOrder)}
-                    aria-expanded={!isCollapsed}
-                    aria-label={`${isCollapsed ? "Развернуть" : "Свернуть"} ${section.title}`}
-                  >
-                    {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                  <div className="jira-work-section-title">
-                    <input
-                      value={section.title}
-                      onChange={(event) => updateSection({ title: event.target.value })}
-                      placeholder={`Раздел ${section.sortOrder + 1}`}
-                    />
-                  </div>
-                  <span className="jira-work-section-count">{sectionIssues.length}</span>
-                </div>
-
-                {!isCollapsed && (
-                  <div className="jira-work-section-body">
-                    <div className={`jira-work-jql-panel ${isJqlCollapsed ? "collapsed" : ""}`}>
-                      <button
-                        type="button"
-                        className="jira-work-jql-toggle"
-                        onClick={() => toggleSetValue(setExpandedJqlSections, section.sortOrder)}
-                        aria-expanded={!isJqlCollapsed}
-                      >
-                        {isJqlCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-                        <span>JQL</span>
-                      </button>
-                      {!isJqlCollapsed && (
-                        <div className="jira-work-filter-fields">
-                          <label className="jira-work-filter-field">
-                            <span>JQL</span>
-                            <textarea
-                              value={section.jql}
-                              onChange={(event) => updateSection({ jql: event.target.value })}
-                              placeholder='labels = cvte968 AND status not in (Closed, Done) ORDER BY created DESC'
-                              rows={3}
-                            />
-                          </label>
-                          <label className="jira-work-filter-field">
-                            <span>Ссылка на фильтр</span>
-                            <input
-                              type="url"
-                              value={section.filterUrl}
-                              onChange={(event) => updateSection({ filterUrl: event.target.value })}
-                              placeholder="https://tasks.sberdevices.ru/issues/?filter=12345"
-                            />
-                          </label>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="jira-work-ticket-table-wrap table-scroll">
-                      {sectionIssues.length > 0 ? (
-                        <table className="jira-work-ticket-table sticky-head">
-                          <thead>
-                            <tr>
-                              <th>T</th>
-                              <th>Key</th>
-                              <th>Summary</th>
-                              <th>Assignee</th>
-                              <th>Reporter</th>
-                              <th>P</th>
-                              <th>Status</th>
-                              <th>Resolution</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sectionIssues.map(({ snapshot }: { snapshot: JiraIssueSnapshot }) => (
-                              <tr key={snapshot.id}>
-                                <td><span className="jira-work-type" title={snapshot.issueType}>{snapshot.issueType.slice(0, 1).toUpperCase()}</span></td>
-                                <td><a href={snapshot.issueUrl} target="_blank" rel="noreferrer">{snapshot.issueKey}</a></td>
-                                <td><a href={snapshot.issueUrl} target="_blank" rel="noreferrer">{snapshot.summary}</a></td>
-                                <td>{snapshot.assignee || "Unassigned"}</td>
-                                <td>{snapshot.reporter || ""}</td>
-                                <td><span className="jira-work-priority">{snapshot.priority}</span></td>
-                                <td><span className="jira-work-status">{snapshot.status}</span></td>
-                                <td>{snapshot.resolution || "Unresolved"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <p>Тикетов в разделе нет.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </section>
-            );
-          },
-        )}
-      </form>
     </div>
   );
 }
