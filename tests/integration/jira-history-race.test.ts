@@ -11,6 +11,10 @@ import {
 import { prepareJiraAsOfIssueBatches } from '../../apps/api/src/services/jira-history-asof.js';
 import { jiraBackfillCompleteness } from '../../apps/api/src/services/jira-history.js';
 import {
+  clearJiraProjectData,
+  JiraProjectDataBusyError,
+} from '../../apps/api/src/services/jira-project-data.js';
+import {
   acquireJiraProjectionRebuildLease,
   assertJiraSyncFence,
   checkpointJiraSyncRun,
@@ -833,6 +837,186 @@ test('Jira as-of reconstruction selects deterministic observed winners in Postgr
     assert.equal(withoutObservation.projectId, projectId);
   } finally {
     if (projectId) await prisma.project.delete({ where: { id: projectId } });
+    if (businessUnitId) await prisma.businessUnit.delete({ where: { id: businessUnitId } });
+    await prisma.$disconnect();
+  }
+});
+
+test('project Jira clear removes one project population and preserves the other project data', {
+  skip: !testDatabaseUrl,
+}, async () => {
+  const databaseName = new URL(testDatabaseUrl).pathname.replace(/^\//, '');
+  assert.match(databaseName, /test/i, 'JIRA_HISTORY_TEST_DATABASE_URL must target a test database');
+  const prisma = new PrismaClient({ datasourceUrl: testDatabaseUrl });
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+  let businessUnitId: string | null = null;
+  try {
+    const businessUnit = await prisma.businessUnit.create({
+      data: { code: `clear-${suffix}`, name: `Clear isolation ${suffix}` },
+    });
+    businessUnitId = businessUnit.id;
+    const projectData = (code: string, name: string) => ({
+      businessUnitId: businessUnit.id,
+      code,
+      name,
+      portfolio: 'Integration',
+      sponsor: 'Integration',
+      projectManager: 'Integration',
+      startDate: new Date('2026-08-01T00:00:00Z'),
+      targetDate: new Date('2026-09-01T00:00:00Z'),
+      budgetPlanned: '0',
+      budgetForecast: '0',
+      summary: 'Disposable integration fixture',
+    });
+    const [selectedProject, otherProject] = await Promise.all([
+      prisma.project.create({
+        data: projectData(`CLEAR-A-${suffix}`, 'Selected project'),
+      }),
+      prisma.project.create({
+        data: projectData(`CLEAR-B-${suffix}`, 'Other project'),
+      }),
+    ]);
+    const dashboardConfig = { version: 2, widgets: [] };
+    await prisma.jiraAnalyticsSettings.createMany({
+      data: [
+        {
+          projectId: selectedProject.id,
+          jiraScopeType: 'LABEL',
+          jiraScopeValue: 'selected-scope',
+          jiraLabel: 'selected-scope',
+          dashboardConfig,
+          historyCursorJiraIssueId: '10001',
+          historyCursorUpdatedAt: new Date('2026-08-24T10:00:00Z'),
+        },
+        {
+          projectId: otherProject.id,
+          jiraScopeType: 'LABEL',
+          jiraScopeValue: 'other-scope',
+          jiraLabel: 'other-scope',
+        },
+      ],
+    });
+    await prisma.jiraAggregateDefinition.create({
+      data: {
+        projectId: selectedProject.id,
+        name: 'Preserved aggregate',
+        nameKey: 'preserved-aggregate',
+        source: 'issues',
+        metric: 'count',
+        groupBy: 'none',
+        scope: 'active',
+        filterLogic: 'and',
+        filters: [],
+        periodMode: 'DASHBOARD',
+        fingerprint: 'a'.repeat(64),
+      },
+    });
+    await prisma.issue.create({
+      data: {
+        projectId: selectedProject.id,
+        source: 'INTERNAL',
+        title: 'Preserved project issue',
+        severity: 'MEDIUM',
+        status: 'Open',
+        owner: 'Integration',
+        impact: 'Must survive Jira clear',
+      },
+    });
+
+    const importedIssue: JiraIssue = {
+      ...jiraIssue('Imported ticket', new Date('2026-08-24T10:00:00Z')),
+      transitions: [{
+        key: 'clear-transition',
+        fromStatus: 'Open',
+        toStatus: 'In Progress',
+        transitionedAt: new Date('2026-08-24T09:00:00Z'),
+        actor: 'Integration',
+      }],
+      transitionHistoryComplete: true,
+      development: {
+        commitCount: 2,
+        mergeRequestCount: 1,
+        updatedAt: new Date('2026-08-24T09:30:00Z'),
+        available: true,
+      },
+    };
+    for (const project of [selectedProject, otherProject]) {
+      await prisma.$transaction((transaction) => syncJiraIssueAnalytics(
+        createPrismaJiraAnalyticsSyncStore(transaction),
+        project.id,
+        importedIssue,
+        new Date('2026-08-24T10:01:00Z'),
+        `clear-run-${project.id}`,
+      ));
+      await prisma.jiraIssueHistoryRetry.create({
+        data: {
+          projectId: project.id,
+          jiraIssueId: importedIssue.jiraId,
+          issueKey: importedIssue.key,
+          reasonCode: 'TEST_RETRY',
+          lastError: 'Disposable retry',
+          nextRetryAt: new Date('2026-08-24T11:00:00Z'),
+        },
+      });
+    }
+    const selectedSnapshot = await prisma.jiraIssueSnapshot.findUniqueOrThrow({
+      where: {
+        projectId_issueKey: {
+          projectId: selectedProject.id,
+          issueKey: importedIssue.key,
+        },
+      },
+    });
+    const otherSnapshot = await prisma.jiraIssueSnapshot.findUniqueOrThrow({
+      where: {
+        projectId_issueKey: {
+          projectId: otherProject.id,
+          issueKey: importedIssue.key,
+        },
+      },
+    });
+    const section = await prisma.jiraWorkSection.create({
+      data: { projectId: selectedProject.id, sortOrder: 0, title: 'Preserved section' },
+    });
+    await prisma.jiraWorkSectionIssue.create({
+      data: { sectionId: section.id, snapshotId: selectedSnapshot.id },
+    });
+
+    const result = await clearJiraProjectData(prisma, selectedProject.id);
+
+    assert.equal(result.ticketsDeleted, 1);
+    assert.equal(result.versionsDeleted, 1);
+    assert.equal(result.statusTransitionsDeleted, 1);
+    assert.equal(result.developmentActivitiesDeleted, 1);
+    assert.equal(result.membershipsDeleted, 1);
+    assert.equal(result.retriesDeleted, 1);
+    assert.equal(await prisma.jiraIssueSnapshot.count({ where: { projectId: selectedProject.id } }), 0);
+    assert.equal(await prisma.jiraIssueVersion.count({ where: { projectId: selectedProject.id } }), 0);
+    assert.equal(await prisma.jiraIssueHistoryRetry.count({ where: { projectId: selectedProject.id } }), 0);
+    assert.equal(await prisma.jiraIssueSnapshot.count({ where: { projectId: otherProject.id } }), 1);
+    assert.equal(await prisma.jiraIssueVersion.count({ where: { projectId: otherProject.id } }), 1);
+    assert.equal(await prisma.jiraIssueHistoryRetry.count({ where: { projectId: otherProject.id } }), 1);
+    assert.equal(await prisma.jiraIssueStatusTransition.count({ where: { snapshotId: otherSnapshot.id } }), 1);
+    assert.equal(await prisma.jiraDevelopmentActivity.count({ where: { snapshotId: otherSnapshot.id } }), 1);
+    assert.equal(await prisma.jiraAggregateDefinition.count({ where: { projectId: selectedProject.id } }), 1);
+    assert.equal(await prisma.issue.count({ where: { projectId: selectedProject.id } }), 1);
+    assert.equal(await prisma.jiraWorkSection.count({ where: { projectId: selectedProject.id } }), 1);
+    const preservedSettings = await prisma.jiraAnalyticsSettings.findUniqueOrThrow({
+      where: { projectId: selectedProject.id },
+    });
+    assert.equal(preservedSettings.jiraScopeValue, 'selected-scope');
+    assert.deepEqual(preservedSettings.dashboardConfig, dashboardConfig);
+    assert.equal(preservedSettings.historyCursorJiraIssueId, null);
+
+    const rebuild = await acquireJiraProjectionRebuildLease(prisma, selectedProject.id);
+    assert.ok(rebuild);
+    await assert.rejects(
+      clearJiraProjectData(prisma, selectedProject.id),
+      JiraProjectDataBusyError,
+    );
+    await releaseJiraProjectionRebuildLease(prisma, rebuild, 'CONFIGURED');
+  } finally {
+    if (businessUnitId) await prisma.project.deleteMany({ where: { businessUnitId } });
     if (businessUnitId) await prisma.businessUnit.delete({ where: { id: businessUnitId } });
     await prisma.$disconnect();
   }

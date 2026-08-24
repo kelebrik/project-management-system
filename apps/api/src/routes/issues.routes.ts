@@ -1062,8 +1062,8 @@ router.delete('/projects/:projectId/jira/data', async (req, res) => {
       actor: user,
       action: 'jira.project_data.clear',
       objectType: 'Project',
-      objectId: req.params.projectId,
-      projectId: req.params.projectId,
+      objectId: result.projectId,
+      projectId: result.projectId,
       metadata: result,
     });
     res.json(result);

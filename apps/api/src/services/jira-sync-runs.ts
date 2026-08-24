@@ -71,24 +71,27 @@ export async function acquireJiraProjectionRebuildLease(
   prisma: PrismaClient,
   projectId: string,
 ): Promise<JiraProjectionRebuildFence | null> {
-  const rows = await prisma.$queryRaw<Array<{ syncFenceToken: number }>>(Prisma.sql`
-    UPDATE "JiraAnalyticsSettings" s
-       SET "syncStatus" = 'REBUILDING_PROJECTIONS',
-           "syncRunId" = NULL,
-           "syncFenceToken" = COALESCE(s."syncFenceToken", 0) + 1,
-           "syncStartedAt" = now(),
-           "syncLockExpiresAt" = now() + interval '60 seconds',
-           "updatedAt" = now()
-     WHERE s."projectId" = ${projectId}
-       AND (s."syncStartedAt" IS NULL OR s."syncLockExpiresAt" <= now())
-       AND NOT EXISTS (
-         SELECT 1 FROM "JiraSyncRun" r
-          WHERE r."projectId" = ${projectId} AND r."activeSlot" IS NOT NULL
-       )
-    RETURNING s."syncFenceToken"
-  `);
-  const fenceToken = rows[0]?.syncFenceToken;
-  return fenceToken ? { projectId, fenceToken } : null;
+  return prisma.$transaction(async (transaction) => {
+    await lockJiraProjectData(transaction, projectId);
+    const rows = await transaction.$queryRaw<Array<{ syncFenceToken: number }>>(Prisma.sql`
+      UPDATE "JiraAnalyticsSettings" s
+         SET "syncStatus" = 'REBUILDING_PROJECTIONS',
+             "syncRunId" = NULL,
+             "syncFenceToken" = COALESCE(s."syncFenceToken", 0) + 1,
+             "syncStartedAt" = now(),
+             "syncLockExpiresAt" = now() + interval '60 seconds',
+             "updatedAt" = now()
+       WHERE s."projectId" = ${projectId}
+         AND (s."syncStartedAt" IS NULL OR s."syncLockExpiresAt" <= now())
+         AND NOT EXISTS (
+           SELECT 1 FROM "JiraSyncRun" r
+            WHERE r."projectId" = ${projectId} AND r."activeSlot" IS NOT NULL
+         )
+      RETURNING s."syncFenceToken"
+    `);
+    const fenceToken = rows[0]?.syncFenceToken;
+    return fenceToken ? { projectId, fenceToken } : null;
+  });
 }
 
 export async function renewJiraProjectionRebuildLease(

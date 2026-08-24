@@ -16,6 +16,9 @@ export type JiraProjectDataClearResult = {
   projectId: string;
   ticketsDeleted: number;
   versionsDeleted: number;
+  statusTransitionsDeleted: number;
+  developmentActivitiesDeleted: number;
+  membershipsDeleted: number;
   retriesDeleted: number;
 };
 
@@ -59,22 +62,28 @@ export async function clearJiraProjectData(
       where: { projectId, activeSlot: { not: null } },
       select: { id: true },
     });
-    if (
-      activeRun
-      || settings?.syncRunId
-      || settings?.leaseActive
-    ) {
+    if (activeRun || settings?.leaseActive) {
       throw new JiraProjectDataBusyError();
     }
 
-    const [ticketsDeleted, versionsDeleted] = await Promise.all([
-      transaction.jiraIssueSnapshot.count({ where: { projectId } }),
-      transaction.jiraIssueVersion.count({ where: { projectId } }),
-    ]);
+    const memberships = await transaction.jiraWorkSectionIssue.deleteMany({
+      where: { snapshot: { projectId } },
+    });
+    const statusTransitions = await transaction.jiraIssueStatusTransition.deleteMany({
+      where: { snapshot: { projectId } },
+    });
+    const developmentActivities = await transaction.jiraDevelopmentActivity.deleteMany({
+      where: { snapshot: { projectId } },
+    });
+    const versions = await transaction.jiraIssueVersion.deleteMany({
+      where: { projectId },
+    });
+    const snapshots = await transaction.jiraIssueSnapshot.deleteMany({
+      where: { projectId },
+    });
     const retries = await transaction.jiraIssueHistoryRetry.deleteMany({
       where: { projectId },
     });
-    await transaction.jiraIssueSnapshot.deleteMany({ where: { projectId } });
     await transaction.jiraAnalyticsSettings.updateMany({
       where: { projectId },
       data: {
@@ -98,8 +107,11 @@ export async function clearJiraProjectData(
 
     return {
       projectId,
-      ticketsDeleted,
-      versionsDeleted,
+      ticketsDeleted: snapshots.count,
+      versionsDeleted: versions.count,
+      statusTransitionsDeleted: statusTransitions.count,
+      developmentActivitiesDeleted: developmentActivities.count,
+      membershipsDeleted: memberships.count,
       retriesDeleted: retries.count,
     };
   });

@@ -639,6 +639,7 @@ function jiraScopeValueIsValid(type: JiraAnalyticsScopeType, value: string) {
 }
 
 export function JiraAnalyticsDashboard({
+  canClear,
   clearing,
   dataRevision,
   editing,
@@ -647,6 +648,7 @@ export function JiraAnalyticsDashboard({
   onStartEditing,
   section,
 }: {
+  canClear: boolean;
   clearing: boolean;
   dataRevision: number;
   editing: boolean;
@@ -1047,7 +1049,7 @@ export function JiraAnalyticsDashboard({
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
             {syncing ? "Обновляю..." : "Обновить"}
           </button>
-          {canEditWidgets && !editing && (
+          {canClear && !editing && (
             <button
               type="button"
               className="button"

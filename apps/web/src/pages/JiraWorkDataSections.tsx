@@ -14,10 +14,12 @@ function scopeValueIsValid(type: JiraScopeType, value: string) {
 }
 
 export function JiraWorkDataSections({
+  canClear,
   clearing,
   dataRevision,
   onClearData,
 }: {
+  canClear: boolean;
   clearing: boolean;
   dataRevision: number;
   onClearData: () => void;
@@ -96,7 +98,7 @@ export function JiraWorkDataSections({
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
             {syncing ? "Обновляю..." : "Обновить"}
           </button>
-          {canEditScope && (
+          {canClear && (
             <button
               type="button"
               className="button"

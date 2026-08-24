@@ -5,6 +5,8 @@ import type { PrismaClient } from '@prisma/client';
 import {
   clearJiraProjectData,
   JiraProjectDataBusyError,
+  JiraProjectDataNotFoundError,
+  JiraProjectDataReadOnlyError,
 } from './jira-project-data.js';
 
 test('project Jira clear deletes only imported data for the selected project', async () => {
@@ -29,19 +31,33 @@ test('project Jira clear deletes only imported data for the selected project', a
       },
     },
     jiraIssueSnapshot: {
-      count: async (value: unknown) => {
-        calls.push({ operation: 'snapshot.count', value });
-        return 2;
-      },
       deleteMany: async (value: unknown) => {
         calls.push({ operation: 'snapshot.deleteMany', value });
         return { count: 2 };
       },
     },
     jiraIssueVersion: {
-      count: async (value: unknown) => {
-        calls.push({ operation: 'version.count', value });
-        return 7;
+      deleteMany: async (value: unknown) => {
+        calls.push({ operation: 'version.deleteMany', value });
+        return { count: 7 };
+      },
+    },
+    jiraIssueStatusTransition: {
+      deleteMany: async (value: unknown) => {
+        calls.push({ operation: 'transition.deleteMany', value });
+        return { count: 3 };
+      },
+    },
+    jiraDevelopmentActivity: {
+      deleteMany: async (value: unknown) => {
+        calls.push({ operation: 'activity.deleteMany', value });
+        return { count: 4 };
+      },
+    },
+    jiraWorkSectionIssue: {
+      deleteMany: async (value: unknown) => {
+        calls.push({ operation: 'membership.deleteMany', value });
+        return { count: 5 };
       },
     },
     jiraIssueHistoryRetry: {
@@ -73,10 +89,28 @@ test('project Jira clear deletes only imported data for the selected project', a
     projectId: 'project-1',
     ticketsDeleted: 2,
     versionsDeleted: 7,
+    statusTransitionsDeleted: 3,
+    developmentActivitiesDeleted: 4,
+    membershipsDeleted: 5,
     retriesDeleted: 1,
   });
-  for (const call of calls.filter((item) => item.operation.endsWith('deleteMany'))) {
-    assert.deepEqual(call.value, { where: { projectId: 'project-1' } });
+  for (const operation of [
+    'snapshot.deleteMany',
+    'version.deleteMany',
+    'retry.deleteMany',
+  ]) {
+    assert.deepEqual(calls.find((item) => item.operation === operation)?.value, {
+      where: { projectId: 'project-1' },
+    });
+  }
+  for (const operation of [
+    'transition.deleteMany',
+    'activity.deleteMany',
+    'membership.deleteMany',
+  ]) {
+    assert.deepEqual(calls.find((item) => item.operation === operation)?.value, {
+      where: { snapshot: { projectId: 'project-1' } },
+    });
   }
   const settingsWrite = calls.find((item) => item.operation === 'settings.updateMany');
   assert.deepEqual(settingsWrite?.value, {
@@ -113,4 +147,63 @@ test('project Jira clear refuses to race an active synchronization', async () =>
     clearJiraProjectData(database, 'project-1'),
     JiraProjectDataBusyError,
   );
+});
+
+test('project Jira clear recovers from a stale settings run id after its lease expires', async () => {
+  const transaction = {
+    $queryRaw: async (query: { text: string }) => query.text.includes('JiraAnalyticsSettings')
+      ? [{ syncRunId: 'stale-run', leaseActive: false }]
+      : [{ lock: '' }],
+    project: { findUnique: async () => ({ id: 'project-1', status: 'ACTIVE' }) },
+    jiraSyncRun: { findFirst: async () => null },
+    jiraWorkSectionIssue: { deleteMany: async () => ({ count: 0 }) },
+    jiraIssueStatusTransition: { deleteMany: async () => ({ count: 0 }) },
+    jiraDevelopmentActivity: { deleteMany: async () => ({ count: 0 }) },
+    jiraIssueVersion: { deleteMany: async () => ({ count: 0 }) },
+    jiraIssueSnapshot: { deleteMany: async () => ({ count: 0 }) },
+    jiraIssueHistoryRetry: { deleteMany: async () => ({ count: 0 }) },
+    jiraAnalyticsSettings: { updateMany: async () => ({ count: 1 }) },
+    jiraIntegration: { updateMany: async () => ({ count: 1 }) },
+  };
+  const database = {
+    $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction),
+  } as unknown as PrismaClient;
+
+  await assert.doesNotReject(clearJiraProjectData(database, 'project-1'));
+});
+
+test('project Jira clear rejects an unknown project before deleting data', async () => {
+  let deletes = 0;
+  const transaction = {
+    $queryRaw: async () => [{ lock: '' }],
+    project: { findUnique: async () => null },
+    jiraIssueSnapshot: { deleteMany: async () => { deletes += 1; } },
+  };
+  const database = {
+    $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction),
+  } as unknown as PrismaClient;
+
+  await assert.rejects(
+    clearJiraProjectData(database, 'missing-project'),
+    JiraProjectDataNotFoundError,
+  );
+  assert.equal(deletes, 0);
+});
+
+test('project Jira clear keeps closed projects read-only', async () => {
+  let deletes = 0;
+  const transaction = {
+    $queryRaw: async () => [{ lock: '' }],
+    project: { findUnique: async () => ({ id: 'project-1', status: 'CLOSED' }) },
+    jiraIssueSnapshot: { deleteMany: async () => { deletes += 1; } },
+  };
+  const database = {
+    $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction),
+  } as unknown as PrismaClient;
+
+  await assert.rejects(
+    clearJiraProjectData(database, 'project-1'),
+    JiraProjectDataReadOnlyError,
+  );
+  assert.equal(deletes, 0);
 });

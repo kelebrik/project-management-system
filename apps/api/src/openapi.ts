@@ -1716,11 +1716,22 @@ export const openApiDocument = {
                 schema: {
                   type: "object",
                   additionalProperties: false,
-                  required: ["projectId", "ticketsDeleted", "versionsDeleted", "retriesDeleted"],
+                  required: [
+                    "projectId",
+                    "ticketsDeleted",
+                    "versionsDeleted",
+                    "statusTransitionsDeleted",
+                    "developmentActivitiesDeleted",
+                    "membershipsDeleted",
+                    "retriesDeleted",
+                  ],
                   properties: {
                     projectId: { type: "string" },
                     ticketsDeleted: { type: "integer", minimum: 0 },
                     versionsDeleted: { type: "integer", minimum: 0 },
+                    statusTransitionsDeleted: { type: "integer", minimum: 0 },
+                    developmentActivitiesDeleted: { type: "integer", minimum: 0 },
+                    membershipsDeleted: { type: "integer", minimum: 0 },
                     retriesDeleted: { type: "integer", minimum: 0 },
                   },
                 },

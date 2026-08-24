@@ -105,6 +105,7 @@ export function ProjectJiraWorkPage() {
 
       {view === "data" ? (
         <JiraWorkDataSections
+          canClear={canEditWidgets}
           clearing={clearing}
           dataRevision={jiraDataRevision}
           onClearData={() => void clearJiraData()}
@@ -114,6 +115,7 @@ export function ProjectJiraWorkPage() {
       {view === "active" || view === "retro"
         ? (
             <JiraAnalyticsDashboard
+              canClear={canEditWidgets}
               editing={dashboardEditing}
               clearing={clearing}
               dataRevision={jiraDataRevision}
