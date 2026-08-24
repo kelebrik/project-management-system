@@ -6,6 +6,7 @@ import {
   jiraAnalyticsOperatorsFor,
   jiraAnalyticsSourceUsesPeriod,
   type JiraAnalyticsAggregateDraft,
+  type JiraAnalyticsDataQuality,
   type JiraAnalyticsEvaluationResult,
   type JiraAnalyticsFilter,
   type JiraAnalyticsFilterField,
@@ -13,9 +14,10 @@ import {
   type JiraAnalyticsGroupBy,
   type JiraAnalyticsMetric,
   type JiraAnalyticsPeriodMode,
+  type JiraAnalyticsResultRecord,
   type JiraAnalyticsSource,
 } from "@pms/shared";
-import { Database, Eye, History, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Database, Download, Eye, History, Plus, RotateCcw, Save, Scale, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import type { JiraAnalyticsFacets } from "../app/domainTypes";
@@ -72,10 +74,44 @@ type JiraAsOfReconstruction = {
   earliestObservationAt: string | null;
   stalenessHours: { p50: number; p95: number; max: number } | null;
   beforeHistoryStart: boolean;
+  historyWriteGap: {
+    includesAsOf: boolean;
+    runs: number;
+    firstAt: string | null;
+    lastAt: string | null;
+  };
+  quality: "AVAILABLE" | "UNAVAILABLE_HISTORY_WRITE_GAP";
 };
 
 type JiraAnalyticsPreviewResult = JiraAnalyticsEvaluationResult & {
   reconstruction?: JiraAsOfReconstruction;
+};
+
+type DashboardReconciliationResult = {
+  status: "MATCH" | "MISMATCH";
+  evaluatedAt: string;
+  legacyEngine: "V1_INLINE_WIDGETS";
+  managedEngine: "V2_REFERENCED_AGGREGATES";
+  legacyConfigHash: string;
+  managedConfigHash: string;
+  comparedWidgets: number;
+  matchedWidgets: number;
+  mismatchedWidgets: number;
+  caveat: string;
+  widgets: Array<{
+    widgetId: string;
+    title: string;
+    status: "MATCH" | "MISMATCH";
+    semanticMatch: boolean;
+    valueMatch: boolean;
+    totalRecordsMatch: boolean;
+    groupsMatch: boolean;
+    qualityMatch: boolean;
+    orderedRecordSampleMatch: boolean;
+    recordSampleSize: number;
+    legacy: { status: "OK" | "UNAVAILABLE" | "MISSING"; value: number | null; totalRecords: number | null; error: string | null };
+    managed: { status: "OK" | "UNAVAILABLE" | "MISSING"; value: number | null; totalRecords: number | null; error: string | null };
+  }>;
 };
 
 const EMPTY_DRAFT: JiraAnalyticsAggregateDraft = {
@@ -104,6 +140,72 @@ function newFilter(field: JiraAnalyticsFilterField): JiraAnalyticsFilter {
 
 function localDateTimeValue(date: Date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+const qualityStatusLabels: Record<JiraAnalyticsDataQuality["status"], string> = {
+  COMPLETE: "Полное покрытие источника",
+  PARTIAL: "Частичное покрытие источника",
+  NO_DATA: "Нет данных",
+  UNAVAILABLE: "Недоступно",
+};
+
+const qualityWarningLabels: Record<JiraAnalyticsDataQuality["warnings"][number]["code"], string> = {
+  NO_SOURCE_POPULATION: "В выбранной области нет тикетов для источника",
+  INCOMPLETE_TRANSITION_HISTORY: "Неполная история переходов",
+  INCOMPLETE_DEVELOPMENT_DATA: "Не проверена активность разработки",
+  INCOMPLETE_CRITICAL_SLA: "Не определена контрольная точка SLA",
+  MISSING_HISTORICAL_OBSERVATION: "В проекте есть тикеты без исторического снимка; они не входят в покрытие выбранной области",
+  BEFORE_HISTORY_START: "Дата раньше начала наблюдений",
+  HISTORY_WRITE_GAP: "На дату был отключён сбор истории",
+};
+
+function QualitySummary({ quality }: { quality: JiraAnalyticsDataQuality }) {
+  return (
+    <section className={`jira-aggregate-quality ${quality.status.toLowerCase()}`}>
+      <header>
+        <strong>{qualityStatusLabels[quality.status]}</strong>
+        <span>{quality.basis === "CURRENT_PROJECTION" ? "Текущая проекция" : "Наблюдённые версии"}</span>
+      </header>
+      <dl>
+        <div><dt>Покрытие источника</dt><dd>{quality.coveragePercent === null ? "-" : `${quality.coveragePercent.toLocaleString("ru-RU")}%`}</dd></div>
+        <div><dt>Полных записей</dt><dd>{quality.complete.toLocaleString("ru-RU")} / {quality.population.toLocaleString("ru-RU")}</dd></div>
+        <div><dt>Последнее наблюдение</dt><dd>{quality.latestObservedAt ? new Date(quality.latestObservedAt).toLocaleString("ru-RU") : "-"}</dd></div>
+      </dl>
+      {quality.warnings.length > 0 && (
+        <ul>{quality.warnings.map((warning) => (
+          <li key={warning.code}>{qualityWarningLabels[warning.code]}{warning.count > 0 ? `: ${warning.count.toLocaleString("ru-RU")}` : ""}</li>
+        ))}</ul>
+      )}
+    </section>
+  );
+}
+
+function PreviewRecords({ records }: { records: JiraAnalyticsResultRecord[] }) {
+  if (records.length === 0) return null;
+  return (
+    <div className="jira-aggregate-preview-records">
+      <table>
+        <thead><tr><th>Тикет</th><th>Статус</th><th>Исполнитель</th><th>Значение</th></tr></thead>
+        <tbody>{records.map((record) => (
+          <tr key={record.id}>
+            <td><a href={record.issue.issueUrl} target="_blank" rel="noreferrer">{record.issue.issueKey}</a></td>
+            <td>{record.issue.status || "-"}</td>
+            <td>{record.issue.assignee || "-"}</td>
+            <td>{record.durationHours === null ? record.eventAt ? new Date(record.eventAt).toLocaleDateString("ru-RU") : "-" : `${record.durationHours.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
+  );
 }
 
 function draftForSource(current: JiraAnalyticsAggregateDraft, source: JiraAnalyticsSource) {
@@ -148,6 +250,7 @@ function Preview({ result, metric }: {
           {!result.reconstruction.beforeHistoryStart && result.reconstruction.ticketsWithoutObservation > 0 && <p>Для части тикетов на выбранную дату ещё нет наблюдённого снимка.</p>}
         </div>
       )}
+      <QualitySummary quality={result.quality} />
       <div className="jira-aggregate-preview-number">
         <strong>{formatJiraAnalyticsMetric(metric, result.value)}</strong>
         <span>{result.totalRecords.toLocaleString("ru-RU")} {recordsLabel}</span>
@@ -168,13 +271,15 @@ function Preview({ result, metric }: {
           ))}
         </div>
       )}
+      <PreviewRecords records={result.records} />
     </div>
   );
 }
 
 export function JiraAggregatesPage() {
   const { currentUser, isClosedProject, project, refreshProject, setError, setNotice } = usePageContext();
-  const canEdit = currentUser?.role === "ADMIN" && !isClosedProject;
+  const isSystemAdmin = currentUser?.role === "ADMIN";
+  const canEdit = isSystemAdmin && !isClosedProject;
   const [catalog, setCatalog] = useState<AggregateCatalog | null>(null);
   const [facetState, setFacetState] = useState<{
     projectId: string;
@@ -191,6 +296,7 @@ export function JiraAggregatesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [operationResult, setOperationResult] = useState<DashboardOperationResult | null>(null);
+  const [reconciliation, setReconciliation] = useState<DashboardReconciliationResult | null>(null);
   const loadSequenceRef = useRef(0);
 
   const loadCatalog = async (
@@ -201,6 +307,7 @@ export function JiraAggregatesPage() {
     loadSequenceRef.current = loadSequence;
     setLoading(true);
     if (options.resetOperationResult) setOperationResult(null);
+    if (options.resetOperationResult) setReconciliation(null);
     try {
       const [next, nextFacets] = await Promise.all([
         apiClient.get<AggregateCatalog>(
@@ -373,6 +480,49 @@ export function JiraAggregatesPage() {
     }
   };
 
+  const exportDefinition = async () => {
+    if (!selectedId || !selected) return;
+    setSaving(true);
+    try {
+      const params = new URLSearchParams({ assignee });
+      if (selected.periodMode === "DASHBOARD") params.set("periodDays", String(periodDays));
+      if (asOf && !jiraAnalyticsSourceUsesPeriod(selected.source)) params.set("asOf", new Date(asOf).toISOString());
+      else params.set("evaluatedAt", new Date().toISOString());
+      const file = await apiClient.download(
+        `/api/projects/${project.id}/jira/aggregates/${selectedId}/export.csv?${params}`,
+        "Не удалось экспортировать агрегат",
+      );
+      downloadBlob(file.blob, file.filename);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось экспортировать агрегат");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const runReconciliation = async () => {
+    if (!isSystemAdmin || !catalog?.dashboard.stored) return;
+    setSaving(true);
+    setReconciliation(null);
+    try {
+      const result = await apiClient.post<DashboardReconciliationResult>(
+        `/api/projects/${project.id}/jira/aggregates/reconcile-dashboard`,
+        {
+          expectedConfigHash: catalog.dashboard.configHash,
+          periodDays,
+          assignee,
+        },
+        "Не удалось выполнить сверку v1/v2",
+      );
+      setReconciliation(result);
+      setNotice(result.status === "MATCH" ? "Сверка v1/v2 завершена без расхождений" : "Сверка v1/v2 обнаружила расхождения");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Не удалось выполнить сверку v1/v2");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const updateFilter = (id: string, patch: Partial<JiraAnalyticsFilter>) => {
     setDraft((current) => ({
       ...current,
@@ -406,10 +556,10 @@ export function JiraAggregatesPage() {
           ))}
           {catalog?.definitions.length === 0 && <span className="jira-aggregate-catalog-empty">Каталог пуст</span>}
         </div>
-        {canEdit && catalog?.dashboard.stored && (
+        {isSystemAdmin && catalog?.dashboard.stored && (
           <section className="jira-aggregate-migration">
             <h4>Дашборд v{catalog.dashboard.version ?? "?"}</h4>
-            {catalog.dashboard.version === 1 && (
+            {canEdit && catalog.dashboard.version === 1 && (
               <>
                 <button type="button" className="button" disabled={saving} onClick={() => runDashboardOperation("import-dashboard", true)}><Eye size={15} /> Проверить импорт</button>
                 <button type="button" className="button" disabled={saving} onClick={() => runDashboardOperation("import-dashboard", false)}><Database size={15} /> Импортировать</button>
@@ -417,7 +567,7 @@ export function JiraAggregatesPage() {
                 <button type="button" className="button" disabled={saving || (catalog?.definitions.length ?? 0) === 0} onClick={() => runDashboardOperation("convert-dashboard", false)}><History size={15} /> Перевести в v2</button>
               </>
             )}
-            {catalog.dashboard.version === 2 && catalog.dashboard.convertedAt && !catalog.dashboard.rolledBackAt && (
+            {canEdit && catalog.dashboard.version === 2 && catalog.dashboard.convertedAt && !catalog.dashboard.rolledBackAt && (
               <>
                 <button type="button" className="button" disabled={saving || catalog.dashboard.convertedConfigHash !== catalog.dashboard.configHash} onClick={() => runDashboardOperation("rollback-dashboard", true)}><Eye size={15} /> Проверить откат</button>
                 <button type="button" className="button" disabled={saving || catalog.dashboard.convertedConfigHash !== catalog.dashboard.configHash} onClick={() => runDashboardOperation("rollback-dashboard", false)}><RotateCcw size={15} /> Вернуть v1</button>
@@ -426,6 +576,15 @@ export function JiraAggregatesPage() {
                 )}
               </>
             )}
+            <button
+              type="button"
+              className="button"
+              disabled={saving || (catalog?.definitions.length ?? 0) === 0}
+              onClick={runReconciliation}
+            >
+              <Scale size={15} /> Сверить v1 и v2
+            </button>
+            <p className="jira-aggregate-migration-caveat">Сверка проверяет совпадение v1/v2 на одних данных, но не является независимой проверкой формул.</p>
             {operationResult && (
               <div className="jira-aggregate-operation-result" role="status">
                 {operationResult.items ? (
@@ -442,6 +601,22 @@ export function JiraAggregatesPage() {
                 )}
               </div>
             )}
+            {reconciliation && (
+              <div className={`jira-aggregate-reconciliation ${reconciliation.status.toLowerCase()}`} role="status">
+                <header>
+                  <strong>{reconciliation.status === "MATCH" ? "Расхождений нет" : "Есть расхождения"}</strong>
+                  <span>{reconciliation.matchedWidgets} / {reconciliation.comparedWidgets}</span>
+                </header>
+                <div className="jira-aggregate-reconciliation-widgets">
+                  {reconciliation.widgets.map((widget) => (
+                    <span className={widget.status.toLowerCase()} key={widget.widgetId} title={widget.status === "MATCH" ? "Значение, записи, группы и качество совпали" : "Проверьте правила и определение агрегата"}>
+                      {widget.title}
+                    </span>
+                  ))}
+                </div>
+                <p>{reconciliation.caveat}</p>
+              </div>
+            )}
           </section>
         )}
       </aside>
@@ -452,6 +627,7 @@ export function JiraAggregatesPage() {
           {canEdit && (
             <div>
               {selected && <button type="button" className="icon-button danger" disabled={saving} onClick={deleteDefinition} aria-label="Удалить агрегат" title="Удалить"><Trash2 size={17} /></button>}
+              {selected && <button type="button" className="icon-button" disabled={saving} onClick={exportDefinition} aria-label="Экспортировать сохранённый агрегат" title="Экспорт CSV сохранённого агрегата"><Download size={17} /></button>}
               <button type="button" className="button" disabled={saving || !validation.success} onClick={runPreview}><Eye size={16} /> Рассчитать</button>
               <button type="button" className="button primary" disabled={saving || !validation.success} onClick={saveDefinition}><Save size={16} /> Сохранить</button>
             </div>

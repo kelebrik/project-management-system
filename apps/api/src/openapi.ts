@@ -314,9 +314,48 @@ export const openApiDocument = {
           totalRecords: { type: "integer", minimum: 0 },
           page: { type: "integer", minimum: 1 },
           pageSize: { type: "integer", minimum: 1, maximum: 100 },
+          quality: { $ref: "#/components/schemas/JiraAnalyticsDataQuality" },
           reconstruction: { $ref: "#/components/schemas/JiraAsOfReconstruction" },
         },
-        required: ["evaluatedAt", "effective", "value", "groups", "records", "totalRecords", "page", "pageSize"],
+        required: ["evaluatedAt", "effective", "value", "groups", "records", "totalRecords", "page", "pageSize", "quality"],
+      },
+      JiraAnalyticsDataQuality: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          status: { type: "string", enum: ["COMPLETE", "PARTIAL", "NO_DATA", "UNAVAILABLE"] },
+          basis: { type: "string", enum: ["CURRENT_PROJECTION", "OBSERVED_VERSIONS"] },
+          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
+          population: { type: "integer", minimum: 0 },
+          complete: { type: "integer", minimum: 0 },
+          incomplete: { type: "integer", minimum: 0 },
+          coveragePercent: { type: ["number", "null"], minimum: 0, maximum: 100 },
+          oldestObservedAt: { type: ["string", "null"], format: "date-time" },
+          latestObservedAt: { type: ["string", "null"], format: "date-time" },
+          warnings: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                code: {
+                  type: "string",
+                  enum: [
+                    "NO_SOURCE_POPULATION", "INCOMPLETE_TRANSITION_HISTORY",
+                    "INCOMPLETE_DEVELOPMENT_DATA", "INCOMPLETE_CRITICAL_SLA",
+                    "MISSING_HISTORICAL_OBSERVATION", "BEFORE_HISTORY_START", "HISTORY_WRITE_GAP",
+                  ],
+                },
+                count: { type: "integer", minimum: 0 },
+              },
+              required: ["code", "count"],
+            },
+          },
+        },
+        required: [
+          "status", "basis", "source", "population", "complete", "incomplete",
+          "coveragePercent", "oldestObservedAt", "latestObservedAt", "warnings",
+        ],
       },
       JiraAsOfReconstruction: {
         type: "object",
@@ -1250,6 +1289,27 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/aggregates/{aggregateId}/export.csv": {
+      get: {
+        ...securedOperation(["Jira"], "Export one saved Jira aggregate as bounded server-generated CSV", [projectIdParam, pathParam("aggregateId")]),
+        parameters: [
+          projectIdParam,
+          pathParam("aggregateId"),
+          { name: "periodDays", in: "query", schema: { type: "integer", enum: [30, 90, 180, 365] } },
+          { name: "assignee", in: "query", schema: { type: "string", maxLength: 200 } },
+          { name: "groupKey", in: "query", schema: { type: "string", maxLength: 500 } },
+          { name: "evaluatedAt", in: "query", schema: { type: "string", format: "date-time" } },
+          { name: "asOf", in: "query", schema: { type: "string", format: "date-time" } },
+        ],
+        responses: {
+          "200": {
+            description: "CSV built only from typed aggregate result records",
+            content: { "text/csv": { schema: { type: "string", format: "binary" } } },
+          },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
     "/api/projects/{projectId}/jira/aggregate-dashboard-results": {
       get: {
         ...securedOperation(["Jira"], "Evaluate all saved dashboard widgets on the server", [projectIdParam]),
@@ -1286,6 +1346,28 @@ export const openApiDocument = {
         requestBody: jiraDashboardMigrationRequestBody,
         responses: {
           "200": { description: "Import dry-run or applied import plan" },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/aggregates/reconcile-dashboard": {
+      post: {
+        ...securedOperation(["Jira"], "Compare dashboard v1 inline widgets with v2 referenced aggregates on one data pass", [projectIdParam]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+              periodDays: { type: "integer", enum: [30, 90, 180, 365] },
+              assignee: { type: "string", maxLength: 200 },
+            },
+            required: ["expectedConfigHash", "periodDays", "assignee"],
+          } } },
+        },
+        responses: {
+          "200": { description: "Bounded v1/v2 migration parity report using a shared arithmetic kernel" },
           ...jiraAggregateErrorResponses,
         },
       },

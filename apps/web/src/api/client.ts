@@ -75,6 +75,33 @@ async function request<T>(
   return result as T;
 }
 
+async function download(path: string, fallback = "Не удалось скачать файл") {
+  const response = await fetch(`${apiBase}${path}`, {
+    credentials: "include",
+    headers: businessUnitHeaders(),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let details: unknown = text;
+    try {
+      details = text ? JSON.parse(text) : null;
+    } catch {
+      // Keep the bounded plain-text response as diagnostic details.
+    }
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("pms-auth-required"));
+    }
+    throw new ApiError(errorMessage(details, fallback), response.status, details);
+  }
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/iu)?.[1];
+  const plainName = disposition.match(/filename="([^"]+)"/iu)?.[1];
+  return {
+    blob: await response.blob(),
+    filename: encodedName ? decodeURIComponent(encodedName) : plainName ?? "download",
+  };
+}
+
 export const apiClient = {
   get<T>(path: string, fallback?: string) {
     return request<T>(path, {}, fallback);
@@ -113,4 +140,5 @@ export const apiClient = {
   delete(path: string, fallback?: string) {
     return request<null>(path, { method: "DELETE" }, fallback);
   },
+  download,
 };

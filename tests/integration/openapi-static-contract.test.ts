@@ -151,6 +151,7 @@ test("OpenAPI describes the managed Jira aggregate concurrency and payload contr
     "/api/projects/{projectId}/jira/aggregates/import-dashboard",
     "/api/projects/{projectId}/jira/aggregates/convert-dashboard",
     "/api/projects/{projectId}/jira/aggregates/rollback-dashboard",
+    "/api/projects/{projectId}/jira/aggregates/reconcile-dashboard",
     "/api/projects/{projectId}/jira/analytics-dashboard",
   ];
   for (const apiPath of mutationPaths) {
@@ -174,4 +175,11 @@ test("OpenAPI describes the managed Jira aggregate concurrency and payload contr
     preview?.responses?.["200"]?.content?.["application/json"]?.schema?.$ref,
     "#/components/schemas/JiraAggregateEvaluationResult",
   );
+  const evaluation = document.components.schemas.JiraAggregateEvaluationResult as {
+    properties?: Record<string, { $ref?: string }>;
+    required?: string[];
+  };
+  assert.equal(evaluation.properties?.quality?.$ref, "#/components/schemas/JiraAnalyticsDataQuality");
+  assert.ok(evaluation.required?.includes("quality"));
+  assert.ok(document.paths["/api/projects/{projectId}/jira/aggregates/{aggregateId}/export.csv"]?.get);
 });

@@ -16,6 +16,7 @@ import {
   type JiraAnalyticsDashboardConfig,
   type JiraAnalyticsDashboardV1,
   type JiraAnalyticsDashboardV2,
+  type JiraAnalyticsDataQuality,
   type JiraAnalyticsEvaluationOptions,
   type JiraAnalyticsEvaluationResult,
   type JiraAnalyticsEvaluationLimits,
@@ -24,7 +25,10 @@ import {
 } from '@pms/shared';
 import { Prisma, type JiraAggregateDefinition, type PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
-import { prepareJiraAsOfIssueBatches } from './jira-history-asof.js';
+import {
+  prepareJiraAsOfIssueBatches,
+  type JiraAsOfReconstruction,
+} from './jira-history-asof.js';
 
 export const JIRA_AGGREGATE_MAX_BATCH_WIDGETS = 100;
 export const JIRA_AGGREGATE_MAX_ISSUES = 5_000;
@@ -43,6 +47,12 @@ export class JiraAggregatePopulationLimitError extends Error {
 export class JiraAggregateEventLimitError extends Error {
   constructor(public readonly limit: number) {
     super('JIRA_AGGREGATE_EVENT_LIMIT');
+  }
+}
+
+export class JiraAggregateExportLimitError extends Error {
+  constructor(public readonly limit: number) {
+    super('JIRA_AGGREGATE_EXPORT_LIMIT');
   }
 }
 
@@ -160,12 +170,14 @@ export const jiraAggregateIssueSelect = {
   sprint: true,
   issueCreatedAt: true,
   criticalPriorityAt: true,
+  criticalEndPriority: true,
   resolutionAt: true,
   criticalSlaTracked: true,
   commitCount: true,
   mergeRequestCount: true,
   developmentDataAvailable: true,
   transitionHistoryComplete: true,
+  syncedAt: true,
   updatedAt: true,
   statusTransitions: {
     select: {
@@ -196,7 +208,9 @@ function serializeIssue(issue: SelectedIssue): JiraAnalyticsIssueData {
     ...issue,
     issueCreatedAt: issue.issueCreatedAt?.toISOString() ?? null,
     criticalPriorityAt: issue.criticalPriorityAt?.toISOString() ?? null,
+    criticalEndPriority: issue.criticalEndPriority,
     resolutionAt: issue.resolutionAt?.toISOString() ?? null,
+    dataObservedAt: issue.syncedAt.toISOString(),
     updatedAt: issue.updatedAt.toISOString(),
     statusTransitions: issue.statusTransitions.map((transition) => ({
       ...transition,
@@ -367,17 +381,53 @@ const jiraAggregateEvaluationLimits = {
   maxPageWindow: JIRA_AGGREGATE_MAX_PAGE_WINDOW,
 } as const;
 
+const jiraAggregateExportEvaluationLimits = {
+  ...jiraAggregateEvaluationLimits,
+  maxPageSize: JIRA_AGGREGATE_MAX_PAGE_WINDOW,
+} as const;
+
+export function mergeJiraAsOfDataQuality(
+  quality: JiraAnalyticsDataQuality,
+  reconstruction: JiraAsOfReconstruction,
+): JiraAnalyticsDataQuality {
+  const unknown = reconstruction.ticketsWithoutObservation;
+  const warnings = [...quality.warnings];
+  if (unknown > 0) {
+    warnings.push({
+      code: 'MISSING_HISTORICAL_OBSERVATION',
+      count: unknown,
+    });
+  }
+  if (reconstruction.beforeHistoryStart) {
+    warnings.push({ code: 'BEFORE_HISTORY_START', count: reconstruction.ticketsWithoutObservation });
+  }
+  if (reconstruction.quality === 'UNAVAILABLE_HISTORY_WRITE_GAP') {
+    warnings.push({ code: 'HISTORY_WRITE_GAP', count: reconstruction.historyWriteGap.runs });
+  }
+  return {
+    ...quality,
+    basis: 'OBSERVED_VERSIONS',
+    status: reconstruction.quality === 'UNAVAILABLE_HISTORY_WRITE_GAP'
+      ? 'UNAVAILABLE'
+      : reconstruction.beforeHistoryStart
+        ? 'NO_DATA'
+        : quality.status,
+    warnings,
+  };
+}
+
 export async function evaluateJiraAggregateFromDatabase(
   client: JiraAggregateReadClient,
   projectId: string,
   definition: JiraAnalyticsAggregateDraft,
   options: JiraAnalyticsEvaluationOptions,
   asOf?: Date,
+  limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
 ) {
   const accumulator = createJiraAnalyticsEvaluationAccumulator(
     definition,
     options,
-    jiraAggregateEvaluationLimits,
+    limits,
   );
   if (asOf) {
     if (jiraAnalyticsSourceUsesPeriod(definition.source)) {
@@ -395,7 +445,12 @@ export async function evaluateJiraAggregateFromDatabase(
       }
       accumulator.addIssues(issues);
     }
-    return { ...accumulator.finish(), reconstruction: prepared.reconstruction };
+    const result = accumulator.finish();
+    return {
+      ...result,
+      quality: mergeJiraAsOfDataQuality(result.quality, prepared.reconstruction),
+      reconstruction: prepared.reconstruction,
+    };
   }
   for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
     accumulator.addIssues(issues);
@@ -626,17 +681,93 @@ export async function evaluateSavedDashboardFromDatabase(
   definitions: JiraAggregateDefinition[],
   options: JiraAnalyticsEvaluationOptions,
   selectedWidgetId?: string,
+  limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
 ) {
   const accumulator = createSavedDashboardAccumulator(
     rawConfig,
     definitions,
     options,
     selectedWidgetId,
+    limits,
   );
   for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
     accumulator.addIssues(issues);
   }
   return accumulator.finish();
+}
+
+function csvCell(value: string | number | null | undefined) {
+  let text = value === null || value === undefined ? '' : String(value);
+  if (typeof value === 'string' && /^[\t\r ]*[=+\-@]/u.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+export function jiraAggregateResultCsv(result: JiraAnalyticsEvaluationResult) {
+  if (result.totalRecords > JIRA_AGGREGATE_MAX_PAGE_WINDOW) {
+    throw new JiraAggregateExportLimitError(JIRA_AGGREGATE_MAX_PAGE_WINDOW);
+  }
+  if (result.records.length !== result.totalRecords) {
+    throw new Error('JIRA_AGGREGATE_EXPORT_INCOMPLETE');
+  }
+  const header = [
+    'Evaluated at',
+    'Quality status',
+    'Quality basis',
+    'Record ID',
+    'Source',
+    'Key',
+    'Summary',
+    'Assignee',
+    'Status',
+    'Priority',
+    'Issue type',
+    'Resolution',
+    'Sprint',
+    'From status',
+    'To status',
+    'Duration hours',
+    'Commits',
+    'Merge requests',
+    'Event at',
+    'Jira URL',
+  ];
+  const rows = result.records.map((record) => [
+    result.evaluatedAt,
+    result.quality.status,
+    result.quality.basis,
+    record.id,
+    record.source,
+    record.issue.issueKey,
+    record.issue.summary,
+    record.issue.assignee,
+    record.issue.status,
+    record.issue.priority,
+    record.issue.issueType,
+    record.issue.resolution,
+    record.sprint,
+    record.fromStatus,
+    record.toStatus,
+    record.durationHours,
+    record.commitCount,
+    record.mergeRequestCount,
+    record.eventAt,
+    record.issue.issueUrl,
+  ]);
+  return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
+}
+
+export function jiraAggregateExportOptions(
+  options: Omit<JiraAnalyticsEvaluationOptions, 'page' | 'pageSize'>,
+): JiraAnalyticsEvaluationOptions {
+  return {
+    ...options,
+    page: 1,
+    pageSize: JIRA_AGGREGATE_MAX_PAGE_WINDOW,
+  };
+}
+
+export function jiraAggregateExportLimits(): JiraAnalyticsEvaluationLimits {
+  return jiraAggregateExportEvaluationLimits;
 }
 
 export type JiraAggregateImportPlanItem = {
@@ -740,4 +871,189 @@ export function convertJiraDashboardToV2(
 
 export function jiraDashboardReferencedAggregateIds(config: JiraAnalyticsDashboardConfig) {
   return config.version === 2 ? [...new Set(config.widgets.map((widget) => widget.aggregateId))] : [];
+}
+
+export type JiraDashboardReconciliationWidget = {
+  widgetId: string;
+  title: string;
+  status: 'MATCH' | 'MISMATCH';
+  semanticMatch: boolean;
+  valueMatch: boolean;
+  totalRecordsMatch: boolean;
+  groupsMatch: boolean;
+  qualityMatch: boolean;
+  orderedRecordSampleMatch: boolean;
+  recordSampleSize: number;
+  legacy: {
+    status: JiraAggregateWidgetResult['status'] | 'MISSING';
+    value: number | null;
+    totalRecords: number | null;
+    error: string | null;
+  };
+  managed: {
+    status: JiraAggregateWidgetResult['status'] | 'MISSING';
+    value: number | null;
+    totalRecords: number | null;
+    error: string | null;
+  };
+};
+
+export type JiraDashboardReconciliationResult = {
+  status: 'MATCH' | 'MISMATCH';
+  evaluatedAt: string;
+  legacyEngine: 'V1_INLINE_WIDGETS';
+  managedEngine: 'V2_REFERENCED_AGGREGATES';
+  legacyConfigHash: string;
+  managedConfigHash: string;
+  comparedWidgets: number;
+  matchedWidgets: number;
+  mismatchedWidgets: number;
+  caveat: string;
+  widgets: JiraDashboardReconciliationWidget[];
+};
+
+export function jiraDashboardReconciliationConfigs(
+  currentConfig: unknown,
+  conversionOriginalConfig: unknown,
+  definitions: JiraAggregateDefinition[],
+): { legacy: JiraAnalyticsDashboardV1; managed: JiraAnalyticsDashboardV2 } {
+  const currentV1 = normalizeJiraAnalyticsDashboardV1(currentConfig);
+  if (currentV1) {
+    const plan = buildJiraAggregateImportPlan(currentV1, definitions);
+    const idsByFingerprint = new Map(
+      plan.items.flatMap((item) => item.existingId ? [[item.fingerprint, item.existingId] as const] : []),
+    );
+    return {
+      legacy: currentV1,
+      managed: convertJiraDashboardToV2(currentV1, idsByFingerprint),
+    };
+  }
+  const currentV2 = jiraAnalyticsDashboardV2Schema.safeParse(currentConfig);
+  const originalV1 = normalizeJiraAnalyticsDashboardV1(conversionOriginalConfig);
+  if (!currentV2.success || !originalV1) {
+    throw new Error('DASHBOARD_RECONCILIATION_SOURCE_MISSING');
+  }
+  return { legacy: originalV1, managed: currentV2.data };
+}
+
+function reconciliationWidgetSummary(widget: JiraAggregateWidgetResult | undefined) {
+  return {
+    status: widget?.status ?? 'MISSING' as const,
+    value: widget?.result?.value ?? null,
+    totalRecords: widget?.result?.totalRecords ?? null,
+    error: widget?.error ?? null,
+  };
+}
+
+function compareReconciliationWidgets(
+  legacyConfig: JiraAnalyticsDashboardV1,
+  managedConfig: JiraAnalyticsDashboardV2,
+  definitions: JiraAggregateDefinition[],
+  legacyWidgets: JiraAggregateWidgetResult[],
+  managedWidgets: JiraAggregateWidgetResult[],
+) {
+  const legacyById = new Map(legacyWidgets.map((widget) => [widget.widgetId, widget]));
+  const managedById = new Map(managedWidgets.map((widget) => [widget.widgetId, widget]));
+  const legacyConfigById = new Map(legacyConfig.widgets.map((widget) => [widget.id, widget]));
+  const managedConfigById = new Map(managedConfig.widgets.map((widget) => [widget.id, widget]));
+  const definitionsById = new Map(definitions.map((definition) => [definition.id, definition]));
+  const ids = [...new Set([
+    ...legacyConfig.widgets.map((widget) => widget.id),
+    ...managedConfig.widgets.map((widget) => widget.id),
+  ])].sort(codePointStringCompare);
+
+  return ids.map((widgetId): JiraDashboardReconciliationWidget => {
+    const legacyWidget = legacyById.get(widgetId);
+    const managedWidget = managedById.get(widgetId);
+    const legacyLayout = legacyConfigById.get(widgetId);
+    const managedLayout = managedConfigById.get(widgetId);
+    const legacyFingerprint = legacyLayout
+      ? jiraAggregateFingerprint(inlineWidgetDefinition(legacyLayout, legacyConfig.widgets.indexOf(legacyLayout)))
+      : null;
+    const managedFingerprint = managedLayout
+      ? definitionsById.get(managedLayout.aggregateId)?.fingerprint ?? null
+      : null;
+    const legacyResult = legacyWidget?.result;
+    const managedResult = managedWidget?.result;
+    const semanticMatch = legacyFingerprint !== null && legacyFingerprint === managedFingerprint;
+    const valueMatch = legacyResult !== undefined && managedResult !== undefined &&
+      Object.is(legacyResult.value, managedResult.value);
+    const totalRecordsMatch = legacyResult !== undefined && managedResult !== undefined &&
+      legacyResult.totalRecords === managedResult.totalRecords;
+    const groupsMatch = legacyResult !== undefined && managedResult !== undefined &&
+      stableJson(legacyResult.groups) === stableJson(managedResult.groups);
+    const qualityMatch = legacyResult !== undefined && managedResult !== undefined &&
+      stableJson(legacyResult.quality) === stableJson(managedResult.quality);
+    const legacyRecordIds = legacyResult?.records.map((record) => record.id) ?? [];
+    const managedRecordIds = managedResult?.records.map((record) => record.id) ?? [];
+    const orderedRecordSampleMatch = stableJson(legacyRecordIds) === stableJson(managedRecordIds);
+    const status = legacyWidget?.status === 'OK' && managedWidget?.status === 'OK' &&
+      semanticMatch && valueMatch && totalRecordsMatch && groupsMatch && qualityMatch && orderedRecordSampleMatch
+      ? 'MATCH'
+      : 'MISMATCH';
+    return {
+      widgetId,
+      title: managedLayout?.title ?? legacyLayout?.title ?? widgetId,
+      status,
+      semanticMatch,
+      valueMatch,
+      totalRecordsMatch,
+      groupsMatch,
+      qualityMatch,
+      orderedRecordSampleMatch,
+      recordSampleSize: Math.max(legacyRecordIds.length, managedRecordIds.length),
+      legacy: reconciliationWidgetSummary(legacyWidget),
+      managed: reconciliationWidgetSummary(managedWidget),
+    };
+  });
+}
+
+function codePointStringCompare(left: string, right: string) {
+  const leftPoints = Array.from(left, (value) => value.codePointAt(0) ?? 0);
+  const rightPoints = Array.from(right, (value) => value.codePointAt(0) ?? 0);
+  const length = Math.min(leftPoints.length, rightPoints.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftPoints[index] ?? 0) - (rightPoints[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return leftPoints.length - rightPoints.length;
+}
+
+export async function reconcileJiraDashboardFromDatabase(
+  client: JiraAggregateReadClient,
+  projectId: string,
+  legacyConfig: JiraAnalyticsDashboardV1,
+  managedConfig: JiraAnalyticsDashboardV2,
+  definitions: JiraAggregateDefinition[],
+  options: JiraAnalyticsEvaluationOptions,
+): Promise<JiraDashboardReconciliationResult> {
+  const legacyAccumulator = createSavedDashboardAccumulator(legacyConfig, [], options);
+  const managedAccumulator = createSavedDashboardAccumulator(managedConfig, definitions, options);
+  for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
+    legacyAccumulator.addIssues(issues);
+    managedAccumulator.addIssues(issues);
+  }
+  const legacy = legacyAccumulator.finish();
+  const managed = managedAccumulator.finish();
+  const widgets = compareReconciliationWidgets(
+    legacyConfig,
+    managedConfig,
+    definitions,
+    legacy.widgets,
+    managed.widgets,
+  );
+  const matchedWidgets = widgets.filter((widget) => widget.status === 'MATCH').length;
+  return {
+    status: matchedWidgets === widgets.length && widgets.length > 0 ? 'MATCH' : 'MISMATCH',
+    evaluatedAt: options.now,
+    legacyEngine: 'V1_INLINE_WIDGETS',
+    managedEngine: 'V2_REFERENCED_AGGREGATES',
+    legacyConfigHash: legacy.configHash,
+    managedConfigHash: managed.configHash,
+    comparedWidgets: widgets.length,
+    matchedWidgets,
+    mismatchedWidgets: widgets.length - matchedWidgets,
+    caveat: 'Сверка подтверждает совпадение конфигураций v1/v2 на одном наборе данных. Формулы используют общее арифметическое ядро, поэтому MATCH не является независимой проверкой корректности формул.',
+    widgets,
+  };
 }

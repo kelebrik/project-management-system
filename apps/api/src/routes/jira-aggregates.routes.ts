@@ -22,15 +22,21 @@ import {
   evaluateSavedDashboardFromDatabase,
   jiraAggregateCreateData,
   jiraAggregateDraftFromRow,
+  jiraAggregateExportLimits,
+  jiraAggregateExportOptions,
   jiraAggregateFingerprint,
   jiraAggregatePublicDefinition,
+  jiraAggregateResultCsv,
   jiraAggregateUpdateData,
+  jiraDashboardReconciliationConfigs,
   jiraDashboardConfigHash,
   inspectJiraDashboardDefinitionUse,
   JiraAggregateEventLimitError,
+  JiraAggregateExportLimitError,
   JiraAggregatePopulationLimitError,
   loadJiraAnalyticsFacets,
   lockJiraAggregateProject,
+  reconcileJiraDashboardFromDatabase,
 } from '../services/jira-aggregates.js';
 import { JiraAsOfVersionLimitError } from '../services/jira-history-asof.js';
 
@@ -67,6 +73,8 @@ const asOfEvaluationSchema = evaluationSchema.extend({
   asOf: z.string().datetime({ offset: true }).optional(),
 });
 
+const exportEvaluationSchema = asOfEvaluationSchema.omit({ page: true, pageSize: true });
+
 const dashboardEvaluationSchema = evaluationSchema.extend({
   widgetId: z.string().min(1).max(200).optional(),
 });
@@ -78,6 +86,12 @@ const previewBodySchema = asOfEvaluationSchema.extend({
 const migrationBodySchema = z.object({
   dryRun: z.boolean(),
   expectedConfigHash: z.string().regex(/^[0-9a-f]{64}$/),
+}).strict();
+
+const reconciliationBodySchema = z.object({
+  expectedConfigHash: z.string().regex(/^[0-9a-f]{64}$/),
+  periodDays: periodDaysValueSchema,
+  assignee: z.string().max(200),
 }).strict();
 
 const aggregateAuditFields = [
@@ -179,6 +193,14 @@ function respondToAggregateLimit(error: unknown, res: Response) {
     res.status(413).json({
       error: `Для одного расчёта доступно не более ${error.limit.toLocaleString('ru-RU')} событий Jira`,
       kind: 'events',
+      limit: error.limit,
+    });
+    return true;
+  }
+  if (error instanceof JiraAggregateExportLimitError) {
+    res.status(413).json({
+      error: `Один CSV-экспорт не должен превышать ${error.limit.toLocaleString('ru-RU')} записей`,
+      kind: 'exportRows',
       limit: error.limit,
     });
     return true;
@@ -590,6 +612,54 @@ export function registerJiraAggregateRoutes(
     }
   });
 
+  router.get('/projects/:projectId/jira/aggregates/:aggregateId/export.csv', async (req, res) => {
+    const access = await ensureProjectReadAccess(req.params.projectId, req, canReadProject);
+    if (!access.ok) {
+      res.status(access.status).json({ error: access.error });
+      return;
+    }
+    if (!ensureRuntimeIcu(res)) return;
+    const parsed = exportEvaluationSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Некорректные параметры экспорта', details: parsed.error.flatten() });
+      return;
+    }
+    const row = await prisma.jiraAggregateDefinition.findFirst({
+      where: { id: req.params.aggregateId, projectId: req.params.projectId },
+    });
+    if (!row) {
+      res.status(404).json({ error: 'Агрегат не найден' });
+      return;
+    }
+    try {
+      const definition = jiraAggregateDraftFromRow(row);
+      const input = { ...parsed.data, page: 1, pageSize: 1 };
+      const result = await evaluateJiraAggregateFromDatabase(
+        prisma,
+        req.params.projectId,
+        definition,
+        jiraAggregateExportOptions(evaluationOptions(input, definition)),
+        asOfDate(input, definition),
+        jiraAggregateExportLimits(),
+      );
+      logAsOfEvaluation(req.params.projectId, result);
+      const filePart = row.name.normalize('NFKC').replaceAll(/[^\p{L}\p{N}]+/gu, '-').replaceAll(/^-|-$/gu, '') || 'aggregate';
+      const encodedFilename = encodeURIComponent(`jira-aggregate-${filePart}.csv`);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="jira-aggregate.csv"; filename*=UTF-8''${encodedFilename}`);
+      res.setHeader('X-PMS-Analytics-Quality', result.quality.status);
+      res.setHeader('X-PMS-Evaluated-At', result.evaluatedAt);
+      res.send(`\uFEFF${jiraAggregateResultCsv(result)}`);
+    } catch (error) {
+      if (respondToAggregateLimit(error, res)) return;
+      if (error instanceof AggregateConflictError) {
+        res.status(400).json({ error: conflictMessage(error) });
+        return;
+      }
+      throw error;
+    }
+  });
+
   router.get('/projects/:projectId/jira/aggregate-dashboard-results', async (req, res) => {
     const access = await ensureProjectReadAccess(req.params.projectId, req, canReadProject);
     if (!access.ok) {
@@ -627,6 +697,98 @@ export function registerJiraAggregateRoutes(
       ));
     } catch (error) {
       if (respondToAggregateLimit(error, res)) return;
+      throw error;
+    }
+  });
+
+  router.post('/projects/:projectId/jira/aggregates/reconcile-dashboard', async (req, res) => {
+    const user = requireSystemAdmin(req, res, 'Сверка дашборда доступна только системному администратору');
+    if (!user) return;
+    const access = await ensureProjectReadAccess(req.params.projectId, req, canReadProject);
+    if (!access.ok) {
+      res.status(access.status).json({ error: access.error });
+      return;
+    }
+    if (!ensureRuntimeIcu(res)) return;
+    const parsed = reconciliationBodySchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Некорректные параметры сверки', details: parsed.error.flatten() });
+      return;
+    }
+    try {
+      const [settings, definitions, conversion] = await Promise.all([
+        prisma.jiraAnalyticsSettings.findUnique({
+          where: { projectId: req.params.projectId },
+          select: { dashboardConfig: true },
+        }),
+        prisma.jiraAggregateDefinition.findMany({ where: { projectId: req.params.projectId } }),
+        prisma.jiraAnalyticsDashboardConversion.findUnique({
+          where: { projectId: req.params.projectId },
+          select: { originalConfig: true },
+        }),
+      ]);
+      const currentConfig = settings?.dashboardConfig ?? null;
+      const currentHash = jiraDashboardConfigHash(currentConfig);
+      if (currentHash !== parsed.data.expectedConfigHash) {
+        throw new AggregateConflictError('CONFIG_CHANGED', { currentConfigHash: currentHash });
+      }
+      const configs = jiraDashboardReconciliationConfigs(
+        currentConfig,
+        conversion?.originalConfig ?? null,
+        definitions,
+      );
+      const result = await reconcileJiraDashboardFromDatabase(
+        prisma,
+        req.params.projectId,
+        configs.legacy,
+        configs.managed,
+        definitions,
+        {
+          now: new Date().toISOString(),
+          periodDays: parsed.data.periodDays,
+          assignee: parsed.data.assignee,
+          page: 1,
+          pageSize: 100,
+        },
+      );
+      await recordAuditEvent({
+        req,
+        actor: user,
+        action: 'jira.aggregate.reconcile',
+        objectType: 'JiraAnalyticsDashboard',
+        objectId: req.params.projectId,
+        projectId: req.params.projectId,
+        metadata: {
+          status: result.status,
+          evaluatedAt: result.evaluatedAt,
+          legacyConfigHash: result.legacyConfigHash,
+          managedConfigHash: result.managedConfigHash,
+          comparedWidgets: result.comparedWidgets,
+          matchedWidgets: result.matchedWidgets,
+          mismatchedWidgets: result.mismatchedWidgets,
+          mismatchedWidgetIds: result.widgets
+            .filter((widget) => widget.status === 'MISMATCH')
+            .map((widget) => widget.widgetId),
+        },
+      });
+      res.json(result);
+    } catch (error) {
+      if (respondToAggregateLimit(error, res)) return;
+      if (error instanceof AggregateConflictError) {
+        res.status(409).json({ error: conflictMessage(error), details: error.details ?? null });
+        return;
+      }
+      if (error instanceof Error && (
+        error.message === 'DASHBOARD_RECONCILIATION_SOURCE_MISSING' ||
+        error.message.startsWith('AGGREGATE_DEFINITION_MISSING:')
+      )) {
+        res.status(409).json({
+          error: error.message === 'DASHBOARD_RECONCILIATION_SOURCE_MISSING'
+            ? 'Для сверки нужен корректный дашборд v1 либо исходная конфигурация выполненной конвертации'
+            : 'Сначала импортируйте все определения агрегатов для виджетов v1',
+        });
+        return;
+      }
       throw error;
     }
   });

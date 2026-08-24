@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { Router } from 'express';
@@ -281,6 +282,11 @@ test('Jira aggregate mutations reject non-admin users before database access', a
       path: '/projects/:projectId/jira/aggregates/rollback-dashboard',
       method: 'post',
       error: 'Откат дашборда доступен только системному администратору',
+    },
+    {
+      path: '/projects/:projectId/jira/aggregates/reconcile-dashboard',
+      method: 'post',
+      error: 'Сверка дашборда доступна только системному администратору',
     },
   ];
 
@@ -640,6 +646,26 @@ test('Jira dashboard endpoint rejects asOf instead of silently ignoring it', asy
     currentUser: { id: 'viewer-1', role: 'EXECUTIVE_VIEWER' },
   } as unknown as Request, result.response);
   assert.equal(result.status(), 400);
+});
+
+test('Jira v1/v2 reconciliation remains a read-only diagnostic for closed projects', () => {
+  const routeSource = fs.readFileSync(new URL('./jira-aggregates.routes.ts', import.meta.url), 'utf8');
+  const reconciliationRoute = routeSource.match(
+    /router\.post\('\/projects\/:projectId\/jira\/aggregates\/reconcile-dashboard'[\s\S]*?\n  \}\);/u,
+  )?.[0] ?? '';
+  assert.match(reconciliationRoute, /requireSystemAdmin/u);
+  assert.match(reconciliationRoute, /ensureProjectReadAccess/u);
+  assert.doesNotMatch(reconciliationRoute, /ensureWritableProject/u);
+});
+
+test('Jira aggregate CSV uses an ASCII header fallback and encoded UTF-8 filename', () => {
+  const routeSource = fs.readFileSync(new URL('./jira-aggregates.routes.ts', import.meta.url), 'utf8');
+  const exportRoute = routeSource.match(
+    /router\.get\('\/projects\/:projectId\/jira\/aggregates\/:aggregateId\/export\.csv'[\s\S]*?\n  \}\);/u,
+  )?.[0] ?? '';
+  assert.match(exportRoute, /filename="jira-aggregate\.csv"/u);
+  assert.match(exportRoute, /filename\*=UTF-8''/u);
+  assert.doesNotMatch(exportRoute, /ensureWritableProject/u);
 });
 
 test('Jira dashboard evaluation requires an explicit runtime period before loading analytics', async () => {

@@ -592,12 +592,14 @@ export type JiraAnalyticsIssueData = {
   sprint: string | null;
   issueCreatedAt: string | null;
   criticalPriorityAt: string | null;
+  criticalEndPriority?: string | null;
   resolutionAt: string | null;
   criticalSlaTracked: boolean;
   commitCount: number;
   mergeRequestCount: number;
   developmentDataAvailable: boolean;
   transitionHistoryComplete: boolean;
+  dataObservedAt?: string | null;
   updatedAt: string;
   statusTransitions: JiraAnalyticsTransitionData[];
   developmentActivities: JiraAnalyticsDevelopmentData[];
@@ -606,7 +608,10 @@ export type JiraAnalyticsIssueData = {
 export type JiraAnalyticsResultRecord = {
   id: string;
   source: JiraAnalyticsSource;
-  issue: Omit<JiraAnalyticsIssueData, "statusTransitions" | "developmentActivities">;
+  issue: Omit<
+    JiraAnalyticsIssueData,
+    "statusTransitions" | "developmentActivities" | "criticalEndPriority" | "dataObservedAt"
+  >;
   eventAt: string | null;
   durationHours: number | null;
   commitCount: number;
@@ -614,6 +619,37 @@ export type JiraAnalyticsResultRecord = {
   fromStatus: string | null;
   toStatus: string | null;
   sprint: string | null;
+};
+
+export type JiraAnalyticsDataQualityStatus =
+  | "COMPLETE"
+  | "PARTIAL"
+  | "NO_DATA"
+  | "UNAVAILABLE";
+
+export type JiraAnalyticsDataQualityWarning = {
+  code:
+    | "NO_SOURCE_POPULATION"
+    | "INCOMPLETE_TRANSITION_HISTORY"
+    | "INCOMPLETE_DEVELOPMENT_DATA"
+    | "INCOMPLETE_CRITICAL_SLA"
+    | "MISSING_HISTORICAL_OBSERVATION"
+    | "BEFORE_HISTORY_START"
+    | "HISTORY_WRITE_GAP";
+  count: number;
+};
+
+export type JiraAnalyticsDataQuality = {
+  status: JiraAnalyticsDataQualityStatus;
+  basis: "CURRENT_PROJECTION" | "OBSERVED_VERSIONS";
+  source: JiraAnalyticsSource;
+  population: number;
+  complete: number;
+  incomplete: number;
+  coveragePercent: number | null;
+  oldestObservedAt: string | null;
+  latestObservedAt: string | null;
+  warnings: JiraAnalyticsDataQualityWarning[];
 };
 
 export type JiraAnalyticsEvaluationOptions = {
@@ -639,11 +675,13 @@ export type JiraAnalyticsEvaluationResult = {
   totalRecords: number;
   page: number;
   pageSize: number;
+  quality: JiraAnalyticsDataQuality;
 };
 
 export type JiraAnalyticsEvaluationLimits = {
   maxGroups?: number;
   maxPageWindow?: number;
+  maxPageSize?: number;
 };
 
 export class JiraAnalyticsEvaluationLimitError extends Error {
@@ -667,7 +705,13 @@ function validDate(value: string | null | undefined) {
 }
 
 function publicIssue(issue: JiraAnalyticsIssueData) {
-  const { statusTransitions: _transitions, developmentActivities: _development, ...result } = issue;
+  const {
+    statusTransitions: _transitions,
+    developmentActivities: _development,
+    criticalEndPriority: _criticalEndPriority,
+    dataObservedAt: _dataObservedAt,
+    ...result
+  } = issue;
   return result;
 }
 
@@ -953,7 +997,7 @@ export function createJiraAnalyticsEvaluationAccumulator(
   const periodDays = effectivePeriod(definition, options);
   const periodStart = periodDays === null ? null : new Date(now.getTime() - periodDays * 86_400_000);
   const page = Math.max(1, options.page);
-  const pageSize = Math.min(100, Math.max(1, options.pageSize));
+  const pageSize = Math.min(limits.maxPageSize ?? 100, Math.max(1, options.pageSize));
   const offset = (page - 1) * pageSize;
   const pageWindow = offset + pageSize;
   if (limits.maxPageWindow !== undefined && pageWindow > limits.maxPageWindow) {
@@ -964,6 +1008,73 @@ export function createJiraAnalyticsEvaluationAccumulator(
   const selectedState = options.groupKey ? emptyMetricState() : allState;
   const grouped = new Map<string, { label: string; state: MetricState }>();
   const selectedRecords: JiraAnalyticsResultRecord[] = [];
+  let qualityPopulation = 0;
+  let qualityComplete = 0;
+  let oldestObservedAt: Date | null = null;
+  let latestObservedAt: Date | null = null;
+
+  const issueMatchesQualityScope = (issue: JiraAnalyticsIssueData) =>
+    (definition.scope !== "active" || jiraIssueIsInWorkScope(issue)) &&
+    (!options.assignee || issue.assignee === options.assignee);
+
+  const criticalQualityCandidate = (issue: JiraAnalyticsIssueData) =>
+    isJiraBugIssueType(issue.issueType) && isJiraCriticalPriority(
+      issue.resolutionAt ? issue.criticalEndPriority : issue.priority,
+    );
+
+  const issueIsInQualityPopulation = (issue: JiraAnalyticsIssueData) =>
+    issueMatchesQualityScope(issue) &&
+    (definition.source !== "criticalBugs" || criticalQualityCandidate(issue));
+
+  const issueHasCompleteSourceData = (issue: JiraAnalyticsIssueData) => {
+    if (definition.source === "transitions") return issue.transitionHistoryComplete;
+    if (definition.source === "development") return issue.developmentDataAvailable;
+    if (definition.source === "criticalBugs") {
+      return issue.criticalSlaTracked && validDate(issue.criticalPriorityAt) !== null;
+    }
+    return true;
+  };
+
+  const observeQuality = (issue: JiraAnalyticsIssueData) => {
+    if (!issueIsInQualityPopulation(issue)) return;
+    qualityPopulation += 1;
+    if (issueHasCompleteSourceData(issue)) qualityComplete += 1;
+    const observedAt = validDate(issue.dataObservedAt);
+    if (!observedAt) return;
+    if (!oldestObservedAt || observedAt < oldestObservedAt) oldestObservedAt = observedAt;
+    if (!latestObservedAt || observedAt > latestObservedAt) latestObservedAt = observedAt;
+  };
+
+  const finishQuality = (): JiraAnalyticsDataQuality => {
+    const incomplete = Math.max(0, qualityPopulation - qualityComplete);
+    const warningCode = definition.source === "transitions"
+      ? "INCOMPLETE_TRANSITION_HISTORY" as const
+      : definition.source === "development"
+        ? "INCOMPLETE_DEVELOPMENT_DATA" as const
+        : "INCOMPLETE_CRITICAL_SLA" as const;
+    return {
+      status: qualityPopulation === 0
+        ? "NO_DATA"
+        : incomplete === 0
+          ? "COMPLETE"
+          : "PARTIAL",
+      basis: "CURRENT_PROJECTION",
+      source: definition.source,
+      population: qualityPopulation,
+      complete: qualityComplete,
+      incomplete,
+      coveragePercent: qualityPopulation === 0
+        ? null
+        : Math.round((qualityComplete / qualityPopulation) * 10_000) / 100,
+      oldestObservedAt: oldestObservedAt?.toISOString() ?? null,
+      latestObservedAt: latestObservedAt?.toISOString() ?? null,
+      warnings: qualityPopulation === 0
+        ? [{ code: "NO_SOURCE_POPULATION", count: 0 }]
+        : incomplete > 0 && definition.source !== "issues"
+          ? [{ code: warningCode, count: incomplete }]
+          : [],
+    };
+  };
 
   const recordMatches = (record: JiraAnalyticsResultRecord) => {
     if (periodStart) {
@@ -981,6 +1092,7 @@ export function createJiraAnalyticsEvaluationAccumulator(
   return {
     addIssues(issues) {
       for (const issue of issues) {
+        observeQuality(issue);
         for (const record of sourceRecords(definition, issue, now)) {
           if (!recordMatches(record)) continue;
           addRecordToMetricState(allState, record);
@@ -1036,6 +1148,7 @@ export function createJiraAnalyticsEvaluationAccumulator(
         totalRecords: selectedState.recordCount,
         page,
         pageSize,
+        quality: finishQuality(),
       };
     },
   };

@@ -295,6 +295,18 @@ async function mockManagedJiraAnalytics(
     totalRecords: 1,
     page: 1,
     pageSize: 12,
+    quality: {
+      status: "COMPLETE",
+      basis: "CURRENT_PROJECTION",
+      source,
+      population: 1,
+      complete: 1,
+      incomplete: 0,
+      coveragePercent: 100,
+      oldestObservedAt: evaluatedAt,
+      latestObservedAt: evaluatedAt,
+      warnings: [],
+    },
   });
 
   await page.route("**/api/projects/project-1/jira/analytics-facets", (route) =>
@@ -342,6 +354,7 @@ async function mockManagedJiraAnalytics(
       json: body.asOf ? {
         ...result,
         evaluatedAt: body.asOf,
+        quality: { ...result.quality, basis: "OBSERVED_VERSIONS" },
         reconstruction: {
           mode: "AS_OF",
           provenance: "RECONSTRUCTED",
@@ -354,10 +367,51 @@ async function mockManagedJiraAnalytics(
           earliestObservationAt: "2026-07-01T00:00:00.000Z",
           stalenessHours: { p50: 0.1, p95: 0.5, max: 1 },
           beforeHistoryStart: false,
+          historyWriteGap: { includesAsOf: false, runs: 0, firstAt: null, lastAt: null },
+          quality: "AVAILABLE",
         },
       } : result,
     });
   });
+  await page.route("**/api/projects/project-1/jira/aggregates/aggregate-unplanned/export.csv?**", (route) =>
+    route.fulfill({
+      body: "\uFEFF\"Key\"\r\n\"TV-101\"",
+      headers: {
+        "content-disposition": "attachment; filename=\"jira-aggregate.csv\"",
+        "content-type": "text/csv; charset=utf-8",
+      },
+    }),
+  );
+  await page.route("**/api/projects/project-1/jira/aggregates/reconcile-dashboard", (route) =>
+    route.fulfill({
+      json: {
+        status: "MATCH",
+        evaluatedAt,
+        legacyEngine: "V1_INLINE_WIDGETS",
+        managedEngine: "V2_REFERENCED_AGGREGATES",
+        legacyConfigHash: "b".repeat(64),
+        managedConfigHash: "c".repeat(64),
+        comparedWidgets: 1,
+        matchedWidgets: 1,
+        mismatchedWidgets: 0,
+        caveat: "Сверка использует общее арифметическое ядро и не является независимой проверкой формул.",
+        widgets: [{
+          widgetId: "unplanned-development",
+          title: "Работа вне плана",
+          status: "MATCH",
+          semanticMatch: true,
+          valueMatch: true,
+          totalRecordsMatch: true,
+          groupsMatch: true,
+          qualityMatch: true,
+          orderedRecordSampleMatch: true,
+          recordSampleSize: 1,
+          legacy: { status: "OK", value: 1, totalRecords: 1, error: null },
+          managed: { status: "OK", value: 1, totalRecords: 1, error: null },
+        }],
+      },
+    }),
+  );
   await page.route("**/api/projects/project-1/jira/aggregates/import-dashboard", (route) =>
     route.fulfill({
       json: {
@@ -1052,8 +1106,16 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await asOfInput.fill("2026-08-01T12:00");
   await page.getByRole("button", { name: "Рассчитать" }).click();
   await expect(page.locator(".jira-aggregate-preview").getByText("1 запись")).toBeVisible();
+  await expect(page.getByText("Полное покрытие источника")).toBeVisible();
+  await expect(page.locator(".jira-aggregate-preview-records").getByRole("link", { name: "TV-101" })).toBeVisible();
   await expect(page.getByText("Срез по наблюдённой истории")).toBeVisible();
   await expect(page.getByText("Версий прочитано")).toBeVisible();
+  const aggregateDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Экспортировать сохранённый агрегат" }).click();
+  expect((await aggregateDownload).suggestedFilename()).toBe("jira-aggregate.csv");
+  await page.getByRole("button", { name: "Сверить v1 и v2" }).click();
+  await expect(page.getByText("Расхождений нет")).toBeVisible();
+  await expect(page.getByText(/не является независимой проверкой формул/).last()).toBeVisible();
   await page.getByLabel("Источник").selectOption("transitions");
   await expect(asOfInput).toBeDisabled();
   await expect(page.getByText("Для событийных источников используется период, а не срез состояния.")).toBeVisible();

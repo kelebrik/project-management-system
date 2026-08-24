@@ -16,6 +16,8 @@ import {
   inspectJiraDashboardDefinitionUse,
   jiraAggregateFingerprint,
   jiraAggregateIssueSelect,
+  jiraAggregateResultCsv,
+  jiraDashboardReconciliationConfigs,
   jiraDashboardConfigHash,
   JIRA_AGGREGATE_ISSUE_BATCH_SIZE,
   JIRA_AGGREGATE_MAX_EVENTS,
@@ -23,6 +25,8 @@ import {
   loadJiraAggregateIssueBatches,
   loadJiraAnalyticsFacets,
   lockJiraAggregateProject,
+  mergeJiraAsOfDataQuality,
+  reconcileJiraDashboardFromDatabase,
   resolveSavedDashboard,
 } from './jira-aggregates.js';
 
@@ -61,6 +65,7 @@ function issue(patch: Partial<JiraAnalyticsIssueData> = {}): JiraAnalyticsIssueD
     sprint: null,
     issueCreatedAt: '2026-01-01T00:00:00.000Z',
     criticalPriorityAt: null,
+    criticalEndPriority: null,
     resolutionAt: null,
     criticalSlaTracked: false,
     commitCount: 0,
@@ -103,6 +108,7 @@ function storedIssue(issueKey: string) {
     mergeRequestCount: 0,
     developmentDataAvailable: false,
     transitionHistoryComplete: true,
+    syncedAt: new Date('2026-02-01T00:00:00.000Z'),
     updatedAt: new Date('2026-02-01T00:00:00.000Z'),
     statusTransitions: [],
     developmentActivities: [],
@@ -178,6 +184,79 @@ test('transition source excludes issues with incomplete history', () => {
     options,
   );
   assert.equal(result.value, 1);
+});
+
+test('aggregate result reports source-aware measured completeness', () => {
+  const result = evaluateJiraAnalyticsAggregate(
+    definition({ source: 'transitions', metric: 'count', periodMode: 'DASHBOARD' }),
+    [
+      issue({ id: 'complete', transitionHistoryComplete: true, dataObservedAt: '2026-02-28T10:00:00.000Z' }),
+      issue({ id: 'incomplete', transitionHistoryComplete: false, dataObservedAt: '2026-02-28T11:00:00.000Z' }),
+    ],
+    options,
+  );
+  assert.deepEqual(result.quality, {
+    status: 'PARTIAL',
+    basis: 'CURRENT_PROJECTION',
+    source: 'transitions',
+    population: 2,
+    complete: 1,
+    incomplete: 1,
+    coveragePercent: 50,
+    oldestObservedAt: '2026-02-28T10:00:00.000Z',
+    latestObservedAt: '2026-02-28T11:00:00.000Z',
+    warnings: [{ code: 'INCOMPLETE_TRANSITION_HISTORY', count: 1 }],
+  });
+});
+
+test('critical quality includes candidates whose SLA start is unavailable', () => {
+  const result = evaluateJiraAnalyticsAggregate(
+    definition({ source: 'criticalBugs', scope: 'retro' }),
+    [
+      issue({
+        id: 'ready', priority: 'Blocker', criticalEndPriority: 'Blocker',
+        criticalPriorityAt: '2026-02-01T00:00:00.000Z', criticalSlaTracked: true,
+      }),
+      issue({
+        id: 'missing-start', priority: 'Critical', criticalEndPriority: 'Critical',
+        criticalPriorityAt: null, criticalSlaTracked: false,
+      }),
+      issue({ id: 'major', priority: 'Major', criticalEndPriority: 'Major' }),
+    ],
+    options,
+  );
+  assert.equal(result.quality.population, 2);
+  assert.equal(result.quality.complete, 1);
+  assert.equal(result.quality.status, 'PARTIAL');
+  assert.deepEqual(result.quality.warnings, [{ code: 'INCOMPLETE_CRITICAL_SLA', count: 1 }]);
+});
+
+test('project-wide historical gaps do not distort scoped aggregate coverage', () => {
+  const quality = evaluateJiraAnalyticsAggregate(
+    definition(),
+    [issue({ assignee: 'Selected user', dataObservedAt: '2026-02-28T10:00:00.000Z' })],
+    { ...options, assignee: 'Selected user' },
+  ).quality;
+  const merged = mergeJiraAsOfDataQuality(quality, {
+    mode: 'AS_OF',
+    provenance: 'RECONSTRUCTED',
+    basis: 'OBSERVED_VERSIONS',
+    asOf: options.now,
+    tickets: 1,
+    ticketsWithoutObservation: 25,
+    ticketsRetiredAfterAsOf: 0,
+    versionRowsScanned: 1,
+    earliestObservationAt: '2026-02-28T10:00:00.000Z',
+    stalenessHours: { p50: 1, p95: 1, max: 1 },
+    beforeHistoryStart: false,
+    historyWriteGap: { includesAsOf: false, runs: 0, firstAt: null, lastAt: null },
+    quality: 'AVAILABLE',
+  });
+  assert.equal(merged.status, 'COMPLETE');
+  assert.equal(merged.population, 1);
+  assert.equal(merged.complete, 1);
+  assert.equal(merged.coveragePercent, 100);
+  assert.deepEqual(merged.warnings, [{ code: 'MISSING_HISTORICAL_OBSERVATION', count: 25 }]);
 });
 
 test('development source excludes baseline observations', () => {
@@ -595,6 +674,62 @@ test('dashboard conversion keeps presentation and replaces inline rules with ref
       placement: 'active',
     }],
   });
+});
+
+test('bounded aggregate CSV escapes spreadsheet formulas and exports typed records', () => {
+  const result = evaluateJiraAnalyticsAggregate(
+    definition({ scope: 'retro' }),
+    [issue({ summary: '=HYPERLINK("https://example.invalid")' })],
+    options,
+  );
+  const csv = jiraAggregateResultCsv(result);
+  assert.match(csv, /"Quality status","Quality basis"/u);
+  assert.match(csv, /"'=HYPERLINK\(""https:\/\/example\.invalid""\)"/u);
+  assert.doesNotMatch(csv, /payload/u);
+});
+
+test('v1 and v2 reconciliation resolves existing builders and shares one database pass', async () => {
+  const widget = {
+    id: 'one', title: 'One', source: 'issues' as const, metric: 'count' as const,
+    groupBy: 'none' as const, visualization: 'number' as const, filterLogic: 'and' as const,
+    filters: [], width: 'half' as const, section: 'active' as const,
+  };
+  const legacy = { version: 1 as const, periodDays: 90 as const, assignee: '', widgets: [widget] };
+  const draft = definition({ name: 'One', scope: 'active' });
+  const storedDefinition = {
+    id: 'aggregate-1', projectId: 'project-1', name: 'One', nameKey: 'one', description: '',
+    source: draft.source, metric: draft.metric, groupBy: draft.groupBy, scope: draft.scope,
+    filterLogic: draft.filterLogic, filters: draft.filters, periodMode: draft.periodMode,
+    periodDays: draft.periodDays, timeZone: draft.timeZone,
+    fingerprint: jiraAggregateFingerprint(draft), sortOrder: 0, version: 1,
+    createdAt: new Date(), updatedAt: new Date(),
+  } satisfies JiraAggregateDefinition;
+  const configs = jiraDashboardReconciliationConfigs(legacy, null, [storedDefinition]);
+  let pageQueries = 0;
+  const client = {
+    jiraIssueSnapshot: {
+      count: async () => 1,
+      findMany: async (query: { cursor?: unknown }) => {
+        pageQueries += 1;
+        return query.cursor ? [] : [storedIssue('CVTE-1')];
+      },
+    },
+    jiraIssueStatusTransition: { count: async () => 0 },
+    jiraDevelopmentActivity: { count: async () => 0 },
+  } as unknown as Parameters<typeof reconcileJiraDashboardFromDatabase>[0];
+  const result = await reconcileJiraDashboardFromDatabase(
+    client,
+    'project-1',
+    configs.legacy,
+    configs.managed,
+    [storedDefinition],
+    options,
+  );
+  assert.equal(result.status, 'MATCH');
+  assert.equal(result.widgets[0]?.semanticMatch, true);
+  assert.equal(result.widgets[0]?.qualityMatch, true);
+  assert.equal(pageQueries, 1);
+  assert.match(result.caveat, /не является независимой проверкой/u);
 });
 
 test('aggregate read path cannot import Jira transport or select raw history payload', () => {
