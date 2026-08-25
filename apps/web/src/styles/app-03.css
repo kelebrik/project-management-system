@@ -958,6 +958,76 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.jira-aggregate-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.jira-aggregate-fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+}
+
+.jira-aggregate-fieldset legend,
+.jira-aggregate-filter-header h4,
+.jira-aggregate-preview-panel h4 {
+  color: var(--text-heading);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.jira-aggregate-fieldset p,
+.jira-aggregate-filter-header p,
+.jira-aggregate-preview-panel > header span {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin: 0;
+}
+
+.jira-aggregate-field-grid {
+  display: grid;
+  gap: 7px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.jira-aggregate-field-option {
+  align-items: center;
+  display: flex;
+  font-size: 11px;
+  gap: 7px;
+  min-width: 0;
+}
+
+.jira-aggregate-field-option input {
+  min-height: 16px;
+  width: 16px;
+}
+
+.jira-condition-row {
+  align-items: center;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(100px, 1fr) minmax(120px, 1fr) 38px;
+}
+
+.jira-aggregate-empty-value {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.jira-aggregate-preview-panel > header {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+}
+
 .jira-aggregate-asof-control {
   align-items: end;
   display: grid;

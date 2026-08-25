@@ -9,7 +9,6 @@ import {
   type JiraAnalyticsFilterField,
   type JiraAnalyticsFilterOperator,
   type JiraAnalyticsGroupBy,
-  type JiraAnalyticsInlineWidget,
   type JiraAnalyticsMetric,
   type JiraAnalyticsScope,
   type JiraAnalyticsSource,
@@ -32,8 +31,6 @@ export type {
 };
 
 export type JiraAnalyticsSection = JiraAnalyticsScope;
-export type JiraAnalyticsWidget = JiraAnalyticsInlineWidget;
-
 export const JIRA_ANALYTICS_SOURCE_LABELS: Record<JiraAnalyticsSource, string> = {
   issues: "Тикеты",
   transitions: "Переходы статусов",
@@ -120,24 +117,6 @@ export function createJiraAnalyticsFilter(
   value = "",
 ): JiraAnalyticsFilter {
   return { id: uid("filter"), field, operator, value };
-}
-
-export function createJiraAnalyticsWidget(
-  source: JiraAnalyticsSource = "issues",
-  section: JiraAnalyticsSection = "active",
-): JiraAnalyticsWidget {
-  return {
-    id: uid("widget"),
-    title: source === "issues" ? "Новый виджет" : JIRA_ANALYTICS_SOURCE_LABELS[source],
-    source,
-    metric: source === "transitions" ? "p50Duration" : "count",
-    groupBy: "none",
-    visualization: "number",
-    filterLogic: "and",
-    filters: [],
-    width: "half",
-    section,
-  };
 }
 
 export const JIRA_CRITICAL_BUG_SLA_HOURS = jiraCriticalBugSlaHours;

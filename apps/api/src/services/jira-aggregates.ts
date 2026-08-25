@@ -4,18 +4,29 @@ import {
   isJiraCancelledStatus,
   isJiraUnresolvedResolution,
   jiraAnalyticsAggregateDraftSchema,
+  jiraAnalyticsDatasetDraftSchema,
+  jiraAnalyticsDatasetFromLegacy,
+  jiraAnalyticsDatasetSemanticKey,
+  jiraAnalyticsDashboardV3Schema,
   jiraAnalyticsDashboardV2Schema,
   jiraAnalyticsInlineWidgetReadSchema,
+  jiraAnalyticsManagedWidgetSchema,
   jiraAnalyticsReferencedWidgetSchema,
   jiraAnalyticsSemanticKey,
   jiraAnalyticsSourceUsesPeriod,
+  jiraAnalyticsWidgetDatasetError,
   normalizeJiraAnalyticsDashboardV1,
+  normalizeJiraAnalyticsDatasetRevision,
   normalizeJiraAnalyticsInlineWidget,
   normalizeJiraAnalyticsName,
   type JiraAnalyticsAggregateDraft,
+  type JiraAnalyticsDatasetDraft,
   type JiraAnalyticsDashboardConfig,
   type JiraAnalyticsDashboardV1,
   type JiraAnalyticsDashboardV2,
+  type JiraAnalyticsDashboardV3,
+  type JiraAnalyticsExecutableDefinition,
+  type JiraAnalyticsManagedWidget,
   type JiraAnalyticsDataQuality,
   type JiraAnalyticsEvaluationOptions,
   type JiraAnalyticsEvaluationResult,
@@ -56,7 +67,7 @@ export class JiraAggregateExportLimitError extends Error {
   }
 }
 
-export type JiraAggregatePublicDefinition = JiraAnalyticsAggregateDraft & {
+export type JiraAggregatePublicDefinition = JiraAnalyticsDatasetDraft & {
   id: string;
   projectId: string;
   fingerprint: string;
@@ -96,8 +107,18 @@ export function jiraAggregateFingerprint(definition: JiraAnalyticsAggregateDraft
   return createHash('sha256').update(jiraAnalyticsSemanticKey(definition)).digest('hex');
 }
 
+export function jiraAggregateDatasetFingerprint(definition: JiraAnalyticsDatasetDraft) {
+  return createHash('sha256').update(jiraAnalyticsDatasetSemanticKey(definition)).digest('hex');
+}
+
 export function jiraAggregateDraftFromRow(row: JiraAggregateDefinition): JiraAnalyticsAggregateDraft {
-  return jiraAnalyticsAggregateDraftSchema.parse({
+  const definition = safeJiraAggregateDraftFromRow(row);
+  if (!definition) throw new Error(`AGGREGATE_LEGACY_QUERY_INVALID:${row.id}`);
+  return definition;
+}
+
+export function safeJiraAggregateDraftFromRow(row: JiraAggregateDefinition): JiraAnalyticsAggregateDraft | null {
+  const parsed = jiraAnalyticsAggregateDraftSchema.safeParse({
     name: row.name,
     description: row.description,
     source: row.source,
@@ -111,9 +132,18 @@ export function jiraAggregateDraftFromRow(row: JiraAggregateDefinition): JiraAna
     timeZone: row.timeZone,
     sortOrder: row.sortOrder,
   });
+  return parsed.success ? parsed.data : null;
 }
 
 export function jiraAggregatePublicDefinition(row: JiraAggregateDefinition): JiraAggregatePublicDefinition {
+  const dataset = jiraAggregateDatasetFromRow(row);
+  return jiraAggregatePublicDefinitionFromDataset(row, dataset);
+}
+
+export function jiraAggregatePublicDefinitionFromDataset(
+  row: JiraAggregateDefinition,
+  dataset: JiraAnalyticsDatasetDraft,
+): JiraAggregatePublicDefinition {
   return {
     id: row.id,
     projectId: row.projectId,
@@ -121,7 +151,93 @@ export function jiraAggregatePublicDefinition(row: JiraAggregateDefinition): Jir
     version: row.version,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    ...jiraAggregateDraftFromRow(row),
+    ...dataset,
+  };
+}
+
+export function jiraAggregateDatasetFromRow(row: JiraAggregateDefinition): JiraAnalyticsDatasetDraft {
+  const dataset = safeJiraAggregateDatasetFromRow(row);
+  if (!dataset) throw new Error(`AGGREGATE_DATASET_INVALID:${row.id}`);
+  return dataset;
+}
+
+export function safeJiraAggregateDatasetFromRow(row: JiraAggregateDefinition): JiraAnalyticsDatasetDraft | null {
+  if (row.definitionSchemaVersion >= 2) {
+    const parsed = jiraAnalyticsDatasetDraftSchema.safeParse({
+      name: row.name,
+      description: row.description,
+      source: row.source,
+      exposedFields: row.exposedFields,
+      baseFilterLogic: row.baseFilterLogic,
+      baseFilters: row.baseFilters,
+      timeZone: row.timeZone,
+      sortOrder: row.sortOrder,
+    });
+    return parsed.success ? parsed.data : null;
+  }
+  const legacy = safeJiraAggregateDraftFromRow(row);
+  return legacy ? jiraAnalyticsDatasetFromLegacy(legacy) : null;
+}
+
+export function jiraAggregateDatasetCreateData(
+  projectId: string,
+  definition: JiraAnalyticsDatasetDraft,
+): Prisma.JiraAggregateDefinitionUncheckedCreateInput {
+  return {
+    projectId,
+    name: definition.name.trim(),
+    nameKey: normalizeJiraAnalyticsName(definition.name),
+    description: definition.description.trim(),
+    source: definition.source,
+    definitionSchemaVersion: 2,
+    exposedFields: definition.exposedFields as Prisma.InputJsonValue,
+    baseFilterLogic: definition.baseFilterLogic,
+    baseFilters: definition.baseFilters as Prisma.InputJsonValue,
+    // Legacy columns remain populated for one release so v1/v2 stays readable.
+    metric: 'count',
+    groupBy: 'none',
+    scope: 'active',
+    filterLogic: 'and',
+    filters: [],
+    periodMode: jiraAnalyticsSourceUsesPeriod(definition.source) ? 'DASHBOARD' : 'NONE',
+    periodDays: null,
+    timeZone: definition.timeZone,
+    fingerprint: jiraAggregateDatasetFingerprint(definition),
+    sortOrder: definition.sortOrder,
+  };
+}
+
+export function jiraAggregateDatasetUpdateData(
+  definition: JiraAnalyticsDatasetDraft,
+): Prisma.JiraAggregateDefinitionUncheckedUpdateManyInput {
+  return {
+    name: definition.name.trim(),
+    nameKey: normalizeJiraAnalyticsName(definition.name),
+    description: definition.description.trim(),
+    source: definition.source,
+    definitionSchemaVersion: 2,
+    exposedFields: definition.exposedFields as Prisma.InputJsonValue,
+    baseFilterLogic: definition.baseFilterLogic,
+    baseFilters: definition.baseFilters as Prisma.InputJsonValue,
+    timeZone: definition.timeZone,
+    fingerprint: jiraAggregateDatasetFingerprint(definition),
+    sortOrder: definition.sortOrder,
+    version: { increment: 1 },
+  };
+}
+
+export function jiraAggregateDatasetRevisionCreateData(
+  projectId: string,
+  aggregateId: string,
+  version: number,
+  definition: JiraAnalyticsDatasetDraft,
+): Prisma.JiraAggregateDefinitionRevisionUncheckedCreateInput {
+  return {
+    projectId,
+    aggregateId,
+    version,
+    definition: { schemaVersion: 2, ...definition } as Prisma.InputJsonValue,
+    fingerprint: jiraAggregateDatasetFingerprint(definition),
   };
 }
 
@@ -146,14 +262,6 @@ export function jiraAggregateCreateData(
     fingerprint: jiraAggregateFingerprint(definition),
     sortOrder: definition.sortOrder,
   };
-}
-
-export function jiraAggregateUpdateData(
-  definition: JiraAnalyticsAggregateDraft,
-): Prisma.JiraAggregateDefinitionUncheckedUpdateManyInput {
-  const create = jiraAggregateCreateData('', definition);
-  const { projectId: _projectId, ...data } = create;
-  return { ...data, version: { increment: 1 } };
 }
 
 export function jiraAggregateRevisionCreateData(
@@ -501,20 +609,49 @@ function unavailableWidget(
 
 type JiraAggregateWidgetPlan = {
   widget: JiraAggregateWidgetResult;
-  definition: JiraAnalyticsAggregateDraft | null;
+  definition: JiraAnalyticsExecutableDefinition | null;
 };
+
+function executableDefinition(
+  dataset: JiraAnalyticsDatasetDraft,
+  widget: JiraAnalyticsManagedWidget,
+): JiraAnalyticsExecutableDefinition {
+  return {
+    name: dataset.name,
+    description: dataset.description,
+    source: dataset.source,
+    metric: widget.metric,
+    groupBy: widget.groupBy,
+    scope: widget.placement,
+    filterLogic: widget.filterLogic,
+    filters: widget.filters,
+    baseFilterLogic: dataset.baseFilterLogic,
+    baseFilters: dataset.baseFilters,
+    periodMode: widget.periodMode,
+    periodDays: widget.periodDays,
+    timeZone: dataset.timeZone,
+    sortOrder: dataset.sortOrder,
+    sortBy: widget.sortBy,
+    sortDirection: widget.sortDirection,
+  };
+}
 
 function savedDashboardPlan(
   rawConfig: unknown,
   definitions: JiraAggregateDefinition[],
   selectedWidgetId?: string,
   revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
-): { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetPlan[] } {
+  revisionDatasets: ReadonlyMap<string, JiraAnalyticsDatasetDraft> = new Map(),
+): { configVersion: 1 | 2 | 3; configHash: string; widgets: JiraAggregateWidgetPlan[] } {
   const configHash = jiraDashboardConfigHash(rawConfig);
   const config = rawConfig ?? JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1;
   const record = config && typeof config === 'object' ? config as Record<string, unknown> : {};
   const rawWidgets = Array.isArray(record.widgets) ? record.widgets : [];
-  const version = record.version === 2 ? 2 : 1;
+  const version = record.version === 3 ? 3 : record.version === 2 ? 2 : 1;
+  if (version === 3 && rawWidgets.length === 0) {
+    const empty = jiraAnalyticsDashboardV3Schema.safeParse(config);
+    if (empty.success) return { configVersion: 3, configHash, widgets: [] };
+  }
   if (rawWidgets.length === 0 || rawWidgets.length > JIRA_AGGREGATE_MAX_BATCH_WIDGETS) {
     return {
       configVersion: version,
@@ -569,6 +706,76 @@ function savedDashboardPlan(
           source: definition.source,
           metric: definition.metric,
           groupBy: definition.groupBy,
+          status: 'OK',
+        },
+        definition,
+      };
+    }
+    if (version === 3) {
+      const parsed = jiraAnalyticsManagedWidgetSchema.safeParse(rawWidget);
+      if (!parsed.success) {
+        const fallback = rawWidget && typeof rawWidget === 'object' ? rawWidget as Record<string, unknown> : {};
+        return {
+          widget: unavailableWidget(
+            typeof fallback.id === 'string' ? fallback.id : `invalid-v3-${index}`,
+            typeof fallback.title === 'string' ? fallback.title : 'Недоступный виджет',
+            'number',
+            'half',
+            fallback.placement === 'retro' ? 'retro' : 'active',
+            'Сохранённый виджет v3 имеет некорректный формат',
+            typeof fallback.aggregateId === 'string' ? fallback.aggregateId : null,
+          ),
+          definition: null,
+        };
+      }
+      const row = definitionsById.get(parsed.data.aggregateId);
+      if (!row) {
+        return {
+          widget: unavailableWidget(
+            parsed.data.id, parsed.data.title, parsed.data.visualization, parsed.data.width,
+            parsed.data.placement, 'Агрегат удалён или недоступен', parsed.data.aggregateId,
+          ),
+          definition: null,
+        };
+      }
+      const revisionKey = parsed.data.aggregateVersion
+        ? `${row.id}:${parsed.data.aggregateVersion}`
+        : null;
+      const dataset = revisionKey && parsed.data.aggregateVersion !== row.version
+        ? revisionDatasets.get(revisionKey)
+        : safeJiraAggregateDatasetFromRow(row);
+      if (!dataset) {
+        return {
+          widget: unavailableWidget(
+            parsed.data.id, parsed.data.title, parsed.data.visualization, parsed.data.width,
+            parsed.data.placement, `Ревизия агрегата ${parsed.data.aggregateVersion} недоступна`, row.id,
+          ),
+          definition: null,
+        };
+      }
+      const contractError = jiraAnalyticsWidgetDatasetError(parsed.data, dataset);
+      if (contractError) {
+        return {
+          widget: unavailableWidget(
+            parsed.data.id, parsed.data.title, parsed.data.visualization, parsed.data.width,
+            parsed.data.placement, contractError, row.id,
+          ),
+          definition: null,
+        };
+      }
+      const definition = executableDefinition(dataset, parsed.data);
+      return {
+        widget: {
+          widgetId: parsed.data.id,
+          title: parsed.data.title,
+          visualization: parsed.data.visualization,
+          width: parsed.data.width,
+          placement: parsed.data.placement,
+          aggregateId: row.id,
+          aggregateName: dataset.name,
+          source: dataset.source,
+          metric: parsed.data.metric,
+          groupBy: parsed.data.groupBy,
           status: 'OK',
         },
         definition,
@@ -669,11 +876,12 @@ export function createSavedDashboardAccumulator(
   selectedWidgetId?: string,
   limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
   revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
+  revisionDatasets: ReadonlyMap<string, JiraAnalyticsDatasetDraft> = new Map(),
 ): {
   addIssues: (issues: readonly JiraAnalyticsIssueData[]) => void;
-  finish: () => { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetResult[] };
+  finish: () => { configVersion: 1 | 2 | 3; configHash: string; widgets: JiraAggregateWidgetResult[] };
 } {
-  const plan = savedDashboardPlan(rawConfig, definitions, selectedWidgetId, revisionDefinitions);
+  const plan = savedDashboardPlan(rawConfig, definitions, selectedWidgetId, revisionDefinitions, revisionDatasets);
   const accumulators = plan.widgets.map((item) => item.definition
     ? createJiraAnalyticsEvaluationAccumulator(item.definition, options, limits)
     : null);
@@ -703,7 +911,8 @@ export function resolveSavedDashboard(
   options: JiraAnalyticsEvaluationOptions,
   selectedWidgetId?: string,
   revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
-): { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetResult[] } {
+  revisionDatasets: ReadonlyMap<string, JiraAnalyticsDatasetDraft> = new Map(),
+): { configVersion: 1 | 2 | 3; configHash: string; widgets: JiraAggregateWidgetResult[] } {
   const accumulator = createSavedDashboardAccumulator(
     rawConfig,
     definitions,
@@ -711,6 +920,7 @@ export function resolveSavedDashboard(
     selectedWidgetId,
     jiraAggregateEvaluationLimits,
     revisionDefinitions,
+    revisionDatasets,
   );
   accumulator.addIssues(issues);
   return accumulator.finish();
@@ -725,12 +935,13 @@ export async function evaluateSavedDashboardFromDatabase(
   selectedWidgetId?: string,
   limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
 ) {
-  const parsedConfig = jiraAnalyticsDashboardV2Schema.safeParse(rawConfig);
-  const revisionRequests = parsedConfig.success
-    ? parsedConfig.data.widgets.flatMap((widget) => widget.aggregateVersion
+  const parsedV2 = jiraAnalyticsDashboardV2Schema.safeParse(rawConfig);
+  const parsedV3 = jiraAnalyticsDashboardV3Schema.safeParse(rawConfig);
+  const parsedWidgets = parsedV3.success ? parsedV3.data.widgets : parsedV2.success ? parsedV2.data.widgets : [];
+  const revisionRequests = parsedWidgets
+    .flatMap((widget) => widget.aggregateVersion
       ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
-      : [])
-    : [];
+      : []);
   const revisionRows = revisionRequests.length > 0
     ? await client.jiraAggregateDefinitionRevision.findMany({
         where: {
@@ -740,11 +951,14 @@ export async function evaluateSavedDashboardFromDatabase(
       })
     : [];
   const revisionDefinitions = new Map<string, JiraAnalyticsAggregateDraft>();
+  const revisionDatasets = new Map<string, JiraAnalyticsDatasetDraft>();
   revisionRows.forEach((revision) => {
     const parsed = jiraAnalyticsAggregateDraftSchema.safeParse(revision.definition);
     if (parsed.success) {
       revisionDefinitions.set(`${revision.aggregateId}:${revision.version}`, parsed.data);
     }
+    const normalized = normalizeJiraAnalyticsDatasetRevision(revision.definition);
+    if (normalized) revisionDatasets.set(`${revision.aggregateId}:${revision.version}`, normalized.dataset);
   });
   const accumulator = createSavedDashboardAccumulator(
     rawConfig,
@@ -753,6 +967,7 @@ export async function evaluateSavedDashboardFromDatabase(
     selectedWidgetId,
     limits,
     revisionDefinitions,
+    revisionDatasets,
   );
   for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
     accumulator.addIssues(issues);
@@ -874,13 +1089,23 @@ export function buildJiraAggregateImportPlan(
   const config = normalizeJiraAnalyticsDashboardV1(rawConfig);
   if (!config) throw new Error('DASHBOARD_V1_INVALID');
   const byFingerprint = new Map(existing.map((row) => [row.fingerprint, row]));
+  const byNameKey = new Map(existing.map((row) => [row.nameKey, row]));
+  const claimedExistingIds = new Set<string>();
   const occupiedNames = new Set(existing.map((row) => row.nameKey));
   const planned = new Map<string, JiraAggregateImportPlanItem>();
   config.widgets.forEach((widget, index) => {
     const draft = inlineWidgetDefinition(widget, index);
     const fingerprint = jiraAggregateFingerprint(draft);
     if (planned.has(fingerprint)) return;
-    const current = byFingerprint.get(fingerprint);
+    const fingerprintMatch = byFingerprint.get(fingerprint);
+    const nameMatch = byNameKey.get(normalizeJiraAnalyticsName(draft.name));
+    const compatibleNameMatch = nameMatch && nameMatch.definitionSchemaVersion < 2 &&
+      jiraAggregateFingerprint(jiraAggregateDraftFromRow(nameMatch)) === fingerprint
+      ? nameMatch
+      : undefined;
+    const candidate = fingerprintMatch ?? compatibleNameMatch;
+    const current = candidate && !claimedExistingIds.has(candidate.id) ? candidate : undefined;
+    if (current) claimedExistingIds.add(current.id);
     planned.set(fingerprint, {
       fingerprint,
       definition: current
@@ -903,6 +1128,15 @@ export function inspectJiraDashboardDefinitionUse(
     return {
       verifiable: true,
       widgetIds: parsedV2.data.widgets
+        .filter((widget) => widget.aggregateId === aggregateId)
+        .map((widget) => widget.id),
+    };
+  }
+  const parsedV3 = jiraAnalyticsDashboardV3Schema.safeParse(rawConfig);
+  if (parsedV3.success) {
+    return {
+      verifiable: true,
+      widgetIds: parsedV3.data.widgets
         .filter((widget) => widget.aggregateId === aggregateId)
         .map((widget) => widget.id),
     };
@@ -948,6 +1182,131 @@ export function convertJiraDashboardToV2(
   });
 }
 
+export function convertJiraDashboardV2ToV3(
+  config: JiraAnalyticsDashboardV2,
+  definitions: readonly JiraAggregateDefinition[],
+  revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
+): JiraAnalyticsDashboardV3 {
+  const byId = new Map(definitions.map((definition) => [definition.id, definition]));
+  return jiraAnalyticsDashboardV3Schema.parse({
+    version: 3,
+    periodDays: config.periodDays,
+    assignee: config.assignee,
+    widgets: config.widgets.map((widget) => {
+      const row = byId.get(widget.aggregateId);
+      if (!row) throw new Error(`AGGREGATE_DEFINITION_MISSING:${widget.aggregateId}`);
+      const revisionKey = widget.aggregateVersion && widget.aggregateVersion !== row.version
+        ? `${row.id}:${widget.aggregateVersion}`
+        : null;
+      const query = revisionKey
+        ? revisionDefinitions.get(revisionKey)
+        : jiraAggregateDraftFromRow(row);
+      if (!query) throw new Error(`AGGREGATE_REVISION_MISSING:${revisionKey}`);
+      return {
+        id: widget.id,
+        title: widget.title,
+        aggregateId: widget.aggregateId,
+        aggregateVersion: widget.placement === 'retro'
+          ? widget.aggregateVersion ?? row.version
+          : null,
+        placement: widget.placement,
+        metric: query.metric,
+        groupBy: query.groupBy,
+        filterLogic: query.filterLogic,
+        filters: query.filters,
+        periodMode: query.periodMode,
+        periodDays: query.periodDays,
+        sortBy: 'default',
+        sortDirection: 'desc',
+        visualization: widget.visualization,
+        width: widget.width,
+      };
+    }),
+  });
+}
+
+export async function editableJiraDashboardV3(
+  client: Pick<PrismaClient, 'jiraAggregateDefinitionRevision'>,
+  projectId: string,
+  rawConfig: unknown,
+  definitions: JiraAggregateDefinition[],
+  diagnostics: string[] = [],
+): Promise<JiraAnalyticsDashboardV3 | null> {
+  const current = jiraAnalyticsDashboardV3Schema.safeParse(rawConfig);
+  if (current.success) return current.data;
+  if (rawConfig === null || rawConfig === undefined) {
+    return { version: 3, periodDays: 90, assignee: '', widgets: [] };
+  }
+  const record = rawConfig && typeof rawConfig === 'object' && !Array.isArray(rawConfig)
+    ? rawConfig as Record<string, unknown>
+    : null;
+  if (record?.version === 3) throw new Error('DASHBOARD_CONFIG_INVALID');
+  let v2 = jiraAnalyticsDashboardV2Schema.safeParse(rawConfig);
+  if (!v2.success) {
+    const v1 = normalizeJiraAnalyticsDashboardV1(rawConfig ?? JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1);
+    if (!v1) throw new Error('DASHBOARD_CONFIG_INVALID');
+    const importPlan = buildJiraAggregateImportPlan(v1, definitions);
+    const definitionIds = new Map(importPlan.items.flatMap((item) => item.existingId
+      ? [[item.fingerprint, item.existingId] as const]
+      : []));
+    const definitionVersions = new Map(definitions.map((row) => [row.id, row.version]));
+    const convertedWidgets = v1.widgets.flatMap((widget) => {
+      try {
+        return convertJiraDashboardToV2(
+          { ...v1, widgets: [widget] },
+          definitionIds,
+          definitionVersions,
+        ).widgets;
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.startsWith('AGGREGATE_DEFINITION_MISSING:')) throw error;
+        diagnostics.push(`Виджет «${widget.title}» пропущен: подходящий агрегат не найден`);
+        return [];
+      }
+    });
+    if (convertedWidgets.length === 0) {
+      throw new Error('DASHBOARD_V3_CONVERSION_EMPTY');
+    }
+    v2 = jiraAnalyticsDashboardV2Schema.safeParse({
+      version: 2,
+      periodDays: v1.periodDays,
+      assignee: v1.assignee,
+      widgets: convertedWidgets,
+    });
+  }
+  if (!v2.success) throw new Error('DASHBOARD_CONFIG_INVALID');
+  const requests = v2.data.widgets.flatMap((widget) => widget.aggregateVersion
+    ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
+    : []);
+  const revisions = requests.length === 0 ? [] : await client.jiraAggregateDefinitionRevision.findMany({
+    where: { projectId, OR: requests },
+  });
+  const revisionDefinitions = new Map<string, JiraAnalyticsAggregateDraft>();
+  revisions.forEach((revision) => {
+    const normalized = normalizeJiraAnalyticsDatasetRevision(revision.definition);
+    if (normalized?.legacyQuery) {
+      revisionDefinitions.set(`${revision.aggregateId}:${revision.version}`, normalized.legacyQuery);
+    }
+  });
+  const widgets = v2.data.widgets.flatMap((widget) => {
+    try {
+      return convertJiraDashboardV2ToV3(
+        { ...v2.data, widgets: [widget] },
+        definitions,
+        revisionDefinitions,
+      ).widgets;
+    } catch (error) {
+      if (!(error instanceof Error) || !(
+        error.message.startsWith('AGGREGATE_DEFINITION_MISSING:') ||
+        error.message.startsWith('AGGREGATE_REVISION_MISSING:')
+      )) throw error;
+      diagnostics.push(`Виджет «${widget.title}» пропущен: сохранённый агрегат или его ревизия недоступны`);
+      return [];
+    }
+  });
+  if (diagnostics.length > 0) throw new Error('DASHBOARD_V3_CONVERSION_PARTIAL');
+  return jiraAnalyticsDashboardV3Schema.parse({ ...v2.data, version: 3, widgets });
+}
+
 function plannedAggregateDefinition(
   projectId: string,
   item: JiraAggregateImportPlanItem,
@@ -958,6 +1317,10 @@ function plannedAggregateDefinition(
     projectId,
     ...item.definition,
     nameKey: normalizeJiraAnalyticsName(item.definition.name),
+    definitionSchemaVersion: 1,
+    exposedFields: null,
+    baseFilterLogic: null,
+    baseFilters: null,
     filters: item.definition.filters as Prisma.JsonValue,
     fingerprint: item.fingerprint,
     version: 1,
@@ -1011,7 +1374,9 @@ export function buildJiraDashboardSwitchPlan(
 }
 
 export function jiraDashboardReferencedAggregateIds(config: JiraAnalyticsDashboardConfig) {
-  return config.version === 2 ? [...new Set(config.widgets.map((widget) => widget.aggregateId))] : [];
+  return config.version === 2 || config.version === 3
+    ? [...new Set(config.widgets.map((widget) => widget.aggregateId))]
+    : [];
 }
 
 export type JiraDashboardReconciliationWidget = {
@@ -1115,8 +1480,11 @@ function compareReconciliationWidgets(
     const legacyFingerprint = legacyLayout
       ? jiraAggregateFingerprint(inlineWidgetDefinition(legacyLayout, legacyConfig.widgets.indexOf(legacyLayout)))
       : null;
-    const managedFingerprint = managedLayout
-      ? definitionsById.get(managedLayout.aggregateId)?.fingerprint ?? null
+    const managedDefinition = managedLayout
+      ? definitionsById.get(managedLayout.aggregateId)
+      : null;
+    const managedFingerprint = managedDefinition
+      ? jiraAggregateFingerprint(jiraAggregateDraftFromRow(managedDefinition))
       : null;
     const legacyResult = legacyWidget?.result;
     const managedResult = managedWidget?.result;

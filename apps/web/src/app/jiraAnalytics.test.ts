@@ -8,7 +8,6 @@ import {
 
 import {
   createJiraAnalyticsFilter,
-  createJiraAnalyticsWidget,
   formatJiraAnalyticsMetric,
   jiraAnalyticsFieldIsNumeric,
   jiraAnalyticsOperatorsFor,
@@ -16,19 +15,6 @@ import {
 
 test("shared default dashboard remains a strict v1 configuration", () => {
   assert.equal(jiraAnalyticsDashboardV1Schema.safeParse(JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1).success, true);
-});
-
-test("new inline widget has a schema-compatible shape", () => {
-  const widget = createJiraAnalyticsWidget("transitions", "retro");
-  const parsed = jiraAnalyticsDashboardV1Schema.safeParse({
-    version: 1,
-    periodDays: 90,
-    assignee: "",
-    widgets: [widget],
-  });
-  assert.equal(parsed.success, true);
-  assert.equal(widget.metric, "p50Duration");
-  assert.equal(widget.section, "retro");
 });
 
 test("new filter uses an opaque id and explicit value", () => {

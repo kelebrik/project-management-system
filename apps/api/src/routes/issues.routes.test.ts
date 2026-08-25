@@ -64,6 +64,36 @@ const aggregateDefinition = {
   name: 'Count issues',
   description: '',
   source: 'issues',
+  exposedFields: ['issueKey', 'project', 'status'],
+  baseFilterLogic: 'and',
+  baseFilters: [],
+  timeZone: 'Europe/Moscow',
+  sortOrder: 0,
+};
+
+const aggregateRow = {
+  id: 'aggregate-1',
+  projectId: 'project-1',
+  ...aggregateDefinition,
+  definitionSchemaVersion: 2,
+  metric: 'count',
+  groupBy: 'none',
+  scope: 'active',
+  filterLogic: 'and',
+  filters: [],
+  periodMode: 'NONE',
+  periodDays: null,
+  nameKey: 'count issues',
+  fingerprint: 'a'.repeat(64),
+  version: 1,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+};
+
+const legacyAggregateDefinition = {
+  name: 'Count issues',
+  description: '',
+  source: 'issues',
   metric: 'count',
   groupBy: 'none',
   scope: 'active',
@@ -401,6 +431,15 @@ test('Jira analytics dashboard save requires authentication before validation or
     body: {},
   } as unknown as Request, result.response);
   assert.equal(result.status(), 401);
+
+  const legacy = routeResponse();
+  await route.stack[0]!.handle({
+    params: { projectId: 'project-1' },
+    body: { config: { version: 2, periodDays: 90, assignee: '', widgets: [] } },
+    currentUser: { id: 'admin-1', role: 'ADMIN' },
+  } as unknown as Request, legacy.response);
+  assert.equal(legacy.status(), 400);
+  assert.deepEqual(legacy.payload(), { error: 'Некорректная конфигурация аналитики Jira' });
 });
 
 test('Jira aggregate admin endpoints distinguish anonymous and forbidden callers', async () => {
@@ -453,6 +492,16 @@ test('Jira aggregate catalog follows the broad project read policy without an ex
   await readerHandle(request, reader.response);
   assert.equal(reader.status(), 200);
   assert.deepEqual((reader.payload() as { definitions?: unknown[] }).definitions, []);
+  assert.deepEqual(
+    (reader.payload() as { dashboard?: { editableConfig?: unknown; editableConfigError?: unknown } }).dashboard && {
+      editableConfig: (reader.payload() as { dashboard: { editableConfig: unknown } }).dashboard.editableConfig,
+      editableConfigError: (reader.payload() as { dashboard: { editableConfigError: unknown } }).dashboard.editableConfigError,
+    },
+    {
+      editableConfig: { version: 3, periodDays: 90, assignee: '', widgets: [] },
+      editableConfigError: null,
+    },
+  );
 
   const missingProjectHandle = aggregateRoute(
     prisma,
@@ -485,6 +534,10 @@ test('Jira aggregate update maps an optimistic version conflict to HTTP 409', as
     id: 'aggregate-1',
     projectId: 'project-1',
     ...aggregateDefinition,
+    definitionSchemaVersion: 2,
+    baseFilterLogic: aggregateDefinition.baseFilterLogic,
+    baseFilters: aggregateDefinition.baseFilters,
+    exposedFields: aggregateDefinition.exposedFields,
     nameKey: 'count issues',
     fingerprint: 'a'.repeat(64),
     version: 2,
@@ -519,6 +572,120 @@ test('Jira aggregate update maps an optimistic version conflict to HTTP 409', as
     (result.payload() as { error?: string }).error,
     'Определение уже изменено другим пользователем',
   );
+});
+
+test('Jira aggregate update keeps the row source immutable', async () => {
+  let updateAttempted = false;
+  const transaction = {
+    $queryRaw: async () => [{ lock: '' }],
+    jiraAggregateDefinition: {
+      findFirst: async () => aggregateRow,
+      updateMany: async () => { updateAttempted = true; return { count: 1 }; },
+    },
+  };
+  const prisma = {
+    project: { findUnique: async () => ({ status: 'ACTIVE' }) },
+    $transaction: async (callback: (client: typeof transaction) => Promise<unknown>) => callback(transaction),
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregates/:aggregateId',
+    'patch',
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1', aggregateId: 'aggregate-1' },
+    body: {
+      definition: {
+        ...aggregateDefinition,
+        source: 'transitions',
+        exposedFields: ['issueKey', 'eventAt'],
+      },
+      expectedVersion: 1,
+    },
+    currentUser: { id: 'admin-1', role: 'ADMIN' },
+  } as unknown as Request, result.response);
+  assert.equal(result.status(), 409);
+  assert.equal(updateAttempted, false);
+  assert.match(String((result.payload() as { error?: string }).error), /Тип строк/u);
+});
+
+test('Jira aggregate update rejects fields that an active v3 widget still uses', async () => {
+  let updateAttempted = false;
+  const dashboardConfig = {
+    version: 3,
+    periodDays: 90,
+    assignee: '',
+    widgets: [{
+      id: 'by-assignee', title: 'По исполнителям', aggregateId: 'aggregate-1',
+      aggregateVersion: null, placement: 'active', metric: 'count', groupBy: 'assignee',
+      filterLogic: 'and', filters: [], periodMode: 'NONE', periodDays: null,
+      sortBy: 'default', sortDirection: 'desc', visualization: 'bar', width: 'half',
+    }],
+  };
+  const transaction = {
+    $queryRaw: async () => [{ dashboardConfig }],
+    jiraAggregateDefinition: {
+      findFirst: async () => aggregateRow,
+      updateMany: async () => { updateAttempted = true; return { count: 1 }; },
+    },
+  };
+  const prisma = {
+    project: { findUnique: async () => ({ status: 'ACTIVE' }) },
+    $transaction: async (callback: (client: typeof transaction) => Promise<unknown>) => callback(transaction),
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(
+    prisma,
+    '/projects/:projectId/jira/aggregates/:aggregateId',
+    'patch',
+  );
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1', aggregateId: 'aggregate-1' },
+    body: {
+      definition: { ...aggregateDefinition, exposedFields: ['issueKey', 'project', 'status'] },
+      expectedVersion: 1,
+    },
+    currentUser: { id: 'admin-1', role: 'ADMIN' },
+  } as unknown as Request, result.response);
+  assert.equal(result.status(), 409);
+  assert.equal(updateAttempted, false);
+  assert.match(String((result.payload() as { error?: string }).error), /by-assignee/u);
+});
+
+test('Jira aggregate update also protects active v2 widget semantics during v3 migration', async () => {
+  let updateAttempted = false;
+  const dashboardConfig = {
+    version: 2,
+    periodDays: 90,
+    assignee: '',
+    widgets: [{
+      id: 'legacy-assignee', title: 'По исполнителям', aggregateId: 'aggregate-1',
+      aggregateVersion: null, placement: 'active', visualization: 'bar', width: 'half',
+    }],
+  };
+  const transaction = {
+    $queryRaw: async () => [{ dashboardConfig }],
+    jiraAggregateDefinition: {
+      findFirst: async () => ({ ...aggregateRow, groupBy: 'assignee' }),
+      updateMany: async () => { updateAttempted = true; return { count: 1 }; },
+    },
+  };
+  const prisma = {
+    project: { findUnique: async () => ({ status: 'ACTIVE' }) },
+    $transaction: async (callback: (client: typeof transaction) => Promise<unknown>) => callback(transaction),
+  } as unknown as PrismaClient;
+  const handle = aggregateRoute(prisma, '/projects/:projectId/jira/aggregates/:aggregateId', 'patch');
+  const result = routeResponse();
+  await handle({
+    params: { projectId: 'project-1', aggregateId: 'aggregate-1' },
+    body: { definition: aggregateDefinition, expectedVersion: 1 },
+    currentUser: { id: 'admin-1', role: 'ADMIN' },
+  } as unknown as Request, result.response);
+
+  assert.equal(result.status(), 409);
+  assert.equal(updateAttempted, false);
+  assert.match(String((result.payload() as { error?: string }).error), /legacy-assignee/u);
 });
 
 test('Jira aggregate preview returns 413 for an oversized project population', async () => {
@@ -617,8 +784,7 @@ test('Jira aggregate as-of validation rejects ambiguous, future, and event-sourc
         definition: {
           ...aggregateDefinition,
           source: 'transitions',
-          metric: 'count',
-          periodMode: 'DASHBOARD',
+          exposedFields: ['issueKey', 'eventAt'],
         },
         periodDays: 90,
         assignee: '',
@@ -650,20 +816,20 @@ test('Jira saved aggregate result allows an authorized reader to request an as-o
       findFirst: async () => ({
         id: 'aggregate-1',
         projectId: 'project-1',
-        name: aggregateDefinition.name,
+        name: legacyAggregateDefinition.name,
         nameKey: 'count issues',
-        description: aggregateDefinition.description,
-        source: aggregateDefinition.source,
-        metric: aggregateDefinition.metric,
-        groupBy: aggregateDefinition.groupBy,
-        scope: aggregateDefinition.scope,
-        filterLogic: aggregateDefinition.filterLogic,
-        filters: aggregateDefinition.filters,
-        periodMode: aggregateDefinition.periodMode,
-        periodDays: aggregateDefinition.periodDays,
-        timeZone: aggregateDefinition.timeZone,
+        description: legacyAggregateDefinition.description,
+        source: legacyAggregateDefinition.source,
+        metric: legacyAggregateDefinition.metric,
+        groupBy: legacyAggregateDefinition.groupBy,
+        scope: legacyAggregateDefinition.scope,
+        filterLogic: legacyAggregateDefinition.filterLogic,
+        filters: legacyAggregateDefinition.filters,
+        periodMode: legacyAggregateDefinition.periodMode,
+        periodDays: legacyAggregateDefinition.periodDays,
+        timeZone: legacyAggregateDefinition.timeZone,
         fingerprint: 'a'.repeat(64),
-        sortOrder: aggregateDefinition.sortOrder,
+        sortOrder: legacyAggregateDefinition.sortOrder,
         version: 1,
         createdAt: new Date('2026-08-01T00:00:00.000Z'),
         updatedAt: new Date('2026-08-01T00:00:00.000Z'),
@@ -726,7 +892,19 @@ test('Jira aggregate CSV uses an ASCII header fallback and encoded UTF-8 filenam
   )?.[0] ?? '';
   assert.match(exportRoute, /filename="jira-aggregate\.csv"/u);
   assert.match(exportRoute, /filename\*=UTF-8''/u);
+  assert.match(exportRoute, /safeJiraAggregateDatasetFromRow/u);
+  assert.match(exportRoute, /datasetPreviewDefinition/u);
   assert.doesNotMatch(exportRoute, /ensureWritableProject/u);
+});
+
+test('Jira saved aggregate preview evaluates the dataset contract instead of legacy query columns', () => {
+  const routeSource = fs.readFileSync(new URL('./jira-aggregates.routes.ts', import.meta.url), 'utf8');
+  const resultRoute = routeSource.match(
+    /router\.get\('\/projects\/:projectId\/jira\/aggregates\/:aggregateId\/result'[\s\S]*?\n  \}\);/u,
+  )?.[0] ?? '';
+  assert.match(resultRoute, /safeJiraAggregateDatasetFromRow/u);
+  assert.match(resultRoute, /datasetPreviewDefinition/u);
+  assert.doesNotMatch(resultRoute, /jiraAggregateDraftFromRow\(row\)/u);
 });
 
 test('Jira dashboard evaluation requires an explicit runtime period before loading analytics', async () => {

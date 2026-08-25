@@ -151,6 +151,15 @@ export const jiraAnalyticsScopes = ["active", "retro"] as const;
 export const jiraAnalyticsPeriodModes = ["NONE", "FIXED", "DASHBOARD"] as const;
 export const jiraAnalyticsTimeZones = ["Europe/Moscow", "UTC"] as const;
 export const jiraAnalyticsPeriodDays = [30, 90, 180, 365] as const;
+export const jiraAnalyticsSortFields = [
+  "default",
+  "issueKey",
+  "eventAt",
+  "durationHours",
+  "commitCount",
+  "mergeRequestCount",
+] as const;
+export const jiraAnalyticsSortDirections = ["asc", "desc"] as const;
 
 export type JiraAnalyticsSource = (typeof jiraAnalyticsSources)[number];
 export type JiraAnalyticsMetric = (typeof jiraAnalyticsMetrics)[number];
@@ -161,6 +170,8 @@ export type JiraAnalyticsScope = (typeof jiraAnalyticsScopes)[number];
 export type JiraAnalyticsPeriodMode = (typeof jiraAnalyticsPeriodModes)[number];
 export type JiraAnalyticsTimeZone = (typeof jiraAnalyticsTimeZones)[number];
 export type JiraAnalyticsPeriodDays = (typeof jiraAnalyticsPeriodDays)[number];
+export type JiraAnalyticsSortField = (typeof jiraAnalyticsSortFields)[number];
+export type JiraAnalyticsSortDirection = (typeof jiraAnalyticsSortDirections)[number];
 export type JiraAnalyticsVisualization = "number" | "bar" | "table";
 
 export const JIRA_ANALYTICS_METRICS_BY_SOURCE: Record<
@@ -400,6 +411,99 @@ export const jiraAnalyticsAggregateDraftSchema = z.object({
 export type JiraAnalyticsFilter = z.infer<typeof jiraAnalyticsFilterSchema>;
 export type JiraAnalyticsAggregateDraft = z.infer<typeof jiraAnalyticsAggregateDraftSchema>;
 
+/**
+ * A managed aggregate is a semantic row set over the Jira data lake. Metrics,
+ * grouping, page placement and visualization belong to widgets, not here.
+ */
+export const jiraAnalyticsDatasetDraftSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(1000).default(""),
+  source: z.enum(jiraAnalyticsSources),
+  exposedFields: z.array(z.enum(jiraAnalyticsFilterFields)).min(1).max(jiraAnalyticsFilterFields.length),
+  baseFilterLogic: z.enum(["and", "or"]),
+  baseFilters: z.array(jiraAnalyticsFilterSchema).max(20),
+  timeZone: z.enum(jiraAnalyticsTimeZones),
+  sortOrder: z.number().int().min(0).max(10_000),
+}).strict().superRefine((definition, context) => {
+  const available = JIRA_ANALYTICS_FIELDS_BY_SOURCE[definition.source];
+  const uniqueFields = new Set(definition.exposedFields);
+  if (uniqueFields.size !== definition.exposedFields.length) {
+    context.addIssue({ code: "custom", path: ["exposedFields"], message: "Поля агрегата не должны повторяться" });
+  }
+  definition.exposedFields.forEach((field, index) => {
+    if (!available.includes(field)) {
+      context.addIssue({ code: "custom", path: ["exposedFields", index], message: "Поле недоступно для источника" });
+    }
+  });
+  definition.baseFilters.forEach((filter, index) => {
+    if (!available.includes(filter.field)) {
+      context.addIssue({ code: "custom", path: ["baseFilters", index, "field"], message: "Поле недоступно для источника" });
+    }
+  });
+});
+
+export const jiraAnalyticsDatasetRevisionV2Schema = jiraAnalyticsDatasetDraftSchema.extend({
+  schemaVersion: z.literal(2),
+}).strict();
+
+export const jiraAnalyticsDatasetRevisionSchema = z.union([
+  jiraAnalyticsDatasetRevisionV2Schema,
+  jiraAnalyticsAggregateDraftSchema,
+]);
+
+export type JiraAnalyticsDatasetDraft = z.infer<typeof jiraAnalyticsDatasetDraftSchema>;
+export type JiraAnalyticsDatasetRevision = z.infer<typeof jiraAnalyticsDatasetRevisionSchema>;
+
+export function jiraAnalyticsDatasetFromLegacy(
+  definition: JiraAnalyticsAggregateDraft,
+): JiraAnalyticsDatasetDraft {
+  return jiraAnalyticsDatasetDraftSchema.parse({
+    name: definition.name,
+    description: definition.description,
+    source: definition.source,
+    exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[definition.source]],
+    baseFilterLogic: definition.filterLogic,
+    baseFilters: definition.filters,
+    timeZone: definition.timeZone,
+    sortOrder: definition.sortOrder,
+  });
+}
+
+export function normalizeJiraAnalyticsDatasetRevision(value: unknown): {
+  dataset: JiraAnalyticsDatasetDraft;
+  legacyQuery: JiraAnalyticsAggregateDraft | null;
+} | null {
+  const current = jiraAnalyticsDatasetRevisionV2Schema.safeParse(value);
+  if (current.success) {
+    const { schemaVersion: _schemaVersion, ...dataset } = current.data;
+    return { dataset, legacyQuery: null };
+  }
+  const legacy = jiraAnalyticsAggregateDraftSchema.safeParse(value);
+  if (!legacy.success) return null;
+  return { dataset: jiraAnalyticsDatasetFromLegacy(legacy.data), legacyQuery: legacy.data };
+}
+
+export function jiraAnalyticsDatasetSemanticDocument(definition: JiraAnalyticsDatasetDraft) {
+  const baseFilters = definition.baseFilters
+    .map((filter) => ({
+      field: filter.field,
+      operator: filter.operator,
+      value: normalizedFilterValue(filter),
+    }))
+    .sort((left, right) => codePointCompare(JSON.stringify(left), JSON.stringify(right)));
+  return {
+    source: definition.source,
+    exposedFields: [...definition.exposedFields].sort(codePointCompare),
+    baseFilterLogic: definition.baseFilterLogic,
+    baseFilters,
+    timeZone: definition.timeZone,
+  } as const;
+}
+
+export function jiraAnalyticsDatasetSemanticKey(definition: JiraAnalyticsDatasetDraft) {
+  return JSON.stringify(jiraAnalyticsDatasetSemanticDocument(definition));
+}
+
 const visualizationSchema = z.enum(["number", "bar", "table"]);
 const widthSchema = z.enum(["half", "full"]);
 
@@ -452,6 +556,39 @@ export const jiraAnalyticsReferencedWidgetSchema = z.object({
   placement: z.enum(jiraAnalyticsScopes),
 }).strict();
 
+export const jiraAnalyticsManagedWidgetSchema = z.object({
+  id: z.string().min(1).max(200),
+  title: z.string().max(200),
+  aggregateId: z.string().min(1).max(200),
+  aggregateVersion: z.number().int().min(1).nullable().optional(),
+  placement: z.enum(jiraAnalyticsScopes),
+  metric: z.enum(jiraAnalyticsMetrics),
+  groupBy: z.enum(jiraAnalyticsGroupings),
+  filterLogic: z.enum(["and", "or"]),
+  filters: z.array(jiraAnalyticsFilterSchema).max(20),
+  periodMode: z.enum(jiraAnalyticsPeriodModes),
+  periodDays: z.union(jiraAnalyticsPeriodDays.map((value) => z.literal(value)) as [
+    z.ZodLiteral<30>,
+    z.ZodLiteral<90>,
+    z.ZodLiteral<180>,
+    z.ZodLiteral<365>,
+  ]).nullable(),
+  sortBy: z.enum(jiraAnalyticsSortFields),
+  sortDirection: z.enum(jiraAnalyticsSortDirections),
+  visualization: visualizationSchema,
+  width: widthSchema,
+}).strict().superRefine((widget, context) => {
+  if (widget.placement === "active" && widget.aggregateVersion != null) {
+    context.addIssue({ code: "custom", path: ["aggregateVersion"], message: "В работе всегда использует текущую ревизию агрегата" });
+  }
+  if (widget.placement === "retro" && widget.aggregateVersion == null) {
+    context.addIssue({ code: "custom", path: ["aggregateVersion"], message: "Ретро должно быть закреплено за ревизией агрегата" });
+  }
+  if ((widget.periodMode === "FIXED") !== (widget.periodDays !== null)) {
+    context.addIssue({ code: "custom", path: ["periodDays"], message: "Фиксированный период требует количества дней" });
+  }
+});
+
 export const jiraAnalyticsDashboardV1Schema = z.object({
   version: z.literal(1),
   periodDays: z.union(jiraAnalyticsPeriodDays.map((value) => z.literal(value)) as [
@@ -488,16 +625,31 @@ export const jiraAnalyticsDashboardV2Schema = z.object({
   widgets: z.array(jiraAnalyticsReferencedWidgetSchema).min(1).max(100),
 }).strict();
 
+export const jiraAnalyticsDashboardV3Schema = z.object({
+  version: z.literal(3),
+  periodDays: z.union(jiraAnalyticsPeriodDays.map((value) => z.literal(value)) as [
+    z.ZodLiteral<30>,
+    z.ZodLiteral<90>,
+    z.ZodLiteral<180>,
+    z.ZodLiteral<365>,
+  ]),
+  assignee: z.string().max(200),
+  widgets: z.array(jiraAnalyticsManagedWidgetSchema).max(100),
+}).strict();
+
 export const jiraAnalyticsDashboardConfigSchema = z.discriminatedUnion("version", [
   jiraAnalyticsDashboardV1Schema,
   jiraAnalyticsDashboardV2Schema,
+  jiraAnalyticsDashboardV3Schema,
 ]);
 
 export type JiraAnalyticsDashboardV1 = z.infer<typeof jiraAnalyticsDashboardV1Schema>;
 export type JiraAnalyticsDashboardV2 = z.infer<typeof jiraAnalyticsDashboardV2Schema>;
+export type JiraAnalyticsDashboardV3 = z.infer<typeof jiraAnalyticsDashboardV3Schema>;
 export type JiraAnalyticsDashboardConfig = z.infer<typeof jiraAnalyticsDashboardConfigSchema>;
 export type JiraAnalyticsInlineWidget = JiraAnalyticsDashboardV1["widgets"][number];
 export type JiraAnalyticsReferencedWidget = JiraAnalyticsDashboardV2["widgets"][number];
+export type JiraAnalyticsManagedWidget = JiraAnalyticsDashboardV3["widgets"][number];
 
 export function jiraAnalyticsLegacyWidgetSection(
   source: JiraAnalyticsSource,
@@ -527,6 +679,47 @@ export function normalizeJiraAnalyticsDashboardV1(
     ...parsed.data,
     widgets: parsed.data.widgets.map(normalizeJiraAnalyticsInlineWidget),
   });
+}
+
+const jiraAnalyticsGroupingField: Partial<Record<JiraAnalyticsGroupBy, JiraAnalyticsFilterField>> = {
+  project: "project",
+  status: "status",
+  assignee: "assignee",
+  reporter: "reporter",
+  priority: "priority",
+  sprint: "sprint",
+  issueType: "issueType",
+  resolution: "resolution",
+  fromStatus: "fromStatus",
+  toStatus: "toStatus",
+  week: "eventAt",
+};
+
+export function jiraAnalyticsWidgetDatasetError(
+  widget: JiraAnalyticsManagedWidget,
+  dataset: JiraAnalyticsDatasetDraft,
+) {
+  if (!JIRA_ANALYTICS_METRICS_BY_SOURCE[dataset.source].includes(widget.metric)) {
+    return "Метрика недоступна для источника агрегата";
+  }
+  if (!JIRA_ANALYTICS_GROUPS_BY_SOURCE[dataset.source].includes(widget.groupBy)) {
+    return "Группировка недоступна для источника агрегата";
+  }
+  const exposed = new Set(dataset.exposedFields);
+  const groupingField = jiraAnalyticsGroupingField[widget.groupBy];
+  if (groupingField && !exposed.has(groupingField)) {
+    return "Поле группировки не опубликовано агрегатом";
+  }
+  const unavailableFilter = widget.filters.find((filter) => !exposed.has(filter.field));
+  if (unavailableFilter) return `Поле ${unavailableFilter.field} не опубликовано агрегатом`;
+  const sortField = widget.sortBy === "default" ? null : widget.sortBy;
+  if (sortField && !exposed.has(sortField)) {
+    return "Поле сортировки не опубликовано агрегатом";
+  }
+  const usesPeriod = jiraAnalyticsSourceUsesPeriod(dataset.source);
+  if (!usesPeriod && widget.periodMode !== "NONE") return "Этот источник не использует период";
+  if (usesPeriod && widget.periodMode === "NONE") return "Для событийного источника нужен период";
+  return null;
 }
 
 function defaultInlineWidget(
@@ -764,6 +957,13 @@ export type JiraAnalyticsEvaluationOptions = {
   page: number;
   pageSize: number;
   groupKey?: string;
+};
+
+export type JiraAnalyticsExecutableDefinition = JiraAnalyticsAggregateDraft & {
+  baseFilterLogic?: "and" | "or";
+  baseFilters?: JiraAnalyticsFilter[];
+  sortBy?: JiraAnalyticsSortField;
+  sortDirection?: JiraAnalyticsSortDirection;
 };
 
 export type JiraAnalyticsEvaluationResult = {
@@ -1068,7 +1268,7 @@ function groupIdentity(
 }
 
 function effectivePeriod(
-  definition: JiraAnalyticsAggregateDraft,
+  definition: JiraAnalyticsExecutableDefinition,
   options: JiraAnalyticsEvaluationOptions,
 ) {
   if (definition.periodMode === "NONE") return null;
@@ -1078,7 +1278,7 @@ function effectivePeriod(
 }
 
 export function evaluateJiraAnalyticsAggregate(
-  definition: JiraAnalyticsAggregateDraft,
+  definition: JiraAnalyticsExecutableDefinition,
   issues: JiraAnalyticsIssueData[],
   options: JiraAnalyticsEvaluationOptions,
 ): JiraAnalyticsEvaluationResult {
@@ -1088,7 +1288,7 @@ export function evaluateJiraAnalyticsAggregate(
 }
 
 function sourceRecords(
-  definition: JiraAnalyticsAggregateDraft,
+  definition: JiraAnalyticsExecutableDefinition,
   issue: JiraAnalyticsIssueData,
   now: Date,
 ) {
@@ -1099,14 +1299,31 @@ function sourceRecords(
   return record ? [record] : [];
 }
 
-function compareResultRecords(left: JiraAnalyticsResultRecord, right: JiraAnalyticsResultRecord) {
+function compareResultRecords(
+  left: JiraAnalyticsResultRecord,
+  right: JiraAnalyticsResultRecord,
+  sortBy: JiraAnalyticsSortField = "default",
+  direction: JiraAnalyticsSortDirection = "desc",
+) {
+  const sign = direction === "asc" ? 1 : -1;
+  if (sortBy === "issueKey") {
+    return sign * codePointCompare(left.issue.issueKey, right.issue.issueKey) || codePointCompare(left.id, right.id);
+  }
+  if (sortBy === "eventAt") {
+    return sign * ((validDate(left.eventAt)?.getTime() ?? 0) - (validDate(right.eventAt)?.getTime() ?? 0)) || codePointCompare(left.id, right.id);
+  }
+  if (sortBy === "durationHours" || sortBy === "commitCount" || sortBy === "mergeRequestCount") {
+    const leftValue = sortBy === "durationHours" ? left.durationHours ?? -1 : left[sortBy];
+    const rightValue = sortBy === "durationHours" ? right.durationHours ?? -1 : right[sortBy];
+    return sign * (leftValue - rightValue) || codePointCompare(left.id, right.id);
+  }
   return (right.durationHours ?? -1) - (left.durationHours ?? -1) ||
     (validDate(right.eventAt)?.getTime() ?? 0) - (validDate(left.eventAt)?.getTime() ?? 0) ||
     codePointCompare(left.id, right.id);
 }
 
 export function createJiraAnalyticsEvaluationAccumulator(
-  definition: JiraAnalyticsAggregateDraft,
+  definition: JiraAnalyticsExecutableDefinition,
   options: JiraAnalyticsEvaluationOptions,
   limits: JiraAnalyticsEvaluationLimits = {},
 ): JiraAnalyticsEvaluationAccumulator {
@@ -1201,6 +1418,11 @@ export function createJiraAnalyticsEvaluationAccumulator(
     }
     if (definition.scope === "active" && !jiraIssueIsInWorkScope(record.issue)) return false;
     if (options.assignee && record.issue.assignee !== options.assignee) return false;
+    const baseFilters = definition.baseFilters ?? [];
+    const baseMatches = baseFilters.length === 0 || (definition.baseFilterLogic === "or"
+      ? baseFilters.some((filter) => filterMatches(record, filter))
+      : baseFilters.every((filter) => filterMatches(record, filter)));
+    if (!baseMatches) return false;
     if (definition.filters.length === 0) return true;
     return definition.filterLogic === "or"
       ? definition.filters.some((filter) => filterMatches(record, filter))
@@ -1234,13 +1456,23 @@ export function createJiraAnalyticsEvaluationAccumulator(
             if (selectedState !== allState) addRecordToMetricState(selectedState, record);
             selectedRecords.push(record);
             if (selectedRecords.length > pageWindow * 2) {
-              selectedRecords.sort(compareResultRecords);
+              selectedRecords.sort((left, right) => compareResultRecords(
+                left,
+                right,
+                definition.sortBy,
+                definition.sortDirection,
+              ));
               selectedRecords.splice(pageWindow);
             }
           }
         }
       }
-      selectedRecords.sort(compareResultRecords);
+      selectedRecords.sort((left, right) => compareResultRecords(
+        left,
+        right,
+        definition.sortBy,
+        definition.sortDirection,
+      ));
       selectedRecords.splice(pageWindow);
     },
     finish() {

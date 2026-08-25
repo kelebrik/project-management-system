@@ -1,10 +1,14 @@
 import {
-  jiraAnalyticsAggregateDraftSchema,
+  jiraAnalyticsDatasetDraftSchema,
   jiraAnalyticsDashboardConfigSchema,
+  jiraAnalyticsDashboardV3Schema,
   jiraAnalyticsPeriodDays,
   jiraAnalyticsSourceUsesPeriod,
+  jiraAnalyticsWidgetDatasetError,
+  normalizeJiraAnalyticsDatasetRevision,
   JiraAnalyticsEvaluationLimitError,
   type JiraAnalyticsAggregateDraft,
+  type JiraAnalyticsDatasetDraft,
   type JiraAnalyticsEvaluationOptions,
 } from '@pms/shared';
 import { Prisma, type JiraAggregateDefinition, type PrismaClient } from '@prisma/client';
@@ -19,17 +23,22 @@ import {
   buildJiraAggregateImportPlan,
   buildJiraDashboardSwitchPlan,
   convertJiraDashboardToV2,
+  convertJiraDashboardV2ToV3,
   evaluateJiraAggregateFromDatabase,
   evaluateSavedDashboardFromDatabase,
+  editableJiraDashboardV3,
   jiraAggregateCreateData,
+  jiraAggregateDatasetCreateData,
+  jiraAggregateDatasetRevisionCreateData,
+  jiraAggregateDatasetUpdateData,
   jiraAggregateDraftFromRow,
   jiraAggregateExportLimits,
   jiraAggregateExportOptions,
   jiraAggregateFingerprint,
   jiraAggregatePublicDefinition,
+  jiraAggregatePublicDefinitionFromDataset,
   jiraAggregateRevisionCreateData,
   jiraAggregateResultCsv,
-  jiraAggregateUpdateData,
   jiraDashboardReconciliationConfigs,
   jiraDashboardConfigHash,
   inspectJiraDashboardDefinitionUse,
@@ -39,11 +48,13 @@ import {
   loadJiraAnalyticsFacets,
   lockJiraAggregateProject,
   reconcileJiraDashboardFromDatabase,
+  safeJiraAggregateDraftFromRow,
+  safeJiraAggregateDatasetFromRow,
 } from '../services/jira-aggregates.js';
 import { JiraAsOfVersionLimitError } from '../services/jira-history-asof.js';
 
 const definitionBodySchema = z.object({
-  definition: jiraAnalyticsAggregateDraftSchema,
+  definition: jiraAnalyticsDatasetDraftSchema,
 }).strict();
 
 const updateDefinitionBodySchema = definitionBodySchema.extend({
@@ -82,7 +93,7 @@ const dashboardEvaluationSchema = evaluationSchema.extend({
 });
 
 const previewBodySchema = asOfEvaluationSchema.extend({
-  definition: jiraAnalyticsAggregateDraftSchema,
+  definition: jiraAnalyticsDatasetDraftSchema,
 });
 
 const migrationBodySchema = z.object({
@@ -109,13 +120,10 @@ const aggregateAuditFields = [
   'name',
   'description',
   'source',
-  'metric',
-  'groupBy',
-  'scope',
-  'filterLogic',
-  'filters',
-  'periodMode',
-  'periodDays',
+  'definitionSchemaVersion',
+  'exposedFields',
+  'baseFilterLogic',
+  'baseFilters',
   'timeZone',
   'sortOrder',
   'version',
@@ -126,6 +134,7 @@ class AggregateConflictError extends Error {
     public readonly code: 'VERSION' | 'IN_USE' | 'CONFIG_CHANGED' | 'MISSING_DEFINITION' | 'SERIALIZATION',
     public readonly details?: unknown,
     public readonly auditDefinition?: JiraAggregateDefinition,
+    public readonly userMessage?: string,
   ) {
     super(code);
   }
@@ -283,6 +292,30 @@ function evaluationOptions(
   };
 }
 
+function datasetPreviewDefinition(
+  dataset: JiraAnalyticsDatasetDraft,
+): JiraAnalyticsAggregateDraft & {
+  baseFilterLogic: 'and' | 'or';
+  baseFilters: JiraAnalyticsDatasetDraft['baseFilters'];
+} {
+  return {
+    name: dataset.name,
+    description: dataset.description,
+    source: dataset.source,
+    metric: 'count',
+    groupBy: 'none',
+    scope: 'retro',
+    filterLogic: 'and',
+    filters: [],
+    baseFilterLogic: dataset.baseFilterLogic,
+    baseFilters: dataset.baseFilters,
+    periodMode: jiraAnalyticsSourceUsesPeriod(dataset.source) ? 'DASHBOARD' : 'NONE',
+    periodDays: null,
+    timeZone: dataset.timeZone,
+    sortOrder: dataset.sortOrder,
+  };
+}
+
 function asOfDate(
   input: z.infer<typeof asOfEvaluationSchema>,
   definition: JiraAnalyticsAggregateDraft,
@@ -328,7 +361,7 @@ function conflictMessage(error: AggregateConflictError) {
   if (error.code === 'IN_USE') return 'Агрегат используется виджетами и не может быть удалён';
   if (error.code === 'MISSING_DEFINITION') return 'Не все определения агрегатов доступны';
   if (error.code === 'SERIALIZATION') return 'Данные изменяются параллельно, повторите операцию';
-  return typeof error.details === 'string' ? error.details : 'Конфигурация дашборда изменилась';
+  return error.userMessage ?? (typeof error.details === 'string' ? error.details : 'Конфигурация дашборда изменилась');
 }
 
 export function registerJiraAggregateRoutes(
@@ -382,9 +415,67 @@ export function registerJiraAggregateRoutes(
         },
       }),
     ]);
+    const validDefinitions = definitions.flatMap((definition) => {
+      const dataset = safeJiraAggregateDatasetFromRow(definition);
+      return dataset ? [definition] : [];
+    });
+    const invalidDefinitionIds = definitions
+      .filter((definition) => !safeJiraAggregateDatasetFromRow(definition))
+      .map((definition) => definition.id);
+    if (invalidDefinitionIds.length > 0) {
+      logEvent('error', 'jira.analytics.aggregate_contract_invalid', {
+        projectId: req.params.projectId,
+        aggregateIds: invalidDefinitionIds,
+      });
+    }
     const dashboardConfig = settings?.dashboardConfig ?? null;
+    let editableConfig = null;
+    let editableConfigError: string | null = null;
+    const editableDiagnostics: string[] = [];
+    try {
+      editableConfig = await editableJiraDashboardV3(
+        prisma,
+        req.params.projectId,
+        dashboardConfig,
+        validDefinitions,
+        editableDiagnostics,
+      );
+    } catch (error) {
+      editableConfig = null;
+      editableConfigError = editableDiagnostics.length > 0
+        ? `Нельзя достоверно перевести ${editableDiagnostics.length} виджет(а) на v3. Администратор может начать с пустой конфигурации.`
+        : 'Сохранённый дашборд нельзя подготовить для редактирования. Обратитесь к системному администратору.';
+      logEvent('warn', 'jira.analytics.dashboard_v3_unavailable', {
+        projectId: req.params.projectId,
+        reason: error instanceof Error ? error.message : 'DASHBOARD_CONFIG_INVALID',
+        diagnostics: editableDiagnostics,
+      });
+    }
+    const pinnedRevisionRequests = editableConfig?.widgets.flatMap((widget) =>
+      widget.placement === 'retro' && widget.aggregateVersion
+        ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
+        : [],
+    ) ?? [];
+    const pinnedRevisions = pinnedRevisionRequests.length > 0
+      ? await prisma.jiraAggregateDefinitionRevision.findMany({
+          where: { projectId: req.params.projectId, OR: pinnedRevisionRequests },
+          select: { aggregateId: true, version: true, definition: true },
+        })
+      : [];
+    const revisionContracts = pinnedRevisions.flatMap((revision) => {
+      const normalized = normalizeJiraAnalyticsDatasetRevision(revision.definition);
+      return normalized ? [{
+        aggregateId: revision.aggregateId,
+        version: revision.version,
+        definition: normalized.dataset,
+      }] : [];
+    });
     res.json({
-      definitions: definitions.map(jiraAggregatePublicDefinition),
+      definitions: validDefinitions.map((definition) =>
+        jiraAggregatePublicDefinitionFromDataset(definition, safeJiraAggregateDatasetFromRow(definition)!)
+      ),
+      invalidDefinitionCount: invalidDefinitionIds.length,
+      revisionContracts,
       dashboard: {
         stored: dashboardConfig !== null,
         version: dashboardConfig && typeof dashboardConfig === 'object' && !Array.isArray(dashboardConfig)
@@ -404,6 +495,8 @@ export function registerJiraAggregateRoutes(
         rollbackAvailableUntil: conversion?.rollbackState === 'AVAILABLE'
           ? 'AVAILABLE_UNTIL_LEGACY_RETIREMENT'
           : null,
+        editableConfig,
+        editableConfigError,
       },
     });
   });
@@ -423,10 +516,10 @@ export function registerJiraAggregateRoutes(
       const created = await prisma.$transaction(async (transaction) => {
         await lockJiraAggregateProject(transaction, req.params.projectId);
         const definition = await transaction.jiraAggregateDefinition.create({
-          data: jiraAggregateCreateData(req.params.projectId, parsed.data.definition),
+          data: jiraAggregateDatasetCreateData(req.params.projectId, parsed.data.definition),
         });
         await transaction.jiraAggregateDefinitionRevision.create({
-          data: jiraAggregateRevisionCreateData(
+          data: jiraAggregateDatasetRevisionCreateData(
             req.params.projectId,
             definition.id,
             definition.version,
@@ -447,7 +540,7 @@ export function registerJiraAggregateRoutes(
       res.status(201).json(jiraAggregatePublicDefinition(created));
     } catch (error) {
       if (isPrismaUniqueConflict(error)) {
-        res.status(409).json({ error: 'Агрегат с таким именем или правилами уже существует' });
+        res.status(409).json({ error: 'Агрегат с таким именем уже существует' });
         return;
       }
       throw error;
@@ -472,13 +565,80 @@ export function registerJiraAggregateRoutes(
           where: { id: req.params.aggregateId, projectId: req.params.projectId },
         });
         if (!before) throw new AggregateNotFoundError();
+        if (before.source !== parsed.data.definition.source) {
+          throw new AggregateConflictError(
+            'CONFIG_CHANGED',
+            jiraAggregatePublicDefinition(before),
+            before,
+            'Тип строк существующего агрегата менять нельзя; создайте новый агрегат',
+          );
+        }
+        const settingsRows = await transaction.$queryRaw<Array<{
+          dashboardConfig: Prisma.JsonValue | null;
+        }>>(Prisma.sql`
+          SELECT "dashboardConfig"
+          FROM "JiraAnalyticsSettings"
+          WHERE "projectId" = ${req.params.projectId}
+          FOR UPDATE
+        `);
+        const dashboardConfig = settingsRows[0]?.dashboardConfig ?? null;
+        const dashboardRecord = dashboardConfig && typeof dashboardConfig === 'object' && !Array.isArray(dashboardConfig)
+          ? dashboardConfig as Prisma.JsonObject
+          : null;
+        const dashboardV3 = jiraAnalyticsDashboardV3Schema.safeParse(dashboardConfig);
+        if (dashboardRecord?.version === 3 && !dashboardV3.success) {
+          throw new AggregateConflictError(
+            'CONFIG_CHANGED',
+            jiraAggregatePublicDefinition(before),
+            before,
+            'Сохранённая конфигурация виджетов v3 некорректна; сначала восстановите её',
+          );
+        }
+        const dashboard = jiraAnalyticsDashboardConfigSchema.safeParse(dashboardConfig);
+        const activeV2Widgets = dashboard.success && dashboard.data.version === 2
+          ? dashboard.data.widgets.filter((widget) =>
+              widget.aggregateId === before.id && widget.placement === 'active'
+            )
+          : [];
+        const convertedV2Widgets = activeV2Widgets.length > 0
+          ? convertJiraDashboardV2ToV3(
+              {
+                version: 2,
+                periodDays: dashboard.success ? dashboard.data.periodDays : 90,
+                assignee: dashboard.success ? dashboard.data.assignee : '',
+                widgets: activeV2Widgets.map((widget) => ({ ...widget, aggregateVersion: null })),
+              },
+              [before],
+            ).widgets
+          : [];
+        const incompatibleWidgets = [
+          ...(dashboardV3.success
+          ? dashboardV3.data.widgets.flatMap((widget) => {
+              if (widget.aggregateId !== before.id || widget.placement !== 'active') return [];
+              const error = jiraAnalyticsWidgetDatasetError(widget, parsed.data.definition);
+              return error ? [{ widgetId: widget.id, error }] : [];
+            })
+          : []),
+          ...convertedV2Widgets.flatMap((widget) => {
+            const error = jiraAnalyticsWidgetDatasetError(widget, parsed.data.definition);
+            return error ? [{ widgetId: widget.id, error }] : [];
+          }),
+        ];
+        if (incompatibleWidgets.length > 0) {
+          throw new AggregateConflictError(
+            'CONFIG_CHANGED',
+            jiraAggregatePublicDefinition(before),
+            before,
+            `Изменение сделает недоступными виджеты: ${incompatibleWidgets.map((item) => item.widgetId).join(', ')}`,
+          );
+        }
         const result = await transaction.jiraAggregateDefinition.updateMany({
           where: {
             id: before.id,
             projectId: req.params.projectId,
             version: parsed.data.expectedVersion,
           },
-          data: jiraAggregateUpdateData(parsed.data.definition),
+          data: jiraAggregateDatasetUpdateData(parsed.data.definition),
         });
         if (result.count !== 1) {
           const current = await transaction.jiraAggregateDefinition.findUnique({ where: { id: before.id } });
@@ -486,7 +646,7 @@ export function registerJiraAggregateRoutes(
         }
         const updated = await transaction.jiraAggregateDefinition.findUniqueOrThrow({ where: { id: before.id } });
         await transaction.jiraAggregateDefinitionRevision.create({
-          data: jiraAggregateRevisionCreateData(
+          data: jiraAggregateDatasetRevisionCreateData(
             req.params.projectId,
             updated.id,
             updated.version,
@@ -517,7 +677,7 @@ export function registerJiraAggregateRoutes(
         return;
       }
       if (isPrismaUniqueConflict(error)) {
-        res.status(409).json({ error: 'Агрегат с таким именем или правилами уже существует' });
+        res.status(409).json({ error: 'Агрегат с таким именем уже существует' });
         return;
       }
       throw error;
@@ -624,12 +784,13 @@ export function registerJiraAggregateRoutes(
       return;
     }
     try {
-      const asOf = asOfDate(parsed.data, parsed.data.definition);
+      const definition = datasetPreviewDefinition(parsed.data.definition);
+      const asOf = asOfDate(parsed.data, definition);
       const result = await evaluateJiraAggregateFromDatabase(
         prisma,
         req.params.projectId,
-        parsed.data.definition,
-        evaluationOptions(parsed.data, parsed.data.definition),
+        definition,
+        evaluationOptions(parsed.data, definition),
         asOf,
       );
       logAsOfEvaluation(req.params.projectId, result);
@@ -664,7 +825,16 @@ export function registerJiraAggregateRoutes(
       return;
     }
     try {
-      const definition = jiraAggregateDraftFromRow(row);
+      const definition = row.definitionSchemaVersion >= 2
+        ? (() => {
+            const dataset = safeJiraAggregateDatasetFromRow(row);
+            return dataset ? datasetPreviewDefinition(dataset) : null;
+          })()
+        : safeJiraAggregateDraftFromRow(row);
+      if (!definition) {
+        res.status(409).json({ error: 'Сохранённый контракт агрегата повреждён' });
+        return;
+      }
       const asOf = asOfDate(parsed.data, definition);
       const result = await evaluateJiraAggregateFromDatabase(
         prisma,
@@ -708,7 +878,16 @@ export function registerJiraAggregateRoutes(
       return;
     }
     try {
-      const definition = jiraAggregateDraftFromRow(row);
+      const definition = row.definitionSchemaVersion >= 2
+        ? (() => {
+            const dataset = safeJiraAggregateDatasetFromRow(row);
+            return dataset ? datasetPreviewDefinition(dataset) : null;
+          })()
+        : safeJiraAggregateDraftFromRow(row);
+      if (!definition) {
+        res.status(409).json({ error: 'Сохранённый контракт агрегата повреждён' });
+        return;
+      }
       const input = { ...parsed.data, page: 1, pageSize: 1 };
       const result = await evaluateJiraAggregateFromDatabase(
         prisma,
@@ -943,7 +1122,7 @@ export function registerJiraAggregateRoutes(
         return;
       }
       if (isPrismaUniqueConflict(error)) {
-        res.status(409).json({ error: 'Агрегат с таким именем или правилами уже существует' });
+        res.status(409).json({ error: 'Агрегат с таким именем уже существует' });
         return;
       }
       if (error instanceof Error && error.message === 'DASHBOARD_V1_INVALID') {

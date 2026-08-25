@@ -603,6 +603,10 @@ model JiraAggregateDefinition {
   nameKey     String
   description String   @default("")
   source      String
+  definitionSchemaVersion Int @default(1)
+  exposedFields Json?     @db.JsonB
+  baseFilterLogic String?
+  baseFilters Json?       @db.JsonB
   metric      String
   groupBy     String
   scope       String
@@ -620,7 +624,7 @@ model JiraAggregateDefinition {
   revisions   JiraAggregateDefinitionRevision[]
 
   @@unique([projectId, nameKey])
-  @@unique([projectId, fingerprint])
+  @@index([projectId, fingerprint])
   @@index([projectId, sortOrder, createdAt])
 }
 

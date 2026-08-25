@@ -190,6 +190,18 @@ test("Jira aggregate revisions are additive and backfill immutable definitions",
   assert.doesNotMatch(migration, /ALTER TABLE "JiraIssue(?:Version|Snapshot|HistoryRetry)"/i);
 });
 
+test("Jira aggregate dataset v3 migration is additive and preserves legacy query columns", () => {
+  const migration = migrationSql("20260825143000_jira_aggregate_datasets_v3");
+  assert.match(migration, /ADD COLUMN "definitionSchemaVersion"/);
+  assert.match(migration, /ADD COLUMN "exposedFields" JSONB/);
+  assert.match(migration, /ADD COLUMN "baseFilterLogic" TEXT/);
+  assert.match(migration, /ADD COLUMN "baseFilters" JSONB/);
+  assert.match(migration, /DROP INDEX IF EXISTS "JiraAggregateDefinition_projectId_fingerprint_key"/);
+  assert.match(migration, /CREATE INDEX "JiraAggregateDefinition_projectId_fingerprint_idx"/);
+  assert.doesNotMatch(migration, /DROP\s+(?:TABLE|COLUMN)/i);
+  assert.doesNotMatch(migration, /UPDATE\s+"JiraAggregateDefinition"/i);
+});
+
 test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
   const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
   assert.match(migration, /CREATE TABLE "JiraSyncRun"/);

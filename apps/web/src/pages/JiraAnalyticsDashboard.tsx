@@ -16,21 +16,23 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
-  jiraAnalyticsDashboardV1Schema,
   jiraAnalyticsDashboardV2Schema,
+  jiraAnalyticsDashboardV3Schema,
   jiraAnalyticsScopeValueIsValid,
+  jiraAnalyticsWidgetDatasetError,
   normalizeJiraAnalyticsDashboardV1,
   normalizeJiraAnalyticsScopeValue,
   type JiraAnalyticsDashboardConfig,
+  type JiraAnalyticsDashboardV3,
+  type JiraAnalyticsDatasetDraft,
   type JiraAnalyticsEvaluationResult,
-  type JiraAnalyticsReferencedWidget,
+  type JiraAnalyticsManagedWidget,
   type JiraAnalyticsResultRecord,
 } from "@pms/shared";
 
 import { apiClient } from "../api/client";
 import type { JiraAnalyticsFacets } from "../app/domainTypes";
 import {
-  JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   JIRA_ANALYTICS_FILTER_LABELS,
   JIRA_ANALYTICS_GROUPS_BY_SOURCE,
   JIRA_ANALYTICS_GROUP_LABELS,
@@ -40,7 +42,6 @@ import {
   JIRA_ANALYTICS_SOURCE_LABELS,
   JIRA_CRITICAL_BUG_SLA_HOURS,
   createJiraAnalyticsFilter,
-  createJiraAnalyticsWidget,
   formatJiraAnalyticsMetric,
   jiraAnalyticsFieldIsNumeric,
   jiraAnalyticsOperatorsFor,
@@ -52,7 +53,6 @@ import {
   type JiraAnalyticsSection,
   type JiraAnalyticsSource,
   type JiraAnalyticsVisualization,
-  type JiraAnalyticsWidget,
 } from "../app/jiraAnalytics";
 import { usePageContext } from "./PageContext";
 
@@ -73,19 +73,30 @@ type ServerWidgetResult = {
 };
 
 type DashboardResults = {
-  configVersion: 1 | 2;
+  configVersion: 1 | 2 | 3;
   configHash: string;
   widgets: ServerWidgetResult[];
 };
 
-type AggregateDefinitionOption = {
+type AggregateDefinitionOption = JiraAnalyticsDatasetDraft & {
   id: string;
   version: number;
-  name: string;
-  source: JiraAnalyticsSource;
-  metric: JiraAnalyticsMetric;
-  groupBy: JiraAnalyticsGroupBy;
-  scope: JiraAnalyticsSection;
+};
+
+type AggregateCatalogResponse = {
+  definitions: AggregateDefinitionOption[];
+  invalidDefinitionCount: number;
+  revisionContracts: Array<{
+    aggregateId: string;
+    version: number;
+    definition: JiraAnalyticsDatasetDraft;
+  }>;
+  dashboard: {
+    configHash: string;
+    version: 1 | 2 | 3 | null;
+    editableConfig: JiraAnalyticsDashboardV3 | null;
+    editableConfigError: string | null;
+  };
 };
 
 function csvCell(value: unknown) {
@@ -153,13 +164,7 @@ function JiraAnalyticsTable({
   records: JiraAnalyticsResultRecord[];
   limit?: number;
 }) {
-  const ordered = [...records].sort((left, right) => {
-    const duration = (right.durationHours ?? -1) - (left.durationHours ?? -1);
-    if (duration !== 0) return duration;
-    return (right.eventAt ? new Date(right.eventAt).getTime() : 0) -
-      (left.eventAt ? new Date(left.eventAt).getTime() : 0);
-  });
-  const visible = limit ? ordered.slice(0, limit) : ordered;
+  const visible = limit ? records.slice(0, limit) : records;
   if (visible.length === 0) return <div className="jira-analytics-empty">Нет данных</div>;
   if (visible.every((record) => record.source === "criticalBugs")) {
     return (
@@ -402,151 +407,41 @@ function JiraAnalyticsWidgetCard({
   );
 }
 
-function JiraWidgetEditor({
-  onChange,
-  onClose,
-  widget,
-}: {
-  onChange: (next: JiraAnalyticsWidget) => void;
-  onClose: () => void;
-  widget: JiraAnalyticsWidget;
-}) {
-  const patchWidget = (patch: Partial<JiraAnalyticsWidget>) =>
-    onChange({ ...widget, ...patch });
-  const updateFilter = (id: string, patch: Partial<JiraAnalyticsFilter>) =>
-    patchWidget({
-      filters: widget.filters.map((condition) =>
-        condition.id === id ? { ...condition, ...patch } : condition,
-      ),
-    });
-  const changeSource = (source: JiraAnalyticsSource) => {
-    const metric = JIRA_ANALYTICS_METRICS_BY_SOURCE[source].includes(widget.metric)
-      ? widget.metric
-      : JIRA_ANALYTICS_METRICS_BY_SOURCE[source][0];
-    const groupBy = JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].includes(widget.groupBy)
-      ? widget.groupBy
-      : "none";
-    patchWidget({ source, metric, groupBy, filters: [] });
-  };
-
-  return (
-    <aside className="jira-widget-editor" aria-label="Настройки виджета">
-      <header>
-        <h3>Настройки виджета</h3>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Закрыть настройки"><X size={17} /></button>
-      </header>
-      <label>
-        Название
-        <input maxLength={200} value={widget.title} onChange={(event) => patchWidget({ title: event.target.value })} />
-      </label>
-      <label>
-        Раздел
-        <select value={widget.section} onChange={(event) => patchWidget({ section: event.target.value as JiraAnalyticsSection })}>
-          <option value="active">В работе</option>
-          <option value="retro">Ретро</option>
-        </select>
-      </label>
-      <label>
-        Источник
-        <select value={widget.source} onChange={(event) => changeSource(event.target.value as JiraAnalyticsSource)}>
-          {Object.entries(JIRA_ANALYTICS_SOURCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-      </label>
-      <label>
-        Метрика
-        <select value={widget.metric} onChange={(event) => patchWidget({ metric: event.target.value as JiraAnalyticsMetric })}>
-          {JIRA_ANALYTICS_METRICS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_METRIC_LABELS[value]}</option>)}
-        </select>
-      </label>
-      <label>
-        Группировка
-        <select value={widget.groupBy} onChange={(event) => patchWidget({ groupBy: event.target.value as JiraAnalyticsGroupBy })}>
-          {JIRA_ANALYTICS_GROUPS_BY_SOURCE[widget.source].map((value) => <option key={value} value={value}>{JIRA_ANALYTICS_GROUP_LABELS[value]}</option>)}
-        </select>
-      </label>
-      <fieldset>
-        <legend>Визуализация</legend>
-        <div className="jira-widget-segments">
-          {([
-            ["number", "Число"],
-            ["bar", "Столбцы"],
-            ["table", "Таблица"],
-          ] as Array<[JiraAnalyticsVisualization, string]>).map(([value, label]) => (
-            <button type="button" className={widget.visualization === value ? "active" : ""} key={value} onClick={() => patchWidget({ visualization: value })}>{label}</button>
-          ))}
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>Ширина</legend>
-        <div className="jira-widget-segments">
-          <button type="button" className={widget.width === "half" ? "active" : ""} onClick={() => patchWidget({ width: "half" })}>1/2</button>
-          <button type="button" className={widget.width === "full" ? "active" : ""} onClick={() => patchWidget({ width: "full" })}>1/1</button>
-        </div>
-      </fieldset>
-
-      <div className="jira-widget-filter-head">
-        <span>Условия</span>
-        <div className="jira-widget-logic" aria-label="Логика условий">
-          <button type="button" className={widget.filterLogic === "and" ? "active" : ""} onClick={() => patchWidget({ filterLogic: "and" })}>И</button>
-          <button type="button" className={widget.filterLogic === "or" ? "active" : ""} onClick={() => patchWidget({ filterLogic: "or" })}>ИЛИ</button>
-        </div>
-      </div>
-      <div className="jira-widget-filters">
-        {widget.filters.map((condition) => {
-          const needsValue = !["empty", "notEmpty"].includes(condition.operator);
-          return (
-            <div className="jira-widget-filter" key={condition.id}>
-              <select value={condition.field} onChange={(event) => {
-                const field = event.target.value as JiraAnalyticsFilterField;
-                updateFilter(condition.id, { field, operator: jiraAnalyticsOperatorsFor(field)[0], value: field === "hasDevelopment" ? "true" : "" });
-              }}>
-                {JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source].map((field) => <option value={field} key={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}
-              </select>
-              <select value={condition.operator} onChange={(event) => updateFilter(condition.id, { operator: event.target.value as JiraAnalyticsFilterOperator })}>
-                {jiraAnalyticsOperatorsFor(condition.field).map((operator) => <option value={operator} key={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}
-              </select>
-              {needsValue && (condition.field === "hasDevelopment" ? (
-                <select value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })}>
-                  <option value="true">Да</option>
-                  <option value="false">Нет</option>
-                </select>
-              ) : (
-                <input type={jiraAnalyticsFieldIsNumeric(condition.field) ? "number" : "text"} value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })} />
-              ))}
-              <button type="button" className="icon-button danger" onClick={() => patchWidget({ filters: widget.filters.filter((item) => item.id !== condition.id) })} aria-label="Удалить условие"><Trash2 size={15} /></button>
-            </div>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        className="button jira-widget-add-filter"
-        disabled={widget.filters.length >= 20}
-        onClick={() => {
-          const field = JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source][0];
-          patchWidget({ filters: [...widget.filters, createJiraAnalyticsFilter(field)] });
-        }}
-      >
-        <Plus size={16} /> Условие
-      </button>
-    </aside>
-  );
-}
-
-function JiraReferencedWidgetEditor({
+function JiraManagedWidgetEditor({
   definitions,
+  revisionContracts,
   onChange,
   onClose,
   widget,
 }: {
   definitions: AggregateDefinitionOption[];
-  onChange: (next: JiraAnalyticsReferencedWidget) => void;
+  revisionContracts: AggregateCatalogResponse["revisionContracts"];
+  onChange: (next: JiraAnalyticsManagedWidget) => void;
   onClose: () => void;
-  widget: JiraAnalyticsReferencedWidget;
+  widget: JiraAnalyticsManagedWidget;
 }) {
-  const availableDefinitions = definitions.filter((definition) => definition.scope === widget.placement);
-  const patchWidget = (patch: Partial<JiraAnalyticsReferencedWidget>) =>
+  const currentDefinition = definitions.find((definition) => definition.id === widget.aggregateId) ?? null;
+  const pinnedDefinition = widget.placement === "retro" && widget.aggregateVersion
+    ? revisionContracts.find((contract) =>
+        contract.aggregateId === widget.aggregateId && contract.version === widget.aggregateVersion
+      )?.definition ?? null
+    : null;
+  const selectedDefinition = widget.placement === "retro"
+    ? pinnedDefinition ?? (widget.aggregateVersion === currentDefinition?.version ? currentDefinition : null)
+    : currentDefinition;
+  const source = selectedDefinition?.source ?? "issues";
+  const fields = selectedDefinition?.exposedFields ?? [];
+  const compatibilityError = selectedDefinition
+    ? jiraAnalyticsWidgetDatasetError(widget, selectedDefinition)
+    : widget.placement === "retro"
+      ? "Закреплённая ревизия агрегата недоступна"
+      : null;
+  const patchWidget = (patch: Partial<JiraAnalyticsManagedWidget>) =>
     onChange({ ...widget, ...patch });
+
+  const updateFilter = (id: string, patch: Partial<JiraAnalyticsFilter>) => patchWidget({
+    filters: widget.filters.map((filter) => filter.id === id ? { ...filter, ...patch } : filter),
+  });
 
   return (
     <aside className="jira-widget-editor" aria-label="Настройки виджета">
@@ -562,16 +457,14 @@ function JiraReferencedWidgetEditor({
         Раздел
         <select value={widget.placement} onChange={(event) => {
           const placement = event.target.value as JiraAnalyticsSection;
-          const definition = definitions.find((item) => item.scope === placement);
-          if (!definition) return;
           patchWidget({
             placement,
-            aggregateId: definition.id,
-            aggregateVersion: placement === "retro" ? definition.version : null,
+            aggregateVersion: placement === "retro" ? currentDefinition?.version ?? null : null,
           });
+          onClose();
         }}>
-          <option value="active" disabled={!definitions.some((definition) => definition.scope === "active")}>В работе</option>
-          <option value="retro" disabled={!definitions.some((definition) => definition.scope === "retro")}>Ретро</option>
+          <option value="active">В работе</option>
+          <option value="retro">Ретро</option>
         </select>
       </label>
       <label>
@@ -582,16 +475,43 @@ function JiraReferencedWidgetEditor({
           patchWidget({
             aggregateId: definition.id,
             aggregateVersion: widget.placement === "retro" ? definition.version : null,
+            metric: JIRA_ANALYTICS_METRICS_BY_SOURCE[definition.source][0],
+            groupBy: "none",
+            filters: [],
+            periodMode: definition.source === "transitions" || definition.source === "development" ? "DASHBOARD" : "NONE",
+            periodDays: null,
+            sortBy: "default",
+            sortDirection: "desc",
           });
         }}>
-          {availableDefinitions.map((definition) => (
+          {definitions.map((definition) => (
             <option value={definition.id} key={definition.id}>{definition.name}</option>
           ))}
         </select>
       </label>
-      {availableDefinitions.length === 0 && (
-        <div className="jira-aggregate-validation">Для этого раздела нет сохранённых агрегатов</div>
+      {definitions.length === 0 && (
+        <div className="jira-aggregate-validation">Нет сохранённых агрегатов</div>
       )}
+      <label>Метрика<select value={widget.metric} onChange={(event) => patchWidget({ metric: event.target.value as JiraAnalyticsMetric })}>{JIRA_ANALYTICS_METRICS_BY_SOURCE[source].map((metric) => <option key={metric} value={metric}>{JIRA_ANALYTICS_METRIC_LABELS[metric]}</option>)}</select></label>
+      <label>Группировка<select value={widget.groupBy} onChange={(event) => patchWidget({ groupBy: event.target.value as JiraAnalyticsGroupBy })}>{!JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].filter((group) => group === "none" || fields.includes(group === "week" ? "eventAt" : group as JiraAnalyticsFilterField)).includes(widget.groupBy) && <option value={widget.groupBy} disabled>{JIRA_ANALYTICS_GROUP_LABELS[widget.groupBy]} · поле не опубликовано</option>}{JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].filter((group) => group === "none" || fields.includes(group === "week" ? "eventAt" : group as JiraAnalyticsFilterField)).map((group) => <option key={group} value={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>
+      {(source === "transitions" || source === "development") && <label>Период<select value={widget.periodMode} onChange={(event) => { const periodMode = event.target.value as JiraAnalyticsManagedWidget["periodMode"]; patchWidget({ periodMode, periodDays: periodMode === "FIXED" ? 90 : null }); }}><option value="DASHBOARD">Из фильтра страницы</option><option value="FIXED">Фиксированный: 90 дней</option></select></label>}
+      <label>Сортировка<select value={widget.sortBy} onChange={(event) => patchWidget({ sortBy: event.target.value as JiraAnalyticsManagedWidget["sortBy"] })}>{widget.sortBy !== "default" && !fields.includes(widget.sortBy) && <option value={widget.sortBy} disabled>{JIRA_ANALYTICS_FILTER_LABELS[widget.sortBy]} · поле не опубликовано</option>}<option value="default">По значению</option>{fields.filter((field) => ["issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount"].includes(field)).map((field) => <option key={field} value={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}</select></label>
+      <fieldset>
+        <legend>Направление сортировки</legend>
+        <div className="jira-widget-segments">
+          <button type="button" className={widget.sortDirection === "desc" ? "active" : ""} onClick={() => patchWidget({ sortDirection: "desc" })}>По убыванию</button>
+          <button type="button" className={widget.sortDirection === "asc" ? "active" : ""} onClick={() => patchWidget({ sortDirection: "asc" })}>По возрастанию</button>
+        </div>
+      </fieldset>
+      <div className="jira-widget-filter-head"><span>Условия виджета</span><div className="jira-widget-logic"><button type="button" className={widget.filterLogic === "and" ? "active" : ""} onClick={() => patchWidget({ filterLogic: "and" })}>И</button><button type="button" className={widget.filterLogic === "or" ? "active" : ""} onClick={() => patchWidget({ filterLogic: "or" })}>ИЛИ</button></div></div>
+      <div className="jira-widget-filters">{widget.filters.map((condition) => <div className="jira-widget-filter" key={condition.id}>
+        <select value={condition.field} onChange={(event) => { const field = event.target.value as JiraAnalyticsFilterField; updateFilter(condition.id, { field, operator: jiraAnalyticsOperatorsFor(field)[0], value: field === "hasDevelopment" ? "true" : "" }); }}>{!fields.includes(condition.field) && <option value={condition.field} disabled>{JIRA_ANALYTICS_FILTER_LABELS[condition.field]} · поле не опубликовано</option>}{fields.map((field) => <option value={field} key={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}</select>
+        <select value={condition.operator} onChange={(event) => updateFilter(condition.id, { operator: event.target.value as JiraAnalyticsFilterOperator })}>{jiraAnalyticsOperatorsFor(condition.field).map((operator) => <option value={operator} key={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}</select>
+        {!['empty', 'notEmpty'].includes(condition.operator) && (condition.field === "hasDevelopment" ? <select value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })}><option value="true">Да</option><option value="false">Нет</option></select> : <input type={jiraAnalyticsFieldIsNumeric(condition.field) ? "number" : "text"} value={condition.value} onChange={(event) => updateFilter(condition.id, { value: event.target.value })} />)}
+        <button type="button" className="icon-button danger" onClick={() => patchWidget({ filters: widget.filters.filter((item) => item.id !== condition.id) })} aria-label="Удалить условие"><Trash2 size={15} /></button>
+      </div>)}</div>
+      <button type="button" className="button jira-widget-add-filter" disabled={widget.filters.length >= 20 || fields.length === 0} onClick={() => patchWidget({ filters: [...widget.filters, createJiraAnalyticsFilter(fields[0])] })}><Plus size={16} /> Условие</button>
+      {compatibilityError && <div className="jira-aggregate-validation">{compatibilityError}</div>}
       <fieldset>
         <legend>Визуализация</legend>
         <div className="jira-widget-segments">
@@ -619,6 +539,8 @@ function parseDashboardConfig(value: unknown): JiraAnalyticsDashboardConfig | nu
   if (value === null || value === undefined) {
     return structuredClone(JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1);
   }
+  const v3 = jiraAnalyticsDashboardV3Schema.safeParse(value);
+  if (v3.success) return structuredClone(v3.data);
   const v2 = jiraAnalyticsDashboardV2Schema.safeParse(value);
   if (v2.success) return structuredClone(v2.data);
   const v1 = normalizeJiraAnalyticsDashboardV1(value);
@@ -629,18 +551,44 @@ function widgetPlacement(widget: JiraAnalyticsDashboardConfig["widgets"][number]
   return "placement" in widget ? widget.placement : widget.section;
 }
 
-function newReferencedWidget(
+function movePlacedWidget<T extends { id: string; placement: JiraAnalyticsSection }>(
+  widgets: readonly T[],
+  widgetId: string,
+  direction: -1 | 1,
+  section: JiraAnalyticsSection,
+) {
+  const next = [...widgets];
+  const sectionIndexes = next.flatMap((widget, index) => widget.placement === section ? [index] : []);
+  const sectionIndex = sectionIndexes.findIndex((index) => next[index]?.id === widgetId);
+  const targetSectionIndex = sectionIndex + direction;
+  if (sectionIndex < 0 || targetSectionIndex < 0 || targetSectionIndex >= sectionIndexes.length) return next;
+  const index = sectionIndexes[sectionIndex];
+  const target = sectionIndexes[targetSectionIndex];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+function newManagedWidget(
   aggregate: AggregateDefinitionOption,
   placement: JiraAnalyticsSection,
-): JiraAnalyticsReferencedWidget {
+): JiraAnalyticsManagedWidget {
+  const sourceUsesPeriod = aggregate.source === "transitions" || aggregate.source === "development";
   return {
     id: `widget-${crypto.randomUUID()}`,
     title: aggregate.name,
     aggregateId: aggregate.id,
     aggregateVersion: placement === "retro" ? aggregate.version : null,
-    visualization: aggregate.groupBy === "none" ? "number" : "bar",
-    width: aggregate.groupBy === "none" ? "half" : "full",
     placement,
+    metric: JIRA_ANALYTICS_METRICS_BY_SOURCE[aggregate.source][0],
+    groupBy: "none",
+    filterLogic: "and",
+    filters: [],
+    periodMode: sourceUsesPeriod ? "DASHBOARD" : "NONE",
+    periodDays: null,
+    sortBy: "default",
+    sortDirection: "desc",
+    visualization: "number",
+    width: "half",
   };
 }
 
@@ -683,11 +631,14 @@ export function JiraAnalyticsDashboard({
   const [dashboardResults, setDashboardResults] = useState<DashboardResults | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [definitions, setDefinitions] = useState<AggregateDefinitionOption[]>([]);
+  const [revisionContracts, setRevisionContracts] = useState<AggregateCatalogResponse["revisionContracts"]>([]);
+  const [catalogDashboard, setCatalogDashboard] = useState<AggregateCatalogResponse["dashboard"] | null>(null);
   const [facetState, setFacetState] = useState<{
     projectId: string;
     data: JiraAnalyticsFacets;
   } | null>(null);
   const dashboardProjectIdRef = useRef(project.id);
+  const catalogRequestIdRef = useRef(0);
   const [saving, setSaving] = useState(false);
   const jiraScope = {
     type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL",
@@ -711,16 +662,32 @@ export function JiraAnalyticsDashboard({
 
   useEffect(() => {
     let active = true;
-    void apiClient.get<{ definitions: AggregateDefinitionOption[] }>(
+    const requestId = ++catalogRequestIdRef.current;
+    void apiClient.get<AggregateCatalogResponse>(
       `/api/projects/${project.id}/jira/aggregates`,
       "Не удалось загрузить каталог агрегатов",
     ).then((response) => {
-      if (active) setDefinitions(response.definitions);
+      if (active && requestId === catalogRequestIdRef.current) {
+        setDefinitions(response.definitions);
+        setRevisionContracts(response.revisionContracts ?? []);
+        setCatalogDashboard(response.dashboard);
+        if (response.dashboard.editableConfig) {
+          const next = structuredClone(response.dashboard.editableConfig);
+          setConfig((current) => editing && current?.version === 3 ? current : next);
+          setBaseline((current) => editing && current?.version === 3 ? current : structuredClone(next));
+        }
+        if (response.dashboard.editableConfigError) {
+          setError(`Не удалось подготовить редактируемую конфигурацию: ${response.dashboard.editableConfigError}`);
+        }
+        if (response.invalidDefinitionCount > 0) {
+          setError(`Повреждено определений агрегатов: ${response.invalidDefinitionCount}. Обратитесь к системному администратору.`);
+        }
+      }
     }).catch((error) => {
       if (active) setError(error instanceof Error ? error.message : "Не удалось загрузить агрегаты");
     });
     return () => { active = false; };
-  }, [project.id, setError]);
+  }, [editing, project.id, setError, storedDashboardConfigKey]);
 
   useEffect(() => {
     let active = true;
@@ -833,6 +800,7 @@ export function JiraAnalyticsDashboard({
           };
         }
         const definition = definitions.find((item) => item.id === layout.aggregateId);
+        const query = "metric" in layout ? layout : null;
         return {
           widgetId: layout.id,
           title: layout.title,
@@ -842,8 +810,8 @@ export function JiraAnalyticsDashboard({
           aggregateId: layout.aggregateId,
           aggregateName: definition?.name ?? "",
           source: definition?.source ?? "issues",
-          metric: definition?.metric ?? "count",
-          groupBy: definition?.groupBy ?? "none",
+          metric: query?.metric ?? "count",
+          groupBy: query?.groupBy ?? "none",
           status: "UNAVAILABLE",
           error: "Сохраните дашборд, чтобы рассчитать новый виджет",
         };
@@ -856,20 +824,29 @@ export function JiraAnalyticsDashboard({
     ? selectedWidgetId ?? visibleWidgets[0]?.widgetId ?? null
     : null;
   const selectedWidget = config?.widgets.find((widget) => widget.id === activeSelectedWidgetId) ?? null;
-  const sectionDefinitions = definitions.filter((definition) => definition.scope === section);
+  const sectionDefinitions = definitions;
 
   const addWidget = () => {
-    if (!config || config.widgets.length >= 100) return;
-    const widget = config.version === 1
-      ? createJiraAnalyticsWidget("issues", section)
-      : sectionDefinitions[0]
-        ? newReferencedWidget(sectionDefinitions[0], section)
-        : null;
+    if (!config || config.version !== 3 || config.widgets.length >= 100) return;
+    const widget = sectionDefinitions[0]
+      ? newManagedWidget(sectionDefinitions[0], section)
+      : null;
     if (!widget) return;
     setConfig((current) => current
       ? ({ ...current, widgets: [...current.widgets, widget] } as JiraAnalyticsDashboardConfig)
       : current);
     setSelectedWidgetId(widget.id);
+  };
+
+  const startEmptyV3 = () => {
+    setConfig({
+      version: 3,
+      periodDays: config?.periodDays ?? 90,
+      assignee: config?.assignee ?? "",
+      widgets: [],
+    });
+    setSelectedWidgetId(null);
+    onStartEditing();
   };
 
   const patchDashboardFilters = (
@@ -881,67 +858,62 @@ export function JiraAnalyticsDashboard({
     }
   };
 
-  const updateWidget = (next: JiraAnalyticsWidget) =>
-    setConfig((current) => current?.version === 1 ? ({
-      ...current,
-      widgets: current.widgets.map((widget) => (widget.id === next.id ? next : widget)),
-    }) : current);
-
-  const updateReferencedWidget = (next: JiraAnalyticsReferencedWidget) =>
-    setConfig((current) => current?.version === 2 ? ({
-      ...current,
-      widgets: current.widgets.map((widget) => (widget.id === next.id ? next : widget)),
-    }) : current);
+  const updateManagedWidget = (next: JiraAnalyticsManagedWidget) =>
+    setConfig((current) => {
+      if (!current || current.version !== 3) return current;
+      return { ...current, widgets: current.widgets.map((widget) => widget.id === next.id ? next : widget) };
+    });
 
   const moveWidget = (widgetId: string, direction: -1 | 1) => {
     setConfig((current) => {
-      if (!current) return current;
-      if (current.version === 1) {
-        const widgets = [...current.widgets];
-        const sectionIndexes = widgets.flatMap((widget, index) => widget.section === section ? [index] : []);
-        const sectionIndex = sectionIndexes.findIndex((index) => widgets[index]?.id === widgetId);
-        const targetSectionIndex = sectionIndex + direction;
-        if (sectionIndex < 0 || targetSectionIndex < 0 || targetSectionIndex >= sectionIndexes.length) return current;
-        const index = sectionIndexes[sectionIndex];
-        const target = sectionIndexes[targetSectionIndex];
-        [widgets[index], widgets[target]] = [widgets[target], widgets[index]];
-        return { ...current, widgets };
-      }
-      const widgets = [...current.widgets];
-      const sectionIndexes = widgets.flatMap((widget, index) => widget.placement === section ? [index] : []);
-      const sectionIndex = sectionIndexes.findIndex((index) => widgets[index]?.id === widgetId);
-      const targetSectionIndex = sectionIndex + direction;
-      if (sectionIndex < 0 || targetSectionIndex < 0 || targetSectionIndex >= sectionIndexes.length) return current;
-      const index = sectionIndexes[sectionIndex];
-      const target = sectionIndexes[targetSectionIndex];
-      [widgets[index], widgets[target]] = [widgets[target], widgets[index]];
-      return { ...current, widgets };
+      if (!current || current.version !== 3) return current;
+      return { ...current, widgets: movePlacedWidget(current.widgets, widgetId, direction, section) };
     });
   };
 
   const saveDashboard = async () => {
     if (!canEditWidgets || !config) return;
-    if (config.version === 2 && config.widgets.some((widget) => !widget.aggregateId)) {
+    if (config.version !== 3) {
+      setError("Редактирование доступно только после перевода дашборда на v3");
+      return;
+    }
+    if (!catalogDashboard?.configHash) {
+      setError("Не удалось определить актуальную версию дашборда; обновите страницу");
+      return;
+    }
+    if (config.widgets.some((widget) => !widget.aggregateId)) {
       setError("Для каждого виджета нужно выбрать сохранённый агрегат");
       return;
     }
-    const configToSave = config.version === 2
-      ? {
-          ...config,
-          widgets: config.widgets.map((widget) => {
-            const definition = definitions.find((item) => item.id === widget.aggregateId);
-            return {
-              ...widget,
-              aggregateVersion: widget.placement === "retro"
-                ? widget.aggregateVersion ?? definition?.version ?? null
-                : null,
-            };
-          }),
-        }
-      : config;
-    const validation = configToSave.version === 2
-      ? jiraAnalyticsDashboardV2Schema.safeParse(configToSave)
-      : jiraAnalyticsDashboardV1Schema.safeParse(config);
+    const incompatible = config.widgets.flatMap((widget) => {
+      const currentDefinition = definitions.find((item) => item.id === widget.aggregateId);
+      const definition = widget.placement === "retro" && widget.aggregateVersion
+        ? revisionContracts.find((contract) =>
+            contract.aggregateId === widget.aggregateId && contract.version === widget.aggregateVersion
+          )?.definition
+            ?? (widget.aggregateVersion === currentDefinition?.version ? currentDefinition : null)
+        : currentDefinition;
+      if (!definition) return [`${widget.title}: агрегат недоступен`];
+      const contractError = jiraAnalyticsWidgetDatasetError(widget, definition);
+      return contractError ? [`${widget.title}: ${contractError}`] : [];
+    });
+    if (incompatible.length > 0) {
+      setError(`Исправьте настройки виджетов: ${incompatible.join("; ")}`);
+      return;
+    }
+    const configToSave: JiraAnalyticsDashboardV3 = {
+      ...config,
+      widgets: config.widgets.map((widget) => {
+        const definition = definitions.find((item) => item.id === widget.aggregateId);
+        return {
+          ...widget,
+          aggregateVersion: widget.placement === "retro"
+            ? widget.aggregateVersion ?? definition?.version ?? null
+            : null,
+        };
+      }),
+    };
+    const validation = jiraAnalyticsDashboardV3Schema.safeParse(configToSave);
     if (!validation.success) {
       setError(validation.error.issues[0]?.message ?? "Некорректная конфигурация дашборда");
       return;
@@ -949,11 +921,12 @@ export function JiraAnalyticsDashboard({
     setSaving(true);
     setError(null);
     try {
-      await apiClient.patch(
+      const saved = await apiClient.patch<{ configHash: string }>(
         `/api/projects/${project.id}/jira/analytics-dashboard`,
-        { config: validation.data },
+        { config: validation.data, expectedConfigHash: catalogDashboard.configHash },
         "Не удалось сохранить настройки аналитики Jira",
       );
+      setCatalogDashboard((current) => current ? { ...current, configHash: saved.configHash, version: 3, editableConfig: validation.data, editableConfigError: null } : current);
       await refreshProject(project.id);
       setBaseline(structuredClone(validation.data));
       onEditingChange(false);
@@ -1096,9 +1069,14 @@ export function JiraAnalyticsDashboard({
               <Trash2 size={16} /> {clearing ? "Очищаю..." : "Очистить"}
             </button>
           )}
-          {canEditWidgets && config && !editing && (
+          {canEditWidgets && config?.version === 3 && !editing && (
             <button type="button" className="button" onClick={onStartEditing}>
               <Pencil size={16} /> Редактировать
+            </button>
+          )}
+          {canEditWidgets && config?.version !== 3 && !editing && catalogDashboard?.editableConfigError && (
+            <button type="button" className="button" onClick={startEmptyV3}>
+              <Pencil size={16} /> Начать с пустого v3
             </button>
           )}
           {canEditWidgets && config && editing && (
@@ -1107,7 +1085,7 @@ export function JiraAnalyticsDashboard({
                 type="button"
                 className="button"
                 onClick={addWidget}
-                disabled={config.widgets.length >= 100 || (config.version === 2 && sectionDefinitions.length === 0)}
+                disabled={config.version !== 3 || config.widgets.length >= 100 || sectionDefinitions.length === 0}
               >
                 <Plus size={16} /> Добавить виджет
               </button>
@@ -1123,9 +1101,9 @@ export function JiraAnalyticsDashboard({
           Сохранённая конфигурация дашборда некорректна. Она не заменена шаблоном автоматически; исправьте её через миграцию или восстановление.
         </div>
       )}
-      {editing && config?.version === 2 && sectionDefinitions.length === 0 && (
+      {editing && (config?.version === 2 || config?.version === 3) && sectionDefinitions.length === 0 && (
         <div className="jira-analytics-missing-aggregate">
-          <span>Для раздела «{section === "active" ? "В работе" : "Ретро"}» ещё нет агрегатов.</span>
+          <span>Для виджетов ещё нет агрегатов.</span>
           <button type="button" className="button" onClick={onOpenAggregates}><Plus size={15} /> Создать агрегат</button>
         </div>
       )}
@@ -1178,11 +1156,8 @@ export function JiraAnalyticsDashboard({
             />
           ))}
         </div>
-        {editing && selectedWidget && config?.version === 1 && "source" in selectedWidget && (
-          <JiraWidgetEditor widget={selectedWidget} onChange={updateWidget} onClose={() => setSelectedWidgetId(null)} />
-        )}
-        {editing && selectedWidget && config?.version === 2 && "aggregateId" in selectedWidget && (
-          <JiraReferencedWidgetEditor definitions={definitions} widget={selectedWidget} onChange={updateReferencedWidget} onClose={() => setSelectedWidgetId(null)} />
+        {editing && selectedWidget && config?.version === 3 && "aggregateId" in selectedWidget && "periodMode" in selectedWidget && (
+          <JiraManagedWidgetEditor definitions={definitions} revisionContracts={revisionContracts} widget={selectedWidget as JiraAnalyticsManagedWidget} onChange={updateManagedWidget} onClose={() => setSelectedWidgetId(null)} />
         )}
       </div>
 

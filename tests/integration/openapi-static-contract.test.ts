@@ -195,4 +195,56 @@ test("OpenAPI describes the managed Jira aggregate concurrency and payload contr
   assert.equal(evaluation.properties?.quality?.$ref, "#/components/schemas/JiraAnalyticsDataQuality");
   assert.ok(evaluation.required?.includes("quality"));
   assert.ok(document.paths["/api/projects/{projectId}/jira/aggregates/{aggregateId}/export.csv"]?.get);
+
+  const aggregateDraft = document.components.schemas.JiraAggregateDraft as {
+    properties?: Record<string, unknown>;
+    required?: string[];
+  };
+  assert.deepEqual(aggregateDraft.required, [
+    "name", "description", "source", "exposedFields", "baseFilterLogic",
+    "baseFilters", "timeZone", "sortOrder",
+  ]);
+  assert.ok(aggregateDraft.properties?.exposedFields);
+  assert.ok(aggregateDraft.properties?.baseFilters);
+  assert.equal("metric" in (aggregateDraft.properties ?? {}), false);
+  assert.equal("groupBy" in (aggregateDraft.properties ?? {}), false);
+  assert.equal("scope" in (aggregateDraft.properties ?? {}), false);
+  const exposedFields = aggregateDraft.properties?.exposedFields as {
+    maxItems?: number;
+    items?: { enum?: string[] };
+  };
+  const filter = document.components.schemas.JiraAnalyticsFilter as {
+    properties?: { field?: { enum?: string[] } };
+  };
+  assert.equal(exposedFields.maxItems, 21);
+  assert.deepEqual(exposedFields.items?.enum, filter.properties?.field?.enum);
+
+  const dashboard = document.components.schemas.JiraAnalyticsDashboardConfig as {
+    oneOf?: Array<{ $ref?: string }>;
+  };
+  assert.ok(dashboard.oneOf?.some(
+    (schema) => schema.$ref === "#/components/schemas/JiraAnalyticsDashboardConfigV3",
+  ));
+  const widget = document.components.schemas.JiraAnalyticsManagedWidget as {
+    properties?: Record<string, unknown>;
+    required?: string[];
+  };
+  for (const property of ["aggregateId", "metric", "groupBy", "filters", "sortBy", "visualization"]) {
+    assert.ok(widget.required?.includes(property), `v3 widget requires ${property}`);
+  }
+  const dashboardPatch = document.paths["/api/projects/{projectId}/jira/analytics-dashboard"]?.patch as {
+    requestBody?: { content?: { "application/json"?: { schema?: {
+      properties?: { config?: { $ref?: string }; expectedConfigHash?: { pattern?: string } };
+      required?: string[];
+    } } } };
+  };
+  assert.equal(
+    dashboardPatch.requestBody?.content?.["application/json"]?.schema?.properties?.config?.$ref,
+    "#/components/schemas/JiraAnalyticsDashboardConfigV3",
+  );
+  assert.ok(dashboardPatch.requestBody?.content?.["application/json"]?.schema?.required?.includes("expectedConfigHash"));
+  assert.equal(
+    dashboardPatch.requestBody?.content?.["application/json"]?.schema?.properties?.expectedConfigHash?.pattern,
+    "^[0-9a-f]{64}$",
+  );
 });

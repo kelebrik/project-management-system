@@ -1,8 +1,11 @@
 import {
+  JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
   createIssueSchema,
   issueStatusUpdateSchema,
-  jiraAnalyticsDashboardConfigSchema,
+  jiraAnalyticsDashboardV3Schema,
+  jiraAnalyticsWidgetDatasetError,
   jiraAnalyticsScopeValueMaxLength,
+  normalizeJiraAnalyticsDatasetRevision,
   normalizeJiraAnalyticsScopeValue,
   updateIssueSchema,
 } from '@pms/shared';
@@ -21,6 +24,7 @@ import { sampleJiraCapacity } from '../services/jira-capacity.js';
 import {
   jiraDashboardConfigHash,
   jiraDashboardReferencedAggregateIds,
+  safeJiraAggregateDatasetFromRow,
   lockJiraAggregateProject,
 } from '../services/jira-aggregates.js';
 import {
@@ -205,26 +209,23 @@ const jiraSyncSchema = z.discriminatedUnion('scopeType', [
 ]);
 
 const jiraAnalyticsDashboardSchema = z.object({
-  config: jiraAnalyticsDashboardConfigSchema,
+  config: jiraAnalyticsDashboardV3Schema,
+  expectedConfigHash: z.string().regex(/^[0-9a-f]{64}$/),
 });
 
 class JiraDashboardAggregateReferenceError extends Error {
   constructor(public readonly details: {
     missingIds: string[];
-    scopeMismatches: Array<{ widgetId: string; aggregateId: string }>;
     missingRevisions: Array<{ widgetId: string; aggregateId: string; version: number | null }>;
+    contractMismatches: Array<{ widgetId: string; aggregateId: string; error: string }>;
   }) {
     super('JIRA_DASHBOARD_AGGREGATE_REFERENCE_INVALID');
   }
 }
 
-class JiraDashboardEngineStateError extends Error {
-  constructor(public readonly details: {
-    previousVersion: 1 | 2;
-    requestedVersion: 1 | 2;
-    rollbackState: string | null;
-  }) {
-    super('JIRA_DASHBOARD_ENGINE_STATE_INVALID');
+class JiraDashboardConfigConflictError extends Error {
+  constructor(public readonly currentConfigHash: string) {
+    super('JIRA_DASHBOARD_CONFIG_CHANGED');
   }
 }
 
@@ -913,50 +914,58 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
     ({ before, settings } = await prisma.$transaction(async (transaction) => {
       await lockJiraAggregateProject(transaction, project.id);
       const referencedIds = jiraDashboardReferencedAggregateIds(parsed.data.config);
-      const definitions = referencedIds.length > 0
-        ? await transaction.$queryRaw<Array<{ id: string; scope: string }>>(Prisma.sql`
+      if (referencedIds.length > 0) {
+        await transaction.$queryRaw<Array<{ id: string; scope: string }>>(Prisma.sql`
             SELECT "id", "scope"
             FROM "JiraAggregateDefinition"
             WHERE "projectId" = ${project.id}
               AND "id" IN (${Prisma.join(referencedIds)})
             FOR KEY SHARE
-          `)
+          `);
+      }
+      const definitions = referencedIds.length > 0
+        ? await transaction.jiraAggregateDefinition.findMany({ where: { projectId: project.id, id: { in: referencedIds } } })
         : [];
       const definitionsById = new Map(definitions.map((definition) => [definition.id, definition]));
       const missingIds = referencedIds.filter((id) => !definitionsById.has(id));
-      const scopeMismatches = parsed.data.config.version === 2
-        ? parsed.data.config.widgets.flatMap((widget) => {
-            const definition = definitionsById.get(widget.aggregateId);
-            return definition && definition.scope !== widget.placement
-              ? [{ widgetId: widget.id, aggregateId: widget.aggregateId }]
-              : [];
-          })
-        : [];
-      const requestedRevisions = parsed.data.config.version === 2
-        ? parsed.data.config.widgets.flatMap((widget) =>
-            widget.placement === 'retro' && widget.aggregateVersion
-              ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
-              : [],
-          )
-        : [];
+      const requestedRevisions = parsed.data.config.widgets.flatMap((widget) =>
+        widget.placement === 'retro' && widget.aggregateVersion
+          ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
+          : [],
+      );
       const revisions = requestedRevisions.length > 0
         ? await transaction.jiraAggregateDefinitionRevision.findMany({
             where: { projectId: project.id, OR: requestedRevisions },
-            select: { aggregateId: true, version: true },
+            select: { aggregateId: true, version: true, definition: true },
           })
         : [];
       const revisionKeys = new Set(revisions.map((revision) => `${revision.aggregateId}:${revision.version}`));
-      const missingRevisions = parsed.data.config.version === 2
-        ? parsed.data.config.widgets.flatMap((widget) => {
-            if (widget.placement !== 'retro') return [];
-            const version = widget.aggregateVersion ?? null;
-            return version && revisionKeys.has(`${widget.aggregateId}:${version}`)
-              ? []
-              : [{ widgetId: widget.id, aggregateId: widget.aggregateId, version }];
-          })
-        : [];
-      if (missingIds.length > 0 || scopeMismatches.length > 0 || missingRevisions.length > 0) {
-        throw new JiraDashboardAggregateReferenceError({ missingIds, scopeMismatches, missingRevisions });
+      const missingRevisions = parsed.data.config.widgets.flatMap((widget) => {
+        if (widget.placement !== 'retro') return [];
+        const version = widget.aggregateVersion ?? null;
+        return version && revisionKeys.has(`${widget.aggregateId}:${version}`)
+          ? []
+          : [{ widgetId: widget.id, aggregateId: widget.aggregateId, version }];
+      });
+      const revisionsByKey = new Map(revisions.map((revision) => [
+        `${revision.aggregateId}:${revision.version}`,
+        revision,
+      ]));
+      const contractMismatches = parsed.data.config.widgets.flatMap((widget) => {
+        const row = definitionsById.get(widget.aggregateId);
+        if (!row) return [];
+        const revision = widget.aggregateVersion && widget.aggregateVersion !== row.version
+          ? revisionsByKey.get(`${widget.aggregateId}:${widget.aggregateVersion}`)
+          : null;
+        const dataset = revision
+          ? normalizeJiraAnalyticsDatasetRevision(revision.definition)?.dataset ?? null
+          : safeJiraAggregateDatasetFromRow(row);
+        if (!dataset) return [{ widgetId: widget.id, aggregateId: widget.aggregateId, error: 'Ревизия агрегата недоступна' }];
+        const error = jiraAnalyticsWidgetDatasetError(widget, dataset);
+        return error ? [{ widgetId: widget.id, aggregateId: widget.aggregateId, error }] : [];
+      });
+      if (missingIds.length > 0 || missingRevisions.length > 0 || contractMismatches.length > 0) {
+        throw new JiraDashboardAggregateReferenceError({ missingIds, missingRevisions, contractMismatches });
       }
       const lockedSettings = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id"
@@ -967,22 +976,45 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
       const previous = lockedSettings[0]
         ? await transaction.jiraAnalyticsSettings.findUnique({ where: { id: lockedSettings[0].id } })
         : null;
+      const previousConfig = previous?.dashboardConfig ?? null;
+      const previousConfigHash = jiraDashboardConfigHash(previousConfig);
+      if (previousConfigHash !== parsed.data.expectedConfigHash) {
+        throw new JiraDashboardConfigConflictError(previousConfigHash);
+      }
+      const previousRecord = previousConfig && typeof previousConfig === 'object' && !Array.isArray(previousConfig)
+        ? previousConfig as Prisma.JsonObject
+        : null;
+      const previousVersion = previousRecord?.version === 3 ? 3 : previousRecord?.version === 2 ? 2 : 1;
       const conversion = await transaction.jiraAnalyticsDashboardConversion.findUnique({
         where: { projectId: project.id },
-        select: { rollbackState: true },
       });
-      const rollbackState = conversion?.rollbackState ?? null;
-      const previousRecord = previous?.dashboardConfig && typeof previous.dashboardConfig === 'object'
-        && !Array.isArray(previous.dashboardConfig)
-        ? previous.dashboardConfig as Prisma.JsonObject
-        : null;
-      const previousVersion: 1 | 2 = previousRecord?.version === 2 ? 2 : 1;
-      if (parsed.data.config.version !== previousVersion) {
-        throw new JiraDashboardEngineStateError({
-          previousVersion,
-          requestedVersion: parsed.data.config.version,
-          rollbackState,
-        });
+      if (previousVersion !== 3 && (!conversion || conversion.rollbackState === 'USED')) {
+        const originalConfigStored = previousConfig !== null;
+        const originalConfig = originalConfigStored
+          ? previousConfig as Prisma.InputJsonValue
+          : JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1 as Prisma.InputJsonObject;
+        const conversionData = {
+          originalConfig,
+          originalConfigStored,
+          sourceConfigHash: jiraDashboardConfigHash(previousConfig),
+          originalConfigHash: jiraDashboardConfigHash(originalConfig),
+          convertedConfigHash: jiraDashboardConfigHash(parsed.data.config),
+          createdDefinitionIds: [] as string[],
+          rollbackState: 'AVAILABLE' as const,
+          convertedAt: new Date(),
+          rolledBackAt: null,
+          rollbackFinalizedAt: null,
+        };
+        if (conversion) {
+          await transaction.jiraAnalyticsDashboardConversion.update({
+            where: { id: conversion.id },
+            data: { ...conversionData, attempt: conversion.attempt + 1 },
+          });
+        } else {
+          await transaction.jiraAnalyticsDashboardConversion.create({
+            data: { projectId: project.id, ...conversionData, attempt: 1 },
+          });
+        }
       }
       const next = await transaction.jiraAnalyticsSettings.upsert({
         where: { projectId: project.id },
@@ -994,12 +1026,10 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
         },
         update: { dashboardConfig },
       });
-      if (parsed.data.config.version === 2) {
-        await transaction.jiraAnalyticsDashboardConversion.updateMany({
-          where: { projectId: project.id, rollbackState: { in: ['AVAILABLE', 'CLOSED'] } },
-          data: { convertedConfigHash: jiraDashboardConfigHash(parsed.data.config) },
-        });
-      }
+      await transaction.jiraAnalyticsDashboardConversion.updateMany({
+        where: { projectId: project.id, rollbackState: 'AVAILABLE' },
+        data: { convertedConfigHash: jiraDashboardConfigHash(parsed.data.config) },
+      });
       return { before: previous, settings: next };
     }));
   } catch (error) {
@@ -1010,12 +1040,10 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
       });
       return;
     }
-    if (error instanceof JiraDashboardEngineStateError) {
+    if (error instanceof JiraDashboardConfigConflictError) {
       res.status(409).json({
-        error: error.details.requestedVersion === 1
-          ? 'Вернуть legacy-дашборд можно только через штатный откат'
-          : 'Сначала выполните управляемое переключение дашборда',
-        ...error.details,
+        error: 'Конфигурация виджетов уже изменена другим администратором; обновите страницу',
+        currentConfigHash: error.currentConfigHash,
       });
       return;
     }
@@ -1031,7 +1059,7 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
     beforeValue: before,
     afterValue: settings,
   });
-  res.json(settings);
+  res.json({ ...settings, configHash: jiraDashboardConfigHash(settings.dashboardConfig) });
 });
 
 router.post('/projects/:projectId/jira/capacity-sample', async (req, res) => {
