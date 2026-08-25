@@ -176,6 +176,20 @@ test("Jira analytics C1 as-of reconstruction adds no database migration", () => 
   assert.deepEqual(c1Migrations, []);
 });
 
+test("Jira aggregate revisions are additive and backfill immutable definitions", () => {
+  const migration = migrationSql("20260825090000_jira_aggregate_definition_revisions");
+  assert.match(migration, /CREATE TABLE "JiraAggregateDefinitionRevision"/);
+  assert.match(migration, /INSERT INTO "JiraAggregateDefinitionRevision"/);
+  assert.match(migration, /FROM "JiraAggregateDefinition"/);
+  assert.match(migration, /JiraAggregateDefinitionRevision_aggregateId_version_key/);
+  const withoutForeignKeyActions = migration.replace(
+    /ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)/gi,
+    "",
+  );
+  assert.doesNotMatch(withoutForeignKeyActions, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+  assert.doesNotMatch(migration, /ALTER TABLE "JiraIssue(?:Version|Snapshot|HistoryRetry)"/i);
+});
+
 test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
   const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
   assert.match(migration, /CREATE TABLE "JiraSyncRun"/);

@@ -1,4 +1,8 @@
 import {
+  jiraAnalyticsLabels,
+  normalizeJiraAnalyticsScopeValue,
+} from '@pms/shared';
+import {
   captureJiraReadOnlyRequestMetrics,
   fetchJiraIssuesWithMeta,
   type JiraCapacityIssueMeasurement,
@@ -124,10 +128,15 @@ function jqlLiteral(value: string) {
 }
 
 export function jiraCapacityScopeJql(type: JiraCapacityScopeType, value: string) {
-  const literal = jqlLiteral(value.trim());
-  return type === 'LABEL'
-    ? `labels = ${literal}`
-    : `(key = ${literal} OR "Epic Link" = ${literal})`;
+  const normalized = normalizeJiraAnalyticsScopeValue(type, value);
+  if (type === 'LABEL') {
+    const labels = jiraAnalyticsLabels(normalized);
+    return labels.length === 1
+      ? `labels = ${jqlLiteral(labels[0])}`
+      : `labels IN (${labels.map(jqlLiteral).join(', ')})`;
+  }
+  const literal = jqlLiteral(normalized);
+  return `(key = ${literal} OR "Epic Link" = ${literal})`;
 }
 
 function orderedJql(scopeJql: string, direction: 'ASC' | 'DESC') {

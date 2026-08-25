@@ -26,6 +26,63 @@ export const jiraUnresolvedResolutions = [
   "Не решена",
 ] as const;
 export const jiraCriticalBugSlaHours = 30 * 24;
+export const jiraAnalyticsScopeTypes = ["LABEL", "EPIC"] as const;
+export const jiraAnalyticsLabelLimit = 20;
+export const jiraAnalyticsScopeValueMaxLength = 2_000;
+
+export type JiraAnalyticsScopeType = (typeof jiraAnalyticsScopeTypes)[number];
+
+const jiraAnalyticsLabelPattern = /^[^\s"'\\,]+$/u;
+const jiraAnalyticsEpicPattern = /^[A-Z][A-Z0-9_]*-\d+$/u;
+
+export function jiraAnalyticsLabels(value: string) {
+  const parts = value.normalize("NFKC").split(",");
+  if (parts.some((part) => part.trim() === "")) {
+    throw new Error("Укажите лейблы через запятую без пустых значений");
+  }
+  const labels = [...new Set(parts.map((part) => part.trim()))].sort();
+  if (labels.length > jiraAnalyticsLabelLimit) {
+    throw new Error(`Можно указать не более ${jiraAnalyticsLabelLimit} лейблов`);
+  }
+  const invalid = labels.find((label) =>
+    label.length > 100 || !jiraAnalyticsLabelPattern.test(label)
+  );
+  if (invalid) {
+    throw new Error("Лейбл не должен содержать пробелы, запятые, кавычки или обратный слеш");
+  }
+  return labels;
+}
+
+export function normalizeJiraAnalyticsScopeValue(
+  type: JiraAnalyticsScopeType,
+  value: string,
+) {
+  const normalized = value.normalize("NFKC").trim();
+  if (normalized === "") {
+    throw new Error(type === "LABEL" ? "Укажите лейбл Jira" : "Укажите код эпика Jira");
+  }
+  if (normalized.length > jiraAnalyticsScopeValueMaxLength) {
+    throw new Error("Значение области Jira слишком длинное");
+  }
+  if (type === "LABEL") return jiraAnalyticsLabels(normalized).join(", ");
+  const epic = normalized.toUpperCase();
+  if (!jiraAnalyticsEpicPattern.test(epic)) {
+    throw new Error("Укажите корректный код эпика Jira, например CVTE-123");
+  }
+  return epic;
+}
+
+export function jiraAnalyticsScopeValueIsValid(
+  type: JiraAnalyticsScopeType,
+  value: string,
+) {
+  try {
+    normalizeJiraAnalyticsScopeValue(type, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export const jiraAnalyticsSources = [
   "issues",
@@ -47,6 +104,7 @@ export const jiraAnalyticsGroupings = [
   "project",
   "status",
   "assignee",
+  "reporter",
   "priority",
   "sprint",
   "issueType",
@@ -56,8 +114,12 @@ export const jiraAnalyticsGroupings = [
   "week",
 ] as const;
 export const jiraAnalyticsFilterFields = [
+  "issueKey",
+  "project",
+  "summary",
   "status",
   "assignee",
+  "reporter",
   "priority",
   "sprint",
   "issueType",
@@ -68,6 +130,11 @@ export const jiraAnalyticsFilterFields = [
   "commitCount",
   "mergeRequestCount",
   "hasDevelopment",
+  "issueCreatedAt",
+  "criticalPriorityAt",
+  "resolutionAt",
+  "updatedAt",
+  "eventAt",
 ] as const;
 export const jiraAnalyticsFilterOperators = [
   "equals",
@@ -77,6 +144,8 @@ export const jiraAnalyticsFilterOperators = [
   "notEmpty",
   "greaterThan",
   "atLeast",
+  "before",
+  "after",
 ] as const;
 export const jiraAnalyticsScopes = ["active", "retro"] as const;
 export const jiraAnalyticsPeriodModes = ["NONE", "FIXED", "DASHBOARD"] as const;
@@ -120,10 +189,10 @@ export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
   JiraAnalyticsSource,
   readonly JiraAnalyticsGroupBy[]
 > = {
-  issues: ["none", "status", "assignee", "priority", "sprint", "issueType"],
-  transitions: ["none", "status", "assignee", "fromStatus", "toStatus", "week"],
-  development: ["none", "status", "assignee", "sprint", "week"],
-  criticalBugs: ["none", "project", "priority", "assignee", "status", "resolution"],
+  issues: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType"],
+  transitions: ["none", "project", "status", "assignee", "reporter", "fromStatus", "toStatus", "week"],
+  development: ["none", "project", "status", "assignee", "reporter", "sprint", "week"],
+  criticalBugs: ["none", "project", "priority", "assignee", "reporter", "status", "resolution"],
 };
 
 export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
@@ -131,8 +200,12 @@ export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
   readonly JiraAnalyticsFilterField[]
 > = {
   issues: [
+    "issueKey",
+    "project",
+    "summary",
     "status",
     "assignee",
+    "reporter",
     "priority",
     "sprint",
     "issueType",
@@ -140,10 +213,14 @@ export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
     "hasDevelopment",
     "commitCount",
     "mergeRequestCount",
+    "issueCreatedAt",
+    "criticalPriorityAt",
+    "resolutionAt",
+    "updatedAt",
   ],
-  transitions: ["status", "assignee", "fromStatus", "toStatus", "durationHours"],
-  development: ["status", "assignee", "sprint", "commitCount", "mergeRequestCount"],
-  criticalBugs: ["status", "assignee", "priority", "resolution", "durationHours"],
+  transitions: ["issueKey", "project", "summary", "status", "assignee", "reporter", "fromStatus", "toStatus", "eventAt", "durationHours"],
+  development: ["issueKey", "project", "summary", "status", "assignee", "reporter", "sprint", "eventAt", "commitCount", "mergeRequestCount"],
+  criticalBugs: ["issueKey", "project", "summary", "status", "assignee", "reporter", "priority", "resolution", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "durationHours"],
 };
 
 const numericFields = new Set<JiraAnalyticsFilterField>([
@@ -152,11 +229,29 @@ const numericFields = new Set<JiraAnalyticsFilterField>([
   "mergeRequestCount",
 ]);
 
+const dateFields = new Set<JiraAnalyticsFilterField>([
+  "issueCreatedAt",
+  "criticalPriorityAt",
+  "resolutionAt",
+  "updatedAt",
+  "eventAt",
+]);
+
+export type JiraAnalyticsFieldKind = "text" | "number" | "boolean" | "date";
+
+export function jiraAnalyticsFieldKind(field: JiraAnalyticsFilterField): JiraAnalyticsFieldKind {
+  if (numericFields.has(field)) return "number";
+  if (field === "hasDevelopment") return "boolean";
+  if (dateFields.has(field)) return "date";
+  return "text";
+}
+
 export function jiraAnalyticsOperatorsFor(
   field: JiraAnalyticsFilterField,
 ): readonly JiraAnalyticsFilterOperator[] {
   if (numericFields.has(field)) return ["greaterThan", "atLeast", "equals"];
   if (field === "hasDevelopment") return ["equals"];
+  if (dateFields.has(field)) return ["before", "after", "empty", "notEmpty"];
   return ["equals", "notEquals", "contains", "empty", "notEmpty"];
 }
 
@@ -239,6 +334,15 @@ export const jiraAnalyticsFilterSchema = z.object({
         code: "custom",
         path: ["value"],
         message: "Числовой фильтр требует конечное число",
+      });
+    }
+  }
+  if (dateFields.has(filter.field) && !["empty", "notEmpty"].includes(filter.operator)) {
+    if (filter.value.trim() === "" || Number.isNaN(new Date(filter.value).getTime())) {
+      context.addIssue({
+        code: "custom",
+        path: ["value"],
+        message: "Фильтр по дате требует корректную дату и время",
       });
     }
   }
@@ -342,6 +446,7 @@ export const jiraAnalyticsReferencedWidgetSchema = z.object({
   id: z.string().min(1).max(200),
   title: z.string().max(200),
   aggregateId: z.string().min(1).max(200),
+  aggregateVersion: z.number().int().min(1).nullable().optional(),
   visualization: visualizationSchema,
   width: widthSchema,
   placement: z.enum(jiraAnalyticsScopes),
@@ -806,12 +911,18 @@ function jiraIssueIsInWorkScope(
 }
 
 function recordValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilterField) {
+  if (field === "issueKey") return record.issue.issueKey;
+  if (field === "project") {
+    return record.issue.issueKey.trim().toUpperCase().match(/^([A-Z][A-Z0-9_]*)-\d+$/)?.[1] ?? null;
+  }
+  if (field === "summary") return record.issue.summary;
   if (field === "fromStatus") return record.fromStatus;
   if (field === "toStatus") return record.toStatus;
   if (field === "durationHours") return record.durationHours;
   if (field === "commitCount") return record.commitCount;
   if (field === "mergeRequestCount") return record.mergeRequestCount;
   if (field === "hasDevelopment") return record.issue.commitCount > 0 || record.issue.mergeRequestCount > 0;
+  if (field === "eventAt") return record.eventAt;
   if (field === "sprint") return record.sprint;
   if (field === "resolution") return isJiraUnresolvedResolution(record.issue.resolution) ? null : record.issue.resolution;
   return record.issue[field];
@@ -832,6 +943,12 @@ function filterMatches(record: JiraAnalyticsResultRecord, filter: JiraAnalyticsF
   if (filter.operator === "equals") return foldedActual === foldedExpected;
   if (filter.operator === "notEquals") return foldedActual !== foldedExpected;
   if (filter.operator === "contains") return foldedActual.includes(foldedExpected);
+  if (filter.operator === "before" || filter.operator === "after") {
+    const actualDate = new Date(actualText);
+    const expectedDate = new Date(expected);
+    if (Number.isNaN(actualDate.getTime()) || Number.isNaN(expectedDate.getTime())) return false;
+    return filter.operator === "before" ? actualDate < expectedDate : actualDate > expectedDate;
+  }
   const actualNumber = Number(actual);
   const expectedNumber = Number(expected);
   if (!Number.isFinite(actualNumber) || !Number.isFinite(expectedNumber)) return false;
@@ -932,6 +1049,7 @@ function groupIdentity(
   }
   if (groupBy === "status") return value(record.issue.status, "Без статуса");
   if (groupBy === "assignee") return value(record.issue.assignee, "Не назначен");
+  if (groupBy === "reporter") return value(record.issue.reporter, "Без автора");
   if (groupBy === "priority") return value(record.issue.priority, "Без приоритета");
   if (groupBy === "sprint") return value(record.sprint, "Без Sprint");
   if (groupBy === "issueType") return value(record.issue.issueType, "Без типа");

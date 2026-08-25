@@ -493,6 +493,136 @@
   min-width: 0;
 }
 
+.jira-aggregates-page {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.jira-aggregate-sources {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.jira-aggregate-sources > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.jira-aggregate-sources > header > div {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.jira-aggregate-sources h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.jira-aggregate-sources > header > span,
+.jira-aggregate-source-description p {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.jira-aggregate-source-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.jira-aggregate-source-grid > button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-body);
+  display: grid;
+  gap: 5px;
+  min-height: 76px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.jira-aggregate-source-grid > button:hover {
+  border-color: var(--border-strong);
+}
+
+.jira-aggregate-source-grid > button.active {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.jira-aggregate-source-grid > button > span {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.jira-aggregate-source-grid strong,
+.jira-aggregate-source-grid b {
+  color: var(--text-heading);
+  font-size: 12px;
+}
+
+.jira-aggregate-source-grid b {
+  background: var(--surface-2);
+  border-radius: 4px;
+  min-width: 24px;
+  padding: 2px 5px;
+  text-align: center;
+}
+
+.jira-aggregate-source-grid small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.jira-aggregate-source-description {
+  display: grid;
+  gap: 8px;
+}
+
+.jira-aggregate-source-description p {
+  margin: 0;
+}
+
+.jira-aggregate-source-description summary {
+  color: var(--text-body);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.jira-aggregate-source-description details > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+}
+
+.jira-aggregate-source-description details span {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: inline-flex;
+  gap: 6px;
+  padding: 5px 7px;
+}
+
+.jira-aggregate-source-description details b,
+.jira-aggregate-source-description details small {
+  font-size: 10px;
+}
+
+.jira-aggregate-source-description details small {
+  color: var(--text-muted);
+}
+
 .jira-aggregate-builder {
   align-items: start;
   display: grid;
@@ -556,7 +686,8 @@
   overflow-y: auto;
 }
 
-.jira-aggregate-catalog-list > button {
+.jira-aggregate-catalog-list > button,
+.jira-aggregate-catalog-list > section > button {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 5px;
@@ -570,11 +701,13 @@
   width: 100%;
 }
 
-.jira-aggregate-catalog-list > button:hover {
+.jira-aggregate-catalog-list > button:hover,
+.jira-aggregate-catalog-list > section > button:hover {
   background: var(--surface-2);
 }
 
-.jira-aggregate-catalog-list > button.active {
+.jira-aggregate-catalog-list > button.active,
+.jira-aggregate-catalog-list > section > button.active {
   background: var(--surface);
   border-color: var(--accent);
   box-shadow: inset 3px 0 0 var(--accent);
@@ -594,6 +727,27 @@
   font-size: 11px;
 }
 
+.jira-aggregate-catalog-list > section {
+  display: grid;
+  gap: 4px;
+}
+
+.jira-aggregate-catalog-list > section > h4 {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 10px;
+  justify-content: space-between;
+  margin: 8px 8px 2px;
+  text-transform: uppercase;
+}
+
+.jira-aggregate-catalog-list > section > h4 span {
+  background: var(--surface-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
 .jira-aggregate-catalog-empty {
   padding: 10px;
 }
@@ -603,6 +757,19 @@
   display: grid;
   gap: 7px;
   padding-top: 12px;
+}
+
+.jira-aggregate-migration > summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.jira-aggregate-migration-content {
+  display: grid;
+  gap: 7px;
+  padding-top: 10px;
 }
 
 .jira-aggregate-migration .button {
@@ -706,6 +873,36 @@
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+
+.jira-aggregate-preview-tabs {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 3px;
+}
+
+.jira-aggregate-preview-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  min-height: 32px;
+}
+
+.jira-aggregate-preview-tabs button.active {
+  background: var(--surface);
+  color: var(--text-heading);
+}
+
+.jira-aggregate-records-caption {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin: 0;
 }
 
 .jira-aggregate-controls > label,
@@ -1440,6 +1637,19 @@
   color: var(--brand);
 }
 
+.jira-analytics-missing-aggregate {
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 12px;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 9px 12px;
+}
+
 .jira-widget-editor {
   background: var(--surface);
   border-left: 1px solid var(--border);
@@ -1617,7 +1827,7 @@
   align-items: end;
   display: grid;
   gap: 10px;
-  grid-template-columns: 180px minmax(220px, 1fr) auto;
+  grid-template-columns: 180px minmax(260px, 1fr) auto auto auto 38px;
 }
 
 .jira-data-scope-controls label {
@@ -1644,6 +1854,11 @@
   justify-content: center;
   min-height: 38px;
   white-space: nowrap;
+}
+
+.jira-data-history-refresh {
+  min-height: 38px;
+  min-width: 38px;
 }
 
 .jira-capacity-tool {

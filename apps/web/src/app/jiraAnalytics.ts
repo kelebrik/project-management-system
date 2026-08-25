@@ -2,6 +2,7 @@ import {
   JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   JIRA_ANALYTICS_GROUPS_BY_SOURCE,
   JIRA_ANALYTICS_METRICS_BY_SOURCE,
+  jiraAnalyticsFieldKind,
   jiraAnalyticsOperatorsFor as sharedOperatorsFor,
   jiraCriticalBugSlaHours,
   type JiraAnalyticsFilter,
@@ -55,6 +56,7 @@ export const JIRA_ANALYTICS_GROUP_LABELS: Record<JiraAnalyticsGroupBy, string> =
   project: "Проект Jira",
   status: "Текущий статус",
   assignee: "Исполнитель",
+  reporter: "Автор",
   priority: "Приоритет",
   sprint: "Sprint",
   issueType: "Тип тикета",
@@ -65,8 +67,12 @@ export const JIRA_ANALYTICS_GROUP_LABELS: Record<JiraAnalyticsGroupBy, string> =
 };
 
 export const JIRA_ANALYTICS_FILTER_LABELS: Record<JiraAnalyticsFilterField, string> = {
+  issueKey: "Ключ тикета",
+  project: "Проект Jira",
+  summary: "Название",
   status: "Текущий статус",
   assignee: "Исполнитель",
+  reporter: "Автор",
   priority: "Приоритет",
   sprint: "Sprint",
   issueType: "Тип тикета",
@@ -77,6 +83,11 @@ export const JIRA_ANALYTICS_FILTER_LABELS: Record<JiraAnalyticsFilterField, stri
   commitCount: "Коммиты",
   mergeRequestCount: "Merge requests",
   hasDevelopment: "Есть активность разработки",
+  issueCreatedAt: "Дата создания",
+  criticalPriorityAt: "Начало SLA",
+  resolutionAt: "Дата Resolution",
+  updatedAt: "Последнее изменение",
+  eventAt: "Дата события",
 };
 
 export const JIRA_ANALYTICS_OPERATOR_LABELS: Record<JiraAnalyticsFilterOperator, string> = {
@@ -87,20 +98,16 @@ export const JIRA_ANALYTICS_OPERATOR_LABELS: Record<JiraAnalyticsFilterOperator,
   notEmpty: "не пусто",
   greaterThan: "больше",
   atLeast: "не меньше",
+  before: "раньше",
+  after: "позже",
 };
-
-const numericFields = new Set<JiraAnalyticsFilterField>([
-  "durationHours",
-  "commitCount",
-  "mergeRequestCount",
-]);
 
 export function jiraAnalyticsOperatorsFor(field: JiraAnalyticsFilterField) {
   return sharedOperatorsFor(field);
 }
 
 export function jiraAnalyticsFieldIsNumeric(field: JiraAnalyticsFilterField) {
-  return numericFields.has(field);
+  return jiraAnalyticsFieldKind(field) === "number";
 }
 
 function uid(prefix: string) {

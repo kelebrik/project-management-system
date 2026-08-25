@@ -2,6 +2,8 @@ import {
   createIssueSchema,
   issueStatusUpdateSchema,
   jiraAnalyticsDashboardConfigSchema,
+  jiraAnalyticsScopeValueMaxLength,
+  normalizeJiraAnalyticsScopeValue,
   updateIssueSchema,
 } from '@pms/shared';
 import { JiraSyncRunKind, Prisma } from '@prisma/client';
@@ -168,8 +170,18 @@ const jiraSyncSchema = z.discriminatedUnion('scopeType', [
       .string()
       .trim()
       .min(1, 'Укажите лейбл Jira')
-      .max(100)
-      .regex(/^[^\s"'\\]+$/, 'Лейбл не должен содержать пробелы, кавычки или обратный слеш'),
+      .max(jiraAnalyticsScopeValueMaxLength)
+      .transform((value, context) => {
+        try {
+          return normalizeJiraAnalyticsScopeValue('LABEL', value);
+        } catch (error) {
+          context.addIssue({
+            code: 'custom',
+            message: error instanceof Error ? error.message : 'Некорректные лейблы Jira',
+          });
+          return z.NEVER;
+        }
+      }),
   }),
   jiraSyncBaseSchema.extend({
     scopeType: z.literal('EPIC'),
@@ -178,7 +190,17 @@ const jiraSyncSchema = z.discriminatedUnion('scopeType', [
       .trim()
       .toUpperCase()
       .max(100)
-      .regex(/^[A-Z][A-Z0-9_]*-\d+$/, 'Укажите корректный код эпика Jira'),
+      .transform((value, context) => {
+        try {
+          return normalizeJiraAnalyticsScopeValue('EPIC', value);
+        } catch (error) {
+          context.addIssue({
+            code: 'custom',
+            message: error instanceof Error ? error.message : 'Некорректный код эпика Jira',
+          });
+          return z.NEVER;
+        }
+      }),
   }),
 ]);
 
@@ -190,6 +212,7 @@ class JiraDashboardAggregateReferenceError extends Error {
   constructor(public readonly details: {
     missingIds: string[];
     scopeMismatches: Array<{ widgetId: string; aggregateId: string }>;
+    missingRevisions: Array<{ widgetId: string; aggregateId: string; version: number | null }>;
   }) {
     super('JIRA_DASHBOARD_AGGREGATE_REFERENCE_INVALID');
   }
@@ -207,18 +230,24 @@ class JiraDashboardEngineStateError extends Error {
 
 const jiraCapacitySampleSchema = z.object({
   scopeType: z.enum(['LABEL', 'EPIC']),
-  scopeValue: z.string().trim().min(1).max(100),
+  scopeValue: z.string().trim().min(1).max(jiraAnalyticsScopeValueMaxLength),
   sampleSize: z.number().int().min(10).max(100).default(20),
   storageBudgetGiB: z.number().positive().max(10_000).default(JIRA_CAPACITY_DEFAULT_STORAGE_GIB),
   allocatedHistoryGiB: z.number().nonnegative().max(10_000).default(JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB),
 }).superRefine((value, context) => {
-  if (/[\u0000-\u001f]/.test(value.scopeValue)) {
-    context.addIssue({ code: 'custom', path: ['scopeValue'], message: 'Недопустимое значение' });
+  try {
+    normalizeJiraAnalyticsScopeValue(value.scopeType, value.scopeValue);
+  } catch (error) {
+    context.addIssue({
+      code: 'custom',
+      path: ['scopeValue'],
+      message: error instanceof Error ? error.message : 'Недопустимое значение',
+    });
   }
-  if (value.scopeType === 'EPIC' && !/^[A-Z][A-Z0-9_]*-\d+$/i.test(value.scopeValue)) {
-    context.addIssue({ code: 'custom', path: ['scopeValue'], message: 'Укажите код эпика, например CVTE-123' });
-  }
-});
+}).transform((value) => ({
+  ...value,
+  scopeValue: normalizeJiraAnalyticsScopeValue(value.scopeType, value.scopeValue),
+}));
 
 router.put('/projects/:projectId/jira-integration', async (req, res) => {
   const parsed = jiraIntegrationSchema.safeParse(req.body);
@@ -903,8 +932,31 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
               : [];
           })
         : [];
-      if (missingIds.length > 0 || scopeMismatches.length > 0) {
-        throw new JiraDashboardAggregateReferenceError({ missingIds, scopeMismatches });
+      const requestedRevisions = parsed.data.config.version === 2
+        ? parsed.data.config.widgets.flatMap((widget) =>
+            widget.placement === 'retro' && widget.aggregateVersion
+              ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
+              : [],
+          )
+        : [];
+      const revisions = requestedRevisions.length > 0
+        ? await transaction.jiraAggregateDefinitionRevision.findMany({
+            where: { projectId: project.id, OR: requestedRevisions },
+            select: { aggregateId: true, version: true },
+          })
+        : [];
+      const revisionKeys = new Set(revisions.map((revision) => `${revision.aggregateId}:${revision.version}`));
+      const missingRevisions = parsed.data.config.version === 2
+        ? parsed.data.config.widgets.flatMap((widget) => {
+            if (widget.placement !== 'retro') return [];
+            const version = widget.aggregateVersion ?? null;
+            return version && revisionKeys.has(`${widget.aggregateId}:${version}`)
+              ? []
+              : [{ widgetId: widget.id, aggregateId: widget.aggregateId, version }];
+          })
+        : [];
+      if (missingIds.length > 0 || scopeMismatches.length > 0 || missingRevisions.length > 0) {
+        throw new JiraDashboardAggregateReferenceError({ missingIds, scopeMismatches, missingRevisions });
       }
       const lockedSettings = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id"
@@ -1126,6 +1178,15 @@ router.post('/projects/:projectId/jira/history/rebuild-projections', async (req,
 });
 
 router.post('/projects/:projectId/jira/sync', async (req, res) => {
+  const user = currentUser(req);
+  if (!user) {
+    res.status(401).json({ error: 'Требуется вход в систему' });
+    return;
+  }
+  if (user.role !== 'ADMIN') {
+    res.status(403).json({ error: 'Обновлять данные Jira может только системный администратор' });
+    return;
+  }
   const parsedSync = jiraSyncSchema.safeParse(req.body ?? {});
   if (!parsedSync.success) {
     const scopeType = req.body?.scopeType;
@@ -1149,15 +1210,10 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
     res.status(404).json({ error: 'Проект не найден' });
     return;
   }
-  const user = currentUser(req);
   const storedScope = project.jiraAnalyticsSettings;
   const changesStoredScope = !storedScope
     || storedScope.jiraScopeType !== parsedSync.data.scopeType
     || storedScope.jiraScopeValue !== parsedSync.data.scopeValue;
-  if (changesStoredScope && user?.role !== 'ADMIN') {
-    res.status(403).json({ error: 'Изменять отбор тикетов Jira может только системный администратор' });
-    return;
-  }
   if (changesStoredScope) {
     const historyBytes = await jiraHistoryDatabaseBytes(prisma);
     if (historyBytes / jiraHistoryStorageBudgetBytes() * 100 >= JIRA_HISTORY_CRITICAL_PERCENT) {
@@ -1175,8 +1231,8 @@ router.post('/projects/:projectId/jira/sync', async (req, res) => {
       scopeValue: parsedSync.data.scopeValue,
       jiraBaseUrl: parsedSync.data.baseUrl,
       scopeChanged: changesStoredScope,
-      requestedById: user?.id,
-      requestedByRole: user?.role,
+      requestedById: user.id,
+      requestedByRole: user.role,
     });
     await recordAuditEvent({
       req,

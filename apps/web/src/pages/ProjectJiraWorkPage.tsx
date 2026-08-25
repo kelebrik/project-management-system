@@ -121,6 +121,10 @@ export function ProjectJiraWorkPage() {
               dataRevision={jiraDataRevision}
               onClearData={() => void clearJiraData()}
               onEditingChange={(editing) => setEditingProjectId(editing ? project.id : null)}
+              onOpenAggregates={() => {
+                setEditingProjectId(null);
+                setView("aggregates");
+              }}
               onStartEditing={() => setEditingProjectId(project.id)}
               section={view}
             />

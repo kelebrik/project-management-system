@@ -1,4 +1,8 @@
-import { isJiraCriticalPriority } from '@pms/shared';
+import {
+  isJiraCriticalPriority,
+  jiraAnalyticsLabels,
+  normalizeJiraAnalyticsScopeValue,
+} from '@pms/shared';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { gzipSync } from 'node:zlib';
 import { z } from 'zod';
@@ -644,8 +648,6 @@ function jiraSearchBody(
   });
 }
 
-const JIRA_LABEL_PATTERN = /^[^\s"'\\]+$/;
-
 function splitTopLevelJiraOrderBy(jql: string) {
   let quote: '"' | "'" | null = null;
   let escaped = false;
@@ -689,11 +691,11 @@ function splitTopLevelJiraOrderBy(jql: string) {
 }
 
 export function jiraJqlWithLabelScope(jql: string, label: string) {
-  const normalizedLabel = label.trim();
-  if (!JIRA_LABEL_PATTERN.test(normalizedLabel)) {
-    throw new Error('Лейбл Jira не должен содержать пробелы, кавычки или обратный слеш');
-  }
-  return jiraJqlWithScopeFilter(jql, `labels = "${normalizedLabel}"`);
+  const labels = jiraAnalyticsLabels(normalizeJiraAnalyticsScopeValue('LABEL', label));
+  const filter = labels.length === 1
+    ? `labels = "${labels[0]}"`
+    : `labels IN (${labels.map((value) => `"${value}"`).join(', ')})`;
+  return jiraJqlWithScopeFilter(jql, filter);
 }
 
 function jiraJqlWithScopeFilter(jql: string, scopeFilter: string) {
@@ -706,7 +708,7 @@ function jiraJqlWithScopeFilter(jql: string, scopeFilter: string) {
 
 export function jiraJqlWithAnalyticsScope(jql: string, scope: JiraAnalyticsScope) {
   if (scope.type === 'LABEL') return jiraJqlWithLabelScope(jql, scope.value);
-  const epicKey = normalizedJiraIssueKey(scope.value);
+  const epicKey = normalizedJiraIssueKey(normalizeJiraAnalyticsScopeValue('EPIC', scope.value));
   if (!epicKey) throw new Error('Укажите корректный код эпика Jira');
   return jiraJqlWithScopeFilter(
     jql,

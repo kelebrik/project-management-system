@@ -14,13 +14,17 @@ import {
   sanitizeJiraVersionPayload,
 } from './jira-version-canonical.js';
 
-test('capacity scope JQL is controlled and escapes literals', () => {
+test('capacity scope JQL is controlled for labels and epics', () => {
   assert.equal(jiraCapacityScopeJql('LABEL', 'cvte968'), 'labels = "cvte968"');
   assert.equal(
     jiraCapacityScopeJql('EPIC', 'CVTE-123'),
     '(key = "CVTE-123" OR "Epic Link" = "CVTE-123")',
   );
-  assert.equal(jiraCapacityScopeJql('LABEL', 'a"b'), 'labels = "a\\"b"');
+  assert.throws(() => jiraCapacityScopeJql('LABEL', 'a"b'), /не должен содержать/);
+  assert.equal(
+    jiraCapacityScopeJql('LABEL', 'cvte968, cvte950, cvte968'),
+    'labels IN ("cvte950", "cvte968")',
+  );
 });
 
 test('metric distribution uses nearest-rank percentiles', () => {

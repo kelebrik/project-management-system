@@ -209,11 +209,11 @@ export const openApiDocument = {
           id: { type: "string", minLength: 1, maxLength: 200 },
           field: {
             type: "string",
-            enum: ["status", "assignee", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "durationHours", "commitCount", "mergeRequestCount", "hasDevelopment"],
+            enum: ["issueKey", "project", "summary", "status", "assignee", "reporter", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "durationHours", "commitCount", "mergeRequestCount", "hasDevelopment", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt"],
           },
           operator: {
             type: "string",
-            enum: ["equals", "notEquals", "contains", "empty", "notEmpty", "greaterThan", "atLeast"],
+            enum: ["equals", "notEquals", "contains", "empty", "notEmpty", "greaterThan", "atLeast", "before", "after"],
           },
           value: { type: "string", maxLength: 1000 },
         },
@@ -227,7 +227,7 @@ export const openApiDocument = {
           title: { type: "string", maxLength: 200 },
           source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
           metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
-          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
+          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
           visualization: { type: "string", enum: ["number", "bar", "table"] },
           filterLogic: { type: "string", enum: ["and", "or"] },
           filters: {
@@ -247,6 +247,7 @@ export const openApiDocument = {
           id: { type: "string", minLength: 1, maxLength: 200 },
           title: { type: "string", maxLength: 200 },
           aggregateId: { type: "string", minLength: 1, maxLength: 200 },
+          aggregateVersion: { type: ["integer", "null"], minimum: 1 },
           visualization: { type: "string", enum: ["number", "bar", "table"] },
           width: { type: "string", enum: ["half", "full"] },
           placement: { type: "string", enum: ["active", "retro"] },
@@ -300,7 +301,7 @@ export const openApiDocument = {
           description: { type: "string", maxLength: 1000 },
           source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
           metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
-          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
+          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
           scope: { type: "string", enum: ["active", "retro"] },
           filterLogic: { type: "string", enum: ["and", "or"] },
           filters: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
@@ -1514,7 +1515,7 @@ export const openApiDocument = {
                 required: ["scopeType", "scopeValue"],
                 properties: {
                   scopeType: { type: "string", enum: ["LABEL", "EPIC"] },
-                  scopeValue: { type: "string", minLength: 1, maxLength: 100 },
+                  scopeValue: { type: "string", minLength: 1, maxLength: 2000 },
                   sampleSize: { type: "integer", minimum: 10, maximum: 100, default: 20 },
                   storageBudgetGiB: { type: "number", exclusiveMinimum: 0, default: 5 },
                   allocatedHistoryGiB: { type: "number", minimum: 0, default: 0 },
@@ -1794,7 +1795,7 @@ export const openApiDocument = {
                     additionalProperties: false,
                     properties: {
                       scopeType: { const: "LABEL" },
-                      scopeValue: { type: "string", minLength: 1, maxLength: 100, pattern: "^[^\\s\"'\\\\]+$" },
+                      scopeValue: { type: "string", minLength: 1, maxLength: 2000, pattern: "^[^\\s,\"'\\\\]+(?:\\s*,\\s*[^\\s,\"'\\\\]+)*$" },
                       baseUrl: { type: "string", enum: ["https://tasks.dev.sberdevices.ru", "https://tasks.sberdevices.ru"] },
                     },
                     required: ["scopeType", "scopeValue"],

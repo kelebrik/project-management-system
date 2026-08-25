@@ -156,6 +156,21 @@ export function jiraAggregateUpdateData(
   return { ...data, version: { increment: 1 } };
 }
 
+export function jiraAggregateRevisionCreateData(
+  projectId: string,
+  aggregateId: string,
+  version: number,
+  definition: JiraAnalyticsAggregateDraft,
+): Prisma.JiraAggregateDefinitionRevisionUncheckedCreateInput {
+  return {
+    projectId,
+    aggregateId,
+    version,
+    definition: definition as Prisma.InputJsonValue,
+    fingerprint: jiraAggregateFingerprint(definition),
+  };
+}
+
 export const jiraAggregateIssueSelect = {
   id: true,
   issueKey: true,
@@ -225,7 +240,8 @@ function serializeIssue(issue: SelectedIssue): JiraAnalyticsIssueData {
 
 type JiraAggregateReadClient = Pick<
   PrismaClient,
-  '$queryRaw' | 'jiraIssueSnapshot' | 'jiraIssueStatusTransition' | 'jiraDevelopmentActivity'
+  '$queryRaw' | 'jiraIssueSnapshot' | 'jiraIssueStatusTransition' | 'jiraDevelopmentActivity' |
+  'jiraAggregateDefinitionRevision'
 >;
 
 async function ensureJiraAggregatePopulationWithinLimits(
@@ -492,6 +508,7 @@ function savedDashboardPlan(
   rawConfig: unknown,
   definitions: JiraAggregateDefinition[],
   selectedWidgetId?: string,
+  revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
 ): { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetPlan[] } {
   const configHash = jiraDashboardConfigHash(rawConfig);
   const config = rawConfig ?? JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1;
@@ -588,7 +605,29 @@ function savedDashboardPlan(
         definition: null,
       };
     }
-    const definition = jiraAggregateDraftFromRow(row);
+    const revisionKey = parsed.data.aggregateVersion
+      ? `${row.id}:${parsed.data.aggregateVersion}`
+      : null;
+    const currentDefinition = jiraAggregateDraftFromRow(row);
+    const definition = revisionKey
+      ? parsed.data.aggregateVersion === row.version
+        ? currentDefinition
+        : revisionDefinitions.get(revisionKey)
+      : currentDefinition;
+    if (!definition) {
+      return {
+        widget: unavailableWidget(
+          parsed.data.id,
+          parsed.data.title,
+          parsed.data.visualization,
+          parsed.data.width,
+          parsed.data.placement,
+          `Ревизия агрегата ${parsed.data.aggregateVersion} недоступна`,
+          parsed.data.aggregateId,
+        ),
+        definition: null,
+      };
+    }
     if (definition.scope !== parsed.data.placement) {
       return {
         widget: unavailableWidget(
@@ -629,11 +668,12 @@ export function createSavedDashboardAccumulator(
   options: JiraAnalyticsEvaluationOptions,
   selectedWidgetId?: string,
   limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
+  revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
 ): {
   addIssues: (issues: readonly JiraAnalyticsIssueData[]) => void;
   finish: () => { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetResult[] };
 } {
-  const plan = savedDashboardPlan(rawConfig, definitions, selectedWidgetId);
+  const plan = savedDashboardPlan(rawConfig, definitions, selectedWidgetId, revisionDefinitions);
   const accumulators = plan.widgets.map((item) => item.definition
     ? createJiraAnalyticsEvaluationAccumulator(item.definition, options, limits)
     : null);
@@ -662,13 +702,15 @@ export function resolveSavedDashboard(
   issues: JiraAnalyticsIssueData[],
   options: JiraAnalyticsEvaluationOptions,
   selectedWidgetId?: string,
+  revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
 ): { configVersion: 1 | 2; configHash: string; widgets: JiraAggregateWidgetResult[] } {
   const accumulator = createSavedDashboardAccumulator(
     rawConfig,
     definitions,
     options,
     selectedWidgetId,
-    {},
+    jiraAggregateEvaluationLimits,
+    revisionDefinitions,
   );
   accumulator.addIssues(issues);
   return accumulator.finish();
@@ -683,12 +725,34 @@ export async function evaluateSavedDashboardFromDatabase(
   selectedWidgetId?: string,
   limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
 ) {
+  const parsedConfig = jiraAnalyticsDashboardV2Schema.safeParse(rawConfig);
+  const revisionRequests = parsedConfig.success
+    ? parsedConfig.data.widgets.flatMap((widget) => widget.aggregateVersion
+      ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
+      : [])
+    : [];
+  const revisionRows = revisionRequests.length > 0
+    ? await client.jiraAggregateDefinitionRevision.findMany({
+        where: {
+          projectId,
+          OR: revisionRequests,
+        },
+      })
+    : [];
+  const revisionDefinitions = new Map<string, JiraAnalyticsAggregateDraft>();
+  revisionRows.forEach((revision) => {
+    const parsed = jiraAnalyticsAggregateDraftSchema.safeParse(revision.definition);
+    if (parsed.success) {
+      revisionDefinitions.set(`${revision.aggregateId}:${revision.version}`, parsed.data);
+    }
+  });
   const accumulator = createSavedDashboardAccumulator(
     rawConfig,
     definitions,
     options,
     selectedWidgetId,
     limits,
+    revisionDefinitions,
   );
   for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
     accumulator.addIssues(issues);
@@ -859,6 +923,7 @@ export function inspectJiraDashboardDefinitionUse(
 export function convertJiraDashboardToV2(
   config: JiraAnalyticsDashboardV1,
   definitionIdByFingerprint: ReadonlyMap<string, string>,
+  definitionVersionById: ReadonlyMap<string, number> = new Map(),
 ): JiraAnalyticsDashboardV2 {
   return jiraAnalyticsDashboardV2Schema.parse({
     version: 2,
@@ -872,6 +937,9 @@ export function convertJiraDashboardToV2(
         id: widget.id,
         title: widget.title,
         aggregateId,
+        aggregateVersion: widget.section === 'retro'
+          ? definitionVersionById.get(aggregateId) ?? null
+          : null,
         visualization: widget.visualization,
         width: widget.width,
         placement: widget.section,
@@ -920,7 +988,8 @@ export function buildJiraDashboardSwitchPlan(
     ...planned,
   ];
   const idsByFingerprint = new Map(planned.map((definition) => [definition.fingerprint, definition.id]));
-  const managed = convertJiraDashboardToV2(legacy, idsByFingerprint);
+  const versionsById = new Map(definitions.map((definition) => [definition.id, definition.version]));
+  const managed = convertJiraDashboardToV2(legacy, idsByFingerprint, versionsById);
   const effectiveConfigHash = jiraDashboardConfigHash(legacy);
   const planHash = jiraDashboardConfigHash({
     effectiveConfigHash,
@@ -997,7 +1066,11 @@ export function jiraDashboardReconciliationConfigs(
     );
     return {
       legacy: currentV1,
-      managed: convertJiraDashboardToV2(currentV1, idsByFingerprint),
+      managed: convertJiraDashboardToV2(
+        currentV1,
+        idsByFingerprint,
+        new Map(definitions.map((definition) => [definition.id, definition.version])),
+      ),
     };
   }
   const currentV2 = jiraAnalyticsDashboardV2Schema.safeParse(currentConfig);

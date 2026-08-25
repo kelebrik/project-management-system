@@ -160,6 +160,33 @@ test('Jira capacity sampler rejects non-admin users before sampling', async () =
   });
 });
 
+test('Jira synchronization rejects non-admin users before reading project or Jira data', async () => {
+  const router = createIssuesRouter() as unknown as {
+    stack: Array<{
+      route?: {
+        path: string;
+        methods: Record<string, boolean>;
+        stack: Array<{ handle: (req: Request, res: Response) => Promise<void> }>;
+      };
+    }>;
+  };
+  const route = router.stack.find(
+    (layer) => layer.route?.path === '/projects/:projectId/jira/sync' && layer.route.methods.post,
+  )?.route;
+  assert.ok(route);
+  const result = routeResponse();
+  await route.stack[0]!.handle({
+    params: { projectId: 'project-1' },
+    body: { baseUrl: 'https://tasks.sberdevices.ru', scopeType: 'LABEL', scopeValue: 'cvte968, cvte950' },
+    currentUser: { role: 'PROJECT_MANAGER' },
+  } as unknown as Request, result.response);
+
+  assert.equal(result.status(), 403);
+  assert.deepEqual(result.payload(), {
+    error: 'Обновлять данные Jira может только системный администратор',
+  });
+});
+
 test('Jira history diagnostics reject non-admin users before querying storage', async () => {
   const router = createIssuesRouter() as unknown as {
     stack: Array<{

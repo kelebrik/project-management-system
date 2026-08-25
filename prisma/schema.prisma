@@ -254,6 +254,7 @@ model Project {
   jiraIntegration          JiraIntegration?
   jiraAnalyticsSettings    JiraAnalyticsSettings?
   jiraAggregateDefinitions JiraAggregateDefinition[]
+  jiraAggregateRevisions   JiraAggregateDefinitionRevision[]
   jiraDashboardConversion  JiraAnalyticsDashboardConversion?
   jiraWorkSections         JiraWorkSection[]
   tasks                    Task[]
@@ -616,10 +617,26 @@ model JiraAggregateDefinition {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revisions   JiraAggregateDefinitionRevision[]
 
   @@unique([projectId, nameKey])
   @@unique([projectId, fingerprint])
   @@index([projectId, sortOrder, createdAt])
+}
+
+model JiraAggregateDefinitionRevision {
+  id          String   @id @default(cuid())
+  projectId   String
+  aggregateId String
+  version     Int
+  definition  Json     @db.JsonB
+  fingerprint String   @db.Char(64)
+  createdAt   DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  aggregate   JiraAggregateDefinition @relation(fields: [aggregateId], references: [id], onDelete: Cascade)
+
+  @@unique([aggregateId, version])
+  @@index([projectId, aggregateId, version])
 }
 
 model JiraAnalyticsDashboardConversion {

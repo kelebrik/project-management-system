@@ -468,6 +468,39 @@ test('v2 dashboard reports missing, mismatched, and malformed references explici
   assert.match(malformed.widgets[0]?.error ?? '', /некорректный формат/);
 });
 
+test('retro dashboard evaluates the pinned aggregate revision instead of the current definition', () => {
+  const current = definition({
+    name: 'Priority aggregate',
+    scope: 'retro',
+    filters: [{ id: 'current', field: 'priority', operator: 'equals', value: 'Minor' }],
+  });
+  const pinned = definition({
+    name: 'Priority aggregate',
+    scope: 'retro',
+    filters: [{ id: 'pinned', field: 'priority', operator: 'equals', value: 'Major' }],
+  });
+  const row = {
+    id: 'aggregate-1', projectId: 'project-1', name: current.name, nameKey: 'priority aggregate',
+    description: current.description, source: current.source, metric: current.metric,
+    groupBy: current.groupBy, scope: current.scope, filterLogic: current.filterLogic,
+    filters: current.filters, periodMode: current.periodMode, periodDays: current.periodDays,
+    timeZone: current.timeZone, fingerprint: jiraAggregateFingerprint(current), sortOrder: 0,
+    version: 2, createdAt: new Date(), updatedAt: new Date(),
+  } satisfies JiraAggregateDefinition;
+  const result = resolveSavedDashboard({
+    version: 2,
+    periodDays: 90,
+    assignee: '',
+    widgets: [{
+      id: 'retro-widget', title: 'Pinned', aggregateId: row.id, aggregateVersion: 1,
+      visualization: 'number', width: 'half', placement: 'retro',
+    }],
+  }, [row], [issue({ priority: 'Major' })], options, undefined, new Map([[`${row.id}:1`, pinned]]));
+
+  assert.equal(result.widgets[0]?.status, 'OK');
+  assert.equal(result.widgets[0]?.result?.totalRecords, 1);
+});
+
 test('aggregate DB selector cannot read immutable raw payloads', () => {
   assert.equal('payload' in jiraAggregateIssueSelect, false);
   assert.equal('versions' in jiraAggregateIssueSelect, false);
@@ -670,11 +703,29 @@ test('dashboard conversion keeps presentation and replaces inline rules with ref
       id: 'one',
       title: 'One',
       aggregateId: 'aggregate-1',
+      aggregateVersion: null,
       visualization: 'table',
       width: 'full',
       placement: 'active',
     }],
   });
+});
+
+test('dashboard conversion pins retro widgets to the aggregate revision', () => {
+  const config = {
+    version: 1 as const,
+    periodDays: 90 as const,
+    assignee: '',
+    widgets: [{
+      id: 'retro', title: 'Retro', source: 'issues' as const, metric: 'count' as const,
+      groupBy: 'none' as const, visualization: 'number' as const, filterLogic: 'and' as const,
+      filters: [], width: 'half' as const, section: 'retro' as const,
+    }],
+  };
+  const plan = buildJiraAggregateImportPlan(config, []);
+  const references = new Map(plan.items.map((item) => [item.fingerprint, 'aggregate-1']));
+  const converted = convertJiraDashboardToV2(config, references, new Map([['aggregate-1', 3]]));
+  assert.equal(converted.widgets[0]?.aggregateVersion, 3);
 });
 
 test('stage F switch materializes the default v1 dashboard without changing its raw null hash', () => {

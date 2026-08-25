@@ -3,6 +3,7 @@ import {
   JIRA_ANALYTICS_GROUPS_BY_SOURCE,
   JIRA_ANALYTICS_METRICS_BY_SOURCE,
   jiraAnalyticsAggregateDraftSchema,
+  jiraAnalyticsFieldKind,
   jiraAnalyticsOperatorsFor,
   jiraAnalyticsSourceUsesPeriod,
   type JiraAnalyticsAggregateDraft,
@@ -17,7 +18,7 @@ import {
   type JiraAnalyticsResultRecord,
   type JiraAnalyticsSource,
 } from "@pms/shared";
-import { Database, Download, Eye, History, Plus, RotateCcw, Save, Scale, Trash2 } from "lucide-react";
+import { Copy, Database, Download, Eye, History, Plus, RotateCcw, Save, Scale, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import type { JiraAnalyticsFacets } from "../app/domainTypes";
@@ -147,6 +148,40 @@ const EMPTY_DRAFT: JiraAnalyticsAggregateDraft = {
   sortOrder: 0,
 };
 
+const SOURCE_DETAILS: Record<JiraAnalyticsSource, {
+  row: string;
+  description: string;
+  lineage: string;
+}> = {
+  issues: {
+    row: "Одна строка на тикет",
+    description: "Текущее состояние тикета или восстановленный снимок на выбранную дату.",
+    lineage: "Снимки Jira",
+  },
+  transitions: {
+    row: "Одна строка на переход статуса",
+    description: "Переходы и длительность завершённого периода в предыдущем статусе.",
+    lineage: "Changelog Jira",
+  },
+  development: {
+    row: "Одна строка на событие разработки",
+    description: "Наблюдённые коммиты и merge request, связанные с тикетом.",
+    lineage: "Development-связи Jira",
+  },
+  criticalBugs: {
+    row: "Одна строка на SLA-интервал",
+    description: "Интервал Critical/Blocker от контрольной точки до Resolution или текущего момента.",
+    lineage: "Снимки и changelog Jira",
+  },
+};
+
+const FIELD_KIND_LABELS = {
+  text: "Текст",
+  number: "Число",
+  boolean: "Признак",
+  date: "Дата",
+} as const;
+
 function newFilter(field: JiraAnalyticsFilterField): JiraAnalyticsFilter {
   return {
     id: `filter-${crypto.randomUUID()}`,
@@ -238,9 +273,10 @@ function draftForSource(current: JiraAnalyticsAggregateDraft, source: JiraAnalyt
   } satisfies JiraAnalyticsAggregateDraft;
 }
 
-function Preview({ result, metric }: {
+function Preview({ result, metric, view = "result" }: {
   result: JiraAnalyticsPreviewResult | null;
   metric: JiraAnalyticsMetric;
+  view?: "result" | "records";
 }) {
   if (!result) return <div className="jira-aggregate-preview-empty">Предпросмотр не запускался</div>;
   const remainder100 = result.totalRecords % 100;
@@ -269,27 +305,37 @@ function Preview({ result, metric }: {
         </div>
       )}
       <QualitySummary quality={result.quality} />
-      <div className="jira-aggregate-preview-number">
-        <strong>{formatJiraAnalyticsMetric(metric, result.value)}</strong>
-        <span>{result.totalRecords.toLocaleString("ru-RU")} {recordsLabel}</span>
-      </div>
-      <dl>
-        <div><dt>Рассчитано</dt><dd>{new Date(result.evaluatedAt).toLocaleString("ru-RU")}</dd></div>
-        <div><dt>Период</dt><dd>{result.effective.periodDays ? `${result.effective.periodDays} дней` : "Не применяется"}</dd></div>
-        <div><dt>Часовой пояс</dt><dd>{result.effective.timeZone}</dd></div>
-      </dl>
-      {result.groups.length > 0 && (
-        <div className="jira-aggregate-preview-groups">
-          {result.groups.slice(0, 8).map((group) => (
-            <div key={group.key}>
-              <span>{group.label}</span>
-              <b>{formatJiraAnalyticsMetric(metric, group.value)}</b>
-              <small>{group.recordCount}</small>
+      {view === "result" ? (
+        <>
+          <div className="jira-aggregate-preview-number">
+            <strong>{formatJiraAnalyticsMetric(metric, result.value)}</strong>
+            <span>{result.totalRecords.toLocaleString("ru-RU")} {recordsLabel}</span>
+          </div>
+          <dl>
+            <div><dt>Рассчитано</dt><dd>{new Date(result.evaluatedAt).toLocaleString("ru-RU")}</dd></div>
+            <div><dt>Период</dt><dd>{result.effective.periodDays ? `${result.effective.periodDays} дней` : "Не применяется"}</dd></div>
+            <div><dt>Часовой пояс</dt><dd>{result.effective.timeZone}</dd></div>
+          </dl>
+          {result.groups.length > 0 && (
+            <div className="jira-aggregate-preview-groups">
+              {result.groups.slice(0, 8).map((group) => (
+                <div key={group.key}>
+                  <span>{group.label}</span>
+                  <b>{formatJiraAnalyticsMetric(metric, group.value)}</b>
+                  <small>{group.recordCount}</small>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="jira-aggregate-records-caption">
+            Отобранные строки: {result.totalRecords.toLocaleString("ru-RU")}. В предпросмотре показана первая страница.
+          </p>
+          <PreviewRecords records={result.records} />
+        </>
       )}
-      <PreviewRecords records={result.records} />
     </div>
   );
 }
@@ -307,6 +353,7 @@ export function JiraAggregatesPage() {
   const [draft, setDraft] = useState<JiraAnalyticsAggregateDraft>(EMPTY_DRAFT);
   const [expectedVersion, setExpectedVersion] = useState<number | null>(null);
   const [preview, setPreview] = useState<JiraAnalyticsPreviewResult | null>(null);
+  const [previewView, setPreviewView] = useState<"result" | "records">("result");
   const [periodDays, setPeriodDays] = useState<30 | 90 | 180 | 365>(90);
   const [assignee, setAssignee] = useState("");
   const [asOf, setAsOf] = useState("");
@@ -405,7 +452,39 @@ export function JiraAggregatesPage() {
     });
     setExpectedVersion(definition.version);
     setPreview(null);
+    setPreviewView("result");
     setAsOf("");
+  };
+
+  const chooseSource = (source: JiraAnalyticsSource) => {
+    const definition = catalog?.definitions.find((item) => item.source === source);
+    if (definition) {
+      selectDefinition(definition);
+      return;
+    }
+    setSelectedId(null);
+    setExpectedVersion(null);
+    setDraft({
+      ...draftForSource({ ...EMPTY_DRAFT, sortOrder: catalog?.definitions.length ?? 0 }, source),
+      name: `Новый агрегат · ${JIRA_ANALYTICS_SOURCE_LABELS[source]}`,
+    });
+    setPreview(null);
+    setPreviewView("result");
+    setAsOf("");
+  };
+
+  const cloneDefinition = () => {
+    if (!selected) return;
+    setSelectedId(null);
+    setExpectedVersion(null);
+    setDraft({
+      ...draft,
+      name: `${selected.name} · копия`,
+      sortOrder: catalog?.definitions.length ?? draft.sortOrder,
+    });
+    setPreview(null);
+    setPreviewView("result");
+    setNotice("Копия подготовлена. Измените правила агрегата перед сохранением.");
   };
 
   const saveDefinition = async () => {
@@ -468,6 +547,7 @@ export function JiraAggregatesPage() {
         "Не удалось рассчитать агрегат",
       );
       setPreview(result);
+      setPreviewView("result");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось рассчитать агрегат");
     } finally {
@@ -565,7 +645,47 @@ export function JiraAggregatesPage() {
   if (loading && !catalog) return <div className="jira-aggregate-preview-empty">Загрузка агрегатов...</div>;
 
   return (
-    <div className="jira-aggregate-builder">
+    <div className="jira-aggregates-page">
+      <section className="jira-aggregate-sources" aria-label="Источники данных агрегатов">
+        <header>
+          <div><Database size={18} /><h3>Источники данных</h3></div>
+          <span>Системные наборы строк · только чтение</span>
+        </header>
+        <div className="jira-aggregate-source-grid">
+          {(Object.keys(JIRA_ANALYTICS_SOURCE_LABELS) as JiraAnalyticsSource[]).map((source) => {
+            const detail = SOURCE_DETAILS[source];
+            const count = catalog?.definitions.filter((definition) => definition.source === source).length ?? 0;
+            return (
+              <button
+                type="button"
+                className={draft.source === source ? "active" : ""}
+                key={source}
+                onClick={() => chooseSource(source)}
+              >
+                <span><strong>{JIRA_ANALYTICS_SOURCE_LABELS[source]}</strong><b>{count}</b></span>
+                <small>{detail.row}</small>
+                <small>{detail.lineage}</small>
+              </button>
+            );
+          })}
+        </div>
+        <div className="jira-aggregate-source-description">
+          <p>{SOURCE_DETAILS[draft.source].description}</p>
+          <details>
+            <summary>Доступные поля ({JIRA_ANALYTICS_FIELDS_BY_SOURCE[draft.source].length})</summary>
+            <div>
+              {JIRA_ANALYTICS_FIELDS_BY_SOURCE[draft.source].map((field) => (
+                <span key={field}>
+                  <b>{JIRA_ANALYTICS_FILTER_LABELS[field]}</b>
+                  <small>{FIELD_KIND_LABELS[jiraAnalyticsFieldKind(field)]}</small>
+                </span>
+              ))}
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <div className="jira-aggregate-builder">
       <aside className="jira-aggregate-catalog">
         <header>
           <div><Database size={18} /><h3>Агрегаты</h3></div>
@@ -580,16 +700,27 @@ export function JiraAggregatesPage() {
           )}
         </header>
         <div className="jira-aggregate-catalog-list">
-          {catalog?.definitions.map((definition) => (
-            <button type="button" className={definition.id === selectedId ? "active" : ""} key={definition.id} onClick={() => selectDefinition(definition)}>
-              <strong>{definition.name}</strong>
-              <span>{definition.scope === "active" ? "В работе" : "Ретро"} · {JIRA_ANALYTICS_SOURCE_LABELS[definition.source]}</span>
-            </button>
-          ))}
+          {(Object.keys(JIRA_ANALYTICS_SOURCE_LABELS) as JiraAnalyticsSource[]).map((source) => {
+            const definitions = catalog?.definitions.filter((definition) => definition.source === source) ?? [];
+            if (definitions.length === 0) return null;
+            return (
+              <section key={source}>
+                <h4>{JIRA_ANALYTICS_SOURCE_LABELS[source]} <span>{definitions.length}</span></h4>
+                {definitions.map((definition) => (
+                  <button type="button" className={definition.id === selectedId ? "active" : ""} key={definition.id} onClick={() => selectDefinition(definition)}>
+                    <strong>{definition.name}</strong>
+                    <span>{definition.scope === "active" ? "В работе" : "Ретро"}</span>
+                  </button>
+                ))}
+              </section>
+            );
+          })}
           {catalog?.definitions.length === 0 && <span className="jira-aggregate-catalog-empty">Каталог пуст</span>}
         </div>
         {isSystemAdmin && catalog && (
-          <section className="jira-aggregate-migration">
+          <details className="jira-aggregate-migration">
+            <summary>Служебная диагностика</summary>
+            <div className="jira-aggregate-migration-content">
             <h4>Дашборд v{catalog.dashboard.version ?? 1}</h4>
             {canEdit && (catalog.dashboard.version === 1 || !catalog.dashboard.stored) && (
               <>
@@ -652,7 +783,8 @@ export function JiraAggregatesPage() {
                 <p>{reconciliation.caveat}</p>
               </div>
             )}
-          </section>
+            </div>
+          </details>
         )}
       </aside>
 
@@ -661,6 +793,7 @@ export function JiraAggregatesPage() {
           <div><h3>{selected ? selected.name : "Новый агрегат"}</h3><span>{selected ? `Версия ${selected.version}` : "Не сохранён"}</span></div>
           {canEdit && (
             <div>
+              {selected && <button type="button" className="icon-button" disabled={saving} onClick={cloneDefinition} aria-label="Клонировать агрегат" title="Клонировать"><Copy size={17} /></button>}
               {selected && <button type="button" className="icon-button danger" disabled={saving} onClick={deleteDefinition} aria-label="Удалить агрегат" title="Удалить"><Trash2 size={17} /></button>}
               {selected && <button type="button" className="icon-button" disabled={saving} onClick={exportDefinition} aria-label="Экспортировать сохранённый агрегат" title="Экспорт CSV сохранённого агрегата"><Download size={17} /></button>}
               <button type="button" className="button" disabled={saving || !validation.success} onClick={runPreview}><Eye size={16} /> Рассчитать</button>
@@ -674,7 +807,7 @@ export function JiraAggregatesPage() {
             <label><span>Название</span><input disabled={!canEdit} maxLength={200} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
             <label><span>Описание</span><textarea disabled={!canEdit} maxLength={1000} rows={2} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
             <div className="jira-aggregate-control-row">
-              <label><span>Источник</span><select disabled={!canEdit} value={draft.source} onChange={(event) => { setDraft(draftForSource(draft, event.target.value as JiraAnalyticsSource)); setAsOf(""); setPreview(null); }}>{Object.entries(JIRA_ANALYTICS_SOURCE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+              <label><span>Источник</span><select aria-label="Источник агрегата" disabled={!canEdit} value={draft.source} onChange={(event) => { setDraft(draftForSource(draft, event.target.value as JiraAnalyticsSource)); setAsOf(""); setPreview(null); }}>{Object.entries(JIRA_ANALYTICS_SOURCE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
               <label><span>Область</span><select disabled={!canEdit} value={draft.scope} onChange={(event) => setDraft({ ...draft, scope: event.target.value as "active" | "retro" })}><option value="active">В работе</option><option value="retro">Ретро</option></select></label>
             </div>
             <div className="jira-aggregate-control-row">
@@ -706,7 +839,7 @@ export function JiraAggregatesPage() {
                 <div className="jira-widget-filter" key={filter.id}>
                   <select disabled={!canEdit} value={filter.field} onChange={(event) => { const field = event.target.value as JiraAnalyticsFilterField; updateFilter(filter.id, { field, operator: jiraAnalyticsOperatorsFor(field)[0], value: field === "hasDevelopment" ? "true" : "" }); }}>{JIRA_ANALYTICS_FIELDS_BY_SOURCE[draft.source].map((field) => <option value={field} key={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}</select>
                   <select disabled={!canEdit} value={filter.operator} onChange={(event) => updateFilter(filter.id, { operator: event.target.value as JiraAnalyticsFilterOperator, value: ["empty", "notEmpty"].includes(event.target.value) ? "" : filter.value })}>{jiraAnalyticsOperatorsFor(filter.field).map((operator) => <option value={operator} key={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}</select>
-                  {!["empty", "notEmpty"].includes(filter.operator) && (filter.field === "hasDevelopment" ? <select disabled={!canEdit} value={filter.value} onChange={(event) => updateFilter(filter.id, { value: event.target.value })}><option value="true">Да</option><option value="false">Нет</option></select> : <input disabled={!canEdit} type={["durationHours", "commitCount", "mergeRequestCount"].includes(filter.field) ? "number" : "text"} value={filter.value} onChange={(event) => updateFilter(filter.id, { value: event.target.value })} />)}
+                  {!["empty", "notEmpty"].includes(filter.operator) && (filter.field === "hasDevelopment" ? <select disabled={!canEdit} value={filter.value} onChange={(event) => updateFilter(filter.id, { value: event.target.value })}><option value="true">Да</option><option value="false">Нет</option></select> : <input disabled={!canEdit} type={jiraAnalyticsFieldKind(filter.field) === "number" ? "number" : jiraAnalyticsFieldKind(filter.field) === "date" ? "datetime-local" : "text"} value={filter.value} onChange={(event) => updateFilter(filter.id, { value: event.target.value })} />)}
                   {canEdit && <button type="button" className="icon-button danger" onClick={() => setDraft({ ...draft, filters: draft.filters.filter((item) => item.id !== filter.id) })} aria-label="Удалить условие"><Trash2 size={15} /></button>}
                 </div>
               ))}
@@ -714,9 +847,16 @@ export function JiraAggregatesPage() {
             {canEdit && <button type="button" className="button" disabled={draft.filters.length >= 20} onClick={() => { const field = JIRA_ANALYTICS_FIELDS_BY_SOURCE[draft.source][0]; setDraft({ ...draft, filters: [...draft.filters, newFilter(field)] }); }}><Plus size={15} /> Условие</button>}
             {!validation.success && <div className="jira-aggregate-validation">{validation.error.issues[0]?.message}</div>}
           </section>
-          <section className="jira-aggregate-preview-panel"><h4>Результат</h4><Preview result={preview} metric={draft.metric} /></section>
+          <section className="jira-aggregate-preview-panel">
+            <div className="jira-aggregate-preview-tabs" aria-label="Предпросмотр агрегата">
+              <button type="button" className={previewView === "result" ? "active" : ""} onClick={() => setPreviewView("result")}>Результат</button>
+              <button type="button" className={previewView === "records" ? "active" : ""} onClick={() => setPreviewView("records")}>Строки данных</button>
+            </div>
+            <Preview result={preview} metric={draft.metric} view={previewView} />
+          </section>
         </div>
       </main>
+      </div>
     </div>
   );
 }

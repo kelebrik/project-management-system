@@ -27,6 +27,7 @@ import {
   jiraAggregateExportOptions,
   jiraAggregateFingerprint,
   jiraAggregatePublicDefinition,
+  jiraAggregateRevisionCreateData,
   jiraAggregateResultCsv,
   jiraAggregateUpdateData,
   jiraDashboardReconciliationConfigs,
@@ -421,9 +422,18 @@ export function registerJiraAggregateRoutes(
     try {
       const created = await prisma.$transaction(async (transaction) => {
         await lockJiraAggregateProject(transaction, req.params.projectId);
-        return transaction.jiraAggregateDefinition.create({
+        const definition = await transaction.jiraAggregateDefinition.create({
           data: jiraAggregateCreateData(req.params.projectId, parsed.data.definition),
         });
+        await transaction.jiraAggregateDefinitionRevision.create({
+          data: jiraAggregateRevisionCreateData(
+            req.params.projectId,
+            definition.id,
+            definition.version,
+            parsed.data.definition,
+          ),
+        });
+        return definition;
       });
       await recordAuditEvent({
         req,
@@ -475,6 +485,14 @@ export function registerJiraAggregateRoutes(
           throw new AggregateConflictError('VERSION', current && jiraAggregatePublicDefinition(current));
         }
         const updated = await transaction.jiraAggregateDefinition.findUniqueOrThrow({ where: { id: before.id } });
+        await transaction.jiraAggregateDefinitionRevision.create({
+          data: jiraAggregateRevisionCreateData(
+            req.params.projectId,
+            updated.id,
+            updated.version,
+            parsed.data.definition,
+          ),
+        });
         return { before, updated };
       });
       await recordAuditEvent({
@@ -884,8 +902,16 @@ export function registerJiraAggregateRoutes(
         if (!parsed.data.dryRun) {
           for (const item of plan.items) {
             if (!item.existingId) {
-              await transaction.jiraAggregateDefinition.create({
+              const created = await transaction.jiraAggregateDefinition.create({
                 data: jiraAggregateCreateData(req.params.projectId, item.definition),
+              });
+              await transaction.jiraAggregateDefinitionRevision.create({
+                data: jiraAggregateRevisionCreateData(
+                  req.params.projectId,
+                  created.id,
+                  created.version,
+                  item.definition,
+                ),
               });
             }
           }
@@ -1069,16 +1095,28 @@ export function registerJiraAggregateRoutes(
             ? [[item.fingerprint, item.existingId] as const]
             : []),
         );
+        const versionsById = new Map(
+          lockedDefinitions.map((definition) => [definition.id, definition.version]),
+        );
         const createdDefinitionIds: string[] = [];
         for (const item of lockedPlan.items) {
           if (item.existingId) continue;
           const created = await transaction.jiraAggregateDefinition.create({
             data: jiraAggregateCreateData(req.params.projectId, item.definition),
           });
+          await transaction.jiraAggregateDefinitionRevision.create({
+            data: jiraAggregateRevisionCreateData(
+              req.params.projectId,
+              created.id,
+              created.version,
+              item.definition,
+            ),
+          });
           idsByFingerprint.set(item.fingerprint, created.id);
+          versionsById.set(created.id, created.version);
           createdDefinitionIds.push(created.id);
         }
-        const managed = convertJiraDashboardToV2(lockedPlan.legacy, idsByFingerprint);
+        const managed = convertJiraDashboardToV2(lockedPlan.legacy, idsByFingerprint, versionsById);
         const convertedConfigHash = jiraDashboardConfigHash(managed);
         await transaction.jiraAnalyticsSettings.upsert({
           where: { projectId: req.params.projectId },
@@ -1212,7 +1250,11 @@ export function registerJiraAggregateRoutes(
           where: { projectId: req.params.projectId },
         });
         const idsByFingerprint = new Map(definitions.map((definition) => [definition.fingerprint, definition.id]));
-        const converted = convertJiraDashboardToV2(config.data, idsByFingerprint);
+        const converted = convertJiraDashboardToV2(
+          config.data,
+          idsByFingerprint,
+          new Map(definitions.map((definition) => [definition.id, definition.version])),
+        );
         const convertedHash = jiraDashboardConfigHash(converted);
         const referencedIds = [...new Set(converted.widgets.map((widget) => widget.aggregateId))];
         if (referencedIds.length > 0) {

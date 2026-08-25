@@ -71,6 +71,17 @@ test('jiraJqlWithLabelScope preserves boolean precedence and top-level ordering'
   );
 });
 
+test('jiraJqlWithLabelScope normalizes multiple labels as an OR scope', () => {
+  assert.equal(
+    jiraJqlWithLabelScope('project = CVTE ORDER BY created DESC', ' cvte968, cvte950, cvte968 '),
+    '(project = CVTE) AND labels IN ("cvte950", "cvte968") ORDER BY created DESC',
+  );
+  assert.throws(
+    () => jiraJqlWithLabelScope('project = CVTE', 'cvte968,,cvte950'),
+    /без пустых значений/,
+  );
+});
+
 test('jiraJqlWithAnalyticsScope filters by epic key without losing ordering', () => {
   assert.equal(
     jiraJqlWithAnalyticsScope('statusCategory != Done ORDER BY key ASC', {

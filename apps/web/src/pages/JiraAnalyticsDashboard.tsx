@@ -18,7 +18,9 @@ import {
   JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
   jiraAnalyticsDashboardV1Schema,
   jiraAnalyticsDashboardV2Schema,
+  jiraAnalyticsScopeValueIsValid,
   normalizeJiraAnalyticsDashboardV1,
+  normalizeJiraAnalyticsScopeValue,
   type JiraAnalyticsDashboardConfig,
   type JiraAnalyticsEvaluationResult,
   type JiraAnalyticsReferencedWidget,
@@ -78,6 +80,7 @@ type DashboardResults = {
 
 type AggregateDefinitionOption = {
   id: string;
+  version: number;
   name: string;
   source: JiraAnalyticsSource;
   metric: JiraAnalyticsMetric;
@@ -559,9 +562,13 @@ function JiraReferencedWidgetEditor({
         Раздел
         <select value={widget.placement} onChange={(event) => {
           const placement = event.target.value as JiraAnalyticsSection;
-          const aggregateId = definitions.find((definition) => definition.scope === placement)?.id;
-          if (!aggregateId) return;
-          patchWidget({ placement, aggregateId });
+          const definition = definitions.find((item) => item.scope === placement);
+          if (!definition) return;
+          patchWidget({
+            placement,
+            aggregateId: definition.id,
+            aggregateVersion: placement === "retro" ? definition.version : null,
+          });
         }}>
           <option value="active" disabled={!definitions.some((definition) => definition.scope === "active")}>В работе</option>
           <option value="retro" disabled={!definitions.some((definition) => definition.scope === "retro")}>Ретро</option>
@@ -569,7 +576,14 @@ function JiraReferencedWidgetEditor({
       </label>
       <label>
         Агрегат
-        <select value={widget.aggregateId} onChange={(event) => patchWidget({ aggregateId: event.target.value })}>
+        <select value={widget.aggregateId} onChange={(event) => {
+          const definition = definitions.find((item) => item.id === event.target.value);
+          if (!definition) return;
+          patchWidget({
+            aggregateId: definition.id,
+            aggregateVersion: widget.placement === "retro" ? definition.version : null,
+          });
+        }}>
           {availableDefinitions.map((definition) => (
             <option value={definition.id} key={definition.id}>{definition.name}</option>
           ))}
@@ -623,19 +637,11 @@ function newReferencedWidget(
     id: `widget-${crypto.randomUUID()}`,
     title: aggregate.name,
     aggregateId: aggregate.id,
+    aggregateVersion: placement === "retro" ? aggregate.version : null,
     visualization: aggregate.groupBy === "none" ? "number" : "bar",
     width: aggregate.groupBy === "none" ? "half" : "full",
     placement,
   };
-}
-
-type JiraAnalyticsScopeType = "LABEL" | "EPIC";
-
-function jiraScopeValueIsValid(type: JiraAnalyticsScopeType, value: string) {
-  const normalized = value.trim();
-  return type === "LABEL"
-    ? normalized.length > 0 && /^[^\s"'\\]+$/.test(normalized)
-    : /^[A-Z][A-Z0-9_]*-\d+$/i.test(normalized);
 }
 
 export function JiraAnalyticsDashboard({
@@ -645,6 +651,7 @@ export function JiraAnalyticsDashboard({
   editing,
   onClearData,
   onEditingChange,
+  onOpenAggregates,
   onStartEditing,
   section,
 }: {
@@ -654,6 +661,7 @@ export function JiraAnalyticsDashboard({
   editing: boolean;
   onClearData: () => void;
   onEditingChange: (editing: boolean) => void;
+  onOpenAggregates: () => void;
   onStartEditing: () => void;
   section: JiraAnalyticsSection;
 }) {
@@ -682,10 +690,10 @@ export function JiraAnalyticsDashboard({
   const dashboardProjectIdRef = useRef(project.id);
   const [saving, setSaving] = useState(false);
   const jiraScope = {
-    type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL" as JiraAnalyticsScopeType,
+    type: project.jiraAnalyticsSettings?.jiraScopeType ?? "LABEL",
     value: project.jiraAnalyticsSettings?.jiraScopeValue ?? "",
   };
-  const scopeValueValid = jiraScopeValueIsValid(jiraScope.type, jiraScope.value);
+  const scopeValueValid = jiraAnalyticsScopeValueIsValid(jiraScope.type, jiraScope.value);
   const isSystemAdmin = currentUser?.role === "ADMIN";
   const canEditWidgets = isSystemAdmin && !isClosedProject;
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
@@ -848,6 +856,21 @@ export function JiraAnalyticsDashboard({
     ? selectedWidgetId ?? visibleWidgets[0]?.widgetId ?? null
     : null;
   const selectedWidget = config?.widgets.find((widget) => widget.id === activeSelectedWidgetId) ?? null;
+  const sectionDefinitions = definitions.filter((definition) => definition.scope === section);
+
+  const addWidget = () => {
+    if (!config || config.widgets.length >= 100) return;
+    const widget = config.version === 1
+      ? createJiraAnalyticsWidget("issues", section)
+      : sectionDefinitions[0]
+        ? newReferencedWidget(sectionDefinitions[0], section)
+        : null;
+    if (!widget) return;
+    setConfig((current) => current
+      ? ({ ...current, widgets: [...current.widgets, widget] } as JiraAnalyticsDashboardConfig)
+      : current);
+    setSelectedWidgetId(widget.id);
+  };
 
   const patchDashboardFilters = (
     patch: Partial<Pick<JiraAnalyticsDashboardConfig, "assignee" | "periodDays">>,
@@ -902,8 +925,22 @@ export function JiraAnalyticsDashboard({
       setError("Для каждого виджета нужно выбрать сохранённый агрегат");
       return;
     }
-    const validation = config.version === 2
-      ? jiraAnalyticsDashboardV2Schema.safeParse(config)
+    const configToSave = config.version === 2
+      ? {
+          ...config,
+          widgets: config.widgets.map((widget) => {
+            const definition = definitions.find((item) => item.id === widget.aggregateId);
+            return {
+              ...widget,
+              aggregateVersion: widget.placement === "retro"
+                ? widget.aggregateVersion ?? definition?.version ?? null
+                : null,
+            };
+          }),
+        }
+      : config;
+    const validation = configToSave.version === 2
+      ? jiraAnalyticsDashboardV2Schema.safeParse(configToSave)
       : jiraAnalyticsDashboardV1Schema.safeParse(config);
     if (!validation.success) {
       setError(validation.error.issues[0]?.message ?? "Некорректная конфигурация дашборда");
@@ -1042,9 +1079,9 @@ export function JiraAnalyticsDashboard({
             onClick={() => syncJira({
               baseUrl: "https://tasks.sberdevices.ru",
               scopeType: jiraScope.type,
-              scopeValue: jiraScope.value.trim(),
+              scopeValue: normalizeJiraAnalyticsScopeValue(jiraScope.type, jiraScope.value),
             })}
-            disabled={syncing || clearing || !scopeValueValid}
+            disabled={!isSystemAdmin || syncing || clearing || !scopeValueValid}
           >
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
             {syncing ? "Обновляю..." : "Обновить"}
@@ -1066,6 +1103,14 @@ export function JiraAnalyticsDashboard({
           )}
           {canEditWidgets && config && editing && (
             <>
+              <button
+                type="button"
+                className="button"
+                onClick={addWidget}
+                disabled={config.widgets.length >= 100 || (config.version === 2 && sectionDefinitions.length === 0)}
+              >
+                <Plus size={16} /> Добавить виджет
+              </button>
               <button type="button" className="button" onClick={() => { setConfig(baseline ? structuredClone(baseline) : null); onEditingChange(false); setSelectedWidgetId(null); }}><X size={16} /> Отменить</button>
               <button type="button" className="button primary" onClick={saveDashboard} disabled={saving}><Save size={16} /> {saving ? "Сохраняю..." : "Сохранить"}</button>
             </>
@@ -1076,6 +1121,12 @@ export function JiraAnalyticsDashboard({
       {!config && (
         <div className="jira-aggregate-validation">
           Сохранённая конфигурация дашборда некорректна. Она не заменена шаблоном автоматически; исправьте её через миграцию или восстановление.
+        </div>
+      )}
+      {editing && config?.version === 2 && sectionDefinitions.length === 0 && (
+        <div className="jira-analytics-missing-aggregate">
+          <span>Для раздела «{section === "active" ? "В работе" : "Ретро"}» ещё нет агрегатов.</span>
+          <button type="button" className="button" onClick={onOpenAggregates}><Plus size={15} /> Создать агрегат</button>
         </div>
       )}
 
@@ -1126,22 +1177,6 @@ export function JiraAnalyticsDashboard({
               widget={widget}
             />
           ))}
-          {editing && config && (
-            <button
-              type="button"
-              className="jira-analytics-add-widget"
-              disabled={config.widgets.length >= 100 || (config.version === 2 && !definitions.some((definition) => definition.scope === section))}
-              onClick={() => {
-                const widget = config.version === 1
-                  ? createJiraAnalyticsWidget("issues", section)
-                  : newReferencedWidget(definitions.find((definition) => definition.scope === section)!, section);
-                setConfig((current) => current ? ({ ...current, widgets: [...current.widgets, widget] } as JiraAnalyticsDashboardConfig) : current);
-                setSelectedWidgetId(widget.id);
-              }}
-            >
-              <Plus size={19} /> Добавить виджет
-            </button>
-          )}
         </div>
         {editing && selectedWidget && config?.version === 1 && "source" in selectedWidget && (
           <JiraWidgetEditor widget={selectedWidget} onChange={updateWidget} onClose={() => setSelectedWidgetId(null)} />

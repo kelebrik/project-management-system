@@ -1,4 +1,4 @@
-import { DatabaseZap, Download, Play, RefreshCw, ShieldCheck } from "lucide-react";
+import { DatabaseZap, Download, Play, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiClient } from "../api/client";
@@ -173,15 +173,10 @@ function formatDuration(value: number) {
   return `${(value / 1_000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} с`;
 }
 
-export function JiraCapacitySampler() {
+// Shared with the compact admin toolbar rendered above the capacity report.
+// eslint-disable-next-line react-refresh/only-export-components
+export function useJiraHistoryAdminControls(dataRevision: number) {
   const { currentUser, project, setError, setNotice } = usePageContext();
-  const [scopeType, setScopeType] = useState<"LABEL" | "EPIC">("LABEL");
-  const [scopeValue, setScopeValue] = useState("");
-  const [sampleSize, setSampleSize] = useState(20);
-  const [storageBudgetGiB, setStorageBudgetGiB] = useState(5);
-  const [allocatedHistoryGiB, setAllocatedHistoryGiB] = useState(0);
-  const [running, setRunning] = useState(false);
-  const [report, setReport] = useState<CapacityReport | null>(null);
   const [historyStatus, setHistoryStatus] = useState<HistoryStatus | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [backfillRunning, setBackfillRunning] = useState(false);
@@ -228,9 +223,6 @@ export function JiraCapacitySampler() {
       );
       if (!mountedRef.current || projectIdRef.current !== requestedProjectId) return;
       setHistoryStatus(nextStatus);
-      setAllocatedHistoryGiB((current) => current === 0
-        ? nextStatus.storage.databaseBytes / 1024 ** 3
-        : current);
     } catch (error) {
       if (mountedRef.current && projectIdRef.current === requestedProjectId) {
         setError(error instanceof Error ? error.message : "Не удалось загрузить состояние истории Jira");
@@ -248,9 +240,7 @@ export function JiraCapacitySampler() {
       void loadCompleteness();
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [loadCompleteness, loadHistoryStatus]);
-
-  if (currentUser?.role !== "ADMIN") return null;
+  }, [dataRevision, loadCompleteness, loadHistoryStatus]);
 
   const runBackfill = async () => {
     const requestedProjectId = project.id;
@@ -300,6 +290,49 @@ export function JiraCapacitySampler() {
       setBackfillRunning(false);
     }
   };
+
+  return {
+    backfillRunning,
+    completeness,
+    historyLoading,
+    historyStatus,
+    refresh: () => Promise.all([loadHistoryStatus(), loadCompleteness()]),
+    runBackfill,
+  };
+}
+
+export type JiraHistoryAdminControls = ReturnType<typeof useJiraHistoryAdminControls>;
+
+export function JiraCapacitySampler({
+  history,
+}: {
+  history: JiraHistoryAdminControls;
+}) {
+  const { currentUser, project, setError, setNotice } = usePageContext();
+  const [scopeType, setScopeType] = useState<"LABEL" | "EPIC">("LABEL");
+  const [scopeValue, setScopeValue] = useState("");
+  const [sampleSize, setSampleSize] = useState(20);
+  const [storageBudgetGiB, setStorageBudgetGiB] = useState(5);
+  const [allocatedHistoryGiB, setAllocatedHistoryGiB] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [report, setReport] = useState<CapacityReport | null>(null);
+  const {
+    completeness,
+    historyLoading,
+    historyStatus,
+  } = history;
+
+  useEffect(() => {
+    if (!historyStatus) return undefined;
+    const timeout = window.setTimeout(() => {
+      setAllocatedHistoryGiB((current) => current === 0
+        ? historyStatus.storage.databaseBytes / 1024 ** 3
+        : current);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [historyStatus]);
+
+  if (currentUser?.role !== "ADMIN") return null;
 
   const run = async () => {
     if (!scopeValue.trim()) return;
@@ -357,26 +390,6 @@ export function JiraCapacitySampler() {
           <div>
             <h4>Фактическая история A1</h4>
             <span>Глобальный бюджет основной БД · raw payload недоступен через API</span>
-          </div>
-          <div className="jira-history-status-actions">
-            <button
-              className="button"
-              type="button"
-              onClick={() => void runBackfill()}
-              disabled={backfillRunning || historyStatus?.historyWrite?.enabled !== true}
-            >
-              <Play size={16} /> {backfillRunning ? "Импортирую..." : "Полный импорт"}
-            </button>
-            <button
-              className="icon-button"
-              type="button"
-              onClick={() => void Promise.all([loadHistoryStatus(), loadCompleteness()])}
-              disabled={historyLoading}
-              title="Обновить состояние истории"
-              aria-label="Обновить состояние истории"
-            >
-              <RefreshCw size={17} />
-            </button>
           </div>
         </div>
         {historyStatus ? (
