@@ -1015,6 +1015,29 @@
   gap: 5px;
 }
 
+.jira-status-endpoint-editor,
+.jira-status-endpoint-editor > label,
+.jira-status-transition-fields,
+.jira-status-transition-fields > label {
+  display: grid;
+  gap: 5px;
+}
+
+.jira-status-endpoint-editor,
+.jira-aggregate-help {
+  grid-column: 1 / -1;
+}
+
+.jira-status-transition-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.jira-aggregate-help {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin: 0;
+}
+
 .jira-status-chips {
   display: flex;
   flex-wrap: wrap;

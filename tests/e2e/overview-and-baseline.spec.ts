@@ -1262,7 +1262,12 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await page.getByRole("combobox", { name: "Тип агрегата" }).selectOption("statusIntervals");
   await expect(page.getByRole("group", { name: "Контрольные точки интервала" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Начало" })).toHaveValue("issueCreated");
-  await expect(page.getByLabel("Конечные статусы")).toHaveValue("In Progress");
+  await expect(page.getByRole("combobox", { name: "Конец" })).toHaveValue("firstStatusEntry");
+  await expect(page.getByLabel("Статусы входа")).toHaveValue("In Progress");
+  await page.getByRole("combobox", { name: "Начало" }).selectOption("statusTransition");
+  await expect(page.getByLabel("Из статуса (пусто = любой)")).toHaveValue("Open");
+  await expect(page.getByLabel("В статус (пусто = любой)")).toHaveValue("In Progress");
+  await expect(page.getByText("Используется первая подходящая пара переходов; повторные циклы не учитываются.")).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "Учитывать незавершённые интервалы" })).toBeChecked();
   await expect(page.getByRole("combobox", { name: "Якорь периода" })).toBeDisabled();
   await page.setViewportSize({ width: 390, height: 844 });

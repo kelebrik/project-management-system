@@ -459,21 +459,50 @@ const jiraAnalyticsStatusNamesSchema = z.array(
   }
 });
 
+const jiraAnalyticsOptionalTransitionStatusNamesSchema = z.array(
+  z.string().trim().min(1).max(200),
+).max(10).superRefine((statuses, context) => {
+  const normalized = statuses.map(normalizedJiraValue);
+  if (new Set(normalized).size !== normalized.length) {
+    context.addIssue({ code: "custom", message: "Названия статусов не должны повторяться" });
+  }
+});
+
+const jiraAnalyticsStatusTransitionEndpointSchema = z.object({
+  anchor: z.literal("statusTransition"),
+  fromStatuses: jiraAnalyticsOptionalTransitionStatusNamesSchema,
+  toStatuses: jiraAnalyticsOptionalTransitionStatusNamesSchema,
+}).strict().superRefine((endpoint, context) => {
+  if (endpoint.fromStatuses.length === 0 && endpoint.toStatuses.length === 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["toStatuses"],
+      message: "Укажите хотя бы один статус до или после перехода",
+    });
+  }
+});
+
 export const jiraAnalyticsStatusIntervalEndpointSchema = z.discriminatedUnion("anchor", [
   z.object({ anchor: z.literal("issueCreated") }).strict(),
   z.object({
     anchor: z.literal("firstStatusEntry"),
     statuses: jiraAnalyticsStatusNamesSchema,
   }).strict(),
+  jiraAnalyticsStatusTransitionEndpointSchema,
+]);
+
+export const jiraAnalyticsStatusIntervalEndEndpointSchema = z.discriminatedUnion("anchor", [
+  z.object({
+    anchor: z.literal("firstStatusEntry"),
+    statuses: jiraAnalyticsStatusNamesSchema,
+  }).strict(),
+  jiraAnalyticsStatusTransitionEndpointSchema,
 ]);
 
 export const jiraAnalyticsStatusIntervalRowConfigSchema = z.object({
   kind: z.literal("statusInterval"),
   start: jiraAnalyticsStatusIntervalEndpointSchema,
-  end: z.object({
-    anchor: z.literal("firstStatusEntry"),
-    statuses: jiraAnalyticsStatusNamesSchema,
-  }).strict(),
+  end: jiraAnalyticsStatusIntervalEndEndpointSchema,
   openIntervals: z.enum(["exclude", "include"]),
   periodAnchor: z.enum(["start", "end"]),
 }).strict().superRefine((config, context) => {
@@ -484,7 +513,7 @@ export const jiraAnalyticsStatusIntervalRowConfigSchema = z.object({
       message: "Открытые интервалы можно фильтровать по периоду только от даты начала",
     });
   }
-  if (config.start.anchor === "firstStatusEntry") {
+  if (config.start.anchor === "firstStatusEntry" && config.end.anchor === "firstStatusEntry") {
     const startStatuses = new Set(config.start.statuses.map(normalizedJiraValue));
     if (config.end.statuses.some((status) => startStatuses.has(normalizedJiraValue(status)))) {
       context.addIssue({
@@ -498,6 +527,7 @@ export const jiraAnalyticsStatusIntervalRowConfigSchema = z.object({
 
 export const jiraAnalyticsRowConfigSchema = jiraAnalyticsStatusIntervalRowConfigSchema;
 export type JiraAnalyticsStatusIntervalEndpoint = z.infer<typeof jiraAnalyticsStatusIntervalEndpointSchema>;
+export type JiraAnalyticsStatusIntervalEndEndpoint = z.infer<typeof jiraAnalyticsStatusIntervalEndEndpointSchema>;
 export type JiraAnalyticsStatusIntervalRowConfig = z.infer<typeof jiraAnalyticsStatusIntervalRowConfigSchema>;
 export type JiraAnalyticsRowConfig = z.infer<typeof jiraAnalyticsRowConfigSchema>;
 
@@ -610,19 +640,27 @@ export function jiraAnalyticsDatasetSemanticDocument(definition: JiraAnalyticsDa
       value: normalizedFilterValue(filter),
     }))
     .sort((left, right) => codePointCompare(JSON.stringify(left), JSON.stringify(right)));
+  const normalizeEndpoint = (
+    endpoint: JiraAnalyticsStatusIntervalEndpoint | JiraAnalyticsStatusIntervalEndEndpoint,
+  ) => {
+    if (endpoint.anchor === "issueCreated") return { anchor: endpoint.anchor } as const;
+    if (endpoint.anchor === "firstStatusEntry") {
+      return {
+        anchor: endpoint.anchor,
+        statuses: endpoint.statuses.map(normalizedJiraValue).sort(codePointCompare),
+      } as const;
+    }
+    return {
+      anchor: endpoint.anchor,
+      fromStatuses: endpoint.fromStatuses.map(normalizedJiraValue).sort(codePointCompare),
+      toStatuses: endpoint.toStatuses.map(normalizedJiraValue).sort(codePointCompare),
+    } as const;
+  };
   const rowConfig = definition.rowConfig
     ? {
         ...definition.rowConfig,
-        start: definition.rowConfig.start.anchor === "issueCreated"
-          ? definition.rowConfig.start
-          : {
-              ...definition.rowConfig.start,
-              statuses: definition.rowConfig.start.statuses.map(normalizedJiraValue).sort(codePointCompare),
-            },
-        end: {
-          ...definition.rowConfig.end,
-          statuses: definition.rowConfig.end.statuses.map(normalizedJiraValue).sort(codePointCompare),
-        },
+        start: normalizeEndpoint(definition.rowConfig.start),
+        end: normalizeEndpoint(definition.rowConfig.end),
       }
     : null;
   return {
@@ -1052,6 +1090,10 @@ export type JiraAnalyticsResultRecord = {
   eventAt: string | null;
   intervalStartAt: string | null;
   intervalEndAt: string | null;
+  intervalStartFromStatus: string | null;
+  intervalStartToStatus: string | null;
+  intervalEndFromStatus: string | null;
+  intervalEndToStatus: string | null;
   durationHours: number | null;
   commitCount: number;
   mergeRequestCount: number;
@@ -1171,6 +1213,10 @@ function issueRecord(issue: JiraAnalyticsIssueData): JiraAnalyticsResultRecord {
     eventAt: validDate(issue.updatedAt)?.toISOString() ?? null,
     intervalStartAt: null,
     intervalEndAt: null,
+    intervalStartFromStatus: null,
+    intervalStartToStatus: null,
+    intervalEndFromStatus: null,
+    intervalEndToStatus: null,
     durationHours: null,
     commitCount: issue.commitCount,
     mergeRequestCount: issue.mergeRequestCount,
@@ -1199,6 +1245,10 @@ function transitionRecords(issue: JiraAnalyticsIssueData): JiraAnalyticsResultRe
       eventAt: transition.date.toISOString(),
       intervalStartAt: null,
       intervalEndAt: null,
+      intervalStartFromStatus: null,
+      intervalStartToStatus: null,
+      intervalEndFromStatus: null,
+      intervalEndToStatus: null,
       durationHours,
       commitCount: 0,
       mergeRequestCount: 0,
@@ -1222,6 +1272,10 @@ function developmentRecords(issue: JiraAnalyticsIssueData): JiraAnalyticsResultR
         eventAt: eventAt.toISOString(),
         intervalStartAt: null,
         intervalEndAt: null,
+        intervalStartFromStatus: null,
+        intervalStartToStatus: null,
+        intervalEndFromStatus: null,
+        intervalEndToStatus: null,
         durationHours: null,
         commitCount: activity.commitCount,
         mergeRequestCount: activity.mergeRequestCount,
@@ -1246,6 +1300,10 @@ function criticalBugRecord(
     eventAt: startedAt.toISOString(),
     intervalStartAt: startedAt.toISOString(),
     intervalEndAt: validDate(issue.resolutionAt)?.toISOString() ?? null,
+    intervalStartFromStatus: null,
+    intervalStartToStatus: null,
+    intervalEndFromStatus: null,
+    intervalEndToStatus: null,
     durationHours: Math.max(0, (finishedAt.getTime() - startedAt.getTime()) / 3_600_000),
     commitCount: issue.commitCount,
     mergeRequestCount: issue.mergeRequestCount,
@@ -1258,12 +1316,29 @@ function criticalBugRecord(
 type JiraStatusEntryEvent = {
   at: Date;
   index: number;
-  status: string | null;
+  fromStatus: string | null;
+  toStatus: string | null;
+  isCreation: boolean;
 };
 
 function statusMatches(status: string | null, expected: readonly string[]) {
   const normalized = normalizedJiraValue(status);
   return normalized !== "" && expected.some((value) => normalizedJiraValue(value) === normalized);
+}
+
+function statusIntervalNeedsCreatedAt(config: JiraAnalyticsStatusIntervalRowConfig) {
+  return config.start.anchor !== "statusTransition";
+}
+
+function statusEndpointMatches(
+  event: JiraStatusEntryEvent,
+  endpoint: JiraAnalyticsStatusIntervalEndpoint | JiraAnalyticsStatusIntervalEndEndpoint,
+) {
+  if (endpoint.anchor === "issueCreated") return event.isCreation;
+  if (endpoint.anchor === "firstStatusEntry") return statusMatches(event.toStatus, endpoint.statuses);
+  return !event.isCreation &&
+    (endpoint.fromStatuses.length === 0 || statusMatches(event.fromStatus, endpoint.fromStatuses)) &&
+    (endpoint.toStatuses.length === 0 || statusMatches(event.toStatus, endpoint.toStatuses));
 }
 
 function statusIntervalRecord(
@@ -1273,47 +1348,53 @@ function statusIntervalRecord(
 ): JiraAnalyticsResultRecord | null {
   if (!issue.transitionHistoryComplete) return null;
   const createdAt = validDate(issue.issueCreatedAt);
-  if (!createdAt) return null;
+  if (statusIntervalNeedsCreatedAt(config) && !createdAt) return null;
   const transitions = issue.statusTransitions
     .map((transition) => ({ ...transition, date: validDate(transition.transitionedAt) }))
     .filter((transition): transition is typeof transition & { date: Date } => transition.date !== null)
     .sort((left, right) => left.date.getTime() - right.date.getTime() || codePointCompare(left.id, right.id));
   const entries: JiraStatusEntryEvent[] = [
-    {
+    ...(createdAt ? [{
       at: createdAt,
       index: 0,
-      status: transitions.length > 0 ? transitions[0]?.fromStatus ?? null : issue.status ?? null,
-    },
+      fromStatus: null,
+      toStatus: transitions.length > 0 ? transitions[0]?.fromStatus ?? null : issue.status ?? null,
+      isCreation: true,
+    }] : []),
     ...transitions.map((transition, index) => ({
       at: transition.date,
       index: index + 1,
-      status: transition.toStatus,
+      fromStatus: transition.fromStatus,
+      toStatus: transition.toStatus,
+      isCreation: false,
     })),
   ];
-  const startStatuses = config.start.anchor === "firstStatusEntry" ? config.start.statuses : null;
-  const start = startStatuses === null
-    ? entries[0] ?? null
-    : entries.find((entry) => statusMatches(entry.status, startStatuses)) ?? null;
+  const start = entries.find((entry) => statusEndpointMatches(entry, config.start)) ?? null;
   if (!start) return null;
+  const minimumEndIndex = config.start.anchor === "issueCreated" ? start.index : start.index + 1;
   const end = entries.find((entry) =>
-    entry.index >= start.index && statusMatches(entry.status, config.end.statuses)
+    entry.index >= minimumEndIndex && statusEndpointMatches(entry, config.end)
   ) ?? null;
   if (!end && config.openIntervals === "exclude") return null;
   const finishedAt = end?.at ?? now;
   const intervalStartAt = start.at.toISOString();
   const intervalEndAt = end?.at.toISOString() ?? null;
   return {
-    id: `status-interval:${issue.id}`,
+    id: `status-interval:${issue.id}:${start.index}`,
     source: "statusIntervals",
     issue: publicIssue(issue),
     eventAt: config.periodAnchor === "start" ? intervalStartAt : intervalEndAt,
     intervalStartAt,
     intervalEndAt,
+    intervalStartFromStatus: start.fromStatus,
+    intervalStartToStatus: start.toStatus,
+    intervalEndFromStatus: end?.fromStatus ?? null,
+    intervalEndToStatus: end?.toStatus ?? null,
     durationHours: Math.max(0, (finishedAt.getTime() - start.at.getTime()) / 3_600_000),
     commitCount: issue.commitCount,
     mergeRequestCount: issue.mergeRequestCount,
-    fromStatus: start.status,
-    toStatus: end?.status ?? null,
+    fromStatus: start.toStatus,
+    toStatus: end?.toStatus ?? null,
     sprint: issue.sprint,
   };
 }
@@ -1592,7 +1673,10 @@ export function createJiraAnalyticsEvaluationAccumulator(
   const issueHasCompleteSourceData = (issue: JiraAnalyticsIssueData) => {
     if (definition.source === "transitions") return issue.transitionHistoryComplete;
     if (definition.source === "statusIntervals") {
-      return issue.transitionHistoryComplete && validDate(issue.issueCreatedAt) !== null;
+      const config = definition.rowConfig;
+      return issue.transitionHistoryComplete && config?.kind === "statusInterval" && (
+        !statusIntervalNeedsCreatedAt(config) || validDate(issue.issueCreatedAt) !== null
+      );
     }
     if (definition.source === "development") return issue.developmentDataAvailable;
     if (definition.source === "criticalBugs") {
@@ -1610,7 +1694,12 @@ export function createJiraAnalyticsEvaluationAccumulator(
     ) {
       incompleteTransitionHistory += 1;
     }
-    if (definition.source === "statusIntervals" && validDate(issue.issueCreatedAt) === null) {
+    if (
+      definition.source === "statusIntervals" &&
+      definition.rowConfig?.kind === "statusInterval" &&
+      statusIntervalNeedsCreatedAt(definition.rowConfig) &&
+      validDate(issue.issueCreatedAt) === null
+    ) {
       missingIssueCreatedAt += 1;
     }
     if (issueHasCompleteSourceData(issue)) qualityComplete += 1;

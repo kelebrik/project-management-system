@@ -265,6 +265,10 @@ test('status interval fingerprint normalizes status lists while legacy datasets 
   });
 
   assert.equal(jiraAggregateDatasetFingerprint(base), jiraAggregateDatasetFingerprint(reordered));
+  assert.equal(
+    jiraAggregateDatasetFingerprint(base),
+    '90a217b6bfb208bb90a54d517b78f51e57d13a9cad79ffde41faa00e4f59f212',
+  );
   assert.equal('rowConfig' in jiraAnalyticsDatasetSemanticDocument(ordinary), false);
 
   const intervalRevision = jiraAggregateDatasetRevisionCreateData('project', 'aggregate', 1, base);
@@ -414,6 +418,129 @@ test('status interval ordering is deterministic and period filtering uses its co
   assert.equal(result.records[0]?.durationHours, 0);
   assert.equal(result.records[0]?.fromStatus, 'Analysis');
   assert.equal(result.records[0]?.toStatus, 'In Progress');
+});
+
+test('status interval measures between two exact status transitions', () => {
+  const result = evaluateJiraAnalyticsAggregate(statusIntervalDefinition({
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'statusTransition', fromStatuses: ['Open'], toStatuses: ['In Progress'] },
+      end: { anchor: 'statusTransition', fromStatuses: ['In Progress'], toStatuses: ['Resolved'] },
+      openIntervals: 'exclude',
+      periodAnchor: 'start',
+    },
+  }), [issue({
+    issueCreatedAt: null,
+    statusTransitions: [
+      { id: 't1', fromStatus: 'Open', toStatus: 'In Progress', transitionedAt: '2026-01-05T00:00:00.000Z' },
+      { id: 't2', fromStatus: 'In Progress', toStatus: 'Resolved', transitionedAt: '2026-01-20T00:00:00.000Z' },
+    ],
+  })], options);
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.durationHours, 360);
+  assert.equal(result.records[0]?.intervalStartFromStatus, 'Open');
+  assert.equal(result.records[0]?.intervalStartToStatus, 'In Progress');
+  assert.equal(result.records[0]?.intervalEndFromStatus, 'In Progress');
+  assert.equal(result.records[0]?.intervalEndToStatus, 'Resolved');
+  assert.equal(result.quality.status, 'COMPLETE');
+  assert.deepEqual(result.quality.warnings, []);
+});
+
+test('status transition endpoints support a wildcard on either side', () => {
+  const result = evaluateJiraAnalyticsAggregate(statusIntervalDefinition({
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'statusTransition', fromStatuses: [], toStatuses: ['In Progress'] },
+      end: { anchor: 'statusTransition', fromStatuses: ['In Progress'], toStatuses: [] },
+      openIntervals: 'exclude',
+      periodAnchor: 'end',
+    },
+  }), [issue({
+    statusTransitions: [
+      { id: 't1', fromStatus: 'Analysis', toStatus: 'In Progress', transitionedAt: '2026-01-05T00:00:00.000Z' },
+      { id: 't2', fromStatus: 'In Progress', toStatus: 'QA', transitionedAt: '2026-01-06T12:00:00.000Z' },
+    ],
+  })], options);
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.durationHours, 36);
+  assert.equal(result.records[0]?.intervalEndToStatus, 'QA');
+});
+
+test('status transition endpoint never matches the synthetic creation event', () => {
+  const result = evaluateJiraAnalyticsAggregate(statusIntervalDefinition({
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'statusTransition', fromStatuses: [], toStatuses: ['In Progress'] },
+      end: { anchor: 'firstStatusEntry', statuses: ['Resolved'] },
+      openIntervals: 'include',
+      periodAnchor: 'start',
+    },
+  }), [issue({ status: 'In Progress', statusTransitions: [] })], options);
+
+  assert.equal(result.totalRecords, 0);
+});
+
+test('a transition start and first-entry end cannot use the same event', () => {
+  const result = evaluateJiraAnalyticsAggregate(statusIntervalDefinition({
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'statusTransition', fromStatuses: ['Open'], toStatuses: ['In Progress'] },
+      end: { anchor: 'firstStatusEntry', statuses: ['In Progress'] },
+      openIntervals: 'exclude',
+      periodAnchor: 'start',
+    },
+  }), [issue({
+    statusTransitions: [
+      { id: 't1', fromStatus: 'Open', toStatus: 'In Progress', transitionedAt: '2026-01-05T00:00:00.000Z' },
+      { id: 't2', fromStatus: 'In Progress', toStatus: 'QA', transitionedAt: '2026-01-06T00:00:00.000Z' },
+      { id: 't3', fromStatus: 'QA', toStatus: 'In Progress', transitionedAt: '2026-01-10T00:00:00.000Z' },
+    ],
+  })], options);
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.durationHours, 120);
+  assert.equal(result.records[0]?.intervalEndFromStatus, 'QA');
+});
+
+test('status transition interval uses the first matching pair across repeated cycles', () => {
+  const result = evaluateJiraAnalyticsAggregate(statusIntervalDefinition({
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'statusTransition', fromStatuses: ['Open'], toStatuses: ['In Progress'] },
+      end: { anchor: 'statusTransition', fromStatuses: ['In Progress'], toStatuses: ['Resolved'] },
+      openIntervals: 'exclude',
+      periodAnchor: 'start',
+    },
+  }), [issue({
+    statusTransitions: [
+      { id: 't1', fromStatus: 'Open', toStatus: 'In Progress', transitionedAt: '2026-01-02T00:00:00.000Z' },
+      { id: 't2', fromStatus: 'In Progress', toStatus: 'Resolved', transitionedAt: '2026-01-03T00:00:00.000Z' },
+      { id: 't3', fromStatus: 'Open', toStatus: 'In Progress', transitionedAt: '2026-01-10T00:00:00.000Z' },
+      { id: 't4', fromStatus: 'In Progress', toStatus: 'Resolved', transitionedAt: '2026-01-20T00:00:00.000Z' },
+    ],
+  })], options);
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.durationHours, 24);
+  assert.equal(result.records[0]?.id, 'status-interval:snapshot-1:1');
+});
+
+test('status transition endpoints require at least one constrained side', () => {
+  const parsed = jiraAnalyticsDatasetDraftSchema.safeParse({
+    name: 'Invalid transition', description: '', source: 'statusIntervals',
+    exposedFields: ['issueKey', 'durationHours'], baseFilterLogic: 'and', baseFilters: [],
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'statusTransition', fromStatuses: [], toStatuses: [] },
+      end: { anchor: 'firstStatusEntry', statuses: ['Resolved'] },
+      openIntervals: 'exclude', periodAnchor: 'start',
+    },
+    timeZone: 'Europe/Moscow', sortOrder: 0,
+  });
+
+  assert.equal(parsed.success, false);
 });
 
 test('status interval fails closed for missing creation or incomplete transition history', () => {

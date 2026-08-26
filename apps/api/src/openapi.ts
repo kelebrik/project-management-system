@@ -352,15 +352,21 @@ export const openApiDocument = {
             },
             required: ["anchor", "statuses"],
           },
+          {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              anchor: { type: "string", const: "statusTransition" },
+              fromStatuses: { type: "array", maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
+              toStatuses: { type: "array", maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
+            },
+            required: ["anchor", "fromStatuses", "toStatuses"],
+          },
         ],
       },
-      JiraStatusIntervalRowConfig: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          kind: { type: "string", const: "statusInterval" },
-          start: { $ref: "#/components/schemas/JiraStatusIntervalEndpoint" },
-          end: {
+      JiraStatusIntervalEndEndpoint: {
+        oneOf: [
+          {
             type: "object",
             additionalProperties: false,
             properties: {
@@ -369,6 +375,25 @@ export const openApiDocument = {
             },
             required: ["anchor", "statuses"],
           },
+          {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              anchor: { type: "string", const: "statusTransition" },
+              fromStatuses: { type: "array", maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
+              toStatuses: { type: "array", maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
+            },
+            required: ["anchor", "fromStatuses", "toStatuses"],
+          },
+        ],
+      },
+      JiraStatusIntervalRowConfig: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          kind: { type: "string", const: "statusInterval" },
+          start: { $ref: "#/components/schemas/JiraStatusIntervalEndpoint" },
+          end: { $ref: "#/components/schemas/JiraStatusIntervalEndEndpoint" },
           openIntervals: { type: "string", enum: ["exclude", "include"] },
           periodAnchor: { type: "string", enum: ["start", "end"] },
         },

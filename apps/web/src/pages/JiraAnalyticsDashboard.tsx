@@ -113,7 +113,7 @@ function csvCell(value: unknown) {
 }
 
 function recordsCsv(records: JiraAnalyticsResultRecord[]) {
-  const header = ["Key", "Summary", "Assignee", "Status", "Priority", "Issue type", "Resolution", "Sprint", "From status", "To status", "Interval start", "Interval end", "Duration hours", "Commits", "Merge requests", "Event at", "Jira URL"];
+  const header = ["Key", "Summary", "Assignee", "Status", "Priority", "Issue type", "Resolution", "Sprint", "From status", "To status", "Interval start from status", "Interval start to status", "Interval end from status", "Interval end to status", "Interval start", "Interval end", "Duration hours", "Commits", "Merge requests", "Event at", "Jira URL"];
   return [
     header.map(csvCell).join(","),
     ...records.map((record) => [
@@ -127,6 +127,10 @@ function recordsCsv(records: JiraAnalyticsResultRecord[]) {
       record.sprint,
       record.fromStatus,
       record.toStatus,
+      record.intervalStartFromStatus,
+      record.intervalStartToStatus,
+      record.intervalEndFromStatus,
+      record.intervalEndToStatus,
       record.intervalStartAt,
       record.intervalEndAt,
       record.durationHours,
@@ -180,7 +184,7 @@ function JiraAnalyticsTable({
     return (
       <div className="jira-analytics-table-wrap">
         <table className="jira-analytics-table">
-          <thead><tr><th>Тикет</th><th>Название</th><th>Исполнитель</th><th>Текущий статус</th><th>Начало</th><th>Конец</th><th>Интервал</th><th>Длительность</th></tr></thead>
+          <thead><tr><th>Тикет</th><th>Название</th><th>Исполнитель</th><th>Текущий статус</th><th>Начало</th><th>Переход начала</th><th>Конец</th><th>Переход конца</th><th>Длительность</th></tr></thead>
           <tbody>{visible.map((record) => (
             <tr key={record.id}>
               <td><a href={record.issue.issueUrl} target="_blank" rel="noreferrer">{record.issue.issueKey}</a></td>
@@ -188,8 +192,11 @@ function JiraAnalyticsTable({
               <td>{record.issue.assignee || "Не назначен"}</td>
               <td>{record.issue.status}</td>
               <td>{dateText(record.intervalStartAt)}</td>
+              <td>{`${record.intervalStartFromStatus || "-"} -> ${record.intervalStartToStatus || "-"}`}</td>
               <td>{record.intervalEndAt ? dateText(record.intervalEndAt) : "Не достигнут"}</td>
-              <td>{`${record.fromStatus || "Создание"} -> ${record.toStatus || "Ожидание"}`}</td>
+              <td>{record.intervalEndAt
+                ? `${record.intervalEndFromStatus || "-"} -> ${record.intervalEndToStatus || "-"}`
+                : "Ожидание"}</td>
               <td>{durationText(record.durationHours)}</td>
             </tr>
           ))}</tbody>

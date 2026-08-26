@@ -7,6 +7,7 @@ import {
   type JiraAnalyticsFilter,
   type JiraAnalyticsFilterField,
   type JiraAnalyticsSource,
+  type JiraAnalyticsStatusIntervalEndpoint,
 } from "@pms/shared";
 import { Database, Eye, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -73,10 +74,11 @@ function parseStatuses(value: string) {
   return value.split(",").map((status) => status.trim()).filter(Boolean).slice(0, 10);
 }
 
-function StatusListEditor({ label, statuses, disabled, onChange }: {
+function StatusListEditor({ label, statuses, disabled, allowEmpty = false, onChange }: {
   label: string;
   statuses: string[];
   disabled: boolean;
+  allowEmpty?: boolean;
   onChange: (statuses: string[]) => void;
 }) {
   return (
@@ -88,12 +90,73 @@ function StatusListEditor({ label, statuses, disabled, onChange }: {
         placeholder="In Progress, Development"
         onBlur={(event) => {
           const parsed = parseStatuses(event.target.value);
-          if (parsed.length > 0) onChange(parsed);
+          if (parsed.length > 0 || allowEmpty) onChange(parsed);
           else event.target.value = statuses.join(", ");
         }}
       />
       <span className="jira-status-chips">{statuses.map((status) => <span key={status}>{status}</span>)}</span>
     </label>
+  );
+}
+
+function StatusEndpointEditor({ label, endpoint, allowIssueCreated, disabled, onChange }: {
+  label: string;
+  endpoint: JiraAnalyticsStatusIntervalEndpoint;
+  allowIssueCreated: boolean;
+  disabled: boolean;
+  onChange: (endpoint: JiraAnalyticsStatusIntervalEndpoint) => void;
+}) {
+  return (
+    <div className="jira-status-endpoint-editor">
+      <label>{label}
+        <select
+          value={endpoint.anchor}
+          disabled={disabled}
+          onChange={(event) => {
+            const anchor = event.target.value as JiraAnalyticsStatusIntervalEndpoint["anchor"];
+            if (anchor === "issueCreated") onChange({ anchor });
+            if (anchor === "firstStatusEntry") {
+              onChange({ anchor, statuses: [allowIssueCreated ? "Open" : "In Progress"] });
+            }
+            if (anchor === "statusTransition") {
+              onChange(allowIssueCreated
+                ? { anchor, fromStatuses: ["Open"], toStatuses: ["In Progress"] }
+                : { anchor, fromStatuses: ["In Progress"], toStatuses: ["Resolved"] });
+            }
+          }}
+        >
+          {allowIssueCreated && <option value="issueCreated">Создание тикета</option>}
+          <option value="firstStatusEntry">Первый вход в статус</option>
+          <option value="statusTransition">Переход между статусами</option>
+        </select>
+      </label>
+      {endpoint.anchor === "firstStatusEntry" && (
+        <StatusListEditor
+          label="Статусы входа"
+          statuses={endpoint.statuses}
+          disabled={disabled}
+          onChange={(statuses) => onChange({ anchor: "firstStatusEntry", statuses })}
+        />
+      )}
+      {endpoint.anchor === "statusTransition" && (
+        <div className="jira-status-transition-fields">
+          <StatusListEditor
+            label="Из статуса (пусто = любой)"
+            statuses={endpoint.fromStatuses}
+            disabled={disabled}
+            allowEmpty
+            onChange={(fromStatuses) => onChange({ ...endpoint, fromStatuses })}
+          />
+          <StatusListEditor
+            label="В статус (пусто = любой)"
+            statuses={endpoint.toStatuses}
+            disabled={disabled}
+            allowEmpty
+            onChange={(toStatuses) => onChange({ ...endpoint, toStatuses })}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -311,47 +374,32 @@ export function JiraAggregatesPage() {
             {draft.source === "statusIntervals" && draft.rowConfig?.kind === "statusInterval" && (
               <fieldset className="jira-aggregate-fieldset jira-status-interval-config">
                 <legend>Контрольные точки интервала</legend>
-                <label>Начало
-                  <select
-                    value={draft.rowConfig.start.anchor}
-                    disabled={!canEdit}
-                    onChange={(event) => {
-                      const anchor = event.target.value as "issueCreated" | "firstStatusEntry";
-                      setDraft({
-                        ...draft,
-                        rowConfig: {
-                          ...draft.rowConfig!,
-                          start: anchor === "issueCreated"
-                            ? { anchor }
-                            : { anchor, statuses: ["Open"] },
-                        },
-                      });
-                    }}
-                  >
-                    <option value="issueCreated">Создание тикета</option>
-                    <option value="firstStatusEntry">Первый вход в статус</option>
-                  </select>
-                </label>
-                {draft.rowConfig.start.anchor === "firstStatusEntry" && (
-                  <StatusListEditor
-                    label="Начальные статусы"
-                    statuses={draft.rowConfig.start.statuses}
-                    disabled={!canEdit}
-                    onChange={(statuses) => setDraft({
-                      ...draft,
-                      rowConfig: { ...draft.rowConfig!, start: { anchor: "firstStatusEntry", statuses } },
-                    })}
-                  />
-                )}
-                <StatusListEditor
-                  label="Конечные статусы"
-                  statuses={draft.rowConfig.end.statuses}
+                <StatusEndpointEditor
+                  label="Начало"
+                  endpoint={draft.rowConfig.start}
+                  allowIssueCreated
                   disabled={!canEdit}
-                  onChange={(statuses) => setDraft({
+                  onChange={(start) => setDraft({
                     ...draft,
-                    rowConfig: { ...draft.rowConfig!, end: { anchor: "firstStatusEntry", statuses } },
+                    rowConfig: { ...draft.rowConfig!, start },
                   })}
                 />
+                <StatusEndpointEditor
+                  label="Конец"
+                  endpoint={draft.rowConfig.end}
+                  allowIssueCreated={false}
+                  disabled={!canEdit}
+                  onChange={(end) => {
+                    if (end.anchor === "issueCreated") return;
+                    setDraft({
+                      ...draft,
+                      rowConfig: { ...draft.rowConfig!, end },
+                    });
+                  }}
+                />
+                <p className="jira-aggregate-help">
+                  Используется первая подходящая пара переходов; повторные циклы не учитываются.
+                </p>
                 <label className="jira-aggregate-field-option">
                   <input
                     type="checkbox"
