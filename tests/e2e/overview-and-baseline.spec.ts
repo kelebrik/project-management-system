@@ -1,5 +1,9 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1 } from "@pms/shared";
+import {
+  JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
+  JIRA_ANALYTICS_FIELDS_BY_SOURCE,
+  jiraAnalyticsSourceUsesPeriod,
+} from "@pms/shared";
 
 const today = new Date();
 
@@ -221,27 +225,59 @@ async function mockManagedJiraAnalytics(
   project: ReturnType<typeof projectFixture>,
 ) {
   const evaluatedAt = `${isoDay(0)}T12:00:00.000Z`;
-  const aggregate = {
-    id: "aggregate-unplanned",
-    projectId: project.id,
-    name: "Работа вне плана",
-    description: "Тикеты без Sprint с активностью разработки",
-    source: "issues",
-    metric: "count",
-    groupBy: "none",
-    scope: "active",
-    filterLogic: "and",
-    filters: [
-      { id: "filter-sprint", field: "sprint", operator: "empty", value: "" },
-    ],
-    periodMode: "NONE",
-    periodDays: null,
-    timeZone: "Europe/Moscow",
-    sortOrder: 0,
-    fingerprint: "a".repeat(64),
-    version: 1,
-    createdAt: evaluatedAt,
-    updatedAt: evaluatedAt,
+  const aggregateDefinitions = JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1.widgets.map(
+    (widget, index) => ({
+      id: index === 0 ? "aggregate-unplanned" : `aggregate-${widget.id}`,
+      projectId: project.id,
+      name: index === 0 ? "Работа вне плана" : widget.title,
+      description: index === 0 ? "Тикеты без Sprint с активностью разработки" : "",
+      source: widget.source,
+      exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source]],
+      baseFilterLogic: widget.filterLogic,
+      baseFilters: widget.filters,
+      timeZone: "Europe/Moscow" as const,
+      sortOrder: index,
+      fingerprint: String(index).padStart(64, "a"),
+      version: 1,
+      createdAt: evaluatedAt,
+      updatedAt: evaluatedAt,
+    }),
+  );
+  const aggregate = aggregateDefinitions[0];
+  const currentStoredDashboard = () => project.jiraAnalyticsSettings.dashboardConfig as {
+    version?: number;
+    periodDays?: 30 | 90 | 180 | 365;
+    assignee?: string;
+    widgets?: Array<Record<string, unknown>>;
+  } | null;
+  const currentEditableConfig = () => {
+    const storedDashboard = currentStoredDashboard();
+    return storedDashboard?.version === 3
+      ? storedDashboard
+      : storedDashboard?.version === 1
+        ? {
+            version: 3,
+            periodDays: storedDashboard.periodDays ?? 90,
+            assignee: storedDashboard.assignee ?? "",
+            widgets: JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1.widgets.map((widget, index) => ({
+              id: widget.id,
+              title: widget.title,
+              aggregateId: aggregateDefinitions[index].id,
+              aggregateVersion: widget.section === "retro" ? 1 : null,
+              placement: widget.section,
+              metric: widget.metric,
+              groupBy: widget.groupBy,
+              filterLogic: widget.filterLogic,
+              filters: widget.filters,
+              periodMode: jiraAnalyticsSourceUsesPeriod(widget.source) ? "DASHBOARD" : "NONE",
+              periodDays: null,
+              sortBy: "default",
+              sortDirection: "desc",
+              visualization: widget.visualization,
+              width: widget.width,
+            })),
+          }
+        : null;
   };
   const record = {
     id: "issue:jira-snapshot-1",
@@ -325,21 +361,26 @@ async function mockManagedJiraAnalytics(
     }),
   );
 
-  await page.route("**/api/projects/project-1/jira/aggregates", (route) =>
-    route.fulfill({
+  await page.route("**/api/projects/project-1/jira/aggregates", (route) => {
+    const storedDashboard = currentStoredDashboard();
+    return route.fulfill({
       json: {
-        definitions: [aggregate],
+        definitions: aggregateDefinitions,
+        invalidDefinitionCount: 0,
+        revisionContracts: [],
         dashboard: {
           stored: project.jiraAnalyticsSettings.dashboardConfig !== null,
-          version: project.jiraAnalyticsSettings.dashboardConfig ? 1 : null,
+          version: storedDashboard?.version ?? null,
           configHash: "b".repeat(64),
           convertedConfigHash: null,
           convertedAt: null,
           rolledBackAt: null,
+          editableConfig: currentEditableConfig(),
+          editableConfigError: null,
         },
       },
-    }),
-  );
+    });
+  });
   await page.route("**/api/projects/project-1/jira/aggregates/preview", (route) => {
     const body = route.request().postDataJSON() as {
       definition: { source: string; metric: string; groupBy: string };
@@ -513,7 +554,21 @@ async function mockManagedJiraAnalytics(
     }),
   );
   await page.route("**/api/projects/project-1/jira/aggregate-dashboard-results?**", (route) => {
-    const stored = project.jiraAnalyticsSettings.dashboardConfig as typeof JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1 | null;
+    const stored = project.jiraAnalyticsSettings.dashboardConfig as {
+      version: 1 | 2 | 3;
+      widgets: Array<{
+        id: string;
+        title: string;
+        aggregateId?: string;
+        groupBy?: string;
+        metric?: string;
+        placement?: "active" | "retro";
+        section?: "active" | "retro";
+        source?: string;
+        visualization: string;
+        width: string;
+      }>;
+    } | null;
     const config = stored ?? JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1;
     const selectedWidgetId = new URL(route.request().url()).searchParams.get("widgetId");
     return route.fulfill({
@@ -522,20 +577,33 @@ async function mockManagedJiraAnalytics(
         configHash: "b".repeat(64),
         widgets: config.widgets
           .filter((widget) => !selectedWidgetId || widget.id === selectedWidgetId)
-          .map((widget) => ({
-            widgetId: widget.id,
-            title: widget.title,
-            visualization: widget.visualization,
-            width: widget.width,
-            placement: widget.section,
-            aggregateId: null,
-            aggregateName: widget.title,
-            source: widget.source,
-            metric: widget.metric,
-            groupBy: widget.groupBy,
-            status: "OK",
-            result: evaluationResult(widget.source, widget.metric, widget.groupBy),
-          })),
+          .map((widget) => {
+            const widgetAggregate = widget.aggregateId
+              ? aggregateDefinitions.find((definition) => definition.id === widget.aggregateId) ?? aggregate
+              : aggregateDefinitions.find((definition) =>
+                  definition.id === (widget.id === "unplanned-count"
+                    ? "aggregate-unplanned"
+                    : `aggregate-${widget.id}`)
+                ) ?? aggregate;
+            return {
+              widgetId: widget.id,
+              title: widget.title,
+              visualization: widget.visualization,
+              width: widget.width,
+              placement: widget.placement ?? widget.section,
+              aggregateId: widget.aggregateId ?? null,
+              aggregateName: widgetAggregate.name,
+              source: widget.source ?? widgetAggregate.source,
+              metric: widget.metric ?? "count",
+              groupBy: widget.groupBy ?? "none",
+              status: "OK",
+              result: evaluationResult(
+                widget.source ?? widgetAggregate.source,
+                widget.metric ?? "count",
+                widget.groupBy ?? "none",
+              ),
+            };
+          }),
       },
     });
   });
@@ -1176,33 +1244,17 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
 
   await page.getByRole("button", { name: "Агрегаты" }).click();
   await expect(page.getByRole("heading", { name: "Агрегаты", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Тикеты/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Переходы статусов/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Активность разработки/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /SLA Critical\/Blocker/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Тикеты \d+$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Переходы статусов \d+$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Активность разработки \d+$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^SLA Critical\/Blocker \d+$/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Работа вне плана" })).toBeVisible();
   await expect(page.getByText("Тикеты без Sprint с активностью разработки")).toBeVisible();
-  await expect(page.getByText("Предпросмотр не запускался")).toBeVisible();
-  const asOfInput = page.getByLabel("Состояние на дату");
-  await expect(asOfInput).toBeEnabled();
-  await asOfInput.fill("2026-08-01T12:00");
-  await page.getByRole("button", { name: "Рассчитать" }).click();
-  await expect(page.locator(".jira-aggregate-preview").getByText("1 запись")).toBeVisible();
-  await expect(page.getByText("Полное покрытие источника")).toBeVisible();
-  await page.getByRole("button", { name: "Строки данных" }).click();
+  await expect(page.getByText("Нажмите «Показать данные»")).toBeVisible();
+  await page.getByRole("button", { name: "Показать данные" }).click();
+  await expect(page.locator(".jira-aggregate-preview-number").getByText("1", { exact: true })).toBeVisible();
   await expect(page.locator(".jira-aggregate-preview-records").getByRole("link", { name: "TV-101" })).toBeVisible();
-  await expect(page.getByText("Срез по наблюдённой истории")).toBeVisible();
-  await expect(page.getByText("Версий прочитано")).toBeVisible();
-  const aggregateDownload = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Экспортировать сохранённый агрегат" }).click();
-  expect((await aggregateDownload).suggestedFilename()).toBe("jira-aggregate.csv");
-  await page.getByText("Служебная диагностика").click();
-  await page.getByRole("button", { name: "Проверить переключение" }).click();
-  await expect(page.getByText("Расхождений нет")).toBeVisible();
-  await expect(page.getByText(/не является независимой проверкой формул/).last()).toBeVisible();
-  await page.getByLabel("Источник агрегата").selectOption("transitions");
-  await expect(asOfInput).toBeDisabled();
-  await expect(page.getByText("Для событийных источников используется период, а не срез состояния.")).toBeVisible();
+  await expect(page.getByText("Показана первая страница. Полнота источника: 100%.")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
@@ -1254,7 +1306,7 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
     .evaluate((editor) => getComputedStyle(editor).paddingRight);
   expect(editorRightPadding).toBe("14px");
   await page.getByRole("button", { name: "Добавить виджет" }).click();
-  await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
+  await expect(widgetEditor.getByLabel("Название")).toHaveValue("Работа вне плана");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
   await expect
@@ -1272,34 +1324,84 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await page.getByRole("button", { name: "Данные Jira" }).click();
   await page.getByRole("button", { name: "Агрегаты" }).click();
   await expect(page.getByRole("heading", { name: "Работа вне плана" })).toBeVisible();
-  await page.getByText("Служебная диагностика").click();
-  await page.getByRole("button", { name: "Проверить переключение" }).click();
-  const operationResult = page.locator(".jira-aggregate-operation-result");
-  await expect(operationResult).toContainText("11 виджетов");
-  await expect(operationResult).toContainText("Создать: 1");
-  await expect(operationResult).toContainText("Переиспользовать: 1");
   await page.getByRole("button", { name: "В работе", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Новый виджет" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Работа вне плана" })).toBeVisible();
 });
 
-test("Jira aggregate import keeps a dry-run plan visible for an empty catalog", async ({ page }) => {
+test("Jira analytics lets the admin delete the only widget in a v3 section", async ({ page }) => {
   const project = await mockAdminProject(page);
-  (project.jiraAnalyticsSettings as { dashboardConfig: unknown }).dashboardConfig = structuredClone(
-    JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
-  );
+  (project.jiraAnalyticsSettings as { dashboardConfig: unknown }).dashboardConfig = {
+    version: 3,
+    periodDays: 90,
+    assignee: "",
+    widgets: [{
+      id: "unplanned-count",
+      title: "Вне Sprint с кодом",
+      aggregateId: "aggregate-unplanned",
+      aggregateVersion: null,
+      placement: "active",
+      metric: "count",
+      groupBy: "none",
+      filterLogic: "and",
+      filters: [],
+      periodMode: "NONE",
+      periodDays: null,
+      sortBy: "default",
+      sortDirection: "desc",
+      visualization: "number",
+      width: "half",
+    }],
+  };
+  await mockManagedJiraAnalytics(page, project);
+  let savedWidgetCount: number | null = null;
+  await page.route("**/api/projects/project-1/jira/analytics-dashboard", async (route) => {
+    const body = route.request().postDataJSON() as { config: { widgets: unknown[] } };
+    savedWidgetCount = body.config.widgets.length;
+    (project.jiraAnalyticsSettings as { dashboardConfig: unknown }).dashboardConfig = body.config;
+    await route.fulfill({ json: { configHash: "c".repeat(64) } });
+  });
+
+  await page.goto("/TV-OVERVIEW/jira-work");
+  await page.getByRole("button", { name: "Редактировать" }).click();
+
+  const editor = page.getByLabel("Настройки виджета");
+  await editor.getByLabel("Название").fill("Временно изменённый виджет");
+  const widgetCard = page.locator(".jira-analytics-widget").filter({
+    hasText: "Временно изменённый виджет",
+  });
+  await expect(widgetCard).toContainText("Сохраните дашборд, чтобы рассчитать новый виджет");
+  const deleteButton = widgetCard.getByRole("button", { name: "Удалить виджет" });
+  await expect(deleteButton).toBeEnabled();
+  expect(await deleteButton.evaluate((element) => getComputedStyle(element).cursor)).toBe("pointer");
+  const disabledMoveButton = widgetCard.getByRole("button", { name: "Переместить влево" });
+  await expect(disabledMoveButton).toBeDisabled();
+  expect(await disabledMoveButton.evaluate((element) => getComputedStyle(element).cursor)).toBe("not-allowed");
+  await deleteButton.click();
+  await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Сохранить" }).click();
+  await expect.poll(() => savedWidgetCount).toBe(0);
+  await expect(page.getByText("Сохранённая конфигурация дашборда некорректна")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Редактировать" })).toBeVisible();
+  await expect(page.locator(".jira-analytics-widget")).toHaveCount(0);
+});
+
+test("Jira aggregate builder keeps an empty catalog explicit", async ({ page }) => {
+  const project = await mockAdminProject(page);
   await mockManagedJiraAnalytics(page, project);
   await page.unroute("**/api/projects/project-1/jira/aggregates");
   await page.route("**/api/projects/project-1/jira/aggregates", (route) =>
     route.fulfill({
       json: {
         definitions: [],
+        invalidDefinitionCount: 0,
+        revisionContracts: [],
         dashboard: {
-          stored: true,
-          version: 1,
+          stored: false,
+          version: null,
           configHash: "b".repeat(64),
-          convertedConfigHash: null,
-          convertedAt: null,
-          rolledBackAt: null,
+          editableConfig: { version: 3, periodDays: 90, assignee: "", widgets: [] },
+          editableConfigError: null,
         },
       },
     }),
@@ -1307,13 +1409,12 @@ test("Jira aggregate import keeps a dry-run plan visible for an empty catalog", 
 
   await page.goto("/TV-OVERVIEW/jira-work");
   await page.getByRole("button", { name: "Агрегаты" }).click();
-  await page.getByText("Служебная диагностика").click();
-  await page.getByRole("button", { name: "Проверить переключение" }).click();
-
-  const operationResult = page.locator(".jira-aggregate-operation-result");
-  await expect(operationResult).toContainText("11 виджетов");
-  await expect(operationResult).toContainText("Создать: 1");
-  await expect(operationResult).toContainText("Переиспользовать: 1");
+  await expect(page.getByRole("heading", { name: "Тикеты 0" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Переходы статусов 0" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Активность разработки 0" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "SLA Critical/Blocker 0" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Новый агрегат" })).toBeVisible();
+  await expect(page.getByText("Нажмите «Показать данные»")).toBeVisible();
 });
 
 test("Jira analytics hides widget settings from non-system administrators", async ({ page }) => {

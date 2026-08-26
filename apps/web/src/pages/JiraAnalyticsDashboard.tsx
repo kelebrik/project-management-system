@@ -303,10 +303,33 @@ function JiraAnalyticsWidgetCard({
     : widget.source === "development"
       ? "Событий разработки"
       : "Тикетов";
+  const actions = (
+    <div className="jira-analytics-widget-actions">
+      {result && result.totalRecords > 0 && (
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onExport}
+          aria-label={`Экспортировать ${widget.title}`}
+          title="Экспорт CSV"
+        >
+          <Download size={16} />
+        </button>
+      )}
+      {editing && (
+        <>
+          <button type="button" className="icon-button" onClick={() => onMove(-1)} disabled={index === 0} aria-label="Переместить влево" title="Переместить влево"><ChevronLeft size={16} /></button>
+          <button type="button" className="icon-button" onClick={() => onMove(1)} disabled={index === total - 1} aria-label="Переместить вправо" title="Переместить вправо"><ChevronRight size={16} /></button>
+          <button type="button" className="icon-button" onClick={onSelect} aria-label="Настроить виджет" title="Настроить"><Settings2 size={16} /></button>
+          <button type="button" className="icon-button danger" onClick={onRemove} aria-label="Удалить виджет" title="Удалить"><Trash2 size={16} /></button>
+        </>
+      )}
+    </div>
+  );
   if (widget.status === "UNAVAILABLE" || !result) {
     return (
       <section className={`jira-analytics-widget width-${widget.width} unavailable`}>
-        <header><div><h3>{widget.title}</h3><small>Агрегат недоступен</small></div></header>
+        <header><div><h3>{widget.title}</h3><small>Агрегат недоступен</small></div>{actions}</header>
         <div className="jira-analytics-empty">{widget.error ?? "Не удалось рассчитать агрегат"}</div>
       </section>
     );
@@ -320,27 +343,7 @@ function JiraAnalyticsWidgetCard({
           <h3>{widget.title}</h3>
           <small>{subtitle}</small>
         </div>
-        <div className="jira-analytics-widget-actions">
-          {result.totalRecords > 0 && (
-            <button
-              type="button"
-              className="icon-button"
-              onClick={onExport}
-              aria-label={`Экспортировать ${widget.title}`}
-              title="Экспорт CSV"
-            >
-              <Download size={16} />
-            </button>
-          )}
-          {editing && (
-            <>
-              <button type="button" className="icon-button" onClick={() => onMove(-1)} disabled={index === 0} aria-label="Переместить влево" title="Переместить влево"><ChevronLeft size={16} /></button>
-              <button type="button" className="icon-button" onClick={() => onMove(1)} disabled={index === total - 1} aria-label="Переместить вправо" title="Переместить вправо"><ChevronRight size={16} /></button>
-              <button type="button" className="icon-button" onClick={onSelect} aria-label="Настроить виджет" title="Настроить"><Settings2 size={16} /></button>
-              <button type="button" className="icon-button danger" onClick={onRemove} disabled={total === 1} aria-label="Удалить виджет" title="Удалить"><Trash2 size={16} /></button>
-            </>
-          )}
-        </div>
+        {actions}
       </header>
 
       {widget.visualization === "number" && (
