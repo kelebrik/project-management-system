@@ -52,14 +52,31 @@ export function jiraAnalyticsWidgetResultMode(
 
 export function jiraAnalyticsWidgetResultPatch(
   result: JiraAnalyticsWidgetResultMode,
-  current: Pick<JiraAnalyticsManagedWidget, "visualization">,
+  current: Pick<JiraAnalyticsManagedWidget, "groupBy" | "visualization">,
 ): Partial<Pick<JiraAnalyticsManagedWidget, "metric" | "groupBy" | "visualization">> {
   if (result === JIRA_ANALYTICS_LIST_RESULT) {
     return { metric: "count", groupBy: "none", visualization: "table" };
   }
-  return current.visualization === "table"
-    ? { metric: result, visualization: "number" }
-    : { metric: result };
+  return {
+    metric: result,
+    visualization: current.groupBy === "none" ? "number" : "bar",
+  };
+}
+
+export function jiraAnalyticsWidgetGroupingPatch(
+  groupBy: JiraAnalyticsGroupBy,
+): Pick<JiraAnalyticsManagedWidget, "groupBy" | "visualization"> {
+  return {
+    groupBy,
+    visualization: groupBy === "none" ? "number" : "bar",
+  };
+}
+
+export function jiraAnalyticsEffectiveVisualization(
+  widget: Pick<JiraAnalyticsManagedWidget, "groupBy" | "visualization">,
+): JiraAnalyticsVisualization {
+  if (widget.visualization === "table") return "table";
+  return widget.groupBy === "none" ? "number" : "bar";
 }
 
 export function jiraAnalyticsPinnedRevisionUpdate(

@@ -1297,7 +1297,12 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(widgetEditor.getByRole("combobox", { name: "Группировка" })).toHaveCount(0);
   await expect(widgetEditor.getByRole("button", { name: "Таблица" })).toBeDisabled();
   await resultSelect.selectOption("count");
-  await expect(widgetEditor.getByRole("combobox", { name: "Группировка" })).toBeVisible();
+  const groupingSelect = widgetEditor.getByRole("combobox", { name: "Группировка" });
+  await expect(groupingSelect).toBeVisible();
+  await groupingSelect.selectOption("project");
+  await expect(widgetEditor.getByRole("button", { name: "Столбцы" })).toBeDisabled();
+  await groupingSelect.selectOption("none");
+  await expect(widgetEditor.getByRole("button", { name: "Число" })).toBeDisabled();
   await widgetEditor.getByLabel("Название").fill("Изменённый виджет");
   await expect(
     page.locator(".jira-analytics-widget").filter({ hasText: "Изменённый виджет" }),
@@ -1405,6 +1410,48 @@ test("Jira analytics lets the admin delete the only widget in a v3 section", asy
   await expect(page.getByText("Сохранённая конфигурация дашборда некорректна")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Редактировать" })).toBeVisible();
   await expect(page.locator(".jira-analytics-widget")).toHaveCount(0);
+});
+
+test("Jira analytics renders a saved scalar grouping instead of the overall number", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  (project.jiraAnalyticsSettings as { dashboardConfig: unknown }).dashboardConfig = {
+    version: 3,
+    periodDays: 90,
+    assignee: "",
+    widgets: [{
+      id: "grouped-projects",
+      title: "Нарушения по проектам",
+      aggregateId: "aggregate-unplanned",
+      aggregateVersion: null,
+      placement: "active",
+      metric: "count",
+      groupBy: "project",
+      filterLogic: "and",
+      filters: [],
+      periodMode: "NONE",
+      periodDays: null,
+      sortBy: "default",
+      sortDirection: "desc",
+      visualization: "number",
+      width: "half",
+    }],
+  };
+  await mockManagedJiraAnalytics(page, project);
+
+  await page.goto("/TV-OVERVIEW/jira-work");
+
+  const widgetCard = page.locator(".jira-analytics-widget").filter({
+    hasText: "Нарушения по проектам",
+  });
+  await expect(widgetCard.locator(".jira-analytics-bars")).toBeVisible();
+  await expect(widgetCard.locator(".jira-analytics-number")).toHaveCount(0);
+  await expect(widgetCard.getByText("In Progress", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Редактировать" }).click();
+  const editor = page.getByLabel("Настройки виджета");
+  await expect(editor.getByLabel("Группировка")).toHaveValue("project");
+  await expect(editor.getByRole("button", { name: "Столбцы" })).toBeDisabled();
+  await page.getByRole("button", { name: "Отменить" }).click();
 });
 
 test("Jira aggregate builder keeps an empty catalog explicit", async ({ page }) => {

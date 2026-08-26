@@ -44,9 +44,11 @@ import {
   JIRA_CRITICAL_BUG_SLA_HOURS,
   createJiraAnalyticsFilter,
   formatJiraAnalyticsMetric,
+  jiraAnalyticsEffectiveVisualization,
   jiraAnalyticsFieldIsNumeric,
   jiraAnalyticsOperatorsFor,
   jiraAnalyticsPinnedRevisionUpdate,
+  jiraAnalyticsWidgetGroupingPatch,
   jiraAnalyticsWidgetResultMode,
   jiraAnalyticsWidgetResultPatch,
   type JiraAnalyticsFilter,
@@ -291,6 +293,7 @@ function JiraAnalyticsWidgetCard({
   widget: ServerWidgetResult;
 }) {
   const maxGroupValue = Math.max(1, ...(result?.groups ?? []).map((group) => group.value));
+  const effectiveVisualization = jiraAnalyticsEffectiveVisualization(widget);
   const resultMode = jiraAnalyticsWidgetResultMode(widget);
   const aggregateLabel = widget.aggregateName.trim() || JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS[widget.source];
   const resultLabel = resultMode === JIRA_ANALYTICS_LIST_RESULT
@@ -345,7 +348,7 @@ function JiraAnalyticsWidgetCard({
         {actions}
       </header>
 
-      {widget.visualization === "number" && (
+      {effectiveVisualization === "number" && (
         <button
           type="button"
           className="jira-analytics-number"
@@ -357,7 +360,7 @@ function JiraAnalyticsWidgetCard({
         </button>
       )}
 
-      {widget.visualization === "bar" && (
+      {effectiveVisualization === "bar" && (
         <>
           <div className="jira-analytics-bars">
             {result.groups.length > 0 ? (
@@ -391,7 +394,7 @@ function JiraAnalyticsWidgetCard({
         </>
       )}
 
-      {widget.visualization === "table" && (
+      {effectiveVisualization === "table" && (
         <>
           <JiraAnalyticsTable records={result.records} limit={12} />
           {result.totalRecords > result.records.length && (
@@ -441,6 +444,7 @@ function JiraManagedWidgetEditor({
   const resultMode = jiraAnalyticsWidgetResultMode(widget);
   const isTicketList = resultMode === JIRA_ANALYTICS_LIST_RESULT;
   const isLegacyMetricTable = widget.visualization === "table" && !isTicketList;
+  const effectiveVisualization = jiraAnalyticsEffectiveVisualization(widget);
   const latestPinnedRevision = jiraAnalyticsPinnedRevisionUpdate(
     widget.placement,
     widget.aggregateVersion,
@@ -478,6 +482,7 @@ function JiraManagedWidgetEditor({
             periodDays: null,
             sortBy: "default",
             sortDirection: "desc",
+            visualization: widget.visualization === "table" ? "table" : "number",
           });
         }}>
           {definitions.map((definition) => (
@@ -498,7 +503,8 @@ function JiraManagedWidgetEditor({
         <div className="jira-aggregate-validation">Нет сохранённых агрегатов</div>
       )}
       <label>Результат<select value={resultMode} onChange={(event) => patchWidget(jiraAnalyticsWidgetResultPatch(event.target.value as JiraAnalyticsWidgetResultMode, widget))}><option value={JIRA_ANALYTICS_LIST_RESULT}>Список тикетов</option>{JIRA_ANALYTICS_METRICS_BY_SOURCE[source].map((metric) => <option key={metric} value={metric}>{JIRA_ANALYTICS_METRIC_LABELS[metric]}</option>)}</select></label>
-      {!isTicketList && <label>Группировка<select value={widget.groupBy} onChange={(event) => patchWidget({ groupBy: event.target.value as JiraAnalyticsGroupBy })}>{!JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].filter((group) => group === "none" || fields.includes(group === "week" ? "eventAt" : group as JiraAnalyticsFilterField)).includes(widget.groupBy) && <option value={widget.groupBy} disabled>{JIRA_ANALYTICS_GROUP_LABELS[widget.groupBy]} · поле не опубликовано</option>}{JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].filter((group) => group === "none" || fields.includes(group === "week" ? "eventAt" : group as JiraAnalyticsFilterField)).map((group) => <option key={group} value={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>}
+      {!isTicketList && <label>Группировка<select value={widget.groupBy} onChange={(event) => patchWidget(jiraAnalyticsWidgetGroupingPatch(event.target.value as JiraAnalyticsGroupBy))}>{!JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].filter((group) => group === "none" || fields.includes(group === "week" ? "eventAt" : group as JiraAnalyticsFilterField)).includes(widget.groupBy) && <option value={widget.groupBy} disabled>{JIRA_ANALYTICS_GROUP_LABELS[widget.groupBy]} · поле не опубликовано</option>}{JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].filter((group) => group === "none" || fields.includes(group === "week" ? "eventAt" : group as JiraAnalyticsFilterField)).map((group) => <option key={group} value={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>}
+      {isLegacyMetricTable && widget.groupBy !== "none" && <div className="jira-aggregate-validation">Группировка не применяется к сохранённой таблице. Измените результат или группировку.</div>}
       {(source === "transitions" || source === "development") && <label>Период<select value={widget.periodMode} onChange={(event) => { const periodMode = event.target.value as JiraAnalyticsManagedWidget["periodMode"]; patchWidget({ periodMode, periodDays: periodMode === "FIXED" ? 90 : null }); }}><option value="DASHBOARD">Из фильтра страницы</option><option value="FIXED">Фиксированный: 90 дней</option></select></label>}
       <label>Сортировка<select value={widget.sortBy} onChange={(event) => patchWidget({ sortBy: event.target.value as JiraAnalyticsManagedWidget["sortBy"] })}>{widget.sortBy !== "default" && !fields.includes(widget.sortBy) && <option value={widget.sortBy} disabled>{JIRA_ANALYTICS_FILTER_LABELS[widget.sortBy]} · поле не опубликовано</option>}<option value="default">По значению</option>{fields.filter((field) => ["issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount"].includes(field)).map((field) => <option key={field} value={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}</select></label>
       <fieldset>
@@ -520,19 +526,9 @@ function JiraManagedWidgetEditor({
       <fieldset>
         <legend>Визуализация</legend>
         <div className="jira-widget-segments">
-          {isTicketList ? (
-            <button type="button" className="active" disabled>Таблица</button>
-          ) : (
-            <>
-              {([
-                ["number", "Число"],
-                ["bar", "Столбцы"],
-              ] as Array<[JiraAnalyticsVisualization, string]>).map(([value, label]) => (
-                <button type="button" className={widget.visualization === value ? "active" : ""} key={value} onClick={() => patchWidget({ visualization: value })}>{label}</button>
-              ))}
-              {isLegacyMetricTable && <button type="button" className="active" disabled title="Сохранённый формат предыдущей версии">Таблица</button>}
-            </>
-          )}
+          <button type="button" className="active" disabled title={isLegacyMetricTable ? "Сохранённый формат предыдущей версии" : undefined}>
+            {effectiveVisualization === "table" ? "Таблица" : effectiveVisualization === "bar" ? "Столбцы" : "Число"}
+          </button>
         </div>
       </fieldset>
       <fieldset>

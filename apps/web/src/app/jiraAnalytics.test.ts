@@ -10,9 +10,11 @@ import {
   JIRA_ANALYTICS_LIST_RESULT,
   createJiraAnalyticsFilter,
   formatJiraAnalyticsMetric,
+  jiraAnalyticsEffectiveVisualization,
   jiraAnalyticsFieldIsNumeric,
   jiraAnalyticsOperatorsFor,
   jiraAnalyticsPinnedRevisionUpdate,
+  jiraAnalyticsWidgetGroupingPatch,
   jiraAnalyticsWidgetResultMode,
   jiraAnalyticsWidgetResultPatch,
 } from "./jiraAnalytics";
@@ -54,6 +56,7 @@ test("ticket list is an explicit result mode backed by count and table", () => {
     visualization: "table",
   }), JIRA_ANALYTICS_LIST_RESULT);
   assert.deepEqual(jiraAnalyticsWidgetResultPatch(JIRA_ANALYTICS_LIST_RESULT, {
+    groupBy: "project",
     visualization: "number",
   }), {
     metric: "count",
@@ -69,6 +72,7 @@ test("legacy duration tables stay duration metrics until explicitly changed", ()
     visualization: "table",
   }), "averageDuration");
   assert.deepEqual(jiraAnalyticsWidgetResultPatch("averageDuration", {
+    groupBy: "none",
     visualization: "table",
   }), {
     metric: "averageDuration",
@@ -78,8 +82,36 @@ test("legacy duration tables stay duration metrics until explicitly changed", ()
 
 test("changing a scalar metric preserves an existing bar visualization", () => {
   assert.deepEqual(jiraAnalyticsWidgetResultPatch("averageDuration", {
+    groupBy: "project",
     visualization: "bar",
   }), {
     metric: "averageDuration",
+    visualization: "bar",
   });
+});
+
+test("grouping selects a compatible scalar visualization", () => {
+  assert.deepEqual(jiraAnalyticsWidgetGroupingPatch("project"), {
+    groupBy: "project",
+    visualization: "bar",
+  });
+  assert.deepEqual(jiraAnalyticsWidgetGroupingPatch("none"), {
+    groupBy: "none",
+    visualization: "number",
+  });
+});
+
+test("effective visualization repairs saved scalar mismatches without rewriting tables", () => {
+  assert.equal(jiraAnalyticsEffectiveVisualization({
+    groupBy: "project",
+    visualization: "number",
+  }), "bar");
+  assert.equal(jiraAnalyticsEffectiveVisualization({
+    groupBy: "none",
+    visualization: "bar",
+  }), "number");
+  assert.equal(jiraAnalyticsEffectiveVisualization({
+    groupBy: "project",
+    visualization: "table",
+  }), "table");
 });
