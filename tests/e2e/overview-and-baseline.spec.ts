@@ -1235,7 +1235,7 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByRole("combobox", { name: "Период событий" })).toHaveValue("180");
   await expect(page.getByRole("combobox", { name: "Исполнитель" })).toHaveValue("Разработчик");
   await expect(page.getByRole("heading", { name: "Медианное время в статусе" })).toBeVisible();
-  await expect(page.getByText("50% завершённых периодов в статусах не дольше")).toBeVisible();
+  await expect(page.getByText("Медианное время в статусе · Медиана времени")).toBeVisible();
   await expect(page.getByText(/Периодов в статусах: 1/).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Нарушили SLA 30 дней" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Тикеты с нарушенным SLA" })).toBeVisible();
@@ -1250,11 +1250,13 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByRole("heading", { name: /^SLA Critical\/Blocker \d+$/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Работа вне плана" })).toBeVisible();
   await expect(page.getByText("Тикеты без Sprint с активностью разработки")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Тип агрегата" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Источник" })).toHaveCount(0);
   await expect(page.getByText("Нажмите «Показать данные»")).toBeVisible();
   await page.getByRole("button", { name: "Показать данные" }).click();
   await expect(page.locator(".jira-aggregate-preview-number").getByText("1", { exact: true })).toBeVisible();
   await expect(page.locator(".jira-aggregate-preview-records").getByRole("link", { name: "TV-101" })).toBeVisible();
-  await expect(page.getByText("Показана первая страница. Полнота источника: 100%.")).toBeVisible();
+  await expect(page.getByText("Показана первая страница. Полнота данных: 100%.")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
@@ -1288,6 +1290,14 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   expect(Math.abs(moveOffset.y)).toBeLessThanOrEqual(1);
   await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
   const widgetEditor = page.getByLabel("Настройки виджета");
+  await expect(widgetEditor.getByRole("combobox", { name: "Раздел" })).toHaveCount(0);
+  const resultSelect = widgetEditor.getByRole("combobox", { name: "Результат" });
+  await expect(resultSelect).toHaveValue("count");
+  await resultSelect.selectOption("list");
+  await expect(widgetEditor.getByRole("combobox", { name: "Группировка" })).toHaveCount(0);
+  await expect(widgetEditor.getByRole("button", { name: "Таблица" })).toBeDisabled();
+  await resultSelect.selectOption("count");
+  await expect(widgetEditor.getByRole("combobox", { name: "Группировка" })).toBeVisible();
   await widgetEditor.getByLabel("Название").fill("Изменённый виджет");
   await expect(
     page.locator(".jira-analytics-widget").filter({ hasText: "Изменённый виджет" }),
@@ -1326,6 +1336,17 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByRole("heading", { name: "Работа вне плана" })).toBeVisible();
   await page.getByRole("button", { name: "В работе", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Работа вне плана" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Ретро" }).click();
+  await page.getByRole("button", { name: "Редактировать" }).click();
+  await page
+    .locator(".jira-analytics-widget")
+    .filter({ hasText: "Тикеты с нарушенным SLA" })
+    .getByRole("button", { name: "Настроить виджет" })
+    .click();
+  await expect(page.getByLabel("Настройки виджета").getByLabel("Результат")).toHaveValue("list");
+  await expect(page.getByLabel("Настройки виджета").getByLabel("Группировка")).toHaveCount(0);
+  await page.getByRole("button", { name: "Отменить" }).click();
 });
 
 test("Jira analytics lets the admin delete the only widget in a v3 section", async ({ page }) => {

@@ -330,7 +330,7 @@ function asOfDate(
   if (jiraAnalyticsSourceUsesPeriod(definition.source)) {
     throw new AggregateConflictError(
       'CONFIG_CHANGED',
-      'Срез на дату доступен только для источников Тикеты и SLA Critical/Blocker',
+      'Срез на дату доступен только для типов агрегата Тикеты и SLA Critical/Blocker',
     );
   }
   const parsed = new Date(input.asOf);

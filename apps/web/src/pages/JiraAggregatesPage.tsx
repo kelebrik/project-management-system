@@ -14,7 +14,7 @@ import { apiClient } from "../api/client";
 import {
   JIRA_ANALYTICS_FILTER_LABELS,
   JIRA_ANALYTICS_OPERATOR_LABELS,
-  JIRA_ANALYTICS_SOURCE_LABELS,
+  JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS,
 } from "../app/jiraAnalytics";
 import { usePageContext } from "./PageContext";
 
@@ -29,7 +29,7 @@ type AggregateDefinition = JiraAnalyticsDatasetDraft & {
 
 type AggregateCatalog = { definitions: AggregateDefinition[] };
 
-const SOURCE_DESCRIPTION: Record<JiraAnalyticsSource, string> = {
+const AGGREGATE_TYPE_DESCRIPTION: Record<JiraAnalyticsSource, string> = {
   issues: "Одна строка на тикет из текущего или восстановленного снимка.",
   transitions: "Одна строка на переход статуса с длительностью завершенного этапа.",
   development: "Одна строка на наблюденное событие разработки, связанное с тикетом.",
@@ -130,7 +130,7 @@ function Preview({ result, fields }: { result: JiraAnalyticsEvaluationResult | n
           })}</tbody>
         </table>
       </div>
-      <p className="muted">Показана первая страница. Полнота источника: {result.quality.coveragePercent ?? 0}%.</p>
+      <p className="muted">Показана первая страница. Полнота данных: {result.quality.coveragePercent ?? 0}%.</p>
     </div>
   );
 }
@@ -241,21 +241,21 @@ export function JiraAggregatesPage() {
       <aside className="jira-aggregate-catalog">
         <header><div><Database size={22} /><h3>Агрегаты</h3></div>{canEdit && <button type="button" className="icon-button" title="Создать агрегат" onClick={() => { setSelectedId(null); setExpectedVersion(null); setDraft(defaultDraft("issues", catalog?.definitions.length ?? 0)); setPreview(null); }}><Plus size={20} /></button>}</header>
         <div className="jira-aggregate-catalog-list">{(["issues", "transitions", "development", "criticalBugs"] as JiraAnalyticsSource[]).map((source) => (
-          <section key={source}><h4>{JIRA_ANALYTICS_SOURCE_LABELS[source]} <span>{grouped[source].length}</span></h4>
+          <section key={source}><h4>{JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS[source]} <span>{grouped[source].length}</span></h4>
             {grouped[source].map((definition) => <button key={definition.id} type="button" className={definition.id === selectedId ? "active" : ""} onClick={() => applyDefinition(definition)}><strong>{definition.name}</strong><span>Версия {definition.version} · {definition.exposedFields.length} полей</span></button>)}
           </section>
         ))}</div>
       </aside>
 
       <main className="jira-aggregate-editor">
-        <header><div><h3>{selectedId ? draft.name : "Новый агрегат"}</h3><p>{SOURCE_DESCRIPTION[draft.source]}</p></div>
+        <header><div><h3>{selectedId ? draft.name : "Новый агрегат"}</h3><p>{AGGREGATE_TYPE_DESCRIPTION[draft.source]}</p></div>
           <div className="jira-aggregate-actions"><button type="button" className="secondary-button" disabled={!canEdit || !validation.success || saving} onClick={() => void runPreview()}><Eye size={18} />Показать данные</button>{selectedId && canEdit && <button type="button" className="icon-button danger" disabled={saving} onClick={() => void remove()} title="Удалить агрегат"><Trash2 size={18} /></button>}{canEdit && <button type="button" className="primary-button" disabled={!validation.success || saving} onClick={() => void save()}><Save size={18} />Сохранить</button>}</div>
         </header>
         <div className="jira-aggregate-editor-grid">
           <section className="jira-aggregate-controls">
             <label>Название<input value={draft.name} disabled={!canEdit} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
             <label>Описание<textarea value={draft.description} disabled={!canEdit} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-            <label>Источник<select value={draft.source} disabled={!canEdit || selectedId !== null} onChange={(event) => { const source = event.target.value as JiraAnalyticsSource; setDraft({ ...defaultDraft(source, draft.sortOrder), name: draft.name, description: draft.description }); setPreview(null); }}>{(["issues", "transitions", "development", "criticalBugs"] as JiraAnalyticsSource[]).map((source) => <option key={source} value={source}>{JIRA_ANALYTICS_SOURCE_LABELS[source]}</option>)}</select></label>
+            <label>Тип агрегата<select value={draft.source} disabled={!canEdit || selectedId !== null} onChange={(event) => { const source = event.target.value as JiraAnalyticsSource; setDraft({ ...defaultDraft(source, draft.sortOrder), name: draft.name, description: draft.description }); setPreview(null); }}>{(["issues", "transitions", "development", "criticalBugs"] as JiraAnalyticsSource[]).map((source) => <option key={source} value={source}>{JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS[source]}</option>)}</select></label>
 
             <fieldset className="jira-aggregate-fieldset"><legend>Поля, доступные виджетам</legend><p>Только опубликованные здесь поля можно использовать в условиях, группировке и сортировке.</p>
               <div className="jira-aggregate-field-grid">{availableFields.map((field) => <label key={field} className="jira-aggregate-field-option"><input type="checkbox" disabled={!canEdit} checked={draft.exposedFields.includes(field)} onChange={(event) => setDraft({ ...draft, exposedFields: event.target.checked ? [...draft.exposedFields, field] : draft.exposedFields.filter((item) => item !== field) })} /><span>{JIRA_ANALYTICS_FILTER_LABELS[field]}</span></label>)}</div>

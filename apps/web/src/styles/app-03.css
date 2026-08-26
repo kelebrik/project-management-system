@@ -1758,6 +1758,14 @@
   min-height: 34px;
 }
 
+.jira-widget-editor > .secondary-button {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  min-height: 34px;
+}
+
 .jira-widget-editor fieldset {
   border: 0;
   margin: 0;
@@ -1781,6 +1789,11 @@
   flex: 1;
   min-width: 0;
   padding-inline: 5px;
+}
+
+.jira-widget-segments button.active:disabled {
+  cursor: default;
+  opacity: 1;
 }
 
 .jira-widget-filter-head {

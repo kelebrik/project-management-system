@@ -10,6 +10,7 @@ import {
   type JiraAnalyticsFilterOperator,
   type JiraAnalyticsGroupBy,
   type JiraAnalyticsMetric,
+  type JiraAnalyticsManagedWidget,
   type JiraAnalyticsScope,
   type JiraAnalyticsSource,
   type JiraAnalyticsVisualization,
@@ -31,12 +32,45 @@ export type {
 };
 
 export type JiraAnalyticsSection = JiraAnalyticsScope;
-export const JIRA_ANALYTICS_SOURCE_LABELS: Record<JiraAnalyticsSource, string> = {
+export const JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS: Record<JiraAnalyticsSource, string> = {
   issues: "Тикеты",
   transitions: "Переходы статусов",
   development: "Активность разработки",
   criticalBugs: "SLA Critical/Blocker",
 };
+
+export const JIRA_ANALYTICS_LIST_RESULT = "list" as const;
+export type JiraAnalyticsWidgetResultMode = JiraAnalyticsMetric | typeof JIRA_ANALYTICS_LIST_RESULT;
+
+export function jiraAnalyticsWidgetResultMode(
+  widget: Pick<JiraAnalyticsManagedWidget, "metric" | "groupBy" | "visualization">,
+): JiraAnalyticsWidgetResultMode {
+  return widget.metric === "count" && widget.groupBy === "none" && widget.visualization === "table"
+    ? JIRA_ANALYTICS_LIST_RESULT
+    : widget.metric;
+}
+
+export function jiraAnalyticsWidgetResultPatch(
+  result: JiraAnalyticsWidgetResultMode,
+  current: Pick<JiraAnalyticsManagedWidget, "visualization">,
+): Partial<Pick<JiraAnalyticsManagedWidget, "metric" | "groupBy" | "visualization">> {
+  if (result === JIRA_ANALYTICS_LIST_RESULT) {
+    return { metric: "count", groupBy: "none", visualization: "table" };
+  }
+  return current.visualization === "table"
+    ? { metric: result, visualization: "number" }
+    : { metric: result };
+}
+
+export function jiraAnalyticsPinnedRevisionUpdate(
+  placement: JiraAnalyticsSection,
+  pinnedVersion: number | null | undefined,
+  currentVersion: number | null | undefined,
+) {
+  return placement === "retro" && currentVersion != null && pinnedVersion !== currentVersion
+    ? currentVersion
+    : null;
+}
 
 export const JIRA_ANALYTICS_METRIC_LABELS: Record<JiraAnalyticsMetric, string> = {
   count: "Количество",

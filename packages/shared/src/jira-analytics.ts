@@ -386,22 +386,22 @@ export const jiraAnalyticsAggregateDraftSchema = z.object({
   sortOrder: z.number().int().min(0).max(10_000),
 }).strict().superRefine((definition, context) => {
   if (!JIRA_ANALYTICS_METRICS_BY_SOURCE[definition.source].includes(definition.metric)) {
-    context.addIssue({ code: "custom", path: ["metric"], message: "Метрика недоступна для источника" });
+    context.addIssue({ code: "custom", path: ["metric"], message: "Метрика недоступна для типа агрегата" });
   }
   if (!JIRA_ANALYTICS_GROUPS_BY_SOURCE[definition.source].includes(definition.groupBy)) {
-    context.addIssue({ code: "custom", path: ["groupBy"], message: "Группировка недоступна для источника" });
+    context.addIssue({ code: "custom", path: ["groupBy"], message: "Группировка недоступна для типа агрегата" });
   }
   definition.filters.forEach((filter, index) => {
     if (!JIRA_ANALYTICS_FIELDS_BY_SOURCE[definition.source].includes(filter.field)) {
-      context.addIssue({ code: "custom", path: ["filters", index, "field"], message: "Поле недоступно для источника" });
+      context.addIssue({ code: "custom", path: ["filters", index, "field"], message: "Поле недоступно для типа агрегата" });
     }
   });
   const usesPeriod = jiraAnalyticsSourceUsesPeriod(definition.source);
   if (!usesPeriod && (definition.periodMode !== "NONE" || definition.periodDays !== null)) {
-    context.addIssue({ code: "custom", path: ["periodMode"], message: "Этот источник не использует период" });
+    context.addIssue({ code: "custom", path: ["periodMode"], message: "Этот тип агрегата не использует период" });
   }
   if (usesPeriod && definition.periodMode === "NONE") {
-    context.addIssue({ code: "custom", path: ["periodMode"], message: "Для событийного источника нужен период" });
+    context.addIssue({ code: "custom", path: ["periodMode"], message: "Для событийного типа агрегата нужен период" });
   }
   if ((definition.periodMode === "FIXED") !== (definition.periodDays !== null)) {
     context.addIssue({ code: "custom", path: ["periodDays"], message: "Фиксированный период требует количества дней" });
@@ -432,12 +432,12 @@ export const jiraAnalyticsDatasetDraftSchema = z.object({
   }
   definition.exposedFields.forEach((field, index) => {
     if (!available.includes(field)) {
-      context.addIssue({ code: "custom", path: ["exposedFields", index], message: "Поле недоступно для источника" });
+      context.addIssue({ code: "custom", path: ["exposedFields", index], message: "Поле недоступно для типа агрегата" });
     }
   });
   definition.baseFilters.forEach((filter, index) => {
     if (!available.includes(filter.field)) {
-      context.addIssue({ code: "custom", path: ["baseFilters", index, "field"], message: "Поле недоступно для источника" });
+      context.addIssue({ code: "custom", path: ["baseFilters", index, "field"], message: "Поле недоступно для типа агрегата" });
     }
   });
 });
@@ -524,14 +524,14 @@ function validateInlineWidget(
   context: z.RefinementCtx,
 ) {
   if (!JIRA_ANALYTICS_METRICS_BY_SOURCE[widget.source].includes(widget.metric)) {
-    context.addIssue({ code: "custom", path: ["metric"], message: "Метрика недоступна для источника" });
+    context.addIssue({ code: "custom", path: ["metric"], message: "Метрика недоступна для типа агрегата" });
   }
   if (!JIRA_ANALYTICS_GROUPS_BY_SOURCE[widget.source].includes(widget.groupBy)) {
-    context.addIssue({ code: "custom", path: ["groupBy"], message: "Группировка недоступна для источника" });
+    context.addIssue({ code: "custom", path: ["groupBy"], message: "Группировка недоступна для типа агрегата" });
   }
   widget.filters.forEach((filter, index) => {
     if (!JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source].includes(filter.field)) {
-      context.addIssue({ code: "custom", path: ["filters", index, "field"], message: "Поле недоступно для источника" });
+      context.addIssue({ code: "custom", path: ["filters", index, "field"], message: "Поле недоступно для типа агрегата" });
     }
   });
 }
@@ -561,6 +561,7 @@ export const jiraAnalyticsManagedWidgetSchema = z.object({
   title: z.string().max(200),
   aggregateId: z.string().min(1).max(200),
   aggregateVersion: z.number().int().min(1).nullable().optional(),
+  // Placement also selects the active/retro data scope; it is not only UI layout.
   placement: z.enum(jiraAnalyticsScopes),
   metric: z.enum(jiraAnalyticsMetrics),
   groupBy: z.enum(jiraAnalyticsGroupings),
@@ -700,10 +701,10 @@ export function jiraAnalyticsWidgetDatasetError(
   dataset: JiraAnalyticsDatasetDraft,
 ) {
   if (!JIRA_ANALYTICS_METRICS_BY_SOURCE[dataset.source].includes(widget.metric)) {
-    return "Метрика недоступна для источника агрегата";
+    return "Метрика недоступна для типа агрегата";
   }
   if (!JIRA_ANALYTICS_GROUPS_BY_SOURCE[dataset.source].includes(widget.groupBy)) {
-    return "Группировка недоступна для источника агрегата";
+    return "Группировка недоступна для типа агрегата";
   }
   const exposed = new Set(dataset.exposedFields);
   const groupingField = jiraAnalyticsGroupingField[widget.groupBy];
@@ -717,8 +718,8 @@ export function jiraAnalyticsWidgetDatasetError(
     return "Поле сортировки не опубликовано агрегатом";
   }
   const usesPeriod = jiraAnalyticsSourceUsesPeriod(dataset.source);
-  if (!usesPeriod && widget.periodMode !== "NONE") return "Этот источник не использует период";
-  if (usesPeriod && widget.periodMode === "NONE") return "Для событийного источника нужен период";
+  if (!usesPeriod && widget.periodMode !== "NONE") return "Этот тип агрегата не использует период";
+  if (usesPeriod && widget.periodMode === "NONE") return "Для событийного типа агрегата нужен период";
   return null;
 }
 
