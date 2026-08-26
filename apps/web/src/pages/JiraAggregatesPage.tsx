@@ -1,10 +1,8 @@
 import {
   JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   jiraAnalyticsDatasetDraftSchema,
-  jiraAnalyticsOperatorsFor,
   type JiraAnalyticsDatasetDraft,
   type JiraAnalyticsEvaluationResult,
-  type JiraAnalyticsFilter,
   type JiraAnalyticsFilterField,
   type JiraAnalyticsSource,
   type JiraAnalyticsStatusIntervalEndpoint,
@@ -14,7 +12,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import {
   JIRA_ANALYTICS_FILTER_LABELS,
-  JIRA_ANALYTICS_OPERATOR_LABELS,
   JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS,
 } from "../app/jiraAnalytics";
 import { usePageContext } from "./PageContext";
@@ -61,9 +58,6 @@ function defaultDraft(source: JiraAnalyticsSource = "issues", sortOrder = 0): Ji
     name: "Новый агрегат",
     description: "",
     source,
-    exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[source]],
-    baseFilterLogic: "and",
-    baseFilters: [],
     rowConfig: source === "statusIntervals" ? defaultStatusIntervalConfig() : null,
     timeZone: "Europe/Moscow",
     sortOrder,
@@ -160,49 +154,6 @@ function StatusEndpointEditor({ label, endpoint, allowIssueCreated, disabled, on
   );
 }
 
-function newFilter(field: JiraAnalyticsFilterField): JiraAnalyticsFilter {
-  return {
-    id: `aggregate-filter-${crypto.randomUUID()}`,
-    field,
-    operator: jiraAnalyticsOperatorsFor(field)[0],
-    value: field === "hasDevelopment" ? "true" : "",
-  };
-}
-
-function FilterEditor({ filter, fields, disabled, onChange, onDelete }: {
-  filter: JiraAnalyticsFilter;
-  fields: readonly JiraAnalyticsFilterField[];
-  disabled: boolean;
-  onChange: (next: JiraAnalyticsFilter) => void;
-  onDelete: () => void;
-}) {
-  const operators = jiraAnalyticsOperatorsFor(filter.field);
-  const needsValue = filter.operator !== "empty" && filter.operator !== "notEmpty";
-  return (
-    <div className="jira-condition-row">
-      <select value={filter.field} disabled={disabled} onChange={(event) => {
-        const field = event.target.value as JiraAnalyticsFilterField;
-        onChange({ ...filter, field, operator: jiraAnalyticsOperatorsFor(field)[0], value: field === "hasDevelopment" ? "true" : "" });
-      }}>
-        {fields.map((field) => <option key={field} value={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}
-      </select>
-      <select value={filter.operator} disabled={disabled} onChange={(event) => {
-        const operator = event.target.value as JiraAnalyticsFilter["operator"];
-        onChange({ ...filter, operator, value: operator === "empty" || operator === "notEmpty" ? "" : filter.value });
-      }}>
-        {operators.map((operator) => <option key={operator} value={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}
-      </select>
-      {needsValue ? filter.field === "hasDevelopment" ? (
-        <select value={filter.value} disabled={disabled} onChange={(event) => onChange({ ...filter, value: event.target.value })}>
-          <option value="true">Да</option><option value="false">Нет</option>
-        </select>
-      ) : <input value={filter.value} disabled={disabled} onChange={(event) => onChange({ ...filter, value: event.target.value })} />
-        : <span className="jira-aggregate-empty-value">Значение не требуется</span>}
-      <button type="button" className="icon-button danger" disabled={disabled} onClick={onDelete} aria-label="Удалить условие" title="Удалить условие"><Trash2 size={18} /></button>
-    </div>
-  );
-}
-
 function Preview({ result, fields }: { result: JiraAnalyticsEvaluationResult | null; fields: JiraAnalyticsFilterField[] }) {
   if (!result) return <div className="jira-aggregate-preview-empty">Нажмите «Показать данные»</div>;
   return (
@@ -267,9 +218,6 @@ export function JiraAggregatesPage() {
       name: definition.name,
       description: definition.description,
       source: definition.source,
-      exposedFields: [...definition.exposedFields],
-      baseFilterLogic: definition.baseFilterLogic,
-      baseFilters: structuredClone(definition.baseFilters),
       rowConfig: definition.rowConfig ? structuredClone(definition.rowConfig) : null,
       timeZone: definition.timeZone,
       sortOrder: definition.sortOrder,
@@ -356,7 +304,7 @@ export function JiraAggregatesPage() {
         <header><div><Database size={22} /><h3>Агрегаты</h3></div>{canEdit && <button type="button" className="icon-button" title="Создать агрегат" onClick={() => { setSelectedId(null); setExpectedVersion(null); setDraft(defaultDraft("issues", catalog?.definitions.length ?? 0)); setPreview(null); }}><Plus size={20} /></button>}</header>
         <div className="jira-aggregate-catalog-list">{AGGREGATE_SOURCES.map((source) => (
           <section key={source}><h4>{JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS[source]} <span>{grouped[source].length}</span></h4>
-            {grouped[source].map((definition) => <button key={definition.id} type="button" className={definition.id === selectedId ? "active" : ""} onClick={() => applyDefinition(definition)}><strong>{definition.name}</strong><span>Версия {definition.version} · {definition.exposedFields.length} полей</span></button>)}
+            {grouped[source].map((definition) => <button key={definition.id} type="button" className={definition.id === selectedId ? "active" : ""} onClick={() => applyDefinition(definition)}><strong>{definition.name}</strong><span>Версия {definition.version}</span></button>)}
           </section>
         ))}</div>
       </aside>
@@ -369,7 +317,7 @@ export function JiraAggregatesPage() {
           <section className="jira-aggregate-controls">
             <label>Название<input value={draft.name} disabled={!canEdit} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
             <label>Описание<textarea value={draft.description} disabled={!canEdit} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-            <label>Тип агрегата<select value={draft.source} disabled={!canEdit || selectedId !== null} onChange={(event) => { const source = event.target.value as JiraAnalyticsSource; setDraft({ ...defaultDraft(source, draft.sortOrder), name: draft.name, description: draft.description }); setPreview(null); }}>{AGGREGATE_SOURCES.map((source) => <option key={source} value={source}>{JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS[source]}</option>)}</select></label>
+            <label>Агрегат<select value={draft.source} disabled={!canEdit || selectedId !== null} onChange={(event) => { const source = event.target.value as JiraAnalyticsSource; setDraft({ ...defaultDraft(source, draft.sortOrder), name: draft.name, description: draft.description }); setPreview(null); }}>{AGGREGATE_SOURCES.map((source) => <option key={source} value={source}>{JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS[source]}</option>)}</select></label>
 
             {draft.source === "statusIntervals" && draft.rowConfig?.kind === "statusInterval" && (
               <fieldset className="jira-aggregate-fieldset jira-status-interval-config">
@@ -432,16 +380,9 @@ export function JiraAggregatesPage() {
               </fieldset>
             )}
 
-            <fieldset className="jira-aggregate-fieldset"><legend>Поля, доступные виджетам</legend><p>Только опубликованные здесь поля можно использовать в условиях, группировке и сортировке.</p>
-              <div className="jira-aggregate-field-grid">{availableFields.map((field) => <label key={field} className="jira-aggregate-field-option"><input type="checkbox" disabled={!canEdit} checked={draft.exposedFields.includes(field)} onChange={(event) => setDraft({ ...draft, exposedFields: event.target.checked ? [...draft.exposedFields, field] : draft.exposedFields.filter((item) => item !== field) })} /><span>{JIRA_ANALYTICS_FILTER_LABELS[field]}</span></label>)}</div>
-            </fieldset>
-
-            <div className="jira-aggregate-filter-header"><div><h4>Базовый отбор строк</h4><p>Применяется всегда, до условий виджета.</p></div><div className="segmented-control"><button type="button" disabled={!canEdit} className={draft.baseFilterLogic === "and" ? "active" : ""} onClick={() => setDraft({ ...draft, baseFilterLogic: "and" })}>И</button><button type="button" disabled={!canEdit} className={draft.baseFilterLogic === "or" ? "active" : ""} onClick={() => setDraft({ ...draft, baseFilterLogic: "or" })}>ИЛИ</button></div></div>
-            {draft.baseFilters.map((filter) => <FilterEditor key={filter.id} filter={filter} fields={availableFields} disabled={!canEdit} onChange={(next) => setDraft({ ...draft, baseFilters: draft.baseFilters.map((item) => item.id === filter.id ? next : item) })} onDelete={() => setDraft({ ...draft, baseFilters: draft.baseFilters.filter((item) => item.id !== filter.id) })} />)}
-            {canEdit && <button type="button" className="secondary-button" onClick={() => setDraft({ ...draft, baseFilters: [...draft.baseFilters, newFilter(availableFields[0])] })}><Plus size={17} />Условие</button>}
             {!validation.success && <div className="jira-aggregate-validation">{validation.error.issues[0]?.message}</div>}
           </section>
-          <section className="jira-aggregate-preview-panel"><header><h4>Строки агрегата</h4><span>{draft.source === "transitions" || draft.source === "development" ? "Предпросмотр за последние 90 дней" : "Все строки; правило раздела применяет виджет"}</span></header><Preview result={preview} fields={draft.exposedFields} /></section>
+          <section className="jira-aggregate-preview-panel"><header><h4>Строки агрегата</h4><span>{draft.source === "transitions" || draft.source === "development" ? "Предпросмотр за последние 90 дней" : "Все строки; фильтрацию выполняет виджет"}</span></header><Preview result={preview} fields={[...availableFields]} /></section>
         </div>
       </main>
     </div></div>

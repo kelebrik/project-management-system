@@ -232,9 +232,7 @@ async function mockManagedJiraAnalytics(
       name: index === 0 ? "Работа вне плана" : widget.title,
       description: index === 0 ? "Тикеты без Sprint с активностью разработки" : "",
       source: widget.source,
-      exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source]],
-      baseFilterLogic: widget.filterLogic,
-      baseFilters: widget.filters,
+      rowConfig: null,
       timeZone: "Europe/Moscow" as const,
       sortOrder: index,
       fingerprint: String(index).padStart(64, "a"),
@@ -252,11 +250,27 @@ async function mockManagedJiraAnalytics(
   } | null;
   const currentEditableConfig = () => {
     const storedDashboard = currentStoredDashboard();
-    return storedDashboard?.version === 3
+    return storedDashboard?.version === 4
       ? storedDashboard
-      : storedDashboard?.version === 1
+      : storedDashboard?.version === 3
         ? {
-            version: 3,
+            ...storedDashboard,
+            version: 4,
+            widgets: (storedDashboard.widgets ?? []).map((widget) => {
+              const definition = aggregateDefinitions.find(
+                (item) => item.id === widget.aggregateId,
+              ) ?? aggregate;
+              return {
+                ...widget,
+                selectedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[definition.source]],
+                baseFilterLogic: "and",
+                baseFilters: [],
+              };
+            }),
+          }
+        : storedDashboard?.version === 1
+        ? {
+            version: 4,
             periodDays: storedDashboard.periodDays ?? 90,
             assignee: storedDashboard.assignee ?? "",
             widgets: JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1.widgets.map((widget, index) => ({
@@ -265,6 +279,9 @@ async function mockManagedJiraAnalytics(
               aggregateId: aggregateDefinitions[index].id,
               aggregateVersion: widget.section === "retro" ? 1 : null,
               placement: widget.section,
+              selectedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[widget.source]],
+              baseFilterLogic: widget.filterLogic,
+              baseFilters: widget.filters,
               metric: widget.metric,
               groupBy: widget.groupBy,
               filterLogic: widget.filterLogic,
@@ -383,13 +400,13 @@ async function mockManagedJiraAnalytics(
   });
   await page.route("**/api/projects/project-1/jira/aggregates/preview", (route) => {
     const body = route.request().postDataJSON() as {
-      definition: { source: string; metric: string; groupBy: string };
+      definition: { source: string };
       asOf?: string;
     };
     const result = evaluationResult(
       body.definition.source,
-      body.definition.metric,
-      body.definition.groupBy,
+      "count",
+      "none",
     );
     return route.fulfill({
       json: body.asOf ? {
@@ -555,7 +572,7 @@ async function mockManagedJiraAnalytics(
   );
   await page.route("**/api/projects/project-1/jira/aggregate-dashboard-results?**", (route) => {
     const stored = project.jiraAnalyticsSettings.dashboardConfig as {
-      version: 1 | 2 | 3;
+      version: 1 | 2 | 3 | 4;
       widgets: Array<{
         id: string;
         title: string;
@@ -1251,7 +1268,7 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByRole("heading", { name: /^Интервалы статусов \d+$/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Работа вне плана" })).toBeVisible();
   await expect(page.getByText("Тикеты без Sprint с активностью разработки")).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Тип агрегата" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Агрегат" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Источник" })).toHaveCount(0);
   await expect(page.getByText("Нажмите «Показать данные»")).toBeVisible();
   await page.getByRole("button", { name: "Показать данные" }).click();
@@ -1259,7 +1276,7 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.locator(".jira-aggregate-preview-records").getByRole("link", { name: "TV-101" })).toBeVisible();
   await expect(page.getByText("Показана первая страница. Полнота данных: 100%.")).toBeVisible();
   await page.getByRole("button", { name: "Создать агрегат" }).click();
-  await page.getByRole("combobox", { name: "Тип агрегата" }).selectOption("statusIntervals");
+  await page.getByRole("combobox", { name: "Агрегат" }).selectOption("statusIntervals");
   await expect(page.getByRole("group", { name: "Контрольные точки интервала" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Начало" })).toHaveValue("issueCreated");
   await expect(page.getByRole("combobox", { name: "Конец" })).toHaveValue("firstStatusEntry");
@@ -1316,25 +1333,25 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(widgetEditor.getByRole("button", { name: "Столбцы" })).toBeDisabled();
   await groupingSelect.selectOption("none");
   await expect(widgetEditor.getByRole("button", { name: "Число" })).toBeDisabled();
-  await widgetEditor.getByLabel("Название").fill("Изменённый виджет");
+  await widgetEditor.getByRole("textbox", { name: "Название", exact: true }).fill("Изменённый виджет");
   await expect(
     page.locator(".jira-analytics-widget").filter({ hasText: "Изменённый виджет" }),
   ).toContainText("Сохраните дашборд, чтобы рассчитать новый виджет");
   await page.getByRole("button", { name: "Обновить" }).click();
   await expect(page.getByRole("button", { name: "Обновить" })).toBeEnabled();
-  await expect(widgetEditor.getByLabel("Название")).toHaveValue("Изменённый виджет");
+  await expect(widgetEditor.getByRole("textbox", { name: "Название", exact: true })).toHaveValue("Изменённый виджет");
   await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
   await page.getByRole("button", { name: "Отменить" }).click();
   await expect(page.getByRole("button", { name: "Экспортировать дашборд" })).toBeEnabled();
   await page.getByRole("button", { name: "Редактировать" }).click();
   await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
-  await widgetEditor.getByLabel("Название").fill("Вне Sprint с кодом");
+  await widgetEditor.getByRole("textbox", { name: "Название", exact: true }).fill("Вне Sprint с кодом");
   const editorRightPadding = await page
     .getByLabel("Настройки виджета")
     .evaluate((editor) => getComputedStyle(editor).paddingRight);
   expect(editorRightPadding).toBe("14px");
   await page.getByRole("button", { name: "Добавить виджет" }).click();
-  await expect(widgetEditor.getByLabel("Название")).toHaveValue("Работа вне плана");
+  await expect(widgetEditor.getByRole("textbox", { name: "Название", exact: true })).toHaveValue("Работа вне плана");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("heading", { name: "Настройки виджета" })).toBeVisible();
   await expect
@@ -1404,7 +1421,7 @@ test("Jira analytics lets the admin delete the only widget in a v3 section", asy
   await page.getByRole("button", { name: "Редактировать" }).click();
 
   const editor = page.getByLabel("Настройки виджета");
-  await editor.getByLabel("Название").fill("Временно изменённый виджет");
+  await editor.getByRole("textbox", { name: "Название", exact: true }).fill("Временно изменённый виджет");
   const widgetCard = page.locator(".jira-analytics-widget").filter({
     hasText: "Временно изменённый виджет",
   });
@@ -1419,6 +1436,8 @@ test("Jira analytics lets the admin delete the only widget in a v3 section", asy
   await expect(page.getByRole("heading", { name: "Вне Sprint с кодом" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Сохранить" }).click();
+  await expect(page.getByRole("heading", { name: "Сохранить неполную конфигурацию?" })).toBeVisible();
+  await page.getByRole("button", { name: "Сохранить без виджетов" }).click();
   await expect.poll(() => savedWidgetCount).toBe(0);
   await expect(page.getByText("Сохранённая конфигурация дашборда некорректна")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Редактировать" })).toBeVisible();
@@ -1481,7 +1500,7 @@ test("Jira aggregate builder keeps an empty catalog explicit", async ({ page }) 
           stored: false,
           version: null,
           configHash: "b".repeat(64),
-          editableConfig: { version: 3, periodDays: 90, assignee: "", widgets: [] },
+          editableConfig: { version: 4, periodDays: 90, assignee: "", widgets: [] },
           editableConfigError: null,
         },
       },

@@ -12,6 +12,7 @@ import {
   jiraHistoryFullSweepState,
   jiraHistoryIssueIsRetryEligible,
   jiraHistorySyncFailedCompletely,
+  jiraDashboardOmittedV3WidgetIds,
   JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB,
   JIRA_CAPACITY_DEFAULT_STORAGE_GIB,
 } from './issues.routes.js';
@@ -64,9 +65,7 @@ const aggregateDefinition = {
   name: 'Count issues',
   description: '',
   source: 'issues',
-  exposedFields: ['issueKey', 'project', 'status'],
-  baseFilterLogic: 'and',
-  baseFilters: [],
+  rowConfig: null,
   timeZone: 'Europe/Moscow',
   sortOrder: 0,
 };
@@ -75,7 +74,10 @@ const aggregateRow = {
   id: 'aggregate-1',
   projectId: 'project-1',
   ...aggregateDefinition,
-  definitionSchemaVersion: 2,
+  definitionSchemaVersion: 4,
+  exposedFields: ['issueKey', 'project', 'status'],
+  baseFilterLogic: 'and',
+  baseFilters: [],
   metric: 'count',
   groupBy: 'none',
   scope: 'active',
@@ -442,6 +444,30 @@ test('Jira analytics dashboard save requires authentication before validation or
   assert.deepEqual(legacy.payload(), { error: 'Некорректная конфигурация аналитики Jira' });
 });
 
+test('v3 to v4 dashboard save detects widget loss that requires explicit confirmation', () => {
+  const shared = {
+    title: 'Widget', aggregateId: 'aggregate-1', aggregateVersion: null,
+    placement: 'active' as const, metric: 'count' as const, groupBy: 'none' as const,
+    filterLogic: 'and' as const, filters: [], periodMode: 'NONE' as const, periodDays: null,
+    sortBy: 'default' as const, sortDirection: 'desc' as const,
+    visualization: 'number' as const, width: 'half' as const,
+  };
+  const previous = {
+    version: 3 as const, periodDays: 90 as const, assignee: '',
+    widgets: [{ id: 'kept', ...shared }, { id: 'omitted', ...shared }],
+  };
+  const next = {
+    version: 4 as const, periodDays: 90 as const, assignee: '',
+    widgets: [{
+      id: 'kept', ...shared, selectedFields: ['issueKey' as const],
+      baseFilterLogic: 'and' as const, baseFilters: [],
+    }],
+  };
+
+  assert.deepEqual(jiraDashboardOmittedV3WidgetIds(previous, next), ['omitted']);
+  assert.deepEqual(jiraDashboardOmittedV3WidgetIds(next, next), []);
+});
+
 test('Jira aggregate admin endpoints distinguish anonymous and forbidden callers', async () => {
   const prisma = {} as PrismaClient;
   const handle = aggregateRoute(
@@ -498,7 +524,7 @@ test('Jira aggregate catalog follows the broad project read policy without an ex
       editableConfigError: (reader.payload() as { dashboard: { editableConfigError: unknown } }).dashboard.editableConfigError,
     },
     {
-      editableConfig: { version: 3, periodDays: 90, assignee: '', widgets: [] },
+      editableConfig: { version: 4, periodDays: 90, assignee: '', widgets: [] },
       editableConfigError: null,
     },
   );
@@ -529,15 +555,15 @@ test('Jira aggregate create rejects a closed project before any definition write
   assert.deepEqual(result.payload(), { error: 'Проект закрыт и доступен только для чтения' });
 });
 
-test('Jira aggregate update maps an optimistic version conflict to HTTP 409', async () => {
+test('Jira aggregate update allows an unreferenced v1 dashboard and maps a version conflict to HTTP 409', async () => {
   const row = {
     id: 'aggregate-1',
     projectId: 'project-1',
     ...aggregateDefinition,
-    definitionSchemaVersion: 2,
-    baseFilterLogic: aggregateDefinition.baseFilterLogic,
-    baseFilters: aggregateDefinition.baseFilters,
-    exposedFields: aggregateDefinition.exposedFields,
+    definitionSchemaVersion: 4,
+    baseFilterLogic: 'and',
+    baseFilters: [],
+    exposedFields: ['issueKey', 'project', 'status'],
     nameKey: 'count issues',
     fingerprint: 'a'.repeat(64),
     version: 2,
@@ -545,7 +571,17 @@ test('Jira aggregate update maps an optimistic version conflict to HTTP 409', as
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
   const transaction = {
-    $queryRaw: async () => [{ lock: '' }],
+    $queryRaw: async () => [{
+      dashboardConfig: {
+        version: 1,
+        periodDays: 90,
+        assignee: '',
+        widgets: [{
+          id: 'inline', title: 'Inline', source: 'issues', metric: 'count', groupBy: 'none',
+          visualization: 'number', filterLogic: 'and', filters: [], width: 'half', section: 'active',
+        }],
+      },
+    }],
     jiraAggregateDefinition: {
       findFirst: async () => row,
       updateMany: async () => ({ count: 0 }),
@@ -599,7 +635,6 @@ test('Jira aggregate update keeps the row source immutable', async () => {
       definition: {
         ...aggregateDefinition,
         source: 'transitions',
-        exposedFields: ['issueKey', 'eventAt'],
       },
       expectedVersion: 1,
     },
@@ -610,7 +645,7 @@ test('Jira aggregate update keeps the row source immutable', async () => {
   assert.match(String((result.payload() as { error?: string }).error), /Тип строк/u);
 });
 
-test('Jira aggregate update rejects fields that an active v3 widget still uses', async () => {
+test('Jira aggregate update requires active v3 widgets to be migrated first', async () => {
   let updateAttempted = false;
   const dashboardConfig = {
     version: 3,
@@ -643,17 +678,17 @@ test('Jira aggregate update rejects fields that an active v3 widget still uses',
   await handle({
     params: { projectId: 'project-1', aggregateId: 'aggregate-1' },
     body: {
-      definition: { ...aggregateDefinition, exposedFields: ['issueKey', 'project', 'status'] },
+      definition: aggregateDefinition,
       expectedVersion: 1,
     },
     currentUser: { id: 'admin-1', role: 'ADMIN' },
   } as unknown as Request, result.response);
   assert.equal(result.status(), 409);
   assert.equal(updateAttempted, false);
-  assert.match(String((result.payload() as { error?: string }).error), /by-assignee/u);
+  assert.match(String((result.payload() as { error?: string }).error), /сохраните виджеты/u);
 });
 
-test('Jira aggregate update also protects active v2 widget semantics during v3 migration', async () => {
+test('Jira aggregate update also requires v2 widgets to be migrated first', async () => {
   let updateAttempted = false;
   const dashboardConfig = {
     version: 2,
@@ -685,7 +720,7 @@ test('Jira aggregate update also protects active v2 widget semantics during v3 m
 
   assert.equal(result.status(), 409);
   assert.equal(updateAttempted, false);
-  assert.match(String((result.payload() as { error?: string }).error), /legacy-assignee/u);
+  assert.match(String((result.payload() as { error?: string }).error), /сохраните виджеты/u);
 });
 
 test('Jira aggregate preview returns 413 for an oversized project population', async () => {
@@ -784,7 +819,6 @@ test('Jira aggregate as-of validation rejects ambiguous, future, and event-sourc
         definition: {
           ...aggregateDefinition,
           source: 'transitions',
-          exposedFields: ['issueKey', 'eventAt'],
         },
         periodDays: 90,
         assignee: '',

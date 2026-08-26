@@ -1,7 +1,7 @@
 import {
   jiraAnalyticsDatasetDraftSchema,
   jiraAnalyticsDashboardConfigSchema,
-  jiraAnalyticsDashboardV3Schema,
+  jiraAnalyticsDashboardV4Schema,
   jiraAnalyticsPeriodDays,
   jiraAnalyticsSourcePeriodSupport,
   jiraAnalyticsSourceSupportsAsOf,
@@ -25,10 +25,9 @@ import {
   buildJiraAggregateImportPlan,
   buildJiraDashboardSwitchPlan,
   convertJiraDashboardToV2,
-  convertJiraDashboardV2ToV3,
   evaluateJiraAggregateFromDatabase,
   evaluateSavedDashboardFromDatabase,
-  editableJiraDashboardV3,
+  editableJiraDashboardV4,
   jiraAggregateCreateData,
   jiraAggregateDatasetCreateData,
   jiraAggregateDatasetRevisionCreateData,
@@ -307,8 +306,8 @@ function datasetPreviewDefinition(
     scope: 'retro',
     filterLogic: 'and',
     filters: [],
-    baseFilterLogic: dataset.baseFilterLogic,
-    baseFilters: dataset.baseFilters,
+    baseFilterLogic: 'and',
+    baseFilters: [],
     rowConfig: dataset.rowConfig,
     periodMode: jiraAnalyticsSourcePeriodSupport(dataset.source) === 'required' ? 'DASHBOARD' : 'NONE',
     periodDays: null,
@@ -434,19 +433,26 @@ export function registerJiraAggregateRoutes(
     let editableConfigError: string | null = null;
     const editableDiagnostics: string[] = [];
     try {
-      editableConfig = await editableJiraDashboardV3(
+      editableConfig = await editableJiraDashboardV4(
         prisma,
         req.params.projectId,
         dashboardConfig,
         validDefinitions,
         editableDiagnostics,
       );
+      if (editableDiagnostics.length > 0) {
+        editableConfigError = `${editableDiagnostics.length} виджет(а) пропущено при переводе на v4 и будет удалено при сохранении: ${editableDiagnostics.join('; ')}`;
+        logEvent('warn', 'jira.analytics.dashboard_v4_partial', {
+          projectId: req.params.projectId,
+          diagnostics: editableDiagnostics,
+        });
+      }
     } catch (error) {
       editableConfig = null;
       editableConfigError = editableDiagnostics.length > 0
-        ? `Нельзя достоверно перевести ${editableDiagnostics.length} виджет(а) на v3. Администратор может начать с пустой конфигурации.`
+        ? `Нельзя достоверно перевести ${editableDiagnostics.length} виджет(а) на v4. Администратор может начать с пустой конфигурации.`
         : 'Сохранённый дашборд нельзя подготовить для редактирования. Обратитесь к системному администратору.';
-      logEvent('warn', 'jira.analytics.dashboard_v3_unavailable', {
+      logEvent('warn', 'jira.analytics.dashboard_v4_unavailable', {
         projectId: req.params.projectId,
         reason: error instanceof Error ? error.message : 'DASHBOARD_CONFIG_INVALID',
         diagnostics: editableDiagnostics,
@@ -586,45 +592,39 @@ export function registerJiraAggregateRoutes(
         const dashboardRecord = dashboardConfig && typeof dashboardConfig === 'object' && !Array.isArray(dashboardConfig)
           ? dashboardConfig as Prisma.JsonObject
           : null;
-        const dashboardV3 = jiraAnalyticsDashboardV3Schema.safeParse(dashboardConfig);
-        if (dashboardRecord?.version === 3 && !dashboardV3.success) {
+        const dashboardV4 = jiraAnalyticsDashboardV4Schema.safeParse(dashboardConfig);
+        if (dashboardRecord?.version === 4 && !dashboardV4.success) {
           throw new AggregateConflictError(
             'CONFIG_CHANGED',
             jiraAggregatePublicDefinition(before),
             before,
-            'Сохранённая конфигурация виджетов v3 некорректна; сначала восстановите её',
+            'Сохранённая конфигурация виджетов v4 некорректна; сначала восстановите её',
           );
         }
-        const dashboard = jiraAnalyticsDashboardConfigSchema.safeParse(dashboardConfig);
-        const activeV2Widgets = dashboard.success && dashboard.data.version === 2
-          ? dashboard.data.widgets.filter((widget) =>
-              widget.aggregateId === before.id && widget.placement === 'active'
-            )
-          : [];
-        const convertedV2Widgets = activeV2Widgets.length > 0
-          ? convertJiraDashboardV2ToV3(
-              {
-                version: 2,
-                periodDays: dashboard.success ? dashboard.data.periodDays : 90,
-                assignee: dashboard.success ? dashboard.data.assignee : '',
-                widgets: activeV2Widgets.map((widget) => ({ ...widget, aggregateVersion: null })),
-              },
-              [before],
-            ).widgets
-          : [];
-        const incompatibleWidgets = [
-          ...(dashboardV3.success
-          ? dashboardV3.data.widgets.flatMap((widget) => {
+        const usage = inspectJiraDashboardDefinitionUse(dashboardConfig, before.id);
+        if (!usage.verifiable) {
+          throw new AggregateConflictError(
+            'CONFIG_CHANGED',
+            jiraAggregatePublicDefinition(before),
+            before,
+            'Сохранённую конфигурацию виджетов нельзя безопасно проверить; сначала восстановите её',
+          );
+        }
+        if (dashboardRecord?.version !== 4 && usage.widgetIds.length > 0) {
+          throw new AggregateConflictError(
+            'CONFIG_CHANGED',
+            jiraAggregatePublicDefinition(before),
+            before,
+            'Сначала откройте и сохраните виджеты: настройки полей и условий должны быть перенесены из агрегатов в конфигурацию v4',
+          );
+        }
+        const incompatibleWidgets = dashboardV4.success
+          ? dashboardV4.data.widgets.flatMap((widget) => {
               if (widget.aggregateId !== before.id || widget.placement !== 'active') return [];
               const error = jiraAnalyticsWidgetDatasetError(widget, parsed.data.definition);
               return error ? [{ widgetId: widget.id, error }] : [];
             })
-          : []),
-          ...convertedV2Widgets.flatMap((widget) => {
-            const error = jiraAnalyticsWidgetDatasetError(widget, parsed.data.definition);
-            return error ? [{ widgetId: widget.id, error }] : [];
-          }),
-        ];
+          : [];
         if (incompatibleWidgets.length > 0) {
           throw new AggregateConflictError(
             'CONFIG_CHANGED',

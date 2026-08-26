@@ -8,6 +8,7 @@ import {
   jiraAnalyticsAggregateDraftSchema,
   jiraAnalyticsDatasetDraftSchema,
   jiraAnalyticsDatasetFromLegacy,
+  jiraAnalyticsLegacyDatasetDraftSchema,
   jiraAnalyticsDatasetSemanticDocument,
   jiraAnalyticsWidgetDatasetError,
   normalizeJiraAnalyticsDatasetRevision,
@@ -20,6 +21,7 @@ import {
   buildJiraAggregateImportPlan,
   buildJiraDashboardSwitchPlan,
   convertJiraDashboardToV2,
+  convertJiraDashboardV3ToV4,
   editableJiraDashboardV3,
   inspectJiraDashboardDefinitionUse,
   jiraAggregateFingerprint,
@@ -149,28 +151,28 @@ test('aggregate schema rejects source/metric/group/filter drift and empty numeri
   })).success, false);
 });
 
-test('dataset exposes row fields while widget owns metric, grouping and presentation', () => {
+test('aggregate builds rows while widget owns fields, filters, metric, grouping and presentation', () => {
   const dataset = jiraAnalyticsDatasetDraftSchema.parse({
     name: 'Critical SLA rows',
     description: '',
     source: 'criticalBugs',
-    exposedFields: ['issueKey', 'project', 'durationHours'],
-    baseFilterLogic: 'and',
-    baseFilters: [{ id: 'base', field: 'durationHours', operator: 'greaterThan', value: '720' }],
     timeZone: 'Europe/Moscow',
     sortOrder: 0,
   });
   const widget = {
     id: 'sla-by-project', title: 'SLA по проектам', aggregateId: 'aggregate', aggregateVersion: 1,
+    selectedFields: ['issueKey', 'project', 'durationHours'],
+    baseFilterLogic: 'and',
+    baseFilters: [{ id: 'base', field: 'durationHours', operator: 'greaterThan', value: '720' }],
     placement: 'retro', metric: 'count', groupBy: 'project', filterLogic: 'and', filters: [],
     periodMode: 'NONE', periodDays: null, sortBy: 'durationHours', sortDirection: 'desc',
     visualization: 'bar', width: 'full',
   } as const;
   assert.equal(jiraAnalyticsWidgetDatasetError(widget, dataset), null);
-  assert.equal(jiraAnalyticsWidgetDatasetError({ ...widget, groupBy: 'assignee' }, dataset), 'Поле группировки не опубликовано агрегатом');
+  assert.equal(jiraAnalyticsWidgetDatasetError({ ...widget, groupBy: 'assignee' }, dataset), 'Поле группировки не выбрано в виджете');
 });
 
-test('legacy aggregate filters become mandatory dataset base filters', () => {
+test('legacy aggregate filters migrate to the widget contract, not the v4 aggregate', () => {
   const legacy = definition({
     filterLogic: 'or',
     filters: [
@@ -179,8 +181,11 @@ test('legacy aggregate filters become mandatory dataset base filters', () => {
     ],
   });
   const dataset = jiraAnalyticsDatasetFromLegacy(legacy);
-  assert.equal(dataset.baseFilterLogic, 'or');
-  assert.deepEqual(dataset.baseFilters, legacy.filters);
+  assert.equal('baseFilterLogic' in dataset, false);
+  assert.equal('baseFilters' in dataset, false);
+  const normalized = normalizeJiraAnalyticsDatasetRevision(legacy);
+  assert.equal(normalized?.legacyContract?.baseFilterLogic, 'or');
+  assert.deepEqual(normalized?.legacyContract?.baseFilters, legacy.filters);
 });
 
 test('dataset base filters are always ANDed with widget filters', () => {
@@ -225,8 +230,6 @@ test('semantic fingerprint ignores presentation and inert issue periods but incl
 test('dataset fingerprint identifies row semantics independently of its display name', () => {
   const first = jiraAnalyticsDatasetDraftSchema.parse({
     name: 'Первое имя', description: 'One', source: 'issues',
-    exposedFields: ['issueKey', 'status'], baseFilterLogic: 'and',
-    baseFilters: [{ id: 'one', field: 'status', operator: 'equals', value: 'Open' }],
     timeZone: 'Europe/Moscow', sortOrder: 1,
   });
   const second = jiraAnalyticsDatasetDraftSchema.parse({
@@ -234,17 +237,15 @@ test('dataset fingerprint identifies row semantics independently of its display 
     name: 'Другое имя',
     description: 'Two',
     sortOrder: 99,
-    baseFilters: [{ id: 'two', field: 'status', operator: 'equals', value: 'open' }],
   });
 
   assert.equal(jiraAggregateDatasetFingerprint(first), jiraAggregateDatasetFingerprint(second));
 });
 
-test('status interval fingerprint normalizes status lists while legacy datasets stay v2-shaped', () => {
+test('status interval fingerprint normalizes status lists while v4 revisions keep row config explicit', () => {
   const base = jiraAnalyticsDatasetDraftSchema.parse({
     name: 'Creation to work', description: '', source: 'statusIntervals',
-    exposedFields: ['issueKey', 'intervalStartAt', 'intervalEndAt', 'durationHours'],
-    baseFilterLogic: 'and', baseFilters: [], rowConfig: {
+    rowConfig: {
       kind: 'statusInterval',
       start: { anchor: 'issueCreated' },
       end: { anchor: 'firstStatusEntry', statuses: ['IN PROGRESS', 'В работе'] },
@@ -260,22 +261,21 @@ test('status interval fingerprint normalizes status lists while legacy datasets 
     },
   });
   const ordinary = jiraAnalyticsDatasetDraftSchema.parse({
-    name: 'Issues', description: '', source: 'issues', exposedFields: ['issueKey'],
-    baseFilterLogic: 'and', baseFilters: [], timeZone: 'Europe/Moscow', sortOrder: 0,
+    name: 'Issues', description: '', source: 'issues', timeZone: 'Europe/Moscow', sortOrder: 0,
   });
 
   assert.equal(jiraAggregateDatasetFingerprint(base), jiraAggregateDatasetFingerprint(reordered));
   assert.equal(
     jiraAggregateDatasetFingerprint(base),
-    '90a217b6bfb208bb90a54d517b78f51e57d13a9cad79ffde41faa00e4f59f212',
+    '8c18d0e3051918c859d4ac1a2e59a27eb1fdef091092cf03a7c18ef8044f81b2',
   );
   assert.equal('rowConfig' in jiraAnalyticsDatasetSemanticDocument(ordinary), false);
 
   const intervalRevision = jiraAggregateDatasetRevisionCreateData('project', 'aggregate', 1, base);
   const ordinaryRevision = jiraAggregateDatasetRevisionCreateData('project', 'aggregate-2', 1, ordinary);
-  assert.equal((intervalRevision.definition as { schemaVersion: number }).schemaVersion, 3);
-  assert.equal((ordinaryRevision.definition as { schemaVersion: number }).schemaVersion, 2);
-  assert.equal('rowConfig' in (ordinaryRevision.definition as object), false);
+  assert.equal((intervalRevision.definition as { schemaVersion: number }).schemaVersion, 4);
+  assert.equal((ordinaryRevision.definition as { schemaVersion: number }).schemaVersion, 4);
+  assert.equal('rowConfig' in (ordinaryRevision.definition as object), true);
   assert.deepEqual(normalizeJiraAnalyticsDatasetRevision(intervalRevision.definition)?.dataset, base);
   assert.deepEqual(normalizeJiraAnalyticsDatasetRevision(ordinaryRevision.definition)?.dataset, ordinary);
 });
@@ -875,16 +875,28 @@ test('retro dashboard evaluates the pinned aggregate revision instead of the cur
 
 test('v3 active widgets follow the current dataset while retro widgets keep their pinned dataset', () => {
   const legacy = definition({ name: 'Priority rows', scope: 'active' });
-  const currentDataset = jiraAnalyticsDatasetDraftSchema.parse({
+  const currentLegacyDataset = jiraAnalyticsLegacyDatasetDraftSchema.parse({
     name: 'Priority rows', description: '', source: 'issues',
     exposedFields: ['issueKey', 'priority'], baseFilterLogic: 'and',
     baseFilters: [{ id: 'current', field: 'priority', operator: 'equals', value: 'Minor' }],
     timeZone: 'Europe/Moscow', sortOrder: 0,
   });
-  const pinnedDataset = jiraAnalyticsDatasetDraftSchema.parse({
-    ...currentDataset,
+  const pinnedLegacyDataset = jiraAnalyticsLegacyDatasetDraftSchema.parse({
+    ...currentLegacyDataset,
     baseFilters: [{ id: 'pinned', field: 'priority', operator: 'equals', value: 'Major' }],
   });
+  const {
+    exposedFields: _currentFields,
+    baseFilterLogic: _currentLogic,
+    baseFilters: _currentFilters,
+    ...currentDataset
+  } = currentLegacyDataset;
+  const {
+    exposedFields: pinnedFields,
+    baseFilterLogic: pinnedLogic,
+    baseFilters: pinnedFilters,
+    ...pinnedDataset
+  } = pinnedLegacyDataset;
   const row = {
     id: 'aggregate-v3', projectId: 'project-1', name: currentDataset.name,
     nameKey: 'priority rows', description: '', source: 'issues',
@@ -892,8 +904,8 @@ test('v3 active widgets follow the current dataset while retro widgets keep thei
     filterLogic: legacy.filterLogic, filters: legacy.filters,
     periodMode: legacy.periodMode, periodDays: legacy.periodDays,
     timeZone: currentDataset.timeZone, fingerprint: 'a'.repeat(64), sortOrder: 0,
-    definitionSchemaVersion: 2, exposedFields: currentDataset.exposedFields,
-    baseFilterLogic: currentDataset.baseFilterLogic, baseFilters: currentDataset.baseFilters,
+    definitionSchemaVersion: 2, exposedFields: currentLegacyDataset.exposedFields,
+    baseFilterLogic: currentLegacyDataset.baseFilterLogic, baseFilters: currentLegacyDataset.baseFilters,
     version: 2, createdAt: new Date(), updatedAt: new Date(),
   } as unknown as JiraAggregateDefinition;
   const widget = {
@@ -911,12 +923,91 @@ test('v3 active widgets follow the current dataset while retro widgets keep thei
       { ...widget, id: 'retro', placement: 'retro', aggregateVersion: 1 },
     ],
   }, [row], [issue({ priority: 'Major' })], options, undefined, new Map(), new Map([
-    [`${row.id}:1`, pinnedDataset],
+    [`${row.id}:1`, {
+      dataset: pinnedDataset,
+      legacyContract: {
+        exposedFields: pinnedFields,
+        baseFilterLogic: pinnedLogic,
+        baseFilters: pinnedFilters,
+      },
+    }],
   ]));
 
   assert.equal(result.configVersion, 3);
   assert.equal(result.widgets.find((item) => item.widgetId === 'active')?.result?.totalRecords, 0);
   assert.equal(result.widgets.find((item) => item.widgetId === 'retro')?.result?.totalRecords, 1);
+});
+
+test('v3 to v4 migration preserves aggregate and widget filter groups without changing results', () => {
+  const legacyDataset = jiraAnalyticsLegacyDatasetDraftSchema.parse({
+    name: 'Filtered issues', description: '', source: 'issues',
+    exposedFields: ['issueKey', 'status'],
+    baseFilterLogic: 'or',
+    baseFilters: [
+      { id: 'major', field: 'priority', operator: 'equals', value: 'Major' },
+      { id: 'critical', field: 'priority', operator: 'equals', value: 'Critical' },
+    ],
+    timeZone: 'Europe/Moscow', sortOrder: 0,
+  });
+  const legacy = definition({ name: legacyDataset.name });
+  const row = {
+    id: 'aggregate-filtered', projectId: 'project-1', name: legacyDataset.name,
+    nameKey: 'filtered issues', description: '', source: 'issues',
+    metric: legacy.metric, groupBy: legacy.groupBy, scope: legacy.scope,
+    filterLogic: legacy.filterLogic, filters: legacy.filters,
+    periodMode: legacy.periodMode, periodDays: legacy.periodDays,
+    timeZone: legacyDataset.timeZone, fingerprint: 'b'.repeat(64), sortOrder: 0,
+    definitionSchemaVersion: 2, exposedFields: legacyDataset.exposedFields,
+    baseFilterLogic: legacyDataset.baseFilterLogic, baseFilters: legacyDataset.baseFilters,
+    version: 1, createdAt: new Date(), updatedAt: new Date(),
+  } as unknown as JiraAggregateDefinition;
+  const v3 = {
+    version: 3 as const, periodDays: 90 as const, assignee: '',
+    widgets: [{
+      id: 'filtered', title: 'Filtered', aggregateId: row.id, aggregateVersion: null,
+      placement: 'active' as const, metric: 'count' as const, groupBy: 'none' as const,
+      filterLogic: 'or' as const,
+      filters: [
+        { id: 'progress', field: 'status' as const, operator: 'equals' as const, value: 'In Progress' },
+        { id: 'reopened', field: 'status' as const, operator: 'equals' as const, value: 'Reopened' },
+      ],
+      periodMode: 'NONE' as const, periodDays: null, sortBy: 'default' as const,
+      sortDirection: 'desc' as const, visualization: 'number' as const, width: 'half' as const,
+    }],
+  };
+  const v4 = convertJiraDashboardV3ToV4(v3, [row]);
+
+  assert.deepEqual(v4.widgets[0]?.selectedFields, ['issueKey', 'status', 'priority']);
+  assert.equal(v4.widgets[0]?.baseFilterLogic, 'or');
+  assert.deepEqual(v4.widgets[0]?.baseFilters, legacyDataset.baseFilters);
+  assert.equal(v4.widgets[0]?.filterLogic, 'or');
+  assert.deepEqual(v4.widgets[0]?.filters, v3.widgets[0]?.filters);
+
+  const issues = [
+    issue({ id: 'match', issueKey: 'CVTE-1', priority: 'Major', status: 'In Progress' }),
+    issue({ id: 'wrong-status', issueKey: 'CVTE-2', priority: 'Major', status: 'Done' }),
+    issue({ id: 'wrong-priority', issueKey: 'CVTE-3', priority: 'Minor', status: 'Reopened' }),
+  ];
+  const before = resolveSavedDashboard(v3, [row], issues, options);
+  const after = resolveSavedDashboard(v4, [row], issues, options);
+  assert.equal(before.widgets[0]?.result?.totalRecords, 1);
+  assert.equal(after.widgets[0]?.result?.totalRecords, 1);
+  assert.deepEqual(
+    after.widgets[0]?.result?.records.map((record) => record.issue.issueKey),
+    before.widgets[0]?.result?.records.map((record) => record.issue.issueKey),
+  );
+
+  const diagnostics: string[] = [];
+  const partial = convertJiraDashboardV3ToV4({
+    ...v3,
+    widgets: [
+      ...v3.widgets,
+      { ...v3.widgets[0], id: 'missing', title: 'Missing', aggregateId: 'missing-aggregate' },
+    ],
+  }, [row], new Map(), diagnostics);
+  assert.deepEqual(partial.widgets.map((widget) => widget.id), ['filtered']);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0] ?? '', /Missing/u);
 });
 
 test('aggregate DB selector cannot read immutable raw payloads', () => {
@@ -1101,8 +1192,7 @@ test('editable v3 conversion rejects a partial result instead of dropping missin
 
 test('editable v3 conversion does not invent legacy query settings for a dataset-only revision', async () => {
   const dataset = jiraAnalyticsDatasetDraftSchema.parse({
-    name: 'Dataset', description: '', source: 'issues', exposedFields: ['issueKey', 'status'],
-    baseFilterLogic: 'and', baseFilters: [], timeZone: 'Europe/Moscow', sortOrder: 0,
+    name: 'Dataset', description: '', source: 'issues', timeZone: 'Europe/Moscow', sortOrder: 0,
   });
   const legacy = definition({ name: dataset.name, scope: 'retro' });
   const row = {
@@ -1111,8 +1201,8 @@ test('editable v3 conversion does not invent legacy query settings for a dataset
     scope: legacy.scope, filterLogic: legacy.filterLogic, filters: legacy.filters,
     periodMode: legacy.periodMode, periodDays: legacy.periodDays, timeZone: dataset.timeZone,
     fingerprint: 'a'.repeat(64), sortOrder: 0, version: 2,
-    definitionSchemaVersion: 2, exposedFields: dataset.exposedFields,
-    baseFilterLogic: dataset.baseFilterLogic, baseFilters: dataset.baseFilters,
+    definitionSchemaVersion: 4, exposedFields: ['issueKey', 'status'],
+    baseFilterLogic: 'and', baseFilters: [], rowConfig: null,
     createdAt: new Date(), updatedAt: new Date(),
   } as unknown as JiraAggregateDefinition;
   const client = {
@@ -1120,7 +1210,7 @@ test('editable v3 conversion does not invent legacy query settings for a dataset
       findMany: async () => [{
         aggregateId: row.id,
         version: 1,
-        definition: { schemaVersion: 2, ...dataset },
+        definition: { schemaVersion: 4, ...dataset },
       }],
     },
   } as unknown as Parameters<typeof editableJiraDashboardV3>[0];
@@ -1170,6 +1260,20 @@ test('definition usage inspection is fail-closed for invalid dashboards', () => 
     }],
   }, 'aggregate-1');
   assert.deepEqual(valid, { verifiable: true, widgetIds: ['used'] });
+
+  const validV4 = inspectJiraDashboardDefinitionUse({
+    version: 4,
+    periodDays: 90,
+    assignee: '',
+    widgets: [{
+      id: 'used-v4', title: 'Used v4', aggregateId: 'aggregate-1', aggregateVersion: null,
+      placement: 'active', selectedFields: ['issueKey'], baseFilterLogic: 'and', baseFilters: [],
+      metric: 'count', groupBy: 'none', filterLogic: 'and', filters: [],
+      periodMode: 'NONE', periodDays: null, sortBy: 'default', sortDirection: 'desc',
+      visualization: 'number', width: 'half',
+    }],
+  }, 'aggregate-1');
+  assert.deepEqual(validV4, { verifiable: true, widgetIds: ['used-v4'] });
 
   const invalidWithReference = inspectJiraDashboardDefinitionUse({
     version: 2,
@@ -1438,10 +1542,10 @@ test('aggregate mutations use a project-scoped advisory transaction lock', async
   assert.deepEqual(queryValues, ['jira-aggregates:project-1']);
 });
 
-test('dashboard writes keep the managed hash synchronized and accept v3 only', () => {
+test('dashboard writes keep the managed hash synchronized and accept v4 only', () => {
   const routeSource = fs.readFileSync(new URL('../routes/issues.routes.ts', import.meta.url), 'utf8');
   const dashboardRoute = routeSource.slice(routeSource.indexOf("router.patch('/projects/:projectId/jira/analytics-dashboard'"));
-  assert.match(routeSource, /config:\s*jiraAnalyticsDashboardV3Schema/u);
+  assert.match(routeSource, /config:\s*jiraAnalyticsDashboardV4Schema/u);
   assert.match(routeSource, /expectedConfigHash:\s*z\.string\(\)\.regex/u);
   assert.match(routeSource, /lockJiraAggregateProject\(transaction, project\.id\)/u);
   assert.match(
@@ -1449,7 +1553,7 @@ test('dashboard writes keep the managed hash synchronized and accept v3 only', (
     /jiraAnalyticsDashboardConversion\.updateMany\([\s\S]*convertedConfigHash:\s*jiraDashboardConfigHash\(parsed\.data\.config\)/u,
   );
   assert.doesNotMatch(routeSource, /config:\s*jiraAnalyticsDashboardConfigSchema/u);
-  assert.match(dashboardRoute, /previousVersion !== 3[\s\S]*jiraAnalyticsDashboardConversion\.create/u);
+  assert.match(dashboardRoute, /previousVersion < 3[\s\S]*jiraAnalyticsDashboardConversion\.create/u);
   assert.match(dashboardRoute, /previousConfigHash !== parsed\.data\.expectedConfigHash/u);
   assert.match(dashboardRoute, /originalConfigStored[\s\S]*originalConfig[\s\S]*rollbackState:\s*'AVAILABLE'/u);
   assert.ok(

@@ -3,6 +3,7 @@ import {
   createIssueSchema,
   issueStatusUpdateSchema,
   jiraAnalyticsDashboardV3Schema,
+  jiraAnalyticsDashboardV4Schema,
   jiraAnalyticsWidgetDatasetError,
   jiraAnalyticsScopeValueMaxLength,
   normalizeJiraAnalyticsDatasetRevision,
@@ -68,6 +69,18 @@ export {
   jiraHistoryIssueIsRetryEligible,
   jiraHistorySyncFailedCompletely,
 } from '../services/jira-sync-pipeline.js';
+
+export function jiraDashboardOmittedV3WidgetIds(
+  previousConfig: unknown,
+  nextConfig: z.infer<typeof jiraAnalyticsDashboardV4Schema>,
+) {
+  const previousV3 = jiraAnalyticsDashboardV3Schema.safeParse(previousConfig);
+  if (!previousV3.success) return [];
+  const nextWidgetIds = new Set(nextConfig.widgets.map((widget) => widget.id));
+  return previousV3.data.widgets
+    .filter((widget) => !nextWidgetIds.has(widget.id))
+    .map((widget) => widget.id);
+}
 
 export function createIssuesRouter() {
   const router = Router();
@@ -209,8 +222,9 @@ const jiraSyncSchema = z.discriminatedUnion('scopeType', [
 ]);
 
 const jiraAnalyticsDashboardSchema = z.object({
-  config: jiraAnalyticsDashboardV3Schema,
+  config: jiraAnalyticsDashboardV4Schema,
   expectedConfigHash: z.string().regex(/^[0-9a-f]{64}$/),
+  acceptPartialMigration: z.boolean().default(false),
 });
 
 class JiraDashboardAggregateReferenceError extends Error {
@@ -226,6 +240,12 @@ class JiraDashboardAggregateReferenceError extends Error {
 class JiraDashboardConfigConflictError extends Error {
   constructor(public readonly currentConfigHash: string) {
     super('JIRA_DASHBOARD_CONFIG_CHANGED');
+  }
+}
+
+class JiraDashboardPartialMigrationError extends Error {
+  constructor(public readonly omittedWidgetIds: string[]) {
+    super('JIRA_DASHBOARD_PARTIAL_MIGRATION_REQUIRES_CONFIRMATION');
   }
 }
 
@@ -981,14 +1001,24 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
       if (previousConfigHash !== parsed.data.expectedConfigHash) {
         throw new JiraDashboardConfigConflictError(previousConfigHash);
       }
+      const omittedWidgetIds = jiraDashboardOmittedV3WidgetIds(previousConfig, parsed.data.config);
+      if (omittedWidgetIds.length > 0 && !parsed.data.acceptPartialMigration) {
+        throw new JiraDashboardPartialMigrationError(omittedWidgetIds);
+      }
       const previousRecord = previousConfig && typeof previousConfig === 'object' && !Array.isArray(previousConfig)
         ? previousConfig as Prisma.JsonObject
         : null;
-      const previousVersion = previousRecord?.version === 3 ? 3 : previousRecord?.version === 2 ? 2 : 1;
+      const previousVersion = previousRecord?.version === 4
+        ? 4
+        : previousRecord?.version === 3
+          ? 3
+          : previousRecord?.version === 2
+            ? 2
+            : 1;
       const conversion = await transaction.jiraAnalyticsDashboardConversion.findUnique({
         where: { projectId: project.id },
       });
-      if (previousVersion !== 3 && (!conversion || conversion.rollbackState === 'USED')) {
+      if (previousVersion < 3 && (!conversion || conversion.rollbackState === 'USED')) {
         const originalConfigStored = previousConfig !== null;
         const originalConfig = originalConfigStored
           ? previousConfig as Prisma.InputJsonValue
@@ -1044,6 +1074,13 @@ router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) =
       res.status(409).json({
         error: 'Конфигурация виджетов уже изменена другим администратором; обновите страницу',
         currentConfigHash: error.currentConfigHash,
+      });
+      return;
+    }
+    if (error instanceof JiraDashboardPartialMigrationError) {
+      res.status(409).json({
+        error: 'При переводе на v4 часть виджетов будет удалена; требуется явное подтверждение',
+        omittedWidgetIds: error.omittedWidgetIds,
       });
       return;
     }

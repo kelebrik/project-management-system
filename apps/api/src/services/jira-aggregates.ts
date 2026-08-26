@@ -1,16 +1,20 @@
 import {
+  JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
   createJiraAnalyticsEvaluationAccumulator,
   isJiraCancelledStatus,
   isJiraUnresolvedResolution,
   jiraAnalyticsAggregateDraftSchema,
   jiraAnalyticsDatasetDraftSchema,
+  jiraAnalyticsLegacyDatasetDraftSchema,
   jiraAnalyticsDatasetFromLegacy,
   jiraAnalyticsDatasetSemanticKey,
   jiraAnalyticsDashboardV3Schema,
+  jiraAnalyticsDashboardV4Schema,
   jiraAnalyticsDashboardV2Schema,
   jiraAnalyticsInlineWidgetReadSchema,
   jiraAnalyticsManagedWidgetSchema,
+  jiraAnalyticsManagedWidgetV4Schema,
   jiraAnalyticsReferencedWidgetSchema,
   jiraAnalyticsSemanticKey,
   jiraAnalyticsSourcePeriodSupport,
@@ -27,8 +31,11 @@ import {
   type JiraAnalyticsDashboardV1,
   type JiraAnalyticsDashboardV2,
   type JiraAnalyticsDashboardV3,
+  type JiraAnalyticsDashboardV4,
   type JiraAnalyticsExecutableDefinition,
   type JiraAnalyticsManagedWidget,
+  type JiraAnalyticsManagedWidgetV3,
+  type JiraAnalyticsLegacyDatasetContract,
   type JiraAnalyticsDataQuality,
   type JiraAnalyticsEvaluationOptions,
   type JiraAnalyticsEvaluationResult,
@@ -164,8 +171,26 @@ export function jiraAggregateDatasetFromRow(row: JiraAggregateDefinition): JiraA
 }
 
 export function safeJiraAggregateDatasetFromRow(row: JiraAggregateDefinition): JiraAnalyticsDatasetDraft | null {
-  if (row.definitionSchemaVersion >= 2) {
+  return safeJiraAggregateDatasetContractFromRow(row)?.dataset ?? null;
+}
+
+export function safeJiraAggregateDatasetContractFromRow(row: JiraAggregateDefinition): {
+  dataset: JiraAnalyticsDatasetDraft;
+  legacyContract: JiraAnalyticsLegacyDatasetContract | null;
+} | null {
+  if (row.definitionSchemaVersion >= 4) {
     const parsed = jiraAnalyticsDatasetDraftSchema.safeParse({
+      name: row.name,
+      description: row.description,
+      source: row.source,
+      rowConfig: row.rowConfig ?? null,
+      timeZone: row.timeZone,
+      sortOrder: row.sortOrder,
+    });
+    return parsed.success ? { dataset: parsed.data, legacyContract: null } : null;
+  }
+  if (row.definitionSchemaVersion >= 2) {
+    const parsed = jiraAnalyticsLegacyDatasetDraftSchema.safeParse({
       name: row.name,
       description: row.description,
       source: row.source,
@@ -176,10 +201,29 @@ export function safeJiraAggregateDatasetFromRow(row: JiraAggregateDefinition): J
       timeZone: row.timeZone,
       sortOrder: row.sortOrder,
     });
-    return parsed.success ? parsed.data : null;
+    if (!parsed.success) return null;
+    const {
+      exposedFields,
+      baseFilterLogic,
+      baseFilters,
+      ...dataset
+    } = parsed.data;
+    const parsedDataset = jiraAnalyticsDatasetDraftSchema.safeParse(dataset);
+    if (!parsedDataset.success) return null;
+    return {
+      dataset: parsedDataset.data,
+      legacyContract: { exposedFields, baseFilterLogic, baseFilters },
+    };
   }
   const legacy = safeJiraAggregateDraftFromRow(row);
-  return legacy ? jiraAnalyticsDatasetFromLegacy(legacy) : null;
+  return legacy ? {
+    dataset: jiraAnalyticsDatasetFromLegacy(legacy),
+    legacyContract: {
+      exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[legacy.source]],
+      baseFilterLogic: legacy.filterLogic,
+      baseFilters: legacy.filters,
+    },
+  } : null;
 }
 
 export function jiraAggregateDatasetCreateData(
@@ -192,10 +236,10 @@ export function jiraAggregateDatasetCreateData(
     nameKey: normalizeJiraAnalyticsName(definition.name),
     description: definition.description.trim(),
     source: definition.source,
-    definitionSchemaVersion: definition.rowConfig ? 3 : 2,
-    exposedFields: definition.exposedFields as Prisma.InputJsonValue,
-    baseFilterLogic: definition.baseFilterLogic,
-    baseFilters: definition.baseFilters as Prisma.InputJsonValue,
+    definitionSchemaVersion: 4,
+    exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[definition.source]],
+    baseFilterLogic: 'and',
+    baseFilters: [],
     rowConfig: definition.rowConfig
       ? definition.rowConfig as Prisma.InputJsonValue
       : undefined,
@@ -221,10 +265,10 @@ export function jiraAggregateDatasetUpdateData(
     nameKey: normalizeJiraAnalyticsName(definition.name),
     description: definition.description.trim(),
     source: definition.source,
-    definitionSchemaVersion: definition.rowConfig ? 3 : 2,
-    exposedFields: definition.exposedFields as Prisma.InputJsonValue,
-    baseFilterLogic: definition.baseFilterLogic,
-    baseFilters: definition.baseFilters as Prisma.InputJsonValue,
+    definitionSchemaVersion: 4,
+    exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[definition.source]],
+    baseFilterLogic: 'and',
+    baseFilters: [],
     rowConfig: definition.rowConfig
       ? definition.rowConfig as Prisma.InputJsonValue
       : Prisma.DbNull,
@@ -241,12 +285,7 @@ export function jiraAggregateDatasetRevisionCreateData(
   version: number,
   definition: JiraAnalyticsDatasetDraft,
 ): Prisma.JiraAggregateDefinitionRevisionUncheckedCreateInput {
-  const revision = definition.rowConfig
-    ? { schemaVersion: 3 as const, ...definition }
-    : (() => {
-        const { rowConfig: _rowConfig, ...v2Definition } = definition;
-        return { schemaVersion: 2 as const, ...v2Definition };
-      })();
+  const revision = { schemaVersion: 4 as const, ...definition };
   return {
     projectId,
     aggregateId,
@@ -627,6 +666,11 @@ type JiraAggregateWidgetPlan = {
   definition: JiraAnalyticsExecutableDefinition | null;
 };
 
+type JiraAggregateDatasetContract = {
+  dataset: JiraAnalyticsDatasetDraft;
+  legacyContract: JiraAnalyticsLegacyDatasetContract | null;
+};
+
 function executableDefinition(
   dataset: JiraAnalyticsDatasetDraft,
   widget: JiraAnalyticsManagedWidget,
@@ -640,8 +684,34 @@ function executableDefinition(
     scope: widget.placement,
     filterLogic: widget.filterLogic,
     filters: widget.filters,
-    baseFilterLogic: dataset.baseFilterLogic,
-    baseFilters: dataset.baseFilters,
+    baseFilterLogic: widget.baseFilterLogic,
+    baseFilters: widget.baseFilters,
+    rowConfig: dataset.rowConfig,
+    periodMode: widget.periodMode,
+    periodDays: widget.periodDays,
+    timeZone: dataset.timeZone,
+    sortOrder: dataset.sortOrder,
+    sortBy: widget.sortBy,
+    sortDirection: widget.sortDirection,
+  };
+}
+
+function legacyExecutableDefinition(
+  dataset: JiraAnalyticsDatasetDraft,
+  widget: JiraAnalyticsManagedWidgetV3,
+  legacyContract: JiraAnalyticsLegacyDatasetContract,
+): JiraAnalyticsExecutableDefinition {
+  return {
+    name: dataset.name,
+    description: dataset.description,
+    source: dataset.source,
+    metric: widget.metric,
+    groupBy: widget.groupBy,
+    scope: widget.placement,
+    filterLogic: widget.filterLogic,
+    filters: widget.filters,
+    baseFilterLogic: legacyContract.baseFilterLogic,
+    baseFilters: legacyContract.baseFilters,
     rowConfig: dataset.rowConfig,
     periodMode: widget.periodMode,
     periodDays: widget.periodDays,
@@ -657,16 +727,18 @@ function savedDashboardPlan(
   definitions: JiraAggregateDefinition[],
   selectedWidgetId?: string,
   revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
-  revisionDatasets: ReadonlyMap<string, JiraAnalyticsDatasetDraft> = new Map(),
-): { configVersion: 1 | 2 | 3; configHash: string; widgets: JiraAggregateWidgetPlan[] } {
+  revisionDatasets: ReadonlyMap<string, JiraAggregateDatasetContract> = new Map(),
+): { configVersion: 1 | 2 | 3 | 4; configHash: string; widgets: JiraAggregateWidgetPlan[] } {
   const configHash = jiraDashboardConfigHash(rawConfig);
   const config = rawConfig ?? JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1;
   const record = config && typeof config === 'object' ? config as Record<string, unknown> : {};
   const rawWidgets = Array.isArray(record.widgets) ? record.widgets : [];
-  const version = record.version === 3 ? 3 : record.version === 2 ? 2 : 1;
-  if (version === 3 && rawWidgets.length === 0) {
-    const empty = jiraAnalyticsDashboardV3Schema.safeParse(config);
-    if (empty.success) return { configVersion: 3, configHash, widgets: [] };
+  const version = record.version === 4 ? 4 : record.version === 3 ? 3 : record.version === 2 ? 2 : 1;
+  if ((version === 3 || version === 4) && rawWidgets.length === 0) {
+    const empty = version === 4
+      ? jiraAnalyticsDashboardV4Schema.safeParse(config)
+      : jiraAnalyticsDashboardV3Schema.safeParse(config);
+    if (empty.success) return { configVersion: version, configHash, widgets: [] };
   }
   if (rawWidgets.length === 0 || rawWidgets.length > JIRA_AGGREGATE_MAX_BATCH_WIDGETS) {
     return {
@@ -727,6 +799,75 @@ function savedDashboardPlan(
         definition,
       };
     }
+    if (version === 4) {
+      const parsed = jiraAnalyticsManagedWidgetV4Schema.safeParse(rawWidget);
+      if (!parsed.success) {
+        const fallback = rawWidget && typeof rawWidget === 'object' ? rawWidget as Record<string, unknown> : {};
+        return {
+          widget: unavailableWidget(
+            typeof fallback.id === 'string' ? fallback.id : `invalid-v4-${index}`,
+            typeof fallback.title === 'string' ? fallback.title : 'Недоступный виджет',
+            'number',
+            'half',
+            fallback.placement === 'retro' ? 'retro' : 'active',
+            'Сохранённый виджет v4 имеет некорректный формат',
+            typeof fallback.aggregateId === 'string' ? fallback.aggregateId : null,
+          ),
+          definition: null,
+        };
+      }
+      const row = definitionsById.get(parsed.data.aggregateId);
+      if (!row) {
+        return {
+          widget: unavailableWidget(
+            parsed.data.id, parsed.data.title, parsed.data.visualization, parsed.data.width,
+            parsed.data.placement, 'Агрегат удалён или недоступен', parsed.data.aggregateId,
+          ),
+          definition: null,
+        };
+      }
+      const revisionKey = parsed.data.aggregateVersion
+        ? `${row.id}:${parsed.data.aggregateVersion}`
+        : null;
+      const contract = revisionKey && parsed.data.aggregateVersion !== row.version
+        ? revisionDatasets.get(revisionKey)
+        : safeJiraAggregateDatasetContractFromRow(row);
+      if (!contract) {
+        return {
+          widget: unavailableWidget(
+            parsed.data.id, parsed.data.title, parsed.data.visualization, parsed.data.width,
+            parsed.data.placement, `Ревизия агрегата ${parsed.data.aggregateVersion} недоступна`, row.id,
+          ),
+          definition: null,
+        };
+      }
+      const contractError = jiraAnalyticsWidgetDatasetError(parsed.data, contract.dataset);
+      if (contractError) {
+        return {
+          widget: unavailableWidget(
+            parsed.data.id, parsed.data.title, parsed.data.visualization, parsed.data.width,
+            parsed.data.placement, contractError, row.id,
+          ),
+          definition: null,
+        };
+      }
+      return {
+        widget: {
+          widgetId: parsed.data.id,
+          title: parsed.data.title,
+          visualization: parsed.data.visualization,
+          width: parsed.data.width,
+          placement: parsed.data.placement,
+          aggregateId: row.id,
+          aggregateName: contract.dataset.name,
+          source: contract.dataset.source,
+          metric: parsed.data.metric,
+          groupBy: parsed.data.groupBy,
+          status: 'OK',
+        },
+        definition: executableDefinition(contract.dataset, parsed.data),
+      };
+    }
     if (version === 3) {
       const parsed = jiraAnalyticsManagedWidgetSchema.safeParse(rawWidget);
       if (!parsed.success) {
@@ -757,10 +898,10 @@ function savedDashboardPlan(
       const revisionKey = parsed.data.aggregateVersion
         ? `${row.id}:${parsed.data.aggregateVersion}`
         : null;
-      const dataset = revisionKey && parsed.data.aggregateVersion !== row.version
+      const contract = revisionKey && parsed.data.aggregateVersion !== row.version
         ? revisionDatasets.get(revisionKey)
-        : safeJiraAggregateDatasetFromRow(row);
-      if (!dataset) {
+        : safeJiraAggregateDatasetContractFromRow(row);
+      if (!contract) {
         return {
           widget: unavailableWidget(
             parsed.data.id, parsed.data.title, parsed.data.visualization, parsed.data.width,
@@ -769,7 +910,12 @@ function savedDashboardPlan(
           definition: null,
         };
       }
-      const contractError = jiraAnalyticsWidgetDatasetError(parsed.data, dataset);
+      const legacyContract = contract.legacyContract ?? {
+        exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[contract.dataset.source]],
+        baseFilterLogic: 'and' as const,
+        baseFilters: [],
+      };
+      const contractError = jiraAnalyticsWidgetDatasetError(parsed.data, contract.dataset, legacyContract);
       if (contractError) {
         return {
           widget: unavailableWidget(
@@ -779,7 +925,7 @@ function savedDashboardPlan(
           definition: null,
         };
       }
-      const definition = executableDefinition(dataset, parsed.data);
+      const definition = legacyExecutableDefinition(contract.dataset, parsed.data, legacyContract);
       return {
         widget: {
           widgetId: parsed.data.id,
@@ -788,8 +934,8 @@ function savedDashboardPlan(
           width: parsed.data.width,
           placement: parsed.data.placement,
           aggregateId: row.id,
-          aggregateName: dataset.name,
-          source: dataset.source,
+          aggregateName: contract.dataset.name,
+          source: contract.dataset.source,
           metric: parsed.data.metric,
           groupBy: parsed.data.groupBy,
           status: 'OK',
@@ -892,10 +1038,10 @@ export function createSavedDashboardAccumulator(
   selectedWidgetId?: string,
   limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
   revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
-  revisionDatasets: ReadonlyMap<string, JiraAnalyticsDatasetDraft> = new Map(),
+  revisionDatasets: ReadonlyMap<string, JiraAggregateDatasetContract> = new Map(),
 ): {
   addIssues: (issues: readonly JiraAnalyticsIssueData[]) => void;
-  finish: () => { configVersion: 1 | 2 | 3; configHash: string; widgets: JiraAggregateWidgetResult[] };
+  finish: () => { configVersion: 1 | 2 | 3 | 4; configHash: string; widgets: JiraAggregateWidgetResult[] };
 } {
   const plan = savedDashboardPlan(rawConfig, definitions, selectedWidgetId, revisionDefinitions, revisionDatasets);
   const accumulators = plan.widgets.map((item) => item.definition
@@ -927,8 +1073,8 @@ export function resolveSavedDashboard(
   options: JiraAnalyticsEvaluationOptions,
   selectedWidgetId?: string,
   revisionDefinitions: ReadonlyMap<string, JiraAnalyticsAggregateDraft> = new Map(),
-  revisionDatasets: ReadonlyMap<string, JiraAnalyticsDatasetDraft> = new Map(),
-): { configVersion: 1 | 2 | 3; configHash: string; widgets: JiraAggregateWidgetResult[] } {
+  revisionDatasets: ReadonlyMap<string, JiraAggregateDatasetContract> = new Map(),
+): { configVersion: 1 | 2 | 3 | 4; configHash: string; widgets: JiraAggregateWidgetResult[] } {
   const accumulator = createSavedDashboardAccumulator(
     rawConfig,
     definitions,
@@ -953,7 +1099,14 @@ export async function evaluateSavedDashboardFromDatabase(
 ) {
   const parsedV2 = jiraAnalyticsDashboardV2Schema.safeParse(rawConfig);
   const parsedV3 = jiraAnalyticsDashboardV3Schema.safeParse(rawConfig);
-  const parsedWidgets = parsedV3.success ? parsedV3.data.widgets : parsedV2.success ? parsedV2.data.widgets : [];
+  const parsedV4 = jiraAnalyticsDashboardV4Schema.safeParse(rawConfig);
+  const parsedWidgets = parsedV4.success
+    ? parsedV4.data.widgets
+    : parsedV3.success
+      ? parsedV3.data.widgets
+      : parsedV2.success
+        ? parsedV2.data.widgets
+        : [];
   const revisionRequests = parsedWidgets
     .flatMap((widget) => widget.aggregateVersion
       ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
@@ -967,14 +1120,19 @@ export async function evaluateSavedDashboardFromDatabase(
       })
     : [];
   const revisionDefinitions = new Map<string, JiraAnalyticsAggregateDraft>();
-  const revisionDatasets = new Map<string, JiraAnalyticsDatasetDraft>();
+  const revisionDatasets = new Map<string, JiraAggregateDatasetContract>();
   revisionRows.forEach((revision) => {
     const parsed = jiraAnalyticsAggregateDraftSchema.safeParse(revision.definition);
     if (parsed.success) {
       revisionDefinitions.set(`${revision.aggregateId}:${revision.version}`, parsed.data);
     }
     const normalized = normalizeJiraAnalyticsDatasetRevision(revision.definition);
-    if (normalized) revisionDatasets.set(`${revision.aggregateId}:${revision.version}`, normalized.dataset);
+    if (normalized) {
+      revisionDatasets.set(`${revision.aggregateId}:${revision.version}`, {
+        dataset: normalized.dataset,
+        legacyContract: normalized.legacyContract,
+      });
+    }
   });
   const accumulator = createSavedDashboardAccumulator(
     rawConfig,
@@ -1169,6 +1327,15 @@ export function inspectJiraDashboardDefinitionUse(
         .map((widget) => widget.id),
     };
   }
+  const parsedV4 = jiraAnalyticsDashboardV4Schema.safeParse(rawConfig);
+  if (parsedV4.success) {
+    return {
+      verifiable: true,
+      widgetIds: parsedV4.data.widgets
+        .filter((widget) => widget.aggregateId === aggregateId)
+        .map((widget) => widget.id),
+    };
+  }
   const record = rawConfig && typeof rawConfig === 'object'
     ? rawConfig as Record<string, unknown>
     : {};
@@ -1335,6 +1502,83 @@ export async function editableJiraDashboardV3(
   return jiraAnalyticsDashboardV3Schema.parse({ ...v2.data, version: 3, widgets });
 }
 
+export function convertJiraDashboardV3ToV4(
+  config: JiraAnalyticsDashboardV3,
+  definitions: readonly JiraAggregateDefinition[],
+  revisionDatasets: ReadonlyMap<string, JiraAggregateDatasetContract> = new Map(),
+  diagnostics: string[] = [],
+): JiraAnalyticsDashboardV4 {
+  const byId = new Map(definitions.map((definition) => [definition.id, definition]));
+  return jiraAnalyticsDashboardV4Schema.parse({
+    ...config,
+    version: 4,
+    widgets: config.widgets.flatMap((widget) => {
+      const row = byId.get(widget.aggregateId);
+      if (!row) {
+        diagnostics.push(`Виджет «${widget.title}» пропущен: агрегат ${widget.aggregateId} недоступен`);
+        return [];
+      }
+      const revisionKey = widget.aggregateVersion && widget.aggregateVersion !== row.version
+        ? `${row.id}:${widget.aggregateVersion}`
+        : null;
+      const contract = revisionKey
+        ? revisionDatasets.get(revisionKey)
+        : safeJiraAggregateDatasetContractFromRow(row);
+      if (!contract) {
+        diagnostics.push(`Виджет «${widget.title}» пропущен: ревизия агрегата ${revisionKey ?? row.id} недоступна`);
+        return [];
+      }
+      const legacyContract = contract.legacyContract ?? {
+        exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[contract.dataset.source]],
+        baseFilterLogic: 'and' as const,
+        baseFilters: [],
+      };
+      return [{
+        ...widget,
+        selectedFields: [...new Set([
+          ...legacyContract.exposedFields,
+          ...legacyContract.baseFilters.map((filter) => filter.field),
+        ])],
+        baseFilterLogic: legacyContract.baseFilterLogic,
+        baseFilters: legacyContract.baseFilters,
+      }];
+    }),
+  });
+}
+
+export async function editableJiraDashboardV4(
+  client: Pick<PrismaClient, 'jiraAggregateDefinitionRevision'>,
+  projectId: string,
+  rawConfig: unknown,
+  definitions: JiraAggregateDefinition[],
+  diagnostics: string[] = [],
+): Promise<JiraAnalyticsDashboardV4 | null> {
+  const current = jiraAnalyticsDashboardV4Schema.safeParse(rawConfig);
+  if (current.success) return current.data;
+  const record = rawConfig && typeof rawConfig === 'object' && !Array.isArray(rawConfig)
+    ? rawConfig as Record<string, unknown>
+    : null;
+  if (record?.version === 4) throw new Error('DASHBOARD_CONFIG_INVALID');
+  const v3 = await editableJiraDashboardV3(client, projectId, rawConfig, definitions, diagnostics);
+  if (!v3) return null;
+  const requests = v3.widgets.flatMap((widget) => widget.aggregateVersion
+    ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
+    : []);
+  const revisions = requests.length === 0 ? [] : await client.jiraAggregateDefinitionRevision.findMany({
+    where: { projectId, OR: requests },
+  });
+  const revisionDatasets = new Map<string, JiraAggregateDatasetContract>();
+  revisions.forEach((revision) => {
+    const normalized = normalizeJiraAnalyticsDatasetRevision(revision.definition);
+    if (!normalized) return;
+    revisionDatasets.set(`${revision.aggregateId}:${revision.version}`, {
+      dataset: normalized.dataset,
+      legacyContract: normalized.legacyContract,
+    });
+  });
+  return convertJiraDashboardV3ToV4(v3, definitions, revisionDatasets, diagnostics);
+}
+
 function plannedAggregateDefinition(
   projectId: string,
   item: JiraAggregateImportPlanItem,
@@ -1403,7 +1647,7 @@ export function buildJiraDashboardSwitchPlan(
 }
 
 export function jiraDashboardReferencedAggregateIds(config: JiraAnalyticsDashboardConfig) {
-  return config.version === 2 || config.version === 3
+  return config.version === 2 || config.version === 3 || config.version === 4
     ? [...new Set(config.widgets.map((widget) => widget.aggregateId))]
     : [];
 }
