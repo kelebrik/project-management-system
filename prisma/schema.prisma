@@ -607,6 +607,7 @@ model JiraAggregateDefinition {
   exposedFields Json?     @db.JsonB
   baseFilterLogic String?
   baseFilters Json?       @db.JsonB
+  rowConfig Json?         @db.JsonB
   metric      String
   groupBy     String
   scope       String

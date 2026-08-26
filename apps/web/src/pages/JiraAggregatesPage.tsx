@@ -34,7 +34,26 @@ const AGGREGATE_TYPE_DESCRIPTION: Record<JiraAnalyticsSource, string> = {
   transitions: "Одна строка на переход статуса с длительностью завершенного этапа.",
   development: "Одна строка на наблюденное событие разработки, связанное с тикетом.",
   criticalBugs: "Одна строка на SLA-интервал Critical/Blocker.",
+  statusIntervals: "Одна строка на тикет между двумя контрольными точками истории статусов.",
 };
+
+const AGGREGATE_SOURCES: JiraAnalyticsSource[] = [
+  "issues",
+  "transitions",
+  "development",
+  "criticalBugs",
+  "statusIntervals",
+];
+
+function defaultStatusIntervalConfig(): NonNullable<JiraAnalyticsDatasetDraft["rowConfig"]> {
+  return {
+    kind: "statusInterval",
+    start: { anchor: "issueCreated" },
+    end: { anchor: "firstStatusEntry", statuses: ["In Progress"] },
+    openIntervals: "include",
+    periodAnchor: "start",
+  };
+}
 
 function defaultDraft(source: JiraAnalyticsSource = "issues", sortOrder = 0): JiraAnalyticsDatasetDraft {
   return {
@@ -44,9 +63,38 @@ function defaultDraft(source: JiraAnalyticsSource = "issues", sortOrder = 0): Ji
     exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[source]],
     baseFilterLogic: "and",
     baseFilters: [],
+    rowConfig: source === "statusIntervals" ? defaultStatusIntervalConfig() : null,
     timeZone: "Europe/Moscow",
     sortOrder,
   };
+}
+
+function parseStatuses(value: string) {
+  return value.split(",").map((status) => status.trim()).filter(Boolean).slice(0, 10);
+}
+
+function StatusListEditor({ label, statuses, disabled, onChange }: {
+  label: string;
+  statuses: string[];
+  disabled: boolean;
+  onChange: (statuses: string[]) => void;
+}) {
+  return (
+    <label>{label}
+      <input
+        key={statuses.join("\u0000")}
+        defaultValue={statuses.join(", ")}
+        disabled={disabled}
+        placeholder="In Progress, Development"
+        onBlur={(event) => {
+          const parsed = parseStatuses(event.target.value);
+          if (parsed.length > 0) onChange(parsed);
+          else event.target.value = statuses.join(", ");
+        }}
+      />
+      <span className="jira-status-chips">{statuses.map((status) => <span key={status}>{status}</span>)}</span>
+    </label>
+  );
 }
 
 function newFilter(field: JiraAnalyticsFilterField): JiraAnalyticsFilter {
@@ -123,6 +171,8 @@ function Preview({ result, fields }: { result: JiraAnalyticsEvaluationResult | n
               resolutionAt: record.issue.resolutionAt,
               updatedAt: record.issue.updatedAt,
               eventAt: record.eventAt,
+              intervalStartAt: record.intervalStartAt,
+              intervalEndAt: record.intervalEndAt,
             };
             return <tr key={record.id}>{fields.slice(0, 8).map((field) => <td key={field}>{field === "issueKey"
               ? <a href={record.issue.issueUrl} target="_blank" rel="noreferrer">{record.issue.issueKey}</a>
@@ -157,6 +207,7 @@ export function JiraAggregatesPage() {
       exposedFields: [...definition.exposedFields],
       baseFilterLogic: definition.baseFilterLogic,
       baseFilters: structuredClone(definition.baseFilters),
+      rowConfig: definition.rowConfig ? structuredClone(definition.rowConfig) : null,
       timeZone: definition.timeZone,
       sortOrder: definition.sortOrder,
     });
@@ -194,7 +245,7 @@ export function JiraAggregatesPage() {
   const availableFields = JIRA_ANALYTICS_FIELDS_BY_SOURCE[draft.source];
   const validation = jiraAnalyticsDatasetDraftSchema.safeParse(draft);
   const grouped = useMemo(() => Object.fromEntries(
-    (["issues", "transitions", "development", "criticalBugs"] as JiraAnalyticsSource[]).map((source) => [source, catalog?.definitions.filter((item) => item.source === source) ?? []]),
+    AGGREGATE_SOURCES.map((source) => [source, catalog?.definitions.filter((item) => item.source === source) ?? []]),
   ) as Record<JiraAnalyticsSource, AggregateDefinition[]>, [catalog]);
 
   const save = async () => {
@@ -240,7 +291,7 @@ export function JiraAggregatesPage() {
     <div className="jira-aggregates-page"><div className="jira-aggregate-builder">
       <aside className="jira-aggregate-catalog">
         <header><div><Database size={22} /><h3>Агрегаты</h3></div>{canEdit && <button type="button" className="icon-button" title="Создать агрегат" onClick={() => { setSelectedId(null); setExpectedVersion(null); setDraft(defaultDraft("issues", catalog?.definitions.length ?? 0)); setPreview(null); }}><Plus size={20} /></button>}</header>
-        <div className="jira-aggregate-catalog-list">{(["issues", "transitions", "development", "criticalBugs"] as JiraAnalyticsSource[]).map((source) => (
+        <div className="jira-aggregate-catalog-list">{AGGREGATE_SOURCES.map((source) => (
           <section key={source}><h4>{JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS[source]} <span>{grouped[source].length}</span></h4>
             {grouped[source].map((definition) => <button key={definition.id} type="button" className={definition.id === selectedId ? "active" : ""} onClick={() => applyDefinition(definition)}><strong>{definition.name}</strong><span>Версия {definition.version} · {definition.exposedFields.length} полей</span></button>)}
           </section>
@@ -255,7 +306,83 @@ export function JiraAggregatesPage() {
           <section className="jira-aggregate-controls">
             <label>Название<input value={draft.name} disabled={!canEdit} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
             <label>Описание<textarea value={draft.description} disabled={!canEdit} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-            <label>Тип агрегата<select value={draft.source} disabled={!canEdit || selectedId !== null} onChange={(event) => { const source = event.target.value as JiraAnalyticsSource; setDraft({ ...defaultDraft(source, draft.sortOrder), name: draft.name, description: draft.description }); setPreview(null); }}>{(["issues", "transitions", "development", "criticalBugs"] as JiraAnalyticsSource[]).map((source) => <option key={source} value={source}>{JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS[source]}</option>)}</select></label>
+            <label>Тип агрегата<select value={draft.source} disabled={!canEdit || selectedId !== null} onChange={(event) => { const source = event.target.value as JiraAnalyticsSource; setDraft({ ...defaultDraft(source, draft.sortOrder), name: draft.name, description: draft.description }); setPreview(null); }}>{AGGREGATE_SOURCES.map((source) => <option key={source} value={source}>{JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS[source]}</option>)}</select></label>
+
+            {draft.source === "statusIntervals" && draft.rowConfig?.kind === "statusInterval" && (
+              <fieldset className="jira-aggregate-fieldset jira-status-interval-config">
+                <legend>Контрольные точки интервала</legend>
+                <label>Начало
+                  <select
+                    value={draft.rowConfig.start.anchor}
+                    disabled={!canEdit}
+                    onChange={(event) => {
+                      const anchor = event.target.value as "issueCreated" | "firstStatusEntry";
+                      setDraft({
+                        ...draft,
+                        rowConfig: {
+                          ...draft.rowConfig!,
+                          start: anchor === "issueCreated"
+                            ? { anchor }
+                            : { anchor, statuses: ["Open"] },
+                        },
+                      });
+                    }}
+                  >
+                    <option value="issueCreated">Создание тикета</option>
+                    <option value="firstStatusEntry">Первый вход в статус</option>
+                  </select>
+                </label>
+                {draft.rowConfig.start.anchor === "firstStatusEntry" && (
+                  <StatusListEditor
+                    label="Начальные статусы"
+                    statuses={draft.rowConfig.start.statuses}
+                    disabled={!canEdit}
+                    onChange={(statuses) => setDraft({
+                      ...draft,
+                      rowConfig: { ...draft.rowConfig!, start: { anchor: "firstStatusEntry", statuses } },
+                    })}
+                  />
+                )}
+                <StatusListEditor
+                  label="Конечные статусы"
+                  statuses={draft.rowConfig.end.statuses}
+                  disabled={!canEdit}
+                  onChange={(statuses) => setDraft({
+                    ...draft,
+                    rowConfig: { ...draft.rowConfig!, end: { anchor: "firstStatusEntry", statuses } },
+                  })}
+                />
+                <label className="jira-aggregate-field-option">
+                  <input
+                    type="checkbox"
+                    checked={draft.rowConfig.openIntervals === "include"}
+                    disabled={!canEdit}
+                    onChange={(event) => setDraft({
+                      ...draft,
+                      rowConfig: {
+                        ...draft.rowConfig!,
+                        openIntervals: event.target.checked ? "include" : "exclude",
+                        periodAnchor: event.target.checked ? "start" : draft.rowConfig!.periodAnchor,
+                      },
+                    })}
+                  />
+                  <span>Учитывать незавершённые интервалы</span>
+                </label>
+                <label>Якорь периода
+                  <select
+                    value={draft.rowConfig.periodAnchor}
+                    disabled={!canEdit || draft.rowConfig.openIntervals === "include"}
+                    onChange={(event) => setDraft({
+                      ...draft,
+                      rowConfig: { ...draft.rowConfig!, periodAnchor: event.target.value as "start" | "end" },
+                    })}
+                  >
+                    <option value="start">Дата начала</option>
+                    <option value="end">Дата завершения</option>
+                  </select>
+                </label>
+              </fieldset>
+            )}
 
             <fieldset className="jira-aggregate-fieldset"><legend>Поля, доступные виджетам</legend><p>Только опубликованные здесь поля можно использовать в условиях, группировке и сортировке.</p>
               <div className="jira-aggregate-field-grid">{availableFields.map((field) => <label key={field} className="jira-aggregate-field-option"><input type="checkbox" disabled={!canEdit} checked={draft.exposedFields.includes(field)} onChange={(event) => setDraft({ ...draft, exposedFields: event.target.checked ? [...draft.exposedFields, field] : draft.exposedFields.filter((item) => item !== field) })} /><span>{JIRA_ANALYTICS_FILTER_LABELS[field]}</span></label>)}</div>

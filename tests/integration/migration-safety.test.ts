@@ -202,6 +202,17 @@ test("Jira aggregate dataset v3 migration is additive and preserves legacy query
   assert.doesNotMatch(migration, /UPDATE\s+"JiraAggregateDefinition"/i);
 });
 
+test("Jira status interval aggregates add row configuration without rewriting data", () => {
+  const migration = migrationSql("20260826130000_jira_status_interval_aggregates");
+  assert.match(migration, /ADD COLUMN "rowConfig" JSONB/);
+  assert.match(migration, /statusIntervals/);
+  assert.match(migration, /JiraAggregateDefinition_rowConfig_check/);
+  assert.match(migration, /reporter/);
+  assert.doesNotMatch(migration, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i);
+  assert.doesNotMatch(migration, /DROP\s+(?:TABLE|COLUMN)/i);
+  assert.doesNotMatch(migration, /ALTER TABLE "JiraIssue(?:Version|Snapshot|HistoryRetry)"/i);
+});
+
 test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
   const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
   assert.match(migration, /CREATE TABLE "JiraSyncRun"/);

@@ -40,7 +40,9 @@ test("new filter uses an opaque id and explicit value", () => {
 
 test("numeric fields expose only numeric operators", () => {
   assert.equal(jiraAnalyticsFieldIsNumeric("commitCount"), true);
-  assert.deepEqual(jiraAnalyticsOperatorsFor("commitCount"), ["greaterThan", "atLeast", "equals"]);
+  assert.deepEqual(jiraAnalyticsOperatorsFor("commitCount"), [
+    "greaterThan", "atLeast", "lessThan", "atMost", "equals",
+  ]);
   assert.equal(jiraAnalyticsFieldIsNumeric("status"), false);
 });
 

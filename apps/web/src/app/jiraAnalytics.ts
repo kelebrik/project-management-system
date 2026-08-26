@@ -37,6 +37,7 @@ export const JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS: Record<JiraAnalyticsSource, s
   transitions: "Переходы статусов",
   development: "Активность разработки",
   criticalBugs: "SLA Critical/Blocker",
+  statusIntervals: "Интервалы статусов",
 };
 
 export const JIRA_ANALYTICS_LIST_RESULT = "list" as const;
@@ -136,6 +137,8 @@ export const JIRA_ANALYTICS_FILTER_LABELS: Record<JiraAnalyticsFilterField, stri
   resolutionAt: "Дата Resolution",
   updatedAt: "Последнее изменение",
   eventAt: "Дата события",
+  intervalStartAt: "Начало интервала",
+  intervalEndAt: "Конец интервала",
 };
 
 export const JIRA_ANALYTICS_OPERATOR_LABELS: Record<JiraAnalyticsFilterOperator, string> = {
@@ -146,6 +149,8 @@ export const JIRA_ANALYTICS_OPERATOR_LABELS: Record<JiraAnalyticsFilterOperator,
   notEmpty: "не пусто",
   greaterThan: "больше",
   atLeast: "не меньше",
+  lessThan: "меньше",
+  atMost: "не больше",
   before: "раньше",
   after: "позже",
 };

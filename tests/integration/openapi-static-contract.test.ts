@@ -216,8 +216,10 @@ test("OpenAPI describes the managed Jira aggregate concurrency and payload contr
   const filter = document.components.schemas.JiraAnalyticsFilter as {
     properties?: { field?: { enum?: string[] } };
   };
-  assert.equal(exposedFields.maxItems, 21);
+  assert.equal(exposedFields.maxItems, 23);
   assert.deepEqual(exposedFields.items?.enum, filter.properties?.field?.enum);
+  assert.ok((aggregateDraft.properties?.source as { enum?: string[] })?.enum?.includes("statusIntervals"));
+  assert.ok(aggregateDraft.properties?.rowConfig);
 
   const dashboard = document.components.schemas.JiraAnalyticsDashboardConfig as {
     oneOf?: Array<{ $ref?: string }>;

@@ -8,8 +8,11 @@ import {
   jiraAnalyticsAggregateDraftSchema,
   jiraAnalyticsDatasetDraftSchema,
   jiraAnalyticsDatasetFromLegacy,
+  jiraAnalyticsDatasetSemanticDocument,
   jiraAnalyticsWidgetDatasetError,
+  normalizeJiraAnalyticsDatasetRevision,
   type JiraAnalyticsAggregateDraft,
+  type JiraAnalyticsExecutableDefinition,
   type JiraAnalyticsIssueData,
 } from '@pms/shared';
 import type { JiraAggregateDefinition } from '@prisma/client';
@@ -21,6 +24,7 @@ import {
   inspectJiraDashboardDefinitionUse,
   jiraAggregateFingerprint,
   jiraAggregateDatasetFingerprint,
+  jiraAggregateDatasetRevisionCreateData,
   jiraAggregateIssueSelect,
   jiraAggregateResultCsv,
   jiraDashboardReconciliationConfigs,
@@ -92,6 +96,22 @@ const options = {
   page: 1,
   pageSize: 100,
 };
+
+function statusIntervalDefinition(
+  patch: Partial<JiraAnalyticsExecutableDefinition> = {},
+): JiraAnalyticsExecutableDefinition {
+  return {
+    ...definition({ source: 'statusIntervals', periodMode: 'NONE' }),
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'issueCreated' },
+      end: { anchor: 'firstStatusEntry', statuses: ['In Progress'] },
+      openIntervals: 'include',
+      periodAnchor: 'start',
+    },
+    ...patch,
+  };
+}
 
 function storedIssue(issueKey: string) {
   return {
@@ -220,6 +240,42 @@ test('dataset fingerprint identifies row semantics independently of its display 
   assert.equal(jiraAggregateDatasetFingerprint(first), jiraAggregateDatasetFingerprint(second));
 });
 
+test('status interval fingerprint normalizes status lists while legacy datasets stay v2-shaped', () => {
+  const base = jiraAnalyticsDatasetDraftSchema.parse({
+    name: 'Creation to work', description: '', source: 'statusIntervals',
+    exposedFields: ['issueKey', 'intervalStartAt', 'intervalEndAt', 'durationHours'],
+    baseFilterLogic: 'and', baseFilters: [], rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'issueCreated' },
+      end: { anchor: 'firstStatusEntry', statuses: ['IN PROGRESS', 'В работе'] },
+      openIntervals: 'include', periodAnchor: 'start',
+    },
+    timeZone: 'Europe/Moscow', sortOrder: 0,
+  });
+  const reordered = jiraAnalyticsDatasetDraftSchema.parse({
+    ...base,
+    rowConfig: {
+      ...base.rowConfig!,
+      end: { anchor: 'firstStatusEntry', statuses: [' в РАБОТЕ ', 'in progress'] },
+    },
+  });
+  const ordinary = jiraAnalyticsDatasetDraftSchema.parse({
+    name: 'Issues', description: '', source: 'issues', exposedFields: ['issueKey'],
+    baseFilterLogic: 'and', baseFilters: [], timeZone: 'Europe/Moscow', sortOrder: 0,
+  });
+
+  assert.equal(jiraAggregateDatasetFingerprint(base), jiraAggregateDatasetFingerprint(reordered));
+  assert.equal('rowConfig' in jiraAnalyticsDatasetSemanticDocument(ordinary), false);
+
+  const intervalRevision = jiraAggregateDatasetRevisionCreateData('project', 'aggregate', 1, base);
+  const ordinaryRevision = jiraAggregateDatasetRevisionCreateData('project', 'aggregate-2', 1, ordinary);
+  assert.equal((intervalRevision.definition as { schemaVersion: number }).schemaVersion, 3);
+  assert.equal((ordinaryRevision.definition as { schemaVersion: number }).schemaVersion, 2);
+  assert.equal('rowConfig' in (ordinaryRevision.definition as object), false);
+  assert.deepEqual(normalizeJiraAnalyticsDatasetRevision(intervalRevision.definition)?.dataset, base);
+  assert.deepEqual(normalizeJiraAnalyticsDatasetRevision(ordinaryRevision.definition)?.dataset, ordinary);
+});
+
 test('active scope keeps unresolved non-cancelled issues only', () => {
   const result = evaluateJiraAnalyticsAggregate(
     definition({ scope: 'active' }),
@@ -255,6 +311,125 @@ test('transition source excludes issues with incomplete history', () => {
     options,
   );
   assert.equal(result.value, 1);
+});
+
+test('status interval measures creation to the first matching status entry', () => {
+  const result = evaluateJiraAnalyticsAggregate(
+    statusIntervalDefinition({
+      filters: [{ id: 'slow', field: 'durationHours', operator: 'greaterThan', value: '288' }],
+    }),
+    [issue({
+      status: 'In Progress',
+      statusTransitions: [
+        { id: 't1', fromStatus: 'Open', toStatus: 'Analysis', transitionedAt: '2026-01-03T00:00:00.000Z' },
+        { id: 't2', fromStatus: 'Analysis', toStatus: 'In Progress', transitionedAt: '2026-01-15T00:00:00.000Z' },
+        { id: 't3', fromStatus: 'In Progress', toStatus: 'QA', transitionedAt: '2026-01-20T00:00:00.000Z' },
+        { id: 't4', fromStatus: 'QA', toStatus: 'In Progress', transitionedAt: '2026-02-01T00:00:00.000Z' },
+      ],
+    })],
+    options,
+  );
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.intervalStartAt, '2026-01-01T00:00:00.000Z');
+  assert.equal(result.records[0]?.intervalEndAt, '2026-01-15T00:00:00.000Z');
+  assert.equal(result.records[0]?.durationHours, 336);
+  assert.equal(result.records[0]?.toStatus, 'In Progress');
+});
+
+test('status interval is zero when a ticket is created in the target status', () => {
+  const result = evaluateJiraAnalyticsAggregate(
+    statusIntervalDefinition(),
+    [issue({ status: 'In Progress', statusTransitions: [] })],
+    options,
+  );
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.intervalStartAt, '2026-01-01T00:00:00.000Z');
+  assert.equal(result.records[0]?.intervalEndAt, '2026-01-01T00:00:00.000Z');
+  assert.equal(result.records[0]?.durationHours, 0);
+});
+
+test('status interval never substitutes the current status for a missing initial status', () => {
+  const result = evaluateJiraAnalyticsAggregate(
+    statusIntervalDefinition(),
+    [issue({
+      status: 'In Progress',
+      statusTransitions: [{
+        id: 't1', fromStatus: null, toStatus: 'In Progress', transitionedAt: '2026-01-15T00:00:00.000Z',
+      }],
+    })],
+    options,
+  );
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.fromStatus, null);
+  assert.equal(result.records[0]?.intervalEndAt, '2026-01-15T00:00:00.000Z');
+  assert.equal(result.records[0]?.durationHours, 336);
+});
+
+test('status interval includes or excludes an unfinished target according to its definition', () => {
+  const openIssue = issue({
+    status: 'Open',
+    statusTransitions: [{
+      id: 't1', fromStatus: 'Open', toStatus: 'Analysis', transitionedAt: '2026-01-10T00:00:00.000Z',
+    }],
+  });
+  const included = evaluateJiraAnalyticsAggregate(statusIntervalDefinition(), [openIssue], options);
+  const excluded = evaluateJiraAnalyticsAggregate(statusIntervalDefinition({
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'issueCreated' },
+      end: { anchor: 'firstStatusEntry', statuses: ['In Progress'] },
+      openIntervals: 'exclude',
+      periodAnchor: 'end',
+    },
+  }), [openIssue], options);
+
+  assert.equal(included.totalRecords, 1);
+  assert.equal(included.records[0]?.intervalEndAt, null);
+  assert.equal(included.records[0]?.durationHours, 1_416);
+  assert.equal(excluded.totalRecords, 0);
+});
+
+test('status interval ordering is deterministic and period filtering uses its configured anchor', () => {
+  const result = evaluateJiraAnalyticsAggregate(statusIntervalDefinition({
+    periodMode: 'DASHBOARD',
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'firstStatusEntry', statuses: ['Analysis'] },
+      end: { anchor: 'firstStatusEntry', statuses: ['In Progress'] },
+      openIntervals: 'exclude',
+      periodAnchor: 'start',
+    },
+  }), [issue({
+    issueCreatedAt: '2026-02-01T00:00:00.000Z',
+    statusTransitions: [
+      { id: 'a', fromStatus: 'Open', toStatus: 'Analysis', transitionedAt: '2026-02-15T00:00:00.000Z' },
+      { id: 'b', fromStatus: 'Analysis', toStatus: 'In Progress', transitionedAt: '2026-02-15T00:00:00.000Z' },
+    ],
+  })], { ...options, periodDays: 30 });
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.durationHours, 0);
+  assert.equal(result.records[0]?.fromStatus, 'Analysis');
+  assert.equal(result.records[0]?.toStatus, 'In Progress');
+});
+
+test('status interval fails closed for missing creation or incomplete transition history', () => {
+  const result = evaluateJiraAnalyticsAggregate(statusIntervalDefinition(), [
+    issue({ id: 'missing-created', issueCreatedAt: null }),
+    issue({ id: 'partial', transitionHistoryComplete: false }),
+  ], options);
+
+  assert.equal(result.totalRecords, 0);
+  assert.equal(result.quality.status, 'PARTIAL');
+  assert.equal(result.quality.population, 2);
+  assert.equal(result.quality.complete, 0);
+  assert.deepEqual(result.quality.warnings, [
+    { code: 'INCOMPLETE_TRANSITION_HISTORY', count: 1 },
+    { code: 'MISSING_ISSUE_CREATED_AT', count: 1 },
+  ]);
 });
 
 test('aggregate result reports source-aware measured completeness', () => {

@@ -3,6 +3,7 @@ const jiraAnalyticsOpenApiFields = [
   "sprint", "issueType", "resolution", "fromStatus", "toStatus", "durationHours",
   "commitCount", "mergeRequestCount", "hasDevelopment", "issueCreatedAt",
   "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt",
+  "intervalStartAt", "intervalEndAt",
 ] as const;
 
 const pathParam = (name: string) => ({
@@ -220,7 +221,7 @@ export const openApiDocument = {
           },
           operator: {
             type: "string",
-            enum: ["equals", "notEquals", "contains", "empty", "notEmpty", "greaterThan", "atLeast", "before", "after"],
+            enum: ["equals", "notEquals", "contains", "empty", "notEmpty", "greaterThan", "atLeast", "lessThan", "atMost", "before", "after"],
           },
           value: { type: "string", maxLength: 1000 },
         },
@@ -334,16 +335,56 @@ export const openApiDocument = {
         ],
         discriminator: { propertyName: "version" },
       },
+      JiraStatusIntervalEndpoint: {
+        oneOf: [
+          {
+            type: "object",
+            additionalProperties: false,
+            properties: { anchor: { type: "string", const: "issueCreated" } },
+            required: ["anchor"],
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              anchor: { type: "string", const: "firstStatusEntry" },
+              statuses: { type: "array", minItems: 1, maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
+            },
+            required: ["anchor", "statuses"],
+          },
+        ],
+      },
+      JiraStatusIntervalRowConfig: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          kind: { type: "string", const: "statusInterval" },
+          start: { $ref: "#/components/schemas/JiraStatusIntervalEndpoint" },
+          end: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              anchor: { type: "string", const: "firstStatusEntry" },
+              statuses: { type: "array", minItems: 1, maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
+            },
+            required: ["anchor", "statuses"],
+          },
+          openIntervals: { type: "string", enum: ["exclude", "include"] },
+          periodAnchor: { type: "string", enum: ["start", "end"] },
+        },
+        required: ["kind", "start", "end", "openIntervals", "periodAnchor"],
+      },
       JiraAggregateDraft: {
         type: "object",
         additionalProperties: false,
         properties: {
           name: { type: "string", minLength: 1, maxLength: 200 },
           description: { type: "string", maxLength: 1000 },
-          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
+          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs", "statusIntervals"] },
           exposedFields: { type: "array", minItems: 1, maxItems: jiraAnalyticsOpenApiFields.length, uniqueItems: true, items: { type: "string", enum: jiraAnalyticsOpenApiFields } },
           baseFilterLogic: { type: "string", enum: ["and", "or"] },
           baseFilters: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
+          rowConfig: { oneOf: [{ $ref: "#/components/schemas/JiraStatusIntervalRowConfig" }, { type: "null" }] },
           timeZone: { type: "string", enum: ["Europe/Moscow", "UTC"] },
           sortOrder: { type: "integer", minimum: 0, maximum: 10000 },
         },
@@ -357,10 +398,11 @@ export const openApiDocument = {
           projectId: { type: "string" },
           name: { type: "string", minLength: 1, maxLength: 200 },
           description: { type: "string", maxLength: 1000 },
-          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
+          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs", "statusIntervals"] },
           exposedFields: { type: "array", minItems: 1, maxItems: jiraAnalyticsOpenApiFields.length, uniqueItems: true, items: { type: "string", enum: jiraAnalyticsOpenApiFields } },
           baseFilterLogic: { type: "string", enum: ["and", "or"] },
           baseFilters: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
+          rowConfig: { oneOf: [{ $ref: "#/components/schemas/JiraStatusIntervalRowConfig" }, { type: "null" }] },
           timeZone: { type: "string", enum: ["Europe/Moscow", "UTC"] },
           sortOrder: { type: "integer", minimum: 0, maximum: 10000 },
           fingerprint: { type: "string", pattern: "^[0-9a-f]{64}$" },
@@ -370,7 +412,7 @@ export const openApiDocument = {
         },
         required: [
           "id", "projectId", "name", "description", "source", "exposedFields",
-          "baseFilterLogic", "baseFilters", "timeZone",
+          "baseFilterLogic", "baseFilters", "rowConfig", "timeZone",
           "sortOrder", "fingerprint", "version", "createdAt", "updatedAt",
         ],
       },
@@ -396,7 +438,7 @@ export const openApiDocument = {
         properties: {
           status: { type: "string", enum: ["COMPLETE", "PARTIAL", "NO_DATA", "UNAVAILABLE"] },
           basis: { type: "string", enum: ["CURRENT_PROJECTION", "OBSERVED_VERSIONS"] },
-          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
+          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs", "statusIntervals"] },
           population: { type: "integer", minimum: 0 },
           complete: { type: "integer", minimum: 0 },
           incomplete: { type: "integer", minimum: 0 },
@@ -412,7 +454,7 @@ export const openApiDocument = {
                 code: {
                   type: "string",
                   enum: [
-                    "NO_SOURCE_POPULATION", "INCOMPLETE_TRANSITION_HISTORY",
+                    "NO_SOURCE_POPULATION", "INCOMPLETE_TRANSITION_HISTORY", "MISSING_ISSUE_CREATED_AT",
                     "INCOMPLETE_DEVELOPMENT_DATA", "INCOMPLETE_CRITICAL_SLA",
                     "MISSING_HISTORICAL_OBSERVATION", "BEFORE_HISTORY_START", "HISTORY_WRITE_GAP",
                   ],

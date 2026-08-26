@@ -13,6 +13,8 @@ import {
   jiraAnalyticsManagedWidgetSchema,
   jiraAnalyticsReferencedWidgetSchema,
   jiraAnalyticsSemanticKey,
+  jiraAnalyticsSourcePeriodSupport,
+  jiraAnalyticsSourceSupportsAsOf,
   jiraAnalyticsSourceUsesPeriod,
   jiraAnalyticsWidgetDatasetError,
   normalizeJiraAnalyticsDashboardV1,
@@ -170,6 +172,7 @@ export function safeJiraAggregateDatasetFromRow(row: JiraAggregateDefinition): J
       exposedFields: row.exposedFields,
       baseFilterLogic: row.baseFilterLogic,
       baseFilters: row.baseFilters,
+      rowConfig: row.rowConfig ?? null,
       timeZone: row.timeZone,
       sortOrder: row.sortOrder,
     });
@@ -189,17 +192,20 @@ export function jiraAggregateDatasetCreateData(
     nameKey: normalizeJiraAnalyticsName(definition.name),
     description: definition.description.trim(),
     source: definition.source,
-    definitionSchemaVersion: 2,
+    definitionSchemaVersion: definition.rowConfig ? 3 : 2,
     exposedFields: definition.exposedFields as Prisma.InputJsonValue,
     baseFilterLogic: definition.baseFilterLogic,
     baseFilters: definition.baseFilters as Prisma.InputJsonValue,
+    rowConfig: definition.rowConfig
+      ? definition.rowConfig as Prisma.InputJsonValue
+      : undefined,
     // Legacy columns remain populated for one release so v1/v2 stays readable.
     metric: 'count',
     groupBy: 'none',
     scope: 'active',
     filterLogic: 'and',
     filters: [],
-    periodMode: jiraAnalyticsSourceUsesPeriod(definition.source) ? 'DASHBOARD' : 'NONE',
+    periodMode: jiraAnalyticsSourcePeriodSupport(definition.source) === 'required' ? 'DASHBOARD' : 'NONE',
     periodDays: null,
     timeZone: definition.timeZone,
     fingerprint: jiraAggregateDatasetFingerprint(definition),
@@ -215,10 +221,13 @@ export function jiraAggregateDatasetUpdateData(
     nameKey: normalizeJiraAnalyticsName(definition.name),
     description: definition.description.trim(),
     source: definition.source,
-    definitionSchemaVersion: 2,
+    definitionSchemaVersion: definition.rowConfig ? 3 : 2,
     exposedFields: definition.exposedFields as Prisma.InputJsonValue,
     baseFilterLogic: definition.baseFilterLogic,
     baseFilters: definition.baseFilters as Prisma.InputJsonValue,
+    rowConfig: definition.rowConfig
+      ? definition.rowConfig as Prisma.InputJsonValue
+      : Prisma.DbNull,
     timeZone: definition.timeZone,
     fingerprint: jiraAggregateDatasetFingerprint(definition),
     sortOrder: definition.sortOrder,
@@ -232,11 +241,17 @@ export function jiraAggregateDatasetRevisionCreateData(
   version: number,
   definition: JiraAnalyticsDatasetDraft,
 ): Prisma.JiraAggregateDefinitionRevisionUncheckedCreateInput {
+  const revision = definition.rowConfig
+    ? { schemaVersion: 3 as const, ...definition }
+    : (() => {
+        const { rowConfig: _rowConfig, ...v2Definition } = definition;
+        return { schemaVersion: 2 as const, ...v2Definition };
+      })();
   return {
     projectId,
     aggregateId,
     version,
-    definition: { schemaVersion: 2, ...definition } as Prisma.InputJsonValue,
+    definition: revision as Prisma.InputJsonValue,
     fingerprint: jiraAggregateDatasetFingerprint(definition),
   };
 }
@@ -543,7 +558,7 @@ export function mergeJiraAsOfDataQuality(
 export async function evaluateJiraAggregateFromDatabase(
   client: JiraAggregateReadClient,
   projectId: string,
-  definition: JiraAnalyticsAggregateDraft,
+  definition: JiraAnalyticsExecutableDefinition,
   options: JiraAnalyticsEvaluationOptions,
   asOf?: Date,
   limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
@@ -554,7 +569,7 @@ export async function evaluateJiraAggregateFromDatabase(
     limits,
   );
   if (asOf) {
-    if (jiraAnalyticsSourceUsesPeriod(definition.source)) {
+    if (!jiraAnalyticsSourceSupportsAsOf(definition.source)) {
       throw new Error('JIRA_ASOF_EVENT_SOURCE_UNSUPPORTED');
     }
     const prepared = await prepareJiraAsOfIssueBatches(client, projectId, asOf);
@@ -627,6 +642,7 @@ function executableDefinition(
     filters: widget.filters,
     baseFilterLogic: dataset.baseFilterLogic,
     baseFilters: dataset.baseFilters,
+    rowConfig: dataset.rowConfig,
     periodMode: widget.periodMode,
     periodDays: widget.periodDays,
     timeZone: dataset.timeZone,
@@ -1004,6 +1020,8 @@ export function jiraAggregateResultCsv(result: JiraAnalyticsEvaluationResult) {
     'Sprint',
     'From status',
     'To status',
+    'Interval start',
+    'Interval end',
     'Duration hours',
     'Commits',
     'Merge requests',
@@ -1026,6 +1044,8 @@ export function jiraAggregateResultCsv(result: JiraAnalyticsEvaluationResult) {
     record.sprint,
     record.fromStatus,
     record.toStatus,
+    record.intervalStartAt,
+    record.intervalEndAt,
     record.durationHours,
     record.commitCount,
     record.mergeRequestCount,
@@ -1321,6 +1341,7 @@ function plannedAggregateDefinition(
     exposedFields: null,
     baseFilterLogic: null,
     baseFilters: null,
+    rowConfig: null,
     filters: item.definition.filters as Prisma.JsonValue,
     fingerprint: item.fingerprint,
     version: 1,

@@ -89,6 +89,7 @@ export const jiraAnalyticsSources = [
   "transitions",
   "development",
   "criticalBugs",
+  "statusIntervals",
 ] as const;
 export const jiraAnalyticsMetrics = [
   "count",
@@ -135,6 +136,8 @@ export const jiraAnalyticsFilterFields = [
   "resolutionAt",
   "updatedAt",
   "eventAt",
+  "intervalStartAt",
+  "intervalEndAt",
 ] as const;
 export const jiraAnalyticsFilterOperators = [
   "equals",
@@ -144,6 +147,8 @@ export const jiraAnalyticsFilterOperators = [
   "notEmpty",
   "greaterThan",
   "atLeast",
+  "lessThan",
+  "atMost",
   "before",
   "after",
 ] as const;
@@ -194,6 +199,13 @@ export const JIRA_ANALYTICS_METRICS_BY_SOURCE: Record<
     "p85Duration",
     "p95Duration",
   ],
+  statusIntervals: [
+    "count",
+    "averageDuration",
+    "p50Duration",
+    "p85Duration",
+    "p95Duration",
+  ],
 };
 
 export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
@@ -204,6 +216,7 @@ export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
   transitions: ["none", "project", "status", "assignee", "reporter", "fromStatus", "toStatus", "week"],
   development: ["none", "project", "status", "assignee", "reporter", "sprint", "week"],
   criticalBugs: ["none", "project", "priority", "assignee", "reporter", "status", "resolution"],
+  statusIntervals: ["none", "project", "status", "assignee", "reporter", "issueType", "priority", "fromStatus", "week"],
 };
 
 export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
@@ -232,6 +245,11 @@ export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
   transitions: ["issueKey", "project", "summary", "status", "assignee", "reporter", "fromStatus", "toStatus", "eventAt", "durationHours"],
   development: ["issueKey", "project", "summary", "status", "assignee", "reporter", "sprint", "eventAt", "commitCount", "mergeRequestCount"],
   criticalBugs: ["issueKey", "project", "summary", "status", "assignee", "reporter", "priority", "resolution", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "durationHours"],
+  statusIntervals: [
+    "issueKey", "project", "summary", "status", "assignee", "reporter",
+    "issueType", "priority", "resolution", "issueCreatedAt", "fromStatus",
+    "eventAt", "intervalStartAt", "intervalEndAt", "durationHours",
+  ],
 };
 
 const numericFields = new Set<JiraAnalyticsFilterField>([
@@ -246,6 +264,8 @@ const dateFields = new Set<JiraAnalyticsFilterField>([
   "resolutionAt",
   "updatedAt",
   "eventAt",
+  "intervalStartAt",
+  "intervalEndAt",
 ]);
 
 export type JiraAnalyticsFieldKind = "text" | "number" | "boolean" | "date";
@@ -260,18 +280,30 @@ export function jiraAnalyticsFieldKind(field: JiraAnalyticsFilterField): JiraAna
 export function jiraAnalyticsOperatorsFor(
   field: JiraAnalyticsFilterField,
 ): readonly JiraAnalyticsFilterOperator[] {
-  if (numericFields.has(field)) return ["greaterThan", "atLeast", "equals"];
+  if (numericFields.has(field)) return ["greaterThan", "atLeast", "lessThan", "atMost", "equals"];
   if (field === "hasDevelopment") return ["equals"];
   if (dateFields.has(field)) return ["before", "after", "empty", "notEmpty"];
   return ["equals", "notEquals", "contains", "empty", "notEmpty"];
 }
 
 export function jiraAnalyticsSourceUsesPeriod(source: JiraAnalyticsSource) {
-  return source === "transitions" || source === "development";
+  return jiraAnalyticsSourcePeriodSupport(source) !== "none";
+}
+
+export type JiraAnalyticsPeriodSupport = "none" | "optional" | "required";
+
+export function jiraAnalyticsSourcePeriodSupport(source: JiraAnalyticsSource): JiraAnalyticsPeriodSupport {
+  if (source === "transitions" || source === "development") return "required";
+  if (source === "statusIntervals") return "optional";
+  return "none";
+}
+
+export function jiraAnalyticsSourceSupportsAsOf(source: JiraAnalyticsSource) {
+  return source === "issues" || source === "criticalBugs";
 }
 
 function normalizedJiraValue(value: string | null | undefined) {
-  return value?.trim().toLocaleLowerCase("ru-RU") ?? "";
+  return value?.normalize("NFKC").trim().toLocaleLowerCase("ru-RU") ?? "";
 }
 
 export function isJiraCriticalPriority(value: string | null | undefined) {
@@ -385,6 +417,13 @@ export const jiraAnalyticsAggregateDraftSchema = z.object({
   timeZone: z.enum(jiraAnalyticsTimeZones),
   sortOrder: z.number().int().min(0).max(10_000),
 }).strict().superRefine((definition, context) => {
+  if (definition.source === "statusIntervals") {
+    context.addIssue({
+      code: "custom",
+      path: ["source"],
+      message: "Интервалы статусов доступны только в управляемых агрегатах",
+    });
+  }
   if (!JIRA_ANALYTICS_METRICS_BY_SOURCE[definition.source].includes(definition.metric)) {
     context.addIssue({ code: "custom", path: ["metric"], message: "Метрика недоступна для типа агрегата" });
   }
@@ -396,11 +435,11 @@ export const jiraAnalyticsAggregateDraftSchema = z.object({
       context.addIssue({ code: "custom", path: ["filters", index, "field"], message: "Поле недоступно для типа агрегата" });
     }
   });
-  const usesPeriod = jiraAnalyticsSourceUsesPeriod(definition.source);
-  if (!usesPeriod && (definition.periodMode !== "NONE" || definition.periodDays !== null)) {
+  const periodSupport = jiraAnalyticsSourcePeriodSupport(definition.source);
+  if (periodSupport === "none" && (definition.periodMode !== "NONE" || definition.periodDays !== null)) {
     context.addIssue({ code: "custom", path: ["periodMode"], message: "Этот тип агрегата не использует период" });
   }
-  if (usesPeriod && definition.periodMode === "NONE") {
+  if (periodSupport === "required" && definition.periodMode === "NONE") {
     context.addIssue({ code: "custom", path: ["periodMode"], message: "Для событийного типа агрегата нужен период" });
   }
   if ((definition.periodMode === "FIXED") !== (definition.periodDays !== null)) {
@@ -410,6 +449,57 @@ export const jiraAnalyticsAggregateDraftSchema = z.object({
 
 export type JiraAnalyticsFilter = z.infer<typeof jiraAnalyticsFilterSchema>;
 export type JiraAnalyticsAggregateDraft = z.infer<typeof jiraAnalyticsAggregateDraftSchema>;
+
+const jiraAnalyticsStatusNamesSchema = z.array(
+  z.string().trim().min(1).max(200),
+).min(1).max(10).superRefine((statuses, context) => {
+  const normalized = statuses.map(normalizedJiraValue);
+  if (new Set(normalized).size !== normalized.length) {
+    context.addIssue({ code: "custom", message: "Названия статусов не должны повторяться" });
+  }
+});
+
+export const jiraAnalyticsStatusIntervalEndpointSchema = z.discriminatedUnion("anchor", [
+  z.object({ anchor: z.literal("issueCreated") }).strict(),
+  z.object({
+    anchor: z.literal("firstStatusEntry"),
+    statuses: jiraAnalyticsStatusNamesSchema,
+  }).strict(),
+]);
+
+export const jiraAnalyticsStatusIntervalRowConfigSchema = z.object({
+  kind: z.literal("statusInterval"),
+  start: jiraAnalyticsStatusIntervalEndpointSchema,
+  end: z.object({
+    anchor: z.literal("firstStatusEntry"),
+    statuses: jiraAnalyticsStatusNamesSchema,
+  }).strict(),
+  openIntervals: z.enum(["exclude", "include"]),
+  periodAnchor: z.enum(["start", "end"]),
+}).strict().superRefine((config, context) => {
+  if (config.openIntervals === "include" && config.periodAnchor !== "start") {
+    context.addIssue({
+      code: "custom",
+      path: ["periodAnchor"],
+      message: "Открытые интервалы можно фильтровать по периоду только от даты начала",
+    });
+  }
+  if (config.start.anchor === "firstStatusEntry") {
+    const startStatuses = new Set(config.start.statuses.map(normalizedJiraValue));
+    if (config.end.statuses.some((status) => startStatuses.has(normalizedJiraValue(status)))) {
+      context.addIssue({
+        code: "custom",
+        path: ["end", "statuses"],
+        message: "Начальный и конечный статусы интервала не должны пересекаться",
+      });
+    }
+  }
+});
+
+export const jiraAnalyticsRowConfigSchema = jiraAnalyticsStatusIntervalRowConfigSchema;
+export type JiraAnalyticsStatusIntervalEndpoint = z.infer<typeof jiraAnalyticsStatusIntervalEndpointSchema>;
+export type JiraAnalyticsStatusIntervalRowConfig = z.infer<typeof jiraAnalyticsStatusIntervalRowConfigSchema>;
+export type JiraAnalyticsRowConfig = z.infer<typeof jiraAnalyticsRowConfigSchema>;
 
 /**
  * A managed aggregate is a semantic row set over the Jira data lake. Metrics,
@@ -422,9 +512,19 @@ export const jiraAnalyticsDatasetDraftSchema = z.object({
   exposedFields: z.array(z.enum(jiraAnalyticsFilterFields)).min(1).max(jiraAnalyticsFilterFields.length),
   baseFilterLogic: z.enum(["and", "or"]),
   baseFilters: z.array(jiraAnalyticsFilterSchema).max(20),
+  rowConfig: jiraAnalyticsRowConfigSchema.nullable().default(null),
   timeZone: z.enum(jiraAnalyticsTimeZones),
   sortOrder: z.number().int().min(0).max(10_000),
 }).strict().superRefine((definition, context) => {
+  if ((definition.source === "statusIntervals") !== (definition.rowConfig !== null)) {
+    context.addIssue({
+      code: "custom",
+      path: ["rowConfig"],
+      message: definition.source === "statusIntervals"
+        ? "Для интервалов статусов нужна конфигурация контрольных точек"
+        : "Конфигурация интервала доступна только для типа «Интервалы статусов»",
+    });
+  }
   const available = JIRA_ANALYTICS_FIELDS_BY_SOURCE[definition.source];
   const uniqueFields = new Set(definition.exposedFields);
   if (uniqueFields.size !== definition.exposedFields.length) {
@@ -444,9 +544,22 @@ export const jiraAnalyticsDatasetDraftSchema = z.object({
 
 export const jiraAnalyticsDatasetRevisionV2Schema = jiraAnalyticsDatasetDraftSchema.extend({
   schemaVersion: z.literal(2),
-}).strict();
+}).strict().superRefine((definition, context) => {
+  if (definition.rowConfig !== null || definition.source === "statusIntervals") {
+    context.addIssue({ code: "custom", path: ["rowConfig"], message: "Ревизия v2 не поддерживает конфигурацию строк" });
+  }
+});
+
+export const jiraAnalyticsDatasetRevisionV3Schema = jiraAnalyticsDatasetDraftSchema.extend({
+  schemaVersion: z.literal(3),
+}).strict().superRefine((definition, context) => {
+  if (definition.rowConfig === null || definition.source !== "statusIntervals") {
+    context.addIssue({ code: "custom", path: ["rowConfig"], message: "Ревизия v3 требует конфигурацию интервала" });
+  }
+});
 
 export const jiraAnalyticsDatasetRevisionSchema = z.union([
+  jiraAnalyticsDatasetRevisionV3Schema,
   jiraAnalyticsDatasetRevisionV2Schema,
   jiraAnalyticsAggregateDraftSchema,
 ]);
@@ -464,6 +577,7 @@ export function jiraAnalyticsDatasetFromLegacy(
     exposedFields: [...JIRA_ANALYTICS_FIELDS_BY_SOURCE[definition.source]],
     baseFilterLogic: definition.filterLogic,
     baseFilters: definition.filters,
+    rowConfig: null,
     timeZone: definition.timeZone,
     sortOrder: definition.sortOrder,
   });
@@ -473,9 +587,14 @@ export function normalizeJiraAnalyticsDatasetRevision(value: unknown): {
   dataset: JiraAnalyticsDatasetDraft;
   legacyQuery: JiraAnalyticsAggregateDraft | null;
 } | null {
-  const current = jiraAnalyticsDatasetRevisionV2Schema.safeParse(value);
+  const current = jiraAnalyticsDatasetRevisionV3Schema.safeParse(value);
   if (current.success) {
     const { schemaVersion: _schemaVersion, ...dataset } = current.data;
+    return { dataset, legacyQuery: null };
+  }
+  const previous = jiraAnalyticsDatasetRevisionV2Schema.safeParse(value);
+  if (previous.success) {
+    const { schemaVersion: _schemaVersion, ...dataset } = previous.data;
     return { dataset, legacyQuery: null };
   }
   const legacy = jiraAnalyticsAggregateDraftSchema.safeParse(value);
@@ -491,11 +610,27 @@ export function jiraAnalyticsDatasetSemanticDocument(definition: JiraAnalyticsDa
       value: normalizedFilterValue(filter),
     }))
     .sort((left, right) => codePointCompare(JSON.stringify(left), JSON.stringify(right)));
+  const rowConfig = definition.rowConfig
+    ? {
+        ...definition.rowConfig,
+        start: definition.rowConfig.start.anchor === "issueCreated"
+          ? definition.rowConfig.start
+          : {
+              ...definition.rowConfig.start,
+              statuses: definition.rowConfig.start.statuses.map(normalizedJiraValue).sort(codePointCompare),
+            },
+        end: {
+          ...definition.rowConfig.end,
+          statuses: definition.rowConfig.end.statuses.map(normalizedJiraValue).sort(codePointCompare),
+        },
+      }
+    : null;
   return {
     source: definition.source,
     exposedFields: [...definition.exposedFields].sort(codePointCompare),
     baseFilterLogic: definition.baseFilterLogic,
     baseFilters,
+    ...(rowConfig ? { rowConfig } : {}),
     timeZone: definition.timeZone,
   } as const;
 }
@@ -700,6 +835,9 @@ export function jiraAnalyticsWidgetDatasetError(
   widget: JiraAnalyticsManagedWidget,
   dataset: JiraAnalyticsDatasetDraft,
 ) {
+  if (dataset.source === "statusIntervals" && dataset.rowConfig === null) {
+    return "Для интервала статусов не настроены контрольные точки";
+  }
   if (!JIRA_ANALYTICS_METRICS_BY_SOURCE[dataset.source].includes(widget.metric)) {
     return "Метрика недоступна для типа агрегата";
   }
@@ -717,9 +855,9 @@ export function jiraAnalyticsWidgetDatasetError(
   if (sortField && !exposed.has(sortField)) {
     return "Поле сортировки не опубликовано агрегатом";
   }
-  const usesPeriod = jiraAnalyticsSourceUsesPeriod(dataset.source);
-  if (!usesPeriod && widget.periodMode !== "NONE") return "Этот тип агрегата не использует период";
-  if (usesPeriod && widget.periodMode === "NONE") return "Для событийного типа агрегата нужен период";
+  const periodSupport = jiraAnalyticsSourcePeriodSupport(dataset.source);
+  if (periodSupport === "none" && widget.periodMode !== "NONE") return "Этот тип агрегата не использует период";
+  if (periodSupport === "required" && widget.periodMode === "NONE") return "Для событийного типа агрегата нужен период";
   return null;
 }
 
@@ -912,6 +1050,8 @@ export type JiraAnalyticsResultRecord = {
     "statusTransitions" | "developmentActivities" | "criticalEndPriority" | "dataObservedAt"
   >;
   eventAt: string | null;
+  intervalStartAt: string | null;
+  intervalEndAt: string | null;
   durationHours: number | null;
   commitCount: number;
   mergeRequestCount: number;
@@ -930,6 +1070,7 @@ export type JiraAnalyticsDataQualityWarning = {
   code:
     | "NO_SOURCE_POPULATION"
     | "INCOMPLETE_TRANSITION_HISTORY"
+    | "MISSING_ISSUE_CREATED_AT"
     | "INCOMPLETE_DEVELOPMENT_DATA"
     | "INCOMPLETE_CRITICAL_SLA"
     | "MISSING_HISTORICAL_OBSERVATION"
@@ -963,6 +1104,7 @@ export type JiraAnalyticsEvaluationOptions = {
 export type JiraAnalyticsExecutableDefinition = JiraAnalyticsAggregateDraft & {
   baseFilterLogic?: "and" | "or";
   baseFilters?: JiraAnalyticsFilter[];
+  rowConfig?: JiraAnalyticsRowConfig | null;
   sortBy?: JiraAnalyticsSortField;
   sortDirection?: JiraAnalyticsSortDirection;
 };
@@ -1027,6 +1169,8 @@ function issueRecord(issue: JiraAnalyticsIssueData): JiraAnalyticsResultRecord {
     source: "issues",
     issue: publicIssue(issue),
     eventAt: validDate(issue.updatedAt)?.toISOString() ?? null,
+    intervalStartAt: null,
+    intervalEndAt: null,
     durationHours: null,
     commitCount: issue.commitCount,
     mergeRequestCount: issue.mergeRequestCount,
@@ -1053,6 +1197,8 @@ function transitionRecords(issue: JiraAnalyticsIssueData): JiraAnalyticsResultRe
       source: "transitions",
       issue: publicIssue(issue),
       eventAt: transition.date.toISOString(),
+      intervalStartAt: null,
+      intervalEndAt: null,
       durationHours,
       commitCount: 0,
       mergeRequestCount: 0,
@@ -1074,6 +1220,8 @@ function developmentRecords(issue: JiraAnalyticsIssueData): JiraAnalyticsResultR
         source: "development" as const,
         issue: publicIssue(issue),
         eventAt: eventAt.toISOString(),
+        intervalStartAt: null,
+        intervalEndAt: null,
         durationHours: null,
         commitCount: activity.commitCount,
         mergeRequestCount: activity.mergeRequestCount,
@@ -1096,11 +1244,76 @@ function criticalBugRecord(
     source: "criticalBugs",
     issue: publicIssue(issue),
     eventAt: startedAt.toISOString(),
+    intervalStartAt: startedAt.toISOString(),
+    intervalEndAt: validDate(issue.resolutionAt)?.toISOString() ?? null,
     durationHours: Math.max(0, (finishedAt.getTime() - startedAt.getTime()) / 3_600_000),
     commitCount: issue.commitCount,
     mergeRequestCount: issue.mergeRequestCount,
     fromStatus: null,
     toStatus: null,
+    sprint: issue.sprint,
+  };
+}
+
+type JiraStatusEntryEvent = {
+  at: Date;
+  index: number;
+  status: string | null;
+};
+
+function statusMatches(status: string | null, expected: readonly string[]) {
+  const normalized = normalizedJiraValue(status);
+  return normalized !== "" && expected.some((value) => normalizedJiraValue(value) === normalized);
+}
+
+function statusIntervalRecord(
+  issue: JiraAnalyticsIssueData,
+  config: JiraAnalyticsStatusIntervalRowConfig,
+  now: Date,
+): JiraAnalyticsResultRecord | null {
+  if (!issue.transitionHistoryComplete) return null;
+  const createdAt = validDate(issue.issueCreatedAt);
+  if (!createdAt) return null;
+  const transitions = issue.statusTransitions
+    .map((transition) => ({ ...transition, date: validDate(transition.transitionedAt) }))
+    .filter((transition): transition is typeof transition & { date: Date } => transition.date !== null)
+    .sort((left, right) => left.date.getTime() - right.date.getTime() || codePointCompare(left.id, right.id));
+  const entries: JiraStatusEntryEvent[] = [
+    {
+      at: createdAt,
+      index: 0,
+      status: transitions.length > 0 ? transitions[0]?.fromStatus ?? null : issue.status ?? null,
+    },
+    ...transitions.map((transition, index) => ({
+      at: transition.date,
+      index: index + 1,
+      status: transition.toStatus,
+    })),
+  ];
+  const startStatuses = config.start.anchor === "firstStatusEntry" ? config.start.statuses : null;
+  const start = startStatuses === null
+    ? entries[0] ?? null
+    : entries.find((entry) => statusMatches(entry.status, startStatuses)) ?? null;
+  if (!start) return null;
+  const end = entries.find((entry) =>
+    entry.index >= start.index && statusMatches(entry.status, config.end.statuses)
+  ) ?? null;
+  if (!end && config.openIntervals === "exclude") return null;
+  const finishedAt = end?.at ?? now;
+  const intervalStartAt = start.at.toISOString();
+  const intervalEndAt = end?.at.toISOString() ?? null;
+  return {
+    id: `status-interval:${issue.id}`,
+    source: "statusIntervals",
+    issue: publicIssue(issue),
+    eventAt: config.periodAnchor === "start" ? intervalStartAt : intervalEndAt,
+    intervalStartAt,
+    intervalEndAt,
+    durationHours: Math.max(0, (finishedAt.getTime() - start.at.getTime()) / 3_600_000),
+    commitCount: issue.commitCount,
+    mergeRequestCount: issue.mergeRequestCount,
+    fromStatus: start.status,
+    toStatus: end?.status ?? null,
     sprint: issue.sprint,
   };
 }
@@ -1124,6 +1337,8 @@ function recordValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilt
   if (field === "mergeRequestCount") return record.mergeRequestCount;
   if (field === "hasDevelopment") return record.issue.commitCount > 0 || record.issue.mergeRequestCount > 0;
   if (field === "eventAt") return record.eventAt;
+  if (field === "intervalStartAt") return record.intervalStartAt;
+  if (field === "intervalEndAt") return record.intervalEndAt;
   if (field === "sprint") return record.sprint;
   if (field === "resolution") return isJiraUnresolvedResolution(record.issue.resolution) ? null : record.issue.resolution;
   return record.issue[field];
@@ -1153,7 +1368,11 @@ function filterMatches(record: JiraAnalyticsResultRecord, filter: JiraAnalyticsF
   const actualNumber = Number(actual);
   const expectedNumber = Number(expected);
   if (!Number.isFinite(actualNumber) || !Number.isFinite(expectedNumber)) return false;
-  return filter.operator === "greaterThan" ? actualNumber > expectedNumber : actualNumber >= expectedNumber;
+  if (filter.operator === "greaterThan") return actualNumber > expectedNumber;
+  if (filter.operator === "atLeast") return actualNumber >= expectedNumber;
+  if (filter.operator === "lessThan") return actualNumber < expectedNumber;
+  if (filter.operator === "atMost") return actualNumber <= expectedNumber;
+  return actualNumber === expectedNumber;
 }
 
 function percentile(values: number[], ratio: number) {
@@ -1296,6 +1515,12 @@ function sourceRecords(
   if (definition.source === "issues") return [issueRecord(issue)];
   if (definition.source === "transitions") return transitionRecords(issue);
   if (definition.source === "development") return developmentRecords(issue);
+  if (definition.source === "statusIntervals") {
+    const config = definition.rowConfig;
+    if (!config || config.kind !== "statusInterval") return [];
+    const record = statusIntervalRecord(issue, config, now);
+    return record ? [record] : [];
+  }
   const record = criticalBugRecord(issue, now);
   return record ? [record] : [];
 }
@@ -1346,6 +1571,8 @@ export function createJiraAnalyticsEvaluationAccumulator(
   const selectedRecords: JiraAnalyticsResultRecord[] = [];
   let qualityPopulation = 0;
   let qualityComplete = 0;
+  let incompleteTransitionHistory = 0;
+  let missingIssueCreatedAt = 0;
   let oldestObservedAt: Date | null = null;
   let latestObservedAt: Date | null = null;
 
@@ -1364,6 +1591,9 @@ export function createJiraAnalyticsEvaluationAccumulator(
 
   const issueHasCompleteSourceData = (issue: JiraAnalyticsIssueData) => {
     if (definition.source === "transitions") return issue.transitionHistoryComplete;
+    if (definition.source === "statusIntervals") {
+      return issue.transitionHistoryComplete && validDate(issue.issueCreatedAt) !== null;
+    }
     if (definition.source === "development") return issue.developmentDataAvailable;
     if (definition.source === "criticalBugs") {
       return issue.criticalSlaTracked && validDate(issue.criticalPriorityAt) !== null;
@@ -1374,6 +1604,15 @@ export function createJiraAnalyticsEvaluationAccumulator(
   const observeQuality = (issue: JiraAnalyticsIssueData) => {
     if (!issueIsInQualityPopulation(issue)) return;
     qualityPopulation += 1;
+    if (
+      (definition.source === "transitions" || definition.source === "statusIntervals") &&
+      !issue.transitionHistoryComplete
+    ) {
+      incompleteTransitionHistory += 1;
+    }
+    if (definition.source === "statusIntervals" && validDate(issue.issueCreatedAt) === null) {
+      missingIssueCreatedAt += 1;
+    }
     if (issueHasCompleteSourceData(issue)) qualityComplete += 1;
     const observedAt = validDate(issue.dataObservedAt);
     if (!observedAt) return;
@@ -1388,6 +1627,20 @@ export function createJiraAnalyticsEvaluationAccumulator(
       : definition.source === "development"
         ? "INCOMPLETE_DEVELOPMENT_DATA" as const
         : "INCOMPLETE_CRITICAL_SLA" as const;
+    const warnings: JiraAnalyticsDataQualityWarning[] = qualityPopulation === 0
+      ? [{ code: "NO_SOURCE_POPULATION", count: 0 }]
+      : definition.source === "statusIntervals"
+        ? [
+            ...(incompleteTransitionHistory > 0
+              ? [{ code: "INCOMPLETE_TRANSITION_HISTORY" as const, count: incompleteTransitionHistory }]
+              : []),
+            ...(missingIssueCreatedAt > 0
+              ? [{ code: "MISSING_ISSUE_CREATED_AT" as const, count: missingIssueCreatedAt }]
+              : []),
+          ]
+        : incomplete > 0 && definition.source !== "issues"
+          ? [{ code: warningCode, count: incomplete }]
+          : [];
     return {
       status: qualityPopulation === 0
         ? "NO_DATA"
@@ -1404,11 +1657,7 @@ export function createJiraAnalyticsEvaluationAccumulator(
         : Math.round((qualityComplete / qualityPopulation) * 10_000) / 100,
       oldestObservedAt: oldestObservedAt?.toISOString() ?? null,
       latestObservedAt: latestObservedAt?.toISOString() ?? null,
-      warnings: qualityPopulation === 0
-        ? [{ code: "NO_SOURCE_POPULATION", count: 0 }]
-        : incomplete > 0 && definition.source !== "issues"
-          ? [{ code: warningCode, count: incomplete }]
-          : [],
+      warnings,
     };
   };
 

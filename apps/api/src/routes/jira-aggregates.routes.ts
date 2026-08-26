@@ -3,13 +3,15 @@ import {
   jiraAnalyticsDashboardConfigSchema,
   jiraAnalyticsDashboardV3Schema,
   jiraAnalyticsPeriodDays,
-  jiraAnalyticsSourceUsesPeriod,
+  jiraAnalyticsSourcePeriodSupport,
+  jiraAnalyticsSourceSupportsAsOf,
   jiraAnalyticsWidgetDatasetError,
   normalizeJiraAnalyticsDatasetRevision,
   JiraAnalyticsEvaluationLimitError,
   type JiraAnalyticsAggregateDraft,
   type JiraAnalyticsDatasetDraft,
   type JiraAnalyticsEvaluationOptions,
+  type JiraAnalyticsExecutableDefinition,
 } from '@pms/shared';
 import { Prisma, type JiraAggregateDefinition, type PrismaClient } from '@prisma/client';
 import type { Response, Router } from 'express';
@@ -124,6 +126,7 @@ const aggregateAuditFields = [
   'exposedFields',
   'baseFilterLogic',
   'baseFilters',
+  'rowConfig',
   'timeZone',
   'sortOrder',
   'version',
@@ -294,10 +297,7 @@ function evaluationOptions(
 
 function datasetPreviewDefinition(
   dataset: JiraAnalyticsDatasetDraft,
-): JiraAnalyticsAggregateDraft & {
-  baseFilterLogic: 'and' | 'or';
-  baseFilters: JiraAnalyticsDatasetDraft['baseFilters'];
-} {
+): JiraAnalyticsExecutableDefinition {
   return {
     name: dataset.name,
     description: dataset.description,
@@ -309,7 +309,8 @@ function datasetPreviewDefinition(
     filters: [],
     baseFilterLogic: dataset.baseFilterLogic,
     baseFilters: dataset.baseFilters,
-    periodMode: jiraAnalyticsSourceUsesPeriod(dataset.source) ? 'DASHBOARD' : 'NONE',
+    rowConfig: dataset.rowConfig,
+    periodMode: jiraAnalyticsSourcePeriodSupport(dataset.source) === 'required' ? 'DASHBOARD' : 'NONE',
     periodDays: null,
     timeZone: dataset.timeZone,
     sortOrder: dataset.sortOrder,
@@ -327,7 +328,7 @@ function asOfDate(
       'Параметры asOf и evaluatedAt нельзя использовать одновременно',
     );
   }
-  if (jiraAnalyticsSourceUsesPeriod(definition.source)) {
+  if (!jiraAnalyticsSourceSupportsAsOf(definition.source)) {
     throw new AggregateConflictError(
       'CONFIG_CHANGED',
       'Срез на дату доступен только для типов агрегата Тикеты и SLA Critical/Blocker',

@@ -1248,6 +1248,7 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.getByRole("heading", { name: /^Переходы статусов \d+$/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /^Активность разработки \d+$/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /^SLA Critical\/Blocker \d+$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Интервалы статусов \d+$/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Работа вне плана" })).toBeVisible();
   await expect(page.getByText("Тикеты без Sprint с активностью разработки")).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Тип агрегата" })).toBeVisible();
@@ -1257,6 +1258,13 @@ test("Jira analytics shows all reports and lets only the admin edit shared widge
   await expect(page.locator(".jira-aggregate-preview-number").getByText("1", { exact: true })).toBeVisible();
   await expect(page.locator(".jira-aggregate-preview-records").getByRole("link", { name: "TV-101" })).toBeVisible();
   await expect(page.getByText("Показана первая страница. Полнота данных: 100%.")).toBeVisible();
+  await page.getByRole("button", { name: "Создать агрегат" }).click();
+  await page.getByRole("combobox", { name: "Тип агрегата" }).selectOption("statusIntervals");
+  await expect(page.getByRole("group", { name: "Контрольные точки интервала" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Начало" })).toHaveValue("issueCreated");
+  await expect(page.getByLabel("Конечные статусы")).toHaveValue("In Progress");
+  await expect(page.getByRole("checkbox", { name: "Учитывать незавершённые интервалы" })).toBeChecked();
+  await expect(page.getByRole("combobox", { name: "Якорь периода" })).toBeDisabled();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(

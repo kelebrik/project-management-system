@@ -1010,6 +1010,27 @@
   width: 16px;
 }
 
+.jira-status-interval-config > label:not(.jira-aggregate-field-option) {
+  display: grid;
+  gap: 5px;
+}
+
+.jira-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.jira-status-chips > span {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-body);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 6px;
+}
+
 .jira-condition-row {
   align-items: center;
   display: grid;

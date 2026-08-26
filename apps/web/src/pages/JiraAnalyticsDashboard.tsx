@@ -19,6 +19,7 @@ import {
   jiraAnalyticsDashboardV2Schema,
   jiraAnalyticsDashboardV3Schema,
   jiraAnalyticsScopeValueIsValid,
+  jiraAnalyticsSourcePeriodSupport,
   jiraAnalyticsWidgetDatasetError,
   normalizeJiraAnalyticsDashboardV1,
   normalizeJiraAnalyticsScopeValue,
@@ -112,7 +113,7 @@ function csvCell(value: unknown) {
 }
 
 function recordsCsv(records: JiraAnalyticsResultRecord[]) {
-  const header = ["Key", "Summary", "Assignee", "Status", "Priority", "Issue type", "Resolution", "Sprint", "From status", "To status", "Duration hours", "Commits", "Merge requests", "Event at", "Jira URL"];
+  const header = ["Key", "Summary", "Assignee", "Status", "Priority", "Issue type", "Resolution", "Sprint", "From status", "To status", "Interval start", "Interval end", "Duration hours", "Commits", "Merge requests", "Event at", "Jira URL"];
   return [
     header.map(csvCell).join(","),
     ...records.map((record) => [
@@ -126,6 +127,8 @@ function recordsCsv(records: JiraAnalyticsResultRecord[]) {
       record.sprint,
       record.fromStatus,
       record.toStatus,
+      record.intervalStartAt,
+      record.intervalEndAt,
       record.durationHours,
       record.commitCount,
       record.mergeRequestCount,
@@ -173,6 +176,27 @@ function JiraAnalyticsTable({
 }) {
   const visible = limit ? records.slice(0, limit) : records;
   if (visible.length === 0) return <div className="jira-analytics-empty">Нет данных</div>;
+  if (visible.every((record) => record.source === "statusIntervals")) {
+    return (
+      <div className="jira-analytics-table-wrap">
+        <table className="jira-analytics-table">
+          <thead><tr><th>Тикет</th><th>Название</th><th>Исполнитель</th><th>Текущий статус</th><th>Начало</th><th>Конец</th><th>Интервал</th><th>Длительность</th></tr></thead>
+          <tbody>{visible.map((record) => (
+            <tr key={record.id}>
+              <td><a href={record.issue.issueUrl} target="_blank" rel="noreferrer">{record.issue.issueKey}</a></td>
+              <td title={record.issue.summary}>{record.issue.summary}</td>
+              <td>{record.issue.assignee || "Не назначен"}</td>
+              <td>{record.issue.status}</td>
+              <td>{dateText(record.intervalStartAt)}</td>
+              <td>{record.intervalEndAt ? dateText(record.intervalEndAt) : "Не достигнут"}</td>
+              <td>{`${record.fromStatus || "Создание"} -> ${record.toStatus || "Ожидание"}`}</td>
+              <td>{durationText(record.durationHours)}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    );
+  }
   if (visible.every((record) => record.source === "criticalBugs")) {
     return (
       <div className="jira-analytics-table-wrap">
@@ -435,6 +459,7 @@ function JiraManagedWidgetEditor({
     ? pinnedDefinition ?? (widget.aggregateVersion === currentDefinition?.version ? currentDefinition : null)
     : currentDefinition;
   const source = selectedDefinition?.source ?? "issues";
+  const periodSupport = jiraAnalyticsSourcePeriodSupport(source);
   const fields = selectedDefinition?.exposedFields ?? [];
   const compatibilityError = selectedDefinition
     ? jiraAnalyticsWidgetDatasetError(widget, selectedDefinition)
@@ -478,7 +503,7 @@ function JiraManagedWidgetEditor({
             metric: JIRA_ANALYTICS_METRICS_BY_SOURCE[definition.source][0],
             groupBy: "none",
             filters: [],
-            periodMode: definition.source === "transitions" || definition.source === "development" ? "DASHBOARD" : "NONE",
+            periodMode: jiraAnalyticsSourcePeriodSupport(definition.source) === "required" ? "DASHBOARD" : "NONE",
             periodDays: null,
             sortBy: "default",
             sortDirection: "desc",
@@ -505,7 +530,7 @@ function JiraManagedWidgetEditor({
       <label>Результат<select value={resultMode} onChange={(event) => patchWidget(jiraAnalyticsWidgetResultPatch(event.target.value as JiraAnalyticsWidgetResultMode, widget))}><option value={JIRA_ANALYTICS_LIST_RESULT}>Список тикетов</option>{JIRA_ANALYTICS_METRICS_BY_SOURCE[source].map((metric) => <option key={metric} value={metric}>{JIRA_ANALYTICS_METRIC_LABELS[metric]}</option>)}</select></label>
       {!isTicketList && <label>Группировка<select value={widget.groupBy} onChange={(event) => patchWidget(jiraAnalyticsWidgetGroupingPatch(event.target.value as JiraAnalyticsGroupBy))}>{!JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].filter((group) => group === "none" || fields.includes(group === "week" ? "eventAt" : group as JiraAnalyticsFilterField)).includes(widget.groupBy) && <option value={widget.groupBy} disabled>{JIRA_ANALYTICS_GROUP_LABELS[widget.groupBy]} · поле не опубликовано</option>}{JIRA_ANALYTICS_GROUPS_BY_SOURCE[source].filter((group) => group === "none" || fields.includes(group === "week" ? "eventAt" : group as JiraAnalyticsFilterField)).map((group) => <option key={group} value={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>}
       {isLegacyMetricTable && widget.groupBy !== "none" && <div className="jira-aggregate-validation">Группировка не применяется к сохранённой таблице. Измените результат или группировку.</div>}
-      {(source === "transitions" || source === "development") && <label>Период<select value={widget.periodMode} onChange={(event) => { const periodMode = event.target.value as JiraAnalyticsManagedWidget["periodMode"]; patchWidget({ periodMode, periodDays: periodMode === "FIXED" ? 90 : null }); }}><option value="DASHBOARD">Из фильтра страницы</option><option value="FIXED">Фиксированный: 90 дней</option></select></label>}
+      {periodSupport !== "none" && <label>Период<select value={widget.periodMode} onChange={(event) => { const periodMode = event.target.value as JiraAnalyticsManagedWidget["periodMode"]; patchWidget({ periodMode, periodDays: periodMode === "FIXED" ? 90 : null }); }}>{periodSupport === "optional" && <option value="NONE">Без ограничения</option>}<option value="DASHBOARD">Из фильтра страницы</option><option value="FIXED">Фиксированный: 90 дней</option></select></label>}
       <label>Сортировка<select value={widget.sortBy} onChange={(event) => patchWidget({ sortBy: event.target.value as JiraAnalyticsManagedWidget["sortBy"] })}>{widget.sortBy !== "default" && !fields.includes(widget.sortBy) && <option value={widget.sortBy} disabled>{JIRA_ANALYTICS_FILTER_LABELS[widget.sortBy]} · поле не опубликовано</option>}<option value="default">По значению</option>{fields.filter((field) => ["issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount"].includes(field)).map((field) => <option key={field} value={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}</select></label>
       <fieldset>
         <legend>Направление сортировки</legend>
@@ -579,7 +604,7 @@ function newManagedWidget(
   aggregate: AggregateDefinitionOption,
   placement: JiraAnalyticsSection,
 ): JiraAnalyticsManagedWidget {
-  const sourceUsesPeriod = aggregate.source === "transitions" || aggregate.source === "development";
+  const sourceRequiresPeriod = jiraAnalyticsSourcePeriodSupport(aggregate.source) === "required";
   return {
     id: `widget-${crypto.randomUUID()}`,
     title: aggregate.name,
@@ -590,7 +615,7 @@ function newManagedWidget(
     groupBy: "none",
     filterLogic: "and",
     filters: [],
-    periodMode: sourceUsesPeriod ? "DASHBOARD" : "NONE",
+    periodMode: sourceRequiresPeriod ? "DASHBOARD" : "NONE",
     periodDays: null,
     sortBy: "default",
     sortDirection: "desc",
@@ -824,9 +849,11 @@ export function JiraAnalyticsDashboard({
         };
       });
   }, [baseline, config, dashboardResults, definitions, editing, section]);
-  const hasEventWidgets = visibleWidgets.some((widget) =>
-    ["transitions", "development"].includes(widget.source),
-  );
+  const hasEventWidgets = visibleWidgets.some((widget) => {
+    const layout = config?.widgets.find((item) => item.id === widget.widgetId);
+    if (layout && "periodMode" in layout) return layout.periodMode === "DASHBOARD";
+    return jiraAnalyticsSourcePeriodSupport(widget.source) === "required";
+  });
   const activeSelectedWidgetId = editing
     ? selectedWidgetId ?? visibleWidgets[0]?.widgetId ?? null
     : null;
@@ -1035,7 +1062,7 @@ export function JiraAnalyticsDashboard({
   return (
     <div className="jira-analytics-workspace">
       <div className="jira-analytics-toolbar">
-        <label title={hasEventWidgets ? "Период переходов и активности разработки" : "На текущие тикеты и SLA-отчет период событий не влияет"}>
+        <label title={hasEventWidgets ? "Период событий и интервалов статусов" : "На текущие тикеты и SLA-отчет период событий не влияет"}>
           <span>Период событий</span>
           <select aria-label="Период событий" disabled={!hasEventWidgets || !config} value={config?.periodDays ?? 90} onChange={(event) => patchDashboardFilters({ periodDays: Number(event.target.value) as JiraAnalyticsDashboardConfig["periodDays"] })}>
             <option value={30}>30 дней</option>
