@@ -1,12 +1,7 @@
 import {
-  JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
   createIssueSchema,
   issueStatusUpdateSchema,
-  jiraAnalyticsDashboardV3Schema,
-  jiraAnalyticsDashboardV4Schema,
-  jiraAnalyticsWidgetDatasetError,
   jiraAnalyticsScopeValueMaxLength,
-  normalizeJiraAnalyticsDatasetRevision,
   normalizeJiraAnalyticsScopeValue,
   updateIssueSchema,
 } from '@pms/shared';
@@ -22,12 +17,6 @@ import {
   rebuildJiraCurrentProjections,
 } from '../services/jira-analytics-sync.js';
 import { sampleJiraCapacity } from '../services/jira-capacity.js';
-import {
-  jiraDashboardConfigHash,
-  jiraDashboardReferencedAggregateIds,
-  safeJiraAggregateDatasetFromRow,
-  lockJiraAggregateProject,
-} from '../services/jira-aggregates.js';
 import {
   jiraHistoryDatabaseBytes,
   jiraBackfillCompleteness,
@@ -58,7 +47,7 @@ import {
   JiraProjectDataReadOnlyError,
 } from '../services/jira-project-data.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
-import { registerJiraAggregateRoutes } from './jira-aggregates.routes.js';
+import { registerJiraSemanticAggregateRoutes } from './jira-semantic-aggregates.routes.js';
 
 export const JIRA_CAPACITY_DEFAULT_STORAGE_GIB = 5;
 export const JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB = 0;
@@ -70,21 +59,9 @@ export {
   jiraHistorySyncFailedCompletely,
 } from '../services/jira-sync-pipeline.js';
 
-export function jiraDashboardOmittedV3WidgetIds(
-  previousConfig: unknown,
-  nextConfig: z.infer<typeof jiraAnalyticsDashboardV4Schema>,
-) {
-  const previousV3 = jiraAnalyticsDashboardV3Schema.safeParse(previousConfig);
-  if (!previousV3.success) return [];
-  const nextWidgetIds = new Set(nextConfig.widgets.map((widget) => widget.id));
-  return previousV3.data.widgets
-    .filter((widget) => !nextWidgetIds.has(widget.id))
-    .map((widget) => widget.id);
-}
-
 export function createIssuesRouter() {
   const router = Router();
-  registerJiraAggregateRoutes(router);
+  registerJiraSemanticAggregateRoutes(router);
 
 function isValidUrl(value: string) {
   try {
@@ -220,34 +197,6 @@ const jiraSyncSchema = z.discriminatedUnion('scopeType', [
       }),
   }),
 ]);
-
-const jiraAnalyticsDashboardSchema = z.object({
-  config: jiraAnalyticsDashboardV4Schema,
-  expectedConfigHash: z.string().regex(/^[0-9a-f]{64}$/),
-  acceptPartialMigration: z.boolean().default(false),
-});
-
-class JiraDashboardAggregateReferenceError extends Error {
-  constructor(public readonly details: {
-    missingIds: string[];
-    missingRevisions: Array<{ widgetId: string; aggregateId: string; version: number | null }>;
-    contractMismatches: Array<{ widgetId: string; aggregateId: string; error: string }>;
-  }) {
-    super('JIRA_DASHBOARD_AGGREGATE_REFERENCE_INVALID');
-  }
-}
-
-class JiraDashboardConfigConflictError extends Error {
-  constructor(public readonly currentConfigHash: string) {
-    super('JIRA_DASHBOARD_CONFIG_CHANGED');
-  }
-}
-
-class JiraDashboardPartialMigrationError extends Error {
-  constructor(public readonly omittedWidgetIds: string[]) {
-    super('JIRA_DASHBOARD_PARTIAL_MIGRATION_REQUIRES_CONFIRMATION');
-  }
-}
 
 const jiraCapacitySampleSchema = z.object({
   scopeType: z.enum(['LABEL', 'EPIC']),
@@ -894,209 +843,6 @@ router.patch('/tasks/:taskId/jira-link', async (req, res) => {
   });
 
   res.json(updated);
-});
-
-router.patch('/projects/:projectId/jira/analytics-dashboard', async (req, res) => {
-  const user = currentUser(req);
-  if (!user) {
-    res.status(401).json({ error: 'Требуется вход в систему' });
-    return;
-  }
-  if (user.role !== 'ADMIN') {
-    res.status(403).json({ error: 'Настраивать виджеты может только системный администратор' });
-    return;
-  }
-  const parsed = jiraAnalyticsDashboardSchema.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    res.status(400).json({ error: 'Некорректная конфигурация аналитики Jira' });
-    return;
-  }
-  if (JSON.stringify(parsed.data.config).length > 100_000) {
-    res.status(400).json({ error: 'Конфигурация аналитики Jira слишком большая' });
-    return;
-  }
-  const project = await prisma.project.findUnique({
-    where: { id: req.params.projectId },
-    select: { id: true, status: true },
-  });
-  if (!project) {
-    res.status(404).json({ error: 'Проект не найден' });
-    return;
-  }
-  if (project.status === 'CLOSED') {
-    res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
-    return;
-  }
-  const dashboardConfig = parsed.data.config as Prisma.InputJsonObject;
-  let before;
-  let settings;
-  try {
-    ({ before, settings } = await prisma.$transaction(async (transaction) => {
-      await lockJiraAggregateProject(transaction, project.id);
-      const referencedIds = jiraDashboardReferencedAggregateIds(parsed.data.config);
-      if (referencedIds.length > 0) {
-        await transaction.$queryRaw<Array<{ id: string; scope: string }>>(Prisma.sql`
-            SELECT "id", "scope"
-            FROM "JiraAggregateDefinition"
-            WHERE "projectId" = ${project.id}
-              AND "id" IN (${Prisma.join(referencedIds)})
-            FOR KEY SHARE
-          `);
-      }
-      const definitions = referencedIds.length > 0
-        ? await transaction.jiraAggregateDefinition.findMany({ where: { projectId: project.id, id: { in: referencedIds } } })
-        : [];
-      const definitionsById = new Map(definitions.map((definition) => [definition.id, definition]));
-      const missingIds = referencedIds.filter((id) => !definitionsById.has(id));
-      const requestedRevisions = parsed.data.config.widgets.flatMap((widget) =>
-        widget.placement === 'retro' && widget.aggregateVersion
-          ? [{ aggregateId: widget.aggregateId, version: widget.aggregateVersion }]
-          : [],
-      );
-      const revisions = requestedRevisions.length > 0
-        ? await transaction.jiraAggregateDefinitionRevision.findMany({
-            where: { projectId: project.id, OR: requestedRevisions },
-            select: { aggregateId: true, version: true, definition: true },
-          })
-        : [];
-      const revisionKeys = new Set(revisions.map((revision) => `${revision.aggregateId}:${revision.version}`));
-      const missingRevisions = parsed.data.config.widgets.flatMap((widget) => {
-        if (widget.placement !== 'retro') return [];
-        const version = widget.aggregateVersion ?? null;
-        return version && revisionKeys.has(`${widget.aggregateId}:${version}`)
-          ? []
-          : [{ widgetId: widget.id, aggregateId: widget.aggregateId, version }];
-      });
-      const revisionsByKey = new Map(revisions.map((revision) => [
-        `${revision.aggregateId}:${revision.version}`,
-        revision,
-      ]));
-      const contractMismatches = parsed.data.config.widgets.flatMap((widget) => {
-        const row = definitionsById.get(widget.aggregateId);
-        if (!row) return [];
-        const revision = widget.aggregateVersion && widget.aggregateVersion !== row.version
-          ? revisionsByKey.get(`${widget.aggregateId}:${widget.aggregateVersion}`)
-          : null;
-        const dataset = revision
-          ? normalizeJiraAnalyticsDatasetRevision(revision.definition)?.dataset ?? null
-          : safeJiraAggregateDatasetFromRow(row);
-        if (!dataset) return [{ widgetId: widget.id, aggregateId: widget.aggregateId, error: 'Ревизия агрегата недоступна' }];
-        const error = jiraAnalyticsWidgetDatasetError(widget, dataset);
-        return error ? [{ widgetId: widget.id, aggregateId: widget.aggregateId, error }] : [];
-      });
-      if (missingIds.length > 0 || missingRevisions.length > 0 || contractMismatches.length > 0) {
-        throw new JiraDashboardAggregateReferenceError({ missingIds, missingRevisions, contractMismatches });
-      }
-      const lockedSettings = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        SELECT "id"
-        FROM "JiraAnalyticsSettings"
-        WHERE "projectId" = ${project.id}
-        FOR UPDATE
-      `);
-      const previous = lockedSettings[0]
-        ? await transaction.jiraAnalyticsSettings.findUnique({ where: { id: lockedSettings[0].id } })
-        : null;
-      const previousConfig = previous?.dashboardConfig ?? null;
-      const previousConfigHash = jiraDashboardConfigHash(previousConfig);
-      if (previousConfigHash !== parsed.data.expectedConfigHash) {
-        throw new JiraDashboardConfigConflictError(previousConfigHash);
-      }
-      const omittedWidgetIds = jiraDashboardOmittedV3WidgetIds(previousConfig, parsed.data.config);
-      if (omittedWidgetIds.length > 0 && !parsed.data.acceptPartialMigration) {
-        throw new JiraDashboardPartialMigrationError(omittedWidgetIds);
-      }
-      const previousRecord = previousConfig && typeof previousConfig === 'object' && !Array.isArray(previousConfig)
-        ? previousConfig as Prisma.JsonObject
-        : null;
-      const previousVersion = previousRecord?.version === 4
-        ? 4
-        : previousRecord?.version === 3
-          ? 3
-          : previousRecord?.version === 2
-            ? 2
-            : 1;
-      const conversion = await transaction.jiraAnalyticsDashboardConversion.findUnique({
-        where: { projectId: project.id },
-      });
-      if (previousVersion < 3 && (!conversion || conversion.rollbackState === 'USED')) {
-        const originalConfigStored = previousConfig !== null;
-        const originalConfig = originalConfigStored
-          ? previousConfig as Prisma.InputJsonValue
-          : JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1 as Prisma.InputJsonObject;
-        const conversionData = {
-          originalConfig,
-          originalConfigStored,
-          sourceConfigHash: jiraDashboardConfigHash(previousConfig),
-          originalConfigHash: jiraDashboardConfigHash(originalConfig),
-          convertedConfigHash: jiraDashboardConfigHash(parsed.data.config),
-          createdDefinitionIds: [] as string[],
-          rollbackState: 'AVAILABLE' as const,
-          convertedAt: new Date(),
-          rolledBackAt: null,
-          rollbackFinalizedAt: null,
-        };
-        if (conversion) {
-          await transaction.jiraAnalyticsDashboardConversion.update({
-            where: { id: conversion.id },
-            data: { ...conversionData, attempt: conversion.attempt + 1 },
-          });
-        } else {
-          await transaction.jiraAnalyticsDashboardConversion.create({
-            data: { projectId: project.id, ...conversionData, attempt: 1 },
-          });
-        }
-      }
-      const next = await transaction.jiraAnalyticsSettings.upsert({
-        where: { projectId: project.id },
-        create: {
-          projectId: project.id,
-          jiraScopeType: 'LABEL',
-          jiraScopeValue: '',
-          dashboardConfig,
-        },
-        update: { dashboardConfig },
-      });
-      await transaction.jiraAnalyticsDashboardConversion.updateMany({
-        where: { projectId: project.id, rollbackState: 'AVAILABLE' },
-        data: { convertedConfigHash: jiraDashboardConfigHash(parsed.data.config) },
-      });
-      return { before: previous, settings: next };
-    }));
-  } catch (error) {
-    if (error instanceof JiraDashboardAggregateReferenceError) {
-      res.status(409).json({
-        error: 'Конфигурация ссылается на недоступные или несовместимые агрегаты',
-        ...error.details,
-      });
-      return;
-    }
-    if (error instanceof JiraDashboardConfigConflictError) {
-      res.status(409).json({
-        error: 'Конфигурация виджетов уже изменена другим администратором; обновите страницу',
-        currentConfigHash: error.currentConfigHash,
-      });
-      return;
-    }
-    if (error instanceof JiraDashboardPartialMigrationError) {
-      res.status(409).json({
-        error: 'При переводе на v4 часть виджетов будет удалена; требуется явное подтверждение',
-        omittedWidgetIds: error.omittedWidgetIds,
-      });
-      return;
-    }
-    throw error;
-  }
-  await recordAuditEvent({
-    req,
-    actor: user,
-    action: 'jira.analytics.widgets.update',
-    objectType: 'JiraAnalyticsSettings',
-    objectId: settings.id,
-    projectId: project.id,
-    beforeValue: before,
-    afterValue: settings,
-  });
-  res.json({ ...settings, configHash: jiraDashboardConfigHash(settings.dashboardConfig) });
 });
 
 router.post('/projects/:projectId/jira/capacity-sample', async (req, res) => {

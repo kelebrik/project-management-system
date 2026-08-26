@@ -599,6 +599,8 @@ model JiraSyncRun {
 model JiraAggregateDefinition {
   id          String   @id @default(cuid())
   projectId   String
+  aggregateKey String  @default("")
+  system      Boolean  @default(false)
   name        String
   nameKey     String
   description String   @default("")
@@ -619,12 +621,16 @@ model JiraAggregateDefinition {
   fingerprint String   @db.Char(64)
   sortOrder   Int      @default(0)
   version     Int      @default(1)
+  publishedVersion Int?
+  draftDefinition Json? @db.JsonB
+  archivedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   revisions   JiraAggregateDefinitionRevision[]
 
   @@unique([projectId, nameKey])
+  @@unique([projectId, aggregateKey])
   @@index([projectId, fingerprint])
   @@index([projectId, sortOrder, createdAt])
 }
@@ -636,6 +642,9 @@ model JiraAggregateDefinitionRevision {
   version     Int
   definition  Json     @db.JsonB
   fingerprint String   @db.Char(64)
+  status      String   @default("draft")
+  changeKind  String   @default("compatible")
+  publishedAt DateTime?
   createdAt   DateTime @default(now())
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   aggregate   JiraAggregateDefinition @relation(fields: [aggregateId], references: [id], onDelete: Cascade)

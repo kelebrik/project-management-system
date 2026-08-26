@@ -135,173 +135,33 @@ test("OpenAPI keeps required production endpoints documented", () => {
   }
 });
 
-test("OpenAPI describes the managed Jira aggregate concurrency and payload contract", () => {
+
+test("OpenAPI keeps semantic aggregates separate from widget presentation", () => {
   const document = openApiDocument as unknown as {
-    components: { schemas: Record<string, Record<string, unknown>> };
-    paths: Record<string, Record<string, any>>;
+    components: { schemas: Record<string, { properties?: Record<string, unknown>; required?: string[] }> };
+    paths: Record<string, Record<string, unknown>>;
   };
-  const definition = document.components.schemas.JiraAggregateDefinition;
-  assert.equal(definition?.type, "object");
-  assert.equal(definition?.additionalProperties, false);
-  assert.equal("allOf" in (definition ?? {}), false);
+  const aggregate = document.components.schemas.JiraSemanticAggregateDefinition;
+  const widget = document.components.schemas.JiraSemanticWidget;
+  const dashboard = document.components.schemas.JiraSemanticDashboard;
 
-  const mutationPaths = [
+  for (const presentationField of ["metric", "groupBy", "sortBy", "visualization", "placement", "width"]) {
+    assert.equal(presentationField in (aggregate.properties ?? {}), false, `aggregate must not own ${presentationField}`);
+  }
+  for (const widgetField of ["aggregateId", "aggregateVersion", "metric", "groupBy", "sortBy", "visualization", "placement", "width"]) {
+    assert.ok(widget.required?.includes(widgetField), `widget must own ${widgetField}`);
+  }
+  assert.ok(dashboard.required?.includes("widgets"));
+  for (const suffix of ["query", "query.csv"]) {
+    assert.ok(document.paths[`/api/projects/{projectId}/jira/semantic-aggregates/{aggregateId}/${suffix}`]?.post);
+  }
+  assert.ok(document.paths["/api/projects/{projectId}/jira/semantic-aggregates/query-batch"]?.post);
+  assert.ok(document.paths["/api/projects/{projectId}/jira/semantic-aggregates/bootstrap"]?.post);
+  for (const retiredPath of [
     "/api/projects/{projectId}/jira/aggregates",
-    "/api/projects/{projectId}/jira/aggregates/{aggregateId}",
-    "/api/projects/{projectId}/jira/aggregates/import-dashboard",
-    "/api/projects/{projectId}/jira/aggregates/convert-dashboard",
-    "/api/projects/{projectId}/jira/aggregates/switch-dashboard",
-    "/api/projects/{projectId}/jira/aggregates/rollback-dashboard",
-    "/api/projects/{projectId}/jira/aggregates/reconcile-dashboard",
+    "/api/projects/{projectId}/jira/aggregate-dashboard-results",
     "/api/projects/{projectId}/jira/analytics-dashboard",
-  ];
-  for (const apiPath of mutationPaths) {
-    for (const [method, operation] of Object.entries(document.paths[apiPath] ?? {})) {
-      if (method === "get") continue;
-      assert.ok(operation.responses?.["409"], `${method.toUpperCase()} ${apiPath} must document 409`);
-    }
-  }
-
-  const dashboardMigrationBodies = {
-    "import-dashboard": ["dryRun", "expectedConfigHash"],
-    "convert-dashboard": ["dryRun", "expectedConfigHash"],
-    "switch-dashboard": ["dryRun", "expectedConfigHash", "periodDays", "assignee"],
-    "rollback-dashboard": ["dryRun", "expectedConfigHash", "attempt"],
-  } as const;
-  for (const [suffix, required] of Object.entries(dashboardMigrationBodies)) {
-    const operation = document.paths[`/api/projects/{projectId}/jira/aggregates/${suffix}`]?.post;
-    const schema = operation?.requestBody?.content?.["application/json"]?.schema;
-    assert.equal(schema?.additionalProperties, false, `${suffix} body must reject unknown fields`);
-    assert.deepEqual(schema?.required, required, `${suffix} required body fields`);
-  }
-
-  const convertOperation =
-    document.paths["/api/projects/{projectId}/jira/aggregates/convert-dashboard"]?.post;
-  assert.equal(convertOperation?.deprecated, true);
-  assert.ok(convertOperation?.responses?.["410"]);
-
-  const preview = document.paths["/api/projects/{projectId}/jira/aggregates/preview"]?.post;
-  const previewProperties = preview?.requestBody?.content?.["application/json"]?.schema?.properties;
-  assert.ok(previewProperties?.groupKey);
-  assert.ok(previewProperties?.evaluatedAt);
-  assert.equal(
-    preview?.responses?.["200"]?.content?.["application/json"]?.schema?.$ref,
-    "#/components/schemas/JiraAggregateEvaluationResult",
-  );
-  const evaluation = document.components.schemas.JiraAggregateEvaluationResult as {
-    properties?: Record<string, { $ref?: string }>;
-    required?: string[];
-  };
-  assert.equal(evaluation.properties?.quality?.$ref, "#/components/schemas/JiraAnalyticsDataQuality");
-  assert.ok(evaluation.required?.includes("quality"));
-  assert.ok(document.paths["/api/projects/{projectId}/jira/aggregates/{aggregateId}/export.csv"]?.get);
-
-  const aggregateDraft = document.components.schemas.JiraAggregateDraft as {
-    properties?: Record<string, unknown>;
-    required?: string[];
-  };
-  assert.deepEqual(aggregateDraft.required, [
-    "name", "description", "source", "timeZone", "sortOrder",
-  ]);
-  assert.equal("exposedFields" in (aggregateDraft.properties ?? {}), false);
-  assert.equal("baseFilterLogic" in (aggregateDraft.properties ?? {}), false);
-  assert.equal("baseFilters" in (aggregateDraft.properties ?? {}), false);
-  assert.equal("metric" in (aggregateDraft.properties ?? {}), false);
-  assert.equal("groupBy" in (aggregateDraft.properties ?? {}), false);
-  assert.equal("scope" in (aggregateDraft.properties ?? {}), false);
-  const filter = document.components.schemas.JiraAnalyticsFilter as {
-    properties?: { field?: { enum?: string[] } };
-  };
-  assert.ok((aggregateDraft.properties?.source as { enum?: string[] })?.enum?.includes("statusIntervals"));
-  assert.ok(aggregateDraft.properties?.rowConfig);
-  const intervalEndpoint = document.components.schemas.JiraStatusIntervalEndpoint as {
-    oneOf?: Array<{ properties?: { anchor?: { const?: string } } }>;
-  };
-  assert.ok(intervalEndpoint.oneOf?.some(
-    (schema) => schema.properties?.anchor?.const === "statusTransition",
-  ));
-  const intervalConfig = document.components.schemas.JiraStatusIntervalRowConfig as {
-    properties?: { end?: { $ref?: string } };
-  };
-  assert.equal(
-    intervalConfig.properties?.end?.$ref,
-    "#/components/schemas/JiraStatusIntervalEndEndpoint",
-  );
-
-  const dashboard = document.components.schemas.JiraAnalyticsDashboardConfig as {
-    oneOf?: Array<{ $ref?: string }>;
-  };
-  assert.ok(dashboard.oneOf?.some(
-    (schema) => schema.$ref === "#/components/schemas/JiraAnalyticsDashboardConfigV3",
-  ));
-  assert.ok(dashboard.oneOf?.some(
-    (schema) => schema.$ref === "#/components/schemas/JiraAnalyticsDashboardConfigV4",
-  ));
-  const widget = document.components.schemas.JiraAnalyticsManagedWidget as {
-    properties?: Record<string, unknown>;
-    required?: string[];
-  };
-  for (const property of ["aggregateId", "metric", "groupBy", "filters", "sortBy", "visualization"]) {
-    assert.ok(widget.required?.includes(property), `v3 widget requires ${property}`);
-  }
-  const widgetV4 = document.components.schemas.JiraAnalyticsManagedWidgetV4 as {
-    properties?: Record<string, unknown>;
-    required?: string[];
-  };
-  for (const property of [
-    "aggregateId", "selectedFields", "baseFilterLogic", "baseFilters", "metric",
-    "groupBy", "filters", "sortBy", "visualization",
   ]) {
-    assert.ok(widgetV4.required?.includes(property), `v4 widget requires ${property}`);
+    assert.equal(document.paths[retiredPath], undefined, `${retiredPath} must not advertise the retired v1-v4 API`);
   }
-  const selectedFields = widgetV4.properties?.selectedFields as {
-    maxItems?: number;
-    items?: { enum?: string[] };
-  };
-  assert.equal(selectedFields.maxItems, filter.properties?.field?.enum?.length);
-  assert.deepEqual(selectedFields.items?.enum, filter.properties?.field?.enum);
-  const aggregateCatalog = document.paths["/api/projects/{projectId}/jira/aggregates"]?.get
-    ?.responses?.["200"]?.content?.["application/json"]?.schema as {
-      properties?: { dashboard?: { properties?: {
-        version?: { enum?: Array<number | null> };
-        editableConfig?: { oneOf?: Array<{ $ref?: string }> };
-      } } };
-    };
-  assert.ok(aggregateCatalog.properties?.dashboard?.properties?.version?.enum?.includes(4));
-  assert.ok(aggregateCatalog.properties?.dashboard?.properties?.editableConfig?.oneOf?.some(
-    (schema) => schema.$ref === "#/components/schemas/JiraAnalyticsDashboardConfigV4",
-  ));
-  const dashboardResults = document.paths["/api/projects/{projectId}/jira/aggregate-dashboard-results"]?.get
-    ?.responses?.["200"]?.content?.["application/json"]?.schema as {
-      properties?: { configVersion?: { enum?: number[] } };
-    };
-  assert.ok(dashboardResults.properties?.configVersion?.enum?.includes(4));
-  const dashboardPatch = document.paths["/api/projects/{projectId}/jira/analytics-dashboard"]?.patch as {
-    requestBody?: { content?: { "application/json"?: { schema?: {
-      properties?: {
-        config?: { $ref?: string };
-        expectedConfigHash?: { pattern?: string };
-        acceptPartialMigration?: { type?: string };
-      };
-      required?: string[];
-    } } } };
-    responses?: { "200"?: { content?: { "application/json"?: { schema?: {
-      properties?: { dashboardConfig?: { $ref?: string } };
-    } } } } };
-  };
-  assert.equal(
-    dashboardPatch.requestBody?.content?.["application/json"]?.schema?.properties?.config?.$ref,
-    "#/components/schemas/JiraAnalyticsDashboardConfigV4",
-  );
-  assert.ok(dashboardPatch.requestBody?.content?.["application/json"]?.schema?.properties?.acceptPartialMigration);
-  assert.ok(dashboardPatch.requestBody?.content?.["application/json"]?.schema?.required?.includes("expectedConfigHash"));
-  assert.equal(
-    dashboardPatch.requestBody?.content?.["application/json"]?.schema?.properties?.expectedConfigHash?.pattern,
-    "^[0-9a-f]{64}$",
-  );
-  assert.equal(
-    dashboardPatch.responses?.["200"]?.content?.["application/json"]?.schema
-      ?.properties?.dashboardConfig?.$ref,
-    "#/components/schemas/JiraAnalyticsDashboardConfigV4",
-  );
 });

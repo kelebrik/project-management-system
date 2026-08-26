@@ -11,6 +11,9 @@ const allowedDataRewriteMigrations = new Set([
   "20260609180000_jira_work_sections_three_defaults",
   "20260703130000_remove_admin_jira_settings",
   "20260703165000_remove_admin_import_permission",
+  // The semantic v5 cutover intentionally removes unused analytics
+  // definitions and dashboard presentation only; Jira datalake rows remain.
+  "20260826190000_jira_semantic_aggregates_v5",
 ]);
 
 const protectedProjectTables = [
@@ -224,4 +227,14 @@ test("Durable Jira runs migration is additive and leaves existing history rows u
     "",
   );
   assert.doesNotMatch(withoutForeignKeyActions, /\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+});
+
+test("Jira semantic v5 cutover removes only replaceable analytics configuration", () => {
+  const migration = migrationSql("20260826190000_jira_semantic_aggregates_v5");
+
+  assert.match(migration, /DELETE FROM "JiraAnalyticsDashboardConversion"/);
+  assert.match(migration, /DELETE FROM "JiraAggregateDefinition"/);
+  assert.doesNotMatch(migration, /DELETE FROM "JiraIssue(?:Snapshot|Version|StatusTransition|HistoryRetry)"/);
+  assert.doesNotMatch(migration, /DELETE FROM "JiraDevelopmentActivity"/);
+  assert.doesNotMatch(migration, /DELETE FROM "Project"/);
 });

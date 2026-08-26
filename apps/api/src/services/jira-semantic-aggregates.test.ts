@@ -1,0 +1,215 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import test from "node:test";
+
+import {
+  jiraSemanticAggregateDefinitionSchema,
+  jiraSemanticCompatibleChange,
+} from "@pms/shared";
+import { Prisma } from "@prisma/client";
+
+import {
+  JIRA_SYSTEM_SEMANTIC_AGGREGATES,
+  jiraSemanticAggregateCost,
+  jiraSemanticCreateData,
+  jiraSemanticExecutableDefinition,
+} from "./jira-semantic-aggregates.js";
+
+test("semantic catalog exposes five flat managed row sets", () => {
+  assert.deepEqual(
+    JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate) => aggregate.key),
+    ["issues", "status-transitions", "development-activity", "status-intervals", "critical-blocker-sla"],
+  );
+  for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {
+    assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(aggregate.definition).success, true);
+    assert.equal("metric" in aggregate.definition, false);
+    assert.equal("groupBy" in aggregate.definition, false);
+    assert.equal("visualization" in aggregate.definition, false);
+    assert.equal("placement" in aggregate.definition, false);
+  }
+});
+
+test("semantic interval maps typed anchors without widget presentation", () => {
+  const source = JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "status-intervals")!;
+  const definition = structuredClone(source.definition);
+  if (definition.rowConfig.kind !== "interval") throw new Error("expected interval");
+  definition.rowConfig.start = {
+    type: "priorityEntry",
+    priorities: ["Critical", "Blocker"],
+    occurrence: "first",
+  };
+  definition.rowConfig.end = { type: "resolution", occurrence: "first" };
+
+  const executable = jiraSemanticExecutableDefinition(definition, {
+    metric: "count",
+    groupBy: "project",
+    filters: [],
+    filterLogic: "and",
+    periodDays: null,
+    dateField: null,
+    sortBy: "default",
+    sortDirection: "desc",
+  });
+
+  assert.deepEqual(executable.rowConfig, {
+    kind: "statusInterval",
+    start: { anchor: "criticalPriority", occurrence: "first" },
+    end: { anchor: "resolution", occurrence: "first" },
+    pairing: "nextAfterStart",
+    openIntervals: "include",
+    periodAnchor: "start",
+  });
+  assert.equal(executable.metric, "count");
+  assert.equal(executable.groupBy, "project");
+});
+
+test("semantic status entry includes the synthetic status observed at issue creation", () => {
+  const source = JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "status-intervals")!;
+  const executable = jiraSemanticExecutableDefinition(source.definition, {
+    metric: "count",
+    groupBy: "none",
+    filters: [],
+    filterLogic: "and",
+    periodDays: null,
+    dateField: null,
+    sortBy: "default",
+    sortDirection: "desc",
+  });
+
+  assert.deepEqual(executable.rowConfig, {
+    kind: "statusInterval",
+    start: { anchor: "issueCreated", occurrence: "first" },
+    end: { anchor: "firstStatusEntry", statuses: ["In Progress"], occurrence: "first" },
+    pairing: "nextAfterStart",
+    openIntervals: "include",
+    periodAnchor: "start",
+  });
+});
+
+test("semantic aggregate rejects presentation and unsupported priority history", () => {
+  const source = JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "status-intervals")!;
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse({
+    ...source.definition,
+    metric: "count",
+  }).success, false);
+
+  const definition = structuredClone(source.definition);
+  if (definition.rowConfig.kind !== "interval") throw new Error("expected interval");
+  definition.rowConfig.start = {
+    type: "priorityEntry",
+    priorities: ["Critical", "Blocker"],
+    occurrence: "last",
+  };
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(definition).success, false);
+
+  const invalidFieldType = structuredClone(source.definition);
+  const duration = invalidFieldType.outputFields.find((field) => field.key === "durationHours")!;
+  duration.type = "date";
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(invalidFieldType).success, false);
+
+  const repeatedIdentity = structuredClone(source.definition);
+  repeatedIdentity.rowIdentity = ["rowId", "rowId"];
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(repeatedIdentity).success, false);
+});
+
+test("semantic SLA accepts only bug types supported by the datalake", () => {
+  const source = structuredClone(JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "critical-blocker-sla")!.definition);
+  if (source.rowConfig.kind !== "criticalSla") throw new Error("expected SLA");
+  source.rowConfig.issueTypes = ["Task"];
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(source).success, false);
+  source.rowConfig.issueTypes = ["Bug-Report", "Ошибка: Production"];
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(source).success, true);
+});
+
+test("non-interval semantic aggregates persist SQL NULL in the legacy rowConfig column", () => {
+  const issues = JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "issues")!;
+  const data = jiraSemanticCreateData("project-1", "custom-issues", issues.definition);
+  assert.equal(data.rowConfig, Prisma.DbNull);
+});
+
+test("semantic aggregate exposes only completeness and as-of modes implemented by the datalake", () => {
+  const transition = structuredClone(JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "status-transitions")!.definition);
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse({
+    ...transition,
+    incompleteDataPolicy: "includeWithWarning",
+  }).success, false);
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse({
+    ...transition,
+    asOfSupport: "supported",
+  }).success, false);
+
+  const issues = structuredClone(JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "issues")!.definition);
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse({
+    ...issues,
+    incompleteDataPolicy: "exclude",
+  }).success, false);
+});
+
+test("semantic cost estimate does not reject ordinary single-row intervals", () => {
+  const interval = structuredClone(JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "status-intervals")!.definition);
+  const single = jiraSemanticAggregateCost(interval, 1_000);
+  assert.deepEqual(single, {
+    tickets: 1_000,
+    transitions: 1_000,
+    developmentActivities: 1_000,
+    estimatedRows: 1_000,
+    maximumRows: 100_000,
+    blocked: false,
+  });
+
+  if (interval.rowConfig.kind !== "interval") throw new Error("expected interval");
+  interval.rowConfig.start = { ...interval.rowConfig.start, occurrence: "all" };
+  const repeated = jiraSemanticAggregateCost(interval, {
+    tickets: 1_001,
+    transitions: 8_000,
+    developmentActivities: 2_000,
+  });
+  assert.equal(repeated.estimatedRows, 9_001);
+  assert.equal(repeated.blocked, false);
+});
+
+test("semantic revision compatibility protects row meaning and allows added output fields", () => {
+  const source = JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "issues")!;
+  const addedField = {
+    ...source.definition,
+    outputFields: [
+      ...source.definition.outputFields,
+      { key: "eventAt" as const, label: "Дата события", type: "date" as const, nullable: true },
+    ],
+  };
+  const changedPopulation = {
+    ...source.definition,
+    basePopulation: {
+      logic: "and" as const,
+      filters: [{ id: "status", field: "status" as const, operator: "equals" as const, value: "Open" }],
+    },
+  };
+
+  assert.equal(jiraSemanticCompatibleChange(source.definition, addedField), true);
+  assert.equal(jiraSemanticCompatibleChange(source.definition, changedPopulation), false);
+  assert.equal(jiraSemanticCompatibleChange(source.definition, { ...source.definition, timeZone: "UTC" }), false);
+  assert.equal(jiraSemanticCompatibleChange(source.definition, {
+    ...source.definition,
+    qualityRules: { ...source.definition.qualityRules, maximumRows: 50_000 },
+  }), false);
+});
+
+test("production router registers only semantic aggregate API", () => {
+  const source = fs.readFileSync(new URL("../routes/issues.routes.ts", import.meta.url), "utf8");
+  assert.match(source, /registerJiraSemanticAggregateRoutes\(router\)/);
+  assert.doesNotMatch(source, /registerJiraAggregateRoutes\(router\)/);
+});
+
+test("semantic aggregate mutations serialize project changes and system seeding is idempotent", () => {
+  const route = fs.readFileSync(new URL("../routes/jira-semantic-aggregates.routes.ts", import.meta.url), "utf8");
+  const service = fs.readFileSync(new URL("./jira-semantic-aggregates.ts", import.meta.url), "utf8");
+  assert.ok((route.match(/lockJiraAggregateProject\(transaction, req\.params\.projectId\)/g) ?? []).length >= 4);
+  assert.match(route, /lockJiraAggregateProject\(transaction, project\.id\)/);
+  assert.match(service, /jiraAggregateDefinition\.upsert/);
+  assert.match(service, /jiraAggregateDefinitionRevision\.upsert/);
+  const listStart = service.indexOf("export async function listJiraSemanticAggregates");
+  const listEnd = service.indexOf("export function jiraSemanticAggregateSource", listStart);
+  assert.doesNotMatch(service.slice(listStart, listEnd), /ensureJiraSystemSemanticAggregates/u);
+  assert.doesNotMatch(route, /from ["']\.\.\/jira/u);
+  assert.doesNotMatch(route, /\bpayload\s*:\s*true\b/u);
+});

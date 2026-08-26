@@ -76,9 +76,18 @@ async function request<T>(
 }
 
 async function download(path: string, fallback = "Не удалось скачать файл") {
+  return downloadRequest(path, {}, fallback);
+}
+
+async function downloadRequest(path: string, options: RequestInit, fallback: string) {
   const response = await fetch(`${apiBase}${path}`, {
+    ...options,
     credentials: "include",
-    headers: businessUnitHeaders(),
+    headers: {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...businessUnitHeaders(),
+      ...options.headers,
+    },
   });
   if (!response.ok) {
     const text = await response.text();
@@ -141,4 +150,7 @@ export const apiClient = {
     return request<T>(path, { method: "DELETE" }, fallback);
   },
   download,
+  downloadPost(path: string, body: unknown, fallback = "Не удалось скачать файл") {
+    return downloadRequest(path, { method: "POST", body: JSON.stringify(body) }, fallback);
+  },
 };

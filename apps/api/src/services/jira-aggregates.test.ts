@@ -29,11 +29,13 @@ import {
   jiraAggregateDatasetRevisionCreateData,
   jiraAggregateIssueSelect,
   jiraAggregateResultCsv,
+  jiraAggregateResultProjection,
   jiraDashboardReconciliationConfigs,
   jiraDashboardConfigHash,
   JIRA_AGGREGATE_ISSUE_BATCH_SIZE,
   JIRA_AGGREGATE_MAX_EVENTS,
   JiraAggregateEventLimitError,
+  evaluateJiraAggregatesFromDatabase,
   loadJiraAggregateIssueBatches,
   loadJiraAnalyticsFacets,
   lockJiraAggregateProject,
@@ -524,7 +526,58 @@ test('status transition interval uses the first matching pair across repeated cy
 
   assert.equal(result.totalRecords, 1);
   assert.equal(result.records[0]?.durationHours, 24);
-  assert.equal(result.records[0]?.id, 'status-interval:snapshot-1:1');
+  assert.equal(result.records[0]?.id, 'status-interval:snapshot-1:t1:t2');
+});
+
+test('status interval emits one stable row for every repeated start cycle', () => {
+  const result = evaluateJiraAnalyticsAggregate(statusIntervalDefinition({
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'firstStatusEntry', statuses: ['In Progress'], occurrence: 'all' },
+      end: { anchor: 'firstStatusEntry', statuses: ['Resolved'], occurrence: 'first' },
+      openIntervals: 'exclude',
+      periodAnchor: 'start',
+    },
+  }), [issue({
+    statusTransitions: [
+      { id: 't1', fromStatus: 'Open', toStatus: 'In Progress', transitionedAt: '2026-01-02T00:00:00.000Z' },
+      { id: 't2', fromStatus: 'In Progress', toStatus: 'Resolved', transitionedAt: '2026-01-03T00:00:00.000Z' },
+      { id: 't3', fromStatus: 'Resolved', toStatus: 'In Progress', transitionedAt: '2026-01-10T00:00:00.000Z' },
+      { id: 't4', fromStatus: 'In Progress', toStatus: 'Resolved', transitionedAt: '2026-01-20T00:00:00.000Z' },
+    ],
+  })], options);
+
+  assert.equal(result.totalRecords, 2);
+  assert.deepEqual([...result.records].sort((left, right) => (left.occurrenceIndex ?? 0) - (right.occurrenceIndex ?? 0)).map((record) => ({
+    id: record.id,
+    durationHours: record.durationHours,
+    occurrenceIndex: record.occurrenceIndex,
+    occurrenceCount: record.occurrenceCount,
+  })), [
+    { id: 'status-interval:snapshot-1:t1:t2', durationHours: 24, occurrenceIndex: 1, occurrenceCount: 2 },
+    { id: 'status-interval:snapshot-1:t3:t4', durationHours: 240, occurrenceIndex: 2, occurrenceCount: 2 },
+  ]);
+});
+
+test('repeated interval starts cannot reuse one end event', () => {
+  const result = evaluateJiraAnalyticsAggregate(statusIntervalDefinition({
+    rowConfig: {
+      kind: 'statusInterval',
+      start: { anchor: 'firstStatusEntry', statuses: ['In Progress'], occurrence: 'all' },
+      end: { anchor: 'firstStatusEntry', statuses: ['Resolved'], occurrence: 'first' },
+      openIntervals: 'exclude',
+      periodAnchor: 'start',
+    },
+  }), [issue({
+    statusTransitions: [
+      { id: 't1', fromStatus: 'Open', toStatus: 'In Progress', transitionedAt: '2026-01-02T00:00:00.000Z' },
+      { id: 't2', fromStatus: 'QA', toStatus: 'In Progress', transitionedAt: '2026-01-03T00:00:00.000Z' },
+      { id: 't3', fromStatus: 'In Progress', toStatus: 'Resolved', transitionedAt: '2026-01-04T00:00:00.000Z' },
+    ],
+  })], options);
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.id, 'status-interval:snapshot-1:t1:t3');
 });
 
 test('status transition endpoints require at least one constrained side', () => {
@@ -602,6 +655,29 @@ test('critical quality includes candidates whose SLA start is unavailable', () =
   assert.equal(result.quality.complete, 1);
   assert.equal(result.quality.status, 'PARTIAL');
   assert.deepEqual(result.quality.warnings, [{ code: 'INCOMPLETE_CRITICAL_SLA', count: 1 }]);
+});
+
+test('configured SLA issue type matching is identical for rows and quality', () => {
+  const executable: JiraAnalyticsExecutableDefinition = {
+    ...definition({ source: 'criticalBugs', scope: 'retro' }),
+    criticalSlaConfig: {
+      issueTypes: ['Bug', 'Defect'],
+      priorities: ['Critical', 'Blocker'],
+      requirePriorityAtResolution: true,
+      openIntervals: 'include',
+    },
+  };
+  const result = evaluateJiraAnalyticsAggregate(executable, [issue({
+    issueType: 'Bug: Production',
+    priority: 'Critical',
+    criticalEndPriority: 'Critical',
+    criticalPriorityAt: '2026-02-01T00:00:00.000Z',
+    criticalSlaTracked: true,
+  })], options);
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.quality.population, 1);
+  assert.equal(result.quality.complete, 1);
 });
 
 test('project-wide historical gaps do not distort scoped aggregate coverage', () => {
@@ -754,6 +830,14 @@ test('batched accumulator fails closed on group and page-window limits', () => {
     () => grouped.addIssues([issue({ id: 'one', status: 'Open' }), issue({ id: 'two', status: 'QA' })]),
     JiraAnalyticsEvaluationLimitError,
   );
+  const rowLimited = createJiraAnalyticsEvaluationAccumulator({
+    ...definition({ source: 'transitions' }),
+    maximumRowsPerIssue: 1,
+  }, options);
+  assert.throws(() => rowLimited.addIssues([issue({ statusTransitions: [
+    { id: 't1', fromStatus: 'Open', toStatus: 'In Progress', transitionedAt: '2026-01-02T00:00:00.000Z' },
+    { id: 't2', fromStatus: 'In Progress', toStatus: 'QA', transitionedAt: '2026-01-03T00:00:00.000Z' },
+  ] })]), JiraAnalyticsEvaluationLimitError);
 });
 
 test('saved invalid non-empty config produces unavailable widget instead of defaults', () => {
@@ -1039,6 +1123,75 @@ test('aggregate batch loader uses a stable issue-key cursor and bounded batches'
   assert.deepEqual(batches.map((batch) => batch.length), [JIRA_AGGREGATE_ISSUE_BATCH_SIZE, 1]);
   assert.equal(pageQueries, 2);
   assert.equal(batches[1]?.[0]?.issueKey, stored.at(-1)?.issueKey);
+});
+
+test('semantic widget batch evaluates multiple widgets in one current-state scan', async () => {
+  const stored = [storedIssue('CVTE-0001')];
+  let pageQueries = 0;
+  const client = {
+    jiraIssueSnapshot: {
+      count: async () => stored.length,
+      findMany: async (query: { cursor?: { projectId_issueKey?: { issueKey?: string } }; take: number }) => {
+        pageQueries += 1;
+        const cursor = query.cursor?.projectId_issueKey?.issueKey;
+        return cursor ? [] : stored.slice(0, query.take);
+      },
+    },
+    jiraIssueStatusTransition: { count: async () => 0 },
+    jiraDevelopmentActivity: { count: async () => 0 },
+  } as unknown as Parameters<typeof evaluateJiraAggregatesFromDatabase>[0];
+  const requests = ['one', 'two'].map((key) => ({
+    key,
+    definition: definition(),
+    options,
+  }));
+
+  const result = await evaluateJiraAggregatesFromDatabase(client, 'project-1', requests);
+  assert.deepEqual(result.map((item) => item.result?.totalRecords), [1, 1]);
+  assert.equal(pageQueries, 1);
+});
+
+test('semantic widget batch isolates a row-limit failure to one widget', async () => {
+  const stored = [storedIssue('CVTE-0001')];
+  const client = {
+    jiraIssueSnapshot: {
+      count: async () => stored.length,
+      findMany: async (query: { cursor?: unknown }) => query.cursor ? [] : stored,
+    },
+    jiraIssueStatusTransition: { count: async () => 0 },
+    jiraDevelopmentActivity: { count: async () => 0 },
+  } as unknown as Parameters<typeof evaluateJiraAggregatesFromDatabase>[0];
+  const limited = { ...definition(), maximumRows: 0 };
+  const result = await evaluateJiraAggregatesFromDatabase(client, 'project-1', [
+    { key: 'limited', definition: limited, options },
+    { key: 'healthy', definition: definition(), options },
+  ]);
+
+  assert.equal(result[0]?.result, null);
+  assert.ok(result[0]?.error instanceof JiraAnalyticsEvaluationLimitError);
+  assert.equal(result[1]?.result?.totalRecords, 1);
+  assert.equal(result[1]?.error, null);
+});
+
+test('semantic widget batch isolates an invalid page window during accumulator creation', async () => {
+  const stored = [storedIssue('CVTE-0001')];
+  const client = {
+    jiraIssueSnapshot: {
+      count: async () => stored.length,
+      findMany: async (query: { cursor?: unknown }) => query.cursor ? [] : stored,
+    },
+    jiraIssueStatusTransition: { count: async () => 0 },
+    jiraDevelopmentActivity: { count: async () => 0 },
+  } as unknown as Parameters<typeof evaluateJiraAggregatesFromDatabase>[0];
+  const result = await evaluateJiraAggregatesFromDatabase(client, 'project-1', [
+    { key: 'invalid-window', definition: definition(), options: { ...options, page: 101, pageSize: 100 } },
+    { key: 'healthy', definition: definition(), options },
+  ]);
+
+  assert.equal(result[0]?.result, null);
+  assert.ok(result[0]?.error instanceof JiraAnalyticsEvaluationLimitError);
+  assert.equal(result[1]?.result?.totalRecords, 1);
+  assert.equal(result[1]?.error, null);
 });
 
 test('aggregate batch loader rejects nested event volume before reading snapshots', async () => {
@@ -1463,10 +1616,39 @@ test('bounded aggregate CSV escapes spreadsheet formulas and exports typed recor
     [issue({ summary: '=HYPERLINK("https://example.invalid")' })],
     options,
   );
-  const csv = jiraAggregateResultCsv(result);
-  assert.match(csv, /"Quality status","Quality basis"/u);
+  const csv = jiraAggregateResultCsv(result, ['issueKey', 'summary']);
+  assert.match(csv, /^"Ключ тикета","Название"/u);
   assert.match(csv, /"'=HYPERLINK\(""https:\/\/example\.invalid""\)"/u);
+  assert.doesNotMatch(csv, /Текущий статус/u);
   assert.doesNotMatch(csv, /payload/u);
+});
+
+test('semantic JSON projection returns only selected aggregate fields', () => {
+  const result = evaluateJiraAnalyticsAggregate(
+    definition({ scope: 'retro' }),
+    [issue({ summary: 'Selected', priority: 'Secret priority' })],
+    options,
+  );
+  const projected = jiraAggregateResultProjection(result, ['issueKey', 'summary']);
+  assert.deepEqual(Object.keys(projected.records[0]?.values ?? {}), ['issueKey', 'summary']);
+  assert.equal(projected.records[0]?.values.summary, 'Selected');
+  assert.equal('issue' in (projected.records[0] ?? {}), false);
+});
+
+test('semantic JSON projection normalizes Jira unresolved resolution to empty', () => {
+  const result = evaluateJiraAnalyticsAggregate(
+    definition({ scope: 'retro' }),
+    [issue({ resolution: 'Unresolved' })],
+    options,
+  );
+  const projected = jiraAggregateResultProjection(result, ['issueKey', 'resolution']);
+  assert.equal(projected.records[0]?.values.resolution, null);
+});
+
+test('dashboard configuration hash is stable across JSONB key reordering', () => {
+  const clientOrder = { version: 5, periodDays: 180, assignee: '', widgets: [] };
+  const databaseOrder = { version: 5, widgets: [], assignee: '', periodDays: 180 };
+  assert.equal(jiraDashboardConfigHash(clientOrder), jiraDashboardConfigHash(databaseOrder));
 });
 
 test('v1 and v2 reconciliation resolves existing builders and shares one database pass', async () => {
@@ -1516,13 +1698,10 @@ test('v1 and v2 reconciliation resolves existing builders and shares one databas
 test('aggregate read path cannot import Jira transport or select raw history payload', () => {
   const serviceSource = fs.readFileSync(new URL('./jira-aggregates.ts', import.meta.url), 'utf8');
   const historySource = fs.readFileSync(new URL('./jira-history-asof.ts', import.meta.url), 'utf8');
-  const routeSource = fs.readFileSync(new URL('../routes/jira-aggregates.routes.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(serviceSource, /from\s+['"][^'"]*jira(?:\.js)?['"]/u);
   assert.doesNotMatch(historySource, /from\s+['"][^'"]*jira(?:\.js)?['"]/u);
-  assert.doesNotMatch(routeSource, /from\s+['"][^'"]*jira(?:\.js)?['"]/u);
   assert.doesNotMatch(serviceSource, /\bpayload\s*:\s*true\b/u);
   assert.doesNotMatch(historySource, /"payload"|"validationWarnings"/u);
-  assert.doesNotMatch(routeSource, /\bpayload\s*:\s*true\b/u);
 });
 
 test('aggregate mutations use a project-scoped advisory transaction lock', async () => {
@@ -1540,35 +1719,4 @@ test('aggregate mutations use a project-scoped advisory transaction lock', async
 
   assert.match(queryText, /pg_advisory_xact_lock\(.+\)::text AS lock/);
   assert.deepEqual(queryValues, ['jira-aggregates:project-1']);
-});
-
-test('dashboard writes keep the managed hash synchronized and accept v4 only', () => {
-  const routeSource = fs.readFileSync(new URL('../routes/issues.routes.ts', import.meta.url), 'utf8');
-  const dashboardRoute = routeSource.slice(routeSource.indexOf("router.patch('/projects/:projectId/jira/analytics-dashboard'"));
-  assert.match(routeSource, /config:\s*jiraAnalyticsDashboardV4Schema/u);
-  assert.match(routeSource, /expectedConfigHash:\s*z\.string\(\)\.regex/u);
-  assert.match(routeSource, /lockJiraAggregateProject\(transaction, project\.id\)/u);
-  assert.match(
-    routeSource,
-    /jiraAnalyticsDashboardConversion\.updateMany\([\s\S]*convertedConfigHash:\s*jiraDashboardConfigHash\(parsed\.data\.config\)/u,
-  );
-  assert.doesNotMatch(routeSource, /config:\s*jiraAnalyticsDashboardConfigSchema/u);
-  assert.match(dashboardRoute, /previousVersion < 3[\s\S]*jiraAnalyticsDashboardConversion\.create/u);
-  assert.match(dashboardRoute, /previousConfigHash !== parsed\.data\.expectedConfigHash/u);
-  assert.match(dashboardRoute, /originalConfigStored[\s\S]*originalConfig[\s\S]*rollbackState:\s*'AVAILABLE'/u);
-  assert.ok(
-    dashboardRoute.indexOf('jiraAnalyticsDashboardConversion.create') <
-      dashboardRoute.indexOf('jiraAnalyticsSettings.upsert'),
-    'legacy config must be archived before v3 overwrites dashboardConfig',
-  );
-  assert.doesNotMatch(routeSource, /data:\s*\{\s*rolledBackAt:\s*new Date\(\)\s*\}/u);
-});
-
-test('stage F routes bind rollback to the conversion attempt and restore a raw default null', () => {
-  const routeSource = fs.readFileSync(new URL('../routes/jira-aggregates.routes.ts', import.meta.url), 'utf8');
-  assert.match(routeSource, /conversion\.attempt !== parsed\.data\.attempt/u);
-  assert.match(routeSource, /conversion\.originalConfigStored[\s\S]*Prisma\.DbNull/u);
-  assert.match(routeSource, /Prisma\.TransactionIsolationLevel\.Serializable/u);
-  assert.match(routeSource, /if \(parsed\.data\.dryRun\) \{[\s\S]*res\.json\([\s\S]*return;/u);
-  assert.match(routeSource, /rollbackState:\s*'USED'[\s\S]*rolledBackAt:\s*new Date\(\)/u);
 });

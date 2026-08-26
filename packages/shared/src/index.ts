@@ -1,5 +1,6 @@
 import { z } from "zod";
 export * from "./jira-analytics.js";
+export * from "./jira-semantic-analytics.js";
 
 export const appViewKeys = [
   "portfolio",

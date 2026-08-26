@@ -1709,6 +1709,59 @@
   text-decoration: underline;
 }
 
+.jira-analytics-drilldown {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  min-height: 42px;
+  padding: 6px 10px;
+}
+
+.jira-analytics-drilldown strong {
+  color: var(--text-heading);
+  font-size: 12px;
+}
+
+.jira-analytics-drilldown span,
+.jira-analytics-quality {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.jira-analytics-drilldown span {
+  margin-left: auto;
+}
+
+.jira-analytics-quality {
+  border-top: 1px solid var(--border);
+  padding: 6px 12px;
+}
+
+.jira-aggregate-revision-list {
+  display: grid;
+  gap: 6px;
+}
+
+.jira-aggregate-revision-list > div {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  min-height: 32px;
+}
+
+.jira-aggregate-revision-list > div:last-child {
+  border-bottom: 0;
+}
+
+.jira-aggregate-revision-list span,
+.jira-aggregate-revision-list small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .jira-analytics-more {
   background: var(--surface-2);
   border: 0;

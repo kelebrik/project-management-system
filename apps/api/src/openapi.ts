@@ -91,56 +91,11 @@ const jiraAggregateErrorResponses = {
   "500": { description: "Runtime locale support is unavailable" },
 };
 
-const jiraDashboardMigrationRequestBody = {
+const jiraSemanticQueryRequestBody = {
   required: true,
   content: {
     "application/json": {
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          dryRun: { type: "boolean" },
-          expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
-        },
-        required: ["dryRun", "expectedConfigHash"],
-      },
-    },
-  },
-};
-
-const jiraDashboardSwitchRequestBody = {
-  required: true,
-  content: {
-    "application/json": {
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          dryRun: { type: "boolean" },
-          expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
-          periodDays: { type: "integer", enum: [30, 90, 180, 365] },
-          assignee: { type: "string", maxLength: 200 },
-        },
-        required: ["dryRun", "expectedConfigHash", "periodDays", "assignee"],
-      },
-    },
-  },
-};
-
-const jiraDashboardRollbackRequestBody = {
-  required: true,
-  content: {
-    "application/json": {
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          dryRun: { type: "boolean" },
-          expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
-          attempt: { type: "integer", minimum: 1 },
-        },
-        required: ["dryRun", "expectedConfigHash", "attempt"],
-      },
+      schema: { $ref: "#/components/schemas/JiraSemanticQuery" },
     },
   },
 };
@@ -227,249 +182,113 @@ export const openApiDocument = {
         },
         required: ["id", "field", "operator", "value"],
       },
-      JiraAnalyticsWidget: {
+      JiraSemanticAggregateDefinition: {
         type: "object",
         additionalProperties: false,
         properties: {
-          id: { type: "string", minLength: 1, maxLength: 200 },
-          title: { type: "string", maxLength: 200 },
-          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs"] },
-          metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
-          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
-          visualization: { type: "string", enum: ["number", "bar", "table"] },
-          filterLogic: { type: "string", enum: ["and", "or"] },
-          filters: {
-            type: "array",
-            maxItems: 20,
-            items: { $ref: "#/components/schemas/JiraAnalyticsFilter" },
+          schemaVersion: { type: "integer", const: 5 },
+          name: { type: "string", minLength: 1, maxLength: 200 },
+          description: { type: "string", maxLength: 1000 },
+          grain: { type: "string", enum: ["issue", "transitionEvent", "developmentEvent", "interval"] },
+          basePopulation: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              logic: { type: "string", enum: ["and", "or"] },
+              filters: { type: "array", maxItems: 30, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
+            },
+            required: ["logic", "filters"],
           },
-          width: { type: "string", enum: ["half", "full"] },
-          section: { type: "string", enum: ["active", "retro"] },
-        },
-        required: ["id", "title", "source", "metric", "groupBy", "visualization", "filterLogic", "filters", "width", "section"],
-      },
-      JiraAnalyticsReferencedWidget: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          id: { type: "string", minLength: 1, maxLength: 200 },
-          title: { type: "string", maxLength: 200 },
-          aggregateId: { type: "string", minLength: 1, maxLength: 200 },
-          aggregateVersion: { type: ["integer", "null"], minimum: 1 },
-          visualization: { type: "string", enum: ["number", "bar", "table"] },
-          width: { type: "string", enum: ["half", "full"] },
-          placement: { type: "string", enum: ["active", "retro"] },
-        },
-        required: ["id", "title", "aggregateId", "visualization", "width", "placement"],
-      },
-      JiraAnalyticsDashboardConfigV1: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          version: { type: "integer", const: 1 },
-          periodDays: { type: "integer", enum: [30, 90, 180, 365] },
-          assignee: { type: "string", maxLength: 200 },
-          widgets: {
+          rowConfig: { type: "object" },
+          rowIdentity: { type: "array", minItems: 1, maxItems: 10, uniqueItems: true, items: { type: "string", enum: ["rowId", ...jiraAnalyticsOpenApiFields] } },
+          outputFields: {
             type: "array",
             minItems: 1,
-            maxItems: 100,
-            items: { $ref: "#/components/schemas/JiraAnalyticsWidget" },
+            maxItems: jiraAnalyticsOpenApiFields.length,
+            uniqueItems: true,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                key: { type: "string", enum: jiraAnalyticsOpenApiFields },
+                label: { type: "string", minLength: 1, maxLength: 200 },
+                type: { type: "string", enum: ["text", "number", "boolean", "date", "url"] },
+                nullable: { type: "boolean" },
+              },
+              required: ["key", "label", "type", "nullable"],
+            },
           },
-        },
-        required: ["version", "periodDays", "assignee", "widgets"],
-      },
-      JiraAnalyticsDashboardConfigV2: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          version: { type: "integer", const: 2 },
-          periodDays: { type: "integer", enum: [30, 90, 180, 365] },
-          assignee: { type: "string", maxLength: 200 },
-          widgets: {
-            type: "array",
-            minItems: 1,
-            maxItems: 100,
-            items: { $ref: "#/components/schemas/JiraAnalyticsReferencedWidget" },
+          incompleteDataPolicy: { type: "string", enum: ["exclude", "includeWithWarning"] },
+          qualityRules: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              minimumCoveragePercent: { type: "number", minimum: 0, maximum: 100 },
+              maximumRows: { type: "integer", minimum: 1, maximum: 1000000 },
+              maximumRowsPerIssue: { type: "integer", minimum: 1, maximum: 10000 },
+            },
+            required: ["minimumCoveragePercent", "maximumRows", "maximumRowsPerIssue"],
           },
+          timeZone: { type: "string", enum: ["Europe/Moscow", "UTC"] },
+          asOfSupport: { type: "string", enum: ["none", "supported"] },
         },
-        required: ["version", "periodDays", "assignee", "widgets"],
+        required: ["schemaVersion", "name", "description", "grain", "basePopulation", "rowConfig", "rowIdentity", "outputFields", "incompleteDataPolicy", "qualityRules", "timeZone", "asOfSupport"],
       },
-      JiraAnalyticsManagedWidget: {
+      JiraSemanticWidget: {
         type: "object",
         additionalProperties: false,
         properties: {
           id: { type: "string", minLength: 1, maxLength: 200 },
-          title: { type: "string", maxLength: 200 },
+          title: { type: "string", minLength: 1, maxLength: 200 },
           aggregateId: { type: "string", minLength: 1, maxLength: 200 },
-          aggregateVersion: { type: ["integer", "null"], minimum: 1 },
-          placement: { type: "string", enum: ["active", "retro"] },
-          metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
-          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
-          filterLogic: { type: "string", enum: ["and", "or"] },
-          filters: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
-          periodMode: { type: "string", enum: ["NONE", "FIXED", "DASHBOARD"] },
-          periodDays: { type: ["integer", "null"], enum: [30, 90, 180, 365, null] },
-          sortBy: { type: "string", enum: ["default", "issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount"] },
-          sortDirection: { type: "string", enum: ["asc", "desc"] },
-          visualization: { type: "string", enum: ["number", "bar", "table"] },
-          width: { type: "string", enum: ["half", "full"] },
-        },
-        required: ["id", "title", "aggregateId", "placement", "metric", "groupBy", "filterLogic", "filters", "periodMode", "periodDays", "sortBy", "sortDirection", "visualization", "width"],
-      },
-      JiraAnalyticsManagedWidgetV4: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          id: { type: "string", minLength: 1, maxLength: 200 },
-          title: { type: "string", maxLength: 200 },
-          aggregateId: { type: "string", minLength: 1, maxLength: 200 },
-          aggregateVersion: { type: ["integer", "null"], minimum: 1 },
+          aggregateVersion: { type: "integer", minimum: 1 },
           placement: { type: "string", enum: ["active", "retro"] },
           selectedFields: { type: "array", minItems: 1, maxItems: jiraAnalyticsOpenApiFields.length, uniqueItems: true, items: { type: "string", enum: jiraAnalyticsOpenApiFields } },
-          baseFilterLogic: { type: "string", enum: ["and", "or"] },
-          baseFilters: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
+          filterLogic: { type: "string", enum: ["and", "or"] },
+          filters: { type: "array", maxItems: 30, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
+          dateField: { type: ["string", "null"], enum: [...jiraAnalyticsOpenApiFields, null] },
+          asOf: { type: ["string", "null"], format: "date-time" },
           metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
           groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
-          filterLogic: { type: "string", enum: ["and", "or"] },
-          filters: { type: "array", maxItems: 20, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
-          periodMode: { type: "string", enum: ["NONE", "FIXED", "DASHBOARD"] },
-          periodDays: { type: ["integer", "null"], enum: [30, 90, 180, 365, null] },
           sortBy: { type: "string", enum: ["default", "issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount"] },
           sortDirection: { type: "string", enum: ["asc", "desc"] },
           visualization: { type: "string", enum: ["number", "bar", "table"] },
           width: { type: "string", enum: ["half", "full"] },
         },
-        required: ["id", "title", "aggregateId", "placement", "selectedFields", "baseFilterLogic", "baseFilters", "metric", "groupBy", "filterLogic", "filters", "periodMode", "periodDays", "sortBy", "sortDirection", "visualization", "width"],
+        required: ["id", "title", "aggregateId", "aggregateVersion", "placement", "selectedFields", "filterLogic", "filters", "dateField", "asOf", "metric", "groupBy", "sortBy", "sortDirection", "visualization", "width"],
       },
-      JiraAnalyticsDashboardConfigV3: {
+      JiraSemanticDashboard: {
         type: "object",
         additionalProperties: false,
         properties: {
-          version: { type: "integer", const: 3 },
+          version: { type: "integer", const: 5 },
           periodDays: { type: "integer", enum: [30, 90, 180, 365] },
           assignee: { type: "string", maxLength: 200 },
-          widgets: { type: "array", maxItems: 100, items: { $ref: "#/components/schemas/JiraAnalyticsManagedWidget" } },
+          widgets: { type: "array", maxItems: 100, items: { $ref: "#/components/schemas/JiraSemanticWidget" } },
         },
         required: ["version", "periodDays", "assignee", "widgets"],
       },
-      JiraAnalyticsDashboardConfigV4: {
+      JiraSemanticQuery: {
         type: "object",
         additionalProperties: false,
         properties: {
-          version: { type: "integer", const: 4 },
-          periodDays: { type: "integer", enum: [30, 90, 180, 365] },
+          aggregateVersion: { type: "integer", minimum: 1 },
+          selectedFields: { type: "array", minItems: 1, maxItems: jiraAnalyticsOpenApiFields.length, uniqueItems: true, items: { type: "string", enum: jiraAnalyticsOpenApiFields } },
+          metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
+          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
+          filters: { type: "array", maxItems: 30, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
+          filterLogic: { type: "string", enum: ["and", "or"] },
+          periodDays: { type: ["integer", "null"], enum: [30, 90, 180, 365, null] },
+          dateField: { type: ["string", "null"], enum: [...jiraAnalyticsOpenApiFields, null] },
           assignee: { type: "string", maxLength: 200 },
-          widgets: { type: "array", maxItems: 100, items: { $ref: "#/components/schemas/JiraAnalyticsManagedWidgetV4" } },
+          sortBy: { type: "string", enum: ["default", "issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount"] },
+          sortDirection: { type: "string", enum: ["asc", "desc"] },
+          page: { type: "integer", minimum: 1, maximum: 100000 },
+          pageSize: { type: "integer", minimum: 1, maximum: 100 },
+          groupKey: { type: "string", maxLength: 500 },
+          asOf: { type: ["string", "null"], format: "date-time" },
         },
-        required: ["version", "periodDays", "assignee", "widgets"],
-      },
-      JiraAnalyticsDashboardConfig: {
-        oneOf: [
-          { $ref: "#/components/schemas/JiraAnalyticsDashboardConfigV1" },
-          { $ref: "#/components/schemas/JiraAnalyticsDashboardConfigV2" },
-          { $ref: "#/components/schemas/JiraAnalyticsDashboardConfigV3" },
-          { $ref: "#/components/schemas/JiraAnalyticsDashboardConfigV4" },
-        ],
-        discriminator: { propertyName: "version" },
-      },
-      JiraStatusIntervalEndpoint: {
-        oneOf: [
-          {
-            type: "object",
-            additionalProperties: false,
-            properties: { anchor: { type: "string", const: "issueCreated" } },
-            required: ["anchor"],
-          },
-          {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              anchor: { type: "string", const: "firstStatusEntry" },
-              statuses: { type: "array", minItems: 1, maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
-            },
-            required: ["anchor", "statuses"],
-          },
-          {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              anchor: { type: "string", const: "statusTransition" },
-              fromStatuses: { type: "array", maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
-              toStatuses: { type: "array", maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
-            },
-            required: ["anchor", "fromStatuses", "toStatuses"],
-          },
-        ],
-      },
-      JiraStatusIntervalEndEndpoint: {
-        oneOf: [
-          {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              anchor: { type: "string", const: "firstStatusEntry" },
-              statuses: { type: "array", minItems: 1, maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
-            },
-            required: ["anchor", "statuses"],
-          },
-          {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              anchor: { type: "string", const: "statusTransition" },
-              fromStatuses: { type: "array", maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
-              toStatuses: { type: "array", maxItems: 10, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 } },
-            },
-            required: ["anchor", "fromStatuses", "toStatuses"],
-          },
-        ],
-      },
-      JiraStatusIntervalRowConfig: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          kind: { type: "string", const: "statusInterval" },
-          start: { $ref: "#/components/schemas/JiraStatusIntervalEndpoint" },
-          end: { $ref: "#/components/schemas/JiraStatusIntervalEndEndpoint" },
-          openIntervals: { type: "string", enum: ["exclude", "include"] },
-          periodAnchor: { type: "string", enum: ["start", "end"] },
-        },
-        required: ["kind", "start", "end", "openIntervals", "periodAnchor"],
-      },
-      JiraAggregateDraft: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          name: { type: "string", minLength: 1, maxLength: 200 },
-          description: { type: "string", maxLength: 1000 },
-          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs", "statusIntervals"] },
-          rowConfig: { oneOf: [{ $ref: "#/components/schemas/JiraStatusIntervalRowConfig" }, { type: "null" }] },
-          timeZone: { type: "string", enum: ["Europe/Moscow", "UTC"] },
-          sortOrder: { type: "integer", minimum: 0, maximum: 10000 },
-        },
-        required: ["name", "description", "source", "timeZone", "sortOrder"],
-      },
-      JiraAggregateDefinition: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          id: { type: "string" },
-          projectId: { type: "string" },
-          name: { type: "string", minLength: 1, maxLength: 200 },
-          description: { type: "string", maxLength: 1000 },
-          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs", "statusIntervals"] },
-          rowConfig: { oneOf: [{ $ref: "#/components/schemas/JiraStatusIntervalRowConfig" }, { type: "null" }] },
-          timeZone: { type: "string", enum: ["Europe/Moscow", "UTC"] },
-          sortOrder: { type: "integer", minimum: 0, maximum: 10000 },
-          fingerprint: { type: "string", pattern: "^[0-9a-f]{64}$" },
-          version: { type: "integer", minimum: 1 },
-          createdAt: { type: "string", format: "date-time" },
-          updatedAt: { type: "string", format: "date-time" },
-        },
-        required: [
-          "id", "projectId", "name", "description", "source", "rowConfig", "timeZone",
-          "sortOrder", "fingerprint", "version", "createdAt", "updatedAt",
-        ],
+        required: ["aggregateVersion", "selectedFields", "metric", "groupBy", "filters", "filterLogic", "periodDays", "dateField", "assignee", "sortBy", "sortDirection"],
       },
       JiraAggregateEvaluationResult: {
         type: "object",
@@ -480,7 +299,7 @@ export const openApiDocument = {
           groups: { type: "array", items: { type: "object" } },
           records: { type: "array", items: { type: "object" } },
           totalRecords: { type: "integer", minimum: 0 },
-          page: { type: "integer", minimum: 1 },
+          page: { type: "integer", minimum: 1, maximum: 100000 },
           pageSize: { type: "integer", minimum: 1, maximum: 100 },
           quality: { $ref: "#/components/schemas/JiraAnalyticsDataQuality" },
           reconstruction: { $ref: "#/components/schemas/JiraAsOfReconstruction" },
@@ -1312,339 +1131,160 @@ export const openApiDocument = {
         },
       },
     },
-    "/api/projects/{projectId}/jira/aggregates": {
+    "/api/projects/{projectId}/jira/semantic-aggregates": {
       get: {
-        ...securedOperation(["Jira"], "List managed Jira aggregate definitions", [projectIdParam]),
+        ...securedOperation(["Jira"], "List published semantic aggregates and dashboard v5", [projectIdParam]),
         responses: {
-          "200": {
-            description: "Managed aggregate catalog and dashboard migration state",
-            content: { "application/json": { schema: {
-              type: "object",
-              properties: {
-                definitions: { type: "array", items: { $ref: "#/components/schemas/JiraAggregateDefinition" } },
-                invalidDefinitionCount: { type: "integer", minimum: 0 },
-                revisionContracts: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                      aggregateId: { type: "string" },
-                      version: { type: "integer", minimum: 1 },
-                      definition: { $ref: "#/components/schemas/JiraAggregateDraft" },
-                    },
-                    required: ["aggregateId", "version", "definition"],
-                  },
-                },
-                dashboard: {
-                  type: "object",
-                  properties: {
-                    stored: { type: "boolean" },
-                    version: { type: ["integer", "null"], enum: [1, 2, 3, 4, null] },
-                    configHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
-                    conversionId: { type: ["string", "null"] },
-                    attempt: { type: ["integer", "null"], minimum: 1 },
-                    sourceConfigHash: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
-                    originalConfigHash: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
-                    originalConfigStored: { type: ["boolean", "null"] },
-                    convertedConfigHash: { type: ["string", "null"], pattern: "^[0-9a-f]{64}$" },
-                    convertedAt: { type: ["string", "null"], format: "date-time" },
-                    rolledBackAt: { type: ["string", "null"], format: "date-time" },
-                    rollbackState: { type: ["string", "null"], enum: ["AVAILABLE", "USED", "CLOSED", null] },
-                    rollbackFinalizedAt: { type: ["string", "null"], format: "date-time" },
-                    rollbackAvailableUntil: { type: ["string", "null"], enum: ["AVAILABLE_UNTIL_LEGACY_RETIREMENT", null] },
-                    editableConfig: { oneOf: [{ $ref: "#/components/schemas/JiraAnalyticsDashboardConfigV4" }, { type: "null" }] },
-                    editableConfigError: { type: ["string", "null"] },
-                  },
-                  required: ["stored", "version", "configHash", "conversionId", "attempt", "sourceConfigHash", "originalConfigHash", "originalConfigStored", "convertedConfigHash", "convertedAt", "rolledBackAt", "rollbackState", "rollbackFinalizedAt", "rollbackAvailableUntil", "editableConfig", "editableConfigError"],
-                },
-              },
-              required: ["definitions", "invalidDefinitionCount", "revisionContracts", "dashboard"],
-            } } },
-          },
+          "200": { description: "Semantic aggregate catalog and dashboard v5" },
           ...jiraAggregateErrorResponses,
         },
       },
       post: {
-        ...createOperation(["Jira"], "Create a managed Jira aggregate definition", [projectIdParam]),
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: { definition: { $ref: "#/components/schemas/JiraAggregateDraft" } },
-            required: ["definition"],
-          } } },
-        },
-        responses: {
-          "201": {
-            description: "Aggregate definition created",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/JiraAggregateDefinition" } } },
-          },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/aggregates/{aggregateId}": {
-      patch: {
-        ...securedOperation(["Jira"], "Update a managed Jira aggregate with optimistic locking", [projectIdParam, pathParam("aggregateId")]),
+        ...createOperation(["Jira"], "Create a semantic aggregate draft as system administrator", [projectIdParam]),
         requestBody: {
           required: true,
           content: { "application/json": { schema: {
             type: "object",
             additionalProperties: false,
             properties: {
-              definition: { $ref: "#/components/schemas/JiraAggregateDraft" },
+              key: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+              definition: { $ref: "#/components/schemas/JiraSemanticAggregateDefinition" },
+            },
+            required: ["key", "definition"],
+          } } },
+        },
+        responses: {
+          "201": { description: "Semantic aggregate draft created" },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/semantic-dashboard": {
+      patch: {
+        ...securedOperation(["Jira"], "Save dashboard v5 widgets as system administrator", [projectIdParam]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              config: { $ref: "#/components/schemas/JiraSemanticDashboard" },
+              expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+            },
+            required: ["config", "expectedConfigHash"],
+          } } },
+        },
+        responses: {
+          "200": { description: "Dashboard v5 saved" },
+          ...jiraAggregateErrorResponses,
+        },
+      },
+    },
+    "/api/projects/{projectId}/jira/semantic-aggregates/bootstrap": {
+      post: {
+        ...createOperation(["Jira"], "Create the five system semantic aggregates as system administrator", [projectIdParam]),
+        responses: { "204": { description: "System semantic aggregates are present" }, ...jiraAggregateErrorResponses },
+      },
+    },
+    "/api/projects/{projectId}/jira/semantic-aggregates/{aggregateId}": {
+      patch: {
+        ...securedOperation(["Jira"], "Save a new semantic aggregate draft revision", [projectIdParam, pathParam("aggregateId")]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              definition: { $ref: "#/components/schemas/JiraSemanticAggregateDefinition" },
               expectedVersion: { type: "integer", minimum: 1 },
             },
             required: ["definition", "expectedVersion"],
           } } },
         },
-        responses: {
-          "200": {
-            description: "Aggregate definition updated",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/JiraAggregateDefinition" } } },
-          },
-          ...jiraAggregateErrorResponses,
-        },
+        responses: { "200": { description: "Draft revision saved" }, ...jiraAggregateErrorResponses },
       },
       delete: {
-        ...deleteOperation(["Jira"], "Delete an unused managed Jira aggregate", [projectIdParam, pathParam("aggregateId")]),
-        parameters: [
-          projectIdParam,
-          pathParam("aggregateId"),
-          { name: "expectedVersion", in: "query", required: true, schema: { type: "integer", minimum: 1 } },
-        ],
-        responses: {
-          "204": { description: "Aggregate definition deleted" },
-          ...jiraAggregateErrorResponses,
-        },
+        ...deleteOperation(["Jira"], "Archive a custom semantic aggregate", [projectIdParam, pathParam("aggregateId")]),
+        parameters: [projectIdParam, pathParam("aggregateId"), { name: "expectedVersion", in: "query", required: true, schema: { type: "integer", minimum: 1 } }],
+        responses: { "204": { description: "Semantic aggregate archived" }, ...jiraAggregateErrorResponses },
       },
     },
-    "/api/projects/{projectId}/jira/aggregates/preview": {
+    "/api/projects/{projectId}/jira/semantic-aggregates/{aggregateId}/publish": {
       post: {
-        ...securedOperation(["Jira"], "Preview a Jira aggregate without saving it (system admin only)", [projectIdParam]),
+        ...securedOperation(["Jira"], "Publish a validated semantic aggregate revision", [projectIdParam, pathParam("aggregateId")]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object", additionalProperties: false,
+            properties: { expectedVersion: { type: "integer", minimum: 1 } },
+            required: ["expectedVersion"],
+          } } },
+        },
+        responses: { "200": { description: "Semantic aggregate revision published" }, ...jiraAggregateErrorResponses },
+      },
+    },
+    "/api/projects/{projectId}/jira/semantic-aggregates/preview": {
+      post: {
+        ...securedOperation(["Jira"], "Preview real rows for a semantic aggregate draft", [projectIdParam]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object", additionalProperties: false,
+            properties: {
+              definition: { $ref: "#/components/schemas/JiraSemanticAggregateDefinition" },
+              asOf: { type: ["string", "null"], format: "date-time" },
+            },
+            required: ["definition"],
+          } } },
+        },
+        responses: { "200": { description: "Semantic aggregate draft preview" }, ...jiraAggregateErrorResponses },
+      },
+    },
+    "/api/projects/{projectId}/jira/semantic-aggregates/query-batch": {
+      post: {
+        ...securedOperation(["Jira"], "Execute visible widgets in a bounded shared data-lake pass", [projectIdParam]),
         requestBody: {
           required: true,
           content: { "application/json": { schema: {
             type: "object",
             additionalProperties: false,
             properties: {
-              definition: { $ref: "#/components/schemas/JiraAggregateDraft" },
-              periodDays: { type: "integer", enum: [30, 90, 180, 365] },
-              assignee: { type: "string", maxLength: 200 },
-              page: { type: "integer", minimum: 1 },
-              pageSize: { type: "integer", minimum: 1, maximum: 100 },
-              groupKey: { type: "string", maxLength: 500 },
-              evaluatedAt: { type: "string", format: "date-time" },
-              asOf: { type: "string", format: "date-time" },
-            },
-            required: ["definition", "assignee"],
-          } } },
-        },
-        responses: {
-          "200": {
-            description: "Unsaved aggregate preview",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/JiraAggregateEvaluationResult" } } },
-          },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/aggregates/{aggregateId}/result": {
-      get: {
-        ...securedOperation(["Jira"], "Evaluate one saved Jira aggregate on server-side projections", [projectIdParam, pathParam("aggregateId")]),
-        parameters: [
-          projectIdParam,
-          pathParam("aggregateId"),
-          { name: "periodDays", in: "query", schema: { type: "integer", enum: [30, 90, 180, 365] } },
-          { name: "assignee", in: "query", required: true, schema: { type: "string", maxLength: 200 } },
-          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
-          { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
-          { name: "groupKey", in: "query", schema: { type: "string", maxLength: 500 } },
-          { name: "evaluatedAt", in: "query", schema: { type: "string", format: "date-time" } },
-          { name: "asOf", in: "query", schema: { type: "string", format: "date-time" } },
-        ],
-        responses: {
-          "200": {
-            description: "Saved aggregate definition and evaluation result",
-            content: { "application/json": { schema: {
-              type: "object",
-              properties: {
-                definition: { $ref: "#/components/schemas/JiraAggregateDefinition" },
-                result: { $ref: "#/components/schemas/JiraAggregateEvaluationResult" },
-              },
-              required: ["definition", "result"],
-            } } },
-          },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/aggregates/{aggregateId}/export.csv": {
-      get: {
-        ...securedOperation(["Jira"], "Export one saved Jira aggregate as bounded server-generated CSV", [projectIdParam, pathParam("aggregateId")]),
-        parameters: [
-          projectIdParam,
-          pathParam("aggregateId"),
-          { name: "periodDays", in: "query", schema: { type: "integer", enum: [30, 90, 180, 365] } },
-          { name: "assignee", in: "query", schema: { type: "string", maxLength: 200 } },
-          { name: "groupKey", in: "query", schema: { type: "string", maxLength: 500 } },
-          { name: "evaluatedAt", in: "query", schema: { type: "string", format: "date-time" } },
-          { name: "asOf", in: "query", schema: { type: "string", format: "date-time" } },
-        ],
-        responses: {
-          "200": {
-            description: "CSV built only from typed aggregate result records",
-            content: { "text/csv": { schema: { type: "string", format: "binary" } } },
-          },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/aggregate-dashboard-results": {
-      get: {
-        ...securedOperation(["Jira"], "Evaluate all saved dashboard widgets on the server", [projectIdParam]),
-        parameters: [
-          projectIdParam,
-          { name: "periodDays", in: "query", required: true, schema: { type: "integer", enum: [30, 90, 180, 365] } },
-          { name: "assignee", in: "query", required: true, schema: { type: "string", maxLength: 200 } },
-          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
-          { name: "pageSize", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
-          { name: "groupKey", in: "query", schema: { type: "string", maxLength: 500 } },
-          { name: "widgetId", in: "query", schema: { type: "string", minLength: 1, maxLength: 200 } },
-          { name: "evaluatedAt", in: "query", schema: { type: "string", format: "date-time" } },
-        ],
-        responses: {
-          "200": {
-            description: "Server-evaluated dashboard widgets",
-            content: { "application/json": { schema: {
-              type: "object",
-              properties: {
-                configVersion: { type: "integer", enum: [1, 2, 3, 4] },
-                configHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
-                widgets: { type: "array", maxItems: 100, items: { type: "object" } },
-              },
-              required: ["configVersion", "configHash", "widgets"],
-            } } },
-          },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/aggregates/import-dashboard": {
-      post: {
-        ...securedOperation(["Jira"], "Import reusable aggregate definitions from dashboard v1", [projectIdParam]),
-        requestBody: jiraDashboardMigrationRequestBody,
-        responses: {
-          "200": { description: "Import dry-run or applied import plan" },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/aggregates/reconcile-dashboard": {
-      post: {
-        ...securedOperation(["Jira"], "Compare dashboard v1 inline widgets with v2 referenced aggregates on one data pass", [projectIdParam]),
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
-              periodDays: { type: "integer", enum: [30, 90, 180, 365] },
-              assignee: { type: "string", maxLength: 200 },
-            },
-            required: ["expectedConfigHash", "periodDays", "assignee"],
-          } } },
-        },
-        responses: {
-          "200": { description: "Bounded v1/v2 migration parity report using a shared arithmetic kernel" },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/aggregates/convert-dashboard": {
-      post: {
-        ...securedOperation(["Jira"], "Deprecated dry-run for the former manual v1 to v2 conversion", [projectIdParam]),
-        deprecated: true,
-        requestBody: jiraDashboardMigrationRequestBody,
-        responses: {
-          "200": { description: "Legacy conversion dry-run" },
-          "410": { description: "Applied conversion was replaced by the reconciled switch endpoint" },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/aggregates/switch-dashboard": {
-      post: {
-        ...securedOperation(["Jira"], "Reconcile and atomically switch dashboard widgets to managed aggregate definitions", [projectIdParam]),
-        requestBody: jiraDashboardSwitchRequestBody,
-        responses: {
-          "200": { description: "Read-only preflight or applied stage F switch" },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/aggregates/rollback-dashboard": {
-      post: {
-        ...securedOperation(["Jira"], "Roll back the current stage F conversion attempt from v2 to v1", [projectIdParam]),
-        requestBody: jiraDashboardRollbackRequestBody,
-        responses: {
-          "200": { description: "Rollback dry-run or restored v1 dashboard" },
-          ...jiraAggregateErrorResponses,
-        },
-      },
-    },
-    "/api/projects/{projectId}/jira/analytics-dashboard": {
-      patch: {
-        tags: ["Jira"],
-        summary: "Update the shared Jira analytics widgets as system administrator",
-        security: [{ sessionCookie: [] }],
-        parameters: [projectIdParam],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  config: { $ref: "#/components/schemas/JiraAnalyticsDashboardConfigV4" },
-                  expectedConfigHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
-                  acceptPartialMigration: { type: "boolean", default: false },
-                },
-                required: ["config", "expectedConfigHash"],
-              },
-            },
-          },
-        },
-        responses: {
-          "200": {
-            description: "Shared Jira analytics widgets updated",
-            content: {
-              "application/json": {
-                schema: {
+              queries: {
+                type: "array",
+                minItems: 1,
+                maxItems: 100,
+                items: {
                   type: "object",
+                  additionalProperties: false,
                   properties: {
-                    projectId: { type: "string" },
-                    jiraScopeType: { type: "string", enum: ["LABEL", "EPIC"] },
-                    jiraScopeValue: { type: "string" },
-                    dashboardConfig: { $ref: "#/components/schemas/JiraAnalyticsDashboardConfigV4" },
-                    configHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+                    widgetId: { type: "string", minLength: 1, maxLength: 200 },
+                    aggregateId: { type: "string", minLength: 1, maxLength: 200 },
+                    query: { $ref: "#/components/schemas/JiraSemanticQuery" },
                   },
-                  required: ["projectId", "jiraScopeType", "jiraScopeValue", "dashboardConfig", "configHash"],
+                  required: ["widgetId", "aggregateId", "query"],
                 },
               },
             },
-          },
-          "400": { description: "Invalid Jira analytics configuration" },
-          "401": { description: "Authentication required" },
-          "403": { description: "System administrator role required" },
-          "404": { description: "Project not found" },
-          "409": { description: "Referenced aggregate is missing or has an incompatible scope" },
-          "423": { description: "Closed project is read-only" },
-          "500": { description: "Runtime locale support is unavailable" },
+            required: ["queries"],
+          } } },
+        },
+        responses: { "200": { description: "Results for every requested widget" }, ...jiraAggregateErrorResponses },
+      },
+    },
+    "/api/projects/{projectId}/jira/semantic-aggregates/{aggregateId}/query": {
+      post: {
+        ...securedOperation(["Jira"], "Execute widget query against one pinned aggregate revision", [projectIdParam, pathParam("aggregateId")]),
+        requestBody: jiraSemanticQueryRequestBody,
+        responses: { "200": { description: "Widget query result" }, ...jiraAggregateErrorResponses },
+      },
+    },
+    "/api/projects/{projectId}/jira/semantic-aggregates/{aggregateId}/query.csv": {
+      post: {
+        ...securedOperation(["Jira"], "Export widget query against one pinned aggregate revision", [projectIdParam, pathParam("aggregateId")]),
+        requestBody: jiraSemanticQueryRequestBody,
+        responses: {
+          "200": { description: "Bounded CSV export", content: { "text/csv": { schema: { type: "string", format: "binary" } } } },
+          ...jiraAggregateErrorResponses,
         },
       },
     },

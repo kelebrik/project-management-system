@@ -1,6 +1,8 @@
 import {
   JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
+  JIRA_SEMANTIC_MAX_AS_OF_SLICES,
+  JIRA_SEMANTIC_FIELD_LABELS,
   createJiraAnalyticsEvaluationAccumulator,
   isJiraCancelledStatus,
   isJiraUnresolvedResolution,
@@ -42,6 +44,8 @@ import {
   type JiraAnalyticsEvaluationLimits,
   type JiraAnalyticsInlineWidget,
   type JiraAnalyticsIssueData,
+  type JiraAnalyticsFilterField,
+  type JiraAnalyticsResultRecord,
 } from '@pms/shared';
 import { Prisma, type JiraAggregateDefinition, type PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
@@ -73,6 +77,12 @@ export class JiraAggregateEventLimitError extends Error {
 export class JiraAggregateExportLimitError extends Error {
   constructor(public readonly limit: number) {
     super('JIRA_AGGREGATE_EXPORT_LIMIT');
+  }
+}
+
+export class JiraAggregateAsOfSliceLimitError extends Error {
+  constructor(public readonly limit: number) {
+    super('JIRA_AGGREGATE_ASOF_SLICE_LIMIT');
   }
 }
 
@@ -636,6 +646,140 @@ export async function evaluateJiraAggregateFromDatabase(
   return accumulator.finish();
 }
 
+export type JiraAggregateBatchEvaluationRequest = {
+  key: string;
+  definition: JiraAnalyticsExecutableDefinition;
+  options: JiraAnalyticsEvaluationOptions;
+  asOf?: Date;
+};
+
+export type JiraAggregateBatchEvaluationResult = {
+  key: string;
+  result: (JiraAnalyticsEvaluationResult & { reconstruction?: JiraAsOfReconstruction }) | null;
+  error: Error | null;
+};
+
+type JiraAggregateBatchAccumulator = {
+  request: JiraAggregateBatchEvaluationRequest;
+  accumulator: ReturnType<typeof createJiraAnalyticsEvaluationAccumulator> | null;
+  error: Error | null;
+};
+
+function evaluationError(error: unknown) {
+  return error instanceof Error ? error : new Error('JIRA_AGGREGATE_EVALUATION_FAILED');
+}
+
+function createBatchAccumulator(
+  request: JiraAggregateBatchEvaluationRequest,
+  limits: JiraAnalyticsEvaluationLimits,
+): JiraAggregateBatchAccumulator {
+  try {
+    return {
+      request,
+      accumulator: createJiraAnalyticsEvaluationAccumulator(request.definition, request.options, limits),
+      error: null,
+    };
+  } catch (error) {
+    return { request, accumulator: null, error: evaluationError(error) };
+  }
+}
+
+export async function evaluateJiraAggregatesFromDatabase(
+  client: JiraAggregateReadClient,
+  projectId: string,
+  requests: readonly JiraAggregateBatchEvaluationRequest[],
+  limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
+) {
+  if (requests.length > JIRA_AGGREGATE_MAX_BATCH_WIDGETS) {
+    throw new JiraAggregateExportLimitError(JIRA_AGGREGATE_MAX_BATCH_WIDGETS);
+  }
+  const results = new Map<string, JiraAggregateBatchEvaluationResult>();
+  const current = requests.filter((request) => request.asOf === undefined);
+  if (current.length > 0) {
+    const accumulators = current.map((request) => createBatchAccumulator(request, limits));
+    for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
+      accumulators.forEach((item) => {
+        if (item.error || !item.accumulator) return;
+        try {
+          item.accumulator.addIssues(issues);
+        } catch (error) {
+          item.error = evaluationError(error);
+        }
+      });
+    }
+    accumulators.forEach(({ request, accumulator, error }) => {
+      if (error || !accumulator) {
+        results.set(request.key, { key: request.key, result: null, error: error ?? new Error('MISSING_ACCUMULATOR') });
+        return;
+      }
+      try {
+        results.set(request.key, { key: request.key, result: accumulator.finish(), error: null });
+      } catch (finishError) {
+        results.set(request.key, { key: request.key, result: null, error: evaluationError(finishError) });
+      }
+    });
+  }
+
+  const historicalGroups = new Map<string, JiraAggregateBatchEvaluationRequest[]>();
+  requests.filter((request) => request.asOf !== undefined).forEach((request) => {
+    const key = request.asOf!.toISOString();
+    historicalGroups.set(key, [...(historicalGroups.get(key) ?? []), request]);
+  });
+  if (historicalGroups.size > JIRA_SEMANTIC_MAX_AS_OF_SLICES) {
+    throw new JiraAggregateAsOfSliceLimitError(JIRA_SEMANTIC_MAX_AS_OF_SLICES);
+  }
+  for (const [asOf, group] of historicalGroups) {
+    if (group.some((request) => !jiraAnalyticsSourceSupportsAsOf(request.definition.source))) {
+      throw new Error('JIRA_ASOF_EVENT_SOURCE_UNSUPPORTED');
+    }
+    const prepared = await prepareJiraAsOfIssueBatches(client, projectId, new Date(asOf));
+    if (prepared.reconstruction.tickets > JIRA_AGGREGATE_MAX_ISSUES) {
+      throw new JiraAggregatePopulationLimitError(JIRA_AGGREGATE_MAX_ISSUES);
+    }
+    const accumulators = group.map((request) => createBatchAccumulator(request, limits));
+    let loadedIssues = 0;
+    for await (const issues of prepared.batches) {
+      loadedIssues += issues.length;
+      if (loadedIssues > JIRA_AGGREGATE_MAX_ISSUES) {
+        throw new JiraAggregatePopulationLimitError(JIRA_AGGREGATE_MAX_ISSUES);
+      }
+      accumulators.forEach((item) => {
+        if (item.error || !item.accumulator) return;
+        try {
+          item.accumulator.addIssues(issues);
+        } catch (error) {
+          item.error = evaluationError(error);
+        }
+      });
+    }
+    accumulators.forEach(({ request, accumulator, error }) => {
+      if (error || !accumulator) {
+        results.set(request.key, { key: request.key, result: null, error: error ?? new Error('MISSING_ACCUMULATOR') });
+        return;
+      }
+      try {
+        const result = accumulator.finish();
+        results.set(request.key, {
+          key: request.key,
+          result: {
+            ...result,
+            quality: mergeJiraAsOfDataQuality(result.quality, prepared.reconstruction),
+            reconstruction: prepared.reconstruction,
+          },
+          error: null,
+        });
+      } catch (finishError) {
+        results.set(request.key, { key: request.key, result: null, error: evaluationError(finishError) });
+      }
+    });
+  }
+  return requests.map((request) => {
+    const result = results.get(request.key);
+    if (!result) throw new Error(`JIRA_AGGREGATE_BATCH_RESULT_MISSING:${request.key}`);
+    return result;
+  });
+}
+
 function unavailableWidget(
   widgetId: string,
   title: string,
@@ -1155,69 +1299,64 @@ function csvCell(value: string | number | null | undefined) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
-export function jiraAggregateResultCsv(result: JiraAnalyticsEvaluationResult) {
+export function jiraAggregateOutputValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilterField) {
+  if (field === 'issueKey') return record.issue.issueKey;
+  if (field === 'project') return record.issue.issueKey.trim().toUpperCase().match(/^([A-Z][A-Z0-9_]*)-\d+$/)?.[1] ?? null;
+  if (field === 'summary') return record.issue.summary;
+  if (field === 'status') return record.issue.status;
+  if (field === 'assignee') return record.issue.assignee;
+  if (field === 'reporter') return record.issue.reporter;
+  if (field === 'priority') return record.issue.priority;
+  if (field === 'sprint') return record.sprint;
+  if (field === 'issueType') return record.issue.issueType;
+  if (field === 'resolution') return isJiraUnresolvedResolution(record.issue.resolution) ? null : record.issue.resolution;
+  if (field === 'fromStatus') return record.fromStatus;
+  if (field === 'toStatus') return record.toStatus;
+  if (field === 'durationHours') return record.durationHours;
+  if (field === 'commitCount') return record.commitCount;
+  if (field === 'mergeRequestCount') return record.mergeRequestCount;
+  if (field === 'hasDevelopment') return record.commitCount > 0 || record.mergeRequestCount > 0;
+  if (field === 'issueCreatedAt') return record.issue.issueCreatedAt;
+  if (field === 'criticalPriorityAt') return record.issue.criticalPriorityAt;
+  if (field === 'resolutionAt') return record.issue.resolutionAt;
+  if (field === 'updatedAt') return record.issue.updatedAt;
+  if (field === 'eventAt') return record.eventAt;
+  if (field === 'intervalStartAt') return record.intervalStartAt;
+  if (field === 'intervalEndAt') return record.intervalEndAt;
+  return null;
+}
+
+export function jiraAggregateResultProjection(
+  result: JiraAnalyticsEvaluationResult & { reconstruction?: JiraAsOfReconstruction },
+  selectedFields: readonly JiraAnalyticsFilterField[],
+) {
+  const { records, ...summary } = result;
+  return {
+    ...summary,
+    records: records.map((record) => ({
+      id: record.id,
+      issueUrl: record.issue.issueUrl,
+      values: Object.fromEntries(selectedFields.map((field) => [field, jiraAggregateOutputValue(record, field)])),
+    })),
+  };
+}
+
+export function jiraAggregateResultCsv(
+  result: JiraAnalyticsEvaluationResult,
+  selectedFields: readonly JiraAnalyticsFilterField[] = JIRA_ANALYTICS_FIELDS_BY_SOURCE[result.quality.source],
+  labels: Partial<Record<JiraAnalyticsFilterField, string>> = {},
+) {
   if (result.totalRecords > JIRA_AGGREGATE_MAX_PAGE_WINDOW) {
     throw new JiraAggregateExportLimitError(JIRA_AGGREGATE_MAX_PAGE_WINDOW);
   }
   if (result.records.length !== result.totalRecords) {
     throw new Error('JIRA_AGGREGATE_EXPORT_INCOMPLETE');
   }
-  const header = [
-    'Evaluated at',
-    'Quality status',
-    'Quality basis',
-    'Record ID',
-    'Source',
-    'Key',
-    'Summary',
-    'Assignee',
-    'Status',
-    'Priority',
-    'Issue type',
-    'Resolution',
-    'Sprint',
-    'From status',
-    'To status',
-    'Interval start from status',
-    'Interval start to status',
-    'Interval end from status',
-    'Interval end to status',
-    'Interval start',
-    'Interval end',
-    'Duration hours',
-    'Commits',
-    'Merge requests',
-    'Event at',
-    'Jira URL',
-  ];
-  const rows = result.records.map((record) => [
-    result.evaluatedAt,
-    result.quality.status,
-    result.quality.basis,
-    record.id,
-    record.source,
-    record.issue.issueKey,
-    record.issue.summary,
-    record.issue.assignee,
-    record.issue.status,
-    record.issue.priority,
-    record.issue.issueType,
-    record.issue.resolution,
-    record.sprint,
-    record.fromStatus,
-    record.toStatus,
-    record.intervalStartFromStatus,
-    record.intervalStartToStatus,
-    record.intervalEndFromStatus,
-    record.intervalEndToStatus,
-    record.intervalStartAt,
-    record.intervalEndAt,
-    record.durationHours,
-    record.commitCount,
-    record.mergeRequestCount,
-    record.eventAt,
-    record.issue.issueUrl,
-  ]);
+  const header = selectedFields.map((field) => labels[field] ?? JIRA_SEMANTIC_FIELD_LABELS[field]);
+  const rows = result.records.map((record) => selectedFields.map((field) => {
+    const value = jiraAggregateOutputValue(record, field);
+    return typeof value === 'boolean' ? value ? 'Да' : 'Нет' : value;
+  }));
   return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
 }
 
@@ -1587,6 +1726,8 @@ function plannedAggregateDefinition(
   return {
     id: item.existingId ?? `planned-${item.fingerprint}`,
     projectId,
+    aggregateKey: "",
+    system: false,
     ...item.definition,
     nameKey: normalizeJiraAnalyticsName(item.definition.name),
     definitionSchemaVersion: 1,
@@ -1597,6 +1738,9 @@ function plannedAggregateDefinition(
     filters: item.definition.filters as Prisma.JsonValue,
     fingerprint: item.fingerprint,
     version: 1,
+    publishedVersion: null,
+    draftDefinition: null,
+    archivedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
