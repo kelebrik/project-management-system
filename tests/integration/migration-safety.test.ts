@@ -249,3 +249,10 @@ test("default Jira widget migration only marks untouched empty dashboards for bo
   assert.doesNotMatch(migration, /DELETE FROM/u);
   assert.doesNotMatch(migration, /JiraIssue(?:Snapshot|Version|StatusTransition)/u);
 });
+
+test("default Jira widget seed version is additive and preserves dashboard data", () => {
+  const migration = migrationSql("20260827093000_jira_default_widget_seed_version");
+  assert.match(migration, /ADD COLUMN "semanticDefaultWidgetsVersion" INTEGER NOT NULL DEFAULT 0/u);
+  assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/u);
+  assert.doesNotMatch(migration, /JiraIssue(?:Snapshot|Version|StatusTransition)/u);
+});

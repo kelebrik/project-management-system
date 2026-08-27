@@ -13,6 +13,7 @@ import {
   jiraSemanticAggregateCost,
   jiraSemanticCreateData,
   jiraDefaultSemanticDashboard,
+  jiraDashboardWithDefaultWidgets,
   jiraSemanticExecutableDefinition,
 } from "./jira-semantic-aggregates.js";
 
@@ -50,6 +51,23 @@ test("default semantic dashboard contains the requested operational and retrospe
   const sprintHistory = dashboard.widgets[3]!;
   assert.equal(sprintHistory.aggregateVersion, 2);
   assert.ok(sprintHistory.filters.some((item) => item.field === "sprintCount" && item.operator === "greaterThan" && item.value === "3"));
+});
+
+test("default widgets augment an existing dashboard once without replacing its widgets", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({
+    id: `aggregate-${index + 1}`,
+    aggregateKey: aggregate.key,
+    publishedVersion: 1,
+  }));
+  const defaults = jiraDefaultSemanticDashboard(references);
+  const existing = {
+    ...defaults,
+    widgets: [{ ...defaults.widgets[0]!, id: "custom-widget", title: "Пользовательский виджет" }],
+  };
+  const merged = jiraDashboardWithDefaultWidgets(existing, defaults);
+  assert.equal(merged.widgets.length, 5);
+  assert.equal(merged.widgets[0]?.id, "custom-widget");
+  assert.equal(jiraDashboardWithDefaultWidgets(merged, defaults).widgets.length, 5);
 });
 
 test("semantic interval maps typed anchors without widget presentation", () => {

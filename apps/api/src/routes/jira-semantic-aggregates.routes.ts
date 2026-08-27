@@ -223,7 +223,10 @@ export function registerJiraSemanticAggregateRoutes(
     }
     const [definitions, settings] = await Promise.all([
       listJiraSemanticAggregates(prisma, req.params.projectId),
-      prisma.jiraAnalyticsSettings.findUnique({ where: { projectId: req.params.projectId }, select: { dashboardConfig: true } }),
+      prisma.jiraAnalyticsSettings.findUnique({
+        where: { projectId: req.params.projectId },
+        select: { dashboardConfig: true, semanticDefaultWidgetsVersion: true },
+      }),
     ]);
     const dashboard = jiraSemanticDashboardSchema.safeParse(settings?.dashboardConfig);
     const dashboardConfig = dashboard.success ? dashboard.data : JIRA_SEMANTIC_EMPTY_DASHBOARD;
@@ -239,7 +242,7 @@ export function registerJiraSemanticAggregateRoutes(
           }),
       dashboard: dashboardConfig,
       dashboardConfigHash: jiraDashboardConfigHash(settings?.dashboardConfig ?? null),
-      dashboardSeedRequired: settings?.dashboardConfig == null,
+      dashboardSeedRequired: (settings?.semanticDefaultWidgetsVersion ?? 0) < 1,
     });
   });
 

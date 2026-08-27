@@ -527,6 +527,7 @@ model JiraAnalyticsSettings {
   jiraScopeValue              String
   jiraLabel                   String                 @default("")
   dashboardConfig             Json?
+  semanticDefaultWidgetsVersion Int                  @default(0)
   syncStatus                  String                 @default("NOT_CONFIGURED")
   lastSyncedAt                DateTime?
   syncStartedAt               DateTime?

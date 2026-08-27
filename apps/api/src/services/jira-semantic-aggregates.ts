@@ -1,10 +1,12 @@
 import {
   JIRA_ANALYTICS_FIELDS_BY_SOURCE,
+  JIRA_SEMANTIC_EMPTY_DASHBOARD,
   JIRA_SEMANTIC_FIELD_LABELS,
   jiraCancelledStatuses,
   jiraSemanticAggregateDefinitionSchema,
   jiraSemanticCompatibleChange,
   jiraSemanticDefaultOutputField,
+  jiraSemanticDashboardSchema,
   type JiraAnalyticsExecutableDefinition,
   type JiraAnalyticsFilter,
   type JiraAnalyticsFilterField,
@@ -248,6 +250,20 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
   };
 }
 
+export function jiraDashboardWithDefaultWidgets(
+  current: JiraSemanticDashboard,
+  defaults: JiraSemanticDashboard,
+): JiraSemanticDashboard {
+  const existingIds = new Set(current.widgets.map((widget) => widget.id));
+  return {
+    ...current,
+    widgets: [
+      ...current.widgets,
+      ...defaults.widgets.filter((widget) => !existingIds.has(widget.id)),
+    ],
+  };
+}
+
 function hash(value: unknown) {
   return jiraDashboardConfigHash(value);
 }
@@ -411,12 +427,20 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
       references[references.length - 1] = row;
     }
     const settings = await transaction.jiraAnalyticsSettings.findUnique({ where: { projectId } });
-    if (!settings?.dashboardConfig) {
-      const dashboardConfig = jiraDefaultSemanticDashboard(references) as unknown as Prisma.InputJsonObject;
+    if ((settings?.semanticDefaultWidgetsVersion ?? 0) < 1) {
+      const parsedDashboard = jiraSemanticDashboardSchema.safeParse(settings?.dashboardConfig);
+      const currentDashboard = parsedDashboard.success ? parsedDashboard.data : JIRA_SEMANTIC_EMPTY_DASHBOARD;
+      const dashboardConfig = jiraDashboardWithDefaultWidgets(
+        currentDashboard,
+        jiraDefaultSemanticDashboard(references),
+      ) as unknown as Prisma.InputJsonObject;
       await transaction.jiraAnalyticsSettings.upsert({
         where: { projectId },
-        create: { projectId, jiraScopeType: "LABEL", jiraScopeValue: "", dashboardConfig },
-        update: { dashboardConfig },
+        create: {
+          projectId, jiraScopeType: "LABEL", jiraScopeValue: "", dashboardConfig,
+          semanticDefaultWidgetsVersion: 1,
+        },
+        update: { dashboardConfig, semanticDefaultWidgetsVersion: 1 },
       });
     }
   });
