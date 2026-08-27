@@ -217,7 +217,7 @@ export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
   issues: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType"],
   transitions: ["none", "project", "status", "assignee", "reporter", "fromStatus", "toStatus", "week"],
   development: ["none", "project", "status", "assignee", "reporter", "sprint", "week"],
-  criticalBugs: ["none", "project", "priority", "assignee", "reporter", "status", "resolution"],
+  criticalBugs: ["none", "project", "priority", "assignee", "reporter", "status", "issueType", "resolution"],
   statusIntervals: ["none", "project", "status", "assignee", "reporter", "issueType", "priority", "fromStatus", "week"],
 };
 
@@ -247,7 +247,7 @@ export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
   ],
   transitions: ["issueKey", "project", "summary", "status", "assignee", "reporter", "fromStatus", "toStatus", "eventAt", "durationHours"],
   development: ["issueKey", "project", "summary", "status", "assignee", "reporter", "sprint", "eventAt", "commitCount", "mergeRequestCount"],
-  criticalBugs: ["issueKey", "project", "summary", "status", "assignee", "reporter", "priority", "resolution", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "durationHours"],
+  criticalBugs: ["issueKey", "project", "summary", "status", "assignee", "reporter", "priority", "issueType", "resolution", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "durationHours"],
   statusIntervals: [
     "issueKey", "project", "summary", "status", "assignee", "reporter",
     "issueType", "priority", "resolution", "issueCreatedAt", "fromStatus",
@@ -1316,6 +1316,14 @@ export type JiraAnalyticsExecutableDefinition = JiraAnalyticsAggregateDraft & {
     requirePriorityAtResolution: boolean;
     openIntervals: "exclude" | "include";
   };
+  criticalRiskConfig?: {
+    priorities: string[];
+    bugIssueTypes: string[];
+    bugSlaHours: number;
+    bugWarningHours: number;
+    taskIssueTypes: string[];
+    taskRiskHours: number;
+  };
   rowIdentity?: Array<JiraAnalyticsFilterField | "rowId">;
   maximumRows?: number;
   maximumRowsPerIssue?: number;
@@ -1483,10 +1491,11 @@ function criticalBugRecord(
   config?: JiraAnalyticsExecutableDefinition["criticalSlaConfig"],
 ): JiraAnalyticsResultRecord | null {
   if (config && !matchesConfiguredIssueType(issue.issueType, config.issueTypes)) return null;
+  if (config && !issue.resolutionAt && !matchesConfiguredValue(issue.priority, config.priorities)) return null;
   if (config?.requirePriorityAtResolution && issue.resolutionAt && !matchesConfiguredValue(issue.criticalEndPriority, config.priorities)) return null;
   if (config?.openIntervals === "exclude" && !issue.resolutionAt) return null;
   const startedAt = validDate(issue.criticalPriorityAt);
-  if (!issue.criticalSlaTracked || !startedAt) return null;
+  if ((!config && !issue.criticalSlaTracked) || !startedAt) return null;
   const finishedAt = validDate(issue.resolutionAt) ?? now;
   return {
     id: `critical-bug:${issue.id}`,
@@ -1500,6 +1509,41 @@ function criticalBugRecord(
     intervalEndFromStatus: null,
     intervalEndToStatus: null,
     durationHours: Math.max(0, (finishedAt.getTime() - startedAt.getTime()) / 3_600_000),
+    commitCount: issue.commitCount,
+    mergeRequestCount: issue.mergeRequestCount,
+    fromStatus: null,
+    toStatus: null,
+    sprint: issue.sprint,
+  };
+}
+
+function criticalRiskRecord(
+  issue: JiraAnalyticsIssueData,
+  now: Date,
+  config: NonNullable<JiraAnalyticsExecutableDefinition["criticalRiskConfig"]>,
+): JiraAnalyticsResultRecord | null {
+  if (!jiraIssueIsInWorkScope(issue) || issue.resolutionAt || !matchesConfiguredValue(issue.priority, config.priorities)) return null;
+  const startedAt = validDate(issue.criticalPriorityAt);
+  if (!startedAt) return null;
+  const durationHours = Math.max(0, (now.getTime() - startedAt.getTime()) / 3_600_000);
+  const bugAtRisk = matchesConfiguredIssueType(issue.issueType, config.bugIssueTypes)
+    && durationHours > config.bugSlaHours - config.bugWarningHours
+    && durationHours < config.bugSlaHours;
+  const taskAtRisk = matchesConfiguredIssueType(issue.issueType, config.taskIssueTypes)
+    && durationHours >= config.taskRiskHours;
+  if (!bugAtRisk && !taskAtRisk) return null;
+  return {
+    id: `critical-risk:${issue.id}`,
+    source: "criticalBugs",
+    issue: publicIssue(issue),
+    eventAt: startedAt.toISOString(),
+    intervalStartAt: startedAt.toISOString(),
+    intervalEndAt: null,
+    intervalStartFromStatus: null,
+    intervalStartToStatus: null,
+    intervalEndFromStatus: null,
+    intervalEndToStatus: null,
+    durationHours,
     commitCount: issue.commitCount,
     mergeRequestCount: issue.mergeRequestCount,
     fromStatus: null,
@@ -1833,7 +1877,9 @@ function sourceRecords(
     if (!config || config.kind !== "statusInterval") return [];
     return statusIntervalRecords(issue, config, now);
   }
-  const record = criticalBugRecord(issue, now, definition.criticalSlaConfig);
+  const record = definition.criticalRiskConfig
+    ? criticalRiskRecord(issue, now, definition.criticalRiskConfig)
+    : criticalBugRecord(issue, now, definition.criticalSlaConfig);
   return record ? [record] : [];
 }
 
@@ -1897,6 +1943,16 @@ export function createJiraAnalyticsEvaluationAccumulator(
     (!options.assignee || issue.assignee === options.assignee);
 
   const criticalQualityCandidate = (issue: JiraAnalyticsIssueData) => {
+    const riskConfig = definition.criticalRiskConfig;
+    if (riskConfig) {
+      return jiraIssueIsInWorkScope(issue)
+        && !issue.resolutionAt
+        && (
+          matchesConfiguredIssueType(issue.issueType, riskConfig.bugIssueTypes)
+          || matchesConfiguredIssueType(issue.issueType, riskConfig.taskIssueTypes)
+        )
+        && matchesConfiguredValue(issue.priority, riskConfig.priorities);
+    }
     const config = definition.criticalSlaConfig;
     const issueTypeMatches = config
       ? matchesConfiguredIssueType(issue.issueType, config.issueTypes)
@@ -1921,7 +1977,9 @@ export function createJiraAnalyticsEvaluationAccumulator(
     }
     if (definition.source === "development") return issue.developmentDataAvailable;
     if (definition.source === "criticalBugs") {
-      return issue.criticalSlaTracked && validDate(issue.criticalPriorityAt) !== null;
+      return (definition.criticalSlaConfig || definition.criticalRiskConfig)
+        ? validDate(issue.criticalPriorityAt) !== null
+        : issue.criticalSlaTracked && validDate(issue.criticalPriorityAt) !== null;
     }
     return true;
   };

@@ -682,6 +682,58 @@ test('configured SLA issue type matching is identical for rows and quality', () 
   assert.equal(result.quality.complete, 1);
 });
 
+test('configured task SLA uses the typed Critical/Blocker start without the bug-only projection flag', () => {
+  const executable: JiraAnalyticsExecutableDefinition = {
+    ...definition({ source: 'criticalBugs', scope: 'retro' }),
+    criticalSlaConfig: {
+      issueTypes: ['Task', 'Задача'],
+      priorities: ['Critical', 'Blocker'],
+      requirePriorityAtResolution: true,
+      openIntervals: 'include',
+    },
+  };
+  const result = evaluateJiraAnalyticsAggregate(executable, [issue({
+    issueType: 'Task',
+    priority: 'Blocker',
+    criticalEndPriority: 'Blocker',
+    criticalPriorityAt: '2026-01-01T00:00:00.000Z',
+    resolutionAt: '2026-02-20T00:00:00.000Z',
+    resolution: 'Resolved',
+    criticalSlaTracked: false,
+  })], options);
+
+  assert.equal(result.totalRecords, 1);
+  assert.equal(result.records[0]?.durationHours, 1_200);
+  assert.equal(result.quality.complete, 1);
+});
+
+test('Critical/Blocker risk applies the bug warning window and the task age independently', () => {
+  const executable: JiraAnalyticsExecutableDefinition = {
+    ...definition({ source: 'criticalBugs', scope: 'retro' }),
+    criticalRiskConfig: {
+      priorities: ['Critical', 'Blocker'],
+      bugIssueTypes: ['Bug'],
+      bugSlaHours: 720,
+      bugWarningHours: 168,
+      taskIssueTypes: ['Task'],
+      taskRiskHours: 672,
+    },
+  };
+  const result = evaluateJiraAnalyticsAggregate(executable, [
+    issue({ id: 'bug-risk', issueKey: 'BUG-1', priority: 'Critical', criticalPriorityAt: '2026-02-05T00:00:00.000Z' }),
+    issue({ id: 'bug-too-early', issueKey: 'BUG-2', priority: 'Critical', criticalPriorityAt: '2026-02-07T00:00:00.000Z' }),
+    issue({ id: 'bug-breached', issueKey: 'BUG-3', priority: 'Critical', criticalPriorityAt: '2026-01-29T00:00:00.000Z' }),
+    issue({ id: 'task-risk', issueKey: 'TASK-1', issueType: 'Task', priority: 'Blocker', criticalPriorityAt: '2026-02-01T00:00:00.000Z' }),
+    issue({ id: 'task-too-early', issueKey: 'TASK-2', issueType: 'Task', priority: 'Blocker', criticalPriorityAt: '2026-02-02T00:00:00.000Z' }),
+    issue({ id: 'task-resolved', issueKey: 'TASK-3', issueType: 'Task', priority: 'Blocker', criticalPriorityAt: '2026-01-01T00:00:00.000Z', resolution: 'Resolved', resolutionAt: '2026-02-01T00:00:00.000Z' }),
+    issue({ id: 'task-cancelled', issueKey: 'TASK-4', issueType: 'Task', priority: 'Blocker', status: 'Cancelled', criticalPriorityAt: '2026-01-01T00:00:00.000Z' }),
+  ], options);
+
+  assert.deepEqual(result.records.map((record) => record.issue.issueKey).sort(), ['BUG-1', 'TASK-1']);
+  assert.equal(result.quality.population, 5);
+  assert.equal(result.quality.complete, 5);
+});
+
 test('project-wide historical gaps do not distort scoped aggregate coverage', () => {
   const quality = evaluateJiraAnalyticsAggregate(
     definition(),

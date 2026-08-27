@@ -10,7 +10,6 @@ import {
   jiraAnalyticsSortDirections,
   jiraAnalyticsSortFields,
   jiraAnalyticsTimeZones,
-  isJiraBugIssueType,
   type JiraAnalyticsFilterField,
 } from "./jira-analytics.js";
 
@@ -39,6 +38,9 @@ export const jiraSystemAggregateKeys = [
   "development-activity",
   "status-intervals",
   "critical-blocker-sla",
+  "critical-blocker-task-sla",
+  "critical-blocker-risk",
+  "in-progress-resolution",
 ] as const;
 
 export type JiraSystemAggregateKey = (typeof jiraSystemAggregateKeys)[number];
@@ -92,6 +94,15 @@ const criticalSlaRowsSchema = z.object({
   requirePriorityAtResolution: z.boolean(),
   openIntervals: z.enum(["exclude", "include"]),
 }).strict();
+const criticalRiskRowsSchema = z.object({
+  kind: z.literal("criticalRisk"),
+  priorities: z.array(z.string().trim().min(1).max(100)).min(1).max(10),
+  bugIssueTypes: z.array(z.string().trim().min(1).max(100)).min(1).max(20),
+  bugSlaHours: z.number().int().positive().max(100_000),
+  bugWarningHours: z.number().int().positive().max(100_000),
+  taskIssueTypes: z.array(z.string().trim().min(1).max(100)).min(1).max(20),
+  taskRiskHours: z.number().int().positive().max(100_000),
+}).strict();
 
 export const jiraSemanticAggregateRowConfigSchema = z.discriminatedUnion("kind", [
   issueRowsSchema,
@@ -99,6 +110,7 @@ export const jiraSemanticAggregateRowConfigSchema = z.discriminatedUnion("kind",
   developmentRowsSchema,
   intervalRowsSchema,
   criticalSlaRowsSchema,
+  criticalRiskRowsSchema,
 ]);
 
 export const jiraSemanticOutputFieldSchema = z.object({
@@ -149,7 +161,7 @@ export const jiraSemanticAggregateDefinitionSchema = z.object({
       ? "transitions"
       : definition.rowConfig.kind === "developmentEvent"
         ? "development"
-        : definition.rowConfig.kind === "criticalSla"
+        : definition.rowConfig.kind === "criticalSla" || definition.rowConfig.kind === "criticalRisk"
           ? "criticalBugs"
           : "statusIntervals";
   const availableFields = new Set<JiraAnalyticsFilterField>(JIRA_ANALYTICS_FIELDS_BY_SOURCE[source]);
@@ -180,19 +192,20 @@ export const jiraSemanticAggregateDefinitionSchema = z.object({
       context.addIssue({ code: "custom", path: ["rowIdentity", index], message: "Ключ строки должен входить в выходные поля" });
     }
   });
-  if (definition.rowConfig.kind === "criticalSla") {
+  if (definition.rowConfig.kind === "criticalSla" || definition.rowConfig.kind === "criticalRisk") {
     const priorities = new Set(definition.rowConfig.priorities.map((priority) => priority.toLocaleLowerCase("ru-RU")));
     if (priorities.size !== 2 || !priorities.has("critical") || !priorities.has("blocker")) {
       context.addIssue({ code: "custom", path: ["rowConfig", "priorities"], message: "Текущий даталейк поддерживает SLA только для Critical и Blocker" });
     }
-    definition.rowConfig.issueTypes.forEach((issueType, index) => {
-      if (!isJiraBugIssueType(issueType)) {
-        context.addIssue({
-          code: "custom",
-          path: ["rowConfig", "issueTypes", index],
-          message: "Текущий даталейк рассчитывает SLA только для типов багов",
-        });
-      }
+  }
+  if (
+    definition.rowConfig.kind === "criticalRisk"
+    && definition.rowConfig.bugWarningHours >= definition.rowConfig.bugSlaHours
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["rowConfig", "bugWarningHours"],
+      message: "Окно предупреждения должно быть меньше SLA багов",
     });
   }
   if (definition.rowConfig.kind === "interval") {

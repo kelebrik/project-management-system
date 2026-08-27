@@ -47,6 +47,7 @@ const ROW_KIND_LABELS: Record<JiraSemanticAggregateRowConfig["kind"], string> = 
   developmentEvent: "Событие разработки",
   interval: "Пара контрольных точек",
   criticalSla: "SLA Critical/Blocker",
+  criticalRisk: "Риск нарушения SLA Critical/Blocker",
 };
 
 function uid(prefix: string) {
@@ -60,7 +61,7 @@ function fieldsForRowConfig(rowConfig: JiraSemanticAggregateRowConfig) {
       ? "transitions"
       : rowConfig.kind === "developmentEvent"
         ? "development"
-        : rowConfig.kind === "criticalSla"
+        : rowConfig.kind === "criticalSla" || rowConfig.kind === "criticalRisk"
           ? "criticalBugs"
           : "statusIntervals";
   return JIRA_ANALYTICS_FIELDS_BY_SOURCE[source];
@@ -78,6 +79,15 @@ function rowConfigFor(kind: JiraSemanticAggregateRowConfig["kind"]): JiraSemanti
     endAnchor: "resolution",
     requirePriorityAtResolution: true,
     openIntervals: "include",
+  };
+  if (kind === "criticalRisk") return {
+    kind,
+    priorities: ["Critical", "Blocker"],
+    bugIssueTypes: ["Bug", "Bug Report", "Defect", "Баг", "Ошибка", "Дефект"],
+    bugSlaHours: 720,
+    bugWarningHours: 168,
+    taskIssueTypes: ["Task", "Задача"],
+    taskRiskHours: 672,
   };
   return {
     kind,
@@ -186,6 +196,17 @@ function RowRuleEditor({ definition, disabled, onChange }: {
       <label>Контрольные приоритеты<input disabled value={config.priorities.join(", ")} /><small>Critical и Blocker являются типизированным оператором даталейка.</small></label>
       <label className="jira-aggregate-field-option"><input type="checkbox" disabled={disabled} checked={config.requirePriorityAtResolution} onChange={(event) => onChange({ ...definition, rowConfig: { ...config, requirePriorityAtResolution: event.target.checked } })} />Проверять Critical/Blocker на момент Resolution</label>
       <label>Нерешённые тикеты<select disabled={disabled} value={config.openIntervals} onChange={(event) => onChange({ ...definition, rowConfig: { ...config, openIntervals: event.target.value as "include" | "exclude" } })}><option value="include">Включать</option><option value="exclude">Исключать</option></select></label>
+    </fieldset>;
+  }
+  if (config.kind === "criticalRisk") {
+    const values = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
+    return <fieldset className="jira-aggregate-fieldset"><legend>Правило попадания в риск</legend>
+      <label>Контрольные приоритеты<input disabled value={config.priorities.join(", ")} /><small>Начало отсчёта: создание с Critical/Blocker либо первое повышение до этого приоритета.</small></label>
+      <label>Типы багов<input disabled={disabled} value={config.bugIssueTypes.join(", ")} onChange={(event) => onChange({ ...definition, rowConfig: { ...config, bugIssueTypes: values(event.target.value) } })} /></label>
+      <div className="jira-aggregate-control-row"><label>SLA багов, часы<input type="number" min="1" disabled={disabled} value={config.bugSlaHours} onChange={(event) => onChange({ ...definition, rowConfig: { ...config, bugSlaHours: Number(event.target.value) } })} /></label><label>Окно риска, часы<input type="number" min="1" disabled={disabled} value={config.bugWarningHours} onChange={(event) => onChange({ ...definition, rowConfig: { ...config, bugWarningHours: Number(event.target.value) } })} /></label></div>
+      <label>Типы задач<input disabled={disabled} value={config.taskIssueTypes.join(", ")} onChange={(event) => onChange({ ...definition, rowConfig: { ...config, taskIssueTypes: values(event.target.value) } })} /></label>
+      <label>Задача попадает в риск через, часы<input type="number" min="1" disabled={disabled} value={config.taskRiskHours} onChange={(event) => onChange({ ...definition, rowConfig: { ...config, taskRiskHours: Number(event.target.value) } })} /></label>
+      <p className="jira-aggregate-help">В агрегат входят только нерешённые тикеты, которые сейчас имеют Critical/Blocker.</p>
     </fieldset>;
   }
   return <div className="jira-aggregate-help">{ROW_KIND_LABELS[config.kind]}. Дополнительные правила для этой гранулярности не требуются.</div>;

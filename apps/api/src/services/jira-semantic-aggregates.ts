@@ -33,6 +33,13 @@ const qualityRules = {
   maximumRowsPerIssue: 500,
 };
 
+export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 2;
+const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2 = new Set([
+  "active-critical-blocker-risk",
+  "retro-critical-blocker-task-sla-45-days",
+  "retro-p85-in-progress-to-resolution-by-project",
+]);
+
 export const JIRA_SYSTEM_SEMANTIC_AGGREGATES: Array<{
   key: string;
   definition: JiraSemanticAggregateDefinition;
@@ -140,6 +147,83 @@ export const JIRA_SYSTEM_SEMANTIC_AGGREGATES: Array<{
       asOfSupport: "supported",
     },
   },
+  {
+    key: "critical-blocker-task-sla",
+    definition: {
+      schemaVersion: 5,
+      name: "SLA задач Critical/Blocker",
+      description: "Задачи Critical/Blocker: интервал от создания или первого повышения приоритета до Resolution.",
+      grain: "interval",
+      basePopulation: { logic: "and", filters: [] },
+      rowConfig: {
+        kind: "criticalSla",
+        issueTypes: ["Task", "Задача"],
+        priorities: ["Critical", "Blocker"],
+        startPolicy: "createdOrFirstPriorityEntry",
+        endAnchor: "resolution",
+        requirePriorityAtResolution: true,
+        openIntervals: "include",
+      },
+      rowIdentity: ["rowId"],
+      outputFields: fields(...JIRA_ANALYTICS_FIELDS_BY_SOURCE.criticalBugs),
+      incompleteDataPolicy: "exclude",
+      qualityRules,
+      timeZone: "Europe/Moscow",
+      asOfSupport: "supported",
+    },
+  },
+  {
+    key: "critical-blocker-risk",
+    definition: {
+      schemaVersion: 5,
+      name: "Тикеты Critical/Blocker под риском",
+      description: "Нерешённые баги в семидневном окне до SLA 30 дней и задачи старше 28 дней от начала Critical/Blocker.",
+      grain: "interval",
+      basePopulation: { logic: "and", filters: [] },
+      rowConfig: {
+        kind: "criticalRisk",
+        priorities: ["Critical", "Blocker"],
+        bugIssueTypes: ["Bug", "Bug Report", "Defect", "Баг", "Ошибка", "Дефект"],
+        bugSlaHours: 720,
+        bugWarningHours: 168,
+        taskIssueTypes: ["Task", "Задача"],
+        taskRiskHours: 672,
+      },
+      rowIdentity: ["rowId"],
+      outputFields: fields(...JIRA_ANALYTICS_FIELDS_BY_SOURCE.criticalBugs),
+      incompleteDataPolicy: "exclude",
+      qualityRules,
+      timeZone: "Europe/Moscow",
+      asOfSupport: "none",
+    },
+  },
+  {
+    key: "in-progress-resolution",
+    definition: {
+      schemaVersion: 5,
+      name: "От первого In Progress до Resolution",
+      description: "Одна строка на завершённый интервал от первого входа в In Progress до Resolution.",
+      grain: "interval",
+      basePopulation: { logic: "and", filters: [] },
+      rowConfig: {
+        kind: "interval",
+        start: {
+          type: "statusEntry",
+          statuses: [{ id: null, name: "In Progress" }],
+          occurrence: "first",
+        },
+        end: { type: "resolution", occurrence: "first" },
+        pairing: "nextAfterStart",
+        openIntervals: "exclude",
+      },
+      rowIdentity: ["rowId"],
+      outputFields: fields(...JIRA_ANALYTICS_FIELDS_BY_SOURCE.statusIntervals),
+      incompleteDataPolicy: "exclude",
+      qualityRules,
+      timeZone: "Europe/Moscow",
+      asOfSupport: "none",
+    },
+  },
 ];
 
 type SystemAggregateReference = {
@@ -161,6 +245,9 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
   const issues = aggregate("issues");
   const statusIntervals = aggregate("status-intervals");
   const criticalSla = aggregate("critical-blocker-sla");
+  const criticalTaskSla = aggregate("critical-blocker-task-sla");
+  const criticalRisk = aggregate("critical-blocker-risk");
+  const inProgressResolution = aggregate("in-progress-resolution");
   const activeScope = (prefix: string) => [
     filter(`${prefix}-unresolved`, "resolution", "empty"),
     ...jiraCancelledStatuses.map((status, index) => filter(`${prefix}-not-cancelled-${index + 1}`, "status", "notEquals", status)),
@@ -213,13 +300,47 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
         width: "full",
       },
       {
+        id: "active-critical-blocker-risk",
+        title: "Тикеты под риском",
+        ...criticalRisk,
+        placement: "active",
+        selectedFields: ["issueKey", "summary", "project", "issueType", "priority", "assignee", "status", "criticalPriorityAt", "durationHours", "resolution"],
+        filterLogic: "and",
+        filters: activeScope("critical-blocker-risk"),
+        dateField: null,
+        asOf: null,
+        metric: "count",
+        groupBy: "none",
+        sortBy: "durationHours",
+        sortDirection: "desc",
+        visualization: "table",
+        width: "full",
+      },
+      {
         id: "retro-critical-blocker-sla-30-days",
-        title: "Нарушение SLA 30 дней Critical/Blocker",
+        title: "Баги: нарушение SLA 30 дней Critical/Blocker",
         ...criticalSla,
         placement: "retro",
         selectedFields: ["issueKey", "summary", "project", "priority", "assignee", "status", "criticalPriorityAt", "resolutionAt", "durationHours", "resolution"],
         filterLogic: "and",
         filters: [filter("sla-over-30-days", "durationHours", "greaterThan", "720")],
+        dateField: null,
+        asOf: null,
+        metric: "count",
+        groupBy: "none",
+        sortBy: "durationHours",
+        sortDirection: "desc",
+        visualization: "table",
+        width: "full",
+      },
+      {
+        id: "retro-critical-blocker-task-sla-45-days",
+        title: "Задачи: нарушение SLA 45 дней Critical/Blocker",
+        ...criticalTaskSla,
+        placement: "retro",
+        selectedFields: ["issueKey", "summary", "project", "issueType", "priority", "assignee", "status", "criticalPriorityAt", "resolutionAt", "durationHours", "resolution"],
+        filterLogic: "and",
+        filters: [filter("task-sla-over-45-days", "durationHours", "greaterThan", "1080")],
         dateField: null,
         asOf: null,
         metric: "count",
@@ -246,6 +367,23 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
         visualization: "table",
         width: "full",
       },
+      {
+        id: "retro-p85-in-progress-to-resolution-by-project",
+        title: "P85 от первого In Progress до Resolution по проектам",
+        ...inProgressResolution,
+        placement: "retro",
+        selectedFields: ["issueKey", "project", "summary", "issueType", "status", "assignee", "intervalStartAt", "intervalEndAt", "durationHours", "resolution"],
+        filterLogic: "and",
+        filters: [],
+        dateField: "intervalEndAt",
+        asOf: null,
+        metric: "p85Duration",
+        groupBy: "project",
+        sortBy: "durationHours",
+        sortDirection: "desc",
+        visualization: "bar",
+        width: "full",
+      },
     ],
   };
 }
@@ -264,6 +402,18 @@ export function jiraDashboardWithDefaultWidgets(
   };
 }
 
+export function jiraDashboardWithDefaultWidgetsForSeedVersion(
+  current: JiraSemanticDashboard,
+  defaults: JiraSemanticDashboard,
+  currentSeedVersion: number,
+): JiraSemanticDashboard {
+  if (currentSeedVersion < 1) return jiraDashboardWithDefaultWidgets(current, defaults);
+  return jiraDashboardWithDefaultWidgets(current, {
+    ...defaults,
+    widgets: defaults.widgets.filter((widget) => JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2.has(widget.id)),
+  });
+}
+
 function hash(value: unknown) {
   return jiraDashboardConfigHash(value);
 }
@@ -276,7 +426,7 @@ function legacySource(definition: JiraSemanticAggregateDefinition) {
   if (definition.rowConfig.kind === "issue") return "issues" as const;
   if (definition.rowConfig.kind === "transitionEvent") return "transitions" as const;
   if (definition.rowConfig.kind === "developmentEvent") return "development" as const;
-  if (definition.rowConfig.kind === "criticalSla") return "criticalBugs" as const;
+  if (definition.rowConfig.kind === "criticalSla" || definition.rowConfig.kind === "criticalRisk") return "criticalBugs" as const;
   return "statusIntervals" as const;
 }
 
@@ -427,20 +577,21 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
       references[references.length - 1] = row;
     }
     const settings = await transaction.jiraAnalyticsSettings.findUnique({ where: { projectId } });
-    if ((settings?.semanticDefaultWidgetsVersion ?? 0) < 1) {
+    if ((settings?.semanticDefaultWidgetsVersion ?? 0) < JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION) {
       const parsedDashboard = jiraSemanticDashboardSchema.safeParse(settings?.dashboardConfig);
       const currentDashboard = parsedDashboard.success ? parsedDashboard.data : JIRA_SEMANTIC_EMPTY_DASHBOARD;
-      const dashboardConfig = jiraDashboardWithDefaultWidgets(
+      const dashboardConfig = jiraDashboardWithDefaultWidgetsForSeedVersion(
         currentDashboard,
         jiraDefaultSemanticDashboard(references),
+        settings?.semanticDefaultWidgetsVersion ?? 0,
       ) as unknown as Prisma.InputJsonObject;
       await transaction.jiraAnalyticsSettings.upsert({
         where: { projectId },
         create: {
           projectId, jiraScopeType: "LABEL", jiraScopeValue: "", dashboardConfig,
-          semanticDefaultWidgetsVersion: 1,
+          semanticDefaultWidgetsVersion: JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
         },
-        update: { dashboardConfig, semanticDefaultWidgetsVersion: 1 },
+        update: { dashboardConfig, semanticDefaultWidgetsVersion: JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION },
       });
     }
   });
@@ -531,6 +682,16 @@ export function jiraSemanticExecutableDefinition(
           priorities: definition.rowConfig.priorities,
           requirePriorityAtResolution: definition.rowConfig.requirePriorityAtResolution,
           openIntervals: definition.rowConfig.openIntervals,
+        }
+      : undefined,
+    criticalRiskConfig: definition.rowConfig.kind === "criticalRisk"
+      ? {
+          priorities: definition.rowConfig.priorities,
+          bugIssueTypes: definition.rowConfig.bugIssueTypes,
+          bugSlaHours: definition.rowConfig.bugSlaHours,
+          bugWarningHours: definition.rowConfig.bugWarningHours,
+          taskIssueTypes: definition.rowConfig.taskIssueTypes,
+          taskRiskHours: definition.rowConfig.taskRiskHours,
         }
       : undefined,
     rowIdentity: definition.rowIdentity,

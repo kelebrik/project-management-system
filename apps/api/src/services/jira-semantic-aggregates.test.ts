@@ -14,13 +14,23 @@ import {
   jiraSemanticCreateData,
   jiraDefaultSemanticDashboard,
   jiraDashboardWithDefaultWidgets,
+  jiraDashboardWithDefaultWidgetsForSeedVersion,
   jiraSemanticExecutableDefinition,
 } from "./jira-semantic-aggregates.js";
 
-test("semantic catalog exposes five flat managed row sets", () => {
+test("semantic catalog exposes the managed Jira row sets", () => {
   assert.deepEqual(
     JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate) => aggregate.key),
-    ["issues", "status-transitions", "development-activity", "status-intervals", "critical-blocker-sla"],
+    [
+      "issues",
+      "status-transitions",
+      "development-activity",
+      "status-intervals",
+      "critical-blocker-sla",
+      "critical-blocker-task-sla",
+      "critical-blocker-risk",
+      "in-progress-resolution",
+    ],
   );
   for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {
     assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(aggregate.definition).success, true);
@@ -38,19 +48,31 @@ test("default semantic dashboard contains the requested operational and retrospe
     publishedVersion: aggregate.key === "issues" ? 2 : 1,
   }));
   const dashboard = jiraDefaultSemanticDashboard(references);
-  assert.equal(dashboard.widgets.length, 4);
+  assert.equal(dashboard.widgets.length, 7);
   assert.deepEqual(dashboard.widgets.map((widget) => [widget.placement, widget.title]), [
     ["active", "Без Sprint с коммитами или MR"],
     ["active", "Не перешли в In Progress за 12 дней"],
-    ["retro", "Нарушение SLA 30 дней Critical/Blocker"],
+    ["active", "Тикеты под риском"],
+    ["retro", "Баги: нарушение SLA 30 дней Critical/Blocker"],
+    ["retro", "Задачи: нарушение SLA 45 дней Critical/Blocker"],
     ["retro", "Более 3 записей в Sprint"],
+    ["retro", "P85 от первого In Progress до Resolution по проектам"],
   ]);
   const delayed = dashboard.widgets[1]!;
   assert.ok(delayed.filters.some((item) => item.field === "intervalEndAt" && item.operator === "empty"));
   assert.ok(delayed.filters.some((item) => item.field === "durationHours" && item.value === "288"));
-  const sprintHistory = dashboard.widgets[3]!;
+  const taskSla = dashboard.widgets.find((widget) => widget.id === "retro-critical-blocker-task-sla-45-days")!;
+  assert.ok(taskSla.filters.some((item) => item.field === "durationHours" && item.value === "1080"));
+  const risk = dashboard.widgets.find((widget) => widget.id === "active-critical-blocker-risk")!;
+  assert.ok(risk.filters.some((item) => item.field === "resolution" && item.operator === "empty"));
+  assert.ok(risk.filters.some((item) => item.field === "status" && item.operator === "notEquals"));
+  const sprintHistory = dashboard.widgets.find((widget) => widget.id === "retro-more-than-three-sprints")!;
   assert.equal(sprintHistory.aggregateVersion, 2);
   assert.ok(sprintHistory.filters.some((item) => item.field === "sprintCount" && item.operator === "greaterThan" && item.value === "3"));
+  const p85 = dashboard.widgets.find((widget) => widget.id === "retro-p85-in-progress-to-resolution-by-project")!;
+  assert.equal(p85.metric, "p85Duration");
+  assert.equal(p85.groupBy, "project");
+  assert.equal(p85.visualization, "bar");
 });
 
 test("default widgets augment an existing dashboard once without replacing its widgets", () => {
@@ -65,9 +87,31 @@ test("default widgets augment an existing dashboard once without replacing its w
     widgets: [{ ...defaults.widgets[0]!, id: "custom-widget", title: "Пользовательский виджет" }],
   };
   const merged = jiraDashboardWithDefaultWidgets(existing, defaults);
-  assert.equal(merged.widgets.length, 5);
+  assert.equal(merged.widgets.length, 8);
   assert.equal(merged.widgets[0]?.id, "custom-widget");
-  assert.equal(jiraDashboardWithDefaultWidgets(merged, defaults).widgets.length, 5);
+  assert.equal(jiraDashboardWithDefaultWidgets(merged, defaults).widgets.length, 8);
+});
+
+test("widget seed v2 adds only new widgets and does not recreate deleted v1 defaults", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({
+    id: `aggregate-${index + 1}`,
+    aggregateKey: aggregate.key,
+    publishedVersion: 1,
+  }));
+  const defaults = jiraDefaultSemanticDashboard(references);
+  const current = {
+    ...defaults,
+    widgets: [{ ...defaults.widgets[0]!, id: "custom-widget", title: "Пользовательский виджет" }],
+  };
+  const upgraded = jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 1);
+
+  assert.deepEqual(upgraded.widgets.map((widget) => widget.id), [
+    "custom-widget",
+    "active-critical-blocker-risk",
+    "retro-critical-blocker-task-sla-45-days",
+    "retro-p85-in-progress-to-resolution-by-project",
+  ]);
+  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 1).widgets.length, 4);
 });
 
 test("semantic interval maps typed anchors without widget presentation", () => {
@@ -153,11 +197,11 @@ test("semantic aggregate rejects presentation and unsupported priority history",
   assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(repeatedIdentity).success, false);
 });
 
-test("semantic SLA accepts only bug types supported by the datalake", () => {
+test("semantic SLA accepts configured bug and task types", () => {
   const source = structuredClone(JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "critical-blocker-sla")!.definition);
   if (source.rowConfig.kind !== "criticalSla") throw new Error("expected SLA");
   source.rowConfig.issueTypes = ["Task"];
-  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(source).success, false);
+  assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(source).success, true);
   source.rowConfig.issueTypes = ["Bug-Report", "Ошибка: Production"];
   assert.equal(jiraSemanticAggregateDefinitionSchema.safeParse(source).success, true);
 });

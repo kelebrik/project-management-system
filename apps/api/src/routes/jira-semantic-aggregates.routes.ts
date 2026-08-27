@@ -37,6 +37,7 @@ import {
   lockJiraAggregateProject,
 } from "../services/jira-aggregates.js";
 import {
+  JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
   ensureJiraSystemSemanticAggregates,
   jiraSemanticAggregateCost,
   jiraSemanticCreateData,
@@ -242,7 +243,7 @@ export function registerJiraSemanticAggregateRoutes(
           }),
       dashboard: dashboardConfig,
       dashboardConfigHash: jiraDashboardConfigHash(settings?.dashboardConfig ?? null),
-      dashboardSeedRequired: (settings?.semanticDefaultWidgetsVersion ?? 0) < 1,
+      dashboardSeedRequired: (settings?.semanticDefaultWidgetsVersion ?? 0) < JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
     });
   });
 
