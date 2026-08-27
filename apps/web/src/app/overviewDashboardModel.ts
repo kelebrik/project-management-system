@@ -59,23 +59,6 @@ export function createOverviewDashboard(
         left.title.localeCompare(right.title, "ru"),
     );
   const redZoneRisks = overviewRedZoneRisks.slice(0, 5);
-  const blockingTickets =
-    project?.jiraWorkSections
-      .find((section) => section.sortOrder === 0)
-      ?.issues.map(({ snapshot, syncedAt }) => ({
-        id: snapshot.id,
-        title: snapshot.summary,
-        code: snapshot.issueKey,
-        jiraTicketKey: snapshot.issueKey,
-        jiraTicketUrl: snapshot.issueUrl,
-        status: snapshot.status,
-        priority: snapshot.priority,
-        assignee: snapshot.assignee,
-        issueType: snapshot.issueType,
-        updatedAt: snapshot.updatedAt,
-        syncedAt,
-        source: "jira-work-section" as const,
-      })) ?? [];
   const overviewOpenDecisionItems = decisionItems
     .sort((left, right) =>
       String(left.dueDate ?? "9999").localeCompare(
@@ -400,7 +383,6 @@ export function createOverviewDashboard(
     decisionItems: decisionItems.length,
     nextMilestone,
     redZoneRisks,
-    blockingTickets,
     openDecisionItems,
     overviewOpenDecisionItems,
     overviewRedZoneRisks,

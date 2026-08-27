@@ -84,7 +84,9 @@ export function AppPages() {
       {activeView === "projects" && <ProjectsPage />}
       {activeView === "reports" && <ReportsPage />}
       {activeView === "wiki" && <WikiPage />}
-      {project && activeView === "project-overview" && <ProjectOverviewSummaryPage />}
+      {project && activeView === "project-overview" && (
+        <ProjectOverviewSummaryPage key={project.id} />
+      )}
       {activeView === "closed-projects" && <ClosedProjectsPage />}
 
       <section className="content-grid">

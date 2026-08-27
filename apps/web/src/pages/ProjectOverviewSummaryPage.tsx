@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, Link as LinkIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { IssueStatusUpdate, RaidItemStatusUpdate } from "../app/domainTypes";
+import { useJiraRiskTickets } from "../hooks/useJiraRiskTickets";
 import { usePageContext } from "./PageContext";
 
 const RISK_TICKETS_SECTION_ID = "risk-tickets";
@@ -65,9 +66,11 @@ export function ProjectOverviewSummaryPage() {
     openRaidItemFromOverview,
     openView,
     overviewDashboard,
+    project,
     raidTypeLabel,
     setExpandedIssueId,
   } = usePageContext();
+  const riskTickets = useJiraRiskTickets(project?.id);
   const [expandedRaidStatusId, setExpandedRaidStatusId] = useState<string | null>(null);
   const [expandedIssueStatusId, setExpandedIssueStatusId] = useState<string | null>(null);
 
@@ -202,7 +205,11 @@ export function ProjectOverviewSummaryPage() {
         <div className="executive-overview-card-title">
           <span>Тикеты под риском</span>
           <div className="executive-overview-card-title-actions">
-            <strong>{overviewDashboard.blockingTickets.length}</strong>
+            <strong>
+              {riskTickets.loading || riskTickets.error || !riskTickets.available
+                ? "—"
+                : riskTickets.total}
+            </strong>
             <a
               className="overview-section-link"
               href={`#${RISK_TICKETS_SECTION_ID}`}
@@ -217,11 +224,8 @@ export function ProjectOverviewSummaryPage() {
           className="executive-overview-list"
           id={`${RISK_TICKETS_SECTION_ID}-content`}
         >
-          {overviewDashboard.blockingTickets.map((ticket) => (
-            <div
-              className="executive-overview-row"
-              key={`${ticket.source}-${ticket.id}`}
-            >
+          {riskTickets.tickets.map((ticket) => (
+            <div className="executive-overview-row" key={ticket.id}>
               <b>
                 {ticket.jiraTicketKey ? `${ticket.jiraTicketKey} / ` : ""}
                 {ticket.title}
@@ -237,8 +241,27 @@ export function ProjectOverviewSummaryPage() {
               )}
             </div>
           ))}
-          {overviewDashboard.blockingTickets.length === 0 && (
-            <p>Тикетов под риском нет.</p>
+          {riskTickets.loading && <p>Загрузка агрегата...</p>}
+          {!riskTickets.loading && riskTickets.error && (
+            <p>{riskTickets.error}</p>
+          )}
+          {!riskTickets.loading &&
+            !riskTickets.error &&
+            !riskTickets.available && (
+              <p>Агрегат «Тикеты под риском» пока не опубликован.</p>
+            )}
+          {!riskTickets.loading &&
+            !riskTickets.error &&
+            riskTickets.available &&
+            riskTickets.tickets.length === 0 && (
+              <p>Тикетов под риском нет.</p>
+            )}
+          {riskTickets.total > riskTickets.tickets.length && (
+            <p>
+              Показаны первые {riskTickets.tickets.length} из {riskTickets.total}
+              {" "}
+              тикетов.
+            </p>
           )}
         </div>
       </article>
