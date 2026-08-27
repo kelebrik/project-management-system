@@ -964,6 +964,19 @@
   gap: 8px;
 }
 
+.jira-aggregate-actions > button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+.jira-aggregate-actions > button > svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
 .jira-aggregate-fieldset {
   border: 1px solid var(--border);
   border-radius: 6px;

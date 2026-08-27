@@ -1259,6 +1259,17 @@ test("Jira v5 separates managed aggregate rows from widget presentation", async 
 
   await page.getByRole("button", { name: "Агрегаты" }).click();
   await expect(page.getByRole("heading", { name: "Агрегаты", exact: true })).toBeVisible();
+  const aggregateActionButtons = page.locator(".jira-aggregate-actions > button:visible");
+  await expect(aggregateActionButtons).toHaveCount(3);
+  expect(await aggregateActionButtons.evaluateAll((buttons) => buttons.every((button) => {
+    const icon = button.querySelector("svg");
+    if (!icon) return false;
+    const buttonBounds = button.getBoundingClientRect();
+    const iconBounds = icon.getBoundingClientRect();
+    return Math.abs(
+      (buttonBounds.top + buttonBounds.height / 2) - (iconBounds.top + iconBounds.height / 2),
+    ) <= 1;
+  }))).toBe(true);
   for (const name of ["Тикеты", "Переходы статусов", "Активность разработки", "Интервалы статусов", "SLA Critical/Blocker"]) {
     await expect(page.getByRole("button", { name: new RegExp(`^${name}`) })).toBeVisible();
   }
