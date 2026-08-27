@@ -47,6 +47,7 @@ function versionRow(patch: Partial<JiraAsOfVersionRow> = {}): JiraAsOfVersionRow
     issueType: 'Bug',
     resolution: null,
     sprint: null,
+    sprintIds: [],
     issueCreatedAt: new Date('2026-01-01T00:00:00.000Z'),
     criticalPriorityAt: null,
     criticalEndPriority: 'Major',
@@ -225,6 +226,7 @@ test('as-of mapper preserves ticket identity and derives SLA tracking from typed
   }));
   assert.equal(issue.id, 'snapshot-1');
   assert.equal(issue.criticalSlaTracked, true);
+  assert.equal(issue.sprintCount, 0);
   assert.deepEqual(issue.statusTransitions, []);
   assert.deepEqual(issue.developmentActivities, []);
 });

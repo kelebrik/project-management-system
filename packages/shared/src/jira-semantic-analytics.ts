@@ -360,6 +360,7 @@ export const JIRA_SEMANTIC_FIELD_LABELS: Record<(typeof jiraAnalyticsFilterField
   reporter: "Автор",
   priority: "Приоритет",
   sprint: "Sprint",
+  sprintCount: "Количество записей Sprint",
   issueType: "Тип тикета",
   resolution: "Resolution",
   fromStatus: "Исходный статус",
@@ -378,7 +379,7 @@ export const JIRA_SEMANTIC_FIELD_LABELS: Record<(typeof jiraAnalyticsFilterField
 };
 
 const dateFields = new Set(["issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt", "intervalStartAt", "intervalEndAt"]);
-const numberFields = new Set(["durationHours", "commitCount", "mergeRequestCount"]);
+const numberFields = new Set(["durationHours", "commitCount", "mergeRequestCount", "sprintCount"]);
 
 export function jiraSemanticDefaultOutputField(key: (typeof jiraAnalyticsFilterFields)[number]): JiraSemanticOutputField {
   return {

@@ -355,6 +355,11 @@ export const jiraAggregateIssueSelect = {
   issueType: true,
   resolution: true,
   sprint: true,
+  currentVersion: {
+    select: {
+      sprintIds: true,
+    },
+  },
   issueCreatedAt: true,
   criticalPriorityAt: true,
   criticalEndPriority: true,
@@ -391,8 +396,10 @@ export const jiraAggregateIssueSelect = {
 type SelectedIssue = Prisma.JiraIssueSnapshotGetPayload<{ select: typeof jiraAggregateIssueSelect }>;
 
 function serializeIssue(issue: SelectedIssue): JiraAnalyticsIssueData {
+  const { currentVersion, ...snapshot } = issue;
   return {
-    ...issue,
+    ...snapshot,
+    sprintCount: currentVersion?.sprintIds.length ?? (issue.sprint ? 1 : 0),
     issueCreatedAt: issue.issueCreatedAt?.toISOString() ?? null,
     criticalPriorityAt: issue.criticalPriorityAt?.toISOString() ?? null,
     criticalEndPriority: issue.criticalEndPriority,
@@ -1308,6 +1315,7 @@ export function jiraAggregateOutputValue(record: JiraAnalyticsResultRecord, fiel
   if (field === 'reporter') return record.issue.reporter;
   if (field === 'priority') return record.issue.priority;
   if (field === 'sprint') return record.sprint;
+  if (field === 'sprintCount') return record.issue.sprintCount;
   if (field === 'issueType') return record.issue.issueType;
   if (field === 'resolution') return isJiraUnresolvedResolution(record.issue.resolution) ? null : record.issue.resolution;
   if (field === 'fromStatus') return record.fromStatus;

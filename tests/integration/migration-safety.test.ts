@@ -14,6 +14,9 @@ const allowedDataRewriteMigrations = new Set([
   // The semantic v5 cutover intentionally removes unused analytics
   // definitions and dashboard presentation only; Jira datalake rows remain.
   "20260826190000_jira_semantic_aggregates_v5",
+  // Marks only the untouched empty v5 dashboard configuration for one-time
+  // bootstrap; Jira datalake and project-planning rows are not changed.
+  "20260827090000_jira_default_analytics_widgets",
 ]);
 
 const protectedProjectTables = [
@@ -237,4 +240,12 @@ test("Jira semantic v5 cutover removes only replaceable analytics configuration"
   assert.doesNotMatch(migration, /DELETE FROM "JiraIssue(?:Snapshot|Version|StatusTransition|HistoryRetry)"/);
   assert.doesNotMatch(migration, /DELETE FROM "JiraDevelopmentActivity"/);
   assert.doesNotMatch(migration, /DELETE FROM "Project"/);
+});
+
+test("default Jira widget migration only marks untouched empty dashboards for bootstrap", () => {
+  const migration = migrationSql("20260827090000_jira_default_analytics_widgets");
+  assert.match(migration, /UPDATE "JiraAnalyticsSettings"/u);
+  assert.match(migration, /SET "dashboardConfig" = NULL/u);
+  assert.doesNotMatch(migration, /DELETE FROM/u);
+  assert.doesNotMatch(migration, /JiraIssue(?:Snapshot|Version|StatusTransition)/u);
 });

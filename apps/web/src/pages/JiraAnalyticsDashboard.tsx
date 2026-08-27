@@ -34,6 +34,7 @@ type Catalog = {
   definitions: JiraSemanticAggregatePublic[];
   dashboard: JiraSemanticDashboard;
   dashboardConfigHash: string;
+  dashboardSeedRequired: boolean;
 };
 type SemanticResult = Omit<JiraAnalyticsEvaluationResult, "records"> & {
   records: Array<{
@@ -190,7 +191,7 @@ function WidgetEditor({ widget, aggregate, aggregates, onChange, onClose }: {
     <label>Поле периода<select value={widget.dateField ?? ""} onChange={(event) => onChange({ ...widget, dateField: event.target.value ? event.target.value as JiraAnalyticsFilterField : null })}><option value="">Без ограничения по периоду</option>{dateFields.map((field) => <option key={field} value={field}>{JIRA_SEMANTIC_FIELD_LABELS[field]}</option>)}</select></label>
     {widget.placement === "retro" && published.asOfSupport === "supported" ? <label>Состояние на дату<input type="datetime-local" value={widget.asOf ? widget.asOf.slice(0, 16) : ""} onChange={(event) => onChange({ ...widget, asOf: event.target.value ? new Date(event.target.value).toISOString() : null })} /></label> : null}
     <label>Группировка<select value={widget.groupBy} disabled={listMode} onChange={(event) => { const groupBy = event.target.value as JiraAnalyticsGroupBy; onChange({ ...widget, groupBy, visualization: groupBy === "none" ? "number" : "bar" }); }}>{groups.map((group) => <option key={group} value={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>
-    <label>Сортировка<select value={widget.sortBy} onChange={(event) => onChange({ ...widget, sortBy: event.target.value as JiraSemanticWidget["sortBy"] })}><option value="default">По умолчанию</option>{widget.selectedFields.filter((field) => ["issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount"].includes(field)).map((field) => <option key={field} value={field}>{JIRA_SEMANTIC_FIELD_LABELS[field]}</option>)}</select></label>
+    <label>Сортировка<select value={widget.sortBy} onChange={(event) => onChange({ ...widget, sortBy: event.target.value as JiraSemanticWidget["sortBy"] })}><option value="default">По умолчанию</option>{widget.selectedFields.filter((field) => ["issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount", "sprintCount"].includes(field)).map((field) => <option key={field} value={field}>{JIRA_SEMANTIC_FIELD_LABELS[field]}</option>)}</select></label>
     <fieldset><legend>Направление</legend><div className="jira-widget-segments"><button type="button" className={widget.sortDirection === "desc" ? "active" : ""} onClick={() => onChange({ ...widget, sortDirection: "desc" })}>По убыванию</button><button type="button" className={widget.sortDirection === "asc" ? "active" : ""} onClick={() => onChange({ ...widget, sortDirection: "asc" })}>По возрастанию</button></div></fieldset>
     <fieldset><legend>Условия</legend><div className="jira-widget-segments"><button type="button" className={widget.filterLogic === "and" ? "active" : ""} onClick={() => onChange({ ...widget, filterLogic: "and" })}>И</button><button type="button" className={widget.filterLogic === "or" ? "active" : ""} onClick={() => onChange({ ...widget, filterLogic: "or" })}>ИЛИ</button></div>{widget.filters.map((filter, index) => <FilterEditor key={filter.id} filter={filter} fields={widget.selectedFields} onChange={(next) => onChange({ ...widget, filters: widget.filters.map((item, itemIndex) => itemIndex === index ? next : item) })} onDelete={() => onChange({ ...widget, filters: widget.filters.filter((_, itemIndex) => itemIndex !== index) })} />)}<button type="button" className="secondary-button" onClick={() => onChange({ ...widget, filters: [...widget.filters, { id: uid("filter"), field: widget.selectedFields[0] ?? "issueKey", operator: "equals", value: "" }] })}><Plus size={16} />Условие</button></fieldset>
     <fieldset><legend>Ширина</legend><div className="jira-widget-segments"><button type="button" className={widget.width === "half" ? "active" : ""} onClick={() => onChange({ ...widget, width: "half" })}>1/2</button><button type="button" className={widget.width === "full" ? "active" : ""} onClick={() => onChange({ ...widget, width: "full" })}>1/1</button></div></fieldset>
@@ -228,7 +229,11 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
 
   const loadCatalog = async () => {
     const request = ++catalogRequestRef.current;
-    const response = await apiClient.get<Catalog>(`/api/projects/${project.id}/jira/semantic-aggregates`, "Не удалось загрузить агрегаты и виджеты");
+    let response = await apiClient.get<Catalog>(`/api/projects/${project.id}/jira/semantic-aggregates`, "Не удалось загрузить агрегаты и виджеты");
+    if (response.dashboardSeedRequired && canEdit) {
+      await apiClient.post(`/api/projects/${project.id}/jira/semantic-aggregates/bootstrap`, {}, "Не удалось создать стартовые виджеты");
+      response = await apiClient.get<Catalog>(`/api/projects/${project.id}/jira/semantic-aggregates`, "Не удалось загрузить стартовые виджеты");
+    }
     if (request !== catalogRequestRef.current) return null;
     setCatalog(response);
     setConfig(structuredClone(response.dashboard));

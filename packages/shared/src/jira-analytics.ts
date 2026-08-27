@@ -123,6 +123,7 @@ export const jiraAnalyticsFilterFields = [
   "reporter",
   "priority",
   "sprint",
+  "sprintCount",
   "issueType",
   "resolution",
   "fromStatus",
@@ -163,6 +164,7 @@ export const jiraAnalyticsSortFields = [
   "durationHours",
   "commitCount",
   "mergeRequestCount",
+  "sprintCount",
 ] as const;
 export const jiraAnalyticsSortDirections = ["asc", "desc"] as const;
 
@@ -232,6 +234,7 @@ export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
     "reporter",
     "priority",
     "sprint",
+    "sprintCount",
     "issueType",
     "resolution",
     "hasDevelopment",
@@ -256,6 +259,7 @@ const numericFields = new Set<JiraAnalyticsFilterField>([
   "durationHours",
   "commitCount",
   "mergeRequestCount",
+  "sprintCount",
 ]);
 
 const dateFields = new Set<JiraAnalyticsFilterField>([
@@ -1218,6 +1222,7 @@ export type JiraAnalyticsIssueData = {
   issueType: string;
   resolution: string | null;
   sprint: string | null;
+  sprintCount: number;
   issueCreatedAt: string | null;
   criticalPriorityAt: string | null;
   criticalEndPriority?: string | null;
@@ -1642,6 +1647,7 @@ function recordValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilt
   if (field === "durationHours") return record.durationHours;
   if (field === "commitCount") return record.commitCount;
   if (field === "mergeRequestCount") return record.mergeRequestCount;
+  if (field === "sprintCount") return record.issue.sprintCount;
   if (field === "hasDevelopment") return record.issue.commitCount > 0 || record.issue.mergeRequestCount > 0;
   if (field === "eventAt") return record.eventAt;
   if (field === "intervalStartAt") return record.intervalStartAt;
@@ -1848,6 +1854,9 @@ function compareResultRecords(
     const leftValue = sortBy === "durationHours" ? left.durationHours ?? -1 : left[sortBy];
     const rightValue = sortBy === "durationHours" ? right.durationHours ?? -1 : right[sortBy];
     return sign * (leftValue - rightValue) || codePointCompare(left.id, right.id);
+  }
+  if (sortBy === "sprintCount") {
+    return sign * (left.issue.sprintCount - right.issue.sprintCount) || codePointCompare(left.id, right.id);
   }
   return (right.durationHours ?? -1) - (left.durationHours ?? -1) ||
     (validDate(right.eventAt)?.getTime() ?? 0) - (validDate(left.eventAt)?.getTime() ?? 0) ||

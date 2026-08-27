@@ -239,6 +239,7 @@ export function registerJiraSemanticAggregateRoutes(
           }),
       dashboard: dashboardConfig,
       dashboardConfigHash: jiraDashboardConfigHash(settings?.dashboardConfig ?? null),
+      dashboardSeedRequired: settings?.dashboardConfig == null,
     });
   });
 

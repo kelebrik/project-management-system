@@ -1,6 +1,7 @@
 import {
   JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   JIRA_SEMANTIC_FIELD_LABELS,
+  jiraCancelledStatuses,
   jiraSemanticAggregateDefinitionSchema,
   jiraSemanticCompatibleChange,
   jiraSemanticDefaultOutputField,
@@ -15,6 +16,7 @@ import {
   type JiraSemanticAggregateDefinition,
   type JiraSemanticAggregatePublic,
   type JiraSemanticAggregateRevisionStatus,
+  type JiraSemanticDashboard,
   type JiraSemanticIntervalAnchor,
 } from "@pms/shared";
 import { Prisma, type JiraAggregateDefinition, type PrismaClient } from "@prisma/client";
@@ -138,6 +140,114 @@ export const JIRA_SYSTEM_SEMANTIC_AGGREGATES: Array<{
   },
 ];
 
+type SystemAggregateReference = {
+  id: string;
+  aggregateKey: string;
+  publishedVersion: number | null;
+};
+
+function filter(id: string, field: JiraAnalyticsFilterField, operator: JiraAnalyticsFilter["operator"], value = ""): JiraAnalyticsFilter {
+  return { id, field, operator, value };
+}
+
+export function jiraDefaultSemanticDashboard(references: readonly SystemAggregateReference[]): JiraSemanticDashboard {
+  const aggregate = (key: string) => {
+    const reference = references.find((item) => item.aggregateKey === key && item.publishedVersion !== null);
+    if (!reference?.publishedVersion) throw new Error(`JIRA_SYSTEM_AGGREGATE_NOT_PUBLISHED:${key}`);
+    return { aggregateId: reference.id, aggregateVersion: reference.publishedVersion };
+  };
+  const issues = aggregate("issues");
+  const statusIntervals = aggregate("status-intervals");
+  const criticalSla = aggregate("critical-blocker-sla");
+  const activeScope = (prefix: string) => [
+    filter(`${prefix}-unresolved`, "resolution", "empty"),
+    ...jiraCancelledStatuses.map((status, index) => filter(`${prefix}-not-cancelled-${index + 1}`, "status", "notEquals", status)),
+  ];
+  return {
+    version: 5,
+    periodDays: 180,
+    assignee: "",
+    widgets: [
+      {
+        id: "active-without-sprint-with-code",
+        title: "Без Sprint с коммитами или MR",
+        ...issues,
+        placement: "active",
+        selectedFields: ["issueKey", "summary", "status", "assignee", "sprint", "commitCount", "mergeRequestCount", "hasDevelopment", "resolution"],
+        filterLogic: "and",
+        filters: [
+          filter("without-sprint", "sprint", "empty"),
+          filter("with-development", "hasDevelopment", "equals", "true"),
+          ...activeScope("without-sprint"),
+        ],
+        dateField: null,
+        asOf: null,
+        metric: "count",
+        groupBy: "none",
+        sortBy: "commitCount",
+        sortDirection: "desc",
+        visualization: "table",
+        width: "full",
+      },
+      {
+        id: "active-not-in-progress-after-12-days",
+        title: "Не перешли в In Progress за 12 дней",
+        ...statusIntervals,
+        placement: "active",
+        selectedFields: ["issueKey", "summary", "status", "assignee", "issueCreatedAt", "intervalEndAt", "durationHours", "resolution"],
+        filterLogic: "and",
+        filters: [
+          filter("not-started-open", "intervalEndAt", "empty"),
+          filter("not-started-12-days", "durationHours", "greaterThan", "288"),
+          ...activeScope("not-started"),
+        ],
+        dateField: null,
+        asOf: null,
+        metric: "count",
+        groupBy: "none",
+        sortBy: "durationHours",
+        sortDirection: "desc",
+        visualization: "table",
+        width: "full",
+      },
+      {
+        id: "retro-critical-blocker-sla-30-days",
+        title: "Нарушение SLA 30 дней Critical/Blocker",
+        ...criticalSla,
+        placement: "retro",
+        selectedFields: ["issueKey", "summary", "project", "priority", "assignee", "status", "criticalPriorityAt", "resolutionAt", "durationHours", "resolution"],
+        filterLogic: "and",
+        filters: [filter("sla-over-30-days", "durationHours", "greaterThan", "720")],
+        dateField: null,
+        asOf: null,
+        metric: "count",
+        groupBy: "none",
+        sortBy: "durationHours",
+        sortDirection: "desc",
+        visualization: "table",
+        width: "full",
+      },
+      {
+        id: "retro-more-than-three-sprints",
+        title: "Более 3 записей в Sprint",
+        ...issues,
+        placement: "retro",
+        selectedFields: ["issueKey", "summary", "status", "assignee", "sprint", "sprintCount"],
+        filterLogic: "and",
+        filters: [filter("more-than-three-sprints", "sprintCount", "greaterThan", "3")],
+        dateField: null,
+        asOf: null,
+        metric: "count",
+        groupBy: "none",
+        sortBy: "sprintCount",
+        sortDirection: "desc",
+        visualization: "table",
+        width: "full",
+      },
+    ],
+  };
+}
+
 function hash(value: unknown) {
   return jiraDashboardConfigHash(value);
 }
@@ -206,15 +316,25 @@ function definitionData(projectId: string, key: string, definition: JiraSemantic
   } satisfies Prisma.JiraAggregateDefinitionUncheckedCreateInput;
 }
 
+function withSprintCount(definition: JiraSemanticAggregateDefinition) {
+  if (definition.rowConfig.kind !== "issue" || definition.outputFields.some((field) => field.key === "sprintCount")) return definition;
+  return {
+    ...definition,
+    outputFields: [...definition.outputFields, jiraSemanticDefaultOutputField("sprintCount")],
+  } satisfies JiraSemanticAggregateDefinition;
+}
+
 export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, projectId: string) {
   await client.$transaction(async (transaction) => {
     await lockJiraAggregateProject(transaction, projectId);
+    const references: SystemAggregateReference[] = [];
     for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {
-      const row = await transaction.jiraAggregateDefinition.upsert({
+      let row = await transaction.jiraAggregateDefinition.upsert({
         where: { projectId_aggregateKey: { projectId, aggregateKey: aggregate.key } },
         create: definitionData(projectId, aggregate.key, aggregate.definition, true),
         update: {},
       });
+      references.push(row);
       await transaction.jiraAggregateDefinitionRevision.upsert({
         where: { aggregateId_version: { aggregateId: row.id, version: 1 } },
         create: {
@@ -228,6 +348,75 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
           publishedAt: new Date(),
         },
         update: {},
+      });
+      if (aggregate.key === "issues" && row.publishedVersion !== null) {
+        const publishedRevision = await transaction.jiraAggregateDefinitionRevision.findUnique({
+          where: { aggregateId_version: { aggregateId: row.id, version: row.publishedVersion } },
+        });
+        const publishedDefinition = parsedDefinition(publishedRevision?.definition);
+        if (publishedRevision && publishedDefinition && !publishedDefinition.outputFields.some((field) => field.key === "sprintCount")) {
+          const upgradedPublished = withSprintCount(publishedDefinition);
+          const hasDraft = row.version !== row.publishedVersion;
+          const publishedVersion = row.version + 1;
+          await transaction.jiraAggregateDefinitionRevision.create({
+            data: {
+              projectId,
+              aggregateId: row.id,
+              version: publishedVersion,
+              definition: upgradedPublished as unknown as Prisma.InputJsonObject,
+              fingerprint: hash(upgradedPublished),
+              status: "published",
+              changeKind: "compatible",
+              publishedAt: new Date(),
+            },
+          });
+          if (hasDraft) {
+            const draftDefinition = withSprintCount(parsedDefinition(row.draftDefinition) ?? upgradedPublished);
+            const draftVersion = publishedVersion + 1;
+            await transaction.jiraAggregateDefinitionRevision.updateMany({
+              where: { aggregateId: row.id, version: row.version, status: "draft" },
+              data: { status: "archived" },
+            });
+            await transaction.jiraAggregateDefinitionRevision.create({
+              data: {
+                projectId,
+                aggregateId: row.id,
+                version: draftVersion,
+                definition: draftDefinition as unknown as Prisma.InputJsonObject,
+                fingerprint: hash(draftDefinition),
+                status: "draft",
+                changeKind: jiraSemanticCompatibleChange(upgradedPublished, draftDefinition) ? "compatible" : "breaking",
+              },
+            });
+            row = await transaction.jiraAggregateDefinition.update({
+              where: { id: row.id },
+              data: {
+                ...jiraSemanticDefinitionUpdateData(draftDefinition, draftVersion),
+                publishedVersion,
+                exposedFields: draftDefinition.outputFields.map((field) => field.key),
+              },
+            });
+          } else {
+            row = await transaction.jiraAggregateDefinition.update({
+              where: { id: row.id },
+              data: {
+                ...jiraSemanticDefinitionUpdateData(upgradedPublished, publishedVersion),
+                publishedVersion,
+                exposedFields: upgradedPublished.outputFields.map((field) => field.key),
+              },
+            });
+          }
+        }
+      }
+      references[references.length - 1] = row;
+    }
+    const settings = await transaction.jiraAnalyticsSettings.findUnique({ where: { projectId } });
+    if (!settings?.dashboardConfig) {
+      const dashboardConfig = jiraDefaultSemanticDashboard(references) as unknown as Prisma.InputJsonObject;
+      await transaction.jiraAnalyticsSettings.upsert({
+        where: { projectId },
+        create: { projectId, jiraScopeType: "LABEL", jiraScopeValue: "", dashboardConfig },
+        update: { dashboardConfig },
       });
     }
   });

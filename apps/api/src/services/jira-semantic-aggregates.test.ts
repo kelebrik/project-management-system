@@ -12,6 +12,7 @@ import {
   JIRA_SYSTEM_SEMANTIC_AGGREGATES,
   jiraSemanticAggregateCost,
   jiraSemanticCreateData,
+  jiraDefaultSemanticDashboard,
   jiraSemanticExecutableDefinition,
 } from "./jira-semantic-aggregates.js";
 
@@ -27,6 +28,28 @@ test("semantic catalog exposes five flat managed row sets", () => {
     assert.equal("visualization" in aggregate.definition, false);
     assert.equal("placement" in aggregate.definition, false);
   }
+});
+
+test("default semantic dashboard contains the requested operational and retrospective widgets", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({
+    id: `aggregate-${index + 1}`,
+    aggregateKey: aggregate.key,
+    publishedVersion: aggregate.key === "issues" ? 2 : 1,
+  }));
+  const dashboard = jiraDefaultSemanticDashboard(references);
+  assert.equal(dashboard.widgets.length, 4);
+  assert.deepEqual(dashboard.widgets.map((widget) => [widget.placement, widget.title]), [
+    ["active", "Без Sprint с коммитами или MR"],
+    ["active", "Не перешли в In Progress за 12 дней"],
+    ["retro", "Нарушение SLA 30 дней Critical/Blocker"],
+    ["retro", "Более 3 записей в Sprint"],
+  ]);
+  const delayed = dashboard.widgets[1]!;
+  assert.ok(delayed.filters.some((item) => item.field === "intervalEndAt" && item.operator === "empty"));
+  assert.ok(delayed.filters.some((item) => item.field === "durationHours" && item.value === "288"));
+  const sprintHistory = dashboard.widgets[3]!;
+  assert.equal(sprintHistory.aggregateVersion, 2);
+  assert.ok(sprintHistory.filters.some((item) => item.field === "sprintCount" && item.operator === "greaterThan" && item.value === "3"));
 });
 
 test("semantic interval maps typed anchors without widget presentation", () => {

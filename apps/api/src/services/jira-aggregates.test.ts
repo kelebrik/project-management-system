@@ -77,6 +77,7 @@ function issue(patch: Partial<JiraAnalyticsIssueData> = {}): JiraAnalyticsIssueD
     issueType: 'Bug',
     resolution: null,
     sprint: null,
+    sprintCount: 0,
     issueCreatedAt: '2026-01-01T00:00:00.000Z',
     criticalPriorityAt: null,
     criticalEndPriority: null,
@@ -130,6 +131,7 @@ function storedIssue(issueKey: string) {
     issueType: 'Bug',
     resolution: null,
     sprint: null,
+    currentVersion: { sprintIds: [] },
     issueCreatedAt: new Date('2026-01-01T00:00:00.000Z'),
     criticalPriorityAt: null,
     resolutionAt: null,
@@ -1097,6 +1099,23 @@ test('v3 to v4 migration preserves aggregate and widget filter groups without ch
 test('aggregate DB selector cannot read immutable raw payloads', () => {
   assert.equal('payload' in jiraAggregateIssueSelect, false);
   assert.equal('versions' in jiraAggregateIssueSelect, false);
+  assert.deepEqual(jiraAggregateIssueSelect.currentVersion.select, { sprintIds: true });
+});
+
+test('ticket aggregate filters and sorts by the typed Sprint entry count', () => {
+  const result = evaluateJiraAnalyticsAggregate(definition({
+    source: 'issues',
+    filters: [{ id: 'sprints', field: 'sprintCount', operator: 'greaterThan', value: '3' }],
+    sortBy: 'sprintCount',
+    sortDirection: 'desc',
+  }), [
+    issue({ id: 'four', issueKey: 'CVTE-4', sprint: 'Sprint 4', sprintCount: 4 }),
+    issue({ id: 'six', issueKey: 'CVTE-6', sprint: 'Sprint 6', sprintCount: 6 }),
+    issue({ id: 'three', issueKey: 'CVTE-3', sprint: 'Sprint 3', sprintCount: 3 }),
+  ], options);
+
+  assert.equal(result.totalRecords, 2);
+  assert.deepEqual(result.records.map((record) => record.issue.issueKey), ['CVTE-6', 'CVTE-4']);
 });
 
 test('aggregate batch loader uses a stable issue-key cursor and bounded batches', async () => {
