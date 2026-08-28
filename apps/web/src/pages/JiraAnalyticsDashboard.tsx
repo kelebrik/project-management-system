@@ -3,13 +3,11 @@ import {
   JIRA_SEMANTIC_FIELD_LABELS,
   jiraAnalyticsGroupings,
   jiraAnalyticsMetrics,
-  jiraAnalyticsOperatorsFor,
   jiraCancelledStatuses,
   jiraSemanticDashboardSchema,
   type JiraAnalyticsEvaluationResult,
   type JiraAnalyticsFilter,
   type JiraAnalyticsFilterField,
-  type JiraAnalyticsFilterOperator,
   type JiraAnalyticsGroupBy,
   type JiraAnalyticsMetric,
   type JiraSemanticAggregatePublic,
@@ -21,12 +19,11 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 
 import { apiClient } from "../api/client";
 import {
-  JIRA_ANALYTICS_FILTER_LABELS,
   JIRA_ANALYTICS_GROUP_LABELS,
   JIRA_ANALYTICS_METRIC_LABELS,
-  JIRA_ANALYTICS_OPERATOR_LABELS,
   formatJiraAnalyticsMetric,
 } from "../app/jiraAnalytics";
+import { JiraWidgetFilters } from "../components/JiraWidgetFilters";
 import { usePageContext } from "./PageContext";
 
 type JiraAnalyticsSection = "active" | "retro";
@@ -119,22 +116,6 @@ function saveDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function FilterEditor({ filter, fields, onChange, onDelete }: {
-  filter: JiraAnalyticsFilter;
-  fields: JiraAnalyticsFilterField[];
-  onChange: (value: JiraAnalyticsFilter) => void;
-  onDelete: () => void;
-}) {
-  const operators = jiraAnalyticsOperatorsFor(filter.field);
-  const noValue = filter.operator === "empty" || filter.operator === "notEmpty";
-  return <div className="jira-widget-filter-row">
-    <select value={filter.field} onChange={(event) => { const field = event.target.value as JiraAnalyticsFilterField; onChange({ ...filter, field, operator: jiraAnalyticsOperatorsFor(field)[0] ?? "equals", value: "" }); }}>{fields.map((field) => <option key={field} value={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}</select>
-    <select value={filter.operator} onChange={(event) => { const operator = event.target.value as JiraAnalyticsFilterOperator; onChange({ ...filter, operator, value: operator === "empty" || operator === "notEmpty" ? "" : filter.value }); }}>{operators.map((operator) => <option key={operator} value={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}</select>
-    <input value={filter.value} disabled={noValue} onChange={(event) => onChange({ ...filter, value: event.target.value })} />
-    <button type="button" className="icon-button danger" title="Удалить условие" onClick={onDelete}><Trash2 size={16} /></button>
-  </div>;
-}
-
 function recordValue(record: SemanticResult["records"][number], field: JiraAnalyticsFilterField) {
   const value = record.values[field];
   if (typeof value === "boolean") return value ? "Да" : "Нет";
@@ -193,7 +174,7 @@ function WidgetEditor({ widget, aggregate, aggregates, onChange, onClose }: {
     <label>Группировка<select value={widget.groupBy} disabled={listMode} onChange={(event) => { const groupBy = event.target.value as JiraAnalyticsGroupBy; onChange({ ...widget, groupBy, visualization: groupBy === "none" ? "number" : "bar" }); }}>{groups.map((group) => <option key={group} value={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>
     <label>Сортировка<select value={widget.sortBy} onChange={(event) => onChange({ ...widget, sortBy: event.target.value as JiraSemanticWidget["sortBy"] })}><option value="default">По умолчанию</option>{widget.selectedFields.filter((field) => ["issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount", "sprintCount"].includes(field)).map((field) => <option key={field} value={field}>{JIRA_SEMANTIC_FIELD_LABELS[field]}</option>)}</select></label>
     <fieldset><legend>Направление</legend><div className="jira-widget-segments"><button type="button" className={widget.sortDirection === "desc" ? "active" : ""} onClick={() => onChange({ ...widget, sortDirection: "desc" })}>По убыванию</button><button type="button" className={widget.sortDirection === "asc" ? "active" : ""} onClick={() => onChange({ ...widget, sortDirection: "asc" })}>По возрастанию</button></div></fieldset>
-    <fieldset><legend>Условия</legend><div className="jira-widget-segments"><button type="button" className={widget.filterLogic === "and" ? "active" : ""} onClick={() => onChange({ ...widget, filterLogic: "and" })}>И</button><button type="button" className={widget.filterLogic === "or" ? "active" : ""} onClick={() => onChange({ ...widget, filterLogic: "or" })}>ИЛИ</button></div>{widget.filters.map((filter, index) => <FilterEditor key={filter.id} filter={filter} fields={widget.selectedFields} onChange={(next) => onChange({ ...widget, filters: widget.filters.map((item, itemIndex) => itemIndex === index ? next : item) })} onDelete={() => onChange({ ...widget, filters: widget.filters.filter((_, itemIndex) => itemIndex !== index) })} />)}<button type="button" className="secondary-button" onClick={() => onChange({ ...widget, filters: [...widget.filters, { id: uid("filter"), field: widget.selectedFields[0] ?? "issueKey", operator: "equals", value: "" }] })}><Plus size={16} />Условие</button></fieldset>
+    <JiraWidgetFilters widget={widget} onChange={onChange} />
     <fieldset><legend>Ширина</legend><div className="jira-widget-segments"><button type="button" className={widget.width === "half" ? "active" : ""} onClick={() => onChange({ ...widget, width: "half" })}>1/2</button><button type="button" className={widget.width === "full" ? "active" : ""} onClick={() => onChange({ ...widget, width: "full" })}>1/1</button></div></fieldset>
   </aside>;
 }

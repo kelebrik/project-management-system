@@ -1906,6 +1906,55 @@
   opacity: 1;
 }
 
+.jira-widget-filter-fieldset {
+  display: grid;
+  gap: 10px;
+}
+
+.jira-widget-filter-mode {
+  display: grid;
+  gap: 5px;
+}
+
+.jira-widget-filter-mode > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.jira-widget-filter-list,
+.jira-widget-filter-item {
+  display: grid;
+}
+
+.jira-widget-filter-connector {
+  align-items: center;
+  color: var(--text-muted);
+  display: grid;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-height: 28px;
+}
+
+.jira-widget-filter-connector::before,
+.jira-widget-filter-connector::after {
+  background: var(--border);
+  content: "";
+  height: 1px;
+}
+
+.jira-widget-filter-connector-label {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .jira-widget-filter-head {
   align-items: center;
   border-top: 1px solid var(--border);

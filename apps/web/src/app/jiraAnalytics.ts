@@ -164,6 +164,10 @@ export function jiraAnalyticsFieldIsNumeric(field: JiraAnalyticsFilterField) {
   return jiraAnalyticsFieldKind(field) === "number";
 }
 
+export function jiraAnalyticsFilterLogicLabel(logic: "and" | "or") {
+  return logic === "and" ? "И" : "ИЛИ";
+}
+
 function uid(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
