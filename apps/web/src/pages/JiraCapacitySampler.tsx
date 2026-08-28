@@ -107,6 +107,7 @@ type HistoryStatus = {
     gapLastAt: string | null;
   };
   projections?: { unversioned: number };
+  labelChanges?: { global: number; project: number };
 };
 
 const JIRA_BACKFILL_CLIENT_POLL_MAX_MS = 15 * 60_000;
@@ -409,6 +410,7 @@ export function JiraCapacitySampler({
               <div><dt>Версий глобально</dt><dd>{historyStatus.global.versions.toLocaleString("ru-RU")}</dd></div>
               <div><dt>Тикетов проекта</dt><dd>{historyStatus.project.tickets.toLocaleString("ru-RU")}</dd></div>
               <div><dt>Версий проекта</dt><dd>{historyStatus.project.versions.toLocaleString("ru-RU")}</dd></div>
+              <div><dt>Изменений меток</dt><dd>{(historyStatus.labelChanges?.project ?? 0).toLocaleString("ru-RU")}</dd></div>
               <div><dt>Средний снимок</dt><dd>{formatBytes(historyStatus.project.averageBytes)}</dd></div>
               <div><dt>Снимок P95</dt><dd>{formatBytes(historyStatus.project.p95Bytes)}</dd></div>
               <div><dt>Неполных снимков</dt><dd>{historyStatus.project.incompleteHydration.toLocaleString("ru-RU")}</dd></div>

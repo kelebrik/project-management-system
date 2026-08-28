@@ -374,6 +374,7 @@ export const JIRA_SEMANTIC_FIELD_LABELS: Record<(typeof jiraAnalyticsFilterField
   priority: "Приоритет",
   sprint: "Sprint",
   sprintCount: "Количество записей Sprint",
+  labels: "Метки",
   issueType: "Тип тикета",
   resolution: "Resolution",
   fromStatus: "Исходный статус",

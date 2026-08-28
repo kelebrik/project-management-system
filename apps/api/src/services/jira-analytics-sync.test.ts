@@ -14,6 +14,7 @@ import {
   replaceJiraCriticalSlaTracking,
   syncJiraIssueAnalytics,
   type JiraAnalyticsActivityInput,
+  type JiraAnalyticsLabelChangeInput,
   type JiraAnalyticsSnapshotState,
   type JiraAnalyticsSyncStore,
   type JiraAnalyticsTransitionInput,
@@ -180,6 +181,7 @@ function jiraIssue(patch: Partial<JiraIssue> = {}): JiraIssue {
     assignee: 'Ivan',
     reporter: 'Petr',
     issueType: 'Task',
+    labels: [],
     resolution: null,
     resolutionAt: null,
     sprint: null,
@@ -190,6 +192,7 @@ function jiraIssue(patch: Partial<JiraIssue> = {}): JiraIssue {
     updatedAt: new Date('2026-08-18T10:00:00Z'),
     transitions: [],
     transitionHistoryComplete: false,
+    labelChanges: [],
     development: {
       commitCount: 0,
       mergeRequestCount: 0,
@@ -206,6 +209,7 @@ function memoryStore(seed: JiraAnalyticsSnapshotState | null) {
     failNextUpsert: boolean;
   } = { snapshot: seed, failNextUpsert: false };
   const transitions = new Map<string, JiraAnalyticsTransitionInput>();
+  const labelChanges = new Map<string, JiraAnalyticsLabelChangeInput>();
   const activities = new Map<string, JiraAnalyticsActivityInput>();
   const store: JiraAnalyticsSyncStore = {
     async findSnapshot() {
@@ -222,6 +226,12 @@ function memoryStore(seed: JiraAnalyticsSnapshotState | null) {
       for (const transition of values) {
         const key = `${transition.snapshotId}:${transition.transitionKey}`;
         if (!transitions.has(key)) transitions.set(key, transition);
+      }
+    },
+    async createLabelChanges(values) {
+      for (const change of values) {
+        const key = `${change.snapshotId}:${change.changeKey}`;
+        if (!labelChanges.has(key)) labelChanges.set(key, change);
       }
     },
     async createDevelopmentActivity(activity) {
@@ -264,7 +274,7 @@ function memoryStore(seed: JiraAnalyticsSnapshotState | null) {
       };
     },
   };
-  return { activities, state, store, transitions };
+  return { activities, labelChanges, state, store, transitions };
 }
 
 const existingSnapshot = (): JiraAnalyticsSnapshotState => ({
@@ -549,6 +559,26 @@ test('repeated Jira sync does not duplicate transitions or development activity'
   assert.equal([...memory.activities.values()][0]?.isBaseline, true);
 });
 
+test('repeated Jira sync stores label history idempotently', async () => {
+  const memory = memoryStore(existingSnapshot());
+  const issue = jiraIssue({
+    labels: ['cvte968', 'release'],
+    labelChanges: [{
+      key: 'history-labels-1:0',
+      changedAt: new Date('2026-08-17T10:00:00Z'),
+      fromLabels: ['cvte968'],
+      toLabels: ['cvte968', 'release'],
+      actor: 'Ivan',
+    }],
+  });
+
+  await syncJiraIssueAnalytics(memory.store, 'project-1', issue, new Date('2026-08-19T10:00:00Z'));
+  await syncJiraIssueAnalytics(memory.store, 'project-1', issue, new Date('2026-08-19T11:00:00Z'));
+
+  assert.equal(memory.labelChanges.size, 1);
+  assert.deepEqual([...memory.labelChanges.values()][0]?.toLabels, ['cvte968', 'release']);
+});
+
 test('first non-empty remote development observation remains a baseline', async () => {
   const memory = memoryStore(existingSnapshot());
 
@@ -746,6 +776,7 @@ test('stage A1 locks each issue and never lets an older observation replace the 
     },
     async deleteSyntheticTransitions() {},
     async createTransitions() {},
+    async createLabelChanges() {},
     async createDevelopmentActivity() {},
     async upsertSnapshot() {
       throw new Error('stale observation must not update the projection');
@@ -788,6 +819,17 @@ test('stage A1 advisory lock casts the PostgreSQL void result before Prisma dese
   assert.deepEqual(queryValues, ['project-1:1001']);
 });
 
+test('labels history follows the immutable history write kill switch', () => {
+  const transaction = {} as Parameters<typeof createPrismaJiraAnalyticsSyncStore>[0];
+
+  const enabled = createPrismaJiraAnalyticsSyncStore(transaction, null, true);
+  const disabled = createPrismaJiraAnalyticsSyncStore(transaction, null, false);
+
+  assert.equal(typeof enabled.createLabelChanges, 'function');
+  assert.equal(disabled.createLabelChanges, undefined);
+  assert.equal(disabled.persistObservedVersion, undefined);
+});
+
 test('stage A1 concurrent replay stores one immutable version and one current identity', async () => {
   const versions = new Map<string, string>();
   const currentVersionIds: string[] = [];
@@ -814,6 +856,7 @@ test('stage A1 concurrent replay stores one immutable version and one current id
         assignee: issue.assignee,
         reporter: issue.reporter,
         issueType: issue.issueType,
+        labels: issue.labels,
         resolution: issue.resolution,
         sprint: issue.sprint,
         issueCreatedAt: issue.createdAt,
@@ -894,6 +937,7 @@ test('stage A1 current projection is rebuildable from its observed version', () 
     assignee: 'Ivan',
     reporter: 'Petr',
     issueType: 'Bug',
+    labels: ['cvte968', 'release'],
     resolution: 'Fixed',
     sprint: 'Sprint 24',
     issueCreatedAt: new Date('2026-08-01T09:00:00Z'),
@@ -921,6 +965,7 @@ test('stage A1 current projection is rebuildable from its observed version', () 
     assignee: 'Ivan',
     reporter: 'Petr',
     issueType: 'Bug',
+    labels: ['cvte968', 'release'],
     resolution: 'Fixed',
     sprint: 'Sprint 24',
     issueCreatedAt: version.issueCreatedAt,

@@ -924,6 +924,7 @@ model JiraIssueSnapshot {
   assignee                    String?
   reporter                    String?
   issueType                   String
+  labels                      String[]                    @default([])
   resolution                  String?
   sprint                      String?
   issueCreatedAt              DateTime?
@@ -947,11 +948,13 @@ model JiraIssueSnapshot {
   versions                    JiraIssueVersion[]          @relation("JiraSnapshotVersions")
   workSections                JiraWorkSectionIssue[]
   statusTransitions           JiraIssueStatusTransition[]
+  labelChanges                JiraIssueLabelChange[]
   developmentActivities       JiraDevelopmentActivity[]
 
   @@unique([projectId, issueKey])
   @@index([projectId, syncedAt])
   @@index([projectId, status])
+  @@index([labels], type: Gin)
   @@index([projectId, criticalSlaTracked])
   @@index([projectId, retiredAt])
   @@index([projectId, projectionUnversionedSince])
@@ -1053,6 +1056,24 @@ model JiraIssueStatusTransition {
   @@unique([snapshotId, transitionKey])
   @@index([snapshotId, transitionedAt])
   @@index([toStatus, transitionedAt])
+}
+
+model JiraIssueLabelChange {
+  id         String            @id @default(cuid())
+  snapshotId String
+  changeKey  String
+  changedAt  DateTime
+  fromLabels String[]          @default([])
+  toLabels   String[]          @default([])
+  actor      String?
+  createdAt  DateTime          @default(now())
+  snapshot   JiraIssueSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, changeKey])
+  @@index([snapshotId, changedAt])
+  @@index([changedAt])
+  @@index([fromLabels], type: Gin)
+  @@index([toLabels], type: Gin)
 }
 
 model JiraDevelopmentActivity {

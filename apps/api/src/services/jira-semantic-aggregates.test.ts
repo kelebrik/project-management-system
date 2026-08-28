@@ -15,6 +15,7 @@ import {
   jiraDefaultSemanticDashboard,
   jiraDashboardWithDefaultWidgets,
   jiraDashboardWithDefaultWidgetsForSeedVersion,
+  jiraDashboardWithCurrentSystemAggregateRevisions,
   jiraSemanticExecutableDefinition,
 } from "./jira-semantic-aggregates.js";
 
@@ -38,6 +39,10 @@ test("semantic catalog exposes the managed Jira row sets", () => {
     assert.equal("groupBy" in aggregate.definition, false);
     assert.equal("visualization" in aggregate.definition, false);
     assert.equal("placement" in aggregate.definition, false);
+    assert.ok(
+      aggregate.definition.outputFields.some((field) => field.key === "labels"),
+      `${aggregate.key} must expose ticket labels`,
+    );
   }
 });
 
@@ -112,6 +117,47 @@ test("widget seed v2 adds only new widgets and does not recreate deleted v1 defa
     "retro-p85-in-progress-to-resolution-by-project",
   ]);
   assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 1).widgets.length, 4);
+});
+
+test("widget seed v3 upgrades aggregate contracts without recreating deleted widgets", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({
+    id: `aggregate-${index + 1}`,
+    aggregateKey: aggregate.key,
+    publishedVersion: 1,
+  }));
+  const defaults = jiraDefaultSemanticDashboard(references);
+  const current = {
+    ...defaults,
+    widgets: [{ ...defaults.widgets[0]!, id: "custom-widget", title: "Пользовательский виджет" }],
+  };
+
+  assert.deepEqual(
+    jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 2).widgets,
+    current.widgets,
+  );
+});
+
+test("widget seed v3 repins existing system widgets to compatible published revisions", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({
+    id: `aggregate-${index + 1}`,
+    aggregateKey: aggregate.key,
+    publishedVersion: index + 2,
+  }));
+  const dashboard = {
+    ...jiraDefaultSemanticDashboard(references),
+    widgets: jiraDefaultSemanticDashboard(references).widgets.map((widget) => ({
+      ...widget,
+      aggregateVersion: 1,
+    })),
+  };
+  const upgraded = jiraDashboardWithCurrentSystemAggregateRevisions(dashboard, references);
+
+  for (const widget of upgraded.widgets) {
+    assert.equal(
+      widget.aggregateVersion,
+      references.find((reference) => reference.id === widget.aggregateId)?.publishedVersion,
+    );
+  }
 });
 
 test("semantic interval maps typed anchors without widget presentation", () => {
@@ -292,6 +338,7 @@ test("semantic aggregate mutations serialize project changes and system seeding 
   assert.match(route, /lockJiraAggregateProject\(transaction, project\.id\)/);
   assert.match(service, /jiraAggregateDefinition\.upsert/);
   assert.match(service, /jiraAggregateDefinitionRevision\.upsert/);
+  assert.match(service, /dashboardConfig != null && !parsedDashboard\.success/);
   const listStart = service.indexOf("export async function listJiraSemanticAggregates");
   const listEnd = service.indexOf("export function jiraSemanticAggregateSource", listStart);
   assert.doesNotMatch(service.slice(listStart, listEnd), /ensureJiraSystemSemanticAggregates/u);

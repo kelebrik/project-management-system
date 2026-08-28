@@ -48,6 +48,7 @@ function versionRow(patch: Partial<JiraAsOfVersionRow> = {}): JiraAsOfVersionRow
     resolution: null,
     sprint: null,
     sprintIds: [],
+    labels: ['historical-label'],
     issueCreatedAt: new Date('2026-01-01T00:00:00.000Z'),
     criticalPriorityAt: null,
     criticalEndPriority: 'Major',
@@ -123,6 +124,7 @@ test('as-of evaluation counts one Jira ticket once even when 100 versions are el
   assert.match(sql, /s\."retiredAt" IS NULL OR s\."retiredAt" >/u);
   assert.doesNotMatch(sql, /"payload"|"validationWarnings"/u);
   assert.doesNotMatch(JSON.stringify(result), /payload|validationWarnings/u);
+  assert.deepEqual(result.records[0]?.issue.labels, ['historical-label']);
 });
 
 test('as-of quality stays unavailable after disabled writes until a clean reconciliation', async () => {

@@ -215,6 +215,7 @@ export async function jiraHistoryDatabaseBytes(prisma: PrismaClient) {
     SELECT (
       pg_total_relation_size('"JiraIssueVersion"'::regclass)
       + pg_total_relation_size('"JiraIssueHistoryRetry"'::regclass)
+      + pg_total_relation_size('"JiraIssueLabelChange"'::regclass)
     )::bigint AS bytes
   `);
   return Number(rows[0]?.bytes ?? 0n);
@@ -249,6 +250,8 @@ export async function jiraHistoryStatus(prisma: PrismaClient, projectId: string)
     settings,
     unversionedProjections,
     historyWriteGaps,
+    globalLabelChanges,
+    projectLabelChanges,
   ] = await Promise.all([
     jiraHistoryDatabaseBytes(prisma),
     prisma.$queryRaw<JiraHistoryAggregateRow[]>(Prisma.sql`
@@ -323,6 +326,8 @@ export async function jiraHistoryStatus(prisma: PrismaClient, projectId: string)
       _min: { startedAt: true },
       _max: { finishedAt: true },
     }),
+    prisma.jiraIssueLabelChange.count(),
+    prisma.jiraIssueLabelChange.count({ where: { snapshot: { projectId } } }),
   ]);
   const global = globalRows[0];
   const project = projectRows[0];
@@ -381,6 +386,10 @@ export async function jiraHistoryStatus(prisma: PrismaClient, projectId: string)
     },
     projections: {
       unversioned: unversionedProjections,
+    },
+    labelChanges: {
+      global: globalLabelChanges,
+      project: projectLabelChanges,
     },
   };
 }

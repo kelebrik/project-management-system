@@ -50,6 +50,7 @@ export type JiraIssueVersionProjection = {
   assignee: string | null;
   reporter: string | null;
   issueType: string;
+  labels: string[];
   resolution: string | null;
   sprint: string | null;
   issueCreatedAt: Date | null;
@@ -81,6 +82,7 @@ export function jiraSnapshotDataFromObservedVersion(
     assignee: version.assignee,
     reporter: version.reporter,
     issueType: version.issueType,
+    labels: version.labels,
     resolution: version.resolution,
     sprint: version.sprint,
     issueCreatedAt: version.issueCreatedAt,
@@ -140,6 +142,7 @@ export async function rebuildJiraCurrentProjections(
               assignee: true,
               reporter: true,
               issueType: true,
+              labels: true,
               resolution: true,
               sprint: true,
               issueCreatedAt: true,
@@ -188,6 +191,15 @@ export type JiraAnalyticsTransitionInput = {
   actor: string | null;
 };
 
+export type JiraAnalyticsLabelChangeInput = {
+  snapshotId: string;
+  changeKey: string;
+  changedAt: Date;
+  fromLabels: string[];
+  toLabels: string[];
+  actor: string | null;
+};
+
 export type JiraAnalyticsActivityInput = {
   snapshotId: string;
   activityKey: string;
@@ -207,6 +219,7 @@ export type JiraAnalyticsSyncStore = {
   ) => Promise<JiraAnalyticsSnapshotState | null>;
   deleteSyntheticTransitions: (snapshotId: string) => Promise<void>;
   createTransitions: (transitions: JiraAnalyticsTransitionInput[]) => Promise<void>;
+  createLabelChanges?: (changes: JiraAnalyticsLabelChangeInput[]) => Promise<void>;
   createDevelopmentActivity: (activity: JiraAnalyticsActivityInput) => Promise<void>;
   upsertSnapshot: (
     projectId: string,
@@ -423,6 +436,18 @@ export async function syncJiraIssueAnalytics(
         })),
       );
     }
+    if (issue.labelChanges.length > 0 && store.createLabelChanges) {
+      await store.createLabelChanges(
+        issue.labelChanges.map((change) => ({
+          snapshotId,
+          changeKey: change.key,
+          changedAt: change.changedAt,
+          fromLabels: change.fromLabels,
+          toLabels: change.toLabels,
+          actor: change.actor,
+        })),
+      );
+    }
     if (commitDelta > 0 || mergeRequestDelta > 0) {
       const activityAt = development.updatedAt ?? syncedAt;
       await store.createDevelopmentActivity({
@@ -499,6 +524,12 @@ export function createPrismaJiraAnalyticsSyncStore(
         skipDuplicates: true,
       });
     },
+    async createLabelChanges(changes) {
+      await transaction.jiraIssueLabelChange.createMany({
+        data: changes,
+        skipDuplicates: true,
+      });
+    },
     async createDevelopmentActivity(activity) {
       await transaction.jiraDevelopmentActivity.createMany({
         data: [activity],
@@ -521,6 +552,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           assignee: issue.assignee,
           reporter: issue.reporter,
           issueType: issue.issueType,
+          labels: issue.labels,
           resolution: issue.resolution,
           sprint: issue.sprintAvailable ? issue.sprint : undefined,
           issueCreatedAt: issue.createdAt,
@@ -549,6 +581,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           assignee: issue.assignee,
           reporter: issue.reporter,
           issueType: issue.issueType,
+          labels: issue.labels,
           resolution: issue.resolution,
           sprint: issue.sprint,
           issueCreatedAt: issue.createdAt,
@@ -719,6 +752,9 @@ export function createPrismaJiraAnalyticsSyncStore(
       return { versionId: version.id, created: created.count === 1 };
     },
   };
-  if (!historyWriteEnabled) delete store.persistObservedVersion;
+  if (!historyWriteEnabled) {
+    delete store.persistObservedVersion;
+    delete store.createLabelChanges;
+  }
   return store;
 }

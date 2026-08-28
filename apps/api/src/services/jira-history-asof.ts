@@ -70,6 +70,7 @@ export type JiraAsOfVersionRow = {
   resolution: string | null;
   sprint: string | null;
   sprintIds: string[];
+  labels: string[];
   issueCreatedAt: Date | string | null;
   criticalPriorityAt: Date | string | null;
   criticalEndPriority: string | null;
@@ -108,6 +109,7 @@ export function jiraAsOfIssueFromRow(row: JiraAsOfVersionRow): JiraAnalyticsIssu
     resolution: row.resolution,
     sprint: row.sprint,
     sprintCount: row.sprintIds.length,
+    labels: row.labels,
     issueCreatedAt: iso(row.issueCreatedAt),
     criticalPriorityAt: iso(row.criticalPriorityAt),
     criticalEndPriority: row.criticalEndPriority,
@@ -164,6 +166,7 @@ async function* jiraAsOfIssueBatches(
         v."resolution" AS "resolution",
         v."sprint" AS "sprint",
         v."sprintIds" AS "sprintIds",
+        v."labels" AS "labels",
         v."issueCreatedAt" AS "issueCreatedAt",
         v."criticalPriorityAt" AS "criticalPriorityAt",
         v."criticalEndPriority" AS "criticalEndPriority",

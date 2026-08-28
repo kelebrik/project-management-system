@@ -353,6 +353,7 @@ export const jiraAggregateIssueSelect = {
   assignee: true,
   reporter: true,
   issueType: true,
+  labels: true,
   resolution: true,
   sprint: true,
   currentVersion: {
@@ -1316,6 +1317,9 @@ export function jiraAggregateOutputValue(record: JiraAnalyticsResultRecord, fiel
   if (field === 'priority') return record.issue.priority;
   if (field === 'sprint') return record.sprint;
   if (field === 'sprintCount') return record.issue.sprintCount;
+  if (field === 'labels') return record.issue.labels.length > 0
+    ? record.issue.labels.join(', ')
+    : null;
   if (field === 'issueType') return record.issue.issueType;
   if (field === 'resolution') return isJiraUnresolvedResolution(record.issue.resolution) ? null : record.issue.resolution;
   if (field === 'fromStatus') return record.fromStatus;

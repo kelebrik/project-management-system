@@ -78,6 +78,7 @@ function issue(patch: Partial<JiraAnalyticsIssueData> = {}): JiraAnalyticsIssueD
     resolution: null,
     sprint: null,
     sprintCount: 0,
+    labels: [],
     issueCreatedAt: '2026-01-01T00:00:00.000Z',
     criticalPriorityAt: null,
     criticalEndPriority: null,
@@ -1151,7 +1152,37 @@ test('v3 to v4 migration preserves aggregate and widget filter groups without ch
 test('aggregate DB selector cannot read immutable raw payloads', () => {
   assert.equal('payload' in jiraAggregateIssueSelect, false);
   assert.equal('versions' in jiraAggregateIssueSelect, false);
+  assert.equal(jiraAggregateIssueSelect.labels, true);
   assert.deepEqual(jiraAggregateIssueSelect.currentVersion.select, { sprintIds: true });
+});
+
+test('ticket aggregate filters labels by individual membership', () => {
+  const issues = [
+    issue({ id: 'one', issueKey: 'CVTE-1', labels: ['cvte968', 'release'] }),
+    issue({ id: 'two', issueKey: 'CVTE-2', labels: ['other'] }),
+    issue({ id: 'three', issueKey: 'CVTE-3', labels: [] }),
+  ];
+  const equals = evaluateJiraAnalyticsAggregate(definition({
+    filters: [{ id: 'labels', field: 'labels', operator: 'equals', value: 'CVTE968' }],
+  }), issues, options);
+  const notEquals = evaluateJiraAnalyticsAggregate(definition({
+    filters: [{ id: 'labels', field: 'labels', operator: 'notEquals', value: 'release' }],
+  }), issues, options);
+  const empty = evaluateJiraAnalyticsAggregate(definition({
+    filters: [{ id: 'labels', field: 'labels', operator: 'empty', value: '' }],
+  }), issues, options);
+  const contains = evaluateJiraAnalyticsAggregate(definition({
+    filters: [{ id: 'labels', field: 'labels', operator: 'contains', value: 'lea' }],
+  }), issues, options);
+  const notEmpty = evaluateJiraAnalyticsAggregate(definition({
+    filters: [{ id: 'labels', field: 'labels', operator: 'notEmpty', value: '' }],
+  }), issues, options);
+
+  assert.deepEqual(equals.records.map((record) => record.issue.issueKey), ['CVTE-1']);
+  assert.deepEqual(contains.records.map((record) => record.issue.issueKey), ['CVTE-1']);
+  assert.deepEqual(notEmpty.records.map((record) => record.issue.issueKey), ['CVTE-1', 'CVTE-2']);
+  assert.deepEqual(notEquals.records.map((record) => record.issue.issueKey).sort(), ['CVTE-2', 'CVTE-3']);
+  assert.deepEqual(empty.records.map((record) => record.issue.issueKey), ['CVTE-3']);
 });
 
 test('ticket aggregate filters and sorts by the typed Sprint entry count', () => {

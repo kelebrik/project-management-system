@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { JiraSyncRunKind, PrismaClient } from '@prisma/client';
+import { jiraSemanticAggregateDefinitionSchema, jiraSemanticDashboardSchema } from '@pms/shared';
+import { JiraSyncRunKind, Prisma, PrismaClient } from '@prisma/client';
 
 import type { JiraIssue } from '../../apps/api/src/jira.js';
 import {
@@ -14,6 +15,10 @@ import {
   clearJiraProjectData,
   JiraProjectDataBusyError,
 } from '../../apps/api/src/services/jira-project-data.js';
+import {
+  ensureJiraSystemSemanticAggregates,
+  JIRA_SYSTEM_SEMANTIC_AGGREGATES,
+} from '../../apps/api/src/services/jira-semantic-aggregates.js';
 import {
   acquireJiraProjectionRebuildLease,
   assertJiraSyncFence,
@@ -29,6 +34,14 @@ import {
 } from '../../apps/api/src/services/jira-sync-runs.js';
 
 const testDatabaseUrl = process.env.JIRA_HISTORY_TEST_DATABASE_URL?.trim() ?? '';
+
+function aggregateWithoutLabels(value: unknown) {
+  const definition = jiraSemanticAggregateDefinitionSchema.parse(value);
+  return {
+    ...definition,
+    outputFields: definition.outputFields.filter((field) => field.key !== 'labels'),
+  };
+}
 
 function jiraIssue(summary: string, updatedAt: Date): JiraIssue {
   return {
@@ -933,6 +946,14 @@ test('project Jira clear removes one project population and preserves the other 
         actor: 'Integration',
       }],
       transitionHistoryComplete: true,
+      labels: ['integration-label'],
+      labelChanges: [{
+        key: 'clear-label-change',
+        changedAt: new Date('2026-08-24T09:15:00Z'),
+        fromLabels: [],
+        toLabels: ['integration-label'],
+        actor: 'Integration',
+      }],
       development: {
         commitCount: 2,
         mergeRequestCount: 1,
@@ -987,16 +1008,19 @@ test('project Jira clear removes one project population and preserves the other 
     assert.equal(result.ticketsDeleted, 1);
     assert.equal(result.versionsDeleted, 1);
     assert.equal(result.statusTransitionsDeleted, 1);
+    assert.equal(result.labelChangesDeleted, 1);
     assert.equal(result.developmentActivitiesDeleted, 1);
     assert.equal(result.membershipsDeleted, 1);
     assert.equal(result.retriesDeleted, 1);
     assert.equal(await prisma.jiraIssueSnapshot.count({ where: { projectId: selectedProject.id } }), 0);
     assert.equal(await prisma.jiraIssueVersion.count({ where: { projectId: selectedProject.id } }), 0);
+    assert.equal(await prisma.jiraIssueLabelChange.count({ where: { snapshot: { projectId: selectedProject.id } } }), 0);
     assert.equal(await prisma.jiraIssueHistoryRetry.count({ where: { projectId: selectedProject.id } }), 0);
     assert.equal(await prisma.jiraIssueSnapshot.count({ where: { projectId: otherProject.id } }), 1);
     assert.equal(await prisma.jiraIssueVersion.count({ where: { projectId: otherProject.id } }), 1);
     assert.equal(await prisma.jiraIssueHistoryRetry.count({ where: { projectId: otherProject.id } }), 1);
     assert.equal(await prisma.jiraIssueStatusTransition.count({ where: { snapshotId: otherSnapshot.id } }), 1);
+    assert.equal(await prisma.jiraIssueLabelChange.count({ where: { snapshotId: otherSnapshot.id } }), 1);
     assert.equal(await prisma.jiraDevelopmentActivity.count({ where: { snapshotId: otherSnapshot.id } }), 1);
     assert.equal(await prisma.jiraAggregateDefinition.count({ where: { projectId: selectedProject.id } }), 1);
     assert.equal(await prisma.issue.count({ where: { projectId: selectedProject.id } }), 1);
@@ -1015,6 +1039,175 @@ test('project Jira clear removes one project population and preserves the other 
       JiraProjectDataBusyError,
     );
     await releaseJiraProjectionRebuildLease(prisma, rebuild, 'CONFIGURED');
+  } finally {
+    if (businessUnitId) await prisma.project.deleteMany({ where: { businessUnitId } });
+    if (businessUnitId) await prisma.businessUnit.delete({ where: { id: businessUnitId } });
+    await prisma.$disconnect();
+  }
+});
+
+test('system aggregate bootstrap publishes labels, preserves drafts, and repins existing widgets', {
+  skip: !testDatabaseUrl,
+}, async () => {
+  const databaseName = new URL(testDatabaseUrl).pathname.replace(/^\//, '');
+  assert.match(databaseName, /test/i, 'JIRA_HISTORY_TEST_DATABASE_URL must target a test database');
+  const prisma = new PrismaClient({ datasourceUrl: testDatabaseUrl });
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+  let businessUnitId: string | null = null;
+  try {
+    const businessUnit = await prisma.businessUnit.create({
+      data: { code: `labels-bootstrap-${suffix}`, name: `Labels bootstrap ${suffix}` },
+    });
+    businessUnitId = businessUnit.id;
+    const project = await prisma.project.create({
+      data: {
+        businessUnitId: businessUnit.id,
+        code: `LBLBOOT-${suffix}`,
+        name: 'Labels aggregate bootstrap test',
+        portfolio: 'Integration',
+        sponsor: 'Integration',
+        projectManager: 'Integration',
+        startDate: new Date('2026-08-01T00:00:00Z'),
+        targetDate: new Date('2026-09-01T00:00:00Z'),
+        budgetPlanned: '0',
+        budgetForecast: '0',
+        summary: 'Disposable integration fixture',
+      },
+    });
+
+    await ensureJiraSystemSemanticAggregates(prisma, project.id);
+    const seededRows = await prisma.jiraAggregateDefinition.findMany({
+      where: { projectId: project.id, system: true },
+      include: { revisions: true },
+    });
+    assert.equal(seededRows.length, JIRA_SYSTEM_SEMANTIC_AGGREGATES.length);
+    const seededSettings = await prisma.jiraAnalyticsSettings.findUniqueOrThrow({
+      where: { projectId: project.id },
+    });
+    const seededDashboard = jiraSemanticDashboardSchema.parse(seededSettings.dashboardConfig);
+    const removedWidget = seededDashboard.widgets[0]!;
+    const legacyDashboard = {
+      ...seededDashboard,
+      widgets: seededDashboard.widgets.slice(1).map((widget) => ({
+        ...widget,
+        aggregateVersion: 1,
+      })),
+    };
+
+    for (const row of seededRows) {
+      const published = row.revisions.find((revision) => revision.version === 1);
+      assert.ok(published);
+      const legacyPublished = aggregateWithoutLabels(published.definition);
+      await prisma.jiraAggregateDefinitionRevision.update({
+        where: { aggregateId_version: { aggregateId: row.id, version: 1 } },
+        data: { definition: legacyPublished as unknown as Prisma.InputJsonObject },
+      });
+      if (row.aggregateKey === 'issues') {
+        const legacyDraft = { ...legacyPublished, name: 'Черновик тикетов' };
+        await prisma.jiraAggregateDefinitionRevision.create({
+          data: {
+            projectId: project.id,
+            aggregateId: row.id,
+            version: 2,
+            definition: legacyDraft as unknown as Prisma.InputJsonObject,
+            fingerprint: 'd'.repeat(64),
+            status: 'draft',
+            changeKind: 'compatible',
+          },
+        });
+        await prisma.jiraAggregateDefinition.update({
+          where: { id: row.id },
+          data: {
+            version: 2,
+            publishedVersion: 1,
+            draftDefinition: legacyDraft as unknown as Prisma.InputJsonObject,
+            exposedFields: legacyDraft.outputFields.map((field) => field.key),
+          },
+        });
+      } else {
+        await prisma.jiraAggregateDefinition.update({
+          where: { id: row.id },
+          data: {
+            version: 1,
+            publishedVersion: 1,
+            draftDefinition: legacyPublished as unknown as Prisma.InputJsonObject,
+            exposedFields: legacyPublished.outputFields.map((field) => field.key),
+          },
+        });
+      }
+    }
+    await prisma.jiraAnalyticsSettings.update({
+      where: { projectId: project.id },
+      data: {
+        dashboardConfig: legacyDashboard as unknown as Prisma.InputJsonObject,
+        semanticDefaultWidgetsVersion: 2,
+      },
+    });
+
+    await ensureJiraSystemSemanticAggregates(prisma, project.id);
+
+    const upgradedRows = await prisma.jiraAggregateDefinition.findMany({
+      where: { projectId: project.id, system: true },
+      include: { revisions: { orderBy: { version: 'asc' } } },
+    });
+    const publishedVersions = new Map<string, number>();
+    for (const row of upgradedRows) {
+      assert.ok(row.publishedVersion);
+      publishedVersions.set(row.id, row.publishedVersion);
+      const published = row.revisions.find((revision) => revision.version === row.publishedVersion);
+      assert.ok(published);
+      assert.ok(
+        jiraSemanticAggregateDefinitionSchema.parse(published.definition)
+          .outputFields.some((field) => field.key === 'labels'),
+      );
+      if (row.aggregateKey === 'issues') {
+        assert.equal(row.publishedVersion, 3);
+        assert.equal(row.version, 4);
+        assert.equal(row.revisions.find((revision) => revision.version === 2)?.status, 'archived');
+        const draft = row.revisions.find((revision) => revision.version === 4);
+        assert.equal(draft?.status, 'draft');
+        assert.equal(jiraSemanticAggregateDefinitionSchema.parse(draft?.definition).name, 'Черновик тикетов');
+        assert.ok(
+          jiraSemanticAggregateDefinitionSchema.parse(draft?.definition)
+            .outputFields.some((field) => field.key === 'labels'),
+        );
+      } else {
+        assert.equal(row.publishedVersion, 2);
+        assert.equal(row.version, 2);
+      }
+    }
+    const upgradedSettings = await prisma.jiraAnalyticsSettings.findUniqueOrThrow({
+      where: { projectId: project.id },
+    });
+    assert.equal(upgradedSettings.semanticDefaultWidgetsVersion, 3);
+    const upgradedDashboard = jiraSemanticDashboardSchema.parse(upgradedSettings.dashboardConfig);
+    assert.equal(upgradedDashboard.widgets.length, legacyDashboard.widgets.length);
+    assert.equal(upgradedDashboard.widgets.some((widget) => widget.id === removedWidget.id), false);
+    for (const widget of upgradedDashboard.widgets) {
+      assert.equal(widget.aggregateVersion, publishedVersions.get(widget.aggregateId));
+    }
+
+    const revisionCount = await prisma.jiraAggregateDefinitionRevision.count({
+      where: { projectId: project.id },
+    });
+    const invalidDashboard = { version: 999, invalid: true };
+    await prisma.jiraAnalyticsSettings.update({
+      where: { projectId: project.id },
+      data: {
+        dashboardConfig: invalidDashboard,
+        semanticDefaultWidgetsVersion: 2,
+      },
+    });
+    await ensureJiraSystemSemanticAggregates(prisma, project.id);
+    const invalidSettings = await prisma.jiraAnalyticsSettings.findUniqueOrThrow({
+      where: { projectId: project.id },
+    });
+    assert.deepEqual(invalidSettings.dashboardConfig, invalidDashboard);
+    assert.equal(invalidSettings.semanticDefaultWidgetsVersion, 2);
+    assert.equal(
+      await prisma.jiraAggregateDefinitionRevision.count({ where: { projectId: project.id } }),
+      revisionCount,
+    );
   } finally {
     if (businessUnitId) await prisma.project.deleteMany({ where: { businessUnitId } });
     if (businessUnitId) await prisma.businessUnit.delete({ where: { id: businessUnitId } });

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { jiraAnalyticsFilterFields } from "@pms/shared";
 import { openApiDocument } from "../../apps/api/src/openapi.ts";
 
 type HttpMethod = "get" | "post" | "patch" | "put" | "delete";
@@ -164,4 +165,18 @@ test("OpenAPI keeps semantic aggregates separate from widget presentation", () =
   ]) {
     assert.equal(document.paths[retiredPath], undefined, `${retiredPath} must not advertise the retired v1-v4 API`);
   }
+});
+
+test("OpenAPI publishes every managed Jira analytics field", () => {
+  const document = openApiDocument as unknown as {
+    components: {
+      schemas: Record<string, {
+        properties?: Record<string, { enum?: readonly string[] }>;
+      }>;
+    };
+  };
+  const publishedFields = document.components.schemas.JiraAnalyticsFilter
+    .properties?.field.enum;
+
+  assert.deepEqual(publishedFields, jiraAnalyticsFilterFields);
 });

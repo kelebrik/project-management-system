@@ -4,6 +4,7 @@ import {
   normalizeJiraAnalyticsScopeValue,
 } from '@pms/shared';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { z } from 'zod';
 
@@ -23,7 +24,7 @@ export type JiraIssue = {
   statusCategory?: string | null;
   parentKey?: string | null;
   epicKey?: string | null;
-  labels?: string[];
+  labels: string[];
   sprintIds?: string[];
   resolution: string | null;
   resolutionAt: Date | null;
@@ -41,6 +42,13 @@ export type JiraIssue = {
     actor: string | null;
   }>;
   transitionHistoryComplete: boolean;
+  labelChanges: Array<{
+    key: string;
+    changedAt: Date;
+    fromLabels: string[];
+    toLabels: string[];
+    actor: string | null;
+  }>;
   development: {
     commitCount: number;
     mergeRequestCount: number;
@@ -765,7 +773,10 @@ function jiraSprintIdsFromFields(fields: Record<string, unknown>) {
 
 function jiraStringArray(value: unknown) {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((entry): entry is string => typeof entry === 'string'))]
+  return [...new Set(value
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.normalize('NFKC').trim())
+    .filter(Boolean))]
     .sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
 }
 
@@ -784,7 +795,7 @@ function jiraEpicKey(fields: Record<string, unknown>, names: Record<string, stri
 }
 
 function jiraAnalyticsFieldIds() {
-  return [jiraSprintFieldId()];
+  return [jiraSprintFieldId(), 'labels'];
 }
 
 function parseJiraDate(value: unknown) {
@@ -1063,6 +1074,36 @@ function jiraStatusTransitions(issue: JiraSearchResponse['issues'][number]) {
           actor: history.author?.displayName?.trim() || history.author?.name?.trim() || null,
         },
       ];
+    });
+  });
+}
+
+function normalizedJiraLabels(value: string | null | undefined) {
+  const normalized = value?.normalize('NFKC').trim() ?? '';
+  if (!normalized) return [];
+  return jiraStringArray(normalized.split(/\s+/u));
+}
+
+function jiraLabelChanges(issue: JiraSearchResponse['issues'][number]) {
+  return (issue.changelog?.histories ?? []).flatMap((history) => {
+    const changedAt = parseJiraDate(history.created);
+    if (!changedAt) return [];
+    return history.items.flatMap((item, itemIndex) => {
+      if ((item.fieldId ?? item.field)?.trim().toLowerCase() !== 'labels') return [];
+      return [{
+        key: history.id
+          ? `${history.id}:${itemIndex}`
+          : `derived:${createHash('sha256').update(JSON.stringify([
+              history.created,
+              item.fieldId ?? item.field ?? 'labels',
+              item.fromString ?? null,
+              item.toString ?? null,
+            ])).digest('hex')}`,
+        changedAt,
+        fromLabels: normalizedJiraLabels(item.fromString),
+        toLabels: normalizedJiraLabels(item.toString),
+        actor: history.author?.displayName?.trim() || history.author?.name?.trim() || null,
+      }];
     });
   });
 }
@@ -2869,6 +2910,8 @@ async function fetchJiraDataWithMeta(
         assignee: issue.fields.assignee?.displayName ?? null,
         reporter: issue.fields.reporter?.displayName ?? null,
         issueType: issue.fields.issuetype?.name ?? 'Issue',
+        labels: jiraStringArray(fields.labels),
+        sprintIds: jiraSprintIdsFromFields(fields),
         resolution: issue.fields.resolution?.name ?? 'Unresolved',
         resolutionAt: parseJiraDate(issue.fields.resolutiondate),
         sprint: jiraSprintFromFields(fields),
@@ -2881,6 +2924,7 @@ async function fetchJiraDataWithMeta(
         updatedAt: new Date(issue.fields.updated),
         transitions: jiraStatusTransitions(issue),
         transitionHistoryComplete: jiraTransitionHistoryComplete(issue),
+        labelChanges: jiraLabelChanges(issue),
         development: selectJiraDevelopment(
           jiraDevelopmentFromFields(fields, names),
           hydratedData.remoteDevelopmentByKey.get(issue.key) ?? null,
@@ -2892,8 +2936,6 @@ async function fetchJiraDataWithMeta(
                 ?? jiraObjectString(status?.statusCategory, 'key'),
               parentKey: jiraObjectString(fields.parent, 'key'),
               epicKey: jiraEpicKey(fields, names),
-              labels: jiraStringArray(fields.labels),
-              sprintIds: jiraSprintIdsFromFields(fields),
               history: {
               document: history.payload,
               changelogComplete: history.changelogComplete,

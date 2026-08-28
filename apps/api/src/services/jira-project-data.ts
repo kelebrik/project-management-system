@@ -17,6 +17,7 @@ export type JiraProjectDataClearResult = {
   ticketsDeleted: number;
   versionsDeleted: number;
   statusTransitionsDeleted: number;
+  labelChangesDeleted: number;
   developmentActivitiesDeleted: number;
   membershipsDeleted: number;
   retriesDeleted: number;
@@ -72,6 +73,9 @@ export async function clearJiraProjectData(
     const statusTransitions = await transaction.jiraIssueStatusTransition.deleteMany({
       where: { snapshot: { projectId } },
     });
+    const labelChanges = await transaction.jiraIssueLabelChange.deleteMany({
+      where: { snapshot: { projectId } },
+    });
     const developmentActivities = await transaction.jiraDevelopmentActivity.deleteMany({
       where: { snapshot: { projectId } },
     });
@@ -110,6 +114,7 @@ export async function clearJiraProjectData(
       ticketsDeleted: snapshots.count,
       versionsDeleted: versions.count,
       statusTransitionsDeleted: statusTransitions.count,
+      labelChangesDeleted: labelChanges.count,
       developmentActivitiesDeleted: developmentActivities.count,
       membershipsDeleted: memberships.count,
       retriesDeleted: retries.count,

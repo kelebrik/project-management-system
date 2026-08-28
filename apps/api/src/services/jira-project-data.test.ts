@@ -48,6 +48,12 @@ test('project Jira clear deletes only imported data for the selected project', a
         return { count: 3 };
       },
     },
+    jiraIssueLabelChange: {
+      deleteMany: async (value: unknown) => {
+        calls.push({ operation: 'labelChange.deleteMany', value });
+        return { count: 6 };
+      },
+    },
     jiraDevelopmentActivity: {
       deleteMany: async (value: unknown) => {
         calls.push({ operation: 'activity.deleteMany', value });
@@ -90,6 +96,7 @@ test('project Jira clear deletes only imported data for the selected project', a
     ticketsDeleted: 2,
     versionsDeleted: 7,
     statusTransitionsDeleted: 3,
+    labelChangesDeleted: 6,
     developmentActivitiesDeleted: 4,
     membershipsDeleted: 5,
     retriesDeleted: 1,
@@ -105,6 +112,7 @@ test('project Jira clear deletes only imported data for the selected project', a
   }
   for (const operation of [
     'transition.deleteMany',
+    'labelChange.deleteMany',
     'activity.deleteMany',
     'membership.deleteMany',
   ]) {
@@ -158,6 +166,7 @@ test('project Jira clear recovers from a stale settings run id after its lease e
     jiraSyncRun: { findFirst: async () => null },
     jiraWorkSectionIssue: { deleteMany: async () => ({ count: 0 }) },
     jiraIssueStatusTransition: { deleteMany: async () => ({ count: 0 }) },
+    jiraIssueLabelChange: { deleteMany: async () => ({ count: 0 }) },
     jiraDevelopmentActivity: { deleteMany: async () => ({ count: 0 }) },
     jiraIssueVersion: { deleteMany: async () => ({ count: 0 }) },
     jiraIssueSnapshot: { deleteMany: async () => ({ count: 0 }) },

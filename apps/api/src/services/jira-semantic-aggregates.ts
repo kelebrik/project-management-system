@@ -33,7 +33,7 @@ const qualityRules = {
   maximumRowsPerIssue: 500,
 };
 
-export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 2;
+export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 3;
 const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2 = new Set([
   "active-critical-blocker-risk",
   "retro-critical-blocker-task-sla-45-days",
@@ -408,10 +408,26 @@ export function jiraDashboardWithDefaultWidgetsForSeedVersion(
   currentSeedVersion: number,
 ): JiraSemanticDashboard {
   if (currentSeedVersion < 1) return jiraDashboardWithDefaultWidgets(current, defaults);
+  if (currentSeedVersion >= 2) return current;
   return jiraDashboardWithDefaultWidgets(current, {
     ...defaults,
     widgets: defaults.widgets.filter((widget) => JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2.has(widget.id)),
   });
+}
+
+export function jiraDashboardWithCurrentSystemAggregateRevisions(
+  dashboard: JiraSemanticDashboard,
+  references: readonly SystemAggregateReference[],
+): JiraSemanticDashboard {
+  const versions = new Map(references.flatMap((reference) => reference.publishedVersion === null
+    ? []
+    : [[reference.id, reference.publishedVersion] as const]));
+  return {
+    ...dashboard,
+    widgets: dashboard.widgets.map((widget) => versions.has(widget.aggregateId)
+      ? { ...widget, aggregateVersion: versions.get(widget.aggregateId)! }
+      : widget),
+  };
 }
 
 function hash(value: unknown) {
@@ -482,11 +498,18 @@ function definitionData(projectId: string, key: string, definition: JiraSemantic
   } satisfies Prisma.JiraAggregateDefinitionUncheckedCreateInput;
 }
 
-function withSprintCount(definition: JiraSemanticAggregateDefinition) {
-  if (definition.rowConfig.kind !== "issue" || definition.outputFields.some((field) => field.key === "sprintCount")) return definition;
+function withCurrentTicketFields(definition: JiraSemanticAggregateDefinition) {
+  const existing = new Set(definition.outputFields.map((field) => field.key));
+  const required = definition.rowConfig.kind === "issue"
+    ? (["sprintCount", "labels"] as const)
+    : (["labels"] as const);
+  const added = required
+    .filter((field) => !existing.has(field))
+    .map(jiraSemanticDefaultOutputField);
+  if (added.length === 0) return definition;
   return {
     ...definition,
-    outputFields: [...definition.outputFields, jiraSemanticDefaultOutputField("sprintCount")],
+    outputFields: [...definition.outputFields, ...added],
   } satisfies JiraSemanticAggregateDefinition;
 }
 
@@ -515,13 +538,20 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
         },
         update: {},
       });
-      if (aggregate.key === "issues" && row.publishedVersion !== null) {
+      if (row.publishedVersion !== null) {
         const publishedRevision = await transaction.jiraAggregateDefinitionRevision.findUnique({
           where: { aggregateId_version: { aggregateId: row.id, version: row.publishedVersion } },
         });
         const publishedDefinition = parsedDefinition(publishedRevision?.definition);
-        if (publishedRevision && publishedDefinition && !publishedDefinition.outputFields.some((field) => field.key === "sprintCount")) {
-          const upgradedPublished = withSprintCount(publishedDefinition);
+        const upgradedPublished = publishedDefinition
+          ? withCurrentTicketFields(publishedDefinition)
+          : null;
+        if (
+          publishedRevision
+          && publishedDefinition
+          && upgradedPublished
+          && upgradedPublished !== publishedDefinition
+        ) {
           const hasDraft = row.version !== row.publishedVersion;
           const publishedVersion = row.version + 1;
           await transaction.jiraAggregateDefinitionRevision.create({
@@ -537,7 +567,7 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
             },
           });
           if (hasDraft) {
-            const draftDefinition = withSprintCount(parsedDefinition(row.draftDefinition) ?? upgradedPublished);
+            const draftDefinition = withCurrentTicketFields(parsedDefinition(row.draftDefinition) ?? upgradedPublished);
             const draftVersion = publishedVersion + 1;
             await transaction.jiraAggregateDefinitionRevision.updateMany({
               where: { aggregateId: row.id, version: row.version, status: "draft" },
@@ -579,11 +609,16 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
     const settings = await transaction.jiraAnalyticsSettings.findUnique({ where: { projectId } });
     if ((settings?.semanticDefaultWidgetsVersion ?? 0) < JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION) {
       const parsedDashboard = jiraSemanticDashboardSchema.safeParse(settings?.dashboardConfig);
+      if (settings?.dashboardConfig != null && !parsedDashboard.success) return;
       const currentDashboard = parsedDashboard.success ? parsedDashboard.data : JIRA_SEMANTIC_EMPTY_DASHBOARD;
-      const dashboardConfig = jiraDashboardWithDefaultWidgetsForSeedVersion(
+      const seededDashboard = jiraDashboardWithDefaultWidgetsForSeedVersion(
         currentDashboard,
         jiraDefaultSemanticDashboard(references),
         settings?.semanticDefaultWidgetsVersion ?? 0,
+      );
+      const dashboardConfig = jiraDashboardWithCurrentSystemAggregateRevisions(
+        seededDashboard,
+        references,
       ) as unknown as Prisma.InputJsonObject;
       await transaction.jiraAnalyticsSettings.upsert({
         where: { projectId },

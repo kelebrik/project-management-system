@@ -47,6 +47,7 @@ export function ProjectJiraWorkPage() {
       const result = await apiClient.delete<{
         ticketsDeleted: number;
         versionsDeleted: number;
+        labelChangesDeleted: number;
       }>(
         `/api/projects/${project.id}/jira/data`,
         "Не удалось очистить данные Jira проекта",

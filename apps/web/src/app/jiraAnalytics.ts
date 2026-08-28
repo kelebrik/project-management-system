@@ -125,6 +125,7 @@ export const JIRA_ANALYTICS_FILTER_LABELS: Record<JiraAnalyticsFilterField, stri
   priority: "Приоритет",
   sprint: "Sprint",
   sprintCount: "Количество записей Sprint",
+  labels: "Метки",
   issueType: "Тип тикета",
   resolution: "Решение",
   fromStatus: "Исходный статус",

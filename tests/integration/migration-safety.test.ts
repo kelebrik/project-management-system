@@ -129,6 +129,19 @@ test("Jira filter URL migration preserves existing section data", () => {
   assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
 });
 
+test("Jira labels history migration is additive and project-scoped through snapshots", () => {
+  const migration = migrationSql("20260827180000_jira_issue_label_history");
+
+  assert.match(migration, /CREATE\s+TABLE\s+"JiraIssueLabelChange"/i);
+  assert.match(migration, /ALTER\s+TABLE\s+"JiraIssueSnapshot"[\s\S]*ADD\s+COLUMN\s+"labels"\s+TEXT\[\]/i);
+  assert.match(migration, /CREATE\s+INDEX\s+"JiraIssueSnapshot_labels_idx"[\s\S]*USING\s+GIN/i);
+  assert.match(migration, /REFERENCES\s+"JiraIssueSnapshot"\("id"\)\s+ON\s+DELETE\s+CASCADE/i);
+  assert.match(migration, /UNIQUE\s+INDEX\s+"JiraIssueLabelChange_snapshotId_changeKey_key"/i);
+  assert.match(migration, /UPDATE\s+"JiraIssueSnapshot"[\s\S]*FROM\s+"JiraIssueVersion"/i);
+  assert.match(migration, /snapshot\."projectionUnversionedSince"\s+IS\s+NULL/i);
+  assert.doesNotMatch(migration, /\b(?:INSERT\s+INTO|DELETE\s+FROM|DROP|TRUNCATE)\b/i);
+});
+
 test("WBS Excel fields migration changes schema without rewriting project data", () => {
   const excelMigration = migrationSql("20260514093000_wbs_excel_fields_schema_only");
 
@@ -237,22 +250,22 @@ test("Jira semantic v5 cutover removes only replaceable analytics configuration"
 
   assert.match(migration, /DELETE FROM "JiraAnalyticsDashboardConversion"/);
   assert.match(migration, /DELETE FROM "JiraAggregateDefinition"/);
-  assert.doesNotMatch(migration, /DELETE FROM "JiraIssue(?:Snapshot|Version|StatusTransition|HistoryRetry)"/);
-  assert.doesNotMatch(migration, /DELETE FROM "JiraDevelopmentActivity"/);
-  assert.doesNotMatch(migration, /DELETE FROM "Project"/);
+  assert.doesNotMatch(migration, /DELETE FROM "JiraIssue(?:Snapshot|Version|StatusTransition|HistoryRetry)"/i);
+  assert.doesNotMatch(migration, /DELETE FROM "JiraDevelopmentActivity"/i);
+  assert.doesNotMatch(migration, /DELETE FROM "Project"/i);
 });
 
 test("default Jira widget migration only marks untouched empty dashboards for bootstrap", () => {
   const migration = migrationSql("20260827090000_jira_default_analytics_widgets");
   assert.match(migration, /UPDATE "JiraAnalyticsSettings"/u);
   assert.match(migration, /SET "dashboardConfig" = NULL/u);
-  assert.doesNotMatch(migration, /DELETE FROM/u);
-  assert.doesNotMatch(migration, /JiraIssue(?:Snapshot|Version|StatusTransition)/u);
+  assert.doesNotMatch(migration, /DELETE FROM/iu);
+  assert.doesNotMatch(migration, /JiraIssue(?:Snapshot|Version|StatusTransition)/iu);
 });
 
 test("default Jira widget seed version is additive and preserves dashboard data", () => {
   const migration = migrationSql("20260827093000_jira_default_widget_seed_version");
   assert.match(migration, /ADD COLUMN "semanticDefaultWidgetsVersion" INTEGER NOT NULL DEFAULT 0/u);
-  assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/u);
-  assert.doesNotMatch(migration, /JiraIssue(?:Snapshot|Version|StatusTransition)/u);
+  assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/iu);
+  assert.doesNotMatch(migration, /JiraIssue(?:Snapshot|Version|StatusTransition)/iu);
 });

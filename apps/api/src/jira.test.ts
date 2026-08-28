@@ -829,6 +829,7 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
               resolutiondate: '2026-05-23T09:00:00.000+0300',
               created: '2026-05-20T09:00:00.000+0300',
               updated: '2026-05-23T10:00:00.000+0300',
+              labels: ['cvte968', 'release'],
               customfield_10004: [
                 {
                   name: 'Sprint 24',
@@ -848,6 +849,12 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
                       fieldId: 'status',
                       fromString: 'Open',
                       toString: 'Resolved',
+                    },
+                    {
+                      field: 'Labels',
+                      fieldId: 'labels',
+                      fromString: 'cvte968',
+                      toString: 'release cvte968',
                     },
                   ],
                 },
@@ -888,6 +895,7 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
     assert.ok(!searchBody.fields.includes('customfield_10200'));
     assert.ok(!searchBody.fields.includes('customfield_10300'));
     assert.ok(searchBody.fields.includes('resolutiondate'));
+    assert.ok(searchBody.fields.includes('labels'));
     assert.deepEqual(issues, [
       {
         jiraId: '10042',
@@ -899,6 +907,8 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
         assignee: 'Ivan Petrov',
         reporter: null,
         issueType: 'Bug',
+        labels: ['cvte968', 'release'],
+        sprintIds: [],
         resolution: 'Fixed',
         resolutionAt: new Date('2026-05-23T09:00:00.000+0300'),
         sprint: 'Sprint 24',
@@ -917,6 +927,15 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
           },
         ],
         transitionHistoryComplete: true,
+        labelChanges: [
+          {
+            key: '2001:1',
+            changedAt: new Date('2026-05-21T11:00:00.000+0300'),
+            fromLabels: ['cvte968'],
+            toLabels: ['cvte968', 'release'],
+            actor: 'Petr Ivanov',
+          },
+        ],
         development: {
           commitCount: 4,
           mergeRequestCount: 2,

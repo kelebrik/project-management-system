@@ -124,6 +124,7 @@ export const jiraAnalyticsFilterFields = [
   "priority",
   "sprint",
   "sprintCount",
+  "labels",
   "issueType",
   "resolution",
   "fromStatus",
@@ -235,6 +236,7 @@ export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
     "priority",
     "sprint",
     "sprintCount",
+    "labels",
     "issueType",
     "resolution",
     "hasDevelopment",
@@ -245,12 +247,12 @@ export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
     "resolutionAt",
     "updatedAt",
   ],
-  transitions: ["issueKey", "project", "summary", "status", "assignee", "reporter", "fromStatus", "toStatus", "eventAt", "durationHours"],
-  development: ["issueKey", "project", "summary", "status", "assignee", "reporter", "sprint", "eventAt", "commitCount", "mergeRequestCount"],
-  criticalBugs: ["issueKey", "project", "summary", "status", "assignee", "reporter", "priority", "issueType", "resolution", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "durationHours"],
+  transitions: ["issueKey", "project", "summary", "status", "assignee", "reporter", "labels", "fromStatus", "toStatus", "eventAt", "durationHours"],
+  development: ["issueKey", "project", "summary", "status", "assignee", "reporter", "labels", "sprint", "eventAt", "commitCount", "mergeRequestCount"],
+  criticalBugs: ["issueKey", "project", "summary", "status", "assignee", "reporter", "labels", "priority", "issueType", "resolution", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "durationHours"],
   statusIntervals: [
     "issueKey", "project", "summary", "status", "assignee", "reporter",
-    "issueType", "priority", "resolution", "issueCreatedAt", "fromStatus",
+    "issueType", "priority", "labels", "resolution", "issueCreatedAt", "fromStatus",
     "criticalPriorityAt", "resolutionAt", "eventAt", "intervalStartAt", "intervalEndAt", "durationHours",
   ],
 };
@@ -1223,6 +1225,7 @@ export type JiraAnalyticsIssueData = {
   resolution: string | null;
   sprint: string | null;
   sprintCount: number;
+  labels: string[];
   issueCreatedAt: string | null;
   criticalPriorityAt: string | null;
   criticalEndPriority?: string | null;
@@ -1692,6 +1695,7 @@ function recordValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilt
   if (field === "commitCount") return record.commitCount;
   if (field === "mergeRequestCount") return record.mergeRequestCount;
   if (field === "sprintCount") return record.issue.sprintCount;
+  if (field === "labels") return record.issue.labels;
   if (field === "hasDevelopment") return record.issue.commitCount > 0 || record.issue.mergeRequestCount > 0;
   if (field === "eventAt") return record.eventAt;
   if (field === "intervalStartAt") return record.intervalStartAt;
@@ -1703,6 +1707,19 @@ function recordValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilt
 
 function filterMatches(record: JiraAnalyticsResultRecord, filter: JiraAnalyticsFilter) {
   const actual = recordValue(record, filter.field);
+  if (filter.field === "labels") {
+    const labels = Array.isArray(actual)
+      ? actual.map((label) => String(label).trim()).filter(Boolean)
+      : [];
+    if (filter.operator === "empty") return labels.length === 0;
+    if (filter.operator === "notEmpty") return labels.length > 0;
+    const expected = filter.value.trim().toLocaleLowerCase("ru-RU");
+    const foldedLabels = labels.map((label) => label.toLocaleLowerCase("ru-RU"));
+    if (filter.operator === "equals") return foldedLabels.includes(expected);
+    if (filter.operator === "notEquals") return !foldedLabels.includes(expected);
+    if (filter.operator === "contains") return foldedLabels.some((label) => label.includes(expected));
+    return false;
+  }
   const actualText = actual === null || actual === undefined ? "" : String(actual).trim();
   const expected = filter.field === "resolution" &&
     (filter.operator === "equals" || filter.operator === "notEquals") &&

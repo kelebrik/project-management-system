@@ -1,10 +1,6 @@
-const jiraAnalyticsOpenApiFields = [
-  "issueKey", "project", "summary", "status", "assignee", "reporter", "priority",
-  "sprint", "sprintCount", "issueType", "resolution", "fromStatus", "toStatus", "durationHours",
-  "commitCount", "mergeRequestCount", "hasDevelopment", "issueCreatedAt",
-  "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt",
-  "intervalStartAt", "intervalEndAt",
-] as const;
+import { jiraAnalyticsFilterFields } from "@pms/shared";
+
+const jiraAnalyticsOpenApiFields = jiraAnalyticsFilterFields;
 
 const pathParam = (name: string) => ({
   name,
@@ -1425,7 +1421,7 @@ export const openApiDocument = {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["reportVersion", "generatedAt", "storage", "global", "project", "retry", "cursor"],
+                  required: ["reportVersion", "generatedAt", "storage", "global", "project", "retry", "cursor", "labelChanges"],
                   properties: {
                     reportVersion: { type: "integer", enum: [1] },
                     generatedAt: { type: "string", format: "date-time" },
@@ -1442,6 +1438,14 @@ export const openApiDocument = {
                     },
                     global: { $ref: "#/components/schemas/JiraHistoryAggregate" },
                     project: { $ref: "#/components/schemas/JiraHistoryAggregate" },
+                    labelChanges: {
+                      type: "object",
+                      required: ["global", "project"],
+                      properties: {
+                        global: { type: "integer", minimum: 0 },
+                        project: { type: "integer", minimum: 0 },
+                      },
+                    },
                     retry: {
                       type: "object",
                       required: ["pending", "failedBatches", "oldestFailureAt", "nextRetryAt", "items"],
@@ -1511,6 +1515,7 @@ export const openApiDocument = {
                     "ticketsDeleted",
                     "versionsDeleted",
                     "statusTransitionsDeleted",
+                    "labelChangesDeleted",
                     "developmentActivitiesDeleted",
                     "membershipsDeleted",
                     "retriesDeleted",
@@ -1520,6 +1525,7 @@ export const openApiDocument = {
                     ticketsDeleted: { type: "integer", minimum: 0 },
                     versionsDeleted: { type: "integer", minimum: 0 },
                     statusTransitionsDeleted: { type: "integer", minimum: 0 },
+                    labelChangesDeleted: { type: "integer", minimum: 0 },
                     developmentActivitiesDeleted: { type: "integer", minimum: 0 },
                     membershipsDeleted: { type: "integer", minimum: 0 },
                     retriesDeleted: { type: "integer", minimum: 0 },
