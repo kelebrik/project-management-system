@@ -1706,7 +1706,6 @@
 
 .jira-analytics-table {
   border-collapse: collapse;
-  min-width: 920px;
   table-layout: fixed;
   width: 100%;
 }
@@ -1731,28 +1730,6 @@
   top: 0;
   z-index: 1;
 }
-
-.jira-analytics-table th:nth-child(1) { width: 92px; }
-.jira-analytics-table th:nth-child(2) { width: 240px; }
-.jira-analytics-table th:nth-child(3) { width: 150px; }
-.jira-analytics-table th:nth-child(4) { width: 190px; }
-.jira-analytics-table th:nth-child(5) { width: 130px; }
-.jira-analytics-table th:nth-child(6) { width: 82px; }
-.jira-analytics-table th:nth-child(7) { width: 105px; }
-
-.jira-analytics-table.critical-sla {
-  min-width: 1180px;
-}
-
-.jira-analytics-table.critical-sla th:nth-child(1) { width: 92px; }
-.jira-analytics-table.critical-sla th:nth-child(2) { width: 250px; }
-.jira-analytics-table.critical-sla th:nth-child(3) { width: 95px; }
-.jira-analytics-table.critical-sla th:nth-child(4) { width: 150px; }
-.jira-analytics-table.critical-sla th:nth-child(5) { width: 120px; }
-.jira-analytics-table.critical-sla th:nth-child(6),
-.jira-analytics-table.critical-sla th:nth-child(7),
-.jira-analytics-table.critical-sla th:nth-child(8) { width: 145px; }
-.jira-analytics-table.critical-sla th:nth-child(9) { width: 95px; }
 
 .jira-analytics-table tbody tr:hover {
   background: var(--surface-2);
@@ -1926,6 +1903,43 @@
   border: 0;
   margin: 0;
   padding: 0;
+}
+
+.jira-widget-column-widths > div {
+  display: grid;
+  gap: 6px;
+}
+
+.jira-widget-column-width-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 134px;
+}
+
+.jira-widget-column-width-row > label {
+  color: var(--text);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jira-widget-column-width-row > span {
+  align-items: center;
+  display: grid;
+  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) auto 30px;
+}
+
+.jira-widget-column-widths input {
+  min-width: 0;
+  width: 100%;
+}
+
+.jira-widget-column-widths small {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .jira-widget-editor legend,

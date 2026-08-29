@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   jiraSemanticAggregateDefinitionSchema,
   jiraSemanticCompatibleChange,
+  jiraSemanticWidgetSchema,
 } from "@pms/shared";
 import { Prisma } from "@prisma/client";
 
@@ -45,6 +46,35 @@ test("semantic catalog exposes the managed Jira row sets", () => {
       `${aggregate.key} must expose ticket labels`,
     );
   }
+});
+
+test("semantic widget accepts widths only for selected fields", () => {
+  const baseWidget = {
+    id: "widget-1",
+    title: "Тикеты",
+    aggregateId: "aggregate-1",
+    aggregateVersion: 1,
+    placement: "active",
+    selectedFields: ["issueKey", "summary"],
+    filterLogic: "and",
+    filters: [],
+    dateField: null,
+    asOf: null,
+    metric: "count",
+    groupBy: "none",
+    sortBy: "default",
+    sortDirection: "desc",
+    visualization: "table",
+    width: "full",
+  } as const;
+
+  assert.equal(jiraSemanticWidgetSchema.safeParse(baseWidget).success, true);
+  assert.equal(jiraSemanticWidgetSchema.safeParse({ ...baseWidget, columnWidths: {} }).success, true);
+  assert.equal(jiraSemanticWidgetSchema.safeParse({ ...baseWidget, columnWidths: { issueKey: 120, summary: 360 } }).success, true);
+  assert.equal(jiraSemanticWidgetSchema.safeParse({ ...baseWidget, columnWidths: { issueKey: 40 } }).success, false);
+  assert.equal(jiraSemanticWidgetSchema.safeParse({ ...baseWidget, columnWidths: { issueKey: 601 } }).success, false);
+  assert.equal(jiraSemanticWidgetSchema.safeParse({ ...baseWidget, columnWidths: { status: 120 } }).success, false);
+  assert.equal(jiraSemanticWidgetSchema.safeParse({ ...baseWidget, columnWidths: { unknown: 120 } }).success, false);
 });
 
 test("default semantic dashboard contains the requested operational and retrospective widgets", () => {

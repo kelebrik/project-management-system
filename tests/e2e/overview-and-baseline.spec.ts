@@ -447,7 +447,7 @@ async function mockManagedJiraAnalytics(
   let semanticDashboardHash = "d".repeat(64);
 
   await page.route(/\/api\/projects\/project-1\/jira\/semantic-aggregates$/, (route) =>
-    route.fulfill({ json: { definitions: semanticDefinitions, dashboard: semanticDashboard, dashboardConfigHash: semanticDashboardHash } }),
+    route.fulfill({ json: { definitions: semanticDefinitions, goals: [], dashboard: semanticDashboard, dashboardConfigHash: semanticDashboardHash } }),
   );
   await page.route("**/api/projects/project-1/jira/semantic-dashboard", async (route) => {
     const body = route.request().postDataJSON() as { config: typeof semanticDashboard };
@@ -737,6 +737,7 @@ async function mockManagedJiraAnalytics(
       },
     });
   });
+  return { getSemanticDashboard: () => semanticDashboard };
 }
 
 function portfolioProjectFixture(
@@ -1250,7 +1251,7 @@ test("Jira data page owns the project scope and no longer exposes work sections"
 test("Jira v5 separates managed aggregate rows from widget presentation", async ({ page }) => {
   const project = await mockAdminProject(page);
   project._count.jiraSnapshots = 1;
-  await mockManagedJiraAnalytics(page, project);
+  const analytics = await mockManagedJiraAnalytics(page, project);
 
   await page.goto("/TV-OVERVIEW/jira-work");
   await expect(page.locator(".jira-analytics-widget")).toHaveCount(0);
@@ -1296,6 +1297,7 @@ test("Jira v5 separates managed aggregate rows from widget presentation", async 
   await expect(editor.getByLabel("Результат")).toBeVisible();
   await expect(editor.getByLabel("Группировка")).toBeVisible();
   await expect(editor.getByRole("group", { name: "Поля" })).toBeVisible();
+  await expect(editor.getByRole("group", { name: "Ширина колонок" })).toHaveCount(0);
   await expect(editor.getByLabel("Раздел")).toHaveCount(0);
 
   await editor.getByLabel("Агрегат").selectOption("semantic-status-transitions");
@@ -1304,12 +1306,55 @@ test("Jira v5 separates managed aggregate rows from widget presentation", async 
   await expect(editor.getByLabel("Агрегат")).toHaveValue("semantic-issues");
 
   await editor.getByLabel("Результат").selectOption("list");
+  await expect(editor.getByRole("group", { name: "Ширина колонок" })).toBeVisible();
+  for (const field of ["Проект Jira", "Текущий статус", "Исполнитель", "Resolution", "Дата создания", "Последнее изменение", "Есть активность разработки"]) {
+    await editor.getByRole("checkbox", { name: field, exact: true }).uncheck();
+  }
+  await editor.getByRole("group", { name: "Ширина виджета" }).getByRole("button", { name: "1/1" }).click();
+  const issueKeyWidth = editor.getByLabel("Ширина поля «Ключ тикета», пикселей");
+  const summaryWidth = editor.getByLabel("Ширина поля «Название», пикселей");
+  await issueKeyWidth.fill("");
+  await issueKeyWidth.blur();
+  await expect(issueKeyWidth).toHaveValue("110");
+  await issueKeyWidth.fill("");
+  await issueKeyWidth.pressSequentially("180");
+  await issueKeyWidth.press("Enter");
+  await expect(issueKeyWidth).toBeFocused();
+  await summaryWidth.fill("");
+  await summaryWidth.pressSequentially("420");
+  await summaryWidth.press("Enter");
+  await summaryWidth.fill("500");
+  await editor.getByRole("button", { name: "Сбросить ширину поля «Название»" }).click();
+  await expect(summaryWidth).toHaveValue("300");
+  await summaryWidth.fill("420");
+  await summaryWidth.press("Enter");
+  await page.getByRole("button", { name: "Добавить виджет" }).click();
+  await editor.getByLabel("Результат").selectOption("list");
+  const secondSummaryWidth = editor.getByLabel("Ширина поля «Название», пикселей");
+  await expect(secondSummaryWidth).toHaveValue("300");
+  await secondSummaryWidth.fill("500");
+  await secondSummaryWidth.press("Escape");
+  await secondSummaryWidth.blur();
+  await expect(secondSummaryWidth).toHaveValue("300");
+  await expect(editor.getByRole("button", { name: "Сбросить ширину поля «Название»" })).toBeDisabled();
+  await page.locator(".jira-analytics-widget.selected").getByRole("button", { name: "Удалить" }).click();
   await page.getByRole("button", { name: "Сохранить" }).click();
   const widget = page.locator(".jira-analytics-widget").filter({ hasText: "Тикеты" });
   await expect(widget.getByRole("link", { name: "TV-101" })).toBeVisible();
+  expect((analytics.getSemanticDashboard().widgets[0] as { columnWidths?: Record<string, number> }).columnWidths).toMatchObject({
+    issueKey: 180,
+    summary: 420,
+  });
+  const issueKeyHeader = await widget.getByRole("columnheader", { name: "Ключ тикета" }).boundingBox();
+  const summaryHeader = await widget.getByRole("columnheader", { name: "Название" }).boundingBox();
+  const table = await widget.getByRole("table").boundingBox();
+  expect(issueKeyHeader?.width).toBeCloseTo(180, 0);
+  expect(summaryHeader?.width).toBeCloseTo(420, 0);
+  expect(table?.width).toBeCloseTo(600, 0);
 
   await page.getByRole("button", { name: "Редактировать" }).click();
   await widget.getByRole("button", { name: "Настроить" }).click();
+  await editor.getByRole("checkbox", { name: "Проект Jira", exact: true }).check();
   await editor.getByLabel("Результат").selectOption("count");
   await editor.getByLabel("Группировка").selectOption("project");
   await page.getByRole("button", { name: "Сохранить" }).click();

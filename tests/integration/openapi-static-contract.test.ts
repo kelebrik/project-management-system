@@ -154,12 +154,13 @@ test("OpenAPI keeps semantic aggregates separate from widget presentation", () =
   const widget = document.components.schemas.JiraSemanticWidget;
   const dashboard = document.components.schemas.JiraSemanticDashboard;
 
-  for (const presentationField of ["metric", "groupBy", "sortBy", "visualization", "placement", "width"]) {
+  for (const presentationField of ["metric", "groupBy", "sortBy", "visualization", "placement", "width", "columnWidths"]) {
     assert.equal(presentationField in (aggregate.properties ?? {}), false, `aggregate must not own ${presentationField}`);
   }
   for (const widgetField of ["aggregateId", "aggregateVersion", "metric", "groupBy", "sortBy", "visualization", "placement", "width"]) {
     assert.ok(widget.required?.includes(widgetField), `widget must own ${widgetField}`);
   }
+  assert.ok("columnWidths" in (widget.properties ?? {}), "widget must own optional column widths");
   assert.ok(dashboard.required?.includes("widgets"));
   for (const suffix of ["query", "query.csv"]) {
     assert.ok(document.paths[`/api/projects/{projectId}/jira/semantic-aggregates/{aggregateId}/${suffix}`]?.post);

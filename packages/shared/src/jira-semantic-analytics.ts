@@ -14,6 +14,8 @@ import {
 } from "./jira-analytics.js";
 
 export const JIRA_SEMANTIC_MAX_AS_OF_SLICES = 5;
+export const JIRA_SEMANTIC_COLUMN_WIDTH_MIN = 60;
+export const JIRA_SEMANTIC_COLUMN_WIDTH_MAX = 600;
 
 export const jiraSemanticAggregateGrains = [
   "issue",
@@ -288,6 +290,10 @@ export const jiraSemanticWidgetSchema = z.object({
   aggregateVersion: z.number().int().min(1),
   placement: z.enum(["active", "retro"]),
   selectedFields: z.array(z.enum(jiraAnalyticsFilterFields)).min(1).max(jiraAnalyticsFilterFields.length),
+  columnWidths: z.partialRecord(
+    z.enum(jiraAnalyticsFilterFields),
+    z.number().int().min(JIRA_SEMANTIC_COLUMN_WIDTH_MIN).max(JIRA_SEMANTIC_COLUMN_WIDTH_MAX),
+  ).optional(),
   filterLogic: z.enum(["and", "or"]),
   filters: z.array(jiraAnalyticsFilterSchema).max(30),
   dateField: z.enum(jiraAnalyticsFilterFields).nullable(),
@@ -303,6 +309,11 @@ export const jiraSemanticWidgetSchema = z.object({
   if (selected.size !== widget.selectedFields.length) {
     context.addIssue({ code: "custom", path: ["selectedFields"], message: "Поля виджета не должны повторяться" });
   }
+  Object.keys(widget.columnWidths ?? {}).forEach((field) => {
+    if (!selected.has(field as JiraAnalyticsFilterField)) {
+      context.addIssue({ code: "custom", path: ["columnWidths", field], message: "Ширина задаётся только для выбранного поля" });
+    }
+  });
   widget.filters.forEach((filter, index) => {
     if (!selected.has(filter.field)) {
       context.addIssue({ code: "custom", path: ["filters", index, "field"], message: "Поле условия должно быть выбрано в виджете" });

@@ -24,6 +24,7 @@ export function useEditableCaptureHandlers() {
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (!isEditableElement(event.target)) return;
       if (event.target.closest(".wbs-excel-table")) return;
+      if (event.target.dataset.editableKeyHandler === "local") return;
       handleEditableKey(event.target, event.key, {
         metaKey: event.metaKey,
         ctrlKey: event.ctrlKey,

@@ -1,4 +1,6 @@
 import {
+  JIRA_SEMANTIC_COLUMN_WIDTH_MAX,
+  JIRA_SEMANTIC_COLUMN_WIDTH_MIN,
   jiraAnalyticsFilterFields,
   jiraAnalyticsFilterOperators,
   jiraAnalyticsGroupings,
@@ -248,6 +250,11 @@ export const openApiDocument = {
           aggregateVersion: { type: "integer", minimum: 1 },
           placement: { type: "string", enum: ["active", "retro"] },
           selectedFields: { type: "array", minItems: 1, maxItems: jiraAnalyticsOpenApiFields.length, uniqueItems: true, items: { type: "string", enum: jiraAnalyticsOpenApiFields } },
+          columnWidths: {
+            type: "object",
+            additionalProperties: { type: "integer", minimum: JIRA_SEMANTIC_COLUMN_WIDTH_MIN, maximum: JIRA_SEMANTIC_COLUMN_WIDTH_MAX },
+            propertyNames: { enum: jiraAnalyticsOpenApiFields },
+          },
           filterLogic: { type: "string", enum: ["and", "or"] },
           filters: { type: "array", maxItems: 30, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
           dateField: { type: ["string", "null"], enum: [...jiraAnalyticsOpenApiFields, null] },
