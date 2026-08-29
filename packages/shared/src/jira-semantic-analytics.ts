@@ -17,6 +17,7 @@ export const JIRA_SEMANTIC_MAX_AS_OF_SLICES = 5;
 
 export const jiraSemanticAggregateGrains = [
   "issue",
+  "goalIssue",
   "transitionEvent",
   "developmentEvent",
   "interval",
@@ -34,6 +35,7 @@ export const jiraSemanticAggregateFieldTypes = ["text", "number", "boolean", "da
 
 export const jiraSystemAggregateKeys = [
   "issues",
+  "goal-linked-issues",
   "status-transitions",
   "development-activity",
   "status-intervals",
@@ -76,6 +78,7 @@ export const jiraSemanticIntervalAnchorSchema = z.discriminatedUnion("type", [
 ]);
 
 const issueRowsSchema = z.object({ kind: z.literal("issue") }).strict();
+const goalIssueRowsSchema = z.object({ kind: z.literal("goalIssue") }).strict();
 const transitionRowsSchema = z.object({ kind: z.literal("transitionEvent") }).strict();
 const developmentRowsSchema = z.object({ kind: z.literal("developmentEvent") }).strict();
 const intervalRowsSchema = z.object({
@@ -106,6 +109,7 @@ const criticalRiskRowsSchema = z.object({
 
 export const jiraSemanticAggregateRowConfigSchema = z.discriminatedUnion("kind", [
   issueRowsSchema,
+  goalIssueRowsSchema,
   transitionRowsSchema,
   developmentRowsSchema,
   intervalRowsSchema,
@@ -143,6 +147,8 @@ export const jiraSemanticAggregateDefinitionSchema = z.object({
 }).strict().superRefine((definition, context) => {
   const expectedGrain: JiraSemanticAggregateGrain = definition.rowConfig.kind === "issue"
     ? "issue"
+    : definition.rowConfig.kind === "goalIssue"
+      ? "goalIssue"
     : definition.rowConfig.kind === "transitionEvent"
       ? "transitionEvent"
       : definition.rowConfig.kind === "developmentEvent"
@@ -157,6 +163,8 @@ export const jiraSemanticAggregateDefinitionSchema = z.object({
   }
   const source = definition.rowConfig.kind === "issue"
     ? "issues"
+    : definition.rowConfig.kind === "goalIssue"
+      ? "goalIssues"
     : definition.rowConfig.kind === "transitionEvent"
       ? "transitions"
       : definition.rowConfig.kind === "developmentEvent"
@@ -235,14 +243,14 @@ export const jiraSemanticAggregateDefinitionSchema = z.object({
       }
     });
   }
-  if (definition.rowConfig.kind === "issue" && definition.incompleteDataPolicy !== "includeWithWarning") {
+  if ((definition.rowConfig.kind === "issue" || definition.rowConfig.kind === "goalIssue") && definition.incompleteDataPolicy !== "includeWithWarning") {
     context.addIssue({
       code: "custom",
       path: ["incompleteDataPolicy"],
       message: "Снимки тикетов включаются с предупреждением о неполной истории",
     });
   }
-  if (definition.rowConfig.kind !== "issue" && definition.incompleteDataPolicy !== "exclude") {
+  if (definition.rowConfig.kind !== "issue" && definition.rowConfig.kind !== "goalIssue" && definition.incompleteDataPolicy !== "exclude") {
     context.addIssue({
       code: "custom",
       path: ["incompleteDataPolicy"],
@@ -252,6 +260,7 @@ export const jiraSemanticAggregateDefinitionSchema = z.object({
   if (
     definition.asOfSupport === "supported"
     && definition.rowConfig.kind !== "issue"
+    && definition.rowConfig.kind !== "goalIssue"
     && definition.rowConfig.kind !== "criticalSla"
   ) {
     context.addIssue({
@@ -365,6 +374,12 @@ export const JIRA_SEMANTIC_EMPTY_DASHBOARD: JiraSemanticDashboard = {
 };
 
 export const JIRA_SEMANTIC_FIELD_LABELS: Record<(typeof jiraAnalyticsFilterFields)[number], string> = {
+  goalId: "ID цели",
+  goalName: "Цель",
+  goalStatus: "Статус цели",
+  goalDate: "Дата цели",
+  goalLabels: "Лейблы цели",
+  matchedLabels: "Совпавшие лейблы",
   issueKey: "Ключ тикета",
   project: "Проект Jira",
   summary: "Название",
@@ -392,7 +407,7 @@ export const JIRA_SEMANTIC_FIELD_LABELS: Record<(typeof jiraAnalyticsFilterField
   intervalEndAt: "Конец интервала",
 };
 
-const dateFields = new Set(["issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt", "intervalStartAt", "intervalEndAt"]);
+const dateFields = new Set(["goalDate", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt", "intervalStartAt", "intervalEndAt"]);
 const numberFields = new Set(["durationHours", "commitCount", "mergeRequestCount", "sprintCount"]);
 
 export function jiraSemanticDefaultOutputField(key: (typeof jiraAnalyticsFilterFields)[number]): JiraSemanticOutputField {
@@ -400,7 +415,7 @@ export function jiraSemanticDefaultOutputField(key: (typeof jiraAnalyticsFilterF
     key,
     label: JIRA_SEMANTIC_FIELD_LABELS[key],
     type: dateFields.has(key) ? "date" : numberFields.has(key) ? "number" : key === "hasDevelopment" ? "boolean" : "text",
-    nullable: !["issueKey", "summary", "status", "priority", "issueType"].includes(key),
+    nullable: !["goalId", "goalName", "goalStatus", "issueKey", "summary", "status", "priority", "issueType"].includes(key),
   };
 }
 

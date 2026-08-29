@@ -1176,9 +1176,38 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/goal-labels": {
+      patch: {
+        ...securedOperation(["Jira"], "Configure local WBS goal to Jira label mappings as system administrator", [projectIdParam]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              goals: {
+                type: "array",
+                maxItems: 500,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    goalId: { type: "string" },
+                    labels: { type: "array", maxItems: 20, items: { type: "string" } },
+                  },
+                  required: ["goalId", "labels"],
+                },
+              },
+            },
+            required: ["goals"],
+          } } },
+        },
+        responses: { "200": { description: "Goal label mappings saved locally" }, ...jiraAggregateErrorResponses },
+      },
+    },
     "/api/projects/{projectId}/jira/semantic-aggregates/bootstrap": {
       post: {
-        ...createOperation(["Jira"], "Create the five system semantic aggregates as system administrator", [projectIdParam]),
+        ...createOperation(["Jira"], "Create the system semantic aggregates as system administrator", [projectIdParam]),
         responses: { "204": { description: "System semantic aggregates are present" }, ...jiraAggregateErrorResponses },
       },
     },

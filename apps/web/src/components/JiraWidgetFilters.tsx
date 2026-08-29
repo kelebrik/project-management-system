@@ -29,7 +29,7 @@ function FilterEditor({ filter, fields, onChange, onDelete }: {
   return <div className="jira-widget-filter-row">
     <select value={filter.field} onChange={(event) => { const field = event.target.value as JiraAnalyticsFilterField; onChange({ ...filter, field, operator: jiraAnalyticsOperatorsFor(field)[0] ?? "equals", value: "" }); }}>{fields.map((field) => <option key={field} value={field}>{JIRA_ANALYTICS_FILTER_LABELS[field]}</option>)}</select>
     <select value={filter.operator} onChange={(event) => { const operator = event.target.value as JiraAnalyticsFilterOperator; onChange({ ...filter, operator, value: operator === "empty" || operator === "notEmpty" ? "" : filter.value }); }}>{operators.map((operator) => <option key={operator} value={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}</select>
-    <input value={filter.value} disabled={noValue} onChange={(event) => onChange({ ...filter, value: event.target.value })} />
+    <input value={filter.value} disabled={noValue} placeholder={filter.operator === "oneOf" || filter.operator === "noneOf" ? "Значения через запятую" : undefined} onChange={(event) => onChange({ ...filter, value: event.target.value })} />
     <button type="button" className="icon-button danger" title="Удалить условие" onClick={onDelete}><Trash2 size={16} /></button>
   </div>;
 }

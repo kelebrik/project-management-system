@@ -3,6 +3,7 @@ import {
   JIRA_SEMANTIC_MAX_AS_OF_SLICES,
   JiraAnalyticsEvaluationLimitError,
   jiraAnalyticsFilterSchema,
+  jiraAnalyticsLabels,
   jiraAnalyticsGroupings,
   jiraAnalyticsMetrics,
   jiraAnalyticsPeriodDays,
@@ -97,6 +98,12 @@ const batchQuerySchema = z.object({
 });
 
 const publishSchema = z.object({ expectedVersion: z.number().int().min(1) }).strict();
+const goalLabelsSchema = z.object({
+  goals: z.array(z.object({
+    goalId: z.string().min(1).max(200),
+    labels: z.array(z.string().trim().min(1).max(100)).max(20),
+  }).strict()).max(500),
+}).strict();
 const deleteSchema = z.object({ expectedVersion: z.coerce.number().int().min(1) }).strict();
 const dashboardSaveSchema = z.object({
   config: jiraSemanticDashboardSchema,
@@ -139,7 +146,7 @@ export function jiraSemanticEvaluationNow(asOf: string | null | undefined) {
 }
 
 const groupField: Record<string, string | null> = {
-  none: null, project: "project", status: "status", assignee: "assignee", reporter: "reporter",
+  none: null, goal: "goalName", project: "project", status: "status", assignee: "assignee", reporter: "reporter",
   priority: "priority", sprint: "sprint", issueType: "issueType", resolution: "resolution",
   fromStatus: "fromStatus", toStatus: "toStatus", week: "eventAt",
 };
@@ -222,11 +229,16 @@ export function registerJiraSemanticAggregateRoutes(
       res.status(currentUser(req) ? 404 : 401).json({ error: currentUser(req) ? "Проект не найден" : "Требуется вход в систему" });
       return;
     }
-    const [definitions, settings] = await Promise.all([
+    const [definitions, settings, goals] = await Promise.all([
       listJiraSemanticAggregates(prisma, req.params.projectId),
       prisma.jiraAnalyticsSettings.findUnique({
         where: { projectId: req.params.projectId },
         select: { dashboardConfig: true, semanticDefaultWidgetsVersion: true },
+      }),
+      prisma.wbsItem.findMany({
+        where: { projectId: req.params.projectId, type: "GOAL" },
+        select: { id: true, title: true, status: true, dueDate: true, jiraGoalLabels: true },
+        orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
       }),
     ]);
     const dashboard = jiraSemanticDashboardSchema.safeParse(settings?.dashboardConfig);
@@ -244,7 +256,67 @@ export function registerJiraSemanticAggregateRoutes(
       dashboard: dashboardConfig,
       dashboardConfigHash: jiraDashboardConfigHash(settings?.dashboardConfig ?? null),
       dashboardSeedRequired: (settings?.semanticDefaultWidgetsVersion ?? 0) < JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
+      goals: goals.map((goal) => ({
+        ...goal,
+        dueDate: goal.dueDate?.toISOString() ?? null,
+      })),
     });
+  });
+
+  router.patch("/projects/:projectId/jira/goal-labels", async (req, res) => {
+    const user = currentUser(req);
+    if (!user || !admin(req)) {
+      res.status(user ? 403 : 401).json({ error: user ? "Настраивать связи целей с Jira может только системный администратор" : "Требуется вход в систему" });
+      return;
+    }
+    const parsed = goalLabelsSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Некорректные лейблы целей", details: parsed.error.flatten() });
+      return;
+    }
+    const project = await editableProject(prisma, req.params.projectId, res);
+    if (!project) return;
+    let normalized: Array<{ goalId: string; labels: string[] }>;
+    try {
+      normalized = parsed.data.goals.map((goal) => ({
+        goalId: goal.goalId,
+        labels: goal.labels.length === 0 ? [] : jiraAnalyticsLabels(goal.labels.join(",")),
+      }));
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Некорректные лейблы целей" });
+      return;
+    }
+    const ids = normalized.map((goal) => goal.goalId);
+    if (new Set(ids).size !== ids.length) {
+      res.status(400).json({ error: "Одна цель указана несколько раз" });
+      return;
+    }
+    const outcome = await prisma.$transaction(async (transaction) => {
+      const before = await transaction.wbsItem.findMany({
+        where: { projectId: project.id, type: "GOAL", id: { in: ids } },
+        select: { id: true, title: true, jiraGoalLabels: true },
+      });
+      if (before.length !== ids.length) return null;
+      await Promise.all(normalized.map((goal) => transaction.wbsItem.update({
+        where: { id: goal.goalId },
+        data: { jiraGoalLabels: goal.labels },
+      })));
+      const after = await transaction.wbsItem.findMany({
+        where: { projectId: project.id, type: "GOAL" },
+        select: { id: true, title: true, status: true, dueDate: true, jiraGoalLabels: true },
+        orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+      });
+      return { before, after };
+    });
+    if (!outcome) {
+      res.status(400).json({ error: "Список содержит цель другого проекта или элемент, который не является целью" });
+      return;
+    }
+    await recordAuditEvent({
+      req, actor: user, action: "jira.goal_labels.update", objectType: "Project",
+      objectId: project.id, projectId: project.id, beforeValue: outcome.before, afterValue: outcome.after,
+    });
+    res.json({ goals: outcome.after.map((goal) => ({ ...goal, dueDate: goal.dueDate?.toISOString() ?? null })) });
   });
 
   router.post("/projects/:projectId/jira/semantic-aggregates/bootstrap", async (req, res) => {

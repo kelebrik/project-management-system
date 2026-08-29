@@ -1201,6 +1201,34 @@ test('ticket aggregate filters and sorts by the typed Sprint entry count', () =>
   assert.deepEqual(result.records.map((record) => record.issue.issueKey), ['CVTE-6', 'CVTE-4']);
 });
 
+test('goal ticket aggregate matches labels exactly and supports Critical/Blocker one-of filtering', () => {
+  const result = evaluateJiraAnalyticsAggregate({
+    ...definition({
+      source: 'goalIssues',
+      filters: [
+        { id: 'goal', field: 'goalName', operator: 'equals', value: 'Релиз заводской прошивки' },
+        { id: 'priority', field: 'priority', operator: 'oneOf', value: 'Critical, Blocker' },
+        { id: 'resolution', field: 'resolution', operator: 'empty', value: '' },
+      ],
+    }),
+    goalMappings: [{
+      id: 'goal-1', name: 'Релиз заводской прошивки', status: 'IN_PROGRESS',
+      date: '2026-09-01T00:00:00.000Z', labels: ['MP'],
+    }],
+    rowIdentity: ['goalId', 'issueKey'],
+  }, [
+    issue({ id: 'critical', issueKey: 'CVTE-1', labels: ['mp'], priority: 'Critical' }),
+    issue({ id: 'blocker', issueKey: 'CVTE-2', labels: ['MP'], priority: 'Blocker' }),
+    issue({ id: 'partial', issueKey: 'CVTE-3', labels: ['MP-extra'], priority: 'Blocker' }),
+    issue({ id: 'major', issueKey: 'CVTE-4', labels: ['MP'], priority: 'Major' }),
+    issue({ id: 'resolved', issueKey: 'CVTE-5', labels: ['MP'], priority: 'Critical', resolution: 'Fixed' }),
+  ], options);
+
+  assert.equal(result.totalRecords, 2);
+  assert.deepEqual(result.records.map((record) => record.issue.issueKey).sort(), ['CVTE-1', 'CVTE-2']);
+  assert.deepEqual(result.records[0]?.goal?.labels, ['MP']);
+});
+
 test('aggregate batch loader uses a stable issue-key cursor and bounded batches', async () => {
   const stored = Array.from(
     { length: JIRA_AGGREGATE_ISSUE_BATCH_SIZE + 1 },

@@ -24,6 +24,7 @@ test("semantic catalog exposes the managed Jira row sets", () => {
     JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate) => aggregate.key),
     [
       "issues",
+      "goal-linked-issues",
       "status-transitions",
       "development-activity",
       "status-intervals",
@@ -53,8 +54,10 @@ test("default semantic dashboard contains the requested operational and retrospe
     publishedVersion: aggregate.key === "issues" ? 2 : 1,
   }));
   const dashboard = jiraDefaultSemanticDashboard(references);
-  assert.equal(dashboard.widgets.length, 7);
+  assert.equal(dashboard.widgets.length, 9);
   assert.deepEqual(dashboard.widgets.map((widget) => [widget.placement, widget.title]), [
+    ["active", "Цель: Релиз заводской прошивки"],
+    ["active", "Цель: Первая ОТА готова"],
     ["active", "Без Sprint с коммитами или MR"],
     ["active", "Не перешли в In Progress за 12 дней"],
     ["active", "Тикеты под риском"],
@@ -63,9 +66,20 @@ test("default semantic dashboard contains the requested operational and retrospe
     ["retro", "Более 3 записей в Sprint"],
     ["retro", "P85 от первого In Progress до Resolution по проектам"],
   ]);
-  const delayed = dashboard.widgets[1]!;
+  const delayed = dashboard.widgets.find((widget) => widget.id === "active-not-in-progress-after-12-days")!;
   assert.ok(delayed.filters.some((item) => item.field === "intervalEndAt" && item.operator === "empty"));
   assert.ok(delayed.filters.some((item) => item.field === "durationHours" && item.value === "288"));
+  for (const id of ["active-goal-factory-firmware-release", "active-goal-first-ota-ready"]) {
+    const goal = dashboard.widgets.find((widget) => widget.id === id)!;
+    assert.equal(goal.visualization, "table");
+    assert.ok(goal.filters.some((item) => item.field === "matchedLabels" && item.operator === "equals"));
+    assert.ok(goal.filters.some((item) => item.field === "priority" && item.operator === "oneOf" && item.value === "Critical, Blocker"));
+    assert.ok(goal.filters.some((item) => item.field === "resolution" && item.operator === "empty"));
+  }
+  assert.ok(dashboard.widgets.find((widget) => widget.id === "active-goal-factory-firmware-release")!
+    .filters.some((item) => item.field === "matchedLabels" && item.value === "MP"));
+  assert.ok(dashboard.widgets.find((widget) => widget.id === "active-goal-first-ota-ready")!
+    .filters.some((item) => item.field === "matchedLabels" && item.value === "ota"));
   const taskSla = dashboard.widgets.find((widget) => widget.id === "retro-critical-blocker-task-sla-45-days")!;
   assert.ok(taskSla.filters.some((item) => item.field === "durationHours" && item.value === "1080"));
   const risk = dashboard.widgets.find((widget) => widget.id === "active-critical-blocker-risk")!;
@@ -92,9 +106,9 @@ test("default widgets augment an existing dashboard once without replacing its w
     widgets: [{ ...defaults.widgets[0]!, id: "custom-widget", title: "Пользовательский виджет" }],
   };
   const merged = jiraDashboardWithDefaultWidgets(existing, defaults);
-  assert.equal(merged.widgets.length, 8);
+  assert.equal(merged.widgets.length, 10);
   assert.equal(merged.widgets[0]?.id, "custom-widget");
-  assert.equal(jiraDashboardWithDefaultWidgets(merged, defaults).widgets.length, 8);
+  assert.equal(jiraDashboardWithDefaultWidgets(merged, defaults).widgets.length, 10);
 });
 
 test("widget seed v2 adds only new widgets and does not recreate deleted v1 defaults", () => {
@@ -112,14 +126,16 @@ test("widget seed v2 adds only new widgets and does not recreate deleted v1 defa
 
   assert.deepEqual(upgraded.widgets.map((widget) => widget.id), [
     "custom-widget",
+    "active-goal-factory-firmware-release",
+    "active-goal-first-ota-ready",
     "active-critical-blocker-risk",
     "retro-critical-blocker-task-sla-45-days",
     "retro-p85-in-progress-to-resolution-by-project",
   ]);
-  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 1).widgets.length, 4);
+  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 1).widgets.length, 6);
 });
 
-test("widget seed v3 upgrades aggregate contracts without recreating deleted widgets", () => {
+test("widget seed v4 adds only goal widgets without recreating deleted widgets", () => {
   const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({
     id: `aggregate-${index + 1}`,
     aggregateKey: aggregate.key,
@@ -131,10 +147,11 @@ test("widget seed v3 upgrades aggregate contracts without recreating deleted wid
     widgets: [{ ...defaults.widgets[0]!, id: "custom-widget", title: "Пользовательский виджет" }],
   };
 
-  assert.deepEqual(
-    jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 2).widgets,
-    current.widgets,
-  );
+  assert.deepEqual(jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 3).widgets.map((widget) => widget.id), [
+    "custom-widget",
+    "active-goal-factory-firmware-release",
+    "active-goal-first-ota-ready",
+  ]);
 });
 
 test("widget seed v3 repins existing system widgets to compatible published revisions", () => {
@@ -283,6 +300,7 @@ test("semantic cost estimate does not reject ordinary single-row intervals", () 
     tickets: 1_000,
     transitions: 1_000,
     developmentActivities: 1_000,
+    goals: 1,
     estimatedRows: 1_000,
     maximumRows: 100_000,
     blocked: false,
@@ -294,9 +312,23 @@ test("semantic cost estimate does not reject ordinary single-row intervals", () 
     tickets: 1_001,
     transitions: 8_000,
     developmentActivities: 2_000,
+    goals: 4,
   });
   assert.equal(repeated.estimatedRows, 9_001);
   assert.equal(repeated.blocked, false);
+});
+
+test("semantic cost estimate accounts for every configured goal-to-ticket match", () => {
+  const goalIssues = structuredClone(JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === "goal-linked-issues")!.definition);
+  const cost = jiraSemanticAggregateCost(goalIssues, {
+    tickets: 1_000,
+    transitions: 8_000,
+    developmentActivities: 2_000,
+    goals: 25,
+  });
+  assert.equal(cost.estimatedRows, 25_000);
+  assert.equal(cost.goals, 25);
+  assert.equal(cost.blocked, false);
 });
 
 test("semantic revision compatibility protects row meaning and allows added output fields", () => {

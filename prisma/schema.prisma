@@ -734,6 +734,7 @@ model WbsItem {
   progress          Int                 @default(0)
   jiraTicketKey     String?
   jiraTicketUrl     String?
+  jiraGoalLabels    String[]            @default([])
   mattermostUrl     String?
   description       String?
   comment           String?

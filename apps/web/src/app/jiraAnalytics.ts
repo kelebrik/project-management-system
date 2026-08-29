@@ -34,6 +34,7 @@ export type {
 export type JiraAnalyticsSection = JiraAnalyticsScope;
 export const JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS: Record<JiraAnalyticsSource, string> = {
   issues: "Тикеты",
+  goalIssues: "Тикеты целей",
   transitions: "Переходы статусов",
   development: "Активность разработки",
   criticalBugs: "SLA Critical/Blocker",
@@ -102,6 +103,7 @@ export const JIRA_ANALYTICS_METRIC_LABELS: Record<JiraAnalyticsMetric, string> =
 
 export const JIRA_ANALYTICS_GROUP_LABELS: Record<JiraAnalyticsGroupBy, string> = {
   none: "Без группировки",
+  goal: "Цель",
   project: "Проект Jira",
   status: "Текущий статус",
   assignee: "Исполнитель",
@@ -116,6 +118,12 @@ export const JIRA_ANALYTICS_GROUP_LABELS: Record<JiraAnalyticsGroupBy, string> =
 };
 
 export const JIRA_ANALYTICS_FILTER_LABELS: Record<JiraAnalyticsFilterField, string> = {
+  goalId: "ID цели",
+  goalName: "Цель",
+  goalStatus: "Статус цели",
+  goalDate: "Дата цели",
+  goalLabels: "Лейблы цели",
+  matchedLabels: "Совпавшие лейблы",
   issueKey: "Ключ тикета",
   project: "Проект Jira",
   summary: "Название",
@@ -146,6 +154,8 @@ export const JIRA_ANALYTICS_FILTER_LABELS: Record<JiraAnalyticsFilterField, stri
 export const JIRA_ANALYTICS_OPERATOR_LABELS: Record<JiraAnalyticsFilterOperator, string> = {
   equals: "равно",
   notEquals: "не равно",
+  oneOf: "одно из",
+  noneOf: "ни одно из",
   contains: "содержит",
   empty: "пусто",
   notEmpty: "не пусто",

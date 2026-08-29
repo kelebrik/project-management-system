@@ -499,6 +499,52 @@
   min-width: 0;
 }
 
+.jira-goal-mappings {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.jira-goal-mappings > header,
+.jira-goal-mapping-row {
+  align-items: end;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.jira-goal-mappings h3,
+.jira-goal-mappings p {
+  margin: 0;
+}
+
+.jira-goal-mappings p,
+.jira-goal-mapping-row span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.jira-goal-mapping-list {
+  display: grid;
+  gap: 8px;
+}
+
+.jira-goal-mapping-row {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.jira-goal-mapping-row > div,
+.jira-goal-mapping-row label {
+  display: grid;
+  gap: 4px;
+}
+
+.jira-goal-mapping-row label {
+  min-width: min(440px, 50%);
+}
+
 .jira-aggregate-sources {
   border-bottom: 1px solid var(--border);
   display: grid;
@@ -2597,6 +2643,16 @@
 
   .jira-aggregate-builder {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jira-goal-mappings > header,
+  .jira-goal-mapping-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .jira-goal-mapping-row label {
+    min-width: 0;
   }
 
   .jira-aggregate-catalog {

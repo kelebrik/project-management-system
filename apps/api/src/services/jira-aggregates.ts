@@ -44,6 +44,7 @@ import {
   type JiraAnalyticsEvaluationLimits,
   type JiraAnalyticsInlineWidget,
   type JiraAnalyticsIssueData,
+  type JiraAnalyticsGoalMapping,
   type JiraAnalyticsFilterField,
   type JiraAnalyticsResultRecord,
 } from '@pms/shared';
@@ -421,8 +422,36 @@ function serializeIssue(issue: SelectedIssue): JiraAnalyticsIssueData {
 type JiraAggregateReadClient = Pick<
   PrismaClient,
   '$queryRaw' | 'jiraIssueSnapshot' | 'jiraIssueStatusTransition' | 'jiraDevelopmentActivity' |
-  'jiraAggregateDefinitionRevision'
+  'jiraAggregateDefinitionRevision' | 'wbsItem'
 >;
+
+async function loadJiraGoalMappings(
+  client: JiraAggregateReadClient,
+  projectId: string,
+): Promise<JiraAnalyticsGoalMapping[]> {
+  const goals = await client.wbsItem.findMany({
+    where: { projectId, type: 'GOAL', jiraGoalLabels: { isEmpty: false } },
+    select: { id: true, title: true, status: true, dueDate: true, jiraGoalLabels: true },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  });
+  return goals.map((goal) => ({
+    id: goal.id,
+    name: goal.title,
+    status: goal.status,
+    date: goal.dueDate?.toISOString() ?? null,
+    labels: goal.jiraGoalLabels,
+  }));
+}
+
+async function withJiraGoalMappings(
+  client: JiraAggregateReadClient,
+  projectId: string,
+  definition: JiraAnalyticsExecutableDefinition,
+) {
+  return definition.source === 'goalIssues'
+    ? { ...definition, goalMappings: await loadJiraGoalMappings(client, projectId) }
+    : definition;
+}
 
 async function ensureJiraAggregatePopulationWithinLimits(
   client: JiraAggregateReadClient,
@@ -620,13 +649,14 @@ export async function evaluateJiraAggregateFromDatabase(
   asOf?: Date,
   limits: JiraAnalyticsEvaluationLimits = jiraAggregateEvaluationLimits,
 ) {
+  const executableDefinition = await withJiraGoalMappings(client, projectId, definition);
   const accumulator = createJiraAnalyticsEvaluationAccumulator(
-    definition,
+    executableDefinition,
     options,
     limits,
   );
   if (asOf) {
-    if (!jiraAnalyticsSourceSupportsAsOf(definition.source)) {
+    if (!jiraAnalyticsSourceSupportsAsOf(executableDefinition.source)) {
       throw new Error('JIRA_ASOF_EVENT_SOURCE_UNSUPPORTED');
     }
     const prepared = await prepareJiraAsOfIssueBatches(client, projectId, asOf);
@@ -704,7 +734,11 @@ export async function evaluateJiraAggregatesFromDatabase(
   const results = new Map<string, JiraAggregateBatchEvaluationResult>();
   const current = requests.filter((request) => request.asOf === undefined);
   if (current.length > 0) {
-    const accumulators = current.map((request) => createBatchAccumulator(request, limits));
+    const preparedRequests = await Promise.all(current.map(async (request) => ({
+      ...request,
+      definition: await withJiraGoalMappings(client, projectId, request.definition),
+    })));
+    const accumulators = preparedRequests.map((request) => createBatchAccumulator(request, limits));
     for await (const issues of loadJiraAggregateIssueBatches(client, projectId)) {
       accumulators.forEach((item) => {
         if (item.error || !item.accumulator) return;
@@ -744,7 +778,11 @@ export async function evaluateJiraAggregatesFromDatabase(
     if (prepared.reconstruction.tickets > JIRA_AGGREGATE_MAX_ISSUES) {
       throw new JiraAggregatePopulationLimitError(JIRA_AGGREGATE_MAX_ISSUES);
     }
-    const accumulators = group.map((request) => createBatchAccumulator(request, limits));
+    const preparedGroup = await Promise.all(group.map(async (request) => ({
+      ...request,
+      definition: await withJiraGoalMappings(client, projectId, request.definition),
+    })));
+    const accumulators = preparedGroup.map((request) => createBatchAccumulator(request, limits));
     let loadedIssues = 0;
     for await (const issues of prepared.batches) {
       loadedIssues += issues.length;
@@ -1308,6 +1346,12 @@ function csvCell(value: string | number | null | undefined) {
 }
 
 export function jiraAggregateOutputValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilterField) {
+  if (field === 'goalId') return record.goal?.id ?? null;
+  if (field === 'goalName') return record.goal?.name ?? null;
+  if (field === 'goalStatus') return record.goal?.status ?? null;
+  if (field === 'goalDate') return record.goal?.date ?? null;
+  if (field === 'goalLabels') return record.goal?.labels.join(', ') || null;
+  if (field === 'matchedLabels') return record.goal?.matchedLabels.join(', ') || null;
   if (field === 'issueKey') return record.issue.issueKey;
   if (field === 'project') return record.issue.issueKey.trim().toUpperCase().match(/^([A-Z][A-Z0-9_]*)-\d+$/)?.[1] ?? null;
   if (field === 'summary') return record.issue.summary;

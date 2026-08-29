@@ -135,6 +135,7 @@ test('Jira aggregate and widget mutations reject non-admin users before database
     ['/projects/:projectId/jira/semantic-aggregates/preview', 'post', 'Предпросмотр черновика доступен только системному администратору'],
     ['/projects/:projectId/jira/semantic-aggregates/:aggregateId/publish', 'post', 'Публиковать агрегаты может только системный администратор'],
     ['/projects/:projectId/jira/semantic-dashboard', 'patch', 'Настраивать виджеты может только системный администратор'],
+    ['/projects/:projectId/jira/goal-labels', 'patch', 'Настраивать связи целей с Jira может только системный администратор'],
   ] as const;
   for (const [path, method, error] of cases) await expectForbidden(path, method, error);
 });

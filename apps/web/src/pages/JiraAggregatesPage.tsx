@@ -22,7 +22,14 @@ import { JIRA_ANALYTICS_FILTER_LABELS, JIRA_ANALYTICS_OPERATOR_LABELS } from "..
 import { useConfirm } from "../hooks/useConfirm";
 import { usePageContext } from "./PageContext";
 
-type Catalog = { definitions: JiraSemanticAggregatePublic[] };
+type GoalMapping = {
+  id: string;
+  title: string;
+  status: string;
+  dueDate: string | null;
+  jiraGoalLabels: string[];
+};
+type Catalog = { definitions: JiraSemanticAggregatePublic[]; goals: GoalMapping[] };
 type PreviewResponse = {
   result: Omit<JiraAnalyticsEvaluationResult, "records"> & {
     records: Array<{
@@ -36,6 +43,7 @@ type PreviewResponse = {
 
 const GRAIN_LABELS = {
   issue: "Тикет",
+  goalIssue: "Тикет цели",
   transitionEvent: "Переход статуса",
   developmentEvent: "Событие разработки",
   interval: "Интервал",
@@ -43,6 +51,7 @@ const GRAIN_LABELS = {
 
 const ROW_KIND_LABELS: Record<JiraSemanticAggregateRowConfig["kind"], string> = {
   issue: "Текущий или восстановленный снимок",
+  goalIssue: "Связь цели и тикета по Jira-лейблу",
   transitionEvent: "Событие изменения статуса",
   developmentEvent: "Событие разработки",
   interval: "Пара контрольных точек",
@@ -57,6 +66,8 @@ function uid(prefix: string) {
 function fieldsForRowConfig(rowConfig: JiraSemanticAggregateRowConfig) {
   const source = rowConfig.kind === "issue"
     ? "issues"
+    : rowConfig.kind === "goalIssue"
+      ? "goalIssues"
     : rowConfig.kind === "transitionEvent"
       ? "transitions"
       : rowConfig.kind === "developmentEvent"
@@ -69,6 +80,7 @@ function fieldsForRowConfig(rowConfig: JiraSemanticAggregateRowConfig) {
 
 function rowConfigFor(kind: JiraSemanticAggregateRowConfig["kind"]): JiraSemanticAggregateRowConfig {
   if (kind === "issue") return { kind };
+  if (kind === "goalIssue") return { kind };
   if (kind === "transitionEvent") return { kind };
   if (kind === "developmentEvent") return { kind };
   if (kind === "criticalSla") return {
@@ -100,6 +112,7 @@ function rowConfigFor(kind: JiraSemanticAggregateRowConfig["kind"]): JiraSemanti
 
 function grainFor(rowConfig: JiraSemanticAggregateRowConfig): JiraSemanticAggregateDefinition["grain"] {
   if (rowConfig.kind === "issue") return "issue";
+  if (rowConfig.kind === "goalIssue") return "goalIssue";
   if (rowConfig.kind === "transitionEvent") return "transitionEvent";
   if (rowConfig.kind === "developmentEvent") return "developmentEvent";
   return "interval";
@@ -142,7 +155,7 @@ function FilterEditor({ filter, fields, disabled, onChange, onDelete }: {
         const operator = event.target.value as JiraAnalyticsFilterOperator;
         onChange({ ...filter, operator, value: operator === "empty" || operator === "notEmpty" ? "" : filter.value });
       }}>{operators.map((operator) => <option key={operator} value={operator}>{JIRA_ANALYTICS_OPERATOR_LABELS[operator]}</option>)}</select>
-      <input value={filter.value} disabled={disabled || noValue} placeholder={noValue ? "Значение не требуется" : "Значение"} onChange={(event) => onChange({ ...filter, value: event.target.value })} />
+      <input value={filter.value} disabled={disabled || noValue} placeholder={noValue ? "Значение не требуется" : filter.operator === "oneOf" || filter.operator === "noneOf" ? "Значения через запятую" : "Значение"} onChange={(event) => onChange({ ...filter, value: event.target.value })} />
       <button type="button" className="icon-button danger" disabled={disabled} title="Удалить условие" onClick={onDelete}><Trash2 size={16} /></button>
     </div>
   );
@@ -231,6 +244,7 @@ export function JiraAggregatesPage() {
   const [newKey, setNewKey] = useState("new-aggregate");
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [busy, setBusy] = useState(false);
+  const [goalLabels, setGoalLabels] = useState<Record<string, string>>({});
   const requestRef = useRef(0);
 
   const load = async (preferredId?: string | null) => {
@@ -242,6 +256,7 @@ export function JiraAggregatesPage() {
     }
     if (request !== requestRef.current) return;
     setCatalog(response);
+    setGoalLabels(Object.fromEntries(response.goals.map((goal) => [goal.id, goal.jiraGoalLabels.join(", ")])));
     const id = preferredId === null ? null : preferredId ?? response.definitions[0]?.id ?? null;
     setSelectedId(id);
     const selected = response.definitions.find((definition) => definition.id === id);
@@ -273,10 +288,10 @@ export function JiraAggregatesPage() {
     const rowConfig = rowConfigFor(kind);
     const grain = grainFor(rowConfig);
     setDraft((current) => ({ ...current, grain, rowConfig,
-      rowIdentity: grain === "issue" ? ["issueKey"] : ["rowId"],
+      rowIdentity: grain === "issue" ? ["issueKey"] : grain === "goalIssue" ? ["goalId", "issueKey"] : ["rowId"],
       outputFields: fieldsForRowConfig(rowConfig).map(jiraSemanticDefaultOutputField),
-      incompleteDataPolicy: grain === "issue" ? "includeWithWarning" : "exclude",
-      asOfSupport: grain === "issue" || kind === "criticalSla" ? "supported" : "none",
+      incompleteDataPolicy: grain === "issue" || grain === "goalIssue" ? "includeWithWarning" : "exclude",
+      asOfSupport: grain === "issue" || grain === "goalIssue" || kind === "criticalSla" ? "supported" : "none",
     }));
   };
 
@@ -332,8 +347,29 @@ export function JiraAggregatesPage() {
     finally { setBusy(false); }
   };
 
+  const saveGoalLabels = async () => {
+    if (!canEdit || !catalog) return;
+    setBusy(true);
+    try {
+      await apiClient.patch(`/api/projects/${project.id}/jira/goal-labels`, {
+        goals: catalog.goals.map((goal) => ({
+          goalId: goal.id,
+          labels: (goalLabels[goal.id] ?? "").split(",").map((value) => value.trim()).filter(Boolean),
+        })),
+      }, "Не удалось сохранить связи целей с Jira");
+      setNotice("Связи целей с Jira сохранены");
+      await load(selectedId);
+    } catch (error) { setError(error instanceof Error ? error.message : "Не удалось сохранить связи целей с Jira"); }
+    finally { setBusy(false); }
+  };
+
   if (!catalog) return <div className="jira-aggregate-preview-empty">Загрузка агрегатов...</div>;
-  return <div className="jira-aggregates-page"><div className="jira-aggregate-builder">
+  return <div className="jira-aggregates-page">
+    <section className="jira-goal-mappings">
+      <header><div><h3>Связь целей с Jira</h3><p>Точное совпадение лейбла создаёт строку «цель + тикет» в агрегате «Тикеты целей».</p></div>{canEdit ? <button type="button" className="secondary-button" disabled={busy} onClick={() => void saveGoalLabels()}><Save size={18} />Сохранить связи</button> : null}</header>
+      {catalog.goals.length === 0 ? <p className="jira-aggregate-help">В структуре проекта нет целей.</p> : <div className="jira-goal-mapping-list">{catalog.goals.map((goal) => <div className="jira-goal-mapping-row" key={goal.id}><div><strong>{goal.title}</strong><span>{goal.dueDate ? new Date(goal.dueDate).toLocaleDateString("ru-RU") : "Дата не указана"} · {goal.status}</span></div><label>Jira-лейблы<input disabled={!canEdit} value={goalLabels[goal.id] ?? ""} placeholder="Например: MP, ota" onChange={(event) => setGoalLabels((current) => ({ ...current, [goal.id]: event.target.value }))} /></label></div>)}</div>}
+    </section>
+    <div className="jira-aggregate-builder">
     <aside className="jira-aggregate-catalog"><header><div><Database size={24} /><h3>Агрегаты</h3></div>{canEdit ? <button type="button" className="icon-button" title="Создать агрегат" onClick={() => { setSelectedId(null); setDraft(defaultDefinition()); setNewKey("new-aggregate"); setPreview(null); }}><Plus size={22} /></button> : null}</header><div className="jira-aggregate-catalog-list">{catalog.definitions.map((definition) => <button type="button" key={definition.id} className={selectedId === definition.id ? "active" : ""} onClick={() => choose(definition)}><strong>{definition.draft.name}</strong><span>{GRAIN_LABELS[definition.draft.grain]} · v{definition.version}{definition.publishedVersion ? ` / опубликована v${definition.publishedVersion}` : " · черновик"}</span></button>)}</div></aside>
     <main className="jira-aggregate-editor"><header><div><h3>{draft.name}</h3><span>{selected?.system ? "Системный агрегат" : selected ? "Пользовательский агрегат" : "Новый агрегат"}</span></div><div className="jira-aggregate-actions"><button type="button" className="secondary-button" disabled={!canEdit || busy || !validation.success} onClick={() => void runPreview()}><Eye size={18} />Показать данные</button>{selected && !selected.system ? <button type="button" className="icon-button danger" disabled={!canEdit || busy} onClick={() => void archive()} title="Архивировать"><Archive size={18} /></button> : null}<button type="button" className="secondary-button" disabled={!canEdit || busy || !validation.success} onClick={() => void save()}><Save size={18} />Сохранить черновик</button>{selected ? <button type="button" className="primary-button" disabled={!canEdit || busy || !validation.success || selected.publishedVersion === selected.version} onClick={() => void publish()}><Rocket size={18} />Опубликовать</button> : null}</div></header>
       <div className="jira-aggregate-editor-grid"><section className="jira-aggregate-controls">
@@ -341,7 +377,7 @@ export function JiraAggregatesPage() {
         <RowRuleEditor definition={draft} disabled={!canEdit} onChange={setDraft} />
         <fieldset className="jira-aggregate-fieldset"><legend>Базовая популяция</legend><p>Эти условия определяют строки агрегата. Фильтры виджета применяются позже.</p><div className="jira-widget-segments"><button type="button" className={draft.basePopulation.logic === "and" ? "active" : ""} disabled={!canEdit} onClick={() => setDraft((current) => ({ ...current, basePopulation: { ...current.basePopulation, logic: "and" } }))}>И</button><button type="button" className={draft.basePopulation.logic === "or" ? "active" : ""} disabled={!canEdit} onClick={() => setDraft((current) => ({ ...current, basePopulation: { ...current.basePopulation, logic: "or" } }))}>ИЛИ</button></div>{draft.basePopulation.filters.map((filter, index) => <FilterEditor key={filter.id} filter={filter} fields={availableFields} disabled={!canEdit} onChange={(next) => setDraft((current) => ({ ...current, basePopulation: { ...current.basePopulation, filters: current.basePopulation.filters.map((item, itemIndex) => itemIndex === index ? next : item) } }))} onDelete={() => setDraft((current) => ({ ...current, basePopulation: { ...current.basePopulation, filters: current.basePopulation.filters.filter((_, itemIndex) => itemIndex !== index) } }))} />)}<button type="button" className="secondary-button" disabled={!canEdit} onClick={() => setDraft((current) => ({ ...current, basePopulation: { ...current.basePopulation, filters: [...current.basePopulation.filters, { id: uid("base"), field: availableFields[0] ?? "issueKey", operator: "equals", value: "" }] } }))}><Plus size={16} />Условие</button></fieldset>
         <fieldset className="jira-aggregate-fieldset"><legend>Идентичность и выходные поля</legend><p>Ключ определяет уникальную строку в пределах одного тикета. Для событий и интервалов используйте внутренний ID строки.</p><strong>Ключ строки</strong><div className="jira-aggregate-field-grid">{identityFields.map((field) => <label key={field} className="jira-aggregate-field-option"><input type="checkbox" disabled={!canEdit || (draft.rowIdentity.length === 1 && draft.rowIdentity[0] === field)} checked={draft.rowIdentity.includes(field)} onChange={(event) => setDraft((current) => ({ ...current, rowIdentity: event.target.checked ? [...current.rowIdentity, field] : current.rowIdentity.filter((item) => item !== field) }))} /><span>{field === "rowId" ? "Внутренний ID строки" : JIRA_SEMANTIC_FIELD_LABELS[field]}</span></label>)}</div><strong>Поля, доступные виджетам</strong><div className="jira-aggregate-field-grid">{availableFields.map((field) => <label key={field} className="jira-aggregate-field-option"><input type="checkbox" disabled={!canEdit || draft.rowIdentity.includes(field) || (draft.outputFields.length === 1 && draft.outputFields[0]?.key === field)} checked={draft.outputFields.some((item) => item.key === field)} onChange={(event) => setDraft((current) => ({ ...current, outputFields: event.target.checked ? [...current.outputFields, jiraSemanticDefaultOutputField(field)] : current.outputFields.filter((item) => item.key !== field) }))} /><span>{JIRA_SEMANTIC_FIELD_LABELS[field]}</span></label>)}</div></fieldset>
-        <fieldset className="jira-aggregate-fieldset"><legend>Полнота и стоимость</legend><label>Неполные данные<select disabled value={draft.incompleteDataPolicy}><option value="exclude">Исключать строку</option><option value="includeWithWarning">Включать с предупреждением</option></select><small>Политика определяется гранулярностью и возможностями даталейка.</small></label><div className="jira-aggregate-control-row"><label>Минимальное покрытие, %<input type="number" min="0" max="100" disabled={!canEdit} value={draft.qualityRules.minimumCoveragePercent} onChange={(event) => setDraft((current) => ({ ...current, qualityRules: { ...current.qualityRules, minimumCoveragePercent: Number(event.target.value) } }))} /></label><label>Максимум строк<input type="number" min="1" disabled={!canEdit} value={draft.qualityRules.maximumRows} onChange={(event) => setDraft((current) => ({ ...current, qualityRules: { ...current.qualityRules, maximumRows: Number(event.target.value) } }))} /></label><label>Оценка строк на тикет<input type="number" min="1" disabled={!canEdit} value={draft.qualityRules.maximumRowsPerIssue} onChange={(event) => setDraft((current) => ({ ...current, qualityRules: { ...current.qualityRules, maximumRowsPerIssue: Number(event.target.value) } }))} /></label></div><label>Состояние на дату<select disabled={!canEdit || (draft.rowConfig.kind !== "issue" && draft.rowConfig.kind !== "criticalSla")} value={draft.asOfSupport} onChange={(event) => setDraft((current) => ({ ...current, asOfSupport: event.target.value as "none" | "supported" }))}><option value="none">Не поддерживается</option><option value="supported">Поддерживается</option></select></label></fieldset>
+        <fieldset className="jira-aggregate-fieldset"><legend>Полнота и стоимость</legend><label>Неполные данные<select disabled value={draft.incompleteDataPolicy}><option value="exclude">Исключать строку</option><option value="includeWithWarning">Включать с предупреждением</option></select><small>Политика определяется гранулярностью и возможностями даталейка.</small></label><div className="jira-aggregate-control-row"><label>Минимальное покрытие, %<input type="number" min="0" max="100" disabled={!canEdit} value={draft.qualityRules.minimumCoveragePercent} onChange={(event) => setDraft((current) => ({ ...current, qualityRules: { ...current.qualityRules, minimumCoveragePercent: Number(event.target.value) } }))} /></label><label>Максимум строк<input type="number" min="1" disabled={!canEdit} value={draft.qualityRules.maximumRows} onChange={(event) => setDraft((current) => ({ ...current, qualityRules: { ...current.qualityRules, maximumRows: Number(event.target.value) } }))} /></label><label>Оценка строк на тикет<input type="number" min="1" disabled={!canEdit} value={draft.qualityRules.maximumRowsPerIssue} onChange={(event) => setDraft((current) => ({ ...current, qualityRules: { ...current.qualityRules, maximumRowsPerIssue: Number(event.target.value) } }))} /></label></div><label>Состояние на дату<select disabled={!canEdit || (draft.rowConfig.kind !== "issue" && draft.rowConfig.kind !== "goalIssue" && draft.rowConfig.kind !== "criticalSla")} value={draft.asOfSupport} onChange={(event) => setDraft((current) => ({ ...current, asOfSupport: event.target.value as "none" | "supported" }))}><option value="none">Не поддерживается</option><option value="supported">Поддерживается</option></select></label></fieldset>
         {!validation.success ? <div className="jira-aggregate-validation">{validation.error.issues[0]?.message}</div> : null}
         {selected ? <fieldset className="jira-aggregate-fieldset"><legend>История версий</legend><div className="jira-aggregate-revision-list">{selected.revisions.map((revision) => <div key={revision.version}><strong>v{revision.version}</strong><span>{revision.status} · {revision.changeKind}</span><small>{new Date(revision.createdAt).toLocaleString("ru-RU")}</small></div>)}</div></fieldset> : null}
       </section><section className="jira-aggregate-preview-panel"><header><h4>Реальные строки агрегата</h4><span>Предпросмотр строится по даталейку текущего проекта</span></header><Preview value={preview} fields={draft.outputFields} /></section></div>

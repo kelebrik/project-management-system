@@ -33,11 +33,15 @@ const qualityRules = {
   maximumRowsPerIssue: 500,
 };
 
-export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 3;
+export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 4;
 const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2 = new Set([
   "active-critical-blocker-risk",
   "retro-critical-blocker-task-sla-45-days",
   "retro-p85-in-progress-to-resolution-by-project",
+]);
+const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_4 = new Set([
+  "active-goal-factory-firmware-release",
+  "active-goal-first-ota-ready",
 ]);
 
 export const JIRA_SYSTEM_SEMANTIC_AGGREGATES: Array<{
@@ -55,6 +59,23 @@ export const JIRA_SYSTEM_SEMANTIC_AGGREGATES: Array<{
       rowConfig: { kind: "issue" },
       rowIdentity: ["issueKey"],
       outputFields: fields(...JIRA_ANALYTICS_FIELDS_BY_SOURCE.issues),
+      incompleteDataPolicy: "includeWithWarning",
+      qualityRules,
+      timeZone: "Europe/Moscow",
+      asOfSupport: "supported",
+    },
+  },
+  {
+    key: "goal-linked-issues",
+    definition: {
+      schemaVersion: 5,
+      name: "Тикеты целей",
+      description: "Одна строка на связь цели WBS и тикета, найденную по точному совпадению Jira-лейбла.",
+      grain: "goalIssue",
+      basePopulation: { logic: "and", filters: [] },
+      rowConfig: { kind: "goalIssue" },
+      rowIdentity: ["goalId", "issueKey"],
+      outputFields: fields(...JIRA_ANALYTICS_FIELDS_BY_SOURCE.goalIssues),
       incompleteDataPolicy: "includeWithWarning",
       qualityRules,
       timeZone: "Europe/Moscow",
@@ -243,6 +264,7 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
     return { aggregateId: reference.id, aggregateVersion: reference.publishedVersion };
   };
   const issues = aggregate("issues");
+  const goalIssues = aggregate("goal-linked-issues");
   const statusIntervals = aggregate("status-intervals");
   const criticalSla = aggregate("critical-blocker-sla");
   const criticalTaskSla = aggregate("critical-blocker-task-sla");
@@ -257,6 +279,48 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
     periodDays: 180,
     assignee: "",
     widgets: [
+      {
+        id: "active-goal-factory-firmware-release",
+        title: "Цель: Релиз заводской прошивки",
+        ...goalIssues,
+        placement: "active",
+        selectedFields: ["goalName", "goalDate", "matchedLabels", "issueKey", "summary", "project", "priority", "assignee", "status", "resolution"],
+        filterLogic: "and",
+        filters: [
+          filter("factory-release-goal-label", "matchedLabels", "equals", "MP"),
+          filter("factory-release-priority", "priority", "oneOf", "Critical, Blocker"),
+          ...activeScope("factory-release"),
+        ],
+        dateField: null,
+        asOf: null,
+        metric: "count",
+        groupBy: "none",
+        sortBy: "goalDate",
+        sortDirection: "asc",
+        visualization: "table",
+        width: "full",
+      },
+      {
+        id: "active-goal-first-ota-ready",
+        title: "Цель: Первая ОТА готова",
+        ...goalIssues,
+        placement: "active",
+        selectedFields: ["goalName", "goalDate", "matchedLabels", "issueKey", "summary", "project", "priority", "assignee", "status", "resolution"],
+        filterLogic: "and",
+        filters: [
+          filter("first-ota-goal-label", "matchedLabels", "equals", "ota"),
+          filter("first-ota-priority", "priority", "oneOf", "Critical, Blocker"),
+          ...activeScope("first-ota"),
+        ],
+        dateField: null,
+        asOf: null,
+        metric: "count",
+        groupBy: "none",
+        sortBy: "goalDate",
+        sortDirection: "asc",
+        visualization: "table",
+        width: "full",
+      },
       {
         id: "active-without-sprint-with-code",
         title: "Без Sprint с коммитами или MR",
@@ -408,10 +472,13 @@ export function jiraDashboardWithDefaultWidgetsForSeedVersion(
   currentSeedVersion: number,
 ): JiraSemanticDashboard {
   if (currentSeedVersion < 1) return jiraDashboardWithDefaultWidgets(current, defaults);
-  if (currentSeedVersion >= 2) return current;
+  if (currentSeedVersion >= JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION) return current;
+  const added = new Set<string>();
+  if (currentSeedVersion < 2) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2.forEach((id) => added.add(id));
+  if (currentSeedVersion < 4) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_4.forEach((id) => added.add(id));
   return jiraDashboardWithDefaultWidgets(current, {
     ...defaults,
-    widgets: defaults.widgets.filter((widget) => JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2.has(widget.id)),
+    widgets: defaults.widgets.filter((widget) => added.has(widget.id)),
   });
 }
 
@@ -440,6 +507,7 @@ function nameKey(value: string) {
 
 function legacySource(definition: JiraSemanticAggregateDefinition) {
   if (definition.rowConfig.kind === "issue") return "issues" as const;
+  if (definition.rowConfig.kind === "goalIssue") return "goalIssues" as const;
   if (definition.rowConfig.kind === "transitionEvent") return "transitions" as const;
   if (definition.rowConfig.kind === "developmentEvent") return "development" as const;
   if (definition.rowConfig.kind === "criticalSla" || definition.rowConfig.kind === "criticalRisk") return "criticalBugs" as const;
@@ -500,7 +568,7 @@ function definitionData(projectId: string, key: string, definition: JiraSemantic
 
 function withCurrentTicketFields(definition: JiraSemanticAggregateDefinition) {
   const existing = new Set(definition.outputFields.map((field) => field.key));
-  const required = definition.rowConfig.kind === "issue"
+  const required = definition.rowConfig.kind === "issue" || definition.rowConfig.kind === "goalIssue"
     ? (["sprintCount", "labels"] as const)
     : (["labels"] as const);
   const added = required
@@ -516,6 +584,16 @@ function withCurrentTicketFields(definition: JiraSemanticAggregateDefinition) {
 export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, projectId: string) {
   await client.$transaction(async (transaction) => {
     await lockJiraAggregateProject(transaction, projectId);
+    await Promise.all([
+      transaction.wbsItem.updateMany({
+        where: { projectId, type: "GOAL", title: "Релиз заводской прошивки", jiraGoalLabels: { isEmpty: true } },
+        data: { jiraGoalLabels: ["MP"] },
+      }),
+      transaction.wbsItem.updateMany({
+        where: { projectId, type: "GOAL", title: "Первая ОТА готова", jiraGoalLabels: { isEmpty: true } },
+        data: { jiraGoalLabels: ["ota"] },
+      }),
+    ]);
     const references: SystemAggregateReference[] = [];
     for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {
       let row = await transaction.jiraAggregateDefinition.upsert({
@@ -743,18 +821,22 @@ export type JiraSemanticPopulationStats = {
   tickets: number;
   transitions: number;
   developmentActivities: number;
+  goals: number;
 };
 
 export async function jiraSemanticPopulationStats(
   client: PrismaClient,
   projectId: string,
 ): Promise<JiraSemanticPopulationStats> {
-  const [tickets, transitions, developmentActivities] = await Promise.all([
+  const [tickets, transitions, developmentActivities, goals] = await Promise.all([
     client.jiraIssueSnapshot.count({ where: { projectId, retiredAt: null } }),
     client.jiraIssueStatusTransition.count({ where: { snapshot: { projectId, retiredAt: null } } }),
     client.jiraDevelopmentActivity.count({ where: { snapshot: { projectId, retiredAt: null } } }),
+    client.wbsItem.count({
+      where: { projectId, type: "GOAL", jiraGoalLabels: { isEmpty: false } },
+    }),
   ]);
-  return { tickets, transitions, developmentActivities };
+  return { tickets, transitions, developmentActivities, goals };
 }
 
 export function jiraSemanticAggregateCost(
@@ -762,7 +844,7 @@ export function jiraSemanticAggregateCost(
   population: JiraSemanticPopulationStats | number,
 ) {
   const stats = typeof population === "number"
-    ? { tickets: population, transitions: population, developmentActivities: population }
+    ? { tickets: population, transitions: population, developmentActivities: population, goals: 1 }
     : population;
   const repeatedIntervals = definition.rowConfig.kind === "interval"
     && (definition.rowConfig.start.occurrence === "all" || definition.rowConfig.end.occurrence === "all");
@@ -770,6 +852,11 @@ export function jiraSemanticAggregateCost(
     ? stats.transitions
     : definition.rowConfig.kind === "developmentEvent"
       ? stats.developmentActivities
+      : definition.rowConfig.kind === "goalIssue"
+        ? Math.min(
+            stats.tickets * stats.goals,
+            stats.tickets * definition.qualityRules.maximumRowsPerIssue,
+          )
       : repeatedIntervals
         ? Math.min(
             stats.tickets * definition.qualityRules.maximumRowsPerIssue,
@@ -780,6 +867,7 @@ export function jiraSemanticAggregateCost(
     tickets: stats.tickets,
     transitions: stats.transitions,
     developmentActivities: stats.developmentActivities,
+    goals: stats.goals,
     estimatedRows,
     maximumRows: definition.qualityRules.maximumRows,
     blocked: estimatedRows > definition.qualityRules.maximumRows,
