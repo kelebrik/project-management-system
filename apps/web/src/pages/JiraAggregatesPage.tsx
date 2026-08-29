@@ -14,7 +14,7 @@ import {
   type JiraSemanticIntervalAnchor,
   type JiraSemanticOutputField,
 } from "@pms/shared";
-import { Archive, Database, Eye, Plus, Rocket, Save, Trash2 } from "lucide-react";
+import { Archive, Database, Eye, Plus, RefreshCw, Rocket, Save, Trash2 } from "lucide-react";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 
 import { apiClient } from "../api/client";
@@ -47,6 +47,7 @@ const GRAIN_LABELS = {
   transitionEvent: "Переход статуса",
   developmentEvent: "Событие разработки",
   interval: "Интервал",
+  gitlabCommit: "Коммит GitLab",
 } as const;
 
 const ROW_KIND_LABELS: Record<JiraSemanticAggregateRowConfig["kind"], string> = {
@@ -57,6 +58,7 @@ const ROW_KIND_LABELS: Record<JiraSemanticAggregateRowConfig["kind"], string> = 
   interval: "Пара контрольных точек",
   criticalSla: "SLA Critical/Blocker",
   criticalRisk: "Риск нарушения SLA Critical/Blocker",
+  gitlabBranchCommit: "Коммиты выбранной ветки GitLab",
 };
 
 function uid(prefix: string) {
@@ -72,6 +74,8 @@ function fieldsForRowConfig(rowConfig: JiraSemanticAggregateRowConfig) {
       ? "transitions"
       : rowConfig.kind === "developmentEvent"
         ? "development"
+        : rowConfig.kind === "gitlabBranchCommit"
+          ? "gitlabCommits"
         : rowConfig.kind === "criticalSla" || rowConfig.kind === "criticalRisk"
           ? "criticalBugs"
           : "statusIntervals";
@@ -83,6 +87,13 @@ function rowConfigFor(kind: JiraSemanticAggregateRowConfig["kind"]): JiraSemanti
   if (kind === "goalIssue") return { kind };
   if (kind === "transitionEvent") return { kind };
   if (kind === "developmentEvent") return { kind };
+  if (kind === "gitlabBranchCommit") return {
+    kind,
+    projectPath: "athena/staros",
+    targetBranch: "factory-1.103-cvte968",
+    lookbackDays: 14,
+    includeMergeCommits: false,
+  };
   if (kind === "criticalSla") return {
     kind,
     issueTypes: ["Bug", "Bug Report", "Defect", "Баг", "Ошибка", "Дефект"],
@@ -115,6 +126,7 @@ function grainFor(rowConfig: JiraSemanticAggregateRowConfig): JiraSemanticAggreg
   if (rowConfig.kind === "goalIssue") return "goalIssue";
   if (rowConfig.kind === "transitionEvent") return "transitionEvent";
   if (rowConfig.kind === "developmentEvent") return "developmentEvent";
+  if (rowConfig.kind === "gitlabBranchCommit") return "gitlabCommit";
   return "interval";
 }
 
@@ -222,6 +234,15 @@ function RowRuleEditor({ definition, disabled, onChange }: {
       <p className="jira-aggregate-help">В агрегат входят только нерешённые тикеты, которые сейчас имеют Critical/Blocker.</p>
     </fieldset>;
   }
+  if (config.kind === "gitlabBranchCommit") {
+    return <fieldset className="jira-aggregate-fieldset"><legend>Ветка GitLab</legend>
+      <label>Проект GitLab<input disabled={disabled} value={config.projectPath} placeholder="athena/staros" onChange={(event) => onChange({ ...definition, rowConfig: { ...config, projectPath: event.target.value } })} /><small>Полный путь проекта без адреса сервера.</small></label>
+      <label>Целевая ветка<input disabled={disabled} value={config.targetBranch} placeholder="factory-1.103-cvte968" onChange={(event) => onChange({ ...definition, rowConfig: { ...config, targetBranch: event.target.value } })} /></label>
+      <label>Период синхронизации, дней<input type="number" min="1" max="365" disabled={disabled} value={config.lookbackDays} onChange={(event) => onChange({ ...definition, rowConfig: { ...config, lookbackDays: Number(event.target.value) } })} /></label>
+      <label className="jira-aggregate-field-option"><input type="checkbox" disabled={disabled} checked={config.includeMergeCommits} onChange={(event) => onChange({ ...definition, rowConfig: { ...config, includeMergeCommits: event.target.checked } })} />Включать технические merge-коммиты</label>
+      <p className="jira-aggregate-help">Агрегат хранит достижимые из ветки коммиты и отбирает их по дате самого коммита. Ключ Jira ищется в сообщении коммита и связанном MR.</p>
+    </fieldset>;
+  }
   return <div className="jira-aggregate-help">{ROW_KIND_LABELS[config.kind]}. Дополнительные правила для этой гранулярности не требуются.</div>;
 }
 
@@ -230,7 +251,7 @@ function Preview({ value, fields }: { value: PreviewResponse | null; fields: Jir
   return <div className="jira-aggregate-preview">
     <div className="jira-aggregate-preview-number"><strong>{value.result.totalRecords.toLocaleString("ru-RU")}</strong><span>строк в агрегате</span></div>
     <div className={`jira-aggregate-quality ${value.result.quality.status.toLocaleLowerCase()}`}><header><strong>Качество: {value.result.quality.status}</strong><span>Покрытие {value.result.quality.coveragePercent ?? 0}%</span></header><p>Оценка: {value.cost.estimatedRows.toLocaleString("ru-RU")}, лимит {value.cost.maximumRows.toLocaleString("ru-RU")}</p>{value.result.quality.warnings.length ? <ul>{value.result.quality.warnings.map((warning) => <li key={warning.code}>{warning.code}: {warning.count}</li>)}</ul> : null}</div>
-    <div className="jira-aggregate-preview-records"><table><thead><tr>{fields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{value.result.records.map((record) => <tr key={record.id}>{fields.map((field) => { const cell = record.values[field.key]; const text = typeof cell === "boolean" ? cell ? "Да" : "Нет" : cell ?? "-"; return <td key={field.key}>{field.key === "issueKey" ? <a href={record.issueUrl} target="_blank" rel="noreferrer">{String(text)}</a> : String(text)}</td>; })}</tr>)}</tbody></table></div>
+    <div className="jira-aggregate-preview-records"><table><thead><tr>{fields.map((field) => <th key={field.key}>{field.label}</th>)}</tr></thead><tbody>{value.result.records.map((record) => <tr key={record.id}>{fields.map((field) => { const cell = record.values[field.key]; const text = typeof cell === "boolean" ? cell ? "Да" : "Нет" : cell ?? "-"; return <td key={field.key}>{field.key === "issueKey" || field.key === "commitSha" || field.key === "commitShortSha" ? <a href={record.issueUrl} target="_blank" rel="noreferrer">{String(text)}</a> : String(text)}</td>; })}</tr>)}</tbody></table></div>
   </div>;
 }
 
@@ -288,7 +309,7 @@ export function JiraAggregatesPage() {
     const rowConfig = rowConfigFor(kind);
     const grain = grainFor(rowConfig);
     setDraft((current) => ({ ...current, grain, rowConfig,
-      rowIdentity: grain === "issue" ? ["issueKey"] : grain === "goalIssue" ? ["goalId", "issueKey"] : ["rowId"],
+      rowIdentity: grain === "issue" ? ["issueKey"] : grain === "goalIssue" ? ["goalId", "issueKey"] : grain === "gitlabCommit" ? ["gitlabProjectPath", "gitlabTargetBranch", "commitSha"] : ["rowId"],
       outputFields: fieldsForRowConfig(rowConfig).map(jiraSemanticDefaultOutputField),
       incompleteDataPolicy: grain === "issue" || grain === "goalIssue" ? "includeWithWarning" : "exclude",
       asOfSupport: grain === "issue" || grain === "goalIssue" || kind === "criticalSla" ? "supported" : "none",
@@ -347,6 +368,18 @@ export function JiraAggregatesPage() {
     finally { setBusy(false); }
   };
 
+  const syncGitlab = async () => {
+    if (!canEdit || !selected || selected.publishedVersion == null || draft.rowConfig.kind !== "gitlabBranchCommit") return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await apiClient.post<{ commitCount: number; linkedCount: number; unlinkedCount: number; undeterminedCount: number }>(`/api/projects/${project.id}/jira/semantic-aggregates/${selected.id}/sync-gitlab`, { aggregateVersion: selected.publishedVersion }, "Не удалось синхронизировать ветку GitLab");
+      setNotice(`GitLab: ${result.commitCount} коммитов, без упоминания Jira: ${result.unlinkedCount}, связано: ${result.linkedCount}, не определено: ${result.undeterminedCount}`);
+      await runPreview();
+    } catch (error) { setError(error instanceof Error ? error.message : "Не удалось синхронизировать ветку GitLab"); }
+    finally { setBusy(false); }
+  };
+
   const saveGoalLabels = async () => {
     if (!canEdit || !catalog) return;
     setBusy(true);
@@ -371,7 +404,7 @@ export function JiraAggregatesPage() {
     </section>
     <div className="jira-aggregate-builder">
     <aside className="jira-aggregate-catalog"><header><div><Database size={24} /><h3>Агрегаты</h3></div>{canEdit ? <button type="button" className="icon-button" title="Создать агрегат" onClick={() => { setSelectedId(null); setDraft(defaultDefinition()); setNewKey("new-aggregate"); setPreview(null); }}><Plus size={22} /></button> : null}</header><div className="jira-aggregate-catalog-list">{catalog.definitions.map((definition) => <button type="button" key={definition.id} className={selectedId === definition.id ? "active" : ""} onClick={() => choose(definition)}><strong>{definition.draft.name}</strong><span>{GRAIN_LABELS[definition.draft.grain]} · v{definition.version}{definition.publishedVersion ? ` / опубликована v${definition.publishedVersion}` : " · черновик"}</span></button>)}</div></aside>
-    <main className="jira-aggregate-editor"><header><div><h3>{draft.name}</h3><span>{selected?.system ? "Системный агрегат" : selected ? "Пользовательский агрегат" : "Новый агрегат"}</span></div><div className="jira-aggregate-actions"><button type="button" className="secondary-button" disabled={!canEdit || busy || !validation.success} onClick={() => void runPreview()}><Eye size={18} />Показать данные</button>{selected && !selected.system ? <button type="button" className="icon-button danger" disabled={!canEdit || busy} onClick={() => void archive()} title="Архивировать"><Archive size={18} /></button> : null}<button type="button" className="secondary-button" disabled={!canEdit || busy || !validation.success} onClick={() => void save()}><Save size={18} />Сохранить черновик</button>{selected ? <button type="button" className="primary-button" disabled={!canEdit || busy || !validation.success || selected.publishedVersion === selected.version} onClick={() => void publish()}><Rocket size={18} />Опубликовать</button> : null}</div></header>
+    <main className="jira-aggregate-editor"><header><div><h3>{draft.name}</h3><span>{selected?.system ? "Системный агрегат" : selected ? "Пользовательский агрегат" : "Новый агрегат"}</span></div><div className="jira-aggregate-actions">{draft.rowConfig.kind === "gitlabBranchCommit" ? <button type="button" className="secondary-button" disabled={!canEdit || busy || !selected?.publishedVersion} onClick={() => void syncGitlab()}><RefreshCw size={18} />Синхронизировать GitLab</button> : null}<button type="button" className="secondary-button" disabled={!canEdit || busy || !validation.success} onClick={() => void runPreview()}><Eye size={18} />Показать данные</button>{selected && !selected.system ? <button type="button" className="icon-button danger" disabled={!canEdit || busy} onClick={() => void archive()} title="Архивировать"><Archive size={18} /></button> : null}<button type="button" className="secondary-button" disabled={!canEdit || busy || !validation.success} onClick={() => void save()}><Save size={18} />Сохранить черновик</button>{selected ? <button type="button" className="primary-button" disabled={!canEdit || busy || !validation.success || selected.publishedVersion === selected.version} onClick={() => void publish()}><Rocket size={18} />Опубликовать</button> : null}</div></header>
       <div className="jira-aggregate-editor-grid"><section className="jira-aggregate-controls">
         <fieldset className="jira-aggregate-fieldset"><legend>Описание и ревизия</legend>{!selected ? <label>Код агрегата<input disabled={!canEdit} value={newKey} onChange={(event) => setNewKey(event.target.value)} /></label> : null}<label>Название<input disabled={!canEdit} value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label><label>Описание<textarea disabled={!canEdit} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label><label>Правило формирования строк<select disabled={!canEdit || selected?.publishedVersion != null} value={draft.rowConfig.kind} onChange={(event) => updateRowKind(event.target.value as JiraSemanticAggregateRowConfig["kind"])}>{Object.entries(ROW_KIND_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><small>После первой публикации тип строк фиксируется; изменения выполняются через параметры правила и новые ревизии.</small></label><label>Гранулярность<input disabled value={GRAIN_LABELS[draft.grain]} /></label></fieldset>
         <RowRuleEditor definition={draft} disabled={!canEdit} onChange={setDraft} />

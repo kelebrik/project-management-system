@@ -18,6 +18,7 @@ import {
   jiraDashboardWithDefaultWidgetsForSeedVersion,
   jiraDashboardWithCurrentSystemAggregateRevisions,
   jiraSemanticExecutableDefinition,
+  withCurrentTicketFields,
 } from "./jira-semantic-aggregates.js";
 
 test("semantic catalog exposes the managed Jira row sets", () => {
@@ -33,6 +34,7 @@ test("semantic catalog exposes the managed Jira row sets", () => {
       "critical-blocker-task-sla",
       "critical-blocker-risk",
       "in-progress-resolution",
+      "gitlab-branch-commits",
     ],
   );
   for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {
@@ -41,10 +43,23 @@ test("semantic catalog exposes the managed Jira row sets", () => {
     assert.equal("groupBy" in aggregate.definition, false);
     assert.equal("visualization" in aggregate.definition, false);
     assert.equal("placement" in aggregate.definition, false);
-    assert.ok(
-      aggregate.definition.outputFields.some((field) => field.key === "labels"),
-      `${aggregate.key} must expose ticket labels`,
-    );
+    if (aggregate.definition.rowConfig.kind !== "gitlabBranchCommit") {
+      assert.ok(
+        aggregate.definition.outputFields.some((field) => field.key === "labels"),
+        `${aggregate.key} must expose ticket labels`,
+      );
+    }
+  }
+});
+
+test("system aggregate compatibility upgrades remain valid for every source", () => {
+  for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {
+    const upgraded = withCurrentTicketFields(aggregate.definition);
+    const parsed = jiraSemanticAggregateDefinitionSchema.safeParse(upgraded);
+    assert.equal(parsed.success, true, `${aggregate.key} compatibility upgrade must remain valid`);
+    if (aggregate.definition.rowConfig.kind === "gitlabBranchCommit") {
+      assert.deepEqual(upgraded, aggregate.definition);
+    }
   }
 });
 
@@ -84,8 +99,9 @@ test("default semantic dashboard contains the requested operational and retrospe
     publishedVersion: aggregate.key === "issues" ? 2 : 1,
   }));
   const dashboard = jiraDefaultSemanticDashboard(references);
-  assert.equal(dashboard.widgets.length, 9);
+  assert.equal(dashboard.widgets.length, 10);
   assert.deepEqual(dashboard.widgets.map((widget) => [widget.placement, widget.title]), [
+    ["active", "Коммиты ветки без упоминания Jira"],
     ["active", "Цель: Релиз заводской прошивки"],
     ["active", "Цель: Первая ОТА готова"],
     ["active", "Без Sprint с коммитами или MR"],
@@ -136,9 +152,9 @@ test("default widgets augment an existing dashboard once without replacing its w
     widgets: [{ ...defaults.widgets[0]!, id: "custom-widget", title: "Пользовательский виджет" }],
   };
   const merged = jiraDashboardWithDefaultWidgets(existing, defaults);
-  assert.equal(merged.widgets.length, 10);
+  assert.equal(merged.widgets.length, 11);
   assert.equal(merged.widgets[0]?.id, "custom-widget");
-  assert.equal(jiraDashboardWithDefaultWidgets(merged, defaults).widgets.length, 10);
+  assert.equal(jiraDashboardWithDefaultWidgets(merged, defaults).widgets.length, 11);
 });
 
 test("widget seed v2 adds only new widgets and does not recreate deleted v1 defaults", () => {
@@ -156,13 +172,14 @@ test("widget seed v2 adds only new widgets and does not recreate deleted v1 defa
 
   assert.deepEqual(upgraded.widgets.map((widget) => widget.id), [
     "custom-widget",
+    "active-gitlab-unlinked-branch-commits",
     "active-goal-factory-firmware-release",
     "active-goal-first-ota-ready",
     "active-critical-blocker-risk",
     "retro-critical-blocker-task-sla-45-days",
     "retro-p85-in-progress-to-resolution-by-project",
   ]);
-  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 1).widgets.length, 6);
+  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 1).widgets.length, 7);
 });
 
 test("widget seed v4 adds only goal widgets without recreating deleted widgets", () => {
@@ -179,8 +196,26 @@ test("widget seed v4 adds only goal widgets without recreating deleted widgets",
 
   assert.deepEqual(jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 3).widgets.map((widget) => widget.id), [
     "custom-widget",
+    "active-gitlab-unlinked-branch-commits",
     "active-goal-factory-firmware-release",
     "active-goal-first-ota-ready",
+  ]);
+});
+
+test("widget seed v5 adds only the GitLab branch widget", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({
+    id: `aggregate-${index + 1}`,
+    aggregateKey: aggregate.key,
+    publishedVersion: 1,
+  }));
+  const defaults = jiraDefaultSemanticDashboard(references);
+  const current = {
+    ...defaults,
+    widgets: [{ ...defaults.widgets[1]!, id: "custom-widget", title: "Пользовательский виджет" }],
+  };
+  assert.deepEqual(jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 4).widgets.map((widget) => widget.id), [
+    "custom-widget",
+    "active-gitlab-unlinked-branch-commits",
   ]);
 });
 

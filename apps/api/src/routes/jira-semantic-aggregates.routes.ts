@@ -50,6 +50,11 @@ import {
   listJiraSemanticAggregates,
   loadPublishedJiraSemanticAggregate,
 } from "../services/jira-semantic-aggregates.js";
+import {
+  GitlabBranchAnalyticsError,
+  evaluateGitlabBranchCommitAggregateFromDatabase,
+  syncGitlabBranchCommitAggregate,
+} from "../services/gitlab-branch-analytics.js";
 
 const previewSchema = z.object({
   definition: jiraSemanticAggregateDefinitionSchema,
@@ -98,6 +103,7 @@ const batchQuerySchema = z.object({
 });
 
 const publishSchema = z.object({ expectedVersion: z.number().int().min(1) }).strict();
+const gitlabSyncSchema = z.object({ aggregateVersion: z.number().int().min(1) }).strict();
 const goalLabelsSchema = z.object({
   goals: z.array(z.object({
     goalId: z.string().min(1).max(200),
@@ -129,6 +135,7 @@ function respondEvaluationLimit(res: Response, error: unknown, action: string) {
 }
 
 function evaluationErrorMessage(error: Error) {
+  if (error instanceof GitlabBranchAnalyticsError) return error.message;
   if (
     error instanceof JiraAggregateExportLimitError
     || error instanceof JiraAggregatePopulationLimitError
@@ -139,6 +146,36 @@ function evaluationErrorMessage(error: Error) {
     return `Расчёт превышает безопасный лимит ${error.limit.toLocaleString("ru-RU")} строк, событий или срезов`;
   }
   return "Не удалось рассчитать этот виджет";
+}
+
+function isGitlabBranchAggregate(definition: z.infer<typeof jiraSemanticAggregateDefinitionSchema>) {
+  return definition.rowConfig.kind === "gitlabBranchCommit";
+}
+
+async function evaluatePublishedDefinition(
+  client: PrismaClient,
+  projectId: string,
+  definition: z.infer<typeof jiraSemanticAggregateDefinitionSchema>,
+  query: z.infer<typeof querySchema>,
+) {
+  const options = {
+    now: jiraSemanticEvaluationNow(query.asOf),
+    periodDays: query.periodDays ?? undefined,
+    assignee: query.assignee,
+    page: query.page,
+    pageSize: query.pageSize,
+    groupKey: query.groupKey,
+  };
+  if (isGitlabBranchAggregate(definition)) {
+    return evaluateGitlabBranchCommitAggregateFromDatabase(client, projectId, definition, query, options);
+  }
+  return evaluateJiraAggregateFromDatabase(
+    client,
+    projectId,
+    jiraSemanticExecutableDefinition(definition, query),
+    options,
+    query.asOf ? new Date(query.asOf) : undefined,
+  );
 }
 
 export function jiraSemanticEvaluationNow(asOf: string | null | undefined) {
@@ -557,20 +594,26 @@ export function registerJiraSemanticAggregateRoutes(
       res.status(409).json({ error: "Оценка количества строк превышает опубликованный лимит", cost });
       return;
     }
-    const executable = jiraSemanticExecutableDefinition(definition.data, {
-      metric: "count", groupBy: "none", filters: [], filterLogic: "and", periodDays: null,
-      dateField: null, sortBy: "default", sortDirection: "desc",
-    });
-    let rawResult;
-    try {
-      rawResult = await evaluateJiraAggregateFromDatabase(prisma, req.params.projectId, executable, {
-        now: new Date().toISOString(), assignee: "", page: 1, pageSize: 1,
+    let result;
+    if (isGitlabBranchAggregate(definition.data)) {
+      result = {
+        totalRecords: 0,
+        quality: { coveragePercent: 100, status: "NO_DATA", warnings: [] },
+      };
+    } else {
+      const executable = jiraSemanticExecutableDefinition(definition.data, {
+        metric: "count", groupBy: "none", filters: [], filterLogic: "and", periodDays: null,
+        dateField: null, sortBy: "default", sortDirection: "desc",
       });
-    } catch (error) {
-      if (respondEvaluationLimit(res, error, "Публикация агрегата")) return;
-      throw error;
+      try {
+        result = await evaluateJiraAggregateFromDatabase(prisma, req.params.projectId, executable, {
+          now: new Date().toISOString(), assignee: "", page: 1, pageSize: 1,
+        });
+      } catch (error) {
+        if (respondEvaluationLimit(res, error, "Публикация агрегата")) return;
+        throw error;
+      }
     }
-    const result = rawResult;
     if (result.totalRecords > definition.data.qualityRules.maximumRows) {
       res.status(409).json({ error: "Фактическое количество строк превышает лимит агрегата", cost, actualRows: result.totalRecords });
       return;
@@ -605,6 +648,55 @@ export function registerJiraSemanticAggregateRoutes(
       metadata: { version: row.version, cost, quality: result.quality },
     });
     res.json({ version: row.version, cost, quality: result.quality });
+  });
+
+  router.post("/projects/:projectId/jira/semantic-aggregates/:aggregateId/sync-gitlab", async (req, res) => {
+    const user = currentUser(req);
+    if (!user || !admin(req)) {
+      res.status(user ? 403 : 401).json({ error: user ? "Синхронизировать GitLab может только системный администратор" : "Требуется вход в систему" });
+      return;
+    }
+    const parsed = gitlabSyncSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Укажите опубликованную версию агрегата" });
+      return;
+    }
+    if (!await editableProject(prisma, req.params.projectId, res)) return;
+    const aggregate = await loadPublishedJiraSemanticAggregate(
+      prisma,
+      req.params.projectId,
+      req.params.aggregateId,
+      parsed.data.aggregateVersion,
+    );
+    if (!aggregate) {
+      res.status(404).json({ error: "Опубликованная ревизия агрегата не найдена" });
+      return;
+    }
+    if (!isGitlabBranchAggregate(aggregate.definition)) {
+      res.status(409).json({ error: "Синхронизация GitLab доступна только агрегату коммитов ветки" });
+      return;
+    }
+    try {
+      const outcome = await syncGitlabBranchCommitAggregate(prisma, {
+        projectId: req.params.projectId,
+        aggregateId: aggregate.row.id,
+        aggregateVersion: aggregate.revision.version,
+        definition: aggregate.definition,
+        createdById: user.id,
+      });
+      await recordAuditEvent({
+        req,
+        actor: user,
+        action: "gitlab.branch_commits.sync",
+        objectType: "JiraAggregateDefinition",
+        objectId: aggregate.row.id,
+        projectId: req.params.projectId,
+        metadata: outcome,
+      });
+      res.json(outcome);
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : "Не удалось синхронизировать GitLab" });
+    }
   });
 
   router.delete("/projects/:projectId/jira/semantic-aggregates/:aggregateId", async (req, res) => {
@@ -687,8 +779,10 @@ export function registerJiraSemanticAggregateRoutes(
     });
     const valid = prepared.filter((entry) => entry.error === null && entry.aggregate !== null);
     try {
-      const evaluated = valid.length === 0 ? [] : await evaluateJiraAggregatesFromDatabase(
-        prisma, req.params.projectId, valid.map(({ item, aggregate }) => ({
+      const jiraEntries = valid.filter(({ aggregate }) => !isGitlabBranchAggregate(aggregate!.definition));
+      const gitlabEntries = valid.filter(({ aggregate }) => isGitlabBranchAggregate(aggregate!.definition));
+      const jiraEvaluated = jiraEntries.length === 0 ? [] : await evaluateJiraAggregatesFromDatabase(
+        prisma, req.params.projectId, jiraEntries.map(({ item, aggregate }) => ({
           key: item.widgetId,
           definition: jiraSemanticExecutableDefinition(aggregate!.definition, item.query),
           options: {
@@ -702,6 +796,30 @@ export function registerJiraSemanticAggregateRoutes(
           asOf: item.query.asOf ? new Date(item.query.asOf) : undefined,
         })),
       );
+      const gitlabEvaluated = await Promise.all(gitlabEntries.map(async ({ item, aggregate }) => {
+        try {
+          return {
+            key: item.widgetId,
+            result: await evaluateGitlabBranchCommitAggregateFromDatabase(
+              prisma,
+              req.params.projectId,
+              aggregate!.definition,
+              item.query,
+              {
+                now: jiraSemanticEvaluationNow(item.query.asOf),
+                periodDays: item.query.periodDays ?? undefined,
+                assignee: item.query.assignee,
+                page: item.query.page,
+                pageSize: item.query.pageSize,
+                groupKey: item.query.groupKey,
+              },
+            ),
+          };
+        } catch (error) {
+          return { key: item.widgetId, error: error instanceof Error ? error : new Error("GITLAB_EVALUATION_FAILED") };
+        }
+      }));
+      const evaluated = [...jiraEvaluated, ...gitlabEvaluated];
       const evaluatedByWidget = new Map(evaluated.map((entry) => [entry.key, entry]));
       res.json({
         results: prepared.map(({ item, aggregate, error }) => {
@@ -746,21 +864,35 @@ export function registerJiraSemanticAggregateRoutes(
       res.status(409).json({ error: "Оценка количества строк превышает лимит агрегата", cost });
       return;
     }
-    const executable = jiraSemanticExecutableDefinition(parsed.data.definition, {
-      metric: "count", groupBy: "none", filters: [], filterLogic: "and", periodDays: null,
-      dateField: null, sortBy: "default", sortDirection: "desc",
-    });
     let rawResult;
     try {
-      rawResult = await evaluateJiraAggregateFromDatabase(
-        prisma,
-        req.params.projectId,
-        executable,
-        { now: jiraSemanticEvaluationNow(parsed.data.asOf), assignee: "", page: 1, pageSize: 20 },
-        parsed.data.asOf ? new Date(parsed.data.asOf) : undefined,
-      );
+      if (isGitlabBranchAggregate(parsed.data.definition)) {
+        rawResult = await evaluateGitlabBranchCommitAggregateFromDatabase(
+          prisma,
+          req.params.projectId,
+          parsed.data.definition,
+          { filters: [], filterLogic: "and", sortBy: "default", sortDirection: "desc" },
+          { now: jiraSemanticEvaluationNow(parsed.data.asOf), assignee: "", page: 1, pageSize: 20 },
+        );
+      } else {
+        const executable = jiraSemanticExecutableDefinition(parsed.data.definition, {
+          metric: "count", groupBy: "none", filters: [], filterLogic: "and", periodDays: null,
+          dateField: null, sortBy: "default", sortDirection: "desc",
+        });
+        rawResult = await evaluateJiraAggregateFromDatabase(
+          prisma,
+          req.params.projectId,
+          executable,
+          { now: jiraSemanticEvaluationNow(parsed.data.asOf), assignee: "", page: 1, pageSize: 20 },
+          parsed.data.asOf ? new Date(parsed.data.asOf) : undefined,
+        );
+      }
     } catch (error) {
       if (respondEvaluationLimit(res, error, "Предпросмотр агрегата")) return;
+      if (error instanceof GitlabBranchAnalyticsError) {
+        res.status(409).json({ error: error.message });
+        return;
+      }
       throw error;
     }
     if (rawResult.totalRecords > parsed.data.definition.qualityRules.maximumRows) {
@@ -803,25 +935,15 @@ export function registerJiraSemanticAggregateRoutes(
       res.status(409).json({ error: "Этот агрегат не поддерживает состояние на дату" });
       return;
     }
-    const executable = jiraSemanticExecutableDefinition(aggregate.definition, parsed.data);
     let rawResult;
     try {
-      rawResult = await evaluateJiraAggregateFromDatabase(
-        prisma,
-        req.params.projectId,
-        executable,
-        {
-          now: jiraSemanticEvaluationNow(parsed.data.asOf),
-          periodDays: parsed.data.periodDays ?? undefined,
-          assignee: parsed.data.assignee,
-          page: parsed.data.page,
-          pageSize: parsed.data.pageSize,
-          groupKey: parsed.data.groupKey,
-        },
-        parsed.data.asOf ? new Date(parsed.data.asOf) : undefined,
-      );
+      rawResult = await evaluatePublishedDefinition(prisma, req.params.projectId, aggregate.definition, parsed.data);
     } catch (error) {
       if (respondEvaluationLimit(res, error, "Расчёт виджета")) return;
+      if (error instanceof GitlabBranchAnalyticsError) {
+        res.status(409).json({ error: error.message });
+        return;
+      }
       throw error;
     }
     if (rawResult.totalRecords > aggregate.definition.qualityRules.maximumRows) {
@@ -864,21 +986,29 @@ export function registerJiraSemanticAggregateRoutes(
       res.status(409).json({ error: "Этот агрегат не поддерживает состояние на дату" });
       return;
     }
-    const executable = jiraSemanticExecutableDefinition(aggregate.definition, parsed.data);
     try {
-      const rawResult = await evaluateJiraAggregateFromDatabase(
-        prisma,
-        req.params.projectId,
-        executable,
-        jiraAggregateExportOptions({
-          now: jiraSemanticEvaluationNow(parsed.data.asOf),
-          periodDays: parsed.data.periodDays ?? undefined,
-          assignee: parsed.data.assignee,
-          groupKey: parsed.data.groupKey,
-        }),
-        parsed.data.asOf ? new Date(parsed.data.asOf) : undefined,
-        jiraAggregateExportLimits(),
-      );
+      const exportOptions = jiraAggregateExportOptions({
+        now: jiraSemanticEvaluationNow(parsed.data.asOf),
+        periodDays: parsed.data.periodDays ?? undefined,
+        assignee: parsed.data.assignee,
+        groupKey: parsed.data.groupKey,
+      });
+      const rawResult = isGitlabBranchAggregate(aggregate.definition)
+        ? await evaluateGitlabBranchCommitAggregateFromDatabase(
+            prisma,
+            req.params.projectId,
+            aggregate.definition,
+            parsed.data,
+            exportOptions,
+          )
+        : await evaluateJiraAggregateFromDatabase(
+            prisma,
+            req.params.projectId,
+            jiraSemanticExecutableDefinition(aggregate.definition, parsed.data),
+            exportOptions,
+            parsed.data.asOf ? new Date(parsed.data.asOf) : undefined,
+            jiraAggregateExportLimits(),
+          );
       const result = rawResult;
       if (result.totalRecords > aggregate.definition.qualityRules.maximumRows) {
         res.status(409).json({
@@ -897,6 +1027,10 @@ export function registerJiraSemanticAggregateRoutes(
       res.send(`\uFEFF${jiraAggregateResultCsv(result, parsed.data.selectedFields, labels)}`);
     } catch (error) {
       if (respondEvaluationLimit(res, error, "Экспорт")) return;
+      if (error instanceof GitlabBranchAnalyticsError) {
+        res.status(409).json({ error: error.message });
+        return;
+      }
       throw error;
     }
   });

@@ -323,7 +323,7 @@ export const openApiDocument = {
         properties: {
           status: { type: "string", enum: ["COMPLETE", "PARTIAL", "NO_DATA", "UNAVAILABLE"] },
           basis: { type: "string", enum: ["CURRENT_PROJECTION", "OBSERVED_VERSIONS"] },
-          source: { type: "string", enum: ["issues", "transitions", "development", "criticalBugs", "statusIntervals"] },
+          source: { type: "string", enum: ["issues", "goalIssues", "transitions", "development", "criticalBugs", "statusIntervals", "gitlabCommits"] },
           population: { type: "integer", minimum: 0 },
           complete: { type: "integer", minimum: 0 },
           incomplete: { type: "integer", minimum: 0 },
@@ -340,7 +340,7 @@ export const openApiDocument = {
                   type: "string",
                   enum: [
                     "NO_SOURCE_POPULATION", "INCOMPLETE_TRANSITION_HISTORY", "MISSING_ISSUE_CREATED_AT",
-                    "INCOMPLETE_DEVELOPMENT_DATA", "INCOMPLETE_CRITICAL_SLA",
+                    "INCOMPLETE_DEVELOPMENT_DATA", "INCOMPLETE_CRITICAL_SLA", "UNDETERMINED_JIRA_LINK",
                     "MISSING_HISTORICAL_OBSERVATION", "BEFORE_HISTORY_START", "HISTORY_WRITE_GAP",
                   ],
                 },
@@ -1261,6 +1261,20 @@ export const openApiDocument = {
           } } },
         },
         responses: { "200": { description: "Semantic aggregate revision published" }, ...jiraAggregateErrorResponses },
+      },
+    },
+    "/api/projects/{projectId}/jira/semantic-aggregates/{aggregateId}/sync-gitlab": {
+      post: {
+        ...securedOperation(["Jira"], "Synchronize a configured GitLab branch using read-only APIs", [projectIdParam, pathParam("aggregateId")]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object", additionalProperties: false,
+            properties: { aggregateVersion: { type: "integer", minimum: 1 } },
+            required: ["aggregateVersion"],
+          } } },
+        },
+        responses: { "200": { description: "GitLab branch commits persisted locally" }, ...jiraAggregateErrorResponses },
       },
     },
     "/api/projects/{projectId}/jira/semantic-aggregates/preview": {

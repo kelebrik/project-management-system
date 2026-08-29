@@ -33,7 +33,7 @@ const qualityRules = {
   maximumRowsPerIssue: 500,
 };
 
-export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 4;
+export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 5;
 const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2 = new Set([
   "active-critical-blocker-risk",
   "retro-critical-blocker-task-sla-45-days",
@@ -42,6 +42,9 @@ const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2 = new Set([
 const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_4 = new Set([
   "active-goal-factory-firmware-release",
   "active-goal-first-ota-ready",
+]);
+const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_5 = new Set([
+  "active-gitlab-unlinked-branch-commits",
 ]);
 
 export const JIRA_SYSTEM_SEMANTIC_AGGREGATES: Array<{
@@ -245,6 +248,29 @@ export const JIRA_SYSTEM_SEMANTIC_AGGREGATES: Array<{
       asOfSupport: "none",
     },
   },
+  {
+    key: "gitlab-branch-commits",
+    definition: {
+      schemaVersion: 5,
+      name: "Коммиты ветки GitLab",
+      description: "Достижимые из выбранной ветки коммиты за период по дате самого коммита. Связь с Jira определяется по существующему ключу в сообщении коммита или связанном MR.",
+      grain: "gitlabCommit",
+      basePopulation: { logic: "and", filters: [] },
+      rowConfig: {
+        kind: "gitlabBranchCommit",
+        projectPath: "athena/staros",
+        targetBranch: "factory-1.103-cvte968",
+        lookbackDays: 14,
+        includeMergeCommits: false,
+      },
+      rowIdentity: ["gitlabProjectPath", "gitlabTargetBranch", "commitSha"],
+      outputFields: fields(...JIRA_ANALYTICS_FIELDS_BY_SOURCE.gitlabCommits),
+      incompleteDataPolicy: "exclude",
+      qualityRules: { minimumCoveragePercent: 100, maximumRows: 2_000, maximumRowsPerIssue: 1 },
+      timeZone: "Europe/Moscow",
+      asOfSupport: "none",
+    },
+  },
 ];
 
 type SystemAggregateReference = {
@@ -270,6 +296,7 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
   const criticalTaskSla = aggregate("critical-blocker-task-sla");
   const criticalRisk = aggregate("critical-blocker-risk");
   const inProgressResolution = aggregate("in-progress-resolution");
+  const gitlabBranchCommits = aggregate("gitlab-branch-commits");
   const activeScope = (prefix: string) => [
     filter(`${prefix}-unresolved`, "resolution", "empty"),
     ...jiraCancelledStatuses.map((status, index) => filter(`${prefix}-not-cancelled-${index + 1}`, "status", "notEquals", status)),
@@ -279,6 +306,23 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
     periodDays: 180,
     assignee: "",
     widgets: [
+      {
+        id: "active-gitlab-unlinked-branch-commits",
+        title: "Коммиты ветки без упоминания Jira",
+        ...gitlabBranchCommits,
+        placement: "active",
+        selectedFields: ["commitShortSha", "commitTitle", "commitAuthor", "committedAt", "sourceBranch", "mergeRequestIid", "jiraKeys", "jiraLinkState"],
+        filterLogic: "and",
+        filters: [filter("gitlab-unlinked", "jiraLinkState", "equals", "unlinked")],
+        dateField: null,
+        asOf: null,
+        metric: "count",
+        groupBy: "none",
+        sortBy: "committedAt",
+        sortDirection: "desc",
+        visualization: "table",
+        width: "full",
+      },
       {
         id: "active-goal-factory-firmware-release",
         title: "Цель: Релиз заводской прошивки",
@@ -476,6 +520,7 @@ export function jiraDashboardWithDefaultWidgetsForSeedVersion(
   const added = new Set<string>();
   if (currentSeedVersion < 2) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2.forEach((id) => added.add(id));
   if (currentSeedVersion < 4) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_4.forEach((id) => added.add(id));
+  if (currentSeedVersion < 5) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_5.forEach((id) => added.add(id));
   return jiraDashboardWithDefaultWidgets(current, {
     ...defaults,
     widgets: defaults.widgets.filter((widget) => added.has(widget.id)),
@@ -510,6 +555,7 @@ function legacySource(definition: JiraSemanticAggregateDefinition) {
   if (definition.rowConfig.kind === "goalIssue") return "goalIssues" as const;
   if (definition.rowConfig.kind === "transitionEvent") return "transitions" as const;
   if (definition.rowConfig.kind === "developmentEvent") return "development" as const;
+  if (definition.rowConfig.kind === "gitlabBranchCommit") return "gitlabCommits" as const;
   if (definition.rowConfig.kind === "criticalSla" || definition.rowConfig.kind === "criticalRisk") return "criticalBugs" as const;
   return "statusIntervals" as const;
 }
@@ -566,13 +612,14 @@ function definitionData(projectId: string, key: string, definition: JiraSemantic
   } satisfies Prisma.JiraAggregateDefinitionUncheckedCreateInput;
 }
 
-function withCurrentTicketFields(definition: JiraSemanticAggregateDefinition) {
+export function withCurrentTicketFields(definition: JiraSemanticAggregateDefinition) {
   const existing = new Set(definition.outputFields.map((field) => field.key));
+  const available = new Set<JiraAnalyticsFilterField>(JIRA_ANALYTICS_FIELDS_BY_SOURCE[legacySource(definition)]);
   const required = definition.rowConfig.kind === "issue" || definition.rowConfig.kind === "goalIssue"
     ? (["sprintCount", "labels"] as const)
     : (["labels"] as const);
   const added = required
-    .filter((field) => !existing.has(field))
+    .filter((field) => available.has(field) && !existing.has(field))
     .map(jiraSemanticDefaultOutputField);
   if (added.length === 0) return definition;
   return {
@@ -822,21 +869,23 @@ export type JiraSemanticPopulationStats = {
   transitions: number;
   developmentActivities: number;
   goals: number;
+  gitlabCommits: number;
 };
 
 export async function jiraSemanticPopulationStats(
   client: PrismaClient,
   projectId: string,
 ): Promise<JiraSemanticPopulationStats> {
-  const [tickets, transitions, developmentActivities, goals] = await Promise.all([
+  const [tickets, transitions, developmentActivities, goals, gitlabCommits] = await Promise.all([
     client.jiraIssueSnapshot.count({ where: { projectId, retiredAt: null } }),
     client.jiraIssueStatusTransition.count({ where: { snapshot: { projectId, retiredAt: null } } }),
     client.jiraDevelopmentActivity.count({ where: { snapshot: { projectId, retiredAt: null } } }),
     client.wbsItem.count({
       where: { projectId, type: "GOAL", jiraGoalLabels: { isEmpty: false } },
     }),
+    client.gitlabBranchCommit.count({ where: { projectId, retiredAt: null } }),
   ]);
-  return { tickets, transitions, developmentActivities, goals };
+  return { tickets, transitions, developmentActivities, goals, gitlabCommits };
 }
 
 export function jiraSemanticAggregateCost(
@@ -844,7 +893,7 @@ export function jiraSemanticAggregateCost(
   population: JiraSemanticPopulationStats | number,
 ) {
   const stats = typeof population === "number"
-    ? { tickets: population, transitions: population, developmentActivities: population, goals: 1 }
+    ? { tickets: population, transitions: population, developmentActivities: population, goals: 1, gitlabCommits: population }
     : population;
   const repeatedIntervals = definition.rowConfig.kind === "interval"
     && (definition.rowConfig.start.occurrence === "all" || definition.rowConfig.end.occurrence === "all");
@@ -852,6 +901,8 @@ export function jiraSemanticAggregateCost(
     ? stats.transitions
     : definition.rowConfig.kind === "developmentEvent"
       ? stats.developmentActivities
+      : definition.rowConfig.kind === "gitlabBranchCommit"
+        ? Math.min(stats.gitlabCommits, definition.qualityRules.maximumRows)
       : definition.rowConfig.kind === "goalIssue"
         ? Math.min(
             stats.tickets * stats.goals,

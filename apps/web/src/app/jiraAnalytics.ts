@@ -39,6 +39,7 @@ export const JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS: Record<JiraAnalyticsSource, s
   development: "Активность разработки",
   criticalBugs: "SLA Critical/Blocker",
   statusIntervals: "Интервалы статусов",
+  gitlabCommits: "Коммиты GitLab",
 };
 
 export const JIRA_ANALYTICS_LIST_RESULT = "list" as const;
@@ -149,6 +150,21 @@ export const JIRA_ANALYTICS_FILTER_LABELS: Record<JiraAnalyticsFilterField, stri
   eventAt: "Дата события",
   intervalStartAt: "Начало интервала",
   intervalEndAt: "Конец интервала",
+  gitlabProjectPath: "Проект GitLab",
+  gitlabTargetBranch: "Ветка GitLab",
+  commitSha: "SHA коммита",
+  commitShortSha: "Короткий SHA",
+  commitTitle: "Сообщение коммита",
+  commitAuthor: "Автор коммита",
+  commitAuthorEmail: "Email автора",
+  committedAt: "Дата коммита",
+  commitUrl: "Ссылка на коммит",
+  sourceBranch: "Исходная ветка MR",
+  mergeRequestIid: "MR",
+  mergeRequestTitle: "Название MR",
+  mergeRequestUrl: "Ссылка на MR",
+  jiraKeys: "Упомянутые Jira-тикеты",
+  jiraLinkState: "Связь с Jira",
 };
 
 export const JIRA_ANALYTICS_OPERATOR_LABELS: Record<JiraAnalyticsFilterOperator, string> = {

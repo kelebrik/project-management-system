@@ -1346,6 +1346,9 @@ function csvCell(value: string | number | null | undefined) {
 }
 
 export function jiraAggregateOutputValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilterField) {
+  if (record.semanticValues && Object.hasOwn(record.semanticValues, field)) {
+    return record.semanticValues[field] ?? null;
+  }
   if (field === 'goalId') return record.goal?.id ?? null;
   if (field === 'goalName') return record.goal?.name ?? null;
   if (field === 'goalStatus') return record.goal?.status ?? null;

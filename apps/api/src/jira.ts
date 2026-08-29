@@ -462,6 +462,17 @@ export class JiraReadOnlyRequestError extends Error {
   override name = 'JiraReadOnlyRequestError';
 }
 
+export class JiraSearchFailureError extends Error {
+  override name = 'JiraSearchFailureError';
+
+  constructor(
+    readonly status: number | null,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export type JiraReadOnlyRequestMetric = {
   method: string;
   path: string;
@@ -2829,7 +2840,8 @@ async function fetchJiraDataWithMeta(
       );
     }
 
-    throw new Error(
+    throw new JiraSearchFailureError(
+      lastStatus || null,
       `Jira authentication failed: ${lastStatus || 'unknown'} ${
         lastErrorBody ? cleanJiraErrorBody(lastErrorBody) : ''
       }; auth methods tried: ${attemptedMethods.join(', ')}`.trim(),

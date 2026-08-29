@@ -91,6 +91,7 @@ export const jiraAnalyticsSources = [
   "development",
   "criticalBugs",
   "statusIntervals",
+  "gitlabCommits",
 ] as const;
 export const jiraAnalyticsMetrics = [
   "count",
@@ -148,6 +149,21 @@ export const jiraAnalyticsFilterFields = [
   "eventAt",
   "intervalStartAt",
   "intervalEndAt",
+  "gitlabProjectPath",
+  "gitlabTargetBranch",
+  "commitSha",
+  "commitShortSha",
+  "commitTitle",
+  "commitAuthor",
+  "commitAuthorEmail",
+  "committedAt",
+  "commitUrl",
+  "sourceBranch",
+  "mergeRequestIid",
+  "mergeRequestTitle",
+  "mergeRequestUrl",
+  "jiraKeys",
+  "jiraLinkState",
 ] as const;
 export const jiraAnalyticsFilterOperators = [
   "equals",
@@ -177,6 +193,8 @@ export const jiraAnalyticsSortFields = [
   "commitCount",
   "mergeRequestCount",
   "sprintCount",
+  "committedAt",
+  "commitSha",
 ] as const;
 export const jiraAnalyticsSortDirections = ["asc", "desc"] as const;
 
@@ -221,6 +239,7 @@ export const JIRA_ANALYTICS_METRICS_BY_SOURCE: Record<
     "p85Duration",
     "p95Duration",
   ],
+  gitlabCommits: ["count"],
 };
 
 export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
@@ -233,6 +252,7 @@ export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
   development: ["none", "project", "status", "assignee", "reporter", "sprint", "week"],
   criticalBugs: ["none", "project", "priority", "assignee", "reporter", "status", "issueType", "resolution"],
   statusIntervals: ["none", "project", "status", "assignee", "reporter", "issueType", "priority", "fromStatus", "week"],
+  gitlabCommits: ["none"],
 };
 
 export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
@@ -274,6 +294,12 @@ export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
     "issueType", "priority", "labels", "resolution", "issueCreatedAt", "fromStatus",
     "criticalPriorityAt", "resolutionAt", "eventAt", "intervalStartAt", "intervalEndAt", "durationHours",
   ],
+  gitlabCommits: [
+    "gitlabProjectPath", "gitlabTargetBranch", "commitSha", "commitShortSha",
+    "commitTitle", "commitAuthor", "commitAuthorEmail", "committedAt", "commitUrl",
+    "sourceBranch", "mergeRequestIid", "mergeRequestTitle", "mergeRequestUrl",
+    "jiraKeys", "jiraLinkState",
+  ],
 };
 
 const numericFields = new Set<JiraAnalyticsFilterField>([
@@ -281,6 +307,7 @@ const numericFields = new Set<JiraAnalyticsFilterField>([
   "commitCount",
   "mergeRequestCount",
   "sprintCount",
+  "mergeRequestIid",
 ]);
 
 const dateFields = new Set<JiraAnalyticsFilterField>([
@@ -292,6 +319,7 @@ const dateFields = new Set<JiraAnalyticsFilterField>([
   "eventAt",
   "intervalStartAt",
   "intervalEndAt",
+  "committedAt",
 ]);
 
 export type JiraAnalyticsFieldKind = "text" | "number" | "boolean" | "date";
@@ -321,6 +349,7 @@ export type JiraAnalyticsPeriodSupport = "none" | "optional" | "required";
 export function jiraAnalyticsSourcePeriodSupport(source: JiraAnalyticsSource): JiraAnalyticsPeriodSupport {
   if (source === "transitions" || source === "development") return "required";
   if (source === "statusIntervals") return "optional";
+  if (source === "gitlabCommits") return "none";
   return "none";
 }
 
@@ -1304,6 +1333,7 @@ export type JiraAnalyticsResultRecord = {
   occurrenceIndex?: number;
   occurrenceCount?: number;
   goal?: JiraAnalyticsGoalRecord;
+  semanticValues?: Partial<Record<JiraAnalyticsFilterField, string | number | boolean | null>>;
 };
 
 export type JiraAnalyticsDataQualityStatus =
@@ -1319,6 +1349,7 @@ export type JiraAnalyticsDataQualityWarning = {
     | "MISSING_ISSUE_CREATED_AT"
     | "INCOMPLETE_DEVELOPMENT_DATA"
     | "INCOMPLETE_CRITICAL_SLA"
+    | "UNDETERMINED_JIRA_LINK"
     | "MISSING_HISTORICAL_OBSERVATION"
     | "BEFORE_HISTORY_START"
     | "HISTORY_WRITE_GAP";
@@ -1748,6 +1779,9 @@ function jiraIssueIsInWorkScope(
 
 function recordValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilterField | "rowId") {
   if (field === "rowId") return record.id;
+  if (record.semanticValues && Object.hasOwn(record.semanticValues, field)) {
+    return record.semanticValues[field] ?? null;
+  }
   if (field === "goalId") return record.goal?.id ?? null;
   if (field === "goalName") return record.goal?.name ?? null;
   if (field === "goalStatus") return record.goal?.status ?? null;
@@ -1772,7 +1806,8 @@ function recordValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilt
   if (field === "intervalEndAt") return record.intervalEndAt;
   if (field === "sprint") return record.sprint;
   if (field === "resolution") return isJiraUnresolvedResolution(record.issue.resolution) ? null : record.issue.resolution;
-  return record.issue[field];
+  if (JIRA_ANALYTICS_FIELDS_BY_SOURCE.gitlabCommits.includes(field)) return null;
+  return record.issue[field as keyof typeof record.issue];
 }
 
 function filterMatches(record: JiraAnalyticsResultRecord, filter: JiraAnalyticsFilter) {

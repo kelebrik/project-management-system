@@ -241,6 +241,23 @@ test("Jira goal issue source migration expands only the aggregate source constra
   assert.doesNotMatch(migration, /DROP\s+(?:TABLE|COLUMN)/i);
 });
 
+test("GitLab branch commit migration is additive and project-scoped", () => {
+  const migration = migrationSql("20260829160000_gitlab_branch_commits");
+
+  assert.match(migration, /CREATE\s+TABLE\s+"GitlabBranchSyncRun"/i);
+  assert.match(migration, /CREATE\s+TABLE\s+"GitlabBranchCommit"/i);
+  assert.match(migration, /CHECK\s*\(\s*"jiraLinkState"\s+IN\s*\('linked',\s*'unlinked',\s*'undetermined'\)\s*\)/i);
+  assert.match(migration, /CHECK\s*\(\s*"source"\s+IN\s*\([^)]*'gitlabCommits'/i);
+  assert.match(migration, /GitlabBranchCommit_projectId_scopeKey_commitSha_key/i);
+  assert.match(migration, /REFERENCES\s+"Project"\("id"\)\s+ON\s+DELETE\s+CASCADE/i);
+  assert.match(migration, /REFERENCES\s+"GitlabBranchSyncRun"\("id"\)\s+ON\s+DELETE\s+SET\s+NULL/i);
+  const withoutForeignKeyActions = migration.replace(
+    /ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)/gi,
+    "",
+  );
+  assert.doesNotMatch(withoutForeignKeyActions, /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DROP\s+(?:TABLE|COLUMN)|TRUNCATE)\b/i);
+});
+
 test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
   const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
   assert.match(migration, /CREATE TABLE "JiraSyncRun"/);

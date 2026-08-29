@@ -23,6 +23,7 @@ export const jiraSemanticAggregateGrains = [
   "transitionEvent",
   "developmentEvent",
   "interval",
+  "gitlabCommit",
 ] as const;
 
 export const jiraSemanticAggregateRevisionStatuses = [
@@ -45,6 +46,7 @@ export const jiraSystemAggregateKeys = [
   "critical-blocker-task-sla",
   "critical-blocker-risk",
   "in-progress-resolution",
+  "gitlab-branch-commits",
 ] as const;
 
 export type JiraSystemAggregateKey = (typeof jiraSystemAggregateKeys)[number];
@@ -108,6 +110,13 @@ const criticalRiskRowsSchema = z.object({
   taskIssueTypes: z.array(z.string().trim().min(1).max(100)).min(1).max(20),
   taskRiskHours: z.number().int().positive().max(100_000),
 }).strict();
+const gitlabBranchCommitRowsSchema = z.object({
+  kind: z.literal("gitlabBranchCommit"),
+  projectPath: z.string().trim().min(3).max(300).regex(/^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+$/i),
+  targetBranch: z.string().trim().min(1).max(300).refine((value) => !value.includes("..") && !/[\u0000-\u001f\u007f]/u.test(value), "Некорректное имя ветки"),
+  lookbackDays: z.number().int().min(1).max(365),
+  includeMergeCommits: z.boolean(),
+}).strict();
 
 export const jiraSemanticAggregateRowConfigSchema = z.discriminatedUnion("kind", [
   issueRowsSchema,
@@ -117,6 +126,7 @@ export const jiraSemanticAggregateRowConfigSchema = z.discriminatedUnion("kind",
   intervalRowsSchema,
   criticalSlaRowsSchema,
   criticalRiskRowsSchema,
+  gitlabBranchCommitRowsSchema,
 ]);
 
 export const jiraSemanticOutputFieldSchema = z.object({
@@ -155,6 +165,8 @@ export const jiraSemanticAggregateDefinitionSchema = z.object({
       ? "transitionEvent"
       : definition.rowConfig.kind === "developmentEvent"
         ? "developmentEvent"
+        : definition.rowConfig.kind === "gitlabBranchCommit"
+          ? "gitlabCommit"
         : "interval";
   if (definition.grain !== expectedGrain) {
     context.addIssue({ code: "custom", path: ["grain"], message: "Гранулярность не соответствует правилу формирования строк" });
@@ -171,6 +183,8 @@ export const jiraSemanticAggregateDefinitionSchema = z.object({
       ? "transitions"
       : definition.rowConfig.kind === "developmentEvent"
         ? "development"
+        : definition.rowConfig.kind === "gitlabBranchCommit"
+          ? "gitlabCommits"
         : definition.rowConfig.kind === "criticalSla" || definition.rowConfig.kind === "criticalRisk"
           ? "criticalBugs"
           : "statusIntervals";
@@ -416,17 +430,32 @@ export const JIRA_SEMANTIC_FIELD_LABELS: Record<(typeof jiraAnalyticsFilterField
   eventAt: "Дата события",
   intervalStartAt: "Начало интервала",
   intervalEndAt: "Конец интервала",
+  gitlabProjectPath: "Проект GitLab",
+  gitlabTargetBranch: "Ветка GitLab",
+  commitSha: "SHA коммита",
+  commitShortSha: "Короткий SHA",
+  commitTitle: "Сообщение коммита",
+  commitAuthor: "Автор коммита",
+  commitAuthorEmail: "Email автора",
+  committedAt: "Дата коммита",
+  commitUrl: "Ссылка на коммит",
+  sourceBranch: "Исходная ветка MR",
+  mergeRequestIid: "MR",
+  mergeRequestTitle: "Название MR",
+  mergeRequestUrl: "Ссылка на MR",
+  jiraKeys: "Упомянутые Jira-тикеты",
+  jiraLinkState: "Связь с Jira",
 };
 
-const dateFields = new Set(["goalDate", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt", "intervalStartAt", "intervalEndAt"]);
-const numberFields = new Set(["durationHours", "commitCount", "mergeRequestCount", "sprintCount"]);
+const dateFields = new Set(["goalDate", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt", "intervalStartAt", "intervalEndAt", "committedAt"]);
+const numberFields = new Set(["durationHours", "commitCount", "mergeRequestCount", "sprintCount", "mergeRequestIid"]);
 
 export function jiraSemanticDefaultOutputField(key: (typeof jiraAnalyticsFilterFields)[number]): JiraSemanticOutputField {
   return {
     key,
     label: JIRA_SEMANTIC_FIELD_LABELS[key],
     type: dateFields.has(key) ? "date" : numberFields.has(key) ? "number" : key === "hasDevelopment" ? "boolean" : "text",
-    nullable: !["goalId", "goalName", "goalStatus", "issueKey", "summary", "status", "priority", "issueType"].includes(key),
+    nullable: !["goalId", "goalName", "goalStatus", "issueKey", "summary", "status", "priority", "issueType", "gitlabProjectPath", "gitlabTargetBranch", "commitSha", "commitShortSha", "commitTitle", "commitAuthor", "committedAt", "commitUrl", "jiraLinkState"].includes(key),
   };
 }
 

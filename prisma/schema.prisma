@@ -263,6 +263,8 @@ model Project {
   jiraIssueVersions        JiraIssueVersion[]
   jiraHistoryRetries       JiraIssueHistoryRetry[]
   jiraSyncRuns             JiraSyncRun[]
+  gitlabBranchCommits      GitlabBranchCommit[]
+  gitlabBranchSyncRuns     GitlabBranchSyncRun[]
   overviews                ExecutiveOverview[]
   milestones               Milestone[]
   wbsItems                 WbsItem[]
@@ -521,27 +523,27 @@ model JiraIntegration {
 }
 
 model JiraAnalyticsSettings {
-  id                          String                 @id @default(cuid())
-  projectId                   String                 @unique
-  jiraScopeType               JiraAnalyticsScopeType @default(LABEL)
-  jiraScopeValue              String
-  jiraLabel                   String                 @default("")
-  dashboardConfig             Json?
-  semanticDefaultWidgetsVersion Int                  @default(0)
-  syncStatus                  String                 @default("NOT_CONFIGURED")
-  lastSyncedAt                DateTime?
-  syncStartedAt               DateTime?
-  syncLockExpiresAt           DateTime?
-  syncRunId                   String?
-  syncFenceToken              Int?
-  historyCursorUpdatedAt      DateTime?
-  historyCursorJiraIssueId    String?
-  historyLastFullReconciledAt DateTime?
-  historyFullCursorIssueKey   String?
-  historyFullStartedAt        DateTime?
-  createdAt                   DateTime               @default(now())
-  updatedAt                   DateTime               @updatedAt
-  project                     Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                            String                 @id @default(cuid())
+  projectId                     String                 @unique
+  jiraScopeType                 JiraAnalyticsScopeType @default(LABEL)
+  jiraScopeValue                String
+  jiraLabel                     String                 @default("")
+  dashboardConfig               Json?
+  semanticDefaultWidgetsVersion Int                    @default(0)
+  syncStatus                    String                 @default("NOT_CONFIGURED")
+  lastSyncedAt                  DateTime?
+  syncStartedAt                 DateTime?
+  syncLockExpiresAt             DateTime?
+  syncRunId                     String?
+  syncFenceToken                Int?
+  historyCursorUpdatedAt        DateTime?
+  historyCursorJiraIssueId      String?
+  historyLastFullReconciledAt   DateTime?
+  historyFullCursorIssueKey     String?
+  historyFullStartedAt          DateTime?
+  createdAt                     DateTime               @default(now())
+  updatedAt                     DateTime               @updatedAt
+  project                       Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model JiraSyncRun {
@@ -598,37 +600,37 @@ model JiraSyncRun {
 }
 
 model JiraAggregateDefinition {
-  id          String   @id @default(cuid())
-  projectId   String
-  aggregateKey String  @default("")
-  system      Boolean  @default(false)
-  name        String
-  nameKey     String
-  description String   @default("")
-  source      String
-  definitionSchemaVersion Int @default(1)
-  exposedFields Json?     @db.JsonB
-  baseFilterLogic String?
-  baseFilters Json?       @db.JsonB
-  rowConfig Json?         @db.JsonB
-  metric      String
-  groupBy     String
-  scope       String
-  filterLogic String
-  filters     Json     @db.JsonB
-  periodMode  String
-  periodDays  Int?
-  timeZone    String   @default("Europe/Moscow")
-  fingerprint String   @db.Char(64)
-  sortOrder   Int      @default(0)
-  version     Int      @default(1)
-  publishedVersion Int?
-  draftDefinition Json? @db.JsonB
-  archivedAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  revisions   JiraAggregateDefinitionRevision[]
+  id                      String                            @id @default(cuid())
+  projectId               String
+  aggregateKey            String                            @default("")
+  system                  Boolean                           @default(false)
+  name                    String
+  nameKey                 String
+  description             String                            @default("")
+  source                  String
+  definitionSchemaVersion Int                               @default(1)
+  exposedFields           Json?                             @db.JsonB
+  baseFilterLogic         String?
+  baseFilters             Json?                             @db.JsonB
+  rowConfig               Json?                             @db.JsonB
+  metric                  String
+  groupBy                 String
+  scope                   String
+  filterLogic             String
+  filters                 Json                              @db.JsonB
+  periodMode              String
+  periodDays              Int?
+  timeZone                String                            @default("Europe/Moscow")
+  fingerprint             String                            @db.Char(64)
+  sortOrder               Int                               @default(0)
+  version                 Int                               @default(1)
+  publishedVersion        Int?
+  draftDefinition         Json?                             @db.JsonB
+  archivedAt              DateTime?
+  createdAt               DateTime                          @default(now())
+  updatedAt               DateTime                          @updatedAt
+  project                 Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revisions               JiraAggregateDefinitionRevision[]
 
   @@unique([projectId, nameKey])
   @@unique([projectId, aggregateKey])
@@ -637,40 +639,101 @@ model JiraAggregateDefinition {
 }
 
 model JiraAggregateDefinitionRevision {
-  id          String   @id @default(cuid())
+  id          String                  @id @default(cuid())
   projectId   String
   aggregateId String
   version     Int
-  definition  Json     @db.JsonB
-  fingerprint String   @db.Char(64)
-  status      String   @default("draft")
-  changeKind  String   @default("compatible")
+  definition  Json                    @db.JsonB
+  fingerprint String                  @db.Char(64)
+  status      String                  @default("draft")
+  changeKind  String                  @default("compatible")
   publishedAt DateTime?
-  createdAt   DateTime @default(now())
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime                @default(now())
+  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
   aggregate   JiraAggregateDefinition @relation(fields: [aggregateId], references: [id], onDelete: Cascade)
 
   @@unique([aggregateId, version])
   @@index([projectId, aggregateId, version])
 }
 
+model GitlabBranchSyncRun {
+  id                  String               @id @default(cuid())
+  projectId           String
+  aggregateId         String
+  aggregateVersion    Int
+  scopeKey            String               @db.Char(64)
+  projectPath         String
+  targetBranch        String
+  headSha             String?
+  lookbackDays        Int
+  includeMergeCommits Boolean
+  windowStartedAt     DateTime
+  windowEndedAt       DateTime
+  status              String
+  commitCount         Int                  @default(0)
+  linkedCount         Int                  @default(0)
+  unlinkedCount       Int                  @default(0)
+  undeterminedCount   Int                  @default(0)
+  errorMessage        String?
+  startedAt           DateTime             @default(now())
+  finishedAt          DateTime?
+  createdById         String?
+  project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  commits             GitlabBranchCommit[]
+
+  @@index([projectId, aggregateId, startedAt])
+  @@index([projectId, scopeKey, startedAt])
+}
+
+model GitlabBranchCommit {
+  id                String               @id @default(cuid())
+  projectId         String
+  syncRunId         String?
+  scopeKey          String               @db.Char(64)
+  projectPath       String
+  targetBranch      String
+  commitSha         String
+  shortSha          String
+  title             String
+  message           String
+  authorName        String
+  authorEmail       String?
+  committedAt       DateTime
+  webUrl            String
+  sourceBranch      String?
+  mergeRequestIid   Int?
+  mergeRequestTitle String?
+  mergeRequestUrl   String?
+  jiraKeys          String[]             @default([])
+  jiraLinkState     String
+  observedAt        DateTime
+  retiredAt         DateTime?
+  project           Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  syncRun           GitlabBranchSyncRun? @relation(fields: [syncRunId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, scopeKey, commitSha])
+  @@index([projectId, scopeKey, committedAt])
+  @@index([projectId, jiraLinkState, committedAt])
+  @@index([syncRunId])
+}
+
 model JiraAnalyticsDashboardConversion {
-  id                    String                     @id @default(cuid())
-  projectId             String                     @unique
-  originalConfig        Json                       @db.JsonB
-  originalConfigStored  Boolean                    @default(true)
-  sourceConfigHash      String                     @db.Char(64)
-  originalConfigHash    String                     @db.Char(64)
-  convertedConfigHash   String                     @db.Char(64)
-  createdDefinitionIds  Json                       @default("[]") @db.JsonB
-  attempt               Int                        @default(1)
-  rollbackState         JiraAnalyticsRollbackState @default(AVAILABLE)
-  convertedAt           DateTime                   @default(now())
-  rolledBackAt          DateTime?
-  rollbackFinalizedAt   DateTime?
-  createdAt             DateTime                   @default(now())
-  updatedAt             DateTime                   @updatedAt
-  project               Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                   String                     @id @default(cuid())
+  projectId            String                     @unique
+  originalConfig       Json                       @db.JsonB
+  originalConfigStored Boolean                    @default(true)
+  sourceConfigHash     String                     @db.Char(64)
+  originalConfigHash   String                     @db.Char(64)
+  convertedConfigHash  String                     @db.Char(64)
+  createdDefinitionIds Json                       @default("[]") @db.JsonB
+  attempt              Int                        @default(1)
+  rollbackState        JiraAnalyticsRollbackState @default(AVAILABLE)
+  convertedAt          DateTime                   @default(now())
+  rolledBackAt         DateTime?
+  rollbackFinalizedAt  DateTime?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  project              Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([convertedAt])
   @@index([rolledBackAt])
