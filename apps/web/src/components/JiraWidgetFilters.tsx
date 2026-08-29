@@ -34,8 +34,9 @@ function FilterEditor({ filter, fields, onChange, onDelete }: {
   </div>;
 }
 
-export function JiraWidgetFilters({ widget, onChange }: {
+export function JiraWidgetFilters({ widget, fields, onChange }: {
   widget: JiraSemanticWidget;
+  fields: JiraAnalyticsFilterField[];
   onChange: (value: JiraSemanticWidget) => void;
 }) {
   const filterConnector = jiraAnalyticsFilterLogicLabel(widget.filterLogic);
@@ -53,9 +54,9 @@ export function JiraWidgetFilters({ widget, onChange }: {
     <div className="jira-widget-filter-list">
       {widget.filters.map((filter, index) => <div className="jira-widget-filter-item" key={filter.id}>
         {index > 0 ? <div className="jira-widget-filter-connector"><span className="jira-widget-filter-connector-value" aria-hidden="true">{filterConnector}</span><span className="jira-widget-filter-connector-label">Связь с предыдущим условием: {filterConnector}</span></div> : null}
-        <FilterEditor filter={filter} fields={widget.selectedFields} onChange={(next) => onChange({ ...widget, filters: widget.filters.map((item, itemIndex) => itemIndex === index ? next : item) })} onDelete={() => onChange({ ...widget, filters: widget.filters.filter((_, itemIndex) => itemIndex !== index) })} />
+        <FilterEditor filter={filter} fields={fields} onChange={(next) => onChange({ ...widget, filters: widget.filters.map((item, itemIndex) => itemIndex === index ? next : item) })} onDelete={() => onChange({ ...widget, filters: widget.filters.filter((_, itemIndex) => itemIndex !== index) })} />
       </div>)}
     </div>
-    <button type="button" className="secondary-button" onClick={() => onChange({ ...widget, filters: [...widget.filters, { id: uid("filter"), field: widget.selectedFields[0] ?? "issueKey", operator: "equals", value: "" }] })}><Plus size={16} />Условие</button>
+    <button type="button" className="secondary-button" onClick={() => onChange({ ...widget, filters: [...widget.filters, { id: uid("filter"), field: fields[0] ?? "issueKey", operator: "equals", value: "" }] })}><Plus size={16} />Условие</button>
   </fieldset>;
 }

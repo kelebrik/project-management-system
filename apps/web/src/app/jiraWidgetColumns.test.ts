@@ -46,10 +46,14 @@ test("widget column widths are clamped to the supported range", () => {
 });
 
 test("removing a selected field also removes its saved width", () => {
-  const changed = jiraWidgetWithColumnWidth(jiraWidgetWithColumnWidth(widget, "issueKey", 150), "summary", 400);
+  const changed = {
+    ...jiraWidgetWithColumnWidth(jiraWidgetWithColumnWidth(widget, "issueKey", 150), "summary", 400),
+    filters: [{ id: "hidden-summary", field: "summary" as const, operator: "contains" as const, value: "release" }],
+  };
   const reduced = jiraWidgetWithSelectedFields(changed, ["issueKey"]);
 
   assert.deepEqual(reduced.columnWidths, { issueKey: 150 });
+  assert.deepEqual(reduced.filters, changed.filters);
   assert.equal("columnWidths" in jiraWidgetWithSelectedFields(widget, ["issueKey"]), false);
 });
 

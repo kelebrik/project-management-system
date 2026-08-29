@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -50,6 +51,7 @@ function renderEditor(filterLogic: JiraSemanticWidget["filterLogic"]) {
 
   return renderToStaticMarkup(React.createElement(JiraWidgetFilters, {
     widget,
+    fields: ["issueKey", "status", "labels"],
     onChange: () => undefined,
   }));
 }
@@ -70,4 +72,18 @@ test("widget editor connectors follow the selected OR mode", () => {
   assert.equal((html.match(/Связь с предыдущим условием: ИЛИ</g) ?? []).length, 2);
   assert.match(html, /aria-pressed="false">Все \(И\)<\/button>/);
   assert.match(html, /aria-pressed="true">Любое \(ИЛИ\)<\/button>/);
+});
+
+test("widget conditions can use an aggregate field that is not a displayed column", () => {
+  const html = renderEditor("and");
+
+  assert.match(html, /<option value="labels">Метки<\/option>/);
+});
+
+test("dashboard editor wires all aggregate fields into filters without deleting hidden-field query settings", () => {
+  const source = fs.readFileSync(new URL("./JiraAnalyticsDashboard.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /<JiraWidgetFilters widget=\{widget\} fields=\{availableFields\}/u);
+  assert.doesNotMatch(source, /filters:\s*widget\.filters\.filter/u);
+  assert.doesNotMatch(source, /dateField:\s*widget\.dateField\s*&&\s*nextSet/u);
 });

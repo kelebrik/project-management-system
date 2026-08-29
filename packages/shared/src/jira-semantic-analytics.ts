@@ -328,14 +328,6 @@ export const jiraSemanticWidgetSchema = z.object({
       context.addIssue({ code: "custom", path: ["columnWidths", field], message: "Ширина задаётся только для выбранного поля" });
     }
   });
-  widget.filters.forEach((filter, index) => {
-    if (!selected.has(filter.field)) {
-      context.addIssue({ code: "custom", path: ["filters", index, "field"], message: "Поле условия должно быть выбрано в виджете" });
-    }
-  });
-  if (widget.dateField && !selected.has(widget.dateField)) {
-    context.addIssue({ code: "custom", path: ["dateField"], message: "Поле периода должно быть выбрано в виджете" });
-  }
 });
 
 export const jiraSemanticDashboardSchema = z.object({

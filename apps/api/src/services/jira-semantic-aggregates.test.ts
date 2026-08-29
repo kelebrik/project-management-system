@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   jiraSemanticAggregateDefinitionSchema,
   jiraSemanticCompatibleChange,
+  jiraSemanticDashboardSchema,
   jiraSemanticWidgetSchema,
 } from "@pms/shared";
 import { Prisma } from "@prisma/client";
@@ -63,7 +64,7 @@ test("system aggregate compatibility upgrades remain valid for every source", ()
   }
 });
 
-test("semantic widget accepts widths only for selected fields", () => {
+test("semantic widget keeps display widths selected while allowing hidden query fields", () => {
   const baseWidget = {
     id: "widget-1",
     title: "Тикеты",
@@ -90,6 +91,11 @@ test("semantic widget accepts widths only for selected fields", () => {
   assert.equal(jiraSemanticWidgetSchema.safeParse({ ...baseWidget, columnWidths: { issueKey: 601 } }).success, false);
   assert.equal(jiraSemanticWidgetSchema.safeParse({ ...baseWidget, columnWidths: { status: 120 } }).success, false);
   assert.equal(jiraSemanticWidgetSchema.safeParse({ ...baseWidget, columnWidths: { unknown: 120 } }).success, false);
+  assert.equal(jiraSemanticWidgetSchema.safeParse({
+    ...baseWidget,
+    filters: [{ id: "hidden-filter", field: "labels", operator: "equals", value: "MP" }],
+    dateField: "updatedAt",
+  }).success, true);
 });
 
 test("default semantic dashboard contains the requested operational and retrospective widgets", () => {
@@ -217,6 +223,59 @@ test("widget seed v5 adds only the GitLab branch widget", () => {
     "custom-widget",
     "active-gitlab-unlinked-branch-commits",
   ]);
+});
+
+test("widget seed v6 repairs goal filters without recreating deleted widgets or replacing presentation", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({
+    id: `aggregate-${index + 1}`,
+    aggregateKey: aggregate.key,
+    publishedVersion: 1,
+  }));
+  const defaults = jiraDefaultSemanticDashboard(references);
+  const factory = defaults.widgets.find((widget) => widget.id === "active-goal-factory-firmware-release")!;
+  const current = {
+    ...defaults,
+    widgets: defaults.widgets
+      .filter((widget) => widget.id !== "active-goal-first-ota-ready")
+      .map((widget) => widget.id === factory.id
+        ? {
+            ...widget,
+            title: "Моя заводская прошивка",
+            filterLogic: "or" as const,
+            selectedFields: ["goalName", "issueKey", "summary"],
+            filters: [{ id: "custom-project", field: "project" as const, operator: "equals" as const, value: "CVTE" }],
+            columnWidths: { issueKey: 180 },
+          }
+        : widget),
+  };
+
+  const upgraded = jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 5);
+  const repaired = upgraded.widgets.find((widget) => widget.id === factory.id)!;
+  assert.equal(repaired.title, "Моя заводская прошивка");
+  assert.deepEqual(repaired.columnWidths, { issueKey: 180 });
+  assert.equal(repaired.filterLogic, "and");
+  assert.deepEqual(repaired.filters, [...factory.filters, ...current.widgets.find((widget) => widget.id === factory.id)!.filters]);
+  assert.equal(jiraSemanticDashboardSchema.safeParse(upgraded).success, true);
+  assert.equal(upgraded.widgets.some((widget) => widget.id === "active-goal-first-ota-ready"), false);
+});
+
+test("widget seed v6 leaves already-upgraded and repointed widgets untouched", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({
+    id: `aggregate-${index + 1}`,
+    aggregateKey: aggregate.key,
+    publishedVersion: 1,
+  }));
+  const defaults = jiraDefaultSemanticDashboard(references);
+  const factory = defaults.widgets.find((widget) => widget.id === "active-goal-factory-firmware-release")!;
+  const repointed = {
+    ...defaults,
+    widgets: defaults.widgets.map((widget) => widget.id === factory.id
+      ? { ...widget, aggregateId: references.find((reference) => reference.aggregateKey === "issues")!.id, filters: [] }
+      : widget),
+  };
+
+  assert.deepEqual(jiraDashboardWithDefaultWidgetsForSeedVersion(defaults, defaults, 6), defaults);
+  assert.deepEqual(jiraDashboardWithDefaultWidgetsForSeedVersion(repointed, defaults, 5), repointed);
 });
 
 test("widget seed v3 repins existing system widgets to compatible published revisions", () => {

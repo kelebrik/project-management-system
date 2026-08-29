@@ -17,6 +17,7 @@ import {
 } from '../../apps/api/src/services/jira-project-data.js';
 import {
   ensureJiraSystemSemanticAggregates,
+  JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
   JIRA_SYSTEM_SEMANTIC_AGGREGATES,
 } from '../../apps/api/src/services/jira-semantic-aggregates.js';
 import {
@@ -1085,13 +1086,13 @@ test('system aggregate bootstrap publishes labels, preserves drafts, and repins 
       where: { projectId: project.id },
     });
     const seededDashboard = jiraSemanticDashboardSchema.parse(seededSettings.dashboardConfig);
-    const removedWidget = seededDashboard.widgets[0]!;
+    const removedWidget = seededDashboard.widgets.find((widget) => widget.id === 'active-without-sprint-with-code')!;
+    const gitlabWidget = seededDashboard.widgets.find((widget) => widget.id === 'active-gitlab-unlinked-branch-commits')!;
     const legacyDashboard = {
       ...seededDashboard,
-      widgets: seededDashboard.widgets.slice(1).map((widget) => ({
-        ...widget,
-        aggregateVersion: 1,
-      })),
+      widgets: seededDashboard.widgets
+        .filter((widget) => widget.id !== removedWidget.id && widget.id !== gitlabWidget.id)
+        .map((widget) => ({ ...widget, aggregateVersion: 1 })),
     };
 
     for (const row of seededRows) {
@@ -1179,10 +1180,11 @@ test('system aggregate bootstrap publishes labels, preserves drafts, and repins 
     const upgradedSettings = await prisma.jiraAnalyticsSettings.findUniqueOrThrow({
       where: { projectId: project.id },
     });
-    assert.equal(upgradedSettings.semanticDefaultWidgetsVersion, 3);
+    assert.equal(upgradedSettings.semanticDefaultWidgetsVersion, JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION);
     const upgradedDashboard = jiraSemanticDashboardSchema.parse(upgradedSettings.dashboardConfig);
-    assert.equal(upgradedDashboard.widgets.length, legacyDashboard.widgets.length);
+    assert.equal(upgradedDashboard.widgets.length, legacyDashboard.widgets.length + 1);
     assert.equal(upgradedDashboard.widgets.some((widget) => widget.id === removedWidget.id), false);
+    assert.equal(upgradedDashboard.widgets.some((widget) => widget.id === gitlabWidget.id), true);
     for (const widget of upgradedDashboard.widgets) {
       assert.equal(widget.aggregateVersion, publishedVersions.get(widget.aggregateId));
     }

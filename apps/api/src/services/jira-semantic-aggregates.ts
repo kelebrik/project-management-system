@@ -33,7 +33,7 @@ const qualityRules = {
   maximumRowsPerIssue: 500,
 };
 
-export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 5;
+export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 6;
 const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2 = new Set([
   "active-critical-blocker-risk",
   "retro-critical-blocker-task-sla-45-days",
@@ -45,6 +45,10 @@ const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_4 = new Set([
 ]);
 const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_5 = new Set([
   "active-gitlab-unlinked-branch-commits",
+]);
+const JIRA_SEMANTIC_WIDGET_IDS_REPAIRED_IN_VERSION_6 = new Set([
+  "active-goal-factory-firmware-release",
+  "active-goal-first-ota-ready",
 ]);
 
 export const JIRA_SYSTEM_SEMANTIC_AGGREGATES: Array<{
@@ -521,10 +525,29 @@ export function jiraDashboardWithDefaultWidgetsForSeedVersion(
   if (currentSeedVersion < 2) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2.forEach((id) => added.add(id));
   if (currentSeedVersion < 4) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_4.forEach((id) => added.add(id));
   if (currentSeedVersion < 5) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_5.forEach((id) => added.add(id));
-  return jiraDashboardWithDefaultWidgets(current, {
+  const upgraded = jiraDashboardWithDefaultWidgets(current, {
     ...defaults,
     widgets: defaults.widgets.filter((widget) => added.has(widget.id)),
   });
+  if (currentSeedVersion >= 6) return upgraded;
+  const defaultsById = new Map(defaults.widgets.map((widget) => [widget.id, widget]));
+  return {
+    ...upgraded,
+    widgets: upgraded.widgets.map((widget) => {
+      if (!JIRA_SEMANTIC_WIDGET_IDS_REPAIRED_IN_VERSION_6.has(widget.id)) return widget;
+      const systemWidget = defaultsById.get(widget.id);
+      if (!systemWidget || widget.aggregateId !== systemWidget.aggregateId) return widget;
+      const systemFilterIds = new Set(systemWidget.filters.map((filter) => filter.id));
+      return {
+        ...widget,
+        filterLogic: systemWidget.filterLogic,
+        filters: [
+          ...systemWidget.filters,
+          ...widget.filters.filter((filter) => !systemFilterIds.has(filter.id)),
+        ],
+      };
+    }),
+  };
 }
 
 export function jiraDashboardWithCurrentSystemAggregateRevisions(
@@ -741,17 +764,21 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
         jiraDefaultSemanticDashboard(references),
         settings?.semanticDefaultWidgetsVersion ?? 0,
       );
-      const dashboardConfig = jiraDashboardWithCurrentSystemAggregateRevisions(
-        seededDashboard,
-        references,
-      ) as unknown as Prisma.InputJsonObject;
+      const parsedDashboardConfig = jiraSemanticDashboardSchema.safeParse(
+        jiraDashboardWithCurrentSystemAggregateRevisions(seededDashboard, references),
+      );
+      if (!parsedDashboardConfig.success) return;
+      const dashboardConfig = parsedDashboardConfig.data;
       await transaction.jiraAnalyticsSettings.upsert({
         where: { projectId },
         create: {
-          projectId, jiraScopeType: "LABEL", jiraScopeValue: "", dashboardConfig,
+          projectId, jiraScopeType: "LABEL", jiraScopeValue: "", dashboardConfig: dashboardConfig as unknown as Prisma.InputJsonObject,
           semanticDefaultWidgetsVersion: JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
         },
-        update: { dashboardConfig, semanticDefaultWidgetsVersion: JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION },
+        update: {
+          dashboardConfig: dashboardConfig as unknown as Prisma.InputJsonObject,
+          semanticDefaultWidgetsVersion: JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
+        },
       });
     }
   });
