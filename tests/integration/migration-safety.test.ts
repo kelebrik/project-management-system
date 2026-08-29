@@ -232,6 +232,15 @@ test("Jira status interval aggregates add row configuration without rewriting da
   assert.doesNotMatch(migration, /ALTER TABLE "JiraIssue(?:Version|Snapshot|HistoryRetry)"/i);
 });
 
+test("Jira goal issue source migration expands only the aggregate source constraint", () => {
+  const migration = migrationSql("20260829130000_jira_goal_issue_source");
+
+  assert.match(migration, /DROP\s+CONSTRAINT\s+"JiraAggregateDefinition_source_check"/i);
+  assert.match(migration, /CHECK\s*\(\s*"source"\s+IN\s*\([^)]*'goalIssues'/i);
+  assert.doesNotMatch(migration, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/i);
+  assert.doesNotMatch(migration, /DROP\s+(?:TABLE|COLUMN)/i);
+});
+
 test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
   const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
   assert.match(migration, /CREATE TABLE "JiraSyncRun"/);

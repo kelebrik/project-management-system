@@ -1,4 +1,12 @@
-import { jiraAnalyticsFilterFields } from "@pms/shared";
+import {
+  jiraAnalyticsFilterFields,
+  jiraAnalyticsFilterOperators,
+  jiraAnalyticsGroupings,
+  jiraAnalyticsMetrics,
+  jiraAnalyticsSortDirections,
+  jiraAnalyticsSortFields,
+  jiraSemanticAggregateGrains,
+} from "@pms/shared";
 
 const jiraAnalyticsOpenApiFields = jiraAnalyticsFilterFields;
 
@@ -172,7 +180,7 @@ export const openApiDocument = {
           },
           operator: {
             type: "string",
-            enum: ["equals", "notEquals", "contains", "empty", "notEmpty", "greaterThan", "atLeast", "lessThan", "atMost", "before", "after"],
+            enum: jiraAnalyticsFilterOperators,
           },
           value: { type: "string", maxLength: 1000 },
         },
@@ -185,7 +193,7 @@ export const openApiDocument = {
           schemaVersion: { type: "integer", const: 5 },
           name: { type: "string", minLength: 1, maxLength: 200 },
           description: { type: "string", maxLength: 1000 },
-          grain: { type: "string", enum: ["issue", "transitionEvent", "developmentEvent", "interval"] },
+          grain: { type: "string", enum: jiraSemanticAggregateGrains },
           basePopulation: {
             type: "object",
             additionalProperties: false,
@@ -244,10 +252,10 @@ export const openApiDocument = {
           filters: { type: "array", maxItems: 30, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
           dateField: { type: ["string", "null"], enum: [...jiraAnalyticsOpenApiFields, null] },
           asOf: { type: ["string", "null"], format: "date-time" },
-          metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
-          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
-          sortBy: { type: "string", enum: ["default", "issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount", "sprintCount"] },
-          sortDirection: { type: "string", enum: ["asc", "desc"] },
+          metric: { type: "string", enum: jiraAnalyticsMetrics },
+          groupBy: { type: "string", enum: jiraAnalyticsGroupings },
+          sortBy: { type: "string", enum: jiraAnalyticsSortFields },
+          sortDirection: { type: "string", enum: jiraAnalyticsSortDirections },
           visualization: { type: "string", enum: ["number", "bar", "table"] },
           width: { type: "string", enum: ["half", "full"] },
         },
@@ -270,15 +278,15 @@ export const openApiDocument = {
         properties: {
           aggregateVersion: { type: "integer", minimum: 1 },
           selectedFields: { type: "array", minItems: 1, maxItems: jiraAnalyticsOpenApiFields.length, uniqueItems: true, items: { type: "string", enum: jiraAnalyticsOpenApiFields } },
-          metric: { type: "string", enum: ["count", "averageDuration", "p50Duration", "p85Duration", "p95Duration", "commits", "mergeRequests"] },
-          groupBy: { type: "string", enum: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "resolution", "fromStatus", "toStatus", "week"] },
+          metric: { type: "string", enum: jiraAnalyticsMetrics },
+          groupBy: { type: "string", enum: jiraAnalyticsGroupings },
           filters: { type: "array", maxItems: 30, items: { $ref: "#/components/schemas/JiraAnalyticsFilter" } },
           filterLogic: { type: "string", enum: ["and", "or"] },
           periodDays: { type: ["integer", "null"], enum: [30, 90, 180, 365, null] },
           dateField: { type: ["string", "null"], enum: [...jiraAnalyticsOpenApiFields, null] },
           assignee: { type: "string", maxLength: 200 },
-          sortBy: { type: "string", enum: ["default", "issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount", "sprintCount"] },
-          sortDirection: { type: "string", enum: ["asc", "desc"] },
+          sortBy: { type: "string", enum: jiraAnalyticsSortFields },
+          sortDirection: { type: "string", enum: jiraAnalyticsSortDirections },
           page: { type: "integer", minimum: 1, maximum: 100000 },
           pageSize: { type: "integer", minimum: 1, maximum: 100 },
           groupKey: { type: "string", maxLength: 500 },

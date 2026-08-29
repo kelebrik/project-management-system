@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { jiraAnalyticsFilterFields } from "@pms/shared";
+import {
+  jiraAnalyticsFilterFields,
+  jiraAnalyticsFilterOperators,
+  jiraAnalyticsGroupings,
+  jiraAnalyticsMetrics,
+  jiraAnalyticsSortDirections,
+  jiraAnalyticsSortFields,
+  jiraSemanticAggregateGrains,
+} from "@pms/shared";
 import { openApiDocument } from "../../apps/api/src/openapi.ts";
 
 type HttpMethod = "get" | "post" | "patch" | "put" | "delete";
@@ -179,4 +187,21 @@ test("OpenAPI publishes every managed Jira analytics field", () => {
     .properties?.field.enum;
 
   assert.deepEqual(publishedFields, jiraAnalyticsFilterFields);
+});
+
+test("OpenAPI publishes every managed Jira analytics enum", () => {
+  const schemas = (openApiDocument as unknown as {
+    components: { schemas: Record<string, { properties?: Record<string, { enum?: readonly string[] }> }> };
+  }).components.schemas;
+
+  assert.deepEqual(schemas.JiraAnalyticsFilter.properties?.operator.enum, jiraAnalyticsFilterOperators);
+  assert.deepEqual(schemas.JiraSemanticAggregateDefinition.properties?.grain.enum, jiraSemanticAggregateGrains);
+  assert.deepEqual(schemas.JiraSemanticWidget.properties?.metric.enum, jiraAnalyticsMetrics);
+  assert.deepEqual(schemas.JiraSemanticWidget.properties?.groupBy.enum, jiraAnalyticsGroupings);
+  assert.deepEqual(schemas.JiraSemanticWidget.properties?.sortBy.enum, jiraAnalyticsSortFields);
+  assert.deepEqual(schemas.JiraSemanticWidget.properties?.sortDirection.enum, jiraAnalyticsSortDirections);
+  assert.deepEqual(schemas.JiraSemanticQuery.properties?.metric.enum, jiraAnalyticsMetrics);
+  assert.deepEqual(schemas.JiraSemanticQuery.properties?.groupBy.enum, jiraAnalyticsGroupings);
+  assert.deepEqual(schemas.JiraSemanticQuery.properties?.sortBy.enum, jiraAnalyticsSortFields);
+  assert.deepEqual(schemas.JiraSemanticQuery.properties?.sortDirection.enum, jiraAnalyticsSortDirections);
 });
