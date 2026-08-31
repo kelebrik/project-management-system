@@ -1,33 +1,36 @@
-import { Check, ExternalLink, Link2, Plus, Trash2 } from "lucide-react";
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { Check, ExternalLink, Pencil, Plus, X } from "lucide-react";
+import {
+  useMemo,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
+import {
+  OPEN_ISSUE_COLUMNS,
+  normalizeOpenIssueColumnWidths,
+  openIssueTableWidth,
+  type OpenIssueColumnKey,
+} from "../app/openIssueTable";
 import { usePageContext } from "./PageContext";
 
 type EditableIssueField = keyof Pick<
   IssueEditDraft,
+  | "phaseId"
   | "category"
   | "title"
-  | "referenceLabel"
   | "referenceUrl"
-  | "severity"
   | "readiness"
-  | "status"
   | "owner"
   | "impact"
   | "decisionRequired"
   | "dueDate"
-  | "jiraTicketKey"
-  | "jiraTicketUrl"
 >;
 
-const nullableFields = new Set<EditableIssueField>([
-  "dueDate",
-  "referenceUrl",
-  "jiraTicketKey",
-  "jiraTicketUrl",
-]);
+const nullableFields = new Set<EditableIssueField>(["phaseId", "referenceUrl", "dueDate"]);
 
 const readinessLabels = {
   RED: "Красная",
@@ -57,6 +60,26 @@ function issueFieldValue(issue: Issue, field: EditableIssueField) {
   return normalizedFieldValue(field, issue[field as keyof Issue]);
 }
 
+function issueTicketLinks(issue: Issue) {
+  const links = issue.jiraLinks.map((link) => ({
+    id: link.id,
+    jiraKey: link.jiraKey,
+    jiraUrl: link.jiraUrl,
+  }));
+  if (
+    issue.jiraTicketKey
+    && issue.jiraTicketUrl
+    && !links.some((link) => link.jiraKey === issue.jiraTicketKey)
+  ) {
+    links.unshift({
+      id: `primary-${issue.id}`,
+      jiraKey: issue.jiraTicketKey,
+      jiraUrl: issue.jiraTicketUrl,
+    });
+  }
+  return links;
+}
+
 export function ProjectOpenIssuesSection() {
   const {
     addIssueJiraLink,
@@ -66,22 +89,35 @@ export function ProjectOpenIssuesSection() {
     convertIssueToProblem,
     date,
     isReadOnly,
-    isoDate,
     issueEditDrafts,
     issueLinkDrafts,
-    issueSeverityLabel,
     issueStatusDrafts,
-    issueStatusLabel,
     project,
     removeIssueJiraLink,
     saveOpenIssueWithPayload,
+    saveProjectUiState,
+    setError,
     setIssueLinkDrafts,
     updateIssueDraft,
     updateIssueStatusDraft,
   } = usePageContext();
   const [savingCells, setSavingCells] = useState<Set<string>>(() => new Set());
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [addingTicketIssueIds, setAddingTicketIssueIds] = useState<Set<string>>(() => new Set());
+  const [editingThreadIssueIds, setEditingThreadIssueIds] = useState<Set<string>>(() => new Set());
+  const [columnWidthOverrides, setColumnWidthOverrides] = useState<
+    Record<string, ReturnType<typeof normalizeOpenIssueColumnWidths>>
+  >({});
+  const storedColumnWidths = useMemo(
+    () => normalizeOpenIssueColumnWidths(project.uiState?.openIssueColumnWidths),
+    [project.uiState?.openIssueColumnWidths],
+  );
+  const columnWidths = columnWidthOverrides[project.id] ?? storedColumnWidths;
 
+  const phases = useMemo(
+    () => project.wbsItems.filter((item: { type: string }) => item.type === "PHASE"),
+    [project.wbsItems],
+  );
   const groups = useMemo(() => {
     const result = new Map<string, Issue[]>();
     for (const issue of project.issues as Issue[]) {
@@ -91,11 +127,42 @@ export function ProjectOpenIssuesSection() {
     return [...result.entries()];
   }, [project.issues]);
   const categoryOptions = groups.map(([category]) => category);
+  const tableWidth = openIssueTableWidth(columnWidths);
 
-  const patchDraft = (
-    issue: Issue,
-    patch: Partial<IssueEditDraft>,
-  ) => updateIssueDraft(issue.id, patch, issueToDraft(issue));
+  const startColumnResize = (
+    columnKey: OpenIssueColumnKey,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    const column = OPEN_ISSUE_COLUMNS.find((candidate) => candidate.key === columnKey)!;
+    const startX = event.clientX;
+    const startWidth = columnWidths[columnKey];
+    let latestWidths = columnWidths;
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const nextWidth = Math.min(
+        column.max,
+        Math.max(column.min, startWidth + moveEvent.clientX - startX),
+      );
+      latestWidths = { ...latestWidths, [columnKey]: nextWidth };
+      setColumnWidthOverrides((current) => ({
+        ...current,
+        [project.id]: latestWidths,
+      }));
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      if (isReadOnly) return;
+      void saveProjectUiState({ openIssueColumnWidths: latestWidths }).catch((error: unknown) =>
+        setError(error instanceof Error ? error.message : "Не удалось сохранить ширину колонок"),
+      );
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  };
+
+  const patchDraft = (issue: Issue, patch: Partial<IssueEditDraft>) =>
+    updateIssueDraft(issue.id, patch, issueToDraft(issue));
 
   const persistField = async (
     issue: Issue,
@@ -107,7 +174,6 @@ export function ProjectOpenIssuesSection() {
     const nextValue = normalizedFieldValue(field, requestedValue ?? draft[field]);
     const currentValue = issueFieldValue(issue, field);
     if (nextValue === currentValue) {
-      patchDraft(issue, { [field]: nextValue ?? "" });
       setFieldErrors((current) => {
         const next = { ...current };
         delete next[key];
@@ -132,15 +198,9 @@ export function ProjectOpenIssuesSection() {
       const result = await saveOpenIssueWithPayload(
         issue.id,
         { [field]: payloadValue },
-        { quiet: true, refresh: false },
+        { quiet: true, refresh: field === "phaseId" },
       );
-      if (result.ok) {
-        setFieldErrors((current) => {
-          const next = { ...current };
-          delete next[key];
-          return next;
-        });
-      } else {
+      if (!result.ok) {
         setFieldErrors((current) => ({ ...current, [key]: result.error }));
       }
     } finally {
@@ -161,13 +221,8 @@ export function ProjectOpenIssuesSection() {
       return next;
     });
     try {
-      const result = await addIssueStatusUpdate(
-        issue.id,
-        { quiet: true, refresh: false },
-      );
-      if (!result.ok) {
-        setFieldErrors((current) => ({ ...current, [key]: result.error }));
-      }
+      const result = await addIssueStatusUpdate(issue.id, { quiet: true, refresh: false });
+      if (!result.ok) setFieldErrors((current) => ({ ...current, [key]: result.error }));
     } finally {
       setSavingCells((current) => {
         const next = new Set(current);
@@ -184,8 +239,7 @@ export function ProjectOpenIssuesSection() {
   ) => {
     if (event.key === "Enter") event.currentTarget.blur();
     if (event.key === "Escape") {
-      const currentValue = issueFieldValue(issue, field);
-      patchDraft(issue, { [field]: currentValue ?? "" });
+      patchDraft(issue, { [field]: issueFieldValue(issue, field) ?? "" });
       event.currentTarget.blur();
     }
   };
@@ -202,68 +256,60 @@ export function ProjectOpenIssuesSection() {
         tabIndex={0}
         aria-label="Таблица открытых вопросов, доступна горизонтальная прокрутка"
       >
-        <table className="issue-register">
+        <table
+          className="issue-register"
+          style={{ width: tableWidth, minWidth: tableWidth } as CSSProperties}
+        >
           <caption className="issue-register-caption">
             Открытые вопросы проекта с редактированием полей в таблице
           </caption>
           <colgroup>
-            <col className="issue-col-number" />
-            <col className="issue-col-task" />
-            <col className="issue-col-link" />
-            <col className="issue-col-status" />
-            <col className="issue-col-owner" />
-            <col className="issue-col-risk" />
-            <col className="issue-col-readiness" />
-            <col className="issue-col-parameters" />
+            {OPEN_ISSUE_COLUMNS.map((column) => (
+              <col style={{ width: columnWidths[column.key] }} key={column.key} />
+            ))}
           </colgroup>
           <thead className="issue-register-head">
             <tr>
-              <th scope="col">№</th>
-              <th scope="col">Задача</th>
-              <th scope="col">Ссылка</th>
-              <th scope="col">Статус</th>
-              <th scope="col">Ответственный</th>
-              <th scope="col">Риски</th>
-              <th scope="col">Готовность</th>
-              <th scope="col">Параметры</th>
+              {OPEN_ISSUE_COLUMNS.map((column) => (
+                <th scope="col" key={column.key}>
+                  <span>{column.label}</span>
+                  <button
+                    type="button"
+                    className="issue-column-resizer"
+                    aria-label={`Изменить ширину колонки ${column.label}`}
+                    onPointerDown={(event) => startColumnResize(column.key, event)}
+                  />
+                </th>
+              ))}
             </tr>
           </thead>
           {groups.map(([category, issues]) => (
             <tbody className="issue-register-group" key={category}>
               <tr className="issue-register-group-heading">
-                <th colSpan={8} scope="rowgroup">{category}</th>
+                <th colSpan={OPEN_ISSUE_COLUMNS.length} scope="rowgroup">{category}</th>
               </tr>
               {issues.map((issue, index) => {
                 const draft = (issueEditDrafts[issue.id] as IssueEditDraft | undefined)
                   ?? issueToDraft(issue);
                 const statuses = sortedStatusUpdates(issue);
                 const latestStatus = statuses[0];
-                const statusDraft = issueStatusDrafts[issue.id] ?? {
-                  statusAt: isoDate(new Date()),
-                  text: "",
-                };
+                const statusDraft = issueStatusDrafts[issue.id] ?? { text: "" };
                 const jiraDraft = issueLinkDrafts[issue.id] ?? { jiraKey: "", jiraUrl: "" };
-                const displayedReferenceUrl = draft.referenceUrl.trim();
-                const delayDays = calendarDelayDays(
-                  issue.initialDueDate,
-                  issue.dueDate,
-                );
+                const ticketLinks = issueTicketLinks(issue);
+                const delayDays = calendarDelayDays(issue.initialDueDate, issue.dueDate);
                 const isSaving = (field: EditableIssueField | "statusUpdate") =>
                   savingCells.has(`${issue.id}:${field}`);
                 const fieldError = (...fields: Array<EditableIssueField | "statusUpdate">) => {
                   const message = fields
                     .map((field) => fieldErrors[`${issue.id}:${field}`])
                     .find(Boolean);
-                  return message ? (
-                    <span className="issue-inline-error" role="alert">{message}</span>
-                  ) : null;
+                  return message ? <span className="issue-inline-error" role="alert">{message}</span> : null;
                 };
+                const addingTicket = addingTicketIssueIds.has(issue.id);
+                const editingThread = editingThreadIssueIds.has(issue.id);
+
                 return (
-                  <tr
-                    className="issue-register-row"
-                    id={`issue-item-${issue.id}`}
-                    key={issue.id}
-                  >
+                  <tr className="issue-register-row" id={`issue-item-${issue.id}`} key={issue.id}>
                     <th className="issue-register-number" scope="row">{index + 1}</th>
                     <td className="issue-register-cell issue-register-task">
                       <input
@@ -289,81 +335,100 @@ export function ProjectOpenIssuesSection() {
                       {fieldError("category", "title")}
                     </td>
                     <td className="issue-register-cell issue-register-links">
-                      <input
-                        value={draft.referenceLabel}
-                        placeholder="Подпись ссылки"
-                        disabled={isReadOnly}
-                        aria-busy={isSaving("referenceLabel")}
-                        onChange={(event) => patchDraft(issue, { referenceLabel: event.target.value })}
-                        onBlur={() => void persistField(issue, "referenceLabel")}
-                        onKeyDown={(event) => commitOnEnter(event, issue, "referenceLabel")}
-                        aria-label="Подпись рабочей ссылки"
-                      />
-                      <div className="issue-inline-url">
-                        <input
-                          type="url"
-                          value={draft.referenceUrl}
-                          placeholder="https://..."
-                          disabled={isReadOnly}
-                          aria-busy={isSaving("referenceUrl")}
-                          onChange={(event) => patchDraft(issue, { referenceUrl: event.target.value })}
-                          onBlur={() => void persistField(issue, "referenceUrl")}
-                          onKeyDown={(event) => commitOnEnter(event, issue, "referenceUrl")}
-                          aria-label="Рабочая ссылка"
-                        />
-                        {displayedReferenceUrl ? (
+                      <div className="issue-thread-control">
+                        {editingThread ? (
+                          <input
+                            autoFocus
+                            type="url"
+                            value={draft.referenceUrl}
+                            aria-label="Ссылка на трэд"
+                            aria-busy={isSaving("referenceUrl")}
+                            onChange={(event) => patchDraft(issue, { referenceUrl: event.target.value })}
+                            onKeyDown={(event) => commitOnEnter(event, issue, "referenceUrl")}
+                            onBlur={() => {
+                              void persistField(issue, "referenceUrl").finally(() => {
+                                setEditingThreadIssueIds((current) => {
+                                  const next = new Set(current);
+                                  next.delete(issue.id);
+                                  return next;
+                                });
+                              });
+                            }}
+                          />
+                        ) : issue.referenceUrl ? (
                           <a
-                            href={displayedReferenceUrl}
+                            className="issue-thread-link"
+                            href={issue.referenceUrl}
                             target="_blank"
                             rel="noreferrer"
-                            aria-label={`Открыть ссылку: ${draft.referenceLabel.trim() || displayedReferenceUrl}`}
                           >
-                            <span>{draft.referenceLabel.trim() || "Открыть ссылку"}</span>
+                            <span>Ссылка на трэд</span>
                             <ExternalLink size={15} />
                           </a>
+                        ) : (
+                          <span className="issue-thread-link is-empty">Ссылка на трэд</span>
+                        )}
+                        {!isReadOnly && !editingThread ? (
+                          <button
+                            type="button"
+                            className="icon-button issue-thread-edit"
+                            aria-label="Изменить ссылку на трэд"
+                            onClick={() => setEditingThreadIssueIds((current) => new Set(current).add(issue.id))}
+                          >
+                            <Pencil size={14} />
+                          </button>
                         ) : null}
                       </div>
-                      <div className="issue-primary-jira-fields">
-                        <span>{issue.source === "JIRA" ? "Источник Jira" : "Внутренний вопрос"}</span>
-                        <input
-                          value={draft.jiraTicketKey}
-                          placeholder="Основной ключ Jira"
-                          disabled={isReadOnly}
-                          aria-busy={isSaving("jiraTicketKey")}
-                          onChange={(event) => patchDraft(issue, { jiraTicketKey: event.target.value })}
-                          onBlur={() => void persistField(issue, "jiraTicketKey")}
-                          onKeyDown={(event) => commitOnEnter(event, issue, "jiraTicketKey")}
-                          aria-label="Основной ключ Jira"
-                        />
-                        <input
-                          type="url"
-                          value={draft.jiraTicketUrl}
-                          placeholder="Основной URL Jira"
-                          disabled={isReadOnly}
-                          aria-busy={isSaving("jiraTicketUrl")}
-                          onChange={(event) => patchDraft(issue, { jiraTicketUrl: event.target.value })}
-                          onBlur={() => void persistField(issue, "jiraTicketUrl")}
-                          onKeyDown={(event) => commitOnEnter(event, issue, "jiraTicketUrl")}
-                          aria-label="Основной URL Jira"
-                        />
-                      </div>
-                      <div className="issue-inline-jira-list">
-                        {issue.jiraLinks.map((link) => (
-                          <span className="jira-chip" key={link.id}>
-                            <a href={link.jiraUrl} target="_blank" rel="noreferrer">{link.jiraKey}</a>
-                            {!isReadOnly ? (
+                      {fieldError("referenceUrl")}
+                      <span className="issue-ticket-label">Ссылка на тикет</span>
+                      <div className="issue-ticket-links" aria-label="Ссылки на тикеты">
+                        {ticketLinks.map((link) => (
+                          <span className="issue-ticket-link-item" key={link.id}>
+                            <a href={link.jiraUrl} target="_blank" rel="noreferrer">
+                              {link.jiraKey}
+                            </a>
+                            {!isReadOnly && !link.id.startsWith("primary-") ? (
                               <button
                                 type="button"
-                                aria-label={`Удалить связь ${link.jiraKey}`}
+                                className="icon-button"
+                                aria-label={`Удалить ссылку ${link.jiraKey}`}
                                 onClick={() => void removeIssueJiraLink(issue.id, link.id)}
                               >
-                                <Trash2 size={12} />
+                                <X size={13} />
+                              </button>
+                            ) : !isReadOnly ? (
+                              <button
+                                type="button"
+                                className="icon-button"
+                                aria-label={`Удалить ссылку ${link.jiraKey}`}
+                                onClick={() => void saveOpenIssueWithPayload(issue.id, {
+                                  jiraTicketKey: null,
+                                  jiraTicketUrl: null,
+                                })}
+                              >
+                                <X size={13} />
                               </button>
                             ) : null}
                           </span>
                         ))}
+                        {!isReadOnly ? (
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label="Добавить ссылку на тикет"
+                            aria-expanded={addingTicket}
+                            onClick={() => setAddingTicketIssueIds((current) => {
+                              const next = new Set(current);
+                              if (next.has(issue.id)) next.delete(issue.id);
+                              else next.add(issue.id);
+                              return next;
+                            })}
+                          >
+                            <Plus size={15} />
+                          </button>
+                        ) : null}
                       </div>
-                      {!isReadOnly ? (
+                      {addingTicket ? (
                         <div className="issue-inline-jira-add">
                           <input
                             value={jiraDraft.jiraKey}
@@ -372,7 +437,7 @@ export function ProjectOpenIssuesSection() {
                               ...issueLinkDrafts,
                               [issue.id]: { ...jiraDraft, jiraKey: event.target.value },
                             })}
-                            aria-label="Ключ новой связи Jira"
+                            aria-label="Ключ дополнительного тикета"
                           />
                           <input
                             type="url"
@@ -382,24 +447,18 @@ export function ProjectOpenIssuesSection() {
                               ...issueLinkDrafts,
                               [issue.id]: { ...jiraDraft, jiraUrl: event.target.value },
                             })}
-                            aria-label="URL новой связи Jira"
+                            aria-label="URL дополнительного тикета"
                           />
                           <button
                             type="button"
-                            aria-label="Добавить связь Jira"
+                            aria-label="Сохранить ссылку на тикет"
                             disabled={!jiraDraft.jiraKey.trim() || !jiraDraft.jiraUrl.trim()}
                             onClick={() => void addIssueJiraLink(issue.id)}
                           >
-                            <Link2 size={14} />
+                            <Plus size={14} />
                           </button>
                         </div>
                       ) : null}
-                      {fieldError(
-                        "referenceLabel",
-                        "referenceUrl",
-                        "jiraTicketKey",
-                        "jiraTicketUrl",
-                      )}
                     </td>
                     <td className="issue-register-cell issue-register-status">
                       {latestStatus ? (
@@ -407,9 +466,7 @@ export function ProjectOpenIssuesSection() {
                           <time dateTime={latestStatus.statusAt}>{date(latestStatus.statusAt)}</time>
                           <p>{latestStatus.text}</p>
                         </div>
-                      ) : (
-                        <p className="muted-inline">Статус ещё не добавлен</p>
-                      )}
+                      ) : <p className="muted-inline">Статус ещё не добавлен</p>}
                       {statuses.length > 1 ? (
                         <details className="issue-status-history">
                           <summary>История · {statuses.length}</summary>
@@ -423,13 +480,7 @@ export function ProjectOpenIssuesSection() {
                       ) : null}
                       {!isReadOnly ? (
                         <div className="issue-inline-status-add">
-                          <input
-                            type="date"
-                            value={statusDraft.statusAt}
-                            disabled={isSaving("statusUpdate")}
-                            onChange={(event) => updateIssueStatusDraft(issue.id, { statusAt: event.target.value })}
-                            aria-label="Дата нового статуса"
-                          />
+                          <span className="issue-status-today">Сегодня</span>
                           <textarea
                             rows={2}
                             value={statusDraft.text}
@@ -440,7 +491,7 @@ export function ProjectOpenIssuesSection() {
                           />
                           <button
                             type="button"
-                            aria-label="Добавить статус"
+                            aria-label="Добавить статус с текущей датой"
                             disabled={isSaving("statusUpdate") || !statusDraft.text.trim()}
                             onClick={() => void appendStatus(issue)}
                           >
@@ -494,41 +545,30 @@ export function ProjectOpenIssuesSection() {
                       </select>
                       {fieldError("readiness")}
                     </td>
+                    <td className="issue-register-cell issue-register-phase">
+                      <select
+                        value={draft.phaseId}
+                        disabled={isReadOnly || isSaving("phaseId")}
+                        onChange={(event) => {
+                          const phaseId = event.target.value;
+                          patchDraft(issue, { phaseId });
+                          void persistField(issue, "phaseId", phaseId);
+                        }}
+                        aria-label="Фаза проекта"
+                      >
+                        <option value="" disabled={Boolean(issue.workPackageId)}>Без фазы</option>
+                        {phases.map((phase: { id: string; code: string; title: string }) => (
+                          <option value={phase.id} key={phase.id}>
+                            {phase.code} · {phase.title}
+                          </option>
+                        ))}
+                      </select>
+                      {issue.workPackageId ? (
+                        <span className="issue-phase-package-note">Пакет работ создан в Структуре</span>
+                      ) : null}
+                      {fieldError("phaseId")}
+                    </td>
                     <td className="issue-register-cell issue-register-parameters">
-                      <label>
-                        <span>Критичность</span>
-                        <select
-                          value={draft.severity}
-                          disabled={isReadOnly}
-                          aria-busy={isSaving("severity")}
-                          onChange={(event) => {
-                            const severity = event.target.value as Issue["severity"];
-                            patchDraft(issue, { severity });
-                            void persistField(issue, "severity", severity);
-                          }}
-                        >
-                          {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((value) => (
-                            <option value={value} key={value}>{issueSeverityLabel(value)}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        <span>Состояние</span>
-                        <select
-                          value={draft.status}
-                          disabled={isReadOnly}
-                          aria-busy={isSaving("status")}
-                          onChange={(event) => {
-                            const status = event.target.value;
-                            patchDraft(issue, { status });
-                            void persistField(issue, "status", status);
-                          }}
-                        >
-                          {["Open", "In Progress", "Blocked", "Resolved", "Closed"].map((value) => (
-                            <option value={value} key={value}>{issueStatusLabel(value)}</option>
-                          ))}
-                        </select>
-                      </label>
                       <label>
                         <span>Срок</span>
                         <input
@@ -541,13 +581,9 @@ export function ProjectOpenIssuesSection() {
                         />
                       </label>
                       <div className="issue-inline-history-meta">
-                        {issue.initialDueDate ? (
-                          <span>Исходный срок: {date(issue.initialDueDate)}</span>
-                        ) : null}
+                        {issue.initialDueDate ? <span>Исходный срок: {date(issue.initialDueDate)}</span> : null}
                         {delayDays !== 0 ? (
-                          <span>
-                            Сдвиг: {delayDays > 0 ? "+" : ""}{delayDays} кал. дн.
-                          </span>
+                          <span>Сдвиг: {delayDays > 0 ? "+" : ""}{delayDays} кал. дн.</span>
                         ) : null}
                       </div>
                       <label className="issue-inline-decision">
@@ -564,7 +600,7 @@ export function ProjectOpenIssuesSection() {
                         />
                         Требует решения
                       </label>
-                      {fieldError("severity", "status", "dueDate", "decisionRequired")}
+                      {fieldError("dueDate", "decisionRequired")}
                       {!isReadOnly ? (
                         <div className="issue-inline-actions">
                           <button type="button" className="secondary-button" onClick={() => void convertIssueToProblem(issue.id)}>В проблему</button>

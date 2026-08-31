@@ -8,10 +8,9 @@ import {
 import type { Issue, IssueStatusUpdate, ProjectDetails } from "../app/domainTypes";
 import { emptyIssueForm, type IssueEditDraft, type IssueFormState, type JiraLinkDraft, type TaskJiraDraft } from "../app/formState";
 import { apiBase, authenticatedFetch, responseErrorMessage } from "../app/http";
-import { isoDate } from "../app/dateUtils";
 import { useConfirm } from "./useConfirm";
 
-type IssueStatusDraft = { statusAt: string; text: string };
+type IssueStatusDraft = { text: string };
 
 type UseIssueControllerOptions = {
   projectId: string | null;
@@ -145,6 +144,7 @@ export function useIssueController({
       try {
         const payload = {
           ...issueForm,
+          phaseId: issueForm.phaseId || null,
           category: issueForm.category.trim(),
           title: issueForm.title.trim(),
           referenceLabel: issueForm.referenceLabel.trim(),
@@ -356,7 +356,7 @@ export function useIssueController({
   const updateIssueStatusDraft = useCallback(
     (issueId: string, patch: Partial<IssueStatusDraft>) => {
       const current =
-        issueStatusDrafts[issueId] ?? { statusAt: isoDate(new Date()), text: "" };
+        issueStatusDrafts[issueId] ?? { text: "" };
       setIssueStatusDrafts({
         ...issueStatusDrafts,
         [issueId]: { ...current, ...patch },
@@ -424,6 +424,7 @@ export function useIssueController({
       if (!draft) return;
       await saveOpenIssueWithPayload(issueId, {
         ...draft,
+        phaseId: draft.phaseId || null,
         dueDate: draft.dueDate || null,
         jiraTicketKey: draft.jiraTicketKey || null,
         jiraTicketUrl: draft.jiraTicketUrl || null,
@@ -500,7 +501,7 @@ export function useIssueController({
       options: { quiet?: boolean; refresh?: boolean } = {},
     ) => {
       const draft =
-        issueStatusDrafts[issueId] ?? { statusAt: isoDate(new Date()), text: "" };
+        issueStatusDrafts[issueId] ?? { text: "" };
       if (!draft.text.trim()) {
         const error = "Заполните текст статуса";
         if (!options.quiet) setError(error);
@@ -517,7 +518,6 @@ export function useIssueController({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              statusAt: draft.statusAt || isoDate(new Date()),
               text: draft.text.trim(),
             }),
           },
@@ -532,7 +532,7 @@ export function useIssueController({
         }
         setIssueStatusDrafts((drafts) => ({
           ...drafts,
-          [issueId]: { statusAt: isoDate(new Date()), text: "" },
+          [issueId]: { text: "" },
         }));
         mergeIssueStatusUpdate(issueId, result as IssueStatusUpdate);
         if (options.refresh !== false) await refreshProject();

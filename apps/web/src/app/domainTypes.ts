@@ -12,6 +12,7 @@ import type {
   WbsTableColumnKey,
 } from "./wbsTable";
 import type { CurrentWorkColumnKey } from "./currentWorkTable";
+import type { OpenIssueColumnKey } from "./openIssueTable";
 
 export type {
   IssueSeverity,
@@ -165,6 +166,7 @@ export type ProjectUiState = {
   wbsColumnWidths?: Partial<Record<WbsTableColumnKey, number>>;
   wbsSort?: WbsSortState | null;
   currentWorkColumnWidths?: Partial<Record<CurrentWorkColumnKey, number>>;
+  openIssueColumnWidths?: Partial<Record<OpenIssueColumnKey, number>>;
   ganttPanelHeight?: number;
   ganttPanelWidth?: number;
   ganttWbsWidth?: number;
@@ -396,6 +398,8 @@ export type IssueStatusUpdate = {
 
 export type Issue = {
   id: string;
+  phaseId: string | null;
+  workPackageId: string | null;
   source: "INTERNAL" | "JIRA";
   category: string;
   title: string;

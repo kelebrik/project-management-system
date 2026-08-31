@@ -493,6 +493,8 @@ export const openApiDocument = {
         properties: {
           id: { type: "string" },
           projectId: { type: "string" },
+          phaseId: { type: ["string", "null"] },
+          workPackageId: { type: ["string", "null"] },
           category: { type: "string" },
           title: { type: "string" },
           referenceLabel: { type: "string" },
@@ -514,6 +516,8 @@ export const openApiDocument = {
         required: [
           "id",
           "projectId",
+          "phaseId",
+          "workPackageId",
           "category",
           "title",
           "referenceLabel",
@@ -1089,7 +1093,7 @@ export const openApiDocument = {
     "/api/open-issues/{issueId}/status-updates": {
       post: createOperation(
         ["OpenIssues"],
-        "Add dated status update to open issue",
+        "Add status update to open issue with the current server date",
         [issueIdParam],
         "Status update created",
       ),

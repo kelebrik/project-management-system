@@ -6,6 +6,10 @@ import {
   recalculateProjectWbsHierarchyStatuses,
   renumberProjectWbs,
 } from '../../services/wbs.js';
+import {
+  invalidIssueLinkedWbsPlan,
+  WbsIssueLinkViolationError,
+} from '../../services/wbs-issue-links.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
 import {
   createWbsBaselineFromCurrentPlan,
@@ -15,6 +19,46 @@ import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
 import { currentUser } from '../../server/auth.js';
 import { wbsBaselineSchema, wbsInsertAfterSchema, wbsReorderSchema } from './schemas.js';
+
+type LinkedIssueReorderItem = {
+  id: string;
+  code: string;
+  type: string;
+  wbsLevel: number | null;
+};
+
+type LinkedIssueReorderReference = {
+  title: string;
+  phaseId: string | null;
+  workPackageId: string | null;
+};
+
+export function invalidIssueLinkedWbsReorder(
+  items: LinkedIssueReorderItem[],
+  nextIds: string[],
+  levelsById: Record<string, number> | undefined,
+  typesById: Record<string, string> | undefined,
+  linkedIssues: LinkedIssueReorderReference[],
+) {
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  const proposedItems = nextIds.map((itemId) => {
+    const item = itemsById.get(itemId)!;
+    return {
+      ...item,
+      type: typesById?.[itemId] ?? item.type,
+      wbsLevel: levelsById?.[itemId] ?? item.wbsLevel,
+    };
+  });
+  const invalidIssue = invalidIssueLinkedWbsPlan(proposedItems, linkedIssues);
+  if (invalidIssue) return invalidIssue;
+  return linkedIssues.find((issue) => {
+    const currentPhase = issue.phaseId ? itemsById.get(issue.phaseId) : null;
+    const requestedPhaseLevel = issue.phaseId ? levelsById?.[issue.phaseId] : undefined;
+    const phaseLevelChanged = requestedPhaseLevel !== undefined
+      && (!currentPhase || requestedPhaseLevel !== levelFromWbsItem(currentPhase));
+    return issue.phaseId && phaseLevelChanged;
+  });
+}
 
 export function registerWbsItemOrderRoutes(router: Router) {
   router.post('/projects/:projectId/wbs-items/insert-after', async (req, res) => {
@@ -137,7 +181,16 @@ export function registerWbsItemOrderRoutes(router: Router) {
       return;
     }
 
-    const updatedCount = await renumberProjectWbs(project.id);
+    let updatedCount: number;
+    try {
+      updatedCount = await renumberProjectWbs(project.id);
+    } catch (error) {
+      if (error instanceof WbsIssueLinkViolationError) {
+        res.status(409).json({ error: error.message });
+        return;
+      }
+      throw error;
+    }
     await recalculateProjectWbsSchedule(project.id);
     await recalculateProjectWbsHierarchyStatuses(project.id);
     const snapshot = await getProjectWbsSnapshot(project.id);
@@ -232,7 +285,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
 
     const items = await prisma.wbsItem.findMany({
       where: { projectId: project.id },
-      select: { id: true },
+      select: { id: true, code: true, type: true, wbsLevel: true },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
     const existingIds = new Set(items.map((item) => item.id));
@@ -242,6 +295,31 @@ export function registerWbsItemOrderRoutes(router: Router) {
     const submittedIds = new Set(orderedIds);
     const missingIds = items.map((item) => item.id).filter((id) => !submittedIds.has(id));
     const nextIds = [...orderedIds, ...missingIds];
+
+    const linkedIssues = await prisma.issue.findMany({
+      where: {
+        projectId: project.id,
+        status: { notIn: ['Done', 'Closed', 'Resolved'] },
+        OR: [
+          { phaseId: { not: null } },
+          { workPackageId: { not: null } },
+        ],
+      },
+      select: { title: true, phaseId: true, workPackageId: true },
+    });
+    const invalidLinkedIssue = invalidIssueLinkedWbsReorder(
+      items,
+      nextIds,
+      parsed.data.levelsById,
+      parsed.data.typesById,
+      linkedIssues,
+    );
+    if (invalidLinkedIssue) {
+      res.status(409).json({
+        error: `Изменение нарушает связь пакета работ с открытым вопросом «${invalidLinkedIssue.title}»; измените фазу в реестре вопросов`,
+      });
+      return;
+    }
 
     await prisma.$transaction(
       nextIds.map((id, index) => {

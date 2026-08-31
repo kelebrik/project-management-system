@@ -810,6 +810,8 @@ model WbsItem {
   children          WbsItem[]           @relation("WbsHierarchy")
   predecessors      WbsDependency[]     @relation("WbsDependencySuccessor")
   successors        WbsDependency[]     @relation("WbsDependencyPredecessor")
+  phaseIssues       Issue[]             @relation("IssuePhase")
+  workPackageIssue  Issue?              @relation("IssueWorkPackage")
 
   @@unique([projectId, code])
   @@index([projectId, parentId])
@@ -932,6 +934,8 @@ model WbsDependency {
 model Issue {
   id               String              @id @default(cuid())
   projectId        String
+  phaseId          String?
+  workPackageId    String?             @unique
   source           IssueSource
   category         String              @default("Без раздела")
   title            String
@@ -951,8 +955,12 @@ model Issue {
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   project          Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phase            WbsItem?            @relation("IssuePhase", fields: [phaseId], references: [id], onDelete: SetNull)
+  workPackage      WbsItem?            @relation("IssueWorkPackage", fields: [workPackageId], references: [id], onDelete: SetNull)
   jiraLinks        IssueJiraLink[]
   statusUpdates    IssueStatusUpdate[]
+
+  @@index([projectId, phaseId])
 }
 
 model IssueJiraLink {

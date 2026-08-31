@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Request, Response } from 'express';
-import { createIssueSchema, updateIssueSchema } from '@pms/shared';
+import { createIssueSchema, issueStatusUpdateSchema, updateIssueSchema } from '@pms/shared';
 
 import { JiraReadOnlyRequestError } from '../jira.js';
 import {
@@ -72,6 +72,7 @@ test('open issue contracts support the inline register fields and narrow updates
   assert.equal(created.referenceLabel, '');
   assert.equal(created.referenceUrl, undefined);
   assert.equal(created.readiness, 'RED');
+  assert.equal(created.phaseId, undefined);
 
   assert.deepEqual(updateIssueSchema.parse({
     category: 'ChangHong',
@@ -88,6 +89,11 @@ test('open issue contracts support the inline register fields and narrow updates
   assert.equal(updateIssueSchema.safeParse({ category: '' }).success, false);
   assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'javascript:alert(1)' }).success, false);
   assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'https://example.test/thread/2' }).success, true);
+  assert.deepEqual(updateIssueSchema.parse({ phaseId: 'phase-1' }), { phaseId: 'phase-1' });
+  assert.deepEqual(issueStatusUpdateSchema.parse({
+    statusAt: '2020-01-01',
+    text: 'Статус на сегодня',
+  }), { text: 'Статус на сегодня' });
 });
 
 test('project details do not transport the top-level Jira analytics population', () => {

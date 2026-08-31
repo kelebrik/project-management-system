@@ -47,6 +47,36 @@ export function registerWbsSnapshotRoutes(router: Router) {
       }
     }
 
+    const linkedIssues = await prisma.issue.findMany({
+      where: {
+        projectId: project.id,
+        status: { notIn: ['Done', 'Closed', 'Resolved'] },
+        OR: [
+          { phaseId: { not: null } },
+          { workPackageId: { not: null } },
+        ],
+      },
+      select: { title: true, phaseId: true, workPackageId: true },
+    });
+    const snapshotItemsById = new Map(parsed.data.wbsItems.map((item) => [item.id, item]));
+    const invalidLinkedIssue = linkedIssues.find((issue) => {
+      const phase = issue.phaseId ? snapshotItemsById.get(issue.phaseId) : null;
+      const workPackage = issue.workPackageId
+        ? snapshotItemsById.get(issue.workPackageId)
+        : null;
+      return (issue.phaseId && phase?.type !== 'PHASE')
+        || (issue.workPackageId && (
+          workPackage?.type !== 'WORK_PACKAGE'
+          || workPackage.parentId !== issue.phaseId
+        ));
+    });
+    if (invalidLinkedIssue) {
+      res.status(409).json({
+        error: `Снимок нарушает связь Структуры с открытым вопросом «${invalidLinkedIssue.title}»`,
+      });
+      return;
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.wbsDependency.deleteMany({ where: { projectId: project.id } });
 

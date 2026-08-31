@@ -13,12 +13,14 @@ export function IssueDrawer() {
     issueForm,
     issueFormErrors,
     issueSeverityLabel,
+    project,
     removeIssueFormLink,
     setIssueDrawerMode,
     setIssueForm,
     setIssueFormErrors,
     updateIssueFormLink,
   } = ctx;
+  const phases = project?.wbsItems.filter((item: { type: string }) => item.type === "PHASE") ?? [];
 
   const isOpen = activeView === "project-issues" && Boolean(issueDrawerMode);
   const containerRef = useFocusTrap<HTMLElement>(isOpen, () =>
@@ -93,6 +95,26 @@ export function IssueDrawer() {
                       placeholder="Например: Организационные задачи"
                     />
                   </label>
+                  <label>
+                    Фаза
+                    <select
+                      value={issueForm.phaseId}
+                      onChange={(event) => setIssueForm({
+                        ...issueForm,
+                        phaseId: event.target.value,
+                      })}
+                    >
+                      <option value="">Без фазы</option>
+                      {phases.map((phase: { id: string; code: string; title: string }) => (
+                        <option value={phase.id} key={phase.id}>
+                          {phase.code} · {phase.title}
+                        </option>
+                      ))}
+                    </select>
+                    <small>
+                      При выборе фазы в Структуре будет создан пакет работ перед её последней целью или вехой.
+                    </small>
+                  </label>
                   <div className="two-col">
                     <label>
                       Критичность
@@ -143,31 +165,18 @@ export function IssueDrawer() {
                       />
                     </label>
                   </div>
-                  <div className="two-col">
-                    <label>
-                      Подпись рабочей ссылки
-                      <input
-                        value={issueForm.referenceLabel}
-                        onChange={(event) => setIssueForm({
-                          ...issueForm,
-                          referenceLabel: event.target.value,
-                        })}
-                        placeholder="Ссылка на тред"
-                      />
-                    </label>
-                    <label>
-                      Рабочая ссылка
-                      <input
-                        type="url"
-                        value={issueForm.referenceUrl}
-                        onChange={(event) => setIssueForm({
-                          ...issueForm,
-                          referenceUrl: event.target.value,
-                        })}
-                        placeholder="https://..."
-                      />
-                    </label>
-                  </div>
+                  <label>
+                    Ссылка на трэд
+                    <input
+                      type="url"
+                      value={issueForm.referenceUrl}
+                      onChange={(event) => setIssueForm({
+                        ...issueForm,
+                        referenceUrl: event.target.value,
+                      })}
+                      placeholder="https://..."
+                    />
+                  </label>
                   <label>
                     Влияние
                     <textarea
@@ -211,7 +220,7 @@ export function IssueDrawer() {
                     </label>
                   </div>
                   <div className="jira-links-editor">
-                    <div className="subhead">Ключ Jira</div>
+                    <div className="subhead">Ссылка на тикет</div>
                     <div className="issue-link-edit">
                       <input
                         value={issueForm.jiraTicketKey}
@@ -244,7 +253,7 @@ export function IssueDrawer() {
                         {issueFormErrors.jiraTicketUrl}
                       </small>
                     )}
-                    <div className="subhead">Дополнительные задачи Jira</div>
+                    <div className="subhead">Дополнительные ссылки на тикеты</div>
                     {issueForm.jiraLinks.map((link, index) => (
                       <div className="issue-link-edit" key={index}>
                         <input
@@ -274,7 +283,7 @@ export function IssueDrawer() {
                       </div>
                     ))}
                     <button type="button" onClick={addIssueFormLink}>
-                      + Добавить задачу Jira
+                      + Добавить ссылку на тикет
                     </button>
                   </div>
                   <button type="submit" disabled={creatingIssue}>

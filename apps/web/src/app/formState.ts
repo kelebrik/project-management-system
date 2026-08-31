@@ -123,6 +123,7 @@ export type JiraWorkSectionDraft = {
 };
 
 export type IssueFormState = {
+  phaseId: string;
   category: string;
   title: string;
   referenceLabel: string;
@@ -175,6 +176,7 @@ export type ArtifactFormState = {
 };
 
 export type IssueEditDraft = {
+  phaseId: string;
   category: string;
   title: string;
   referenceLabel: string;
@@ -238,6 +240,7 @@ export const emptySystemSettingsDraft: SystemSettingsDraft = {
 };
 
 export const emptyIssueForm: IssueFormState = {
+  phaseId: "",
   category: "Без раздела",
   title: "",
   referenceLabel: "",
@@ -396,6 +399,7 @@ export function raidToForm(item: RaidItem): RaidFormState {
 
 export function issueToDraft(issue: Issue): IssueEditDraft {
   return {
+    phaseId: issue.phaseId ?? "",
     category: issue.category || "Без раздела",
     title: issue.title,
     referenceLabel: issue.referenceLabel || "",

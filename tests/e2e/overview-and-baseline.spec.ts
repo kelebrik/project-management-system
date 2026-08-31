@@ -104,6 +104,8 @@ function projectFixture() {
   };
   const issue = {
     id: "issue-1",
+    phaseId: null,
+    workPackageId: null,
     source: "INTERNAL",
     category: "Организационные задачи",
     title: "Согласовать дату запуска",
@@ -1680,12 +1682,35 @@ test("overview entries expand statuses and open the selected issue", async ({ pa
   await expect(page.locator("#issue-item-issue-1")).toBeVisible();
 });
 
-test("open issues register edits one cell and adds a dated status inline", async ({ page }) => {
-  const project = await mockAdminProject(page);
+test("open issues register edits cells, phase, widths, and adds a current-date status", async ({ page }) => {
+  const project = await mockAdminProject(page, (fixture) => {
+    fixture.wbsItems.unshift({
+      ...fixture.wbsItems[0],
+      id: "phase-issues",
+      parentId: null,
+      code: "1",
+      title: "Подготовка выпуска",
+      type: "PHASE",
+      wbsLevel: 1,
+      sortOrder: 0,
+    });
+  });
   const issue = project.issues[0];
+  issue.source = "JIRA";
+  issue.jiraTicketKey = "CVTE-1801";
+  issue.jiraTicketUrl = "https://jira.example.test/browse/CVTE-1801";
+  issue.jiraLinks = [{
+    id: "issue-link-1",
+    issueId: issue.id,
+    jiraKey: "CVTE-1801",
+    jiraUrl: "https://jira.example.test/browse/CVTE-1801",
+    createdAt: `${isoDay(-2)}T12:00:00.000Z`,
+    updatedAt: `${isoDay(-2)}T12:00:00.000Z`,
+  }];
   const originalImpact = issue.impact;
   const issuePatches: Record<string, unknown>[] = [];
   let statusPayload: Record<string, unknown> | null = null;
+  let uiStatePayload: Record<string, unknown> | null = null;
 
   await page.route("**/api/open-issues/issue-1", async (route) => {
     const patch = route.request().postDataJSON() as Record<string, unknown>;
@@ -1696,20 +1721,34 @@ test("open issues register edits one cell and adds a dated status inline", async
     }
     await new Promise((resolve) => setTimeout(resolve, "title" in patch ? 120 : 10));
     Object.assign(issue, patch);
+    if (patch.phaseId) issue.workPackageId = "work-package-issue-1";
     await route.fulfill({ json: issue });
+  });
+  await page.route("**/api/projects/project-1", async (route) => {
+    const patch = route.request().postDataJSON() as { uiState?: Record<string, unknown> };
+    uiStatePayload = patch.uiState ?? null;
+    project.uiState = { ...project.uiState, ...(patch.uiState ?? {}) };
+    await route.fulfill({ json: { ...project, uiState: project.uiState } });
   });
   await page.route("**/api/open-issues/issue-1/status-updates", async (route) => {
     statusPayload = route.request().postDataJSON() as Record<string, unknown>;
     const update = {
       id: "issue-status-new",
       issueId: issue.id,
-      statusAt: String(statusPayload.statusAt),
+      statusAt: isoDay(0),
       text: String(statusPayload.text),
-      createdAt: `${String(statusPayload.statusAt)}T12:00:00.000Z`,
-      updatedAt: `${String(statusPayload.statusAt)}T12:00:00.000Z`,
+      createdAt: `${isoDay(0)}T12:00:00.000Z`,
+      updatedAt: `${isoDay(0)}T12:00:00.000Z`,
     };
     issue.statusUpdates.unshift(update);
     await route.fulfill({ status: 201, json: update });
+  });
+  await page.route("**/api/open-issues/issue-1/jira-links/issue-link-1", async (route) => {
+    issue.jiraLinks = [];
+    issue.jiraTicketKey = null;
+    issue.jiraTicketUrl = null;
+    issue.source = "INTERNAL";
+    await route.fulfill({ status: 204 });
   });
 
   await page.goto("/TV-OVERVIEW/issues");
@@ -1727,6 +1766,33 @@ test("open issues register edits one cell and adds a dated status inline", async
   await expect(title).toHaveValue("Согласовать обновлённую дату запуска");
   await expect(owner).toHaveValue("Владелец запуска");
 
+  await row.getByRole("button", { name: "Изменить ссылку на трэд" }).click();
+  const threadUrl = row.getByLabel("Ссылка на трэд");
+  await threadUrl.fill("https://example.test/updated-thread");
+  await threadUrl.blur();
+  await expect.poll(() => issuePatches).toContainEqual({
+    referenceUrl: "https://example.test/updated-thread",
+  });
+  await expect(row.getByRole("link", { name: "Ссылка на трэд" })).toHaveAttribute(
+    "href",
+    "https://example.test/updated-thread",
+  );
+  await expect(row.getByRole("link", { name: "CVTE-1801" })).toBeVisible();
+  await row.getByRole("button", { name: "Удалить ссылку CVTE-1801" }).click();
+  await expect(row.getByRole("link", { name: "CVTE-1801" })).toHaveCount(0);
+
+  const taskResizer = page.getByLabel("Изменить ширину колонки Задача");
+  const taskResizerBox = await taskResizer.boundingBox();
+  expect(taskResizerBox).not.toBeNull();
+  await page.mouse.move(taskResizerBox!.x + 5, taskResizerBox!.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(taskResizerBox!.x + 45, taskResizerBox!.y + 5);
+  await page.mouse.up();
+  await expect.poll(() => {
+    const widths = uiStatePayload?.openIssueColumnWidths as Record<string, number> | undefined;
+    return widths?.task ?? 0;
+  }).toBeGreaterThan(250);
+
   await row.getByLabel("Раздел вопроса").fill("ChangHong");
   await row.getByLabel("Раздел вопроса").blur();
   await expect(page.getByRole("rowgroup").filter({ hasText: "ChangHong" })).toContainText(
@@ -1735,6 +1801,9 @@ test("open issues register edits one cell and adds a dated status inline", async
   await row.getByLabel("Готовность").selectOption("GREEN");
   await expect.poll(() => issuePatches).toContainEqual({ readiness: "GREEN" });
   await expect.poll(() => issue.readiness).toBe("GREEN");
+  await row.getByLabel("Фаза проекта").selectOption("phase-issues");
+  await expect.poll(() => issuePatches).toContainEqual({ phaseId: "phase-issues" });
+  await expect(row.getByText("Пакет работ создан в Структуре")).toBeVisible();
 
   await row.getByLabel("Риски").fill("Ошибка сохранения");
   await row.getByLabel("Риски").blur();
@@ -1743,25 +1812,37 @@ test("open issues register edits one cell and adds a dated status inline", async
   await row.getByLabel("Риски").blur();
   await expect(row.getByRole("alert")).toHaveCount(0);
 
-  await row.getByLabel("Дата нового статуса").fill("2026-08-31");
   await row.getByLabel("Текст нового статуса").fill("Дата запуска подтверждена");
-  await row.getByRole("button", { name: "Добавить статус" }).click();
+  await row.getByRole("button", { name: "Добавить статус с текущей датой" }).click();
   await expect.poll(() => statusPayload).toEqual({
-    statusAt: "2026-08-31",
     text: "Дата запуска подтверждена",
   });
   await expect(row.getByText("Дата запуска подтверждена")).toBeVisible();
-  await expect(row.locator(".issue-current-status time")).toHaveText("31.08.2026");
-
+  await expect(row.locator(".issue-current-status time")).toHaveText(
+    new Intl.DateTimeFormat("ru-RU").format(new Date(`${isoDay(0)}T12:00:00`)),
+  );
   await page.getByRole("button", { name: "Состояние", exact: true }).click();
   await page.getByRole("button", { name: "Вопросы", exact: true }).click();
   const reopenedRow = page.locator("#issue-item-issue-1");
   await expect(reopenedRow.getByText("Дата запуска подтверждена")).toBeVisible();
-  await expect(reopenedRow.locator(".issue-current-status time")).toHaveText("31.08.2026");
+  await expect(reopenedRow.locator(".issue-current-status time")).toHaveText(
+    new Intl.DateTimeFormat("ru-RU").format(new Date(`${isoDay(0)}T12:00:00`)),
+  );
 });
 
 test("new open issue keeps inline register fields in the create request", async ({ page }) => {
-  const project = await mockAdminProject(page);
+  const project = await mockAdminProject(page, (fixture) => {
+    fixture.wbsItems.push({
+      ...fixture.wbsItems[0],
+      id: "phase-create-issue",
+      parentId: null,
+      code: "2",
+      title: "Серийный выпуск",
+      type: "PHASE",
+      wbsLevel: 1,
+      sortOrder: 20,
+    });
+  });
   let createPayload: Record<string, unknown> | null = null;
   await page.route("**/api/projects/project-1/open-issues", async (route) => {
     createPayload = route.request().postDataJSON() as Record<string, unknown>;
@@ -1782,19 +1863,36 @@ test("new open issue keeps inline register fields in the create request", async 
   const dialog = page.getByRole("dialog", { name: "Создать открытый вопрос" });
   await dialog.getByLabel("Заголовок").fill("  Проверить выпуск  ");
   await dialog.getByLabel("Раздел").fill("  Новый пульт  ");
+  await dialog.getByLabel("Фаза").selectOption("phase-create-issue");
   await dialog.getByLabel("Готовность").selectOption("AMBER");
-  await dialog.getByLabel("Подпись рабочей ссылки").fill("  Ссылка на тред  ");
-  await dialog.getByLabel("Рабочая ссылка").fill("https://example.test/thread/42");
+  await dialog.getByLabel("Ссылка на трэд").fill("https://example.test/thread/42");
   await dialog.getByRole("button", { name: "Создать вопрос" }).click();
 
   await expect.poll(() => createPayload).toMatchObject({
     title: "Проверить выпуск",
     category: "Новый пульт",
+    phaseId: "phase-create-issue",
     readiness: "AMBER",
-    referenceLabel: "Ссылка на тред",
     referenceUrl: "https://example.test/thread/42",
   });
   await expect(page.locator("#issue-item-issue-created")).toBeVisible();
+});
+
+test("open issues register keeps its table geometry on a narrow viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockAdminProject(page);
+  await page.goto("/TV-OVERVIEW/issues");
+
+  const region = page.getByRole("region", {
+    name: "Таблица открытых вопросов, доступна горизонтальная прокрутка",
+  });
+  await expect(region).toBeVisible();
+  const dimensions = await region.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
+  await expect(page.locator("#issue-item-issue-1").getByLabel("Название вопроса")).toBeVisible();
 });
 
 test("portfolio and projects show work-day weighted progress", async ({ page }) => {

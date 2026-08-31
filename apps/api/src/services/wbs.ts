@@ -10,6 +10,7 @@ import {
   type WbsOrderingItem,
   type WbsRenumberRow,
 } from "./wbs-ordering.js";
+import { assertProjectIssueLinkedWbsPlan } from "./wbs-issue-links.js";
 
 export type { WbsOrderingDependency, WbsOrderingItem, WbsRenumberRow };
 export { buildWbsRenumberPlan, levelFromWbsCode, levelFromWbsItem };
@@ -146,6 +147,8 @@ export async function renumberProjectWbs(projectId: string) {
     where: { projectId },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
+
+  await assertProjectIssueLinkedWbsPlan(projectId, items);
 
   const { normalizedRows, predecessorsBySuccessor } = buildWbsRenumberPlan(
     items,

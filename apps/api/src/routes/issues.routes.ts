@@ -6,11 +6,12 @@ import {
   updateIssueSchema,
 } from '@pms/shared';
 import { JiraSyncRunKind, Prisma } from '@prisma/client';
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { currentUser } from '../server/auth.js';
+import { currentApiToken, currentUser } from '../server/auth.js';
 import { logEvent } from '../server/logger.js';
+import { canProceedWithWrite } from '../server/permissions.js';
 import { ensureProjectWriteAccess } from '../server/project-access.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import {
@@ -41,6 +42,16 @@ import {
   ensureDefaultJiraWorkSections,
 } from '../services/jira-work-sections.js';
 import {
+  type IssueWorkPackageMutation,
+  upsertIssueWorkPackage,
+} from '../services/open-issue-work-package.js';
+import {
+  getProjectWbsSnapshot,
+  recalculateProjectWbsHierarchyStatuses,
+} from '../services/wbs.js';
+import { recordWbsCommand } from '../services/wbs-audit.js';
+import { recalculateProjectWbsSchedule } from '../services/wbs-schedule.js';
+import {
   clearJiraProjectData,
   JiraProjectDataBusyError,
   JiraProjectDataNotFoundError,
@@ -48,6 +59,7 @@ import {
 } from '../services/jira-project-data.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 import { registerJiraSemanticAggregateRoutes } from './jira-semantic-aggregates.routes.js';
+import { runWithWbsWriteQueue } from './wbs/write-queue.js';
 
 export const JIRA_CAPACITY_DEFAULT_STORAGE_GIB = 5;
 export const JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB = 0;
@@ -103,6 +115,8 @@ function issueSeverityToRaidImpact(severity: string) {
 }
 
 const issueAuditFields = [
+  'phaseId',
+  'workPackageId',
   'source',
   'category',
   'title',
@@ -125,6 +139,62 @@ const issueInclude = {
   jiraLinks: { orderBy: { createdAt: 'asc' as const } },
   statusUpdates: { orderBy: [{ statusAt: 'desc' as const }, { createdAt: 'desc' as const }] },
 };
+
+async function issuePhaseExists(projectId: string, phaseId: string) {
+  return prisma.wbsItem.findFirst({
+    where: { id: phaseId, projectId, type: 'PHASE' },
+    select: { id: true },
+  });
+}
+
+async function ensureIssueWbsWriteAccess(
+  projectId: string,
+  method: 'POST' | 'PATCH',
+  req: Request,
+  res: Response,
+) {
+  const decision = await canProceedWithWrite({
+    user: currentUser(req),
+    apiToken: currentApiToken(req),
+    pathname: `/projects/${projectId}/wbs-items`,
+    method,
+  });
+  if (decision.ok) return true;
+  res.status(decision.status).json({ error: decision.error });
+  return false;
+}
+
+async function finalizeIssueWorkPackage(
+  projectId: string,
+  mutation: IssueWorkPackageMutation | null,
+) {
+  if (!mutation || mutation.kind === 'unchanged') return;
+  await recalculateProjectWbsSchedule(projectId);
+  await recalculateProjectWbsHierarchyStatuses(projectId);
+  const snapshot = await getProjectWbsSnapshot(projectId);
+  await recordWbsCommand({
+    projectId,
+    type: mutation.kind === 'created' ? 'CREATE' : 'UPDATE',
+    payload: {
+      action: mutation.kind === 'created'
+        ? 'open-issue-work-package-created'
+        : mutation.kind === 'moved'
+          ? 'open-issue-work-package-moved'
+          : 'open-issue-work-package-updated',
+      workPackageId: mutation.workPackageId,
+    },
+    afterSnapshot: snapshot,
+  });
+  await emitWebhookEvent({
+    eventType: mutation.kind === 'created' ? 'wbs.item.created' : 'wbs.item.updated',
+    projectId,
+    payload: {
+      action: 'open-issue-phase-link',
+      itemId: mutation.workPackageId,
+      snapshot,
+    },
+  }).catch(() => undefined);
+}
 
 router.get('/projects/:projectId/open-issues', async (req, res) => {
   const issues = await prisma.issue.findMany({
@@ -336,6 +406,13 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
     return;
   }
 
+  const phaseId = parsed.data.phaseId?.trim() || null;
+  if (phaseId && !(await issuePhaseExists(project.id, phaseId))) {
+    res.status(400).json({ error: 'Выбранная фаза не найдена в Структуре проекта' });
+    return;
+  }
+  if (phaseId && !(await ensureIssueWbsWriteAccess(project.id, 'POST', req, res))) return;
+
   const primaryJiraKey = parsed.data.jiraTicketKey?.trim() || null;
   const primaryJiraUrl = parsed.data.jiraTicketUrl?.trim() || null;
   const jiraLinks = [
@@ -374,33 +451,58 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
     return;
   }
 
-  const issue = await prisma.issue.create({
-    data: {
-      projectId: project.id,
-      source: jiraLinks.length > 0 ? 'JIRA' : 'INTERNAL',
-      category: parsed.data.category,
-      title: parsed.data.title,
-      referenceLabel: parsed.data.referenceLabel,
-      referenceUrl,
-      severity: parsed.data.severity,
-      readiness: parsed.data.readiness,
-      status: 'Open',
-      owner: parsed.data.owner,
-      impact: parsed.data.impact,
-      decisionRequired: parsed.data.decisionRequired,
-      dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-      initialDueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
-      jiraTicketKey: primaryJiraKey ?? jiraLinks[0]?.jiraKey ?? null,
-      jiraTicketUrl: primaryJiraUrl ?? jiraLinks[0]?.jiraUrl ?? null,
-      jiraLinks: {
-        create: jiraLinks.map((link) => ({
-          jiraKey: link.jiraKey,
-          jiraUrl: link.jiraUrl,
-        })),
-      },
+  const dueDate = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
+  const { issue, workPackageMutation } = await runWithWbsWriteQueue(
+    project.id,
+    async () => {
+      const result = await prisma.$transaction(async (tx) => {
+        const mutation = phaseId
+          ? await upsertIssueWorkPackage(tx, {
+              projectId: project.id,
+              phaseId,
+              title: parsed.data.title,
+              owner: parsed.data.owner,
+              dueDate,
+            })
+          : null;
+        const createdIssue = await tx.issue.create({
+          data: {
+            projectId: project.id,
+            phaseId,
+            workPackageId: mutation?.workPackageId ?? null,
+            source: jiraLinks.length > 0 ? 'JIRA' : 'INTERNAL',
+            category: parsed.data.category,
+            title: parsed.data.title,
+            referenceLabel: parsed.data.referenceLabel,
+            referenceUrl,
+            severity: parsed.data.severity,
+            readiness: parsed.data.readiness,
+            status: 'Open',
+            owner: parsed.data.owner,
+            impact: parsed.data.impact,
+            decisionRequired: parsed.data.decisionRequired,
+            dueDate,
+            initialDueDate: dueDate,
+            jiraTicketKey: primaryJiraKey ?? jiraLinks[0]?.jiraKey ?? null,
+            jiraTicketUrl: primaryJiraUrl ?? jiraLinks[0]?.jiraUrl ?? null,
+            jiraLinks: {
+              create: jiraLinks.map((link) => ({
+                jiraKey: link.jiraKey,
+                jiraUrl: link.jiraUrl,
+              })),
+            },
+          },
+          include: issueInclude,
+        });
+        return { issue: createdIssue, workPackageMutation: mutation };
+      }, {
+        maxWait: 10_000,
+        timeout: 20_000,
+      });
+      await finalizeIssueWorkPackage(project.id, result.workPackageMutation);
+      return result;
     },
-    include: issueInclude,
-  });
+  );
 
   await recordAuditEvent({
     req,
@@ -436,16 +538,6 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     return;
   }
 
-  const nextDueDate =
-    parsed.data.dueDate === undefined
-      ? undefined
-      : parsed.data.dueDate
-        ? new Date(parsed.data.dueDate)
-        : null;
-  const nextInitialDueDate =
-    parsed.data.dueDate === undefined || issue.initialDueDate
-      ? undefined
-      : issue.dueDate ?? nextDueDate;
   const nextJiraUrl =
     parsed.data.jiraTicketUrl === undefined
       ? undefined
@@ -462,32 +554,157 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     res.status(400).json({ error: `Некорректный Jira URL: ${nextJiraUrl}` });
     return;
   }
-  const nextStatus = parsed.data.status ?? issue.status;
-  const resolvedDueDate = nextDueDate === undefined ? issue.dueDate : nextDueDate;
-  const resolvedInitialDueDate =
-    nextInitialDueDate === undefined ? issue.initialDueDate : nextInitialDueDate;
-  const shouldCaptureClosedDelay =
-    isClosedIssueStatus(nextStatus) &&
-    !isClosedIssueStatus(issue.status);
 
-  const updated = await prisma.issue.update({
-    where: { id: issue.id },
-    data: {
-      ...parsed.data,
-      referenceUrl: nextReferenceUrl,
-      dueDate: nextDueDate,
-      initialDueDate: nextInitialDueDate,
-      closedDelayDays: shouldCaptureClosedDelay
-        ? calendarDelayDays(resolvedInitialDueDate, resolvedDueDate)
-        : undefined,
-      jiraTicketKey:
-        parsed.data.jiraTicketKey === undefined
+  const workPackagePatchRequested = parsed.data.phaseId !== undefined
+    || parsed.data.title !== undefined
+    || parsed.data.owner !== undefined
+    || parsed.data.dueDate !== undefined;
+
+  const result = await runWithWbsWriteQueue(
+    issue.projectId,
+    async () => {
+      const accessIssue = await prisma.issue.findUnique({
+        where: { id: issue.id },
+        select: { phaseId: true, workPackageId: true },
+      });
+      if (!accessIssue) {
+        res.status(404).json({ error: 'Открытый вопрос не найден' });
+        return null;
+      }
+      const requestedPhaseId = parsed.data.phaseId === undefined
+        ? accessIssue.phaseId
+        : parsed.data.phaseId;
+      if (requestedPhaseId && workPackagePatchRequested) {
+        if (!(await ensureIssueWbsWriteAccess(issue.projectId, 'PATCH', req, res))) return null;
+        if (!accessIssue.workPackageId
+          && !(await ensureIssueWbsWriteAccess(issue.projectId, 'POST', req, res))) {
+          return null;
+        }
+      }
+
+      const transactionResult = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`
+          SELECT "id" FROM "Issue" WHERE "id" = ${issue.id} FOR UPDATE
+        `);
+        const currentIssue = await tx.issue.findUnique({ where: { id: issue.id } });
+        if (!currentIssue) {
+          res.status(404).json({ error: 'Открытый вопрос не найден' });
+          return null;
+        }
+        if (parsed.data.phaseId === null && currentIssue.workPackageId) {
+          res.status(409).json({
+            error: 'Фазу нельзя очистить после создания пакета работ; выберите другую фазу',
+          });
+          return null;
+        }
+
+        const targetPhaseId = parsed.data.phaseId === undefined
+          ? currentIssue.phaseId
+          : parsed.data.phaseId;
+        if (targetPhaseId && (
+          targetPhaseId !== currentIssue.phaseId
+          || !currentIssue.workPackageId
+        )) {
+          const phase = await tx.wbsItem.findFirst({
+            where: { id: targetPhaseId, projectId: currentIssue.projectId, type: 'PHASE' },
+            select: { id: true },
+          });
+          if (!phase) {
+            res.status(400).json({ error: 'Выбранная фаза не найдена в Структуре проекта' });
+            return null;
+          }
+        }
+
+        const nextDueDate = parsed.data.dueDate === undefined
           ? undefined
-          : parsed.data.jiraTicketKey?.trim() || null,
-      jiraTicketUrl: nextJiraUrl,
+          : parsed.data.dueDate
+            ? new Date(parsed.data.dueDate)
+            : null;
+        const nextInitialDueDate =
+          parsed.data.dueDate === undefined || currentIssue.initialDueDate
+            ? undefined
+            : currentIssue.dueDate ?? nextDueDate;
+        const resolvedDueDate = nextDueDate === undefined
+          ? currentIssue.dueDate
+          : nextDueDate;
+        const resolvedInitialDueDate = nextInitialDueDate === undefined
+          ? currentIssue.initialDueDate
+          : nextInitialDueDate;
+        const nextStatus = parsed.data.status ?? currentIssue.status;
+        const shouldCaptureClosedDelay = isClosedIssueStatus(nextStatus)
+          && !isClosedIssueStatus(currentIssue.status);
+        const workPackageFieldsChanged = parsed.data.title !== undefined
+          || parsed.data.owner !== undefined
+          || parsed.data.dueDate !== undefined;
+        const shouldUpsertWorkPackage = Boolean(
+          targetPhaseId
+          && workPackagePatchRequested
+          && (
+            !currentIssue.workPackageId
+            || targetPhaseId !== currentIssue.phaseId
+            || workPackageFieldsChanged
+          ),
+        );
+        const mutation = shouldUpsertWorkPackage && targetPhaseId
+          ? await upsertIssueWorkPackage(tx, {
+              projectId: currentIssue.projectId,
+              phaseId: targetPhaseId,
+              workPackageId: currentIssue.workPackageId,
+              title: parsed.data.title ?? currentIssue.title,
+              owner: parsed.data.owner ?? currentIssue.owner,
+              dueDate: resolvedDueDate,
+            })
+          : null;
+        const jiraLinksCount = parsed.data.jiraTicketKey !== undefined
+          || parsed.data.jiraTicketUrl !== undefined
+          ? await tx.issueJiraLink.count({ where: { issueId: currentIssue.id } })
+          : null;
+        const resolvedJiraKey = parsed.data.jiraTicketKey === undefined
+          ? currentIssue.jiraTicketKey
+          : parsed.data.jiraTicketKey?.trim() || null;
+        const resolvedJiraUrl = parsed.data.jiraTicketUrl === undefined
+          ? currentIssue.jiraTicketUrl
+          : parsed.data.jiraTicketUrl?.trim() || null;
+        const updatedIssue = await tx.issue.update({
+          where: { id: currentIssue.id },
+          data: {
+            ...parsed.data,
+            workPackageId: mutation?.workPackageId,
+            referenceUrl: nextReferenceUrl,
+            dueDate: nextDueDate,
+            initialDueDate: nextInitialDueDate,
+            closedDelayDays: shouldCaptureClosedDelay
+              ? calendarDelayDays(resolvedInitialDueDate, resolvedDueDate)
+              : undefined,
+            source: jiraLinksCount === null
+              ? undefined
+              : jiraLinksCount > 0 || Boolean(resolvedJiraKey && resolvedJiraUrl)
+                ? 'JIRA'
+                : 'INTERNAL',
+            jiraTicketKey:
+              parsed.data.jiraTicketKey === undefined
+                ? undefined
+                : parsed.data.jiraTicketKey?.trim() || null,
+            jiraTicketUrl: nextJiraUrl,
+          },
+          include: issueInclude,
+        });
+        return {
+          beforeIssue: currentIssue,
+          updated: updatedIssue,
+          workPackageMutation: mutation,
+        };
+      }, {
+        maxWait: 10_000,
+        timeout: 20_000,
+      });
+      if (!transactionResult) return null;
+      await finalizeIssueWorkPackage(issue.projectId, transactionResult.workPackageMutation);
+      return transactionResult;
     },
-    include: issueInclude,
-  });
+  );
+  if (!result) return;
+  const { beforeIssue, updated } = result;
 
   await recordAuditEvent({
     req,
@@ -496,15 +713,15 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     objectType: 'Issue',
     objectId: issue.id,
     projectId: issue.projectId,
-    beforeValue: issue,
+    beforeValue: beforeIssue,
     afterValue: updated,
     metadata: { changedFields: Object.keys(parsed.data) },
-    changes: buildAuditFieldChanges(issue, updated, issueAuditFields),
+    changes: buildAuditFieldChanges(beforeIssue, updated, issueAuditFields),
   });
   await emitWebhookEvent({
     eventType: 'issue.updated',
     projectId: issue.projectId,
-    payload: { before: issue, after: updated },
+    payload: { before: beforeIssue, after: updated },
   }).catch(() => undefined);
   res.json(updated);
 });
@@ -635,16 +852,10 @@ router.post('/open-issues/:issueId/status-updates', async (req, res) => {
     return;
   }
 
-  const statusAt = new Date(parsed.data.statusAt);
-  if (Number.isNaN(statusAt.getTime())) {
-    res.status(400).json({ error: 'Некорректная дата статуса' });
-    return;
-  }
-
   const statusUpdate = await prisma.issueStatusUpdate.create({
     data: {
       issueId: issue.id,
-      statusAt,
+      statusAt: new Date(),
       text: parsed.data.text,
     },
   });

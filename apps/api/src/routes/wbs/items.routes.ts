@@ -15,6 +15,7 @@ import {
 import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { resolveWbsScheduleDateWrites, resolveWbsSchedulePatch } from '../../services/wbs-schedule-patch.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
+import { invalidIssueLinkedWbsPlan } from '../../services/wbs-issue-links.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
 import {
   closedAtForWbsStatus,
@@ -26,6 +27,42 @@ import { wbsBulkDeleteSchema, wbsBulkUpdateSchema } from './schemas.js';
 
 function wbsLevelFromItem(item: { code: string; wbsLevel: number | null }) {
   return Math.max(1, item.wbsLevel ?? item.code.split('.').filter(Boolean).length);
+}
+
+const closedIssueStatuses = ['Done', 'Closed', 'Resolved'];
+
+function datesMatch(left: Date | null, right: string | null | undefined) {
+  if (right === undefined) return true;
+  const normalizedRight = right ? new Date(right) : null;
+  return left?.getTime() === normalizedRight?.getTime();
+}
+
+function linkedIssueManagedFieldsChanged(
+  existing: {
+    id: string;
+    code: string;
+    parentId: string | null;
+    title: string;
+    type: string;
+    owner: string;
+    dueDate: Date | null;
+    wbsLevel: number | null;
+  },
+  patch: {
+    parentId?: string | null;
+    title?: string;
+    type?: string;
+    owner?: string;
+    dueDate?: string | null;
+    wbsLevel?: number | null;
+  },
+) {
+  return (patch.parentId !== undefined && (patch.parentId || null) !== existing.parentId)
+    || (patch.title !== undefined && patch.title !== existing.title)
+    || (patch.type !== undefined && patch.type !== existing.type)
+    || (patch.owner !== undefined && patch.owner !== existing.owner)
+    || (patch.wbsLevel !== undefined && patch.wbsLevel !== wbsLevelFromItem(existing))
+    || !datesMatch(existing.dueDate, patch.dueDate);
 }
 
 const wbsItemAuditFields = [
@@ -208,6 +245,7 @@ export function registerWbsItemRoutes(router: Router) {
 
     const projectItems = await prisma.wbsItem.findMany({
       where: { projectId: project.id },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
     const requestedIds = new Set(itemIds);
     const existingItems = projectItems.filter((item) => requestedIds.has(item.id));
@@ -216,6 +254,66 @@ export function registerWbsItemRoutes(router: Router) {
     const missingIds = itemIds.filter((itemId) => !existingById.has(itemId));
     if (missingIds.length > 0) {
       res.status(404).json({ error: `Элементы Структуры не найдены: ${missingIds.join(', ')}` });
+      return;
+    }
+
+    const linkedIssues = await prisma.issue.findMany({
+      where: {
+        projectId: project.id,
+        status: { notIn: closedIssueStatuses },
+        OR: [
+          { phaseId: { not: null } },
+          { workPackageId: { not: null } },
+        ],
+      },
+      select: { title: true, phaseId: true, workPackageId: true },
+    });
+    for (const requested of parsed.data.items) {
+      const existing = existingById.get(requested.id)!;
+      const phaseIssue = linkedIssues.find((issue) => issue.phaseId === requested.id);
+      if (phaseIssue && requested.patch.type !== undefined && requested.patch.type !== 'PHASE') {
+        res.status(409).json({
+          error: `Фаза связана с открытым вопросом «${phaseIssue.title}»; её тип нельзя изменить`,
+        });
+        return;
+      }
+      if (
+        phaseIssue
+        && requested.patch.wbsLevel !== undefined
+        && requested.patch.wbsLevel !== wbsLevelFromItem(existing)
+      ) {
+        res.status(409).json({
+          error: `Фаза связана с открытым вопросом «${phaseIssue.title}»; её уровень нельзя изменить`,
+        });
+        return;
+      }
+      const workPackageIssue = linkedIssues.find((issue) => issue.workPackageId === requested.id);
+      if (workPackageIssue && linkedIssueManagedFieldsChanged(existing, requested.patch)) {
+        res.status(409).json({
+          error: `Пакет работ управляется открытым вопросом «${workPackageIssue.title}»; измените его в реестре вопросов`,
+        });
+        return;
+      }
+    }
+    const patchesById = new Map(parsed.data.items.map((item) => [item.id, item.patch]));
+    const proposedItems = projectItems
+      .map((item) => {
+        const patch = patchesById.get(item.id);
+        return {
+          ...item,
+          type: patch?.type ?? item.type,
+          wbsLevel: patch?.wbsLevel === undefined ? item.wbsLevel : patch.wbsLevel,
+          sortOrder: patch?.sortOrder ?? item.sortOrder,
+        };
+      })
+      .sort((left, right) => left.sortOrder - right.sortOrder
+        || left.createdAt.getTime() - right.createdAt.getTime()
+        || left.id.localeCompare(right.id));
+    const invalidLinkedPlan = invalidIssueLinkedWbsPlan(proposedItems, linkedIssues);
+    if (invalidLinkedPlan) {
+      res.status(409).json({
+        error: `Изменение нарушает связь пакета работ с открытым вопросом «${invalidLinkedPlan.title}»; измените фазу в реестре вопросов`,
+      });
       return;
     }
 
@@ -378,6 +476,23 @@ export function registerWbsItemRoutes(router: Router) {
       return;
     }
 
+    const linkedIssue = await prisma.issue.findFirst({
+      where: {
+        status: { notIn: closedIssueStatuses },
+        OR: [
+          { phaseId: { in: itemIds } },
+          { workPackageId: { in: itemIds } },
+        ],
+      },
+      select: { id: true, title: true },
+    });
+    if (linkedIssue) {
+      res.status(409).json({
+        error: `Один из элементов связан с открытым вопросом «${linkedIssue.title}» и не может быть удалён`,
+      });
+      return;
+    }
+
     const actor = currentUser(req);
     const deletedFullItems = itemIds
       .map((itemId) => itemsById.get(itemId))
@@ -503,6 +618,77 @@ export function registerWbsItemRoutes(router: Router) {
 
     if (!existing) {
       res.status(404).json({ error: 'Элемент Структуры не найден' });
+      return;
+    }
+
+    const linkedIssues = await prisma.issue.findMany({
+      where: {
+        projectId: existing.projectId,
+        status: { notIn: closedIssueStatuses },
+        OR: [
+          { phaseId: { not: null } },
+          { workPackageId: { not: null } },
+        ],
+      },
+      select: { title: true, phaseId: true, workPackageId: true },
+    });
+    const linkedIssue = linkedIssues.find((issue) => (
+      issue.phaseId === existing.id || issue.workPackageId === existing.id
+    ));
+    if (
+      linkedIssue?.phaseId === existing.id
+      && parsed.data.type !== undefined
+      && parsed.data.type !== 'PHASE'
+    ) {
+      res.status(409).json({
+        error: `Фаза связана с открытым вопросом «${linkedIssue.title}»; её тип нельзя изменить`,
+      });
+      return;
+    }
+    if (parsed.data.wbsLevel !== undefined || parsed.data.sortOrder !== undefined) {
+      const projectItems = await prisma.wbsItem.findMany({
+        where: { projectId: existing.projectId },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      });
+      const proposedItems = projectItems
+        .map((item) => item.id === existing.id
+          ? {
+              ...item,
+              type: parsed.data.type ?? item.type,
+              wbsLevel: parsed.data.wbsLevel === undefined
+                ? item.wbsLevel
+                : parsed.data.wbsLevel,
+              sortOrder: parsed.data.sortOrder ?? item.sortOrder,
+            }
+          : item)
+        .sort((left, right) => left.sortOrder - right.sortOrder
+          || left.createdAt.getTime() - right.createdAt.getTime()
+          || left.id.localeCompare(right.id));
+      const invalidLinkedPlan = invalidIssueLinkedWbsPlan(proposedItems, linkedIssues);
+      if (invalidLinkedPlan) {
+        res.status(409).json({
+          error: `Изменение нарушает связь пакета работ с открытым вопросом «${invalidLinkedPlan.title}»; измените фазу в реестре вопросов`,
+        });
+        return;
+      }
+    }
+    if (
+      linkedIssue?.phaseId === existing.id
+      && parsed.data.wbsLevel !== undefined
+      && parsed.data.wbsLevel !== wbsLevelFromItem(existing)
+    ) {
+      res.status(409).json({
+        error: `Фаза связана с открытым вопросом «${linkedIssue.title}»; её уровень нельзя изменить`,
+      });
+      return;
+    }
+    if (
+      linkedIssue?.workPackageId === existing.id
+      && linkedIssueManagedFieldsChanged(existing, parsed.data)
+    ) {
+      res.status(409).json({
+        error: `Пакет работ управляется открытым вопросом «${linkedIssue.title}»; измените его в реестре вопросов`,
+      });
       return;
     }
 
@@ -662,6 +848,23 @@ export function registerWbsItemRoutes(router: Router) {
 
     if (!existing) {
       res.status(404).json({ error: 'Элемент Структуры не найден' });
+      return;
+    }
+
+    const linkedIssue = await prisma.issue.findFirst({
+      where: {
+        status: { notIn: closedIssueStatuses },
+        OR: [
+          { phaseId: existing.id },
+          { workPackageId: existing.id },
+        ],
+      },
+      select: { id: true, title: true },
+    });
+    if (linkedIssue) {
+      res.status(409).json({
+        error: `Элемент связан с открытым вопросом «${linkedIssue.title}» и не может быть удалён`,
+      });
       return;
     }
 

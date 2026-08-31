@@ -267,6 +267,18 @@ test("open issue inline register migration is additive and preserves existing qu
   assert.doesNotMatch(migration, /\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/i);
 });
 
+test("open issue phase work package migration is additive and keeps existing questions", () => {
+  const migration = migrationSql("20260831180000_open_issue_phase_work_package");
+  assert.match(migration, /ADD\s+COLUMN\s+"phaseId"\s+TEXT/i);
+  assert.match(migration, /ADD\s+COLUMN\s+"workPackageId"\s+TEXT/i);
+  assert.match(migration, /REFERENCES\s+"WbsItem"\("id"\)\s+ON\s+DELETE\s+SET\s+NULL/i);
+  const withoutForeignKeyActions = migration.replace(
+    /ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)/gi,
+    "",
+  );
+  assert.doesNotMatch(withoutForeignKeyActions, /\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+});
+
 test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
   const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
   assert.match(migration, /CREATE TABLE "JiraSyncRun"/);

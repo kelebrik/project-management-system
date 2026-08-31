@@ -18,7 +18,7 @@ export function useIssueState() {
     Record<string, IssueEditDraft>
   >({});
   const [issueStatusDrafts, setIssueStatusDrafts] = useState<
-    Record<string, { statusAt: string; text: string }>
+    Record<string, { text: string }>
   >({});
   const [issueFormErrors, setIssueFormErrors] = useState<
     Partial<Record<"title" | "jiraTicketUrl", string>>
