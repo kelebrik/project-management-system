@@ -7,11 +7,15 @@ import { JiraReadOnlyRequestError } from '../jira.js';
 import {
   createIssuesRouter,
   isFatalJiraHistoryBatchError,
+  issueJiraStateAfterLinkDeletion,
+  issueJiraUrlForKey,
   jiraHistoryFullSweepState,
   jiraHistoryIssueIsRetryEligible,
   jiraHistorySyncFailedCompletely,
   JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB,
   JIRA_CAPACITY_DEFAULT_STORAGE_GIB,
+  normalizeIssueJiraKey,
+  openIssuePhaseSelectionError,
 } from './issues.routes.js';
 import { projectDetailsInclude } from './projects/includes.js';
 import { jiraSemanticEvaluationNow } from './jira-semantic-aggregates.routes.js';
@@ -73,6 +77,19 @@ test('open issue contracts support the inline register fields and narrow updates
   assert.equal(created.referenceUrl, undefined);
   assert.equal(created.readiness, 'RED');
   assert.equal(created.phaseId, undefined);
+  assert.equal('jiraTicketUrl' in createIssueSchema.parse({
+    title: 'Проверить заводскую прошивку',
+    jiraTicketKey: 'CVTE-1801',
+    jiraTicketUrl: 'https://untrusted.example.test/CVTE-1801',
+    jiraLinks: [{
+      jiraKey: 'SPS-42',
+      jiraUrl: 'https://untrusted.example.test/SPS-42',
+    }],
+  }), false);
+  assert.deepEqual(createIssueSchema.parse({
+    title: 'Проверить заводскую прошивку',
+    jiraLinks: [{ jiraKey: 'SPS-42', jiraUrl: 'https://untrusted.example.test/SPS-42' }],
+  }).jiraLinks, [{ jiraKey: 'SPS-42' }]);
 
   assert.deepEqual(updateIssueSchema.parse({
     category: 'ChangHong',
@@ -90,10 +107,56 @@ test('open issue contracts support the inline register fields and narrow updates
   assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'javascript:alert(1)' }).success, false);
   assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'https://example.test/thread/2' }).success, true);
   assert.deepEqual(updateIssueSchema.parse({ phaseId: 'phase-1' }), { phaseId: 'phase-1' });
+  assert.deepEqual(updateIssueSchema.parse({ jiraTicketUrl: 'https://untrusted.example.test/X-1' }), {});
   assert.deepEqual(issueStatusUpdateSchema.parse({
     statusAt: '2020-01-01',
     text: 'Статус на сегодня',
   }), { text: 'Статус на сегодня' });
+});
+
+test('open issue Jira links are derived from a normalized key and project base URL', () => {
+  assert.equal(normalizeIssueJiraKey(' cvte-1801 '), 'CVTE-1801');
+  assert.equal(normalizeIssueJiraKey('CVTE'), null);
+  assert.equal(normalizeIssueJiraKey('CVTE-abc'), null);
+  assert.equal(
+    issueJiraUrlForKey('https://jira.example.test/', 'cvte-1801'),
+    'https://jira.example.test/browse/CVTE-1801',
+  );
+  assert.equal(
+    issueJiraUrlForKey('jira.example.test', 'SPS-42'),
+    'https://jira.example.test/browse/SPS-42',
+  );
+  assert.equal(
+    issueJiraUrlForKey('https://jira.example.test/jira/?ignored=true', 'SPS-42'),
+    'https://jira.example.test/jira/browse/SPS-42',
+  );
+});
+
+test('only a system administrator can select an open issue WBS phase', () => {
+  assert.equal(openIssuePhaseSelectionError('ADMIN'), null);
+  assert.equal(openIssuePhaseSelectionError('PROJECT_MANAGER'), 'Недостаточно прав для выбора фазы и создания пакета работ');
+  assert.equal(openIssuePhaseSelectionError('TEAM_MEMBER'), 'Недостаточно прав для выбора фазы и создания пакета работ');
+});
+
+test('deleting an additional Jira link preserves a synthetic primary link', () => {
+  assert.deepEqual(issueJiraStateAfterLinkDeletion(
+    { jiraKey: 'CVTE-1', jiraUrl: 'https://jira.example.test/browse/CVTE-1' },
+    { jiraKey: 'SPS-2', jiraUrl: 'https://jira.example.test/browse/SPS-2' },
+    [],
+  ), {
+    source: 'JIRA',
+    jiraTicketKey: 'CVTE-1',
+    jiraTicketUrl: 'https://jira.example.test/browse/CVTE-1',
+  });
+  assert.deepEqual(issueJiraStateAfterLinkDeletion(
+    { jiraKey: 'CVTE-1', jiraUrl: 'https://jira.example.test/browse/CVTE-1' },
+    { jiraKey: 'CVTE-1', jiraUrl: 'https://jira.example.test/browse/CVTE-1' },
+    [{ jiraKey: 'SPS-2', jiraUrl: 'https://jira.example.test/browse/SPS-2' }],
+  ), {
+    source: 'JIRA',
+    jiraTicketKey: 'SPS-2',
+    jiraTicketUrl: 'https://jira.example.test/browse/SPS-2',
+  });
 });
 
 test('project details do not transport the top-level Jira analytics population', () => {

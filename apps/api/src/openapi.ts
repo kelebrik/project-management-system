@@ -1099,6 +1099,10 @@ export const openApiDocument = {
       ),
     },
     "/api/open-issues/{issueId}/jira-links/{linkId}": {
+      patch: securedOperation(["OpenIssues", "Jira"], "Update Jira ticket key for open issue", [
+        issueIdParam,
+        pathParam("linkId"),
+      ]),
       delete: deleteOperation(["OpenIssues", "Jira"], "Remove Jira ticket from open issue", [
         issueIdParam,
         pathParam("linkId"),

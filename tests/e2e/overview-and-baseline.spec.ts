@@ -1710,6 +1710,7 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   const originalImpact = issue.impact;
   const issuePatches: Record<string, unknown>[] = [];
   let statusPayload: Record<string, unknown> | null = null;
+  let jiraLinkPayload: Record<string, unknown> | null = null;
   let uiStatePayload: Record<string, unknown> | null = null;
 
   await page.route("**/api/open-issues/issue-1", async (route) => {
@@ -1743,7 +1744,31 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
     issue.statusUpdates.unshift(update);
     await route.fulfill({ status: 201, json: update });
   });
+  await page.route("**/api/open-issues/issue-1/jira-links", async (route) => {
+    jiraLinkPayload = route.request().postDataJSON() as Record<string, unknown>;
+    const jiraKey = String(jiraLinkPayload.jiraKey).trim().toUpperCase();
+    const link = {
+      id: `issue-link-${issue.jiraLinks.length + 1}`,
+      issueId: issue.id,
+      jiraKey,
+      jiraUrl: `https://jira.example.test/browse/${jiraKey}`,
+      createdAt: `${isoDay(0)}T12:00:00.000Z`,
+      updatedAt: `${isoDay(0)}T12:00:00.000Z`,
+    };
+    issue.jiraLinks.push(link);
+    await route.fulfill({ status: 201, json: link });
+  });
   await page.route("**/api/open-issues/issue-1/jira-links/issue-link-1", async (route) => {
+    if (route.request().method() === "PATCH") {
+      jiraLinkPayload = route.request().postDataJSON() as Record<string, unknown>;
+      const jiraKey = String(jiraLinkPayload.jiraKey).trim().toUpperCase();
+      issue.jiraLinks[0].jiraKey = jiraKey;
+      issue.jiraLinks[0].jiraUrl = `https://jira.example.test/browse/${jiraKey}`;
+      issue.jiraTicketKey = jiraKey;
+      issue.jiraTicketUrl = issue.jiraLinks[0].jiraUrl;
+      await route.fulfill({ json: issue.jiraLinks[0] });
+      return;
+    }
     issue.jiraLinks = [];
     issue.jiraTicketKey = null;
     issue.jiraTicketUrl = null;
@@ -1778,8 +1803,29 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
     "https://example.test/updated-thread",
   );
   await expect(row.getByRole("link", { name: "CVTE-1801" })).toBeVisible();
-  await row.getByRole("button", { name: "Удалить ссылку CVTE-1801" }).click();
-  await expect(row.getByRole("link", { name: "CVTE-1801" })).toHaveCount(0);
+  await row.getByRole("button", { name: "Изменить ключ CVTE-1801" }).click();
+  const jiraKeyEditor = row.getByLabel("Ключ тикета CVTE-1801");
+  await jiraKeyEditor.fill("sps-42");
+  await jiraKeyEditor.blur();
+  await expect.poll(() => jiraLinkPayload).toEqual({ jiraKey: "sps-42" });
+  await expect(row.getByRole("link", { name: "SPS-42" })).toHaveAttribute(
+    "href",
+    "https://jira.example.test/browse/SPS-42",
+  );
+  const additionalJiraKey = row.getByLabel("Ключ дополнительного тикета");
+  await expect(additionalJiraKey).toBeVisible();
+  await additionalJiraKey.fill("cvte-2000");
+  await row.getByRole("button", { name: "Сохранить ссылку на тикет" }).click();
+  await expect.poll(() => jiraLinkPayload).toEqual({ jiraKey: "cvte-2000" });
+  await expect(row.getByRole("link", { name: "CVTE-2000" })).toBeVisible();
+  jiraLinkPayload = null;
+  await row.getByRole("button", { name: "Изменить ключ CVTE-2000" }).click();
+  const cancelledJiraKeyEditor = row.getByLabel("Ключ тикета CVTE-2000");
+  await cancelledJiraKeyEditor.fill("STAROS-999");
+  await cancelledJiraKeyEditor.press("Escape");
+  await expect(row.getByRole("link", { name: "CVTE-2000" })).toBeVisible();
+  await expect(row.getByRole("link", { name: "STAROS-999" })).toHaveCount(0);
+  expect(jiraLinkPayload).toBeNull();
 
   const taskResizer = page.getByLabel("Изменить ширину колонки Задача");
   const taskResizerBox = await taskResizer.boundingBox();
@@ -1802,6 +1848,9 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await expect.poll(() => issuePatches).toContainEqual({ readiness: "GREEN" });
   await expect.poll(() => issue.readiness).toBe("GREEN");
   await row.getByLabel("Фаза проекта").selectOption("phase-issues");
+  const phaseConfirmation = page.getByRole("dialog", { name: "Создать пакет работ?" });
+  await expect(phaseConfirmation).toContainText("1 · Подготовка выпуска");
+  await phaseConfirmation.getByRole("button", { name: "Создать" }).click();
   await expect.poll(() => issuePatches).toContainEqual({ phaseId: "phase-issues" });
   await expect(row.getByText("Пакет работ создан в Структуре")).toBeVisible();
 
@@ -1864,8 +1913,13 @@ test("new open issue keeps inline register fields in the create request", async 
   await dialog.getByLabel("Заголовок").fill("  Проверить выпуск  ");
   await dialog.getByLabel("Раздел").fill("  Новый пульт  ");
   await dialog.getByLabel("Фаза").selectOption("phase-create-issue");
+  const phaseConfirmation = page.getByRole("dialog", { name: "Создать пакет работ?" });
+  await expect(phaseConfirmation).toContainText("2 · Серийный выпуск");
+  await phaseConfirmation.getByRole("button", { name: "Создать" }).click();
   await dialog.getByLabel("Готовность").selectOption("AMBER");
   await dialog.getByLabel("Ссылка на трэд").fill("https://example.test/thread/42");
+  await dialog.getByLabel("Ключ основного тикета").fill("cvte-1842");
+  await expect(dialog.getByPlaceholder("https://jira.company.ru/browse/ERP-1842")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Создать вопрос" }).click();
 
   await expect.poll(() => createPayload).toMatchObject({
@@ -1874,8 +1928,65 @@ test("new open issue keeps inline register fields in the create request", async 
     phaseId: "phase-create-issue",
     readiness: "AMBER",
     referenceUrl: "https://example.test/thread/42",
+    jiraTicketKey: "cvte-1842",
   });
+  expect(createPayload).not.toHaveProperty("jiraTicketUrl");
   await expect(page.locator("#issue-item-issue-created")).toBeVisible();
+});
+
+test("ordinary issue editor gets an explicit error when selecting a WBS phase", async ({ page }) => {
+  await mockAdminProject(page, (fixture) => {
+    fixture.currentUserAccessLevel = "EDIT";
+    fixture.wbsItems.unshift({
+      ...fixture.wbsItems[0],
+      id: "phase-restricted",
+      parentId: null,
+      code: "3",
+      title: "Закрытая фаза",
+      type: "PHASE",
+      wbsLevel: 1,
+      sortOrder: 0,
+    });
+  });
+  await page.unroute("**/api/auth/me");
+  await page.route("**/api/auth/me", (route) => route.fulfill({
+    json: {
+      user: {
+        id: "member-1",
+        email: "member@example.test",
+        name: "Участник",
+        role: "TEAM_MEMBER",
+        isActive: true,
+        lastLoginAt: null,
+        businessUnitAdminIds: [],
+      },
+    },
+  }));
+  const ordinaryPatches: Record<string, unknown>[] = [];
+  let phasePatchCalled = false;
+  await page.route("**/api/open-issues/issue-1", async (route) => {
+    const patch = route.request().postDataJSON() as Record<string, unknown>;
+    ordinaryPatches.push(patch);
+    if ("phaseId" in patch) {
+      phasePatchCalled = true;
+      await route.fulfill({ status: 403, json: { error: "Недостаточно прав" } });
+      return;
+    }
+    await route.fulfill({ json: { id: "issue-1", ...patch } });
+  });
+
+  await page.goto("/TV-OVERVIEW/issues");
+  const row = page.locator("#issue-item-issue-1");
+  await row.getByLabel("Название вопроса").fill("Обычный пользователь обновил вопрос");
+  await row.getByLabel("Название вопроса").blur();
+  await expect.poll(() => ordinaryPatches).toContainEqual({
+    title: "Обычный пользователь обновил вопрос",
+  });
+  const phaseSelect = row.getByLabel("Фаза проекта");
+  await phaseSelect.selectOption("phase-restricted");
+  await expect(page.getByText("Недостаточно прав для выбора фазы и создания пакета работ").first()).toBeVisible();
+  await expect(phaseSelect).toHaveValue("");
+  expect(phasePatchCalled).toBe(false);
 });
 
 test("open issues register keeps its table geometry on a narrow viewport", async ({ page }) => {

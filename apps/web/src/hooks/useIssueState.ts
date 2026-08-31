@@ -21,7 +21,7 @@ export function useIssueState() {
     Record<string, { text: string }>
   >({});
   const [issueFormErrors, setIssueFormErrors] = useState<
-    Partial<Record<"title" | "jiraTicketUrl", string>>
+    Partial<Record<"title", string>>
   >({});
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [issueDrawerMode, setIssueDrawerMode] = useState<"create" | null>(null);

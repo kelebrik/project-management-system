@@ -9,6 +9,7 @@ import { JiraSyncRunKind, Prisma } from '@prisma/client';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
+import { normalizedJiraIssueKey, resolveJiraConfig } from '../jira.js';
 import { currentApiToken, currentUser } from '../server/auth.js';
 import { logEvent } from '../server/logger.js';
 import { canProceedWithWrite } from '../server/permissions.js';
@@ -63,6 +64,60 @@ import { runWithWbsWriteQueue } from './wbs/write-queue.js';
 
 export const JIRA_CAPACITY_DEFAULT_STORAGE_GIB = 5;
 export const JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB = 0;
+export const normalizeIssueJiraKey = normalizedJiraIssueKey;
+
+export function issueJiraUrlForKey(
+  baseUrl: string | null | undefined,
+  jiraKey: string,
+) {
+  const normalizedKey = normalizedJiraIssueKey(jiraKey);
+  if (!normalizedKey) return null;
+  const configuredBaseUrl = resolveJiraConfig(
+    process.env,
+    baseUrl?.trim() ? { baseUrl: baseUrl.trim() } : {},
+  ).baseUrl;
+  if (!configuredBaseUrl) return null;
+  try {
+    const url = new URL(configuredBaseUrl);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    url.pathname = `${url.pathname.replace(/\/+$/, '')}/browse/${encodeURIComponent(normalizedKey)}`;
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function openIssuePhaseSelectionError(userRole: string) {
+  return userRole !== 'ADMIN'
+    ? 'Недостаточно прав для выбора фазы и создания пакета работ'
+    : null;
+}
+
+type IssueJiraReference = {
+  jiraKey: string | null;
+  jiraUrl: string | null;
+};
+
+export function issueJiraStateAfterLinkDeletion(
+  current: IssueJiraReference,
+  deleted: { jiraKey: string; jiraUrl: string },
+  remaining: Array<{ jiraKey: string; jiraUrl: string }>,
+) {
+  const deletedPrimary = deleted.jiraKey === current.jiraKey
+    || deleted.jiraUrl === current.jiraUrl;
+  const nextPrimary = deletedPrimary ? remaining[0] ?? null : current;
+  const jiraTicketKey = nextPrimary?.jiraKey ?? null;
+  const jiraTicketUrl = nextPrimary?.jiraUrl ?? null;
+  return {
+    source: remaining.length > 0 || Boolean(jiraTicketKey && jiraTicketUrl)
+      ? 'JIRA' as const
+      : 'INTERNAL' as const,
+    jiraTicketKey,
+    jiraTicketUrl,
+  };
+}
 
 export {
   isFatalJiraHistoryBatchError,
@@ -74,15 +129,6 @@ export {
 export function createIssuesRouter() {
   const router = Router();
   registerJiraSemanticAggregateRoutes(router);
-
-function isValidUrl(value: string) {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function isValidHttpUrl(value: string) {
   try {
@@ -161,6 +207,28 @@ async function ensureIssueWbsWriteAccess(
   });
   if (decision.ok) return true;
   res.status(decision.status).json({ error: decision.error });
+  return false;
+}
+
+async function ensureIssuePhaseSelectionAccess(
+  projectId: string,
+  method: 'POST' | 'PATCH',
+  req: Request,
+  res: Response,
+) {
+  const user = currentUser(req);
+  if (user) {
+    const error = openIssuePhaseSelectionError(user.role);
+    if (error) {
+      res.status(403).json({ error });
+      return false;
+    }
+    return true;
+  }
+  if (currentApiToken(req)) {
+    return ensureIssueWbsWriteAccess(projectId, method, req, res);
+  }
+  res.status(401).json({ error: 'Требуется вход в систему' });
   return false;
 }
 
@@ -411,43 +479,35 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
     res.status(400).json({ error: 'Выбранная фаза не найдена в Структуре проекта' });
     return;
   }
+  if (phaseId && !(await ensureIssuePhaseSelectionAccess(project.id, 'POST', req, res))) return;
   if (phaseId && !(await ensureIssueWbsWriteAccess(project.id, 'POST', req, res))) return;
 
-  const primaryJiraKey = parsed.data.jiraTicketKey?.trim() || null;
-  const primaryJiraUrl = parsed.data.jiraTicketUrl?.trim() || null;
-  const jiraLinks = [
-    ...parsed.data.jiraLinks,
-    ...(primaryJiraKey && primaryJiraUrl
-      ? [{ jiraKey: primaryJiraKey, jiraUrl: primaryJiraUrl }]
-      : []),
-  ]
-    .map((link) => ({
-      jiraKey: link.jiraKey?.trim() ?? '',
-      jiraUrl: link.jiraUrl?.trim() ?? '',
-    }))
-    .filter((link) => link.jiraKey && link.jiraUrl)
+  const requestedJiraKeys = [
+    parsed.data.jiraTicketKey,
+    ...parsed.data.jiraLinks.map((link) => link.jiraKey),
+  ].filter((value): value is string => Boolean(value?.trim()));
+  const invalidJiraKey = requestedJiraKeys.find((value) => !normalizeIssueJiraKey(value));
+  if (invalidJiraKey) {
+    res.status(400).json({ error: `Некорректный ключ Jira: ${invalidJiraKey}` });
+    return;
+  }
+  const jiraLinks = requestedJiraKeys
+    .map((value) => normalizeIssueJiraKey(value)!)
     .filter(
-      (link, index, allLinks) =>
-        allLinks.findIndex((candidate) => candidate.jiraKey === link.jiraKey) === index,
-    );
-
-  const invalidUrl = [primaryJiraUrl, ...jiraLinks.map((link) => link.jiraUrl)].find(
-    (url) => url && !isValidUrl(url),
-  );
-  if (invalidUrl) {
-    res.status(400).json({ error: `Некорректный Jira URL: ${invalidUrl}` });
+      (jiraKey, index, allKeys) => allKeys.indexOf(jiraKey) === index,
+    )
+    .map((jiraKey) => ({
+      jiraKey,
+      jiraUrl: issueJiraUrlForKey(project.jiraIntegration?.baseUrl, jiraKey) ?? '',
+    }));
+  const invalidJiraUrl = jiraLinks.find((link) => !link.jiraUrl);
+  if (invalidJiraUrl) {
+    res.status(400).json({ error: 'Не удалось построить URL Jira из настроек проекта' });
     return;
   }
   const referenceUrl = parsed.data.referenceUrl?.trim() || null;
   if (referenceUrl && !isValidHttpUrl(referenceUrl)) {
     res.status(400).json({ error: `Некорректный URL ссылки: ${referenceUrl}` });
-    return;
-  }
-
-  const jiraBaseUrl = project.jiraIntegration?.baseUrl;
-  const invalidLink = jiraLinks.find((link) => jiraBaseUrl && !link.jiraUrl.startsWith(jiraBaseUrl));
-  if (jiraBaseUrl && invalidLink) {
-    res.status(400).json({ error: `URL Jira должен начинаться с ${jiraBaseUrl}` });
     return;
   }
 
@@ -483,8 +543,8 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
             decisionRequired: parsed.data.decisionRequired,
             dueDate,
             initialDueDate: dueDate,
-            jiraTicketKey: primaryJiraKey ?? jiraLinks[0]?.jiraKey ?? null,
-            jiraTicketUrl: primaryJiraUrl ?? jiraLinks[0]?.jiraUrl ?? null,
+            jiraTicketKey: jiraLinks[0]?.jiraKey ?? null,
+            jiraTicketUrl: jiraLinks[0]?.jiraUrl ?? null,
             jiraLinks: {
               create: jiraLinks.map((link) => ({
                 jiraKey: link.jiraKey,
@@ -531,6 +591,7 @@ router.patch('/open-issues/:issueId', async (req, res) => {
 
   const issue = await prisma.issue.findUnique({
     where: { id: req.params.issueId },
+    include: { project: { include: { jiraIntegration: true } } },
   });
 
   if (!issue) {
@@ -538,10 +599,24 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     return;
   }
 
-  const nextJiraUrl =
-    parsed.data.jiraTicketUrl === undefined
-      ? undefined
-      : parsed.data.jiraTicketUrl?.trim() || null;
+  const requestedJiraKey = parsed.data.jiraTicketKey === undefined
+    ? undefined
+    : parsed.data.jiraTicketKey?.trim()
+      ? normalizeIssueJiraKey(parsed.data.jiraTicketKey)
+      : null;
+  if (parsed.data.jiraTicketKey?.trim() && !requestedJiraKey) {
+    res.status(400).json({ error: `Некорректный ключ Jira: ${parsed.data.jiraTicketKey}` });
+    return;
+  }
+  const nextJiraUrl = requestedJiraKey === undefined
+    ? undefined
+    : requestedJiraKey === null
+      ? null
+      : issueJiraUrlForKey(issue.project.jiraIntegration?.baseUrl, requestedJiraKey);
+  if (requestedJiraKey && !nextJiraUrl) {
+    res.status(400).json({ error: 'Не настроена интеграция Jira для проекта' });
+    return;
+  }
   const nextReferenceUrl =
     parsed.data.referenceUrl === undefined
       ? undefined
@@ -550,38 +625,9 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     res.status(400).json({ error: `Некорректный URL ссылки: ${nextReferenceUrl}` });
     return;
   }
-  if (nextJiraUrl && !isValidUrl(nextJiraUrl)) {
-    res.status(400).json({ error: `Некорректный Jira URL: ${nextJiraUrl}` });
-    return;
-  }
-
-  const workPackagePatchRequested = parsed.data.phaseId !== undefined
-    || parsed.data.title !== undefined
-    || parsed.data.owner !== undefined
-    || parsed.data.dueDate !== undefined;
-
   const result = await runWithWbsWriteQueue(
     issue.projectId,
     async () => {
-      const accessIssue = await prisma.issue.findUnique({
-        where: { id: issue.id },
-        select: { phaseId: true, workPackageId: true },
-      });
-      if (!accessIssue) {
-        res.status(404).json({ error: 'Открытый вопрос не найден' });
-        return null;
-      }
-      const requestedPhaseId = parsed.data.phaseId === undefined
-        ? accessIssue.phaseId
-        : parsed.data.phaseId;
-      if (requestedPhaseId && workPackagePatchRequested) {
-        if (!(await ensureIssueWbsWriteAccess(issue.projectId, 'PATCH', req, res))) return null;
-        if (!accessIssue.workPackageId
-          && !(await ensureIssueWbsWriteAccess(issue.projectId, 'POST', req, res))) {
-          return null;
-        }
-      }
-
       const transactionResult = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw(Prisma.sql`
           SELECT "id" FROM "Issue" WHERE "id" = ${issue.id} FOR UPDATE
@@ -589,6 +635,17 @@ router.patch('/open-issues/:issueId', async (req, res) => {
         const currentIssue = await tx.issue.findUnique({ where: { id: issue.id } });
         if (!currentIssue) {
           res.status(404).json({ error: 'Открытый вопрос не найден' });
+          return null;
+        }
+        const phaseSelectionChanged = parsed.data.phaseId !== undefined
+          && parsed.data.phaseId !== currentIssue.phaseId;
+        if (phaseSelectionChanged
+          && !(await ensureIssuePhaseSelectionAccess(
+            currentIssue.projectId,
+            'PATCH',
+            req,
+            res,
+          ))) {
           return null;
         }
         if (parsed.data.phaseId === null && currentIssue.workPackageId) {
@@ -638,13 +695,30 @@ router.patch('/open-issues/:issueId', async (req, res) => {
           || parsed.data.dueDate !== undefined;
         const shouldUpsertWorkPackage = Boolean(
           targetPhaseId
-          && workPackagePatchRequested
           && (
-            !currentIssue.workPackageId
-            || targetPhaseId !== currentIssue.phaseId
-            || workPackageFieldsChanged
+            phaseSelectionChanged
+            || (Boolean(currentIssue.workPackageId) && workPackageFieldsChanged)
           ),
         );
+        if (shouldUpsertWorkPackage) {
+          if (!(await ensureIssueWbsWriteAccess(
+            currentIssue.projectId,
+            'PATCH',
+            req,
+            res,
+          ))) {
+            return null;
+          }
+          if (!currentIssue.workPackageId
+            && !(await ensureIssueWbsWriteAccess(
+              currentIssue.projectId,
+              'POST',
+              req,
+              res,
+            ))) {
+            return null;
+          }
+        }
         const mutation = shouldUpsertWorkPackage && targetPhaseId
           ? await upsertIssueWorkPackage(tx, {
               projectId: currentIssue.projectId,
@@ -655,16 +729,71 @@ router.patch('/open-issues/:issueId', async (req, res) => {
               dueDate: resolvedDueDate,
             })
           : null;
-        const jiraLinksCount = parsed.data.jiraTicketKey !== undefined
-          || parsed.data.jiraTicketUrl !== undefined
-          ? await tx.issueJiraLink.count({ where: { issueId: currentIssue.id } })
-          : null;
-        const resolvedJiraKey = parsed.data.jiraTicketKey === undefined
-          ? currentIssue.jiraTicketKey
-          : parsed.data.jiraTicketKey?.trim() || null;
-        const resolvedJiraUrl = parsed.data.jiraTicketUrl === undefined
-          ? currentIssue.jiraTicketUrl
-          : parsed.data.jiraTicketUrl?.trim() || null;
+
+        let resolvedJiraKey = currentIssue.jiraTicketKey;
+        let resolvedJiraUrl = currentIssue.jiraTicketUrl;
+        let jiraLinksCount: number | null = null;
+        if (requestedJiraKey !== undefined) {
+          const primaryLink = currentIssue.jiraTicketKey || currentIssue.jiraTicketUrl
+            ? await tx.issueJiraLink.findFirst({
+                where: {
+                  issueId: currentIssue.id,
+                  OR: [
+                    ...(currentIssue.jiraTicketKey
+                      ? [{ jiraKey: currentIssue.jiraTicketKey }]
+                      : []),
+                    ...(currentIssue.jiraTicketUrl
+                      ? [{ jiraUrl: currentIssue.jiraTicketUrl }]
+                      : []),
+                  ],
+                },
+                orderBy: { createdAt: 'asc' },
+              })
+            : null;
+          if (requestedJiraKey === null) {
+            if (primaryLink) {
+              await tx.issueJiraLink.delete({ where: { id: primaryLink.id } });
+            }
+            const replacement = await tx.issueJiraLink.findFirst({
+              where: { issueId: currentIssue.id },
+              orderBy: { createdAt: 'asc' },
+            });
+            resolvedJiraKey = replacement?.jiraKey ?? null;
+            resolvedJiraUrl = replacement?.jiraUrl ?? null;
+          } else {
+            const targetLink = await tx.issueJiraLink.findUnique({
+              where: {
+                issueId_jiraKey: {
+                  issueId: currentIssue.id,
+                  jiraKey: requestedJiraKey,
+                },
+              },
+            });
+            if (primaryLink && targetLink && primaryLink.id !== targetLink.id) {
+              await tx.issueJiraLink.delete({ where: { id: primaryLink.id } });
+            }
+            const linkToUpdate = targetLink ?? primaryLink;
+            if (linkToUpdate) {
+              await tx.issueJiraLink.update({
+                where: { id: linkToUpdate.id },
+                data: { jiraKey: requestedJiraKey, jiraUrl: nextJiraUrl! },
+              });
+            } else {
+              await tx.issueJiraLink.create({
+                data: {
+                  issueId: currentIssue.id,
+                  jiraKey: requestedJiraKey,
+                  jiraUrl: nextJiraUrl!,
+                },
+              });
+            }
+            resolvedJiraKey = requestedJiraKey;
+            resolvedJiraUrl = nextJiraUrl!;
+          }
+          jiraLinksCount = await tx.issueJiraLink.count({
+            where: { issueId: currentIssue.id },
+          });
+        }
         const updatedIssue = await tx.issue.update({
           where: { id: currentIssue.id },
           data: {
@@ -681,11 +810,8 @@ router.patch('/open-issues/:issueId', async (req, res) => {
               : jiraLinksCount > 0 || Boolean(resolvedJiraKey && resolvedJiraUrl)
                 ? 'JIRA'
                 : 'INTERNAL',
-            jiraTicketKey:
-              parsed.data.jiraTicketKey === undefined
-                ? undefined
-                : parsed.data.jiraTicketKey?.trim() || null,
-            jiraTicketUrl: nextJiraUrl,
+            jiraTicketKey: requestedJiraKey === undefined ? undefined : resolvedJiraKey,
+            jiraTicketUrl: requestedJiraKey === undefined ? undefined : resolvedJiraUrl,
           },
           include: issueInclude,
         });
@@ -882,7 +1008,6 @@ router.post('/open-issues/:issueId/status-updates', async (req, res) => {
 
 const issueJiraLinkSchema = z.object({
   jiraKey: z.string().trim().min(1),
-  jiraUrl: z.string().trim().url(),
 });
 
 router.post('/open-issues/:issueId/jira-links', async (req, res) => {
@@ -902,46 +1027,64 @@ router.post('/open-issues/:issueId/jira-links', async (req, res) => {
     return;
   }
 
-  const jiraBaseUrl = issue.project.jiraIntegration?.baseUrl;
-  if (jiraBaseUrl && !parsed.data.jiraUrl.startsWith(jiraBaseUrl)) {
-    res.status(400).json({ error: `URL Jira должен начинаться с ${jiraBaseUrl}` });
+  const jiraKey = normalizeIssueJiraKey(parsed.data.jiraKey);
+  if (!jiraKey) {
+    res.status(400).json({ error: `Некорректный ключ Jira: ${parsed.data.jiraKey}` });
+    return;
+  }
+  const jiraUrl = issueJiraUrlForKey(issue.project.jiraIntegration?.baseUrl, jiraKey);
+  if (!jiraUrl) {
+    res.status(400).json({ error: 'Не удалось построить URL Jira из настроек проекта' });
     return;
   }
 
-  const previousLink = await prisma.issueJiraLink.findUnique({
-    where: {
-      issueId_jiraKey: {
-        issueId: issue.id,
-        jiraKey: parsed.data.jiraKey,
-      },
-    },
-  });
-  const link = await prisma.issueJiraLink.upsert({
-    where: {
-      issueId_jiraKey: {
-        issueId: issue.id,
-        jiraKey: parsed.data.jiraKey,
-      },
-    },
-    create: {
-      issueId: issue.id,
-      jiraKey: parsed.data.jiraKey,
-      jiraUrl: parsed.data.jiraUrl,
-    },
-    update: {
-      jiraUrl: parsed.data.jiraUrl,
-    },
-  });
-
-  if (!issue.jiraTicketKey || !issue.jiraTicketUrl) {
-    const updatedIssue = await prisma.issue.update({
-      where: { id: issue.id },
-      data: {
-        source: 'JIRA',
-        jiraTicketKey: parsed.data.jiraKey,
-        jiraTicketUrl: parsed.data.jiraUrl,
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(Prisma.sql`
+      SELECT "id" FROM "Issue" WHERE "id" = ${issue.id} FOR UPDATE
+    `);
+    const currentIssue = await tx.issue.findUnique({ where: { id: issue.id } });
+    if (!currentIssue) return null;
+    const previousLink = await tx.issueJiraLink.findUnique({
+      where: {
+        issueId_jiraKey: {
+          issueId: currentIssue.id,
+          jiraKey,
+        },
       },
     });
+    const link = await tx.issueJiraLink.upsert({
+      where: {
+        issueId_jiraKey: {
+          issueId: currentIssue.id,
+          jiraKey,
+        },
+      },
+      create: {
+        issueId: currentIssue.id,
+        jiraKey,
+        jiraUrl,
+      },
+      update: { jiraUrl },
+    });
+    const updatedIssue = !currentIssue.jiraTicketKey || !currentIssue.jiraTicketUrl
+      ? await tx.issue.update({
+          where: { id: currentIssue.id },
+          data: {
+            source: 'JIRA',
+            jiraTicketKey: jiraKey,
+            jiraTicketUrl: jiraUrl,
+          },
+        })
+      : null;
+    return { previousLink, link, beforeIssue: currentIssue, updatedIssue };
+  });
+  if (!result) {
+    res.status(404).json({ error: 'Открытый вопрос не найден' });
+    return;
+  }
+  const { previousLink, link, beforeIssue, updatedIssue } = result;
+
+  if (updatedIssue) {
     await recordAuditEvent({
       req,
       actor: currentUser(req),
@@ -949,10 +1092,10 @@ router.post('/open-issues/:issueId/jira-links', async (req, res) => {
       objectType: 'Issue',
       objectId: issue.id,
       projectId: issue.projectId,
-      beforeValue: issue,
+      beforeValue: beforeIssue,
       afterValue: updatedIssue,
       metadata: { changedFields: ['source', 'jiraTicketKey', 'jiraTicketUrl'] },
-      changes: buildAuditFieldChanges(issue, updatedIssue, [
+      changes: buildAuditFieldChanges(beforeIssue, updatedIssue, [
         'source',
         'jiraTicketKey',
         'jiraTicketUrl',
@@ -966,86 +1109,189 @@ router.post('/open-issues/:issueId/jira-links', async (req, res) => {
     action: previousLink ? 'issue.jira_link.update' : 'issue.jira_link.create',
     objectType: 'IssueJiraLink',
     objectId: link.id,
-    projectId: issue.projectId,
+    projectId: beforeIssue.projectId,
     beforeValue: previousLink,
     afterValue: link,
-    metadata: { issueId: issue.id },
+    metadata: { issueId: beforeIssue.id },
     changes: buildAuditFieldChanges(previousLink ?? {}, link, ['jiraKey', 'jiraUrl']),
   });
   await emitWebhookEvent({
     eventType: 'issue.jira_link.updated',
-    projectId: issue.projectId,
-    payload: { issueId: issue.id, link },
+    projectId: beforeIssue.projectId,
+    payload: { issueId: beforeIssue.id, link },
   }).catch(() => undefined);
   res.status(201).json(link);
 });
 
-router.delete('/open-issues/:issueId/jira-links/:linkId', async (req, res) => {
-  const link = await prisma.issueJiraLink.findUnique({
-    where: { id: req.params.linkId },
-  });
-
-  if (!link || link.issueId !== req.params.issueId) {
-    res.status(404).json({ error: 'Связь Jira не найдена' });
+router.patch('/open-issues/:issueId/jira-links/:linkId', async (req, res) => {
+  const parsed = issueJiraLinkSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const jiraKey = normalizeIssueJiraKey(parsed.data.jiraKey);
+  if (!jiraKey) {
+    res.status(400).json({ error: `Некорректный ключ Jira: ${parsed.data.jiraKey}` });
     return;
   }
 
-  await prisma.issueJiraLink.delete({
-    where: { id: link.id },
-  });
-
-  const remainingLinks = await prisma.issueJiraLink.findMany({
-    where: { issueId: req.params.issueId },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  const beforeIssue = await prisma.issue.findUnique({
-    where: { id: req.params.issueId },
-  });
-  const updatedIssue = await prisma.issue.update({
-    where: { id: req.params.issueId },
-    data: {
-      source: remainingLinks.length > 0 ? 'JIRA' : 'INTERNAL',
-      jiraTicketKey: remainingLinks[0]?.jiraKey ?? null,
-      jiraTicketUrl: remainingLinks[0]?.jiraUrl ?? null,
+  const currentLink = await prisma.issueJiraLink.findUnique({
+    where: { id: req.params.linkId },
+    include: {
+      issue: { include: { project: { include: { jiraIntegration: true } } } },
     },
   });
+  if (!currentLink || currentLink.issueId !== req.params.issueId) {
+    res.status(404).json({ error: 'Связь Jira не найдена' });
+    return;
+  }
+  const jiraUrl = issueJiraUrlForKey(
+    currentLink.issue.project.jiraIntegration?.baseUrl,
+    jiraKey,
+  );
+  if (!jiraUrl) {
+    res.status(400).json({ error: 'Не удалось построить URL Jira из настроек проекта' });
+    return;
+  }
 
-  const issue = await prisma.issue.findUnique({
-    where: { id: req.params.issueId },
-    select: { projectId: true },
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "Issue" WHERE "id" = ${currentLink.issue.id} FOR UPDATE
+      `);
+      const [beforeLink, beforeIssue] = await Promise.all([
+        tx.issueJiraLink.findUnique({ where: { id: currentLink.id } }),
+        tx.issue.findUnique({ where: { id: currentLink.issue.id } }),
+      ]);
+      if (!beforeLink || beforeLink.issueId !== req.params.issueId || !beforeIssue) return null;
+      const link = await tx.issueJiraLink.update({
+        where: { id: beforeLink.id },
+        data: { jiraKey, jiraUrl },
+      });
+      const wasPrimary = beforeIssue.jiraTicketKey === beforeLink.jiraKey
+        || beforeIssue.jiraTicketUrl === beforeLink.jiraUrl;
+      const issue = wasPrimary
+        ? await tx.issue.update({
+            where: { id: beforeIssue.id },
+            data: { source: 'JIRA', jiraTicketKey: jiraKey, jiraTicketUrl: jiraUrl },
+          })
+        : null;
+      return { beforeLink, beforeIssue, link, issue };
+    });
+    if (!result) {
+      res.status(404).json({ error: 'Связь Jira не найдена' });
+      return;
+    }
+
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'issue.jira_link.update',
+      objectType: 'IssueJiraLink',
+      objectId: result.link.id,
+      projectId: currentLink.issue.projectId,
+      beforeValue: result.beforeLink,
+      afterValue: result.link,
+      metadata: { issueId: result.beforeIssue.id },
+      changes: buildAuditFieldChanges(result.beforeLink, result.link, ['jiraKey', 'jiraUrl']),
+    });
+    if (result.issue) {
+      await recordAuditEvent({
+        req,
+        actor: currentUser(req),
+        action: 'issue.update',
+        objectType: 'Issue',
+        objectId: result.beforeIssue.id,
+        projectId: result.beforeIssue.projectId,
+        beforeValue: result.beforeIssue,
+        afterValue: result.issue,
+        metadata: { changedFields: ['source', 'jiraTicketKey', 'jiraTicketUrl'] },
+        changes: buildAuditFieldChanges(result.beforeIssue, result.issue, [
+          'source',
+          'jiraTicketKey',
+          'jiraTicketUrl',
+        ]),
+      });
+    }
+    await emitWebhookEvent({
+      eventType: 'issue.jira_link.updated',
+      projectId: currentLink.issue.projectId,
+      payload: { issueId: result.beforeIssue.id, link: result.link },
+    }).catch(() => undefined);
+    res.json(result.link);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      res.status(409).json({ error: `Тикет ${jiraKey} уже связан с этим вопросом` });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.delete('/open-issues/:issueId/jira-links/:linkId', async (req, res) => {
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(Prisma.sql`
+      SELECT "id" FROM "Issue" WHERE "id" = ${req.params.issueId} FOR UPDATE
+    `);
+    const [link, beforeIssue] = await Promise.all([
+      tx.issueJiraLink.findUnique({ where: { id: req.params.linkId } }),
+      tx.issue.findUnique({ where: { id: req.params.issueId } }),
+    ]);
+    if (!link || link.issueId !== req.params.issueId || !beforeIssue) return null;
+
+    await tx.issueJiraLink.delete({ where: { id: link.id } });
+    const remainingLinks = await tx.issueJiraLink.findMany({
+      where: { issueId: beforeIssue.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    const nextJiraState = issueJiraStateAfterLinkDeletion(
+      {
+        jiraKey: beforeIssue.jiraTicketKey,
+        jiraUrl: beforeIssue.jiraTicketUrl,
+      },
+      link,
+      remainingLinks,
+    );
+    const updatedIssue = await tx.issue.update({
+      where: { id: beforeIssue.id },
+      data: nextJiraState,
+    });
+    return { link, beforeIssue, updatedIssue };
   });
+  if (!result) {
+    res.status(404).json({ error: 'Связь Jira не найдена' });
+    return;
+  }
+  const { link, beforeIssue, updatedIssue } = result;
   await recordAuditEvent({
     req,
     actor: currentUser(req),
     action: 'issue.jira_link.delete',
     objectType: 'IssueJiraLink',
     objectId: link.id,
-    projectId: issue?.projectId ?? null,
+    projectId: beforeIssue.projectId,
     beforeValue: link,
     metadata: { issueId: req.params.issueId },
   });
-  if (beforeIssue) {
-    await recordAuditEvent({
-      req,
-      actor: currentUser(req),
-      action: 'issue.update',
-      objectType: 'Issue',
-      objectId: beforeIssue.id,
-      projectId: beforeIssue.projectId,
-      beforeValue: beforeIssue,
-      afterValue: updatedIssue,
-      metadata: { changedFields: ['source', 'jiraTicketKey', 'jiraTicketUrl'] },
-      changes: buildAuditFieldChanges(beforeIssue, updatedIssue, [
-        'source',
-        'jiraTicketKey',
-        'jiraTicketUrl',
-      ]),
-    });
-  }
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'issue.update',
+    objectType: 'Issue',
+    objectId: beforeIssue.id,
+    projectId: beforeIssue.projectId,
+    beforeValue: beforeIssue,
+    afterValue: updatedIssue,
+    metadata: { changedFields: ['source', 'jiraTicketKey', 'jiraTicketUrl'] },
+    changes: buildAuditFieldChanges(beforeIssue, updatedIssue, [
+      'source',
+      'jiraTicketKey',
+      'jiraTicketUrl',
+    ]),
+  });
   await emitWebhookEvent({
     eventType: 'issue.jira_link.deleted',
-    projectId: issue?.projectId ?? null,
+    projectId: beforeIssue.projectId,
     payload: { issueId: req.params.issueId, link },
   }).catch(() => undefined);
   res.status(204).send();

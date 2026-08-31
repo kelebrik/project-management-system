@@ -18,12 +18,13 @@ type UseIssueControllerOptions = {
   setIssueForm: Dispatch<SetStateAction<IssueFormState>>;
   taskDrafts: Record<string, TaskJiraDraft>;
   issueLinkDrafts: Record<string, JiraLinkDraft>;
+  setIssueLinkDrafts: Dispatch<SetStateAction<Record<string, JiraLinkDraft>>>;
   issueEditDrafts: Record<string, IssueEditDraft>;
   setIssueEditDrafts: Dispatch<SetStateAction<Record<string, IssueEditDraft>>>;
   issueStatusDrafts: Record<string, IssueStatusDraft>;
   setIssueStatusDrafts: Dispatch<SetStateAction<Record<string, IssueStatusDraft>>>;
   setIssueFormErrors: Dispatch<
-    SetStateAction<Partial<Record<"title" | "jiraTicketUrl", string>>>
+    SetStateAction<Partial<Record<"title", string>>>
   >;
   setCreatingIssue: Dispatch<SetStateAction<boolean>>;
   setIssueDrawerMode: Dispatch<SetStateAction<"create" | null>>;
@@ -39,6 +40,7 @@ export function useIssueController({
   setIssueForm,
   taskDrafts,
   issueLinkDrafts,
+  setIssueLinkDrafts,
   issueEditDrafts,
   setIssueEditDrafts,
   issueStatusDrafts,
@@ -125,16 +127,9 @@ export function useIssueController({
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!projectId) return;
-      const nextErrors: Partial<Record<"title" | "jiraTicketUrl", string>> = {};
+      const nextErrors: Partial<Record<"title", string>> = {};
       if (!issueForm.title.trim()) {
         nextErrors.title = "Заполните заголовок";
-      }
-      if (issueForm.jiraTicketUrl.trim()) {
-        try {
-          new URL(issueForm.jiraTicketUrl.trim());
-        } catch {
-          nextErrors.jiraTicketUrl = "Некорректный Jira URL";
-        }
       }
       setIssueFormErrors(nextErrors);
       if (Object.keys(nextErrors).length > 0) return;
@@ -153,10 +148,9 @@ export function useIssueController({
           impact: issueForm.impact.trim(),
           dueDate: issueForm.dueDate || null,
           jiraTicketKey: issueForm.jiraTicketKey.trim() || null,
-          jiraTicketUrl: issueForm.jiraTicketUrl.trim() || null,
           jiraLinks: issueForm.jiraLinks.filter(
-            (link) => link.jiraKey.trim() && link.jiraUrl.trim(),
-          ),
+            (link) => link.jiraKey.trim(),
+          ).map((link) => ({ jiraKey: link.jiraKey.trim() })),
         };
         const response = await authenticatedFetch(
           `${apiBase}/api/projects/${projectId}/open-issues`,
@@ -254,7 +248,7 @@ export function useIssueController({
   const addIssueFormLink = useCallback(() => {
     setIssueForm({
       ...issueForm,
-      jiraLinks: [...issueForm.jiraLinks, { jiraKey: "", jiraUrl: "" }],
+      jiraLinks: [...issueForm.jiraLinks, { jiraKey: "" }],
     });
   }, [issueForm, setIssueForm]);
 
@@ -264,7 +258,7 @@ export function useIssueController({
         ...issueForm,
         jiraLinks:
           issueForm.jiraLinks.length === 1
-            ? [{ jiraKey: "", jiraUrl: "" }]
+            ? [{ jiraKey: "" }]
             : issueForm.jiraLinks.filter((_, linkIndex) => linkIndex !== index),
       });
     },
@@ -274,7 +268,7 @@ export function useIssueController({
   const addIssueJiraLink = useCallback(
     async (issueId: string) => {
       const draft = issueLinkDrafts[issueId];
-      if (!draft?.jiraKey || !draft?.jiraUrl) return;
+      if (!draft?.jiraKey.trim()) return;
       setError(null);
       setNotice(null);
       try {
@@ -283,7 +277,7 @@ export function useIssueController({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(draft),
+            body: JSON.stringify({ jiraKey: draft.jiraKey.trim() }),
           },
         );
         const result = await response.json();
@@ -294,6 +288,10 @@ export function useIssueController({
               "Не удалось добавить задачу Jira",
           );
         }
+        setIssueLinkDrafts((drafts) => ({
+          ...drafts,
+          [issueId]: { jiraKey: "" },
+        }));
         await refreshProject();
         setNotice("Задача Jira добавлена к открытому вопросу");
       } catch (addError) {
@@ -304,7 +302,44 @@ export function useIssueController({
         );
       }
     },
-    [issueLinkDrafts, refreshProject, setError, setNotice],
+    [issueLinkDrafts, refreshProject, setError, setIssueLinkDrafts, setNotice],
+  );
+
+  const updateIssueJiraLink = useCallback(
+    async (issueId: string, linkId: string, jiraKey: string) => {
+      const normalizedKey = jiraKey.trim();
+      if (!normalizedKey) return { ok: false as const, error: "Укажите ключ Jira" };
+      setError(null);
+      setNotice(null);
+      try {
+        const response = await authenticatedFetch(
+          linkId.startsWith("primary-")
+            ? `${apiBase}/api/open-issues/${issueId}`
+            : `${apiBase}/api/open-issues/${issueId}/jira-links/${linkId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(linkId.startsWith("primary-")
+              ? { jiraTicketKey: normalizedKey }
+              : { jiraKey: normalizedKey }),
+          },
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(responseErrorMessage(result, "Не удалось изменить ключ Jira"));
+        }
+        await refreshProject();
+        setNotice("Ключ Jira обновлён");
+        return { ok: true as const };
+      } catch (updateError) {
+        const error = updateError instanceof Error
+          ? updateError.message
+          : "Не удалось изменить ключ Jira";
+        setError(error);
+        return { ok: false as const, error };
+      }
+    },
+    [refreshProject, setError, setNotice],
   );
 
   const removeIssueJiraLink = useCallback(
@@ -312,10 +347,15 @@ export function useIssueController({
       setError(null);
       setNotice(null);
       try {
+        const syntheticPrimary = linkId.startsWith("primary-");
         const response = await authenticatedFetch(
-          `${apiBase}/api/open-issues/${issueId}/jira-links/${linkId}`,
+          syntheticPrimary
+            ? `${apiBase}/api/open-issues/${issueId}`
+            : `${apiBase}/api/open-issues/${issueId}/jira-links/${linkId}`,
           {
-            method: "DELETE",
+            method: syntheticPrimary ? "PATCH" : "DELETE",
+            headers: syntheticPrimary ? { "Content-Type": "application/json" } : undefined,
+            body: syntheticPrimary ? JSON.stringify({ jiraTicketKey: null }) : undefined,
           },
         );
         if (!response.ok) {
@@ -426,8 +466,6 @@ export function useIssueController({
         ...draft,
         phaseId: draft.phaseId || null,
         dueDate: draft.dueDate || null,
-        jiraTicketKey: draft.jiraTicketKey || null,
-        jiraTicketUrl: draft.jiraTicketUrl || null,
       });
     },
     [issueEditDrafts, saveOpenIssueWithPayload],
@@ -556,6 +594,7 @@ export function useIssueController({
     addIssueFormLink,
     removeIssueFormLink,
     addIssueJiraLink,
+    updateIssueJiraLink,
     removeIssueJiraLink,
     updateIssueDraft,
     updateIssueStatusDraft,

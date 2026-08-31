@@ -374,7 +374,7 @@ const applyProject = useCallback(
       Object.fromEntries(
         allProjectIssues.map((issue) => [
           issue.id,
-          { jiraKey: "", jiraUrl: "" },
+          { jiraKey: "" },
         ]),
       ),
     );

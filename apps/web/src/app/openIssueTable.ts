@@ -6,7 +6,6 @@ export const OPEN_ISSUE_COLUMNS = [
   { key: "owner", label: "Ответственный", width: 210, min: 150, max: 420 },
   { key: "risk", label: "Риски", width: 230, min: 160, max: 520 },
   { key: "readiness", label: "Готовность", width: 132, min: 104, max: 220 },
-  { key: "phase", label: "Фаза", width: 220, min: 160, max: 420 },
   { key: "parameters", label: "Параметры", width: 220, min: 180, max: 420 },
 ] as const;
 

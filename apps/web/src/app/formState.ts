@@ -135,7 +135,6 @@ export type IssueFormState = {
   decisionRequired: boolean;
   dueDate: string;
   jiraTicketKey: string;
-  jiraTicketUrl: string;
   jiraLinks: JiraLinkDraft[];
 };
 
@@ -188,8 +187,6 @@ export type IssueEditDraft = {
   impact: string;
   decisionRequired: boolean;
   dueDate: string;
-  jiraTicketKey: string;
-  jiraTicketUrl: string;
 };
 
 export type TaskJiraDraft = {
@@ -199,7 +196,6 @@ export type TaskJiraDraft = {
 
 export type JiraLinkDraft = {
   jiraKey: string;
-  jiraUrl: string;
 };
 
 export const emptyUserForm: UserFormState = {
@@ -252,8 +248,7 @@ export const emptyIssueForm: IssueFormState = {
   decisionRequired: false,
   dueDate: "",
   jiraTicketKey: "",
-  jiraTicketUrl: "",
-  jiraLinks: [{ jiraKey: "", jiraUrl: "" }],
+  jiraLinks: [{ jiraKey: "" }],
 };
 
 const emptyProjectForm: ProjectFormState = {
@@ -411,8 +406,6 @@ export function issueToDraft(issue: Issue): IssueEditDraft {
     impact: issue.impact,
     decisionRequired: issue.decisionRequired,
     dueDate: issue.dueDate ? issue.dueDate.slice(0, 10) : "",
-    jiraTicketKey: issue.jiraTicketKey ?? "",
-    jiraTicketUrl: issue.jiraTicketUrl ?? "",
   };
 }
 

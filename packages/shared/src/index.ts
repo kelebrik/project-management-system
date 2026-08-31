@@ -412,12 +412,10 @@ export const createIssueSchema = z.object({
   decisionRequired: z.boolean().default(false),
   dueDate: z.string().trim().optional().nullable(),
   jiraTicketKey: z.string().trim().optional().nullable(),
-  jiraTicketUrl: z.string().trim().optional().nullable(),
   jiraLinks: z
     .array(
       z.object({
         jiraKey: z.string().trim().optional().default(""),
-        jiraUrl: z.string().trim().optional().default(""),
       }),
     )
     .optional()
@@ -438,5 +436,4 @@ export const updateIssueSchema = z.object({
   decisionRequired: z.boolean().optional(),
   dueDate: z.string().trim().optional().nullable(),
   jiraTicketKey: z.string().trim().optional().nullable(),
-  jiraTicketUrl: z.string().trim().optional().nullable(),
 });

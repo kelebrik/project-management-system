@@ -1,14 +1,17 @@
 import { usePageContext } from "./PageContext";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useConfirm } from "../hooks/useConfirm";
 import type { Issue } from "../app/domainTypes";
 
 export function IssueDrawer() {
+  const confirm = useConfirm();
   const ctx = usePageContext();
   const {
     addIssueFormLink,
     activeView,
     createOpenIssue,
     creatingIssue,
+    currentUser,
     issueDrawerMode,
     issueForm,
     issueFormErrors,
@@ -18,9 +21,32 @@ export function IssueDrawer() {
     setIssueDrawerMode,
     setIssueForm,
     setIssueFormErrors,
+    setError,
     updateIssueFormLink,
   } = ctx;
   const phases = project?.wbsItems.filter((item: { type: string }) => item.type === "PHASE") ?? [];
+  const categories = [...new Set<string>(
+    (project?.issues ?? []).map((issue: Issue) => issue.category.trim()).filter(Boolean),
+  )];
+
+  const selectPhase = async (phaseId: string) => {
+    if (currentUser?.role !== "ADMIN") {
+      setError("Недостаточно прав для выбора фазы и создания пакета работ");
+      return;
+    }
+    if (!phaseId) {
+      setIssueForm({ ...issueForm, phaseId: "" });
+      return;
+    }
+    const phase = phases.find((candidate: { id: string }) => candidate.id === phaseId);
+    if (!phase) return;
+    const approved = await confirm({
+      title: "Создать пакет работ?",
+      message: `Для открытого вопроса будет создан пакет работ в фазе «${phase.code} · ${phase.title}» перед последней вехой или целью этой фазы. Продолжить?`,
+      confirmLabel: "Создать",
+    });
+    if (approved) setIssueForm({ ...issueForm, phaseId });
+  };
 
   const isOpen = activeView === "project-issues" && Boolean(issueDrawerMode);
   const containerRef = useFocusTrap<HTMLElement>(isOpen, () =>
@@ -84,37 +110,40 @@ export function IssueDrawer() {
                       <small>{issueFormErrors.title}</small>
                     )}
                   </label>
-                  <label>
-                    Раздел
-                    <input
-                      value={issueForm.category}
-                      onChange={(event) => setIssueForm({
-                        ...issueForm,
-                        category: event.target.value,
-                      })}
-                      placeholder="Например: Организационные задачи"
-                    />
-                  </label>
-                  <label>
-                    Фаза
-                    <select
-                      value={issueForm.phaseId}
-                      onChange={(event) => setIssueForm({
-                        ...issueForm,
-                        phaseId: event.target.value,
-                      })}
-                    >
-                      <option value="">Без фазы</option>
-                      {phases.map((phase: { id: string; code: string; title: string }) => (
-                        <option value={phase.id} key={phase.id}>
-                          {phase.code} · {phase.title}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="two-col issue-classification-fields">
+                    <label>
+                      Раздел
+                      <input
+                        list="issue-create-categories"
+                        value={issueForm.category}
+                        onChange={(event) => setIssueForm({
+                          ...issueForm,
+                          category: event.target.value,
+                        })}
+                        placeholder="Например: Организационные задачи"
+                      />
+                    </label>
+                    <label>
+                      Фаза
+                      <select
+                        value={issueForm.phaseId}
+                        onChange={(event) => void selectPhase(event.target.value)}
+                      >
+                        <option value="">Без фазы</option>
+                        {phases.map((phase: { id: string; code: string; title: string }) => (
+                          <option value={phase.id} key={phase.id}>
+                            {phase.code} · {phase.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <small>
-                      При выборе фазы в Структуре будет создан пакет работ перед её последней целью или вехой.
+                      Выбор фазы создаёт пакет работ перед её последней целью или вехой.
                     </small>
-                  </label>
+                    <datalist id="issue-create-categories">
+                      {categories.map((category) => <option value={category} key={category} />)}
+                    </datalist>
+                  </div>
                   <div className="two-col">
                     <label>
                       Критичность
@@ -221,8 +250,9 @@ export function IssueDrawer() {
                   </div>
                   <div className="jira-links-editor">
                     <div className="subhead">Ссылка на тикет</div>
-                    <div className="issue-link-edit">
+                    <div className="issue-link-edit is-key-only">
                       <input
+                        aria-label="Ключ основного тикета"
                         value={issueForm.jiraTicketKey}
                         onChange={(event) =>
                           setIssueForm({
@@ -232,31 +262,12 @@ export function IssueDrawer() {
                         }
                         placeholder="ERP-1842"
                       />
-                      <input
-                        className={issueFormErrors.jiraTicketUrl ? "input-error" : ""}
-                        value={issueForm.jiraTicketUrl}
-                        onChange={(event) => {
-                          setIssueFormErrors((current) => ({
-                            ...current,
-                            jiraTicketUrl: undefined,
-                          }));
-                          setIssueForm({
-                            ...issueForm,
-                            jiraTicketUrl: event.target.value,
-                          });
-                        }}
-                        placeholder="https://jira.company.ru/browse/ERP-1842"
-                      />
                     </div>
-                    {issueFormErrors.jiraTicketUrl && (
-                      <small className="field-error-text">
-                        {issueFormErrors.jiraTicketUrl}
-                      </small>
-                    )}
                     <div className="subhead">Дополнительные ссылки на тикеты</div>
                     {issueForm.jiraLinks.map((link, index) => (
-                      <div className="issue-link-edit" key={index}>
+                      <div className="issue-link-edit is-key-only" key={index}>
                         <input
+                          aria-label={`Ключ дополнительного тикета ${index + 1}`}
                           value={link.jiraKey}
                           onChange={(event) =>
                             updateIssueFormLink(index, {
@@ -264,15 +275,6 @@ export function IssueDrawer() {
                             })
                           }
                           placeholder="ERP-1842"
-                        />
-                        <input
-                          value={link.jiraUrl}
-                          onChange={(event) =>
-                            updateIssueFormLink(index, {
-                              jiraUrl: event.target.value,
-                            })
-                          }
-                          placeholder="https://jira.company.ru/browse/ERP-1842"
                         />
                         <button
                           type="button"

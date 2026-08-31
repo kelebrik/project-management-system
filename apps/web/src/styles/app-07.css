@@ -480,6 +480,14 @@
   padding: 12px;
 }
 
+.issue-link-edit.is-key-only {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.issue-classification-fields > small {
+  grid-column: 1 / -1;
+}
+
 .issue-edit-grid {
   display: grid;
   gap: 10px;
@@ -856,6 +864,19 @@
   min-height: 28px;
 }
 
+.issue-inline-classification {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.issue-inline-classification select {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 850;
+  min-height: 30px;
+}
+
 .issue-thread-link {
   align-items: center;
   border: 1px solid var(--border-strong);
@@ -895,9 +916,7 @@
 }
 
 .issue-ticket-links {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 6px;
 }
 
@@ -909,20 +928,31 @@
 }
 
 .issue-ticket-links a {
+  align-items: center;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--brand);
+  display: flex;
   font-size: 12px;
   font-weight: 850;
+  gap: 6px;
+  justify-content: space-between;
+  min-width: 0;
   padding: 5px 7px;
   text-decoration: none;
 }
 
 .issue-ticket-link-item {
-  display: inline-flex;
   align-items: center;
-  gap: 2px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-width: 0;
+}
+
+.issue-ticket-link-item > input {
+  grid-column: 1 / 2;
   min-width: 0;
 }
 
@@ -944,7 +974,7 @@
   align-items: center;
   display: grid;
   gap: 4px;
-  grid-template-columns: 80px minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(0, 1fr) 30px;
 }
 
 .issue-inline-jira-add button,
@@ -1058,10 +1088,6 @@
   font-size: 11px;
   font-weight: 850;
   gap: 2px;
-}
-
-.issue-register-phase {
-  vertical-align: top;
 }
 
 .issue-phase-package-note,
