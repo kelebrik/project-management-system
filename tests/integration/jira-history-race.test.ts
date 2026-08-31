@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import { jiraSemanticAggregateDefinitionSchema, jiraSemanticDashboardSchema } from '@pms/shared';
 import { JiraSyncRunKind, Prisma, PrismaClient } from '@prisma/client';
@@ -35,6 +37,39 @@ import {
 } from '../../apps/api/src/services/jira-sync-runs.js';
 
 const testDatabaseUrl = process.env.JIRA_HISTORY_TEST_DATABASE_URL?.trim() ?? '';
+
+test('open issue register migration preserves existing rows and applies defaults in PostgreSQL', {
+  skip: !testDatabaseUrl,
+}, async () => {
+  const databaseName = new URL(testDatabaseUrl).pathname.replace(/^\//, '');
+  assert.match(databaseName, /test/i, 'JIRA_HISTORY_TEST_DATABASE_URL must target a test database');
+  const prisma = new PrismaClient({ datasourceUrl: testDatabaseUrl });
+  try {
+    await prisma.$executeRawUnsafe('CREATE TEMP TABLE "IssueMigrationProbe" ("id" TEXT PRIMARY KEY)');
+    await prisma.$executeRawUnsafe('INSERT INTO "IssueMigrationProbe" ("id") VALUES (\'existing\')');
+    const migration = fs.readFileSync(
+      path.resolve('prisma/migrations/20260831120000_open_issue_inline_table/migration.sql'),
+      'utf8',
+    ).replaceAll('"Issue"', '"IssueMigrationProbe"');
+    await prisma.$executeRawUnsafe(migration);
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      id: string;
+      category: string;
+      referenceLabel: string;
+      referenceUrl: string | null;
+      readiness: string;
+    }>>('SELECT "id", "category", "referenceLabel", "referenceUrl", "readiness"::text AS "readiness" FROM "IssueMigrationProbe"');
+    assert.deepEqual(rows, [{
+      id: 'existing',
+      category: 'Без раздела',
+      referenceLabel: '',
+      referenceUrl: null,
+      readiness: 'RED',
+    }]);
+  } finally {
+    await prisma.$disconnect();
+  }
+});
 
 function aggregateWithoutLabels(value: unknown) {
   const definition = jiraSemanticAggregateDefinitionSchema.parse(value);

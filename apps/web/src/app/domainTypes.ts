@@ -397,8 +397,12 @@ export type IssueStatusUpdate = {
 export type Issue = {
   id: string;
   source: "INTERNAL" | "JIRA";
+  category: string;
   title: string;
+  referenceLabel: string;
+  referenceUrl: string | null;
   severity: IssueSeverity;
+  readiness: RagStatus;
   status: string;
   owner: string;
   impact: string;

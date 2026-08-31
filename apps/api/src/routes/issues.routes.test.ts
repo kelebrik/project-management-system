@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Request, Response } from 'express';
+import { createIssueSchema, updateIssueSchema } from '@pms/shared';
 
 import { JiraReadOnlyRequestError } from '../jira.js';
 import {
@@ -63,6 +64,30 @@ async function expectForbidden(path: string, method: string, error: string, body
 test('Jira capacity sampler uses the approved global history defaults', () => {
   assert.equal(JIRA_CAPACITY_DEFAULT_STORAGE_GIB, 5);
   assert.equal(JIRA_CAPACITY_DEFAULT_ALLOCATED_GIB, 0);
+});
+
+test('open issue contracts support the inline register fields and narrow updates', () => {
+  const created = createIssueSchema.parse({ title: 'Проверить заводскую прошивку' });
+  assert.equal(created.category, 'Без раздела');
+  assert.equal(created.referenceLabel, '');
+  assert.equal(created.referenceUrl, undefined);
+  assert.equal(created.readiness, 'RED');
+
+  assert.deepEqual(updateIssueSchema.parse({
+    category: 'ChangHong',
+    referenceLabel: 'Ссылка на тред',
+    referenceUrl: 'https://example.test/thread/1',
+    readiness: 'AMBER',
+  }), {
+    category: 'ChangHong',
+    referenceLabel: 'Ссылка на тред',
+    referenceUrl: 'https://example.test/thread/1',
+    readiness: 'AMBER',
+  });
+  assert.equal(updateIssueSchema.safeParse({ readiness: 'BLUE' }).success, false);
+  assert.equal(updateIssueSchema.safeParse({ category: '' }).success, false);
+  assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'javascript:alert(1)' }).success, false);
+  assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'https://example.test/thread/2' }).success, true);
 });
 
 test('project details do not transport the top-level Jira analytics population', () => {

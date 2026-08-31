@@ -722,6 +722,7 @@ function AppController() {
     setIssueFormErrors,
     setCreatingIssue,
     setIssueDrawerMode,
+    setProject,
     refreshProject,
     setError,
     setNotice,

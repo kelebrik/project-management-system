@@ -72,6 +72,15 @@ function isValidUrl(value: string) {
   }
 }
 
+function isValidHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function calendarDelayDays(initialValue: Date | null, currentValue: Date | null) {
   if (!initialValue || !currentValue) return 0;
   const initialDate = new Date(initialValue);
@@ -95,8 +104,12 @@ function issueSeverityToRaidImpact(severity: string) {
 
 const issueAuditFields = [
   'source',
+  'category',
   'title',
+  'referenceLabel',
+  'referenceUrl',
   'severity',
+  'readiness',
   'status',
   'owner',
   'impact',
@@ -348,6 +361,11 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
     res.status(400).json({ error: `Некорректный Jira URL: ${invalidUrl}` });
     return;
   }
+  const referenceUrl = parsed.data.referenceUrl?.trim() || null;
+  if (referenceUrl && !isValidHttpUrl(referenceUrl)) {
+    res.status(400).json({ error: `Некорректный URL ссылки: ${referenceUrl}` });
+    return;
+  }
 
   const jiraBaseUrl = project.jiraIntegration?.baseUrl;
   const invalidLink = jiraLinks.find((link) => jiraBaseUrl && !link.jiraUrl.startsWith(jiraBaseUrl));
@@ -360,8 +378,12 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
     data: {
       projectId: project.id,
       source: jiraLinks.length > 0 ? 'JIRA' : 'INTERNAL',
+      category: parsed.data.category,
       title: parsed.data.title,
+      referenceLabel: parsed.data.referenceLabel,
+      referenceUrl,
       severity: parsed.data.severity,
+      readiness: parsed.data.readiness,
       status: 'Open',
       owner: parsed.data.owner,
       impact: parsed.data.impact,
@@ -428,6 +450,14 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     parsed.data.jiraTicketUrl === undefined
       ? undefined
       : parsed.data.jiraTicketUrl?.trim() || null;
+  const nextReferenceUrl =
+    parsed.data.referenceUrl === undefined
+      ? undefined
+      : parsed.data.referenceUrl?.trim() || null;
+  if (nextReferenceUrl && !isValidHttpUrl(nextReferenceUrl)) {
+    res.status(400).json({ error: `Некорректный URL ссылки: ${nextReferenceUrl}` });
+    return;
+  }
   if (nextJiraUrl && !isValidUrl(nextJiraUrl)) {
     res.status(400).json({ error: `Некорректный Jira URL: ${nextJiraUrl}` });
     return;
@@ -444,6 +474,7 @@ router.patch('/open-issues/:issueId', async (req, res) => {
     where: { id: issue.id },
     data: {
       ...parsed.data,
+      referenceUrl: nextReferenceUrl,
       dueDate: nextDueDate,
       initialDueDate: nextInitialDueDate,
       closedDelayDays: shouldCaptureClosedDelay

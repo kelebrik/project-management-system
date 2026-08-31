@@ -258,6 +258,15 @@ test("GitLab branch commit migration is additive and project-scoped", () => {
   assert.doesNotMatch(withoutForeignKeyActions, /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DROP\s+(?:TABLE|COLUMN)|TRUNCATE)\b/i);
 });
 
+test("open issue inline register migration is additive and preserves existing questions", () => {
+  const migration = migrationSql("20260831120000_open_issue_inline_table");
+  assert.match(migration, /ALTER\s+TABLE\s+"Issue"/i);
+  assert.match(migration, /ADD\s+COLUMN\s+"category"\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+'Без раздела'/i);
+  assert.match(migration, /ADD\s+COLUMN\s+"referenceUrl"\s+TEXT/i);
+  assert.match(migration, /ADD\s+COLUMN\s+"readiness"\s+"RagStatus"\s+NOT\s+NULL\s+DEFAULT\s+'RED'/i);
+  assert.doesNotMatch(migration, /\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+});
+
 test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
   const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
   assert.match(migration, /CREATE TABLE "JiraSyncRun"/);

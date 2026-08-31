@@ -1,9 +1,11 @@
 import {
   useCallback,
+  useRef,
   type Dispatch,
   type FormEvent,
   type SetStateAction,
 } from "react";
+import type { Issue, IssueStatusUpdate, ProjectDetails } from "../app/domainTypes";
 import { emptyIssueForm, type IssueEditDraft, type IssueFormState, type JiraLinkDraft, type TaskJiraDraft } from "../app/formState";
 import { apiBase, authenticatedFetch, responseErrorMessage } from "../app/http";
 import { isoDate } from "../app/dateUtils";
@@ -26,6 +28,7 @@ type UseIssueControllerOptions = {
   >;
   setCreatingIssue: Dispatch<SetStateAction<boolean>>;
   setIssueDrawerMode: Dispatch<SetStateAction<"create" | null>>;
+  setProject: Dispatch<SetStateAction<ProjectDetails | null>>;
   refreshProject: (projectId?: string) => Promise<void>;
   setError: Dispatch<SetStateAction<string | null>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
@@ -44,11 +47,81 @@ export function useIssueController({
   setIssueFormErrors,
   setCreatingIssue,
   setIssueDrawerMode,
+  setProject,
   refreshProject,
   setError,
   setNotice,
 }: UseIssueControllerOptions) {
   const confirm = useConfirm();
+  const issueSaveSequencesRef = useRef<Record<string, number>>({});
+
+  const mergeIssuePatch = useCallback(
+    (
+      issueId: string,
+      updatedIssue: Issue,
+      acceptedFields: Array<keyof IssueEditDraft>,
+    ) => {
+      setProject((currentProject) => {
+        if (!currentProject) return currentProject;
+        const currentIssue = currentProject.issues.find((issue) => issue.id === issueId)
+          ?? currentProject.closedIssues?.find((issue) => issue.id === issueId);
+        if (!currentIssue) return currentProject;
+
+        const nextIssue: Issue = { ...currentIssue };
+        for (const field of acceptedFields) {
+          Object.assign(nextIssue, { [field]: updatedIssue[field as keyof Issue] });
+        }
+        if (acceptedFields.includes("dueDate")) {
+          nextIssue.initialDueDate = updatedIssue.initialDueDate;
+        }
+        if (acceptedFields.includes("status")) {
+          nextIssue.closedDelayDays = updatedIssue.closedDelayDays;
+        }
+        nextIssue.updatedAt = updatedIssue.updatedAt;
+
+        const isClosed = ["resolved", "closed", "done"].includes(
+          nextIssue.status.trim().toLowerCase(),
+        );
+        return {
+          ...currentProject,
+          issues: isClosed
+            ? currentProject.issues.filter((issue) => issue.id !== issueId)
+            : currentProject.issues.some((issue) => issue.id === issueId)
+              ? currentProject.issues.map((issue) => issue.id === issueId ? nextIssue : issue)
+              : [...currentProject.issues, nextIssue],
+          closedIssues: isClosed
+            ? (currentProject.closedIssues ?? []).some((issue) => issue.id === issueId)
+              ? (currentProject.closedIssues ?? []).map((issue) => issue.id === issueId ? nextIssue : issue)
+              : [...(currentProject.closedIssues ?? []), nextIssue]
+            : (currentProject.closedIssues ?? []).filter((issue) => issue.id !== issueId),
+        };
+      });
+    },
+    [setProject],
+  );
+
+  const mergeIssueStatusUpdate = useCallback(
+    (issueId: string, statusUpdate: IssueStatusUpdate) => {
+      setProject((currentProject) => {
+        if (!currentProject) return currentProject;
+        const mergeStatus = (issue: Issue) => issue.id === issueId
+          ? {
+              ...issue,
+              statusUpdates: [
+                statusUpdate,
+                ...issue.statusUpdates.filter((update) => update.id !== statusUpdate.id),
+              ],
+            }
+          : issue;
+        return {
+          ...currentProject,
+          issues: currentProject.issues.map(mergeStatus),
+          closedIssues: currentProject.closedIssues?.map(mergeStatus),
+        };
+      });
+    },
+    [setProject],
+  );
   const createOpenIssue = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -72,6 +145,10 @@ export function useIssueController({
       try {
         const payload = {
           ...issueForm,
+          category: issueForm.category.trim(),
+          title: issueForm.title.trim(),
+          referenceLabel: issueForm.referenceLabel.trim(),
+          referenceUrl: issueForm.referenceUrl.trim() || null,
           owner: issueForm.owner.trim(),
           impact: issueForm.impact.trim(),
           dueDate: issueForm.dueDate || null,
@@ -259,15 +336,21 @@ export function useIssueController({
   );
 
   const updateIssueDraft = useCallback(
-    (issueId: string, patch: Partial<IssueEditDraft>) => {
-      const current = issueEditDrafts[issueId];
-      if (!current) return;
-      setIssueEditDrafts({
-        ...issueEditDrafts,
-        [issueId]: { ...current, ...patch },
+    (
+      issueId: string,
+      patch: Partial<IssueEditDraft>,
+      fallback?: IssueEditDraft,
+    ) => {
+      setIssueEditDrafts((drafts) => {
+        const current = drafts[issueId] ?? fallback;
+        if (!current) return drafts;
+        return {
+          ...drafts,
+          [issueId]: { ...current, ...patch },
+        };
       });
     },
-    [issueEditDrafts, setIssueEditDrafts],
+    [setIssueEditDrafts],
   );
 
   const updateIssueStatusDraft = useCallback(
@@ -283,9 +366,21 @@ export function useIssueController({
   );
 
   const saveOpenIssueWithPayload = useCallback(
-    async (issueId: string, payload: Partial<IssueEditDraft>) => {
-      setError(null);
-      setNotice(null);
+    async (
+      issueId: string,
+      payload: Partial<IssueEditDraft>,
+      options: { quiet?: boolean; refresh?: boolean } = {},
+    ) => {
+      const requestSequences = Object.keys(payload).map((field) => {
+        const key = `${issueId}:${field}`;
+        const sequence = (issueSaveSequencesRef.current[key] ?? 0) + 1;
+        issueSaveSequencesRef.current[key] = sequence;
+        return { field: field as keyof IssueEditDraft, key, sequence };
+      });
+      if (!options.quiet) {
+        setError(null);
+        setNotice(null);
+      }
       try {
         const response = await authenticatedFetch(
           `${apiBase}/api/open-issues/${issueId}`,
@@ -303,17 +398,24 @@ export function useIssueController({
               "Не удалось сохранить открытый вопрос",
           );
         }
-        await refreshProject();
-        setNotice("Открытый вопрос обновлен");
+        const acceptedFields = requestSequences
+          .filter(({ key, sequence }) => issueSaveSequencesRef.current[key] === sequence)
+          .map(({ field }) => field);
+        if (acceptedFields.length > 0) {
+          mergeIssuePatch(issueId, result as Issue, acceptedFields);
+        }
+        if (options.refresh !== false) await refreshProject();
+        if (!options.quiet) setNotice("Открытый вопрос обновлен");
+        return { ok: true as const, issue: result };
       } catch (saveError) {
-        setError(
-          saveError instanceof Error
-            ? saveError.message
-            : "Не удалось сохранить открытый вопрос",
-        );
+        const message = saveError instanceof Error
+          ? saveError.message
+          : "Не удалось сохранить открытый вопрос";
+        if (!options.quiet) setError(message);
+        return { ok: false as const, error: message };
       }
     },
-    [refreshProject, setError, setNotice],
+    [mergeIssuePatch, refreshProject, setError, setNotice],
   );
 
   const saveOpenIssue = useCallback(
@@ -393,15 +495,21 @@ export function useIssueController({
   );
 
   const addIssueStatusUpdate = useCallback(
-    async (issueId: string) => {
+    async (
+      issueId: string,
+      options: { quiet?: boolean; refresh?: boolean } = {},
+    ) => {
       const draft =
         issueStatusDrafts[issueId] ?? { statusAt: isoDate(new Date()), text: "" };
       if (!draft.text.trim()) {
-        setError("Заполните текст статуса");
-        return;
+        const error = "Заполните текст статуса";
+        if (!options.quiet) setError(error);
+        return { ok: false as const, error };
       }
-      setError(null);
-      setNotice(null);
+      if (!options.quiet) {
+        setError(null);
+        setNotice(null);
+      }
       try {
         const response = await authenticatedFetch(
           `${apiBase}/api/open-issues/${issueId}/status-updates`,
@@ -422,21 +530,23 @@ export function useIssueController({
               "Не удалось добавить статус",
           );
         }
-        setIssueStatusDrafts({
-          ...issueStatusDrafts,
+        setIssueStatusDrafts((drafts) => ({
+          ...drafts,
           [issueId]: { statusAt: isoDate(new Date()), text: "" },
-        });
-        await refreshProject();
-        setNotice("Статус открытого вопроса добавлен");
+        }));
+        mergeIssueStatusUpdate(issueId, result as IssueStatusUpdate);
+        if (options.refresh !== false) await refreshProject();
+        if (!options.quiet) setNotice("Статус открытого вопроса добавлен");
+        return { ok: true as const, status: result };
       } catch (statusError) {
-        setError(
-          statusError instanceof Error
-            ? statusError.message
-            : "Не удалось добавить статус",
-        );
+        const error = statusError instanceof Error
+          ? statusError.message
+          : "Не удалось добавить статус";
+        if (!options.quiet) setError(error);
+        return { ok: false as const, error };
       }
     },
-    [issueStatusDrafts, refreshProject, setError, setIssueStatusDrafts, setNotice],
+    [issueStatusDrafts, mergeIssueStatusUpdate, refreshProject, setError, setIssueStatusDrafts, setNotice],
   );
 
   return {

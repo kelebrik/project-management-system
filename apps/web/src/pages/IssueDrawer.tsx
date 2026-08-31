@@ -82,6 +82,17 @@ export function IssueDrawer() {
                       <small>{issueFormErrors.title}</small>
                     )}
                   </label>
+                  <label>
+                    Раздел
+                    <input
+                      value={issueForm.category}
+                      onChange={(event) => setIssueForm({
+                        ...issueForm,
+                        category: event.target.value,
+                      })}
+                      placeholder="Например: Организационные задачи"
+                    />
+                  </label>
                   <div className="two-col">
                     <label>
                       Критичность
@@ -105,6 +116,20 @@ export function IssueDrawer() {
                       </select>
                     </label>
                     <label>
+                      Готовность
+                      <select
+                        value={issueForm.readiness}
+                        onChange={(event) => setIssueForm({
+                          ...issueForm,
+                          readiness: event.target.value as Issue["readiness"],
+                        })}
+                      >
+                        <option value="RED">Красная</option>
+                        <option value="AMBER">Жёлтая</option>
+                        <option value="GREEN">Зелёная</option>
+                      </select>
+                    </label>
+                    <label>
                       Ответственный
                       <input
                         value={issueForm.owner}
@@ -115,6 +140,31 @@ export function IssueDrawer() {
                           })
                         }
                         placeholder="РП / поставщик / ИТ-эксплуатация"
+                      />
+                    </label>
+                  </div>
+                  <div className="two-col">
+                    <label>
+                      Подпись рабочей ссылки
+                      <input
+                        value={issueForm.referenceLabel}
+                        onChange={(event) => setIssueForm({
+                          ...issueForm,
+                          referenceLabel: event.target.value,
+                        })}
+                        placeholder="Ссылка на тред"
+                      />
+                    </label>
+                    <label>
+                      Рабочая ссылка
+                      <input
+                        type="url"
+                        value={issueForm.referenceUrl}
+                        onChange={(event) => setIssueForm({
+                          ...issueForm,
+                          referenceUrl: event.target.value,
+                        })}
+                        placeholder="https://..."
                       />
                     </label>
                   </div>

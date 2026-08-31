@@ -933,8 +933,12 @@ model Issue {
   id               String              @id @default(cuid())
   projectId        String
   source           IssueSource
+  category         String              @default("Без раздела")
   title            String
+  referenceLabel   String              @default("")
+  referenceUrl     String?
   severity         IssueSeverity
+  readiness        RagStatus           @default(RED)
   status           String
   owner            String
   impact           String

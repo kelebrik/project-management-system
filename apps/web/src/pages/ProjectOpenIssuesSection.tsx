@@ -1,17 +1,61 @@
-import type { KeyboardEvent } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  ExternalLink,
-  Link2,
-  Plus,
-  Save,
-  X,
-} from "lucide-react";
-import { usePageContext } from "./PageContext";
+import { Check, ExternalLink, Link2, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState, type KeyboardEvent } from "react";
+
 import type { Issue } from "../app/domainTypes";
+import { issueToDraft, type IssueEditDraft } from "../app/formState";
+import { usePageContext } from "./PageContext";
+
+type EditableIssueField = keyof Pick<
+  IssueEditDraft,
+  | "category"
+  | "title"
+  | "referenceLabel"
+  | "referenceUrl"
+  | "severity"
+  | "readiness"
+  | "status"
+  | "owner"
+  | "impact"
+  | "decisionRequired"
+  | "dueDate"
+  | "jiraTicketKey"
+  | "jiraTicketUrl"
+>;
+
+const nullableFields = new Set<EditableIssueField>([
+  "dueDate",
+  "referenceUrl",
+  "jiraTicketKey",
+  "jiraTicketUrl",
+]);
+
+const readinessLabels = {
+  RED: "Красная",
+  AMBER: "Жёлтая",
+  GREEN: "Зелёная",
+} as const;
+
+function sortedStatusUpdates(issue: Issue) {
+  return [...issue.statusUpdates].sort((left, right) => {
+    const statusDelta = new Date(right.statusAt).getTime() - new Date(left.statusAt).getTime();
+    if (statusDelta !== 0) return statusDelta;
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  });
+}
+
+function normalizedFieldValue(
+  field: EditableIssueField,
+  value: IssueEditDraft[EditableIssueField] | Issue[keyof Issue] | null | undefined,
+) {
+  if (value == null && nullableFields.has(field)) return "";
+  if (typeof value !== "string") return value;
+  if (field === "dueDate") return value.slice(0, 10);
+  return value.trim();
+}
+
+function issueFieldValue(issue: Issue, field: EditableIssueField) {
+  return normalizedFieldValue(field, issue[field as keyof Issue]);
+}
 
 export function ProjectOpenIssuesSection() {
   const {
@@ -21,544 +65,523 @@ export function ProjectOpenIssuesSection() {
     closeOpenIssue,
     convertIssueToProblem,
     date,
-    expandedIssueId,
     isReadOnly,
     isoDate,
     issueEditDrafts,
     issueLinkDrafts,
-    issuePrimaryJiraLink,
     issueSeverityLabel,
     issueStatusDrafts,
     issueStatusLabel,
-    latestIssueStatusUpdate,
     project,
     removeIssueJiraLink,
-    saveOpenIssue,
     saveOpenIssueWithPayload,
-    setExpandedIssueId,
     setIssueLinkDrafts,
     updateIssueDraft,
     updateIssueStatusDraft,
   } = usePageContext();
+  const [savingCells, setSavingCells] = useState<Set<string>>(() => new Set());
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const saveIssueTitle = (issue: Issue) => {
-    const draft = issueEditDrafts[issue.id];
-    if (!draft) return;
-    const title = draft.title.trim();
-    if (!title || title === issue.title) {
-      updateIssueDraft(issue.id, { title: issue.title });
+  const groups = useMemo(() => {
+    const result = new Map<string, Issue[]>();
+    for (const issue of project.issues as Issue[]) {
+      const category = issue.category.trim() || "Без раздела";
+      result.set(category, [...(result.get(category) ?? []), issue]);
+    }
+    return [...result.entries()];
+  }, [project.issues]);
+  const categoryOptions = groups.map(([category]) => category);
+
+  const patchDraft = (
+    issue: Issue,
+    patch: Partial<IssueEditDraft>,
+  ) => updateIssueDraft(issue.id, patch, issueToDraft(issue));
+
+  const persistField = async (
+    issue: Issue,
+    field: EditableIssueField,
+    requestedValue?: IssueEditDraft[EditableIssueField],
+  ) => {
+    const draft = (issueEditDrafts[issue.id] as IssueEditDraft | undefined) ?? issueToDraft(issue);
+    const key = `${issue.id}:${field}`;
+    const nextValue = normalizedFieldValue(field, requestedValue ?? draft[field]);
+    const currentValue = issueFieldValue(issue, field);
+    if (nextValue === currentValue) {
+      patchDraft(issue, { [field]: nextValue ?? "" });
+      setFieldErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
       return;
     }
-    void saveOpenIssueWithPayload(issue.id, { title });
+    if ((field === "title" || field === "category") && !String(nextValue).trim()) {
+      patchDraft(issue, { [field]: String(currentValue ?? "") });
+      return;
+    }
+
+    const payloadValue = nullableFields.has(field) && nextValue === "" ? null : nextValue;
+    patchDraft(issue, { [field]: nextValue ?? "" });
+    setSavingCells((current) => new Set(current).add(key));
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    try {
+      const result = await saveOpenIssueWithPayload(
+        issue.id,
+        { [field]: payloadValue },
+        { quiet: true, refresh: false },
+      );
+      if (result.ok) {
+        setFieldErrors((current) => {
+          const next = { ...current };
+          delete next[key];
+          return next;
+        });
+      } else {
+        setFieldErrors((current) => ({ ...current, [key]: result.error }));
+      }
+    } finally {
+      setSavingCells((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    }
   };
 
-  const handleTitleKeyDown = (
+  const appendStatus = async (issue: Issue) => {
+    const key = `${issue.id}:statusUpdate`;
+    setSavingCells((current) => new Set(current).add(key));
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    try {
+      const result = await addIssueStatusUpdate(
+        issue.id,
+        { quiet: true, refresh: false },
+      );
+      if (!result.ok) {
+        setFieldErrors((current) => ({ ...current, [key]: result.error }));
+      }
+    } finally {
+      setSavingCells((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  const commitOnEnter = (
     event: KeyboardEvent<HTMLInputElement>,
     issue: Issue,
+    field: EditableIssueField,
   ) => {
-    event.stopPropagation();
-    if (event.key === "Enter") {
-      event.currentTarget.blur();
-      return;
-    }
+    if (event.key === "Enter") event.currentTarget.blur();
     if (event.key === "Escape") {
-      updateIssueDraft(issue.id, { title: issue.title });
+      const currentValue = issueFieldValue(issue, field);
+      patchDraft(issue, { [field]: currentValue ?? "" });
+      event.currentTarget.blur();
     }
   };
 
-  return <div className="issue-list">
-                    <div className="issue-list-head" aria-hidden="true">
-                      <span>Запись</span>
-                      <span>Ключ Jira</span>
-                      <span>Критичность</span>
-                      <span>Срок</span>
-                      <span>Ответственный</span>
-                      <span />
-                    </div>
-                      {project.issues.map((issue) => {
-                        const delayDays = calendarDelayDays(
-                          issue.initialDueDate,
-                          issue.dueDate,
-                        );
-                        const jiraLink = issuePrimaryJiraLink(issue);
-                        return (
-                        <div className="issue-row" id={`issue-item-${issue.id}`} key={issue.id}>
-                          <div
-                            className="issue-summary-row"
-                            role="button"
-                            tabIndex={0}
-                            aria-expanded={expandedIssueId === issue.id}
-                            aria-controls={`issue-details-${issue.id}`}
-                            onClick={() =>
-                              setExpandedIssueId(
-                                expandedIssueId === issue.id ? null : issue.id,
-                              )
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key !== "Enter" && event.key !== " ") {
-                                return;
-                              }
-                              event.preventDefault();
-                              setExpandedIssueId(
-                                expandedIssueId === issue.id ? null : issue.id,
-                              );
-                            }}
-                          >
-                            <input
-                              className="issue-summary-title-input"
-                              value={
-                                issueEditDrafts[issue.id]?.title ?? issue.title
-                              }
-                              onChange={(event) =>
-                                updateIssueDraft(issue.id, {
-                                  title: event.target.value,
-                                })
-                              }
-                              onBlur={() => saveIssueTitle(issue)}
-                              onClick={(event) => event.stopPropagation()}
-                              onKeyDown={(event) =>
-                                handleTitleKeyDown(event, issue)
-                              }
-                              aria-label="Название открытого вопроса"
-                              disabled={isReadOnly}
-                            />
-                              <span className="issue-summary-cell">
-                                {jiraLink.key && jiraLink.url ? (
-                                  <a
-                                    className="issue-jira-key"
-                                    href={jiraLink.url}
-                                    rel="noreferrer"
-                                    target="_blank"
-                                    onClick={(event) => event.stopPropagation()}
-                                  >
-                                    {jiraLink.key}
-                                  </a>
-                                ) : (
-                                  jiraLink.key || "не задан"
-                                )}
-                              </span>
-                            <span className="issue-summary-cell">
-                              <span
-                                className={`issue-severity-pill ${issue.severity.toLowerCase()}`}
-                              >
-                                {issueSeverityLabel(issue.severity)}
-                              </span>
-                            </span>
-                            <span className="issue-summary-cell">
-                              {date(issue.dueDate)}
-                            </span>
-                            <span className="issue-summary-cell">
-                              {issue.owner || "не назначен"}
-                            </span>
-                              <span className="issue-chevron" aria-hidden="true">
-                                {expandedIssueId === issue.id ? (
-                                  <ChevronDown size={17} />
-                                ) : (
-                                  <ChevronRight size={17} />
-                                )}
-                              </span>
-                            </div>
-                        {expandedIssueId === issue.id && (
-                          <div
-                            className="issue-details-panel"
-                            id={`issue-details-${issue.id}`}
-                          >
-                            {(() => {
-                              const draft = issueEditDrafts[issue.id];
-                              const latestStatus = latestIssueStatusUpdate(issue);
-                              const statusTimeline = [...issue.statusUpdates].sort(
-                                (left, right) => {
-                                  const statusDelta =
-                                    new Date(right.statusAt).getTime() -
-                                    new Date(left.statusAt).getTime();
-                                  if (statusDelta !== 0) return statusDelta;
-                                  return (
-                                    new Date(right.createdAt).getTime() -
-                                    new Date(left.createdAt).getTime()
-                                  );
-                                },
-                              );
-                              return (
-                                <>
-                                  <div className="issue-detail-layout">
-                                    <section className="issue-work-card issue-status-card">
-                                      <div className="issue-card-title">
-                                        <div>
-                                          <span>Статусы</span>
-                                          <p>Добавить обновление и посмотреть историю</p>
-                                        </div>
-                                      </div>
-                                      <div className="issue-status-add-card">
-                                        <div className="issue-status-add-grid">
-                                          <label>
-                                            Дата
-                                            <input
-                                              type="date"
-                                              value={
-                                                issueStatusDrafts[issue.id]?.statusAt ??
-                                                isoDate(new Date())
-                                              }
-                                              onChange={(event) =>
-                                                updateIssueStatusDraft(issue.id, {
-                                                  statusAt: event.target.value,
-                                                })
-                                              }
-                                            />
-                                          </label>
-                                          <label className="issue-status-text-field">
-                                            Новый статус
-                                            <textarea
-                                              rows={2}
-                                              value={issueStatusDrafts[issue.id]?.text ?? ""}
-                                              onChange={(event) =>
-                                                updateIssueStatusDraft(issue.id, {
-                                                  text: event.target.value,
-                                                })
-                                              }
-                                              placeholder="Что изменилось, следующий шаг, блокеры"
-                                            />
-                                          </label>
-                                          <button
-                                            type="button"
-                                            className="icon-text-button"
-                                            onClick={() => addIssueStatusUpdate(issue.id)}
-                                            disabled={isReadOnly}
-                                          >
-                                            <Plus size={16} />
-                                            Добавить статус
-                                          </button>
-                                        </div>
-                                      </div>
-                                      {statusTimeline.length > 0 ? (
-                                        <div className="issue-status-timeline">
-                                          {statusTimeline.map((statusUpdate) => (
-                                            <article
-                                              className={`issue-status-timeline-item ${
-                                                statusUpdate.id === latestStatus?.id
-                                                  ? "current"
-                                                  : ""
-                                              }`}
-                                              key={statusUpdate.id}
-                                            >
-                                              <div className="issue-status-marker" />
-                                              <div className="issue-status-entry">
-                                                <div className="issue-status-entry-head">
-                                                  <span>{date(statusUpdate.statusAt)}</span>
-                                                  {statusUpdate.id === latestStatus?.id && (
-                                                    <b>Текущий</b>
-                                                  )}
-                                                </div>
-                                                <p>{statusUpdate.text}</p>
-                                              </div>
-                                            </article>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <div className="issue-status-empty">
-                                          <p>Предыдущих статусов нет.</p>
-                                        </div>
-                                      )}
-                                    </section>
+  if (project.issues.length === 0) {
+    return <div className="empty-state issue-register-empty">Открытых вопросов нет.</div>;
+  }
 
-                                    <aside className="issue-work-card issue-properties-card">
-                                      <div className="issue-card-title">
-                                        <div>
-                                          <span>Параметры вопроса</span>
-                                          <p>Ответственный, срок, влияние и Jira</p>
-                                        </div>
-                                      </div>
-                                      <div className="issue-detail-meta">
-                                        <span
-                                          className={`severity ${issue.severity.toLowerCase()}`}
-                                        >
-                                          {issueSeverityLabel(issue.severity)}
-                                        </span>
-                                        <span>{issueStatusLabel(issue.status)}</span>
-                                        <span>
-                                          {issue.source === "JIRA" ? "Jira" : "Внутренний"}
-                                        </span>
-                                        {issue.initialDueDate && (
-                                          <span>
-                                            Первичный срок: {date(issue.initialDueDate)}
-                                          </span>
-                                        )}
-                                        {delayDays > 0 && (
-                                          <b>Сдвиг срока: +{delayDays} кал. дн.</b>
-                                        )}
-                                        {issue.decisionRequired && <b>Требует решения</b>}
-                                      </div>
-                                      {draft && (
-                                        <div className="issue-edit-grid">
-                                          <label>
-                                            Критичность
-                                            <select
-                                              value={draft.severity}
-                                              onChange={(event) =>
-                                                updateIssueDraft(issue.id, {
-                                                  severity: event.target.value as Issue["severity"],
-                                                })
-                                              }
-                                              disabled={isReadOnly}
-                                            >
-                                              <option value="CRITICAL">
-                                                {issueSeverityLabel("CRITICAL")}
-                                              </option>
-                                              <option value="HIGH">
-                                                {issueSeverityLabel("HIGH")}
-                                              </option>
-                                              <option value="MEDIUM">
-                                                {issueSeverityLabel("MEDIUM")}
-                                              </option>
-                                              <option value="LOW">
-                                                {issueSeverityLabel("LOW")}
-                                              </option>
-                                            </select>
-                                          </label>
-                                          <label>
-                                            Статус вопроса
-                                            <select
-                                              value={draft.status}
-                                              onChange={(event) =>
-                                                updateIssueDraft(issue.id, {
-                                                  status: event.target.value,
-                                                })
-                                              }
-                                              disabled={isReadOnly}
-                                            >
-                                              <option value="Open">
-                                                {issueStatusLabel("Open")}
-                                              </option>
-                                              <option value="In Progress">
-                                                {issueStatusLabel("In Progress")}
-                                              </option>
-                                              <option value="Blocked">
-                                                {issueStatusLabel("Blocked")}
-                                              </option>
-                                              <option value="Resolved">
-                                                {issueStatusLabel("Resolved")}
-                                              </option>
-                                              <option value="Closed">
-                                                {issueStatusLabel("Closed")}
-                                              </option>
-                                            </select>
-                                          </label>
-                                          <label>
-                                            Ответственный
-                                            <input
-                                              value={draft.owner}
-                                              onChange={(event) =>
-                                                updateIssueDraft(issue.id, {
-                                                  owner: event.target.value,
-                                                })
-                                              }
-                                              placeholder="Кто ведет вопрос"
-                                              disabled={isReadOnly}
-                                            />
-                                          </label>
-                                          <label>
-                                            Срок решения
-                                            <input
-                                              type="date"
-                                              value={draft.dueDate}
-                                              onChange={(event) =>
-                                                updateIssueDraft(issue.id, {
-                                                  dueDate: event.target.value,
-                                                })
-                                              }
-                                              disabled={isReadOnly}
-                                            />
-                                          </label>
-                                          <label>
-                                            Основной ключ Jira
-                                            <input
-                                              value={draft.jiraTicketKey}
-                                              onChange={(event) =>
-                                                updateIssueDraft(issue.id, {
-                                                  jiraTicketKey: event.target.value,
-                                                })
-                                              }
-                                              placeholder="Например, PROJ-123"
-                                              disabled={isReadOnly}
-                                            />
-                                          </label>
-                                          <label>
-                                            Основная ссылка Jira
-                                            <input
-                                              value={draft.jiraTicketUrl}
-                                              onChange={(event) =>
-                                                updateIssueDraft(issue.id, {
-                                                  jiraTicketUrl: event.target.value,
-                                                })
-                                              }
-                                              placeholder="https://..."
-                                              disabled={isReadOnly}
-                                            />
-                                          </label>
-                                          <label className="checkbox-line compact-checkbox issue-decision-check">
-                                            <input
-                                              type="checkbox"
-                                              checked={draft.decisionRequired}
-                                              onChange={(event) =>
-                                                updateIssueDraft(issue.id, {
-                                                  decisionRequired: event.target.checked,
-                                                })
-                                              }
-                                              disabled={isReadOnly}
-                                            />
-                                            Требует решения
-                                          </label>
-                                          <label className="issue-impact-field">
-                                            Влияние
-                                            <textarea
-                                              value={draft.impact}
-                                              onChange={(event) =>
-                                                updateIssueDraft(issue.id, {
-                                                  impact: event.target.value,
-                                                })
-                                              }
-                                              rows={3}
-                                              placeholder="На что влияет вопрос"
-                                              disabled={isReadOnly}
-                                            />
-                                          </label>
-                                          <div className="issue-actions">
-                                            <button
-                                              type="button"
-                                              className="icon-text-button"
-                                              onClick={() => saveOpenIssue(issue.id)}
-                                              disabled={isReadOnly}
-                                            >
-                                              <Save size={16} />
-                                              Сохранить вопрос
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="icon-text-button"
-                                              onClick={() =>
-                                                convertIssueToProblem(issue.id)
-                                              }
-                                              disabled={isReadOnly}
-                                            >
-                                              <AlertTriangle size={16} />
-                                              В проблему
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="icon-text-button"
-                                              onClick={() => closeOpenIssue(issue.id)}
-                                              disabled={isReadOnly}
-                                            >
-                                              <CheckCircle2 size={16} />
-                                              Решено
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
-                                      <div className="issue-jira-block">
-                                        <div className="issue-card-title compact">
-                                          <span>Связанные задачи Jira</span>
-                                        </div>
-                                        {jiraLink.key || jiraLink.url ? (
-                                          <div className="issue-primary-jira">
-                                            <Link2 size={15} />
-                                            {jiraLink.url ? (
-                                              <a
-                                                href={jiraLink.url}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                              >
-                                                {jiraLink.key || jiraLink.url}
-                                                <ExternalLink size={13} />
-                                              </a>
-                                            ) : (
-                                              <span>{jiraLink.key}</span>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <p className="muted-text">
-                                            Основная задача Jira не задана.
-                                          </p>
-                                        )}
-                                        <div className="jira-link-list">
-                                          {issue.jiraLinks.map((link) => (
-                                            <span className="jira-chip" key={link.id}>
-                                              <a
-                                                href={link.jiraUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                              >
-                                                {link.jiraKey}
-                                              </a>
-                                              <button
-                                                type="button"
-                                                aria-label={`Удалить связь ${link.jiraKey}`}
-                                                onClick={() =>
-                                                  removeIssueJiraLink(issue.id, link.id)
-                                                }
-                                                disabled={isReadOnly}
-                                              >
-                                                <X size={12} />
-                                              </button>
-                                            </span>
-                                          ))}
-                                          {issue.jiraLinks.length === 0 && (
-                                            <span className="muted-inline">
-                                              Дополнительных связей нет.
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </aside>
-                                  </div>
-                                </>
-                              );
-                            })()}
-                            <div className="issue-link-edit">
-                              <input
-                                value={issueLinkDrafts[issue.id]?.jiraKey ?? ""}
-                                onChange={(event) =>
-                                  setIssueLinkDrafts({
-                                    ...issueLinkDrafts,
-                                    [issue.id]: {
-                                      ...(issueLinkDrafts[issue.id] ?? {
-                                        jiraUrl: "",
-                                      }),
-                                      jiraKey: event.target.value,
-                                    },
-                                  })
-                                }
-                                placeholder="Ключ Jira"
-                                disabled={isReadOnly}
-                              />
-                              <input
-                                value={issueLinkDrafts[issue.id]?.jiraUrl ?? ""}
-                                onChange={(event) =>
-                                  setIssueLinkDrafts({
-                                    ...issueLinkDrafts,
-                                    [issue.id]: {
-                                      ...(issueLinkDrafts[issue.id] ?? {
-                                        jiraKey: "",
-                                      }),
-                                      jiraUrl: event.target.value,
-                                    },
-                                  })
-                                }
-                                placeholder="Jira URL"
-                                disabled={isReadOnly}
-                              />
+  return (
+    <>
+      <div
+        className="issue-register-scroll"
+        role="region"
+        tabIndex={0}
+        aria-label="Таблица открытых вопросов, доступна горизонтальная прокрутка"
+      >
+        <table className="issue-register">
+          <caption className="issue-register-caption">
+            Открытые вопросы проекта с редактированием полей в таблице
+          </caption>
+          <colgroup>
+            <col className="issue-col-number" />
+            <col className="issue-col-task" />
+            <col className="issue-col-link" />
+            <col className="issue-col-status" />
+            <col className="issue-col-owner" />
+            <col className="issue-col-risk" />
+            <col className="issue-col-readiness" />
+            <col className="issue-col-parameters" />
+          </colgroup>
+          <thead className="issue-register-head">
+            <tr>
+              <th scope="col">№</th>
+              <th scope="col">Задача</th>
+              <th scope="col">Ссылка</th>
+              <th scope="col">Статус</th>
+              <th scope="col">Ответственный</th>
+              <th scope="col">Риски</th>
+              <th scope="col">Готовность</th>
+              <th scope="col">Параметры</th>
+            </tr>
+          </thead>
+          {groups.map(([category, issues]) => (
+            <tbody className="issue-register-group" key={category}>
+              <tr className="issue-register-group-heading">
+                <th colSpan={8} scope="rowgroup">{category}</th>
+              </tr>
+              {issues.map((issue, index) => {
+                const draft = (issueEditDrafts[issue.id] as IssueEditDraft | undefined)
+                  ?? issueToDraft(issue);
+                const statuses = sortedStatusUpdates(issue);
+                const latestStatus = statuses[0];
+                const statusDraft = issueStatusDrafts[issue.id] ?? {
+                  statusAt: isoDate(new Date()),
+                  text: "",
+                };
+                const jiraDraft = issueLinkDrafts[issue.id] ?? { jiraKey: "", jiraUrl: "" };
+                const displayedReferenceUrl = draft.referenceUrl.trim();
+                const delayDays = calendarDelayDays(
+                  issue.initialDueDate,
+                  issue.dueDate,
+                );
+                const isSaving = (field: EditableIssueField | "statusUpdate") =>
+                  savingCells.has(`${issue.id}:${field}`);
+                const fieldError = (...fields: Array<EditableIssueField | "statusUpdate">) => {
+                  const message = fields
+                    .map((field) => fieldErrors[`${issue.id}:${field}`])
+                    .find(Boolean);
+                  return message ? (
+                    <span className="issue-inline-error" role="alert">{message}</span>
+                  ) : null;
+                };
+                return (
+                  <tr
+                    className="issue-register-row"
+                    id={`issue-item-${issue.id}`}
+                    key={issue.id}
+                  >
+                    <th className="issue-register-number" scope="row">{index + 1}</th>
+                    <td className="issue-register-cell issue-register-task">
+                      <input
+                        className="issue-inline-category"
+                        list="open-issue-categories"
+                        value={draft.category}
+                        disabled={isReadOnly}
+                        aria-busy={isSaving("category")}
+                        onChange={(event) => patchDraft(issue, { category: event.target.value })}
+                        onBlur={() => void persistField(issue, "category")}
+                        onKeyDown={(event) => commitOnEnter(event, issue, "category")}
+                        aria-label="Раздел вопроса"
+                      />
+                      <textarea
+                        rows={3}
+                        value={draft.title}
+                        disabled={isReadOnly}
+                        aria-busy={isSaving("title")}
+                        onChange={(event) => patchDraft(issue, { title: event.target.value })}
+                        onBlur={() => void persistField(issue, "title")}
+                        aria-label="Название вопроса"
+                      />
+                      {fieldError("category", "title")}
+                    </td>
+                    <td className="issue-register-cell issue-register-links">
+                      <input
+                        value={draft.referenceLabel}
+                        placeholder="Подпись ссылки"
+                        disabled={isReadOnly}
+                        aria-busy={isSaving("referenceLabel")}
+                        onChange={(event) => patchDraft(issue, { referenceLabel: event.target.value })}
+                        onBlur={() => void persistField(issue, "referenceLabel")}
+                        onKeyDown={(event) => commitOnEnter(event, issue, "referenceLabel")}
+                        aria-label="Подпись рабочей ссылки"
+                      />
+                      <div className="issue-inline-url">
+                        <input
+                          type="url"
+                          value={draft.referenceUrl}
+                          placeholder="https://..."
+                          disabled={isReadOnly}
+                          aria-busy={isSaving("referenceUrl")}
+                          onChange={(event) => patchDraft(issue, { referenceUrl: event.target.value })}
+                          onBlur={() => void persistField(issue, "referenceUrl")}
+                          onKeyDown={(event) => commitOnEnter(event, issue, "referenceUrl")}
+                          aria-label="Рабочая ссылка"
+                        />
+                        {displayedReferenceUrl ? (
+                          <a
+                            href={displayedReferenceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Открыть ссылку: ${draft.referenceLabel.trim() || displayedReferenceUrl}`}
+                          >
+                            <span>{draft.referenceLabel.trim() || "Открыть ссылку"}</span>
+                            <ExternalLink size={15} />
+                          </a>
+                        ) : null}
+                      </div>
+                      <div className="issue-primary-jira-fields">
+                        <span>{issue.source === "JIRA" ? "Источник Jira" : "Внутренний вопрос"}</span>
+                        <input
+                          value={draft.jiraTicketKey}
+                          placeholder="Основной ключ Jira"
+                          disabled={isReadOnly}
+                          aria-busy={isSaving("jiraTicketKey")}
+                          onChange={(event) => patchDraft(issue, { jiraTicketKey: event.target.value })}
+                          onBlur={() => void persistField(issue, "jiraTicketKey")}
+                          onKeyDown={(event) => commitOnEnter(event, issue, "jiraTicketKey")}
+                          aria-label="Основной ключ Jira"
+                        />
+                        <input
+                          type="url"
+                          value={draft.jiraTicketUrl}
+                          placeholder="Основной URL Jira"
+                          disabled={isReadOnly}
+                          aria-busy={isSaving("jiraTicketUrl")}
+                          onChange={(event) => patchDraft(issue, { jiraTicketUrl: event.target.value })}
+                          onBlur={() => void persistField(issue, "jiraTicketUrl")}
+                          onKeyDown={(event) => commitOnEnter(event, issue, "jiraTicketUrl")}
+                          aria-label="Основной URL Jira"
+                        />
+                      </div>
+                      <div className="issue-inline-jira-list">
+                        {issue.jiraLinks.map((link) => (
+                          <span className="jira-chip" key={link.id}>
+                            <a href={link.jiraUrl} target="_blank" rel="noreferrer">{link.jiraKey}</a>
+                            {!isReadOnly ? (
                               <button
                                 type="button"
-                                onClick={() => addIssueJiraLink(issue.id)}
-                                disabled={isReadOnly}
+                                aria-label={`Удалить связь ${link.jiraKey}`}
+                                onClick={() => void removeIssueJiraLink(issue.id, link.id)}
                               >
-                                <Plus size={15} />
-                                Добавить связь
+                                <Trash2 size={12} />
                               </button>
-                            </div>
-                          </div>
-                        )}
+                            ) : null}
+                          </span>
+                        ))}
                       </div>
-                      );
-                      })}
-                    </div>;
+                      {!isReadOnly ? (
+                        <div className="issue-inline-jira-add">
+                          <input
+                            value={jiraDraft.jiraKey}
+                            placeholder="JIRA-123"
+                            onChange={(event) => setIssueLinkDrafts({
+                              ...issueLinkDrafts,
+                              [issue.id]: { ...jiraDraft, jiraKey: event.target.value },
+                            })}
+                            aria-label="Ключ новой связи Jira"
+                          />
+                          <input
+                            type="url"
+                            value={jiraDraft.jiraUrl}
+                            placeholder="URL Jira"
+                            onChange={(event) => setIssueLinkDrafts({
+                              ...issueLinkDrafts,
+                              [issue.id]: { ...jiraDraft, jiraUrl: event.target.value },
+                            })}
+                            aria-label="URL новой связи Jira"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Добавить связь Jira"
+                            disabled={!jiraDraft.jiraKey.trim() || !jiraDraft.jiraUrl.trim()}
+                            onClick={() => void addIssueJiraLink(issue.id)}
+                          >
+                            <Link2 size={14} />
+                          </button>
+                        </div>
+                      ) : null}
+                      {fieldError(
+                        "referenceLabel",
+                        "referenceUrl",
+                        "jiraTicketKey",
+                        "jiraTicketUrl",
+                      )}
+                    </td>
+                    <td className="issue-register-cell issue-register-status">
+                      {latestStatus ? (
+                        <div className="issue-current-status">
+                          <time dateTime={latestStatus.statusAt}>{date(latestStatus.statusAt)}</time>
+                          <p>{latestStatus.text}</p>
+                        </div>
+                      ) : (
+                        <p className="muted-inline">Статус ещё не добавлен</p>
+                      )}
+                      {statuses.length > 1 ? (
+                        <details className="issue-status-history">
+                          <summary>История · {statuses.length}</summary>
+                          {statuses.slice(1).map((status) => (
+                            <div key={status.id}>
+                              <time dateTime={status.statusAt}>{date(status.statusAt)}</time>
+                              <p>{status.text}</p>
+                            </div>
+                          ))}
+                        </details>
+                      ) : null}
+                      {!isReadOnly ? (
+                        <div className="issue-inline-status-add">
+                          <input
+                            type="date"
+                            value={statusDraft.statusAt}
+                            disabled={isSaving("statusUpdate")}
+                            onChange={(event) => updateIssueStatusDraft(issue.id, { statusAt: event.target.value })}
+                            aria-label="Дата нового статуса"
+                          />
+                          <textarea
+                            rows={2}
+                            value={statusDraft.text}
+                            placeholder="Добавить новый статус"
+                            disabled={isSaving("statusUpdate")}
+                            onChange={(event) => updateIssueStatusDraft(issue.id, { text: event.target.value })}
+                            aria-label="Текст нового статуса"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Добавить статус"
+                            disabled={isSaving("statusUpdate") || !statusDraft.text.trim()}
+                            onClick={() => void appendStatus(issue)}
+                          >
+                            <Plus size={15} />
+                          </button>
+                        </div>
+                      ) : null}
+                      {fieldError("statusUpdate")}
+                    </td>
+                    <td className="issue-register-cell">
+                      <textarea
+                        rows={3}
+                        value={draft.owner}
+                        placeholder="Ответственный"
+                        disabled={isReadOnly}
+                        aria-busy={isSaving("owner")}
+                        onChange={(event) => patchDraft(issue, { owner: event.target.value })}
+                        onBlur={() => void persistField(issue, "owner")}
+                        aria-label="Ответственный"
+                      />
+                      {fieldError("owner")}
+                    </td>
+                    <td className="issue-register-cell">
+                      <textarea
+                        rows={4}
+                        value={draft.impact}
+                        placeholder="Риск и последствия"
+                        disabled={isReadOnly}
+                        aria-busy={isSaving("impact")}
+                        onChange={(event) => patchDraft(issue, { impact: event.target.value })}
+                        onBlur={() => void persistField(issue, "impact")}
+                        aria-label="Риски"
+                      />
+                      {fieldError("impact")}
+                    </td>
+                    <td className={`issue-register-cell issue-readiness-cell ${draft.readiness.toLowerCase()}`}>
+                      <select
+                        value={draft.readiness}
+                        disabled={isReadOnly}
+                        aria-busy={isSaving("readiness")}
+                        onChange={(event) => {
+                          const readiness = event.target.value as Issue["readiness"];
+                          patchDraft(issue, { readiness });
+                          void persistField(issue, "readiness", readiness);
+                        }}
+                        aria-label="Готовность"
+                      >
+                        {Object.entries(readinessLabels).map(([value, label]) => (
+                          <option value={value} key={value}>{label}</option>
+                        ))}
+                      </select>
+                      {fieldError("readiness")}
+                    </td>
+                    <td className="issue-register-cell issue-register-parameters">
+                      <label>
+                        <span>Критичность</span>
+                        <select
+                          value={draft.severity}
+                          disabled={isReadOnly}
+                          aria-busy={isSaving("severity")}
+                          onChange={(event) => {
+                            const severity = event.target.value as Issue["severity"];
+                            patchDraft(issue, { severity });
+                            void persistField(issue, "severity", severity);
+                          }}
+                        >
+                          {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((value) => (
+                            <option value={value} key={value}>{issueSeverityLabel(value)}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Состояние</span>
+                        <select
+                          value={draft.status}
+                          disabled={isReadOnly}
+                          aria-busy={isSaving("status")}
+                          onChange={(event) => {
+                            const status = event.target.value;
+                            patchDraft(issue, { status });
+                            void persistField(issue, "status", status);
+                          }}
+                        >
+                          {["Open", "In Progress", "Blocked", "Resolved", "Closed"].map((value) => (
+                            <option value={value} key={value}>{issueStatusLabel(value)}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Срок</span>
+                        <input
+                          type="date"
+                          value={draft.dueDate}
+                          disabled={isReadOnly}
+                          aria-busy={isSaving("dueDate")}
+                          onChange={(event) => patchDraft(issue, { dueDate: event.target.value })}
+                          onBlur={() => void persistField(issue, "dueDate")}
+                        />
+                      </label>
+                      <div className="issue-inline-history-meta">
+                        {issue.initialDueDate ? (
+                          <span>Исходный срок: {date(issue.initialDueDate)}</span>
+                        ) : null}
+                        {delayDays !== 0 ? (
+                          <span>
+                            Сдвиг: {delayDays > 0 ? "+" : ""}{delayDays} кал. дн.
+                          </span>
+                        ) : null}
+                      </div>
+                      <label className="issue-inline-decision">
+                        <input
+                          type="checkbox"
+                          checked={draft.decisionRequired}
+                          disabled={isReadOnly}
+                          aria-busy={isSaving("decisionRequired")}
+                          onChange={(event) => {
+                            const decisionRequired = event.target.checked;
+                            patchDraft(issue, { decisionRequired });
+                            void persistField(issue, "decisionRequired", decisionRequired);
+                          }}
+                        />
+                        Требует решения
+                      </label>
+                      {fieldError("severity", "status", "dueDate", "decisionRequired")}
+                      {!isReadOnly ? (
+                        <div className="issue-inline-actions">
+                          <button type="button" className="secondary-button" onClick={() => void convertIssueToProblem(issue.id)}>В проблему</button>
+                          <button type="button" className="secondary-button" onClick={() => void closeOpenIssue(issue.id)}><Check size={14} />Закрыть</button>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          ))}
+        </table>
+      </div>
+      <datalist id="open-issue-categories">
+        {categoryOptions.map((category) => <option value={category} key={category} />)}
+      </datalist>
+    </>
+  );
 }

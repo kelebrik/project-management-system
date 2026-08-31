@@ -105,8 +105,12 @@ function projectFixture() {
   const issue = {
     id: "issue-1",
     source: "INTERNAL",
+    category: "Организационные задачи",
     title: "Согласовать дату запуска",
+    referenceLabel: "Протокол комитета",
+    referenceUrl: "https://example.test/launch-meeting",
     severity: "HIGH",
+    readiness: "AMBER",
     status: "Open",
     owner: "РП",
     impact: "Сдвиг запуска",
@@ -1673,10 +1677,124 @@ test("overview entries expand statuses and open the selected issue", async ({ pa
     .getByRole("button", { name: "Согласовать дату запуска", exact: true })
     .click();
   await expect(page).toHaveURL(/\/TV-OVERVIEW\/issues$/);
-  await expect(page.locator("#issue-item-issue-1 .issue-summary-row")).toHaveAttribute(
-    "aria-expanded",
-    "true",
+  await expect(page.locator("#issue-item-issue-1")).toBeVisible();
+});
+
+test("open issues register edits one cell and adds a dated status inline", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  const issue = project.issues[0];
+  const originalImpact = issue.impact;
+  const issuePatches: Record<string, unknown>[] = [];
+  let statusPayload: Record<string, unknown> | null = null;
+
+  await page.route("**/api/open-issues/issue-1", async (route) => {
+    const patch = route.request().postDataJSON() as Record<string, unknown>;
+    issuePatches.push(patch);
+    if (patch.impact === "Ошибка сохранения") {
+      await route.fulfill({ status: 500, json: { error: "Тестовая ошибка сохранения" } });
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, "title" in patch ? 120 : 10));
+    Object.assign(issue, patch);
+    await route.fulfill({ json: issue });
+  });
+  await page.route("**/api/open-issues/issue-1/status-updates", async (route) => {
+    statusPayload = route.request().postDataJSON() as Record<string, unknown>;
+    const update = {
+      id: "issue-status-new",
+      issueId: issue.id,
+      statusAt: String(statusPayload.statusAt),
+      text: String(statusPayload.text),
+      createdAt: `${String(statusPayload.statusAt)}T12:00:00.000Z`,
+      updatedAt: `${String(statusPayload.statusAt)}T12:00:00.000Z`,
+    };
+    issue.statusUpdates.unshift(update);
+    await route.fulfill({ status: 201, json: update });
+  });
+
+  await page.goto("/TV-OVERVIEW/issues");
+  const row = page.locator("#issue-item-issue-1");
+  const title = row.getByLabel("Название вопроса");
+  const owner = row.getByLabel("Ответственный");
+  await title.fill("  Согласовать обновлённую дату запуска  ");
+  await title.blur();
+  await owner.fill("Владелец запуска");
+  await owner.blur();
+  await expect.poll(() => issuePatches).toEqual([
+    { title: "Согласовать обновлённую дату запуска" },
+    { owner: "Владелец запуска" },
+  ]);
+  await expect(title).toHaveValue("Согласовать обновлённую дату запуска");
+  await expect(owner).toHaveValue("Владелец запуска");
+
+  await row.getByLabel("Раздел вопроса").fill("ChangHong");
+  await row.getByLabel("Раздел вопроса").blur();
+  await expect(page.getByRole("rowgroup").filter({ hasText: "ChangHong" })).toContainText(
+    "Согласовать обновлённую дату запуска",
   );
+  await row.getByLabel("Готовность").selectOption("GREEN");
+  await expect.poll(() => issuePatches).toContainEqual({ readiness: "GREEN" });
+  await expect.poll(() => issue.readiness).toBe("GREEN");
+
+  await row.getByLabel("Риски").fill("Ошибка сохранения");
+  await row.getByLabel("Риски").blur();
+  await expect(row.getByRole("alert")).toHaveText("Тестовая ошибка сохранения");
+  await row.getByLabel("Риски").fill(originalImpact);
+  await row.getByLabel("Риски").blur();
+  await expect(row.getByRole("alert")).toHaveCount(0);
+
+  await row.getByLabel("Дата нового статуса").fill("2026-08-31");
+  await row.getByLabel("Текст нового статуса").fill("Дата запуска подтверждена");
+  await row.getByRole("button", { name: "Добавить статус" }).click();
+  await expect.poll(() => statusPayload).toEqual({
+    statusAt: "2026-08-31",
+    text: "Дата запуска подтверждена",
+  });
+  await expect(row.getByText("Дата запуска подтверждена")).toBeVisible();
+  await expect(row.locator(".issue-current-status time")).toHaveText("31.08.2026");
+
+  await page.getByRole("button", { name: "Состояние", exact: true }).click();
+  await page.getByRole("button", { name: "Вопросы", exact: true }).click();
+  const reopenedRow = page.locator("#issue-item-issue-1");
+  await expect(reopenedRow.getByText("Дата запуска подтверждена")).toBeVisible();
+  await expect(reopenedRow.locator(".issue-current-status time")).toHaveText("31.08.2026");
+});
+
+test("new open issue keeps inline register fields in the create request", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  let createPayload: Record<string, unknown> | null = null;
+  await page.route("**/api/projects/project-1/open-issues", async (route) => {
+    createPayload = route.request().postDataJSON() as Record<string, unknown>;
+    const created = {
+      ...project.issues[0],
+      id: "issue-created",
+      ...createPayload,
+      status: "Open",
+      jiraLinks: [],
+      statusUpdates: [],
+    };
+    project.issues.push(created);
+    await route.fulfill({ status: 201, json: created });
+  });
+
+  await page.goto("/TV-OVERVIEW/issues");
+  await page.getByRole("button", { name: "Создать вопрос" }).click();
+  const dialog = page.getByRole("dialog", { name: "Создать открытый вопрос" });
+  await dialog.getByLabel("Заголовок").fill("  Проверить выпуск  ");
+  await dialog.getByLabel("Раздел").fill("  Новый пульт  ");
+  await dialog.getByLabel("Готовность").selectOption("AMBER");
+  await dialog.getByLabel("Подпись рабочей ссылки").fill("  Ссылка на тред  ");
+  await dialog.getByLabel("Рабочая ссылка").fill("https://example.test/thread/42");
+  await dialog.getByRole("button", { name: "Создать вопрос" }).click();
+
+  await expect.poll(() => createPayload).toMatchObject({
+    title: "Проверить выпуск",
+    category: "Новый пульт",
+    readiness: "AMBER",
+    referenceLabel: "Ссылка на тред",
+    referenceUrl: "https://example.test/thread/42",
+  });
+  await expect(page.locator("#issue-item-issue-created")).toBeVisible();
 });
 
 test("portfolio and projects show work-day weighted progress", async ({ page }) => {

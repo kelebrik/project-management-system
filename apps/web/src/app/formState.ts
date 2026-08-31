@@ -123,8 +123,12 @@ export type JiraWorkSectionDraft = {
 };
 
 export type IssueFormState = {
+  category: string;
   title: string;
+  referenceLabel: string;
+  referenceUrl: string;
   severity: Issue["severity"];
+  readiness: RagStatus;
   owner: string;
   impact: string;
   decisionRequired: boolean;
@@ -171,8 +175,12 @@ export type ArtifactFormState = {
 };
 
 export type IssueEditDraft = {
+  category: string;
   title: string;
+  referenceLabel: string;
+  referenceUrl: string;
   severity: Issue["severity"];
+  readiness: RagStatus;
   status: string;
   owner: string;
   impact: string;
@@ -230,8 +238,12 @@ export const emptySystemSettingsDraft: SystemSettingsDraft = {
 };
 
 export const emptyIssueForm: IssueFormState = {
+  category: "Без раздела",
   title: "",
+  referenceLabel: "",
+  referenceUrl: "",
   severity: "HIGH",
+  readiness: "RED",
   owner: "",
   impact: "",
   decisionRequired: false,
@@ -384,8 +396,12 @@ export function raidToForm(item: RaidItem): RaidFormState {
 
 export function issueToDraft(issue: Issue): IssueEditDraft {
   return {
+    category: issue.category || "Без раздела",
     title: issue.title,
+    referenceLabel: issue.referenceLabel || "",
+    referenceUrl: issue.referenceUrl ?? "",
     severity: issue.severity,
+    readiness: issue.readiness || "RED",
     status: issue.status,
     owner: issue.owner,
     impact: issue.impact,

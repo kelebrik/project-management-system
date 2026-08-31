@@ -392,9 +392,21 @@ export const issueStatusUpdateSchema = z.object({
   text: z.string().trim().min(1),
 });
 
+const httpUrlSchema = z.string().trim().refine((value) => {
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}, "URL должен использовать http или https");
+
 export const createIssueSchema = z.object({
+  category: z.string().trim().min(1).max(120).default("Без раздела"),
   title: z.string().trim().min(1),
+  referenceLabel: z.string().trim().max(120).optional().default(""),
+  referenceUrl: httpUrlSchema.optional().nullable(),
   severity: z.enum(issueSeverities).default("HIGH"),
+  readiness: z.enum(ragStatuses).default("RED"),
   owner: z.string().trim().optional().default(""),
   impact: z.string().trim().optional().default(""),
   decisionRequired: z.boolean().default(false),
@@ -413,8 +425,12 @@ export const createIssueSchema = z.object({
 });
 
 export const updateIssueSchema = z.object({
+  category: z.string().trim().min(1).max(120).optional(),
   title: z.string().trim().min(1).optional(),
+  referenceLabel: z.string().trim().max(120).optional(),
+  referenceUrl: httpUrlSchema.optional().nullable(),
   severity: z.enum(issueSeverities).optional(),
+  readiness: z.enum(ragStatuses).optional(),
   status: z.enum(openIssueStatuses).optional(),
   owner: z.string().trim().optional(),
   impact: z.string().trim().optional(),
