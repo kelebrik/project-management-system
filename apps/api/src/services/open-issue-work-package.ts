@@ -10,6 +10,7 @@ type PlacementItem = Pick<
 export type IssueWorkPackagePlacement = {
   insertIndex: number;
   level: number;
+  parentId: string;
   orderedItems: PlacementItem[];
   movingSubtree: PlacementItem[];
 };
@@ -77,17 +78,17 @@ export function planIssueWorkPackagePlacement(
   let lastBoundaryIndex: number | null = null;
   for (let index = phaseIndex + 1; index < phaseEndIndex; index += 1) {
     const item = orderedItems[index];
-    if (
-      item.parentId === phaseId
-      && (item.type === 'MILESTONE' || item.type === 'GOAL')
-    ) {
+    if (item.type === 'MILESTONE' || item.type === 'GOAL') {
       lastBoundaryIndex = index;
     }
   }
 
+  const boundary = lastBoundaryIndex === null ? null : orderedItems[lastBoundaryIndex];
+
   return {
     insertIndex: lastBoundaryIndex ?? phaseEndIndex,
-    level: phaseLevel + 1,
+    level: boundary ? levelFromWbsItem(boundary) : phaseLevel + 1,
+    parentId: boundary?.parentId ?? phaseId,
     orderedItems,
     movingSubtree: extracted.movingSubtree,
   };
@@ -109,7 +110,6 @@ export type IssueWorkPackageMutation = {
 
 export function buildIssueWorkPackageOrder(
   placement: IssueWorkPackagePlacement,
-  phaseId: string,
   workPackage: PlacementItem,
 ) {
   const previousLevel = placement.movingSubtree.length > 0
@@ -119,15 +119,31 @@ export function buildIssueWorkPackageOrder(
   const movedSubtree = placement.movingSubtree.length > 0
     ? placement.movingSubtree.map((item, index) => ({
         ...item,
-        parentId: index === 0 ? phaseId : item.parentId,
+        parentId: index === 0 ? placement.parentId : item.parentId,
         wbsLevel: levelFromWbsItem(item) + levelDelta,
       }))
-    : [{ ...workPackage, parentId: phaseId, wbsLevel: placement.level }];
+    : [{ ...workPackage, parentId: placement.parentId, wbsLevel: placement.level }];
   return [
     ...placement.orderedItems.slice(0, placement.insertIndex),
     ...movedSubtree,
     ...placement.orderedItems.slice(placement.insertIndex),
   ];
+}
+
+export function isIssueWorkPackagePlacementCurrent(
+  items: PlacementItem[],
+  placement: IssueWorkPackagePlacement,
+  workPackage: PlacementItem,
+) {
+  const currentOrder = [...items].sort(byStructureOrder);
+  const plannedOrder = buildIssueWorkPackageOrder(placement, workPackage);
+  return currentOrder.length === plannedOrder.length
+    && currentOrder.every((item, index) => {
+      const planned = plannedOrder[index];
+      return item.id === planned.id
+        && item.parentId === planned.parentId
+        && levelFromWbsItem(item) === levelFromWbsItem(planned);
+    });
 }
 
 function sameDate(left: Date | null, right: Date | null) {
@@ -231,7 +247,15 @@ export async function upsertIssueWorkPackage(
     || currentWorkPackage.owner !== input.owner
     || !sameDate(currentWorkPackage.dueDate, input.dueDate)
   ));
-  if (currentWorkPackage?.parentId === input.phaseId) {
+  const placement = planIssueWorkPackagePlacement(
+    items,
+    input.phaseId,
+    currentWorkPackage?.id,
+  );
+  if (
+    currentWorkPackage
+    && isIssueWorkPackagePlacementCurrent(items, placement, currentWorkPackage)
+  ) {
     if (metadataChanged) {
       await tx.wbsItem.update({
         where: { id: currentWorkPackage.id },
@@ -249,18 +273,12 @@ export async function upsertIssueWorkPackage(
     };
   }
 
-  const placement = planIssueWorkPackagePlacement(
-    items,
-    input.phaseId,
-    currentWorkPackage?.id,
-  );
-
   let workPackage: WbsItem;
   if (currentWorkPackage) {
     workPackage = await tx.wbsItem.update({
       where: { id: currentWorkPackage.id },
       data: {
-        parentId: input.phaseId,
+        parentId: placement.parentId,
         title: input.title,
         owner: input.owner,
         dueDate: input.dueDate,
@@ -272,7 +290,7 @@ export async function upsertIssueWorkPackage(
     workPackage = await tx.wbsItem.create({
       data: {
         projectId: input.projectId,
-        parentId: input.phaseId,
+        parentId: placement.parentId,
         code: temporaryCode,
         title: input.title,
         type: 'WORK_PACKAGE' satisfies WbsItemType,
@@ -290,7 +308,6 @@ export async function upsertIssueWorkPackage(
 
   const nextOrder = buildIssueWorkPackageOrder(
     placement,
-    input.phaseId,
     workPackage,
   );
   await persistStructureOrder(tx, input.projectId, nextOrder);

@@ -170,7 +170,11 @@ export function useIssueController({
         setIssueFormErrors({});
         await refreshProject(projectId);
         setIssueDrawerMode(null);
-        setNotice("Открытый вопрос создан");
+        setNotice(
+          issueForm.phaseId
+            ? "Открытый вопрос и пакет работ созданы"
+            : "Открытый вопрос создан",
+        );
       } catch (createError) {
         setError(
           createError instanceof Error

@@ -1852,7 +1852,8 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await expect(phaseConfirmation).toContainText("1 · Подготовка выпуска");
   await phaseConfirmation.getByRole("button", { name: "Создать" }).click();
   await expect.poll(() => issuePatches).toContainEqual({ phaseId: "phase-issues" });
-  await expect(row.getByText("Пакет работ создан в Структуре")).toBeVisible();
+  await expect(page.getByText("Пакет работ создан в фазе «1 · Подготовка выпуска»")).toBeVisible();
+  await expect(row.getByText("Пакет работ создан в Структуре")).toHaveCount(0);
 
   await row.getByLabel("Риски").fill("Ошибка сохранения");
   await row.getByLabel("Риски").blur();

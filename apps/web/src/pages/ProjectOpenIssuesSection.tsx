@@ -101,6 +101,7 @@ export function ProjectOpenIssuesSection() {
     saveOpenIssueWithPayload,
     saveProjectUiState,
     setError,
+    setNotice,
     setIssueLinkDrafts,
     updateIssueJiraLink,
     updateIssueDraft,
@@ -212,6 +213,7 @@ export function ProjectOpenIssuesSection() {
       if (!result.ok) {
         setFieldErrors((current) => ({ ...current, [key]: result.error }));
       }
+      return result.ok;
     } finally {
       setSavingCells((current) => {
         const next = new Set(current);
@@ -267,7 +269,14 @@ export function ProjectOpenIssuesSection() {
     });
     if (!approved) return;
     patchDraft(issue, { phaseId });
-    await persistField(issue, "phaseId", phaseId);
+    const saved = await persistField(issue, "phaseId", phaseId);
+    if (saved) {
+      setNotice(
+        moving
+          ? `Пакет работ перемещён в фазу «${phase.code} · ${phase.title}»`
+          : `Пакет работ создан в фазе «${phase.code} · ${phase.title}»`,
+      );
+    }
   };
 
   const saveTicketKey = async (
@@ -380,40 +389,44 @@ export function ProjectOpenIssuesSection() {
                     <th className="issue-register-number" scope="row">{index + 1}</th>
                     <td className="issue-register-cell issue-register-task">
                       <div className="issue-inline-classification">
-                        <input
-                          className="issue-inline-category"
-                          list="open-issue-categories"
-                          value={draft.category}
-                          disabled={isReadOnly}
-                          aria-busy={isSaving("category")}
-                          onChange={(event) => patchDraft(issue, { category: event.target.value })}
-                          onBlur={() => void persistField(issue, "category")}
-                          onKeyDown={(event) => commitOnEnter(event, issue, "category")}
-                          aria-label="Раздел вопроса"
-                        />
-                        <select
-                          value={draft.phaseId}
-                          disabled={isReadOnly || isSaving("phaseId")}
-                          onChange={(event) => void selectIssuePhase(issue, event.target.value)}
-                          aria-label="Фаза проекта"
-                          aria-describedby={`${issue.id}-phase-error`}
-                        >
-                          <option value="" disabled={Boolean(issue.workPackageId)}>Без фазы</option>
-                          {phases.map((phase: { id: string; code: string; title: string }) => (
-                            <option value={phase.id} key={phase.id}>
-                              {phase.code} · {phase.title}
-                            </option>
-                          ))}
-                        </select>
-                        <span id={`${issue.id}-phase-error`}>
+                        <label>
+                          <span>Раздел</span>
+                          <input
+                            className="issue-inline-category"
+                            list="open-issue-categories"
+                            value={draft.category}
+                            disabled={isReadOnly}
+                            aria-busy={isSaving("category")}
+                            onChange={(event) => patchDraft(issue, { category: event.target.value })}
+                            onBlur={() => void persistField(issue, "category")}
+                            onKeyDown={(event) => commitOnEnter(event, issue, "category")}
+                            aria-label="Раздел вопроса"
+                          />
+                        </label>
+                        <label>
+                          <span>Фаза</span>
+                          <select
+                            value={draft.phaseId}
+                            disabled={isReadOnly || isSaving("phaseId")}
+                            onChange={(event) => void selectIssuePhase(issue, event.target.value)}
+                            aria-label="Фаза проекта"
+                            aria-describedby={`${issue.id}-phase-error`}
+                          >
+                            <option value="" disabled={Boolean(issue.workPackageId)}>Без фазы</option>
+                            {phases.map((phase: { id: string; code: string; title: string }) => (
+                              <option value={phase.id} key={phase.id}>
+                                {phase.code} · {phase.title}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <span className="issue-phase-error-slot" id={`${issue.id}-phase-error`}>
                           {fieldError("phaseId")}
                         </span>
                       </div>
-                      {issue.workPackageId ? (
-                        <span className="issue-phase-package-note">Пакет работ создан в Структуре</span>
-                      ) : null}
                       <textarea
-                        rows={3}
+                        className="issue-title-editor"
+                        rows={2}
                         value={draft.title}
                         disabled={isReadOnly}
                         aria-busy={isSaving("title")}
