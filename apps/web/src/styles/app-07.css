@@ -699,8 +699,13 @@
 }
 
 .issue-register {
+  --issue-font: 13px;
+  --issue-meta-font: 12px;
+  --issue-row-gap: 6px;
   border-collapse: separate;
   border-spacing: 0;
+  font-size: var(--issue-font);
+  line-height: 1.4;
   min-width: 1580px;
   table-layout: fixed;
   width: 1580px;
@@ -728,14 +733,15 @@
 .issue-register-head {
   background: var(--surface-3);
   color: var(--text-heading);
-  font-size: 12px;
-  font-weight: 900;
+  font-size: var(--issue-font);
+  font-weight: 700;
 }
 
 .issue-register-head th {
   border-bottom: 1px solid var(--border-strong);
   border-right: 1px solid var(--border);
-  padding: 11px 12px;
+  height: 40px;
+  padding: 9px 10px;
   position: relative;
   text-align: left;
 }
@@ -782,10 +788,10 @@
   border-bottom: 1px solid #bcc5d1;
   color: var(--text-heading);
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0;
   margin: 0;
-  padding: 9px 16px;
+  padding: 8px 12px;
   text-align: center;
 }
 
@@ -798,14 +804,16 @@
   border-bottom: 1px solid var(--border);
   border-right: 1px solid var(--border);
   min-width: 0;
-  padding: 12px;
+  padding: 10px;
   vertical-align: top;
 }
 
 .issue-register-number {
   color: var(--text-heading);
-  font-size: 13px;
-  font-weight: 900;
+  font-size: var(--issue-font);
+  font-weight: 700;
+  padding-left: 4px;
+  padding-right: 4px;
   text-align: center;
 }
 
@@ -814,7 +822,7 @@
 }
 
 .issue-register-cell > * + * {
-  margin-top: 8px;
+  margin-top: var(--issue-row-gap);
 }
 
 .issue-register-cell input,
@@ -825,13 +833,18 @@
   border-radius: 4px;
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--issue-font);
   letter-spacing: 0;
   line-height: 1.4;
   min-width: 0;
   padding: 5px 6px;
   resize: vertical;
   width: 100%;
+}
+
+.issue-register-cell input:not([type="checkbox"]),
+.issue-register-cell select {
+  min-height: 32px;
 }
 
 .issue-register-cell input:hover:not(:disabled),
@@ -854,46 +867,43 @@
 }
 
 .issue-title-editor {
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.45 !important;
-  min-height: 68px;
+  min-height: 64px;
 }
 
 .issue-inline-category {
   color: var(--text-heading) !important;
-  font-size: 12px !important;
-  font-weight: 850 !important;
-  min-height: 30px;
+  font-size: var(--issue-font) !important;
+  font-weight: 600 !important;
 }
 
 .issue-inline-classification {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 5px;
+  border-bottom: 1px solid var(--border);
   display: grid;
-  gap: 3px;
+  gap: 2px;
   grid-template-columns: minmax(0, 1fr);
-  padding: 5px 7px;
+  padding: 0 0 6px;
 }
 
 .issue-inline-classification label {
   align-items: center;
   display: grid;
-  gap: 6px;
-  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  min-height: 32px;
 }
 
 .issue-inline-classification label > span {
   color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 900;
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
 }
 
 .issue-inline-classification select {
   color: var(--text-heading);
-  font-size: 12px;
-  font-weight: 850;
-  min-height: 30px;
+  font-size: var(--issue-font);
+  font-weight: 600;
 }
 
 .issue-inline-classification input,
@@ -912,12 +922,13 @@
   border-radius: 4px;
   color: var(--brand);
   display: inline-flex;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: var(--issue-font);
+  font-weight: 600;
   gap: 6px;
   justify-content: center;
   min-width: 0;
-  padding: 7px 9px;
+  min-height: 32px;
+  padding: 5px 8px;
   text-decoration: none;
   width: 100%;
 }
@@ -926,7 +937,7 @@
   align-items: center;
   display: grid;
   gap: 5px;
-  grid-template-columns: minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(0, 1fr) 32px;
 }
 
 .issue-thread-control > input {
@@ -938,22 +949,22 @@
 }
 
 .issue-thread-edit {
-  height: 30px;
-  min-height: 30px;
+  height: 32px;
+  min-height: 32px;
   padding: 0;
-  width: 30px;
+  width: 32px;
 }
 
 .issue-ticket-links {
   display: grid;
-  gap: 6px;
+  gap: var(--issue-row-gap);
 }
 
 .issue-ticket-label {
   color: var(--text-muted);
   display: block;
-  font-size: 11px;
-  font-weight: 850;
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
 }
 
 .issue-ticket-links a {
@@ -963,11 +974,12 @@
   border-radius: 4px;
   color: var(--brand);
   display: flex;
-  font-size: 12px;
-  font-weight: 850;
+  font-size: var(--issue-font);
+  font-weight: 600;
   gap: 6px;
   justify-content: space-between;
   min-width: 0;
+  min-height: 32px;
   padding: 5px 7px;
   text-decoration: none;
 }
@@ -986,53 +998,53 @@
 }
 
 .issue-ticket-link-item .icon-button {
-  width: 24px;
-  height: 24px;
-  min-width: 24px;
+  height: 32px;
+  min-width: 32px;
   padding: 0;
+  width: 32px;
 }
 
 .issue-ticket-links .icon-button {
-  height: 30px;
-  min-height: 30px;
+  height: 32px;
+  min-height: 32px;
   padding: 0;
-  width: 30px;
+  width: 32px;
 }
 
 .issue-inline-jira-add {
   align-items: center;
   display: grid;
   gap: 4px;
-  grid-template-columns: minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(0, 1fr) 32px;
 }
 
 .issue-inline-jira-add button,
 .issue-inline-status-add button {
   align-items: center;
   display: inline-flex;
-  height: 30px;
+  height: 32px;
   justify-content: center;
   padding: 0;
-  width: 30px;
+  width: 32px;
 }
 
 .issue-current-status {
   border-bottom: 1px solid var(--border);
   display: grid;
   gap: 4px;
-  padding: 1px 1px 9px;
+  padding: 1px 1px 8px;
 }
 
 .issue-current-status time,
 .issue-status-history time {
   color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 900;
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
 }
 
 .issue-current-status p,
 .issue-status-history p {
-  font-size: 13px;
+  font-size: var(--issue-font);
   line-height: 1.45;
   margin: 0;
   overflow-wrap: anywhere;
@@ -1042,8 +1054,8 @@
 .issue-status-history summary {
   color: var(--brand);
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 850;
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
 }
 
 .issue-status-history > div {
@@ -1060,23 +1072,52 @@
   border: 1px dashed var(--border-strong);
   border-radius: 5px;
   display: grid;
-  gap: 5px;
-  grid-template-columns: 58px minmax(0, 1fr) 30px;
-  padding: 6px;
+  gap: 6px;
+  grid-template-columns: 62px minmax(0, 1fr) 32px;
+  padding: 5px;
 }
 
 .issue-status-today {
   align-items: center;
   color: var(--text-muted);
   display: flex;
-  font-size: 12px;
-  font-weight: 850;
-  min-height: 30px;
-  padding: 0 7px;
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
+  min-height: 32px;
+  padding: 0 6px;
 }
 
 .issue-inline-status-add textarea {
-  min-height: 58px;
+  min-height: 56px;
+}
+
+.issue-register-task textarea {
+  line-height: 1.45;
+  min-height: 64px;
+}
+
+.issue-register-owner textarea {
+  line-height: 1.45;
+  min-height: 48px;
+}
+
+.issue-register-risk {
+  text-align: center;
+}
+
+.issue-risk-link {
+  align-items: center;
+  color: var(--brand);
+  display: inline-flex;
+  font-size: var(--issue-font);
+  font-weight: 600;
+  gap: 5px;
+  min-height: 32px;
+  text-decoration: none;
+}
+
+.issue-risk-link:hover {
+  text-decoration: underline;
 }
 
 .issue-readiness-cell {
@@ -1101,7 +1142,8 @@
   border: 0;
   border-radius: 0;
   color: #172033;
-  font-weight: 900;
+  font-size: var(--issue-font);
+  font-weight: 700;
   margin: 10px;
   min-height: 36px;
   width: calc(100% - 20px);
@@ -1114,15 +1156,15 @@
 .issue-register-parameters label {
   color: var(--text-muted);
   display: grid;
-  font-size: 11px;
-  font-weight: 850;
-  gap: 2px;
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
+  gap: 3px;
 }
 
 .issue-inline-history-meta {
   color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 850;
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
 }
 
 .issue-inline-history-meta {
@@ -1136,8 +1178,8 @@
   border-radius: 4px;
   color: var(--danger-800);
   display: block;
-  font-size: 11px;
-  font-weight: 800;
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
   line-height: 1.35;
   padding: 5px 6px;
 }
@@ -1162,7 +1204,8 @@
 .issue-inline-actions button {
   align-items: center;
   display: inline-flex;
-  font-size: 12px;
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
   gap: 4px;
   justify-content: center;
   min-width: 0;

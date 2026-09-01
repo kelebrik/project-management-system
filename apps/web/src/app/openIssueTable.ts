@@ -1,12 +1,12 @@
 export const OPEN_ISSUE_COLUMNS = [
-  { key: "number", label: "№", width: 52, min: 44, max: 84 },
-  { key: "task", label: "Задача", width: 250, min: 170, max: 520 },
-  { key: "link", label: "Ссылка", width: 210, min: 150, max: 420 },
-  { key: "status", label: "Статус", width: 350, min: 230, max: 680 },
-  { key: "owner", label: "Ответственный", width: 210, min: 150, max: 420 },
-  { key: "risk", label: "Риски", width: 230, min: 160, max: 520 },
-  { key: "readiness", label: "Готовность", width: 132, min: 104, max: 220 },
-  { key: "parameters", label: "Параметры", width: 220, min: 180, max: 420 },
+  { key: "number", label: "№", width: 44, min: 40, max: 48 },
+  { key: "task", label: "Задача", width: 346, min: 220, max: 560 },
+  { key: "link", label: "Ссылка", width: 200, min: 160, max: 360 },
+  { key: "status", label: "Статус", width: 400, min: 280, max: 680 },
+  { key: "owner", label: "Отв.", width: 128, min: 108, max: 180 },
+  { key: "risk", label: "Риски", width: 92, min: 84, max: 112 },
+  { key: "readiness", label: "Готовность", width: 120, min: 108, max: 180 },
+  { key: "parameters", label: "Параметры", width: 274, min: 210, max: 380 },
 ] as const;
 
 export type OpenIssueColumnKey = (typeof OPEN_ISSUE_COLUMNS)[number]["key"];

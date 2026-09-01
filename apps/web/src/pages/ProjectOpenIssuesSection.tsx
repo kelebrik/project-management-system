@@ -5,11 +5,13 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
+import { appPathForView } from "../app/routes";
 import {
   OPEN_ISSUE_COLUMNS,
   normalizeOpenIssueColumnWidths,
@@ -27,7 +29,6 @@ type EditableIssueField = keyof Pick<
   | "referenceUrl"
   | "readiness"
   | "owner"
-  | "impact"
   | "decisionRequired"
   | "dueDate"
 >;
@@ -97,6 +98,7 @@ export function ProjectOpenIssuesSection() {
     issueLinkDrafts,
     issueStatusDrafts,
     project,
+    openView,
     removeIssueJiraLink,
     saveOpenIssueWithPayload,
     saveProjectUiState,
@@ -168,6 +170,18 @@ export function ProjectOpenIssuesSection() {
     };
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
+  };
+
+  const openRisks = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.button !== 0
+      || event.altKey
+      || event.ctrlKey
+      || event.metaKey
+      || event.shiftKey
+    ) return;
+    event.preventDefault();
+    openView("project-raid", { projectCode: project.code });
   };
 
   const patchDraft = (issue: Issue, patch: Partial<IssueEditDraft>) =>
@@ -613,9 +627,9 @@ export function ProjectOpenIssuesSection() {
                       ) : null}
                       {fieldError("statusUpdate")}
                     </td>
-                    <td className="issue-register-cell">
+                    <td className="issue-register-cell issue-register-owner">
                       <textarea
-                        rows={3}
+                        rows={2}
                         value={draft.owner}
                         placeholder="Ответственный"
                         disabled={isReadOnly}
@@ -626,18 +640,15 @@ export function ProjectOpenIssuesSection() {
                       />
                       {fieldError("owner")}
                     </td>
-                    <td className="issue-register-cell">
-                      <textarea
-                        rows={4}
-                        value={draft.impact}
-                        placeholder="Риск и последствия"
-                        disabled={isReadOnly}
-                        aria-busy={isSaving("impact")}
-                        onChange={(event) => patchDraft(issue, { impact: event.target.value })}
-                        onBlur={() => void persistField(issue, "impact")}
-                        aria-label="Риски"
-                      />
-                      {fieldError("impact")}
+                    <td className="issue-register-cell issue-register-risk">
+                      <a
+                        className="issue-risk-link"
+                        href={appPathForView("project-raid", project.code)}
+                        onClick={openRisks}
+                      >
+                        <span>Риски</span>
+                        <ExternalLink size={14} />
+                      </a>
                     </td>
                     <td className={`issue-register-cell issue-readiness-cell ${draft.readiness.toLowerCase()}`}>
                       <select

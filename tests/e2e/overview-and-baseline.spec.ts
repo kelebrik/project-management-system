@@ -1707,7 +1707,6 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
     createdAt: `${isoDay(-2)}T12:00:00.000Z`,
     updatedAt: `${isoDay(-2)}T12:00:00.000Z`,
   }];
-  const originalImpact = issue.impact;
   const issuePatches: Record<string, unknown>[] = [];
   let statusPayload: Record<string, unknown> | null = null;
   let jiraLinkPayload: Record<string, unknown> | null = null;
@@ -1716,7 +1715,7 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await page.route("**/api/open-issues/issue-1", async (route) => {
     const patch = route.request().postDataJSON() as Record<string, unknown>;
     issuePatches.push(patch);
-    if (patch.impact === "Ошибка сохранения") {
+    if (patch.owner === "Ошибка сохранения") {
       await route.fulfill({ status: 500, json: { error: "Тестовая ошибка сохранения" } });
       return;
     }
@@ -1776,6 +1775,7 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
     await route.fulfill({ status: 204 });
   });
 
+  await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto("/TV-OVERVIEW/issues");
   const row = page.locator("#issue-item-issue-1");
   const title = row.getByLabel("Название вопроса");
@@ -1855,11 +1855,11 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await expect(page.getByText("Пакет работ создан в фазе «1 · Подготовка выпуска»")).toBeVisible();
   await expect(row.getByText("Пакет работ создан в Структуре")).toHaveCount(0);
 
-  await row.getByLabel("Риски").fill("Ошибка сохранения");
-  await row.getByLabel("Риски").blur();
+  await owner.fill("Ошибка сохранения");
+  await owner.blur();
   await expect(row.getByRole("alert")).toHaveText("Тестовая ошибка сохранения");
-  await row.getByLabel("Риски").fill(originalImpact);
-  await row.getByLabel("Риски").blur();
+  await owner.fill("Владелец запуска");
+  await owner.blur();
   await expect(row.getByRole("alert")).toHaveCount(0);
 
   await row.getByLabel("Текст нового статуса").fill("Дата запуска подтверждена");
@@ -1878,6 +1878,8 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await expect(reopenedRow.locator(".issue-current-status time")).toHaveText(
     new Intl.DateTimeFormat("ru-RU").format(new Date(`${isoDay(0)}T12:00:00`)),
   );
+  await reopenedRow.getByRole("link", { name: "Риски" }).click();
+  await expect(page).toHaveURL(/\/TV-OVERVIEW\/risks$/);
 });
 
 test("new open issue keeps inline register fields in the create request", async ({ page }) => {
