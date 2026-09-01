@@ -818,6 +818,7 @@ export function ProjectOpenIssuesSection() {
                         value={draft.readiness}
                         disabled={isReadOnly}
                         aria-busy={isSaving("readiness")}
+                        title={`Готовность: ${readinessLabels[draft.readiness]}`}
                         onChange={(event) => {
                           const readiness = event.target.value as Issue["readiness"];
                           patchDraft(issue, { readiness });

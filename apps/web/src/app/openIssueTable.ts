@@ -4,8 +4,8 @@ export const OPEN_ISSUE_COLUMNS = [
   { key: "link", label: "Ссылка", width: 200, min: 160, max: 360 },
   { key: "status", label: "Статус", width: 400, min: 280, max: 680 },
   { key: "owner", label: "Отв.", width: 128, min: 108, max: 180 },
-  { key: "risk", label: "Риски", width: 92, min: 84, max: 112 },
-  { key: "readiness", label: "Готовность", width: 120, min: 108, max: 180 },
+  { key: "risk", label: "Риски", width: 92, min: 84, max: 420 },
+  { key: "readiness", label: "Готовность", width: 96, min: 88, max: 140 },
   { key: "parameters", label: "Параметры", width: 274, min: 210, max: 380 },
 ] as const;
 

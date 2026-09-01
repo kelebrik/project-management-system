@@ -1889,6 +1889,18 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
     return widths?.task ?? 0;
   }).toBeGreaterThan(250);
 
+  const riskResizer = page.getByLabel("Изменить ширину колонки Риски");
+  const riskResizerBox = await riskResizer.boundingBox();
+  expect(riskResizerBox).not.toBeNull();
+  await page.mouse.move(riskResizerBox!.x + 5, riskResizerBox!.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(riskResizerBox!.x + 165, riskResizerBox!.y + 5);
+  await page.mouse.up();
+  await expect.poll(() => {
+    const widths = uiStatePayload?.openIssueColumnWidths as Record<string, number> | undefined;
+    return widths?.risk ?? 0;
+  }).toBeGreaterThan(112);
+
   await row.getByLabel("Раздел вопроса").fill("ChangHong");
   await row.getByLabel("Раздел вопроса").blur();
   await expect(page.getByRole("rowgroup").filter({ hasText: "ChangHong" })).toContainText(
@@ -1897,6 +1909,21 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await row.getByLabel("Готовность").selectOption("GREEN");
   await expect.poll(() => issuePatches).toContainEqual({ readiness: "GREEN" });
   await expect.poll(() => issue.readiness).toBe("GREEN");
+  await expect(row.getByLabel("Готовность")).toHaveAttribute("title", "Готовность: Зелёная");
+  const readinessControl = row.getByLabel("Готовность");
+  const readinessBox = await readinessControl.boundingBox();
+  expect(readinessBox?.width).toBeLessThanOrEqual(32);
+  await readinessControl.focus();
+  await expect(readinessControl).toBeFocused();
+  await expect.poll(() => readinessControl.evaluate((element) => getComputedStyle(element).boxShadow))
+    .toContain("rgb(23, 32, 51)");
+  const riskTextStyle = await row.getByRole("link", { name: linkedRisk.title }).locator("span").evaluate(
+    (element) => {
+      const style = getComputedStyle(element);
+      return { textOverflow: style.textOverflow, whiteSpace: style.whiteSpace };
+    },
+  );
+  expect(riskTextStyle).toEqual({ textOverflow: "clip", whiteSpace: "normal" });
   await row.getByLabel("Фаза проекта").selectOption("phase-issues");
   const phaseConfirmation = page.getByRole("dialog", { name: "Создать пакет работ?" });
   await expect(phaseConfirmation).toContainText("1 · Подготовка выпуска");
