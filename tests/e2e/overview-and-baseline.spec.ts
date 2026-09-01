@@ -1904,6 +1904,7 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await expect.poll(() => issuePatches).toContainEqual({ phaseId: "phase-issues" });
   await expect(page.getByText("Пакет работ создан в фазе «1 · Подготовка выпуска»")).toBeVisible();
   await expect(row.getByText("Пакет работ создан в Структуре")).toHaveCount(0);
+  await expect(row.getByLabel("Фаза проекта")).toHaveCount(0);
   await expect(row.getByText("Пакет", { exact: true })).toBeVisible();
   await expect(row.getByRole("link", { name: /1\.1 ·/ })).toHaveAttribute(
     "href",

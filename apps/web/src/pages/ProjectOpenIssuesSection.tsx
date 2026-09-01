@@ -484,23 +484,25 @@ export function ProjectOpenIssuesSection() {
                             aria-label="Раздел вопроса"
                           />
                         </label>
-                        <label>
-                          <span>Фаза</span>
-                          <select
-                            value={draft.phaseId}
-                            disabled={isReadOnly || isSaving("phaseId")}
-                            onChange={(event) => void selectIssuePhase(issue, event.target.value)}
-                            aria-label="Фаза проекта"
-                            aria-describedby={`${issue.id}-phase-error`}
-                          >
-                            <option value="" disabled={Boolean(issue.workPackageId)}>Без фазы</option>
-                            {phases.map((phase: { id: string; code: string; title: string }) => (
-                              <option value={phase.id} key={phase.id}>
-                                {phase.code} · {phase.title}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        {!workPackage ? (
+                          <label>
+                            <span>Фаза</span>
+                            <select
+                              value={draft.phaseId}
+                              disabled={isReadOnly || isSaving("phaseId")}
+                              onChange={(event) => void selectIssuePhase(issue, event.target.value)}
+                              aria-label="Фаза проекта"
+                              aria-describedby={`${issue.id}-phase-error`}
+                            >
+                              <option value="">Без фазы</option>
+                              {phases.map((phase: { id: string; code: string; title: string }) => (
+                                <option value={phase.id} key={phase.id}>
+                                  {phase.code} · {phase.title}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
                         <span className="issue-phase-error-slot" id={`${issue.id}-phase-error`}>
                           {fieldError("phaseId")}
                         </span>

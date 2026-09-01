@@ -935,6 +935,7 @@
   font-size: var(--issue-font);
   font-weight: 600;
   overflow: hidden;
+  padding-left: 6px;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1067,7 +1068,7 @@
   border-bottom: 1px solid var(--border);
   display: grid;
   gap: 4px;
-  padding: 1px 1px 8px;
+  padding: 5px 1px 8px;
 }
 
 .issue-current-status time,
