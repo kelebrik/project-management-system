@@ -17,7 +17,7 @@ import {
   normalizeIssueJiraKey,
   openIssuePhaseSelectionError,
 } from './issues.routes.js';
-import { projectDetailsInclude } from './projects/includes.js';
+import { closedIssuesInclude, projectDetailsInclude } from './projects/includes.js';
 import { jiraSemanticEvaluationNow } from './jira-semantic-aggregates.routes.js';
 
 type Route = {
@@ -77,6 +77,7 @@ test('open issue contracts support the inline register fields and narrow updates
   assert.equal(created.referenceUrl, undefined);
   assert.equal(created.readiness, 'RED');
   assert.equal(created.phaseId, undefined);
+  assert.equal(created.riskId, undefined);
   assert.equal('jiraTicketUrl' in createIssueSchema.parse({
     title: 'Проверить заводскую прошивку',
     jiraTicketKey: 'CVTE-1801',
@@ -107,6 +108,8 @@ test('open issue contracts support the inline register fields and narrow updates
   assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'javascript:alert(1)' }).success, false);
   assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'https://example.test/thread/2' }).success, true);
   assert.deepEqual(updateIssueSchema.parse({ phaseId: 'phase-1' }), { phaseId: 'phase-1' });
+  assert.deepEqual(updateIssueSchema.parse({ riskId: 'risk-1' }), { riskId: 'risk-1' });
+  assert.deepEqual(updateIssueSchema.parse({ riskId: null }), { riskId: null });
   assert.deepEqual(updateIssueSchema.parse({ jiraTicketUrl: 'https://untrusted.example.test/X-1' }), {});
   assert.deepEqual(issueStatusUpdateSchema.parse({
     statusAt: '2020-01-01',
@@ -129,6 +132,10 @@ test('open issue Jira links are derived from a normalized key and project base U
   assert.equal(
     issueJiraUrlForKey('https://jira.example.test/jira/?ignored=true', 'SPS-42'),
     'https://jira.example.test/jira/browse/SPS-42',
+  );
+  assert.equal(
+    issueJiraUrlForKey('https://tasks.dev.sberdevices.ru', 'CVTE-1801'),
+    'https://tasks.sberdevices.ru/browse/CVTE-1801',
   );
 });
 
@@ -162,6 +169,18 @@ test('deleting an additional Jira link preserves a synthetic primary link', () =
 test('project details do not transport the top-level Jira analytics population', () => {
   assert.equal('jiraSnapshots' in projectDetailsInclude, false);
   assert.equal(projectDetailsInclude.jiraWorkSections.include.issues.include.snapshot, true);
+  assert.deepEqual(projectDetailsInclude.issues.include.threadLinks, {
+    orderBy: { createdAt: 'asc' },
+  });
+  assert.deepEqual(closedIssuesInclude.include.threadLinks, {
+    orderBy: { createdAt: 'asc' },
+  });
+});
+
+test('open issue thread link routes expose create, update, and delete operations', () => {
+  findRoute('/open-issues/:issueId/thread-links', 'post');
+  findRoute('/open-issues/:issueId/thread-links/:linkId', 'patch');
+  findRoute('/open-issues/:issueId/thread-links/:linkId', 'delete');
 });
 
 test('Jira history stops batch fallback after global failures but retries request timeouts', () => {

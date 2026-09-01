@@ -24,16 +24,16 @@ import { usePageContext } from "./PageContext";
 type EditableIssueField = keyof Pick<
   IssueEditDraft,
   | "phaseId"
+  | "riskId"
   | "category"
   | "title"
-  | "referenceUrl"
   | "readiness"
   | "owner"
   | "decisionRequired"
   | "dueDate"
 >;
 
-const nullableFields = new Set<EditableIssueField>(["phaseId", "referenceUrl", "dueDate"]);
+const nullableFields = new Set<EditableIssueField>(["phaseId", "riskId", "dueDate"]);
 
 const readinessLabels = {
   RED: "Красная",
@@ -88,6 +88,7 @@ export function ProjectOpenIssuesSection() {
   const {
     addIssueJiraLink,
     addIssueStatusUpdate,
+    addIssueThreadLink,
     calendarDelayDays,
     closeOpenIssue,
     convertIssueToProblem,
@@ -100,18 +101,23 @@ export function ProjectOpenIssuesSection() {
     project,
     openView,
     removeIssueJiraLink,
+    removeIssueThreadLink,
     saveOpenIssueWithPayload,
     saveProjectUiState,
     setError,
     setNotice,
     setIssueLinkDrafts,
     updateIssueJiraLink,
+    updateIssueThreadLink,
     updateIssueDraft,
     updateIssueStatusDraft,
   } = usePageContext();
   const [savingCells, setSavingCells] = useState<Set<string>>(() => new Set());
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [editingThreadIssueIds, setEditingThreadIssueIds] = useState<Set<string>>(() => new Set());
+  const [editingThreadLinkIds, setEditingThreadLinkIds] = useState<Set<string>>(() => new Set());
+  const [threadUrlDrafts, setThreadUrlDrafts] = useState<Record<string, string>>({});
+  const [newThreadUrlDrafts, setNewThreadUrlDrafts] = useState<Record<string, string>>({});
+  const [editingRiskIssueIds, setEditingRiskIssueIds] = useState<Set<string>>(() => new Set());
   const [editingTicketLinkIds, setEditingTicketLinkIds] = useState<Set<string>>(() => new Set());
   const [ticketKeyDrafts, setTicketKeyDrafts] = useState<Record<string, string>>({});
   const cancelledFieldSavesRef = useRef(new Set<string>());
@@ -128,6 +134,12 @@ export function ProjectOpenIssuesSection() {
   const phases = useMemo(
     () => project.wbsItems.filter((item: { type: string }) => item.type === "PHASE"),
     [project.wbsItems],
+  );
+  const projectRisks = useMemo(
+    () => project.raidItems.filter((item: { type: string; status: string }) => (
+      item.type === "RISK" && !["CLOSED", "VALIDATED"].includes(item.status)
+    )),
+    [project.raidItems],
   );
   const groups = useMemo(() => {
     const result = new Map<string, Issue[]>();
@@ -172,7 +184,10 @@ export function ProjectOpenIssuesSection() {
     window.addEventListener("pointerup", onPointerUp);
   };
 
-  const openRisks = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+  const openFocusedProjectView = (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    view: "project-raid" | "project-structure",
+  ) => {
     if (
       event.button !== 0
       || event.altKey
@@ -181,7 +196,9 @@ export function ProjectOpenIssuesSection() {
       || event.shiftKey
     ) return;
     event.preventDefault();
-    openView("project-raid", { projectCode: project.code });
+    const url = new URL(event.currentTarget.href);
+    window.history.pushState(null, "", `${url.pathname}${url.search}`);
+    openView(view, { projectCode: project.code });
   };
 
   const patchDraft = (issue: Issue, patch: Partial<IssueEditDraft>) =>
@@ -322,6 +339,42 @@ export function ProjectOpenIssuesSection() {
     });
   };
 
+  const saveThreadUrl = async (
+    issue: Issue,
+    link: { id: string; threadUrl: string },
+  ) => {
+    const threadUrl = (threadUrlDrafts[link.id] ?? link.threadUrl).trim();
+    if (!threadUrl) return;
+    if (threadUrl === link.threadUrl) {
+      setEditingThreadLinkIds((current) => {
+        const next = new Set(current);
+        next.delete(link.id);
+        return next;
+      });
+      return;
+    }
+    const result = await updateIssueThreadLink(issue.id, link.id, threadUrl);
+    if (!result.ok) return;
+    setEditingThreadLinkIds((current) => {
+      const next = new Set(current);
+      next.delete(link.id);
+      return next;
+    });
+    setThreadUrlDrafts((current) => {
+      const next = { ...current };
+      delete next[link.id];
+      return next;
+    });
+  };
+
+  const addThreadUrl = async (issue: Issue) => {
+    const threadUrl = (newThreadUrlDrafts[issue.id] ?? "").trim();
+    if (!threadUrl) return;
+    const result = await addIssueThreadLink(issue.id, threadUrl);
+    if (!result.ok) return;
+    setNewThreadUrlDrafts((current) => ({ ...current, [issue.id]: "" }));
+  };
+
   const commitOnEnter = (
     event: KeyboardEvent<HTMLInputElement>,
     issue: Issue,
@@ -387,6 +440,12 @@ export function ProjectOpenIssuesSection() {
                 const statusDraft = issueStatusDrafts[issue.id] ?? { text: "" };
                 const jiraDraft = issueLinkDrafts[issue.id] ?? { jiraKey: "" };
                 const ticketLinks = issueTicketLinks(issue);
+                const workPackage = issue.workPackageId
+                  ? project.wbsItems.find((item: { id: string }) => item.id === issue.workPackageId)
+                  : null;
+                const linkedRisk = draft.riskId
+                  ? project.raidItems.find((item: { id: string }) => item.id === draft.riskId)
+                  : null;
                 const delayDays = calendarDelayDays(issue.initialDueDate, issue.dueDate);
                 const isSaving = (field: EditableIssueField | "statusUpdate") =>
                   savingCells.has(`${issue.id}:${field}`);
@@ -396,12 +455,20 @@ export function ProjectOpenIssuesSection() {
                     .find(Boolean);
                   return message ? <span className="issue-inline-error" role="alert">{message}</span> : null;
                 };
-                const editingThread = editingThreadIssueIds.has(issue.id);
-
                 return (
                   <tr className="issue-register-row" id={`issue-item-${issue.id}`} key={issue.id}>
                     <th className="issue-register-number" scope="row">{index + 1}</th>
                     <td className="issue-register-cell issue-register-task">
+                      <textarea
+                        className="issue-title-editor"
+                        rows={2}
+                        value={draft.title}
+                        disabled={isReadOnly}
+                        aria-busy={isSaving("title")}
+                        onChange={(event) => patchDraft(issue, { title: event.target.value })}
+                        onBlur={() => void persistField(issue, "title")}
+                        aria-label="Название вопроса"
+                      />
                       <div className="issue-inline-classification">
                         <label>
                           <span>Раздел</span>
@@ -437,66 +504,115 @@ export function ProjectOpenIssuesSection() {
                         <span className="issue-phase-error-slot" id={`${issue.id}-phase-error`}>
                           {fieldError("phaseId")}
                         </span>
+                        {workPackage ? (
+                          <div className="issue-work-package-reference">
+                            <span>Пакет</span>
+                            <a
+                              href={`${appPathForView("project-structure", project.code)}?focusWbs=${encodeURIComponent(workPackage.id)}`}
+                              onClick={(event) => openFocusedProjectView(event, "project-structure")}
+                              title={workPackage.title}
+                            >
+                              {workPackage.code} · {workPackage.title}
+                            </a>
+                          </div>
+                        ) : null}
                       </div>
-                      <textarea
-                        className="issue-title-editor"
-                        rows={2}
-                        value={draft.title}
-                        disabled={isReadOnly}
-                        aria-busy={isSaving("title")}
-                        onChange={(event) => patchDraft(issue, { title: event.target.value })}
-                        onBlur={() => void persistField(issue, "title")}
-                        aria-label="Название вопроса"
-                      />
                       {fieldError("category", "title")}
                     </td>
                     <td className="issue-register-cell issue-register-links">
-                      <div className="issue-thread-control">
-                        {editingThread ? (
+                      <div className="issue-thread-links" aria-label="Ссылки на трэды">
+                        {(issue.threadLinks ?? []).map((link) => {
+                          const editingThread = editingThreadLinkIds.has(link.id);
+                          return (
+                            <div className="issue-thread-control" key={link.id}>
+                              {editingThread ? (
+                                <input
+                                  autoFocus
+                                  type="url"
+                                  value={threadUrlDrafts[link.id] ?? link.threadUrl}
+                                  aria-label="URL трэда"
+                                  onChange={(event) => setThreadUrlDrafts((current) => ({
+                                    ...current,
+                                    [link.id]: event.target.value,
+                                  }))}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") event.currentTarget.blur();
+                                    if (event.key === "Escape") {
+                                      setEditingThreadLinkIds((current) => {
+                                        const next = new Set(current);
+                                        next.delete(link.id);
+                                        return next;
+                                      });
+                                    }
+                                  }}
+                                  onBlur={() => void saveThreadUrl(issue, link)}
+                                />
+                              ) : (
+                                <a
+                                  className="issue-thread-link"
+                                  href={link.threadUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  <span>Трэд</span>
+                                  <ExternalLink size={15} />
+                                </a>
+                              )}
+                              {!isReadOnly && !editingThread ? (
+                                <button
+                                  type="button"
+                                  className="icon-button issue-thread-edit"
+                                  aria-label="Изменить ссылку на трэд"
+                                  onClick={() => {
+                                    setThreadUrlDrafts((current) => ({
+                                      ...current,
+                                      [link.id]: link.threadUrl,
+                                    }));
+                                    setEditingThreadLinkIds((current) => new Set(current).add(link.id));
+                                  }}
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                              ) : null}
+                              {!isReadOnly && !editingThread ? (
+                                <button
+                                  type="button"
+                                  className="icon-button"
+                                  aria-label="Удалить ссылку на трэд"
+                                  onClick={() => void removeIssueThreadLink(issue.id, link.id)}
+                                >
+                                  <X size={13} />
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {!isReadOnly ? (
+                        <div className="issue-inline-thread-add">
                           <input
-                            autoFocus
                             type="url"
-                            value={draft.referenceUrl}
-                            aria-label="Ссылка на трэд"
-                            aria-busy={isSaving("referenceUrl")}
-                            onChange={(event) => patchDraft(issue, { referenceUrl: event.target.value })}
-                            onKeyDown={(event) => commitOnEnter(event, issue, "referenceUrl")}
-                            onBlur={() => {
-                              void persistField(issue, "referenceUrl").finally(() => {
-                                setEditingThreadIssueIds((current) => {
-                                  const next = new Set(current);
-                                  next.delete(issue.id);
-                                  return next;
-                                });
-                              });
+                            value={newThreadUrlDrafts[issue.id] ?? ""}
+                            placeholder="https://..."
+                            onChange={(event) => setNewThreadUrlDrafts((current) => ({
+                              ...current,
+                              [issue.id]: event.target.value,
+                            }))}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") void addThreadUrl(issue);
                             }}
+                            aria-label="URL дополнительного трэда"
                           />
-                        ) : issue.referenceUrl ? (
-                          <a
-                            className="issue-thread-link"
-                            href={issue.referenceUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <span>Ссылка на трэд</span>
-                            <ExternalLink size={15} />
-                          </a>
-                        ) : (
-                          <span className="issue-thread-link is-empty">Ссылка на трэд</span>
-                        )}
-                        {!isReadOnly && !editingThread ? (
                           <button
                             type="button"
-                            className="icon-button issue-thread-edit"
-                            aria-label="Изменить ссылку на трэд"
-                            onClick={() => setEditingThreadIssueIds((current) => new Set(current).add(issue.id))}
+                            aria-label="Добавить трэд"
+                            disabled={!(newThreadUrlDrafts[issue.id] ?? "").trim()}
+                            onClick={() => void addThreadUrl(issue)}
                           >
-                            <Pencil size={14} />
+                            <Plus size={14} />
                           </button>
-                        ) : null}
-                      </div>
-                      {fieldError("referenceUrl")}
-                      <span className="issue-ticket-label">Ссылка на тикет</span>
+                        </div>
+                      ) : null}
                       <div className="issue-ticket-links" aria-label="Ссылки на тикеты">
                         {ticketLinks.map((link) => {
                           const editingTicket = editingTicketLinkIds.has(link.id);
@@ -641,14 +757,59 @@ export function ProjectOpenIssuesSection() {
                       {fieldError("owner")}
                     </td>
                     <td className="issue-register-cell issue-register-risk">
-                      <a
-                        className="issue-risk-link"
-                        href={appPathForView("project-raid", project.code)}
-                        onClick={openRisks}
-                      >
-                        <span>Риски</span>
-                        <ExternalLink size={14} />
-                      </a>
+                      {editingRiskIssueIds.has(issue.id) ? (
+                        <select
+                          autoFocus
+                          value={draft.riskId}
+                          aria-label="Связанный риск"
+                          disabled={isSaving("riskId")}
+                          onChange={(event) => {
+                            const riskId = event.target.value;
+                            patchDraft(issue, { riskId });
+                            void persistField(issue, "riskId", riskId).then((saved) => {
+                              if (!saved) return;
+                              setEditingRiskIssueIds((current) => {
+                                const next = new Set(current);
+                                next.delete(issue.id);
+                                return next;
+                              });
+                            });
+                          }}
+                        >
+                          <option value="">Без риска</option>
+                          {linkedRisk && !projectRisks.some((risk: { id: string }) => risk.id === linkedRisk.id) ? (
+                            <option value={linkedRisk.id}>{linkedRisk.title}</option>
+                          ) : null}
+                          {projectRisks.map((risk: { id: string; title: string }) => (
+                            <option value={risk.id} key={risk.id}>{risk.title}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="issue-risk-control">
+                          {linkedRisk ? (
+                            <a
+                              className="issue-risk-link"
+                              href={`${appPathForView("project-raid", project.code)}?focusRaid=${encodeURIComponent(linkedRisk.id)}`}
+                              onClick={(event) => openFocusedProjectView(event, "project-raid")}
+                              title={linkedRisk.title}
+                            >
+                              <span>{linkedRisk.title}</span>
+                              <ExternalLink size={14} />
+                            </a>
+                          ) : <span className="muted-inline">-</span>}
+                          {!isReadOnly ? (
+                            <button
+                              type="button"
+                              className="icon-button"
+                              aria-label={linkedRisk ? "Изменить связанный риск" : "Связать риск"}
+                              onClick={() => setEditingRiskIssueIds((current) => new Set(current).add(issue.id))}
+                            >
+                              {linkedRisk ? <Pencil size={13} /> : <Plus size={14} />}
+                            </button>
+                          ) : null}
+                        </div>
+                      )}
+                      {fieldError("riskId")}
                     </td>
                     <td className={`issue-register-cell issue-readiness-cell ${draft.readiness.toLowerCase()}`}>
                       <select

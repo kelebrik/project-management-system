@@ -63,6 +63,7 @@ export const projectDetailsInclude = {
     where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },
     orderBy: [{ severity: 'desc' }, { updatedAt: 'desc' }],
     include: {
+      threadLinks: { orderBy: { createdAt: 'asc' } },
       jiraLinks: { orderBy: { createdAt: 'asc' } },
       statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
     },
@@ -92,6 +93,7 @@ export const closedIssuesInclude = {
   where: { status: { in: ['Done', 'Closed', 'Resolved'] } },
   orderBy: [{ updatedAt: 'desc' }],
   include: {
+    threadLinks: { orderBy: { createdAt: 'asc' } },
     jiraLinks: { orderBy: { createdAt: 'asc' } },
     statusUpdates: { orderBy: [{ statusAt: 'desc' }, { createdAt: 'desc' }] },
   },

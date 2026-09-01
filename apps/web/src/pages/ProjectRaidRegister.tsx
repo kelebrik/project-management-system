@@ -1,6 +1,7 @@
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
 import { X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RaidItemStatus, RaidItemType } from "../app/domainTypes";
 import type { RaidTypeFilter } from "../app/raidModels";
 
@@ -37,6 +38,45 @@ export function ProjectRaidRegister() {
     updateRaidStatusDraft,
   } = usePageContext();
   const confirm = useConfirm();
+  const [requestedFocusRaidId] = useState(() =>
+    new URLSearchParams(window.location.search).get("focusRaid"),
+  );
+  const appliedFocusRaidIdRef = useRef<string | null>(null);
+  const scrolledFocusRaidIdRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (!requestedFocusRaidId || appliedFocusRaidIdRef.current === requestedFocusRaidId) return;
+    appliedFocusRaidIdRef.current = requestedFocusRaidId;
+    setRaidTypeFilter("ALL");
+    setRaidDecisionOnly(false);
+    setRaidHighOnly(false);
+    setRaidOverdueOnly(false);
+    if (!closedRaidItems.some((item: { id: string }) => item.id === requestedFocusRaidId)) {
+      setExpandedRaidId(requestedFocusRaidId);
+    }
+  }, [
+    requestedFocusRaidId,
+    closedRaidItems,
+    setExpandedRaidId,
+    setRaidDecisionOnly,
+    setRaidHighOnly,
+    setRaidOverdueOnly,
+    setRaidTypeFilter,
+  ]);
+
+  useEffect(() => {
+    if (!requestedFocusRaidId || scrolledFocusRaidIdRef.current === requestedFocusRaidId) return;
+    const animationFrame = window.requestAnimationFrame(() => {
+      const focusedItem = document.getElementById(`raid-item-${requestedFocusRaidId}`);
+      if (!focusedItem) return;
+      scrolledFocusRaidIdRef.current = requestedFocusRaidId;
+      focusedItem.scrollIntoView({ behavior: "smooth", block: "center" });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("focusRaid");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [groupedRaidItems, requestedFocusRaidId]);
 
   return <div className="raid-main-column">
                     <div className="wbs-kpis raid-kpis">
@@ -141,7 +181,7 @@ export function ProjectRaidRegister() {
                         </div>
                         {items.map((item) => (
                           <div
-                            className="raid-item"
+                            className={`raid-item${requestedFocusRaidId === item.id ? " focused" : ""}`}
                             id={`raid-item-${item.id}`}
                             key={item.id}
                           >
@@ -536,7 +576,10 @@ export function ProjectRaidRegister() {
                       </div>
                         </section>
                       ))}
-                      <details className="raid-closed-section">
+                      <details
+                        className="raid-closed-section"
+                        open={closedRaidItems.some((item: { id: string }) => item.id === requestedFocusRaidId) || undefined}
+                      >
                         <summary>
                           <span>Закрытые риски и проблемы</span>
                           <strong>{closedRaidItems.length}</strong>
@@ -550,7 +593,11 @@ export function ProjectRaidRegister() {
                             <span>Ответственный</span>
                           </div>
                           {closedRaidItems.map((item) => (
-                            <div className="raid-item raid-closed-item" key={item.id}>
+                            <div
+                              className={`raid-item raid-closed-item${requestedFocusRaidId === item.id ? " focused" : ""}`}
+                              id={`raid-item-${item.id}`}
+                              key={item.id}
+                            >
                               <div className="raid-row raid-closed-row">
                                 <span className="raid-title">{item.title}</span>
                                 <span>{raidTypeLabel(item.type)}</span>

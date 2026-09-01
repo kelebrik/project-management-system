@@ -387,6 +387,13 @@ export type IssueJiraLink = {
   jiraUrl: string;
 };
 
+export type IssueThreadLink = {
+  id: string;
+  issueId: string;
+  threadUrl: string;
+  createdAt: string;
+};
+
 export type IssueStatusUpdate = {
   id: string;
   issueId: string;
@@ -400,6 +407,7 @@ export type Issue = {
   id: string;
   phaseId: string | null;
   workPackageId: string | null;
+  riskId: string | null;
   source: "INTERNAL" | "JIRA";
   category: string;
   title: string;
@@ -416,6 +424,7 @@ export type Issue = {
   closedDelayDays: number | null;
   jiraTicketKey: string | null;
   jiraTicketUrl: string | null;
+  threadLinks: IssueThreadLink[];
   jiraLinks: IssueJiraLink[];
   statusUpdates: IssueStatusUpdate[];
   createdAt?: string;

@@ -279,6 +279,22 @@ test("open issue phase work package migration is additive and keeps existing que
   assert.doesNotMatch(withoutForeignKeyActions, /\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/i);
 });
 
+test("open issue thread and risk migration is additive and keeps test links untouched", () => {
+  const migration = migrationSql("20260901110000_open_issue_thread_links_and_risk");
+  assert.match(migration, /CREATE\s+TABLE\s+"IssueThreadLink"/i);
+  assert.match(migration, /ADD\s+COLUMN\s+"riskId"\s+TEXT/i);
+  assert.match(migration, /REFERENCES\s+"Issue"\("id"\)\s+ON\s+DELETE\s+CASCADE/i);
+  assert.match(migration, /REFERENCES\s+"RaidItem"\("id"\)\s+ON\s+DELETE\s+SET\s+NULL/i);
+  const withoutForeignKeyActions = migration.replace(
+    /ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)/gi,
+    "",
+  );
+  assert.doesNotMatch(
+    withoutForeignKeyActions,
+    /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|DROP\s+(?:TABLE|COLUMN)|TRUNCATE)\b/i,
+  );
+});
+
 test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
   const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
   assert.match(migration, /CREATE TABLE "JiraSyncRun"/);

@@ -1,6 +1,7 @@
 import { wbsItemBaseSchema, wbsItemSchema } from '@pms/shared';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
+import { jiraUrlMatchesConfiguredBase } from '../../jira-url-policy.js';
 import { currentUser } from '../../server/auth.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../../services/audit.js';
 import {
@@ -335,7 +336,7 @@ export function registerWbsItemRoutes(router: Router) {
         return;
       }
       const jiraBaseUrl = project.jiraIntegration?.baseUrl;
-      if (jiraBaseUrl && nextJiraUrl && !nextJiraUrl.startsWith(jiraBaseUrl)) {
+      if (jiraBaseUrl && nextJiraUrl && !jiraUrlMatchesConfiguredBase(nextJiraUrl, jiraBaseUrl)) {
         res.status(400).json({ error: `URL Jira должен начинаться с ${jiraBaseUrl}` });
         return;
       }

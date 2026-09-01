@@ -5,7 +5,7 @@ import {
   type FormEvent,
   type SetStateAction,
 } from "react";
-import type { Issue, IssueStatusUpdate, ProjectDetails } from "../app/domainTypes";
+import type { Issue, IssueStatusUpdate, IssueThreadLink, ProjectDetails } from "../app/domainTypes";
 import { emptyIssueForm, type IssueEditDraft, type IssueFormState, type JiraLinkDraft, type TaskJiraDraft } from "../app/formState";
 import { apiBase, authenticatedFetch, responseErrorMessage } from "../app/http";
 import { useConfirm } from "./useConfirm";
@@ -140,6 +140,7 @@ export function useIssueController({
         const payload = {
           ...issueForm,
           phaseId: issueForm.phaseId || null,
+          riskId: issueForm.riskId || null,
           category: issueForm.category.trim(),
           title: issueForm.title.trim(),
           referenceLabel: issueForm.referenceLabel.trim(),
@@ -379,6 +380,93 @@ export function useIssueController({
     [refreshProject, setError, setNotice],
   );
 
+  const addIssueThreadLink = useCallback(
+    async (issueId: string, threadUrl: string) => {
+      const normalizedUrl = threadUrl.trim();
+      if (!normalizedUrl) return { ok: false as const, error: "Укажите URL трэда" };
+      setError(null);
+      setNotice(null);
+      try {
+        const response = await authenticatedFetch(
+          `${apiBase}/api/open-issues/${issueId}/thread-links`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ threadUrl: normalizedUrl }),
+          },
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(responseErrorMessage(result, "Не удалось добавить трэд"));
+        }
+        await refreshProject();
+        setNotice("Трэд добавлен к открытому вопросу");
+        return { ok: true as const, link: result as IssueThreadLink };
+      } catch (addError) {
+        const error = addError instanceof Error ? addError.message : "Не удалось добавить трэд";
+        setError(error);
+        return { ok: false as const, error };
+      }
+    },
+    [refreshProject, setError, setNotice],
+  );
+
+  const updateIssueThreadLink = useCallback(
+    async (issueId: string, linkId: string, threadUrl: string) => {
+      const normalizedUrl = threadUrl.trim();
+      if (!normalizedUrl) return { ok: false as const, error: "Укажите URL трэда" };
+      setError(null);
+      setNotice(null);
+      try {
+        const response = await authenticatedFetch(
+          `${apiBase}/api/open-issues/${issueId}/thread-links/${linkId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ threadUrl: normalizedUrl }),
+          },
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(responseErrorMessage(result, "Не удалось изменить трэд"));
+        }
+        await refreshProject();
+        setNotice("Ссылка на трэд обновлена");
+        return { ok: true as const, link: result as IssueThreadLink };
+      } catch (updateError) {
+        const error = updateError instanceof Error ? updateError.message : "Не удалось изменить трэд";
+        setError(error);
+        return { ok: false as const, error };
+      }
+    },
+    [refreshProject, setError, setNotice],
+  );
+
+  const removeIssueThreadLink = useCallback(
+    async (issueId: string, linkId: string) => {
+      setError(null);
+      setNotice(null);
+      try {
+        const response = await authenticatedFetch(
+          `${apiBase}/api/open-issues/${issueId}/thread-links/${linkId}`,
+          { method: "DELETE" },
+        );
+        if (!response.ok) {
+          const result = await response.json();
+          throw new Error(responseErrorMessage(result, "Не удалось удалить трэд"));
+        }
+        await refreshProject();
+        setNotice("Трэд удалён из открытого вопроса");
+        return { ok: true as const };
+      } catch (removeError) {
+        const error = removeError instanceof Error ? removeError.message : "Не удалось удалить трэд";
+        setError(error);
+        return { ok: false as const, error };
+      }
+    },
+    [refreshProject, setError, setNotice],
+  );
+
   const updateIssueDraft = useCallback(
     (
       issueId: string,
@@ -600,6 +688,9 @@ export function useIssueController({
     addIssueJiraLink,
     updateIssueJiraLink,
     removeIssueJiraLink,
+    addIssueThreadLink,
+    updateIssueThreadLink,
+    removeIssueThreadLink,
     updateIssueDraft,
     updateIssueStatusDraft,
     saveOpenIssue,

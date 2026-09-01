@@ -495,6 +495,7 @@ export const openApiDocument = {
           projectId: { type: "string" },
           phaseId: { type: ["string", "null"] },
           workPackageId: { type: ["string", "null"] },
+          riskId: { type: ["string", "null"] },
           category: { type: "string" },
           title: { type: "string" },
           referenceLabel: { type: "string" },
@@ -508,6 +509,10 @@ export const openApiDocument = {
           jiraTicketKey: { type: ["string", "null"] },
           jiraTicketUrl: { type: ["string", "null"], format: "uri" },
           decisionRequired: { type: "boolean" },
+          threadLinks: {
+            type: "array",
+            items: { $ref: "#/components/schemas/IssueThreadLink" },
+          },
           statusUpdates: {
             type: "array",
             items: { $ref: "#/components/schemas/IssueStatusUpdate" },
@@ -518,6 +523,7 @@ export const openApiDocument = {
           "projectId",
           "phaseId",
           "workPackageId",
+          "riskId",
           "category",
           "title",
           "referenceLabel",
@@ -527,6 +533,16 @@ export const openApiDocument = {
           "owner",
           "impact",
         ],
+      },
+      IssueThreadLink: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          issueId: { type: "string" },
+          threadUrl: { type: "string", format: "uri" },
+          createdAt: { type: "string", format: "date-time" },
+        },
+        required: ["id", "issueId", "threadUrl", "createdAt"],
       },
       IssueStatusUpdate: {
         type: "object",
@@ -1090,6 +1106,11 @@ export const openApiDocument = {
         issueIdParam,
       ]),
     },
+    "/api/open-issues/{issueId}/thread-links": {
+      post: createOperation(["OpenIssues"], "Attach thread link to open issue", [
+        issueIdParam,
+      ]),
+    },
     "/api/open-issues/{issueId}/status-updates": {
       post: createOperation(
         ["OpenIssues"],
@@ -1104,6 +1125,16 @@ export const openApiDocument = {
         pathParam("linkId"),
       ]),
       delete: deleteOperation(["OpenIssues", "Jira"], "Remove Jira ticket from open issue", [
+        issueIdParam,
+        pathParam("linkId"),
+      ]),
+    },
+    "/api/open-issues/{issueId}/thread-links/{linkId}": {
+      patch: securedOperation(["OpenIssues"], "Update open issue thread link", [
+        issueIdParam,
+        pathParam("linkId"),
+      ]),
+      delete: deleteOperation(["OpenIssues"], "Remove open issue thread link", [
         issueIdParam,
         pathParam("linkId"),
       ]),

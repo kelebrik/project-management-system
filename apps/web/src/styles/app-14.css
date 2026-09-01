@@ -304,6 +304,11 @@
   background: var(--surface-2);
 }
 
+.raid-item.focused .raid-row {
+  background: var(--brand-soft);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
 .raid-closed-row:hover {
   background: var(--surface);
 }

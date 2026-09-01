@@ -401,6 +401,7 @@ const httpUrlSchema = z.string().trim().refine((value) => {
 
 export const createIssueSchema = z.object({
   phaseId: z.string().trim().min(1).optional().nullable(),
+  riskId: z.string().trim().min(1).optional().nullable(),
   category: z.string().trim().min(1).max(120).default("Без раздела"),
   title: z.string().trim().min(1),
   referenceLabel: z.string().trim().max(120).optional().default(""),
@@ -424,6 +425,7 @@ export const createIssueSchema = z.object({
 
 export const updateIssueSchema = z.object({
   phaseId: z.string().trim().min(1).optional().nullable(),
+  riskId: z.string().trim().min(1).optional().nullable(),
   category: z.string().trim().min(1).max(120).optional(),
   title: z.string().trim().min(1).optional(),
   referenceLabel: z.string().trim().max(120).optional(),

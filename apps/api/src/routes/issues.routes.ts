@@ -9,6 +9,7 @@ import { JiraSyncRunKind, Prisma } from '@prisma/client';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
+import { jiraDisplayUrl, jiraUrlMatchesConfiguredBase } from '../jira-url-policy.js';
 import { normalizedJiraIssueKey, resolveJiraConfig } from '../jira.js';
 import { currentApiToken, currentUser } from '../server/auth.js';
 import { logEvent } from '../server/logger.js';
@@ -78,7 +79,7 @@ export function issueJiraUrlForKey(
   ).baseUrl;
   if (!configuredBaseUrl) return null;
   try {
-    const url = new URL(configuredBaseUrl);
+    const url = jiraDisplayUrl(configuredBaseUrl);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
     url.pathname = `${url.pathname.replace(/\/+$/, '')}/browse/${encodeURIComponent(normalizedKey)}`;
     url.search = '';
@@ -163,6 +164,7 @@ function issueSeverityToRaidImpact(severity: string) {
 const issueAuditFields = [
   'phaseId',
   'workPackageId',
+  'riskId',
   'source',
   'category',
   'title',
@@ -182,6 +184,7 @@ const issueAuditFields = [
 ];
 
 const issueInclude = {
+  threadLinks: { orderBy: { createdAt: 'asc' as const } },
   jiraLinks: { orderBy: { createdAt: 'asc' as const } },
   statusUpdates: { orderBy: [{ statusAt: 'desc' as const }, { createdAt: 'desc' as const }] },
 };
@@ -189,6 +192,13 @@ const issueInclude = {
 async function issuePhaseExists(projectId: string, phaseId: string) {
   return prisma.wbsItem.findFirst({
     where: { id: phaseId, projectId, type: 'PHASE' },
+    select: { id: true },
+  });
+}
+
+async function issueRiskExists(projectId: string, riskId: string) {
+  return prisma.raidItem.findFirst({
+    where: { id: riskId, projectId, type: 'RISK' },
     select: { id: true },
   });
 }
@@ -475,8 +485,13 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
   }
 
   const phaseId = parsed.data.phaseId?.trim() || null;
+  const riskId = parsed.data.riskId?.trim() || null;
   if (phaseId && !(await issuePhaseExists(project.id, phaseId))) {
     res.status(400).json({ error: 'Выбранная фаза не найдена в Структуре проекта' });
+    return;
+  }
+  if (riskId && !(await issueRiskExists(project.id, riskId))) {
+    res.status(400).json({ error: 'Выбранный риск не найден в реестре проекта' });
     return;
   }
   if (phaseId && !(await ensureIssuePhaseSelectionAccess(project.id, 'POST', req, res))) return;
@@ -529,6 +544,7 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
           data: {
             projectId: project.id,
             phaseId,
+            riskId,
             workPackageId: mutation?.workPackageId ?? null,
             source: jiraLinks.length > 0 ? 'JIRA' : 'INTERNAL',
             category: parsed.data.category,
@@ -551,6 +567,9 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
                 jiraUrl: link.jiraUrl,
               })),
             },
+            threadLinks: referenceUrl
+              ? { create: { threadUrl: referenceUrl } }
+              : undefined,
           },
           include: issueInclude,
         });
@@ -653,6 +672,20 @@ router.patch('/open-issues/:issueId', async (req, res) => {
             error: 'Фазу нельзя очистить после создания пакета работ; выберите другую фазу',
           });
           return null;
+        }
+        if (parsed.data.riskId) {
+          const risk = await tx.raidItem.findFirst({
+            where: {
+              id: parsed.data.riskId,
+              projectId: currentIssue.projectId,
+              type: 'RISK',
+            },
+            select: { id: true },
+          });
+          if (!risk) {
+            res.status(400).json({ error: 'Выбранный риск не найден в реестре проекта' });
+            return null;
+          }
         }
 
         const targetPhaseId = parsed.data.phaseId === undefined
@@ -1006,6 +1039,157 @@ router.post('/open-issues/:issueId/status-updates', async (req, res) => {
   res.status(201).json(statusUpdate);
 });
 
+const issueThreadLinkSchema = z.object({
+  threadUrl: z.string().trim().min(1).refine(isValidHttpUrl, {
+    message: 'URL трэда должен использовать http или https',
+  }),
+});
+
+router.post('/open-issues/:issueId/thread-links', async (req, res) => {
+  const parsed = issueThreadLinkSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const issue = await prisma.issue.findUnique({ where: { id: req.params.issueId } });
+  if (!issue) {
+    res.status(404).json({ error: 'Открытый вопрос не найден' });
+    return;
+  }
+  const previousLink = await prisma.issueThreadLink.findUnique({
+    where: {
+      issueId_threadUrl: {
+        issueId: issue.id,
+        threadUrl: parsed.data.threadUrl,
+      },
+    },
+  });
+  const link = await prisma.issueThreadLink.upsert({
+    where: {
+      issueId_threadUrl: {
+        issueId: issue.id,
+        threadUrl: parsed.data.threadUrl,
+      },
+    },
+    create: { issueId: issue.id, threadUrl: parsed.data.threadUrl },
+    update: {},
+  });
+  if (!issue.referenceUrl) {
+    await prisma.issue.update({
+      where: { id: issue.id },
+      data: { referenceUrl: link.threadUrl },
+    });
+  }
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: previousLink ? 'issue.thread_link.update' : 'issue.thread_link.create',
+    objectType: 'IssueThreadLink',
+    objectId: link.id,
+    projectId: issue.projectId,
+    beforeValue: previousLink,
+    afterValue: link,
+    metadata: { issueId: issue.id },
+    changes: buildAuditFieldChanges(previousLink ?? {}, link, ['threadUrl']),
+  });
+  res.status(201).json(link);
+});
+
+router.patch('/open-issues/:issueId/thread-links/:linkId', async (req, res) => {
+  const parsed = issueThreadLinkSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        SELECT "id" FROM "Issue" WHERE "id" = ${req.params.issueId} FOR UPDATE
+      `);
+      const [beforeLink, issue] = await Promise.all([
+        tx.issueThreadLink.findUnique({ where: { id: req.params.linkId } }),
+        tx.issue.findUnique({ where: { id: req.params.issueId } }),
+      ]);
+      if (!beforeLink || beforeLink.issueId !== req.params.issueId || !issue) return null;
+      const link = await tx.issueThreadLink.update({
+        where: { id: beforeLink.id },
+        data: { threadUrl: parsed.data.threadUrl },
+      });
+      if (issue.referenceUrl === beforeLink.threadUrl) {
+        await tx.issue.update({
+          where: { id: issue.id },
+          data: { referenceUrl: link.threadUrl },
+        });
+      }
+      return { beforeLink, issue, link };
+    });
+    if (!result) {
+      res.status(404).json({ error: 'Ссылка на трэд не найдена' });
+      return;
+    }
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'issue.thread_link.update',
+      objectType: 'IssueThreadLink',
+      objectId: result.link.id,
+      projectId: result.issue.projectId,
+      beforeValue: result.beforeLink,
+      afterValue: result.link,
+      metadata: { issueId: result.issue.id },
+      changes: buildAuditFieldChanges(result.beforeLink, result.link, ['threadUrl']),
+    });
+    res.json(result.link);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      res.status(409).json({ error: 'Этот трэд уже связан с вопросом' });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.delete('/open-issues/:issueId/thread-links/:linkId', async (req, res) => {
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(Prisma.sql`
+      SELECT "id" FROM "Issue" WHERE "id" = ${req.params.issueId} FOR UPDATE
+    `);
+    const [link, issue] = await Promise.all([
+      tx.issueThreadLink.findUnique({ where: { id: req.params.linkId } }),
+      tx.issue.findUnique({ where: { id: req.params.issueId } }),
+    ]);
+    if (!link || link.issueId !== req.params.issueId || !issue) return null;
+    await tx.issueThreadLink.delete({ where: { id: link.id } });
+    if (issue.referenceUrl === link.threadUrl) {
+      const replacement = await tx.issueThreadLink.findFirst({
+        where: { issueId: issue.id },
+        orderBy: { createdAt: 'asc' },
+      });
+      await tx.issue.update({
+        where: { id: issue.id },
+        data: { referenceUrl: replacement?.threadUrl ?? null },
+      });
+    }
+    return { link, issue };
+  });
+  if (!result) {
+    res.status(404).json({ error: 'Ссылка на трэд не найдена' });
+    return;
+  }
+  await recordAuditEvent({
+    req,
+    actor: currentUser(req),
+    action: 'issue.thread_link.delete',
+    objectType: 'IssueThreadLink',
+    objectId: result.link.id,
+    projectId: result.issue.projectId,
+    beforeValue: result.link,
+    metadata: { issueId: result.issue.id },
+    changes: buildAuditFieldChanges(result.link, {}, ['threadUrl']),
+  });
+  res.status(204).send();
+});
+
 const issueJiraLinkSchema = z.object({
   jiraKey: z.string().trim().min(1),
 });
@@ -1320,7 +1504,7 @@ router.patch('/tasks/:taskId/jira-link', async (req, res) => {
   }
 
   const jiraBaseUrl = task.project.jiraIntegration?.baseUrl;
-  if (jiraBaseUrl && parsed.data.jiraTicketUrl && !parsed.data.jiraTicketUrl.startsWith(jiraBaseUrl)) {
+  if (jiraBaseUrl && parsed.data.jiraTicketUrl && !jiraUrlMatchesConfiguredBase(parsed.data.jiraTicketUrl, jiraBaseUrl)) {
     res.status(400).json({ error: `URL Jira должен начинаться с ${jiraBaseUrl}` });
     return;
   }

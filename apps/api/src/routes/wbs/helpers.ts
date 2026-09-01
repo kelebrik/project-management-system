@@ -1,4 +1,5 @@
 import { prisma } from '../../db.js';
+import { jiraUrlMatchesConfiguredBase } from '../../jira-url-policy.js';
 import { levelFromWbsCode } from '../../services/wbs.js';
 
 export function closedAtForWbsStatus(
@@ -41,7 +42,7 @@ export async function validateWbsProjectAndParent(
   }
 
   const jiraBaseUrl = project.jiraIntegration?.baseUrl;
-  if (jiraBaseUrl && jiraTicketUrl && !jiraTicketUrl.startsWith(jiraBaseUrl)) {
+  if (jiraBaseUrl && jiraTicketUrl && !jiraUrlMatchesConfiguredBase(jiraTicketUrl, jiraBaseUrl)) {
     return { error: `URL Jira должен начинаться с ${jiraBaseUrl}` as const };
   }
 

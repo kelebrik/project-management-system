@@ -916,6 +916,34 @@
   display: none;
 }
 
+.issue-work-package-reference {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  min-height: 32px;
+}
+
+.issue-work-package-reference > span {
+  color: var(--text-muted);
+  font-size: var(--issue-meta-font);
+  font-weight: 600;
+}
+
+.issue-work-package-reference > a {
+  color: var(--brand);
+  font-size: var(--issue-font);
+  font-weight: 600;
+  overflow: hidden;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issue-work-package-reference > a:hover {
+  text-decoration: underline;
+}
+
 .issue-thread-link {
   align-items: center;
   border: 1px solid var(--border-strong);
@@ -937,7 +965,7 @@
   align-items: center;
   display: grid;
   gap: 5px;
-  grid-template-columns: minmax(0, 1fr) 32px;
+  grid-template-columns: minmax(0, 1fr) 32px 32px;
 }
 
 .issue-thread-control > input {
@@ -953,6 +981,11 @@
   min-height: 32px;
   padding: 0;
   width: 32px;
+}
+
+.issue-thread-links {
+  display: grid;
+  gap: var(--issue-row-gap);
 }
 
 .issue-ticket-links {
@@ -1011,7 +1044,8 @@
   width: 32px;
 }
 
-.issue-inline-jira-add {
+.issue-inline-jira-add,
+.issue-inline-thread-add {
   align-items: center;
   display: grid;
   gap: 4px;
@@ -1019,6 +1053,7 @@
 }
 
 .issue-inline-jira-add button,
+.issue-inline-thread-add button,
 .issue-inline-status-add button {
   align-items: center;
   display: inline-flex;
@@ -1105,6 +1140,20 @@
   text-align: center;
 }
 
+.issue-risk-control {
+  align-items: center;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) 32px;
+}
+
+.issue-risk-control .icon-button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  width: 32px;
+}
+
 .issue-risk-link {
   align-items: center;
   color: var(--brand);
@@ -1114,6 +1163,13 @@
   gap: 5px;
   min-height: 32px;
   text-decoration: none;
+  min-width: 0;
+}
+
+.issue-risk-link > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .issue-risk-link:hover {

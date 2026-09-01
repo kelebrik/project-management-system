@@ -106,6 +106,7 @@ function projectFixture() {
     id: "issue-1",
     phaseId: null,
     workPackageId: null,
+    riskId: null,
     source: "INTERNAL",
     category: "Организационные задачи",
     title: "Согласовать дату запуска",
@@ -122,6 +123,14 @@ function projectFixture() {
     closedDelayDays: null,
     jiraTicketKey: null,
     jiraTicketUrl: null,
+    threadLinks: [
+      {
+        id: "thread-link-1",
+        issueId: "issue-1",
+        threadUrl: "https://example.test/launch-meeting",
+        createdAt: `${isoDay(-2)}T09:00:00.000Z`,
+      },
+    ],
     jiraLinks: [],
     statusUpdates: [
       {
@@ -1696,6 +1705,9 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
     });
   });
   const issue = project.issues[0];
+  const linkedRisk = project.raidItems.find((item) => item.type === "RISK")!;
+  linkedRisk.status = "CLOSED";
+  issue.riskId = linkedRisk.id;
   issue.source = "JIRA";
   issue.jiraTicketKey = "CVTE-1801";
   issue.jiraTicketUrl = "https://jira.example.test/browse/CVTE-1801";
@@ -1721,7 +1733,21 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
     }
     await new Promise((resolve) => setTimeout(resolve, "title" in patch ? 120 : 10));
     Object.assign(issue, patch);
-    if (patch.phaseId) issue.workPackageId = "work-package-issue-1";
+    if (patch.phaseId) {
+      issue.workPackageId = "work-package-issue-1";
+      if (!project.wbsItems.some((item) => item.id === issue.workPackageId)) {
+        project.wbsItems.push({
+          ...project.wbsItems[0],
+          id: issue.workPackageId,
+          parentId: String(patch.phaseId),
+          code: "1.1",
+          title: issue.title,
+          type: "WORK_PACKAGE",
+          wbsLevel: 2,
+          sortOrder: 1,
+        });
+      }
+    }
     await route.fulfill({ json: issue });
   });
   await page.route("**/api/projects/project-1", async (route) => {
@@ -1756,6 +1782,27 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
     };
     issue.jiraLinks.push(link);
     await route.fulfill({ status: 201, json: link });
+  });
+  await page.route("**/api/open-issues/issue-1/thread-links", async (route) => {
+    const payload = route.request().postDataJSON() as { threadUrl: string };
+    const link = {
+      id: `thread-link-${issue.threadLinks.length + 1}`,
+      issueId: issue.id,
+      threadUrl: payload.threadUrl,
+      createdAt: `${isoDay(0)}T12:00:00.000Z`,
+    };
+    issue.threadLinks.push(link);
+    await route.fulfill({ status: 201, json: link });
+  });
+  await page.route("**/api/open-issues/issue-1/thread-links/thread-link-1", async (route) => {
+    if (route.request().method() === "PATCH") {
+      const payload = route.request().postDataJSON() as { threadUrl: string };
+      issue.threadLinks[0].threadUrl = payload.threadUrl;
+      await route.fulfill({ json: issue.threadLinks[0] });
+      return;
+    }
+    issue.threadLinks = issue.threadLinks.filter((link) => link.id !== "thread-link-1");
+    await route.fulfill({ status: 204 });
   });
   await page.route("**/api/open-issues/issue-1/jira-links/issue-link-1", async (route) => {
     if (route.request().method() === "PATCH") {
@@ -1792,16 +1839,19 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await expect(owner).toHaveValue("Владелец запуска");
 
   await row.getByRole("button", { name: "Изменить ссылку на трэд" }).click();
-  const threadUrl = row.getByLabel("Ссылка на трэд");
+  const threadUrl = row.getByLabel("URL трэда");
   await threadUrl.fill("https://example.test/updated-thread");
   await threadUrl.blur();
-  await expect.poll(() => issuePatches).toContainEqual({
-    referenceUrl: "https://example.test/updated-thread",
-  });
-  await expect(row.getByRole("link", { name: "Ссылка на трэд" })).toHaveAttribute(
+  await expect(row.getByRole("link", { name: "Трэд" })).toHaveAttribute(
     "href",
     "https://example.test/updated-thread",
   );
+  const additionalThreadUrl = row.getByLabel("URL дополнительного трэда");
+  await additionalThreadUrl.fill("https://example.test/second-thread");
+  await row.getByRole("button", { name: "Добавить трэд" }).click();
+  await expect(row.getByRole("link", { name: "Трэд" })).toHaveCount(2);
+  await row.getByRole("button", { name: "Удалить ссылку на трэд" }).first().click();
+  await expect(row.getByRole("link", { name: "Трэд" })).toHaveCount(1);
   await expect(row.getByRole("link", { name: "CVTE-1801" })).toBeVisible();
   await row.getByRole("button", { name: "Изменить ключ CVTE-1801" }).click();
   const jiraKeyEditor = row.getByLabel("Ключ тикета CVTE-1801");
@@ -1854,6 +1904,11 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await expect.poll(() => issuePatches).toContainEqual({ phaseId: "phase-issues" });
   await expect(page.getByText("Пакет работ создан в фазе «1 · Подготовка выпуска»")).toBeVisible();
   await expect(row.getByText("Пакет работ создан в Структуре")).toHaveCount(0);
+  await expect(row.getByText("Пакет", { exact: true })).toBeVisible();
+  await expect(row.getByRole("link", { name: /1\.1 ·/ })).toHaveAttribute(
+    "href",
+    /focusWbs=work-package-issue-1/,
+  );
 
   await owner.fill("Ошибка сохранения");
   await owner.blur();
@@ -1878,8 +1933,9 @@ test("open issues register edits cells, phase, widths, and adds a current-date s
   await expect(reopenedRow.locator(".issue-current-status time")).toHaveText(
     new Intl.DateTimeFormat("ru-RU").format(new Date(`${isoDay(0)}T12:00:00`)),
   );
-  await reopenedRow.getByRole("link", { name: "Риски" }).click();
+  await reopenedRow.getByRole("link", { name: linkedRisk.title }).click();
   await expect(page).toHaveURL(/\/TV-OVERVIEW\/risks$/);
+  await expect(page.locator(`#raid-item-${linkedRisk.id}`)).toHaveClass(/focused/);
 });
 
 test("new open issue keeps inline register fields in the create request", async ({ page }) => {
