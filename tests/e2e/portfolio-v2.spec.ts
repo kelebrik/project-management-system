@@ -1,0 +1,273 @@
+import { expect, test, type Page, type Route } from "@playwright/test";
+
+function wbsItem(
+  id: string,
+  parentId: string | null,
+  title: string,
+  startDate: string,
+  dueDate: string,
+) {
+  return {
+    id,
+    parentId,
+    code: id,
+    title,
+    type: parentId ? "WORK_PACKAGE" : "PHASE",
+    status: "IN_PROGRESS",
+    owner: "Команда",
+    startDate,
+    dueDate,
+    baselineStartDate: null,
+    baselineDueDate: null,
+    forecastStartDate: null,
+    forecastDueDate: null,
+    wbsLevel: parentId ? 2 : 1,
+    predecessor1: null,
+    predecessor2: null,
+    predecessor3: null,
+    predecessor4: null,
+    predecessor5: null,
+    predecessor6: null,
+    leadLagDays: 0,
+    workDays: 20,
+    calendarDays: 30,
+    excelStartDate: null,
+    excelEndDate: null,
+    planWorkDays: 20,
+    planCalendarDays: 30,
+    calendarCode: "RU",
+    templateColor: null,
+    priority: null,
+    effortPercent: 100,
+    plannedCost: "0",
+    forecastCost: "0",
+    progress: 40,
+    jiraTicketKey: null,
+    jiraTicketUrl: null,
+    mattermostUrl: null,
+    description: null,
+    comment: null,
+    closedAt: null,
+    sortOrder: 0,
+  };
+}
+
+function projectFixture() {
+  const hw = wbsItem("1", null, "Аппаратная часть", "2026-07-01", "2027-03-31");
+  const sw = wbsItem("2", null, "Программная часть", "2026-08-01", "2027-04-30");
+  const g2m = wbsItem("3", null, "Маркетинг и вывод на рынок", "2026-10-01", "2027-05-31");
+  return {
+    id: "device-project",
+    businessUnitId: "devices",
+    businessUnit: { id: "devices", code: "DEV", name: "Устройства" },
+    parentId: null,
+    code: "DEVICE-01",
+    name: "Новое устройство",
+    portfolio: "Аудио",
+    sponsor: "Директор продукта",
+    projectManager: "Анна Петрова",
+    status: "ACTIVE",
+    rag: "AMBER",
+    startDate: "2026-07-01",
+    initialTargetDate: "2027-05-31",
+    targetDate: "2027-05-31",
+    progress: 40,
+    scheduleVariance: 0,
+    budgetPlanned: "0",
+    budgetForecast: "0",
+    summary: "",
+    sortOrder: 0,
+    uiState: null,
+    jiraIntegration: null,
+    jiraAnalyticsSettings: null,
+    targetDateChanges: [],
+    wbsItems: [
+      hw,
+      sw,
+      g2m,
+      wbsItem("1.1", hw.id, "HW Product Requirements", "2026-07-01", "2026-08-31"),
+      wbsItem("1.2", hw.id, "HW EVT", "2026-09-01", "2026-10-31"),
+      wbsItem("1.3", hw.id, "HW DVT", "2026-11-01", "2026-12-31"),
+      wbsItem("1.4", hw.id, "HW PVT", "2027-06-30", "2027-06-30"),
+      wbsItem("2.1", sw.id, "SW Architecture", "2026-08-01", "2026-09-30"),
+      wbsItem("2.2", sw.id, "Beta", "2026-10-01", "2027-01-31"),
+      wbsItem("2.3", sw.id, "Alpha", "2026-09-15", "2026-11-15"),
+      wbsItem("3.1", g2m.id, "Integrated GTM Plan Development", "2026-10-01", "2026-11-30"),
+      wbsItem("3.2", g2m.id, "Market Launch & Start of Sales", "2027-04-01", "2027-05-31"),
+    ],
+    tasks: [],
+    issues: [],
+    closedIssues: [],
+    jiraWorkSections: [],
+    overviews: [],
+    milestones: [],
+    wbsDependencies: [],
+    criticalPath: null,
+    calendarOverrides: [],
+    artifacts: [],
+    raidItems: [],
+    changeRequests: [],
+    currentUserAccessLevel: "VIEW",
+    _count: { tasks: 7, issues: 0, jiraSnapshots: 0 },
+  };
+}
+
+async function mockPortfolio(page: Page) {
+  const project = projectFixture();
+  const respond = (route: Route) => {
+    const { pathname } = new URL(route.request().url());
+    if (pathname === "/api/auth/me") {
+      return route.fulfill({
+        json: {
+          user: {
+            id: "pm-1",
+            email: "pm@example.test",
+            name: "Портфельный управляющий",
+            role: "PROJECT_MANAGER",
+            isActive: true,
+            lastLoginAt: null,
+            businessUnitAdminIds: [],
+          },
+        },
+      });
+    }
+    if (pathname === "/api/auth/keycloak/status") {
+      return route.fulfill({ json: { enabled: false, hostname: null } });
+    }
+    if (pathname === "/api/projects") {
+      return route.fulfill({ json: [{ ...project, wbsItems: [] }] });
+    }
+    if (pathname === "/api/projects/portfolio-roadmap") {
+      return route.fulfill({ json: [project] });
+    }
+    if (pathname === "/api/project-modules") {
+      return route.fulfill({ json: [] });
+    }
+    if (pathname === "/api/business-units") {
+      return route.fulfill({ json: [] });
+    }
+    if (pathname === "/api/page-visits") {
+      return route.fulfill({ json: null });
+    }
+    if (pathname === `/api/projects/${project.id}/overview`) {
+      return route.fulfill({ json: project });
+    }
+    return route.fulfill({ status: 404, json: { error: "Not mocked" } });
+  };
+  await page.route(/^https?:\/\/[^/]+\/api\//, respond);
+}
+
+test("portfolio v2 exposes the HW, SW and G2M roadmap to a project manager", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.clock.setFixedTime(new Date("2026-09-03T12:00:00"));
+  await mockPortfolio(page);
+  await page.goto("/portfolio-v2");
+
+  await expect(page.getByRole("heading", { name: "Портфель v2", exact: true })).toBeVisible();
+  const roadmap = page.getByTestId("portfolio-v2-roadmap");
+  await expect(roadmap).toBeVisible();
+  await expect(roadmap.getByText("Новое устройство", { exact: true })).toBeVisible();
+  await expect(roadmap.locator(".portfolio-roadmap-track-label")).toHaveText([
+    "HW",
+    "SW",
+    "G2M",
+  ]);
+  await expect(roadmap.locator(".portfolio-roadmap-segment")).toHaveCount(9);
+  await expect(roadmap.locator(".portfolio-roadmap-track").nth(1)).toHaveCSS(
+    "min-height",
+    "60px",
+  );
+  const shortSegment = roadmap.getByRole("button", { name: /^PVT,/ });
+  const shortSegmentBox = await shortSegment.boundingBox();
+  expect(shortSegmentBox?.width).toBeGreaterThanOrEqual(24);
+  await expect(page.getByRole("button", { name: "Разработка" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "12 мес." }).click();
+  await expect(roadmap.locator(".portfolio-roadmap-month")).toHaveCount(12);
+  await page.getByRole("button", { name: "24 мес." }).click();
+  await expect(roadmap.locator(".portfolio-roadmap-month")).toHaveCount(24);
+  await page.getByRole("button", { name: "36 мес." }).click();
+  await expect(roadmap.locator(".portfolio-roadmap-month")).toHaveCount(36);
+
+  await roadmap.evaluate((element) => {
+    element.scrollLeft = 500;
+  });
+  await page.getByRole("searchbox", { name: "Поиск проекта" }).fill("нет такого");
+  const emptyState = roadmap.getByText("Проекты по заданным фильтрам не найдены.");
+  await expect(emptyState).toBeVisible();
+  const emptyStatePosition = await emptyState.evaluate((element) => {
+    const scroller = element.closest(".portfolio-roadmap-scroll");
+    if (!scroller) throw new Error("Roadmap scroller not found");
+    const stateRect = element.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    return {
+      left: stateRect.left - scrollerRect.left,
+      right: stateRect.right - scrollerRect.right,
+    };
+  });
+  expect(emptyStatePosition.left).toBeGreaterThanOrEqual(-1);
+  expect(emptyStatePosition.right).toBeLessThanOrEqual(1);
+  await page.getByRole("searchbox", { name: "Поиск проекта" }).fill("DEVICE-01");
+  await expect(roadmap.getByText("Новое устройство", { exact: true })).toBeVisible();
+
+  await roadmap.getByRole("button", { name: /^EVT,/ }).click();
+  const details = page.getByRole("complementary", { name: "EVT" });
+  await expect(details).toBeFocused();
+  await expect(details).toContainText("Engineering Validation Test");
+  await expect(details).toContainText("01.09.2026 - 31.10.2026");
+  if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
+    await page.screenshot({
+      fullPage: true,
+      path: "/private/tmp/pms-portfolio-v2-desktop.png",
+    });
+  }
+
+  const legendTrigger = page.getByRole("button", { name: "Легенда" });
+  await legendTrigger.click();
+  const legend = page.getByRole("dialog", { name: "Легенда этапов" });
+  await expect(legend).toBeVisible();
+  await expect(legend.getByRole("button", { name: "Закрыть легенду" })).toBeFocused();
+  await expect(legend.getByText("MP FW + 1st OTA", { exact: true })).toBeVisible();
+  await expect(legend.getByText("Post-Launch Analysis, Retrospective & Handover", { exact: true })).toBeVisible();
+  if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
+    await page.screenshot({
+      fullPage: true,
+      path: "/private/tmp/pms-portfolio-v2-legend.png",
+    });
+  }
+  await page.keyboard.press("Escape");
+  await expect(legend).toBeHidden();
+  await expect(legendTrigger).toBeFocused();
+});
+
+test("portfolio v2 keeps the wide roadmap inside its mobile scroller", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.setFixedTime(new Date("2026-09-03T12:00:00"));
+  await mockPortfolio(page);
+  await page.goto("/portfolio-v2");
+
+  const roadmap = page.getByTestId("portfolio-v2-roadmap");
+  await expect(roadmap).toBeVisible();
+  const sizes = await roadmap.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(sizes.scrollWidth).toBeGreaterThan(sizes.clientWidth);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Сегодня" }).click();
+  await expect.poll(() => roadmap.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
+    await page.screenshot({
+      fullPage: true,
+      path: "/private/tmp/pms-portfolio-v2-mobile.png",
+    });
+  }
+});

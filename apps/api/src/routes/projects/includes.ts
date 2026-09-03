@@ -37,6 +37,42 @@ export const projectInclude = {
   },
 } satisfies Prisma.ProjectInclude;
 
+export const portfolioRoadmapProjectSelect = {
+  id: true,
+  code: true,
+  name: true,
+  portfolio: true,
+  projectManager: true,
+  status: true,
+  rag: true,
+  sortOrder: true,
+  businessUnit: { select: { id: true, code: true, name: true } },
+  wbsItems: {
+    where: {
+      OR: [
+        { startDate: { not: null } },
+        { dueDate: { not: null } },
+        { forecastStartDate: { not: null } },
+        { forecastDueDate: { not: null } },
+      ],
+    },
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+    select: {
+      id: true,
+      parentId: true,
+      code: true,
+      title: true,
+      type: true,
+      status: true,
+      startDate: true,
+      dueDate: true,
+      forecastStartDate: true,
+      forecastDueDate: true,
+      progress: true,
+    },
+  },
+} satisfies Prisma.ProjectSelect;
+
 export const projectDetailsInclude = {
   businessUnit: { select: { id: true, code: true, name: true } },
   jiraIntegration: true,

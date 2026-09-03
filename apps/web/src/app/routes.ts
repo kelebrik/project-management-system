@@ -49,7 +49,6 @@ export type ResourceSectionView = Extract<
 
 export type DevelopmentSectionView = Extract<
   AppView,
-  | "portfolio-v2"
   | "decision-queue"
   | "project-pm-workspace"
   | ResourceSectionView
@@ -94,7 +93,6 @@ export function canAccessAdminView(
 }
 
 export const developmentSectionViews: DevelopmentSectionView[] = [
-  "portfolio-v2",
   "decision-queue",
   "project-pm-workspace",
   "resources",
@@ -126,7 +124,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
-  "portfolio-v2": "/development/portfolio-v2",
+  "portfolio-v2": "/portfolio-v2",
   "decision-queue": "/development/decision-queue",
   projects: "/projects",
   reports: "/reports",

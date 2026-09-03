@@ -126,7 +126,7 @@ type AppPresentationProps = {
 function createViewTitle(project: any): Record<AppView, string> {
   return {
     portfolio: "Портфель",
-    "portfolio-v2": "Портфель_v2",
+    "portfolio-v2": "Портфель v2",
     "decision-queue": "Очередь решений",
     projects: "Проекты",
     reports: "Отчёты",

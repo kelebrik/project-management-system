@@ -69,7 +69,7 @@ export const projectAppViewKeys = [
 
 export const appViewLabels: Record<AppViewKey, string> = {
   portfolio: "Портфель",
-  "portfolio-v2": "Портфель_v2",
+  "portfolio-v2": "Портфель v2",
   "decision-queue": "Очередь решений",
   projects: "Проекты",
   reports: "Отчёты",

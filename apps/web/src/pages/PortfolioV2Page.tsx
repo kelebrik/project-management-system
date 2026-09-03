@@ -1,311 +1,563 @@
-import { signedDaysUntil } from "../app/dateUtils";
-import type { ProjectListItem, RaidItem } from "../app/domainTypes";
-import { projectHealthLabel } from "../app/labels";
-import type {
-  PortfolioGoalTimelineItem,
-  PortfolioGoalTimelineModel,
-  PortfolioGoalTimelineProjectRow,
-} from "../app/portfolioModels";
-import type { ProjectSectionView } from "../app/routes";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { BookOpenText, CalendarClock, Search, X } from "lucide-react";
+
+import {
+  createPortfolioRoadmap,
+  portfolioRoadmapDateLabel,
+  preparePortfolioRoadmapProjects,
+  PORTFOLIO_ROADMAP_TRACKS,
+  type PortfolioRoadmapSegment,
+  type PortfolioRoadmapRange,
+  type PortfolioRoadmapSourceProject,
+} from "../app/portfolioRoadmapModel";
+import { apiClient } from "../api/client";
 import { usePageContext } from "./PageContext";
 
-type PortfolioRaidItem = RaidItem & {
+const RANGE_OPTIONS: Array<{ value: PortfolioRoadmapRange; label: string }> = [
+  { value: 12, label: "12 мес." },
+  { value: 24, label: "24 мес." },
+  { value: 36, label: "36 мес." },
+];
+
+function itemCountLabel(value: number) {
+  const mod100 = value % 100;
+  const mod10 = value % 10;
+  if (mod100 >= 11 && mod100 <= 14) return `${value} элементов ИСР`;
+  if (mod10 === 1) return `${value} элемент ИСР`;
+  if (mod10 >= 2 && mod10 <= 4) return `${value} элемента ИСР`;
+  return `${value} элементов ИСР`;
+}
+
+function initialRange(): PortfolioRoadmapRange {
+  try {
+    const saved = Number(window.localStorage.getItem("pms:portfolio-v2-range"));
+    return saved === 12 || saved === 24 ? saved : 36;
+  } catch {
+    return 36;
+  }
+}
+
+function saveRange(value: PortfolioRoadmapRange) {
+  try {
+    window.localStorage.setItem("pms:portfolio-v2-range", String(value));
+  } catch {
+    // The selected range still applies for this session when storage is unavailable.
+  }
+}
+
+type SelectedSegment = {
   projectId: string;
   projectName: string;
+  trackLabel: string;
+  segment: PortfolioRoadmapSegment;
 };
 
-function activeRaid(item: RaidItem) {
-  return item.status !== "CLOSED" && item.status !== "VALIDATED";
-}
-
-function dueLabel(dueDate: string | null) {
-  const days = signedDaysUntil(dueDate);
-  if (days === null) return "срок не задан";
-  if (days < 0) return `просрочено ${Math.abs(days)} дн.`;
-  if (days === 0) return "сегодня";
-  return `через ${days} дн.`;
-}
-
-function dueTone(dueDate: string | null) {
-  const days = signedDaysUntil(dueDate);
-  if (days === null) return "neutral";
-  if (days < 0) return "red";
-  if (days <= 14) return "amber";
-  return "green";
-}
-
-function collectPortfolioRaid(projects: ProjectListItem[]) {
-  return projects.flatMap((project) =>
-    (project.raidItems ?? []).map((item) => ({
-      ...item,
-      projectId: project.id,
-      projectName: project.name,
-    })),
-  );
-}
-
 export function PortfolioV2Page() {
-  const ctx = usePageContext();
   const {
-    activeProjects,
-    date,
     firstEnabledProjectView,
-    openRaidItemFromOverview,
-    portfolioGoalTimeline,
-    portfolioSummary,
-    projects,
     selectProject,
-  } = ctx;
-  const portfolioTimeline =
-    portfolioGoalTimeline as PortfolioGoalTimelineModel;
-  const [projectSort, setProjectSort] = useState<
-    "risk" | "decisions" | "schedule" | "name"
-  >(() => {
-    const saved = window.localStorage.getItem("pms:portfolio-v2-sort");
-    return saved === "decisions" || saved === "schedule" || saved === "name"
-      ? saved
-      : "risk";
-  });
-  const projectItems = ((activeProjects as ProjectListItem[] | undefined) ??
-    (projects as ProjectListItem[]).filter((project) => project.status !== "CLOSED"));
-  const raidItems = collectPortfolioRaid(projectItems);
-  const redRaidItems = raidItems
-    .filter(
-      (item) =>
-        activeRaid(item) &&
-        (item.type === "RISK" || item.type === "DEPENDENCY") &&
-        item.riskScore >= 15,
-    )
-    .sort(
-      (left, right) =>
-        right.riskScore - left.riskScore ||
-        (signedDaysUntil(left.dueDate) ?? Number.POSITIVE_INFINITY) -
-          (signedDaysUntil(right.dueDate) ?? Number.POSITIVE_INFINITY) ||
-        left.title.localeCompare(right.title, "ru"),
-    );
-  const decisionQueue = raidItems
-    .filter((item) => activeRaid(item) && item.decisionRequired)
-    .sort(
-      (left, right) =>
-        (signedDaysUntil(left.dueDate) ?? Number.POSITIVE_INFINITY) -
-          (signedDaysUntil(right.dueDate) ?? Number.POSITIVE_INFINITY) ||
-        right.riskScore - left.riskScore,
-    );
-  const decisionItems = decisionQueue.length > 0 ? decisionQueue : redRaidItems;
-  const projectRows = projectItems
-    .map((project) => {
-      const projectRaid = raidItems.filter((item) => item.projectId === project.id);
-      const activeProjectRaid = projectRaid.filter(activeRaid);
-      const redCount = activeProjectRaid.filter(
-        (item) =>
-          (item.type === "RISK" || item.type === "DEPENDENCY") &&
-          item.riskScore >= 15,
-      ).length;
-      const decisions = activeProjectRaid.filter(
-        (item) => item.decisionRequired,
-      ).length;
-      const riskScore = activeProjectRaid.reduce(
-        (maxScore, item) => Math.max(maxScore, item.riskScore),
-        0,
-      );
-      const scheduleImpact = activeProjectRaid.reduce(
-        (maxImpact, item) => Math.max(maxImpact, item.scheduleImpactDays),
-        0,
-      );
-      const nextGoal = portfolioTimeline.projectRows
-        .find((row: PortfolioGoalTimelineProjectRow) => row.projectId === project.id)
-        ?.items.find((item: PortfolioGoalTimelineItem) => item.dueDate);
-      return {
-        project,
-        redCount,
-        decisions,
-        riskScore,
-        scheduleImpact,
-        nextGoal,
-      };
-    })
-    .sort((left, right) => {
-      if (projectSort === "decisions") {
-        return right.decisions - left.decisions || right.riskScore - left.riskScore;
+  } = usePageContext();
+  const [range, setRange] = useState<PortfolioRoadmapRange>(initialRange);
+  const [query, setQuery] = useState("");
+  const [portfolioFilter, setPortfolioFilter] = useState("ALL");
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [projectItems, setProjectItems] = useState<PortfolioRoadmapSourceProject[] | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [reloadToken, setReloadToken] = useState(0);
+  const [selectedSegment, setSelectedSegment] = useState<SelectedSegment | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const legendDialogRef = useRef<HTMLElement>(null);
+  const legendTriggerRef = useRef<HTMLButtonElement>(null);
+  const legendCloseRef = useRef<HTMLButtonElement>(null);
+  const selectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void apiClient
+      .get<PortfolioRoadmapSourceProject[]>(
+        "/api/projects/portfolio-roadmap",
+        "Не удалось загрузить дорожную карту",
+      )
+      .then((items) => {
+        if (!cancelled) setProjectItems(items);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error ? error.message : "Не удалось загрузить дорожную карту",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
+
+  const preparedProjects = useMemo(
+    () => preparePortfolioRoadmapProjects(projectItems ?? []),
+    [projectItems],
+  );
+  const portfolioOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(preparedProjects.map((project) => project.portfolio)),
+      ).sort((left, right) => left.localeCompare(right, "ru")),
+    [preparedProjects],
+  );
+  const effectivePortfolioFilter =
+    portfolioFilter === "ALL" || portfolioOptions.includes(portfolioFilter)
+      ? portfolioFilter
+      : "ALL";
+  const visibleProjects = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase("ru-RU");
+    return preparedProjects.filter((project) => {
+      if (
+        effectivePortfolioFilter !== "ALL" &&
+        project.portfolio !== effectivePortfolioFilter
+      ) {
+        return false;
       }
-      if (projectSort === "schedule") {
-        return right.scheduleImpact - left.scheduleImpact || right.riskScore - left.riskScore;
-      }
-      if (projectSort === "name") {
-        return left.project.name.localeCompare(right.project.name, "ru");
-      }
-      return (
-        right.redCount - left.redCount ||
-        right.riskScore - left.riskScore ||
-        right.decisions - left.decisions ||
-        right.scheduleImpact - left.scheduleImpact ||
-        left.project.name.localeCompare(right.project.name, "ru")
-      );
+      if (!normalizedQuery) return true;
+      return [project.projectCode, project.projectName, project.projectManager]
+        .filter(Boolean)
+        .some((value) =>
+          value.toLocaleLowerCase("ru-RU").includes(normalizedQuery),
+        );
     });
-  const topProject = projectRows[0] ?? null;
-  const timelineRows = portfolioTimeline.projectRows
-    .filter((row) => row.items.length > 0)
-    .slice(0, 5);
+  }, [effectivePortfolioFilter, preparedProjects, query]);
+  const roadmap = useMemo(
+    () => createPortfolioRoadmap(visibleProjects, range),
+    [range, visibleProjects],
+  );
+
+  useEffect(() => {
+    if (!legendOpen) return;
+    const previouslyFocused = document.activeElement;
+    legendCloseRef.current?.focus();
+    const handleDialogKeys = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setLegendOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        legendDialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable.at(-1)!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleDialogKeys);
+    return () => {
+      window.removeEventListener("keydown", handleDialogKeys);
+      if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus();
+    };
+  }, [legendOpen]);
+
+  useEffect(() => {
+    if (selectedSegment) selectionRef.current?.focus();
+  }, [selectedSegment]);
 
   const openProject = (projectId: string) => {
-    selectProject(projectId, firstEnabledProjectView as ProjectSectionView);
+    selectProject(projectId, firstEnabledProjectView);
   };
 
-  const openRaid = (item: PortfolioRaidItem) => {
-    openRaidItemFromOverview(item.id, item.type, item.projectId);
+  const scrollToToday = () => {
+    const viewport = scrollRef.current;
+    if (!viewport || roadmap.todayOffset === null) return;
+    const marker = viewport.querySelector<HTMLElement>("[data-today-marker='true']");
+    if (!marker) return;
+    const viewportRect = viewport.getBoundingClientRect();
+    const markerRect = marker.getBoundingClientRect();
+    const todayX = viewport.scrollLeft + markerRect.left - viewportRect.left;
+    viewport.scrollTo({
+      behavior: "smooth",
+      left: Math.max(0, todayX - viewport.clientWidth / 2),
+    });
   };
+
+  const gridStyle = {
+    "--portfolio-roadmap-month-count": roadmap.monthCount,
+  } as CSSProperties;
 
   return (
-    <section className="v2-page portfolio-v2-page">
-      <div className="v2-compact-header">
-        <div>
-          <h2>Портфель_v2</h2>
-          <span>{projectItems.length} активных проектов</span>
-        </div>
-        <div className="v2-compact-actions">
+    <section className="portfolio-roadmap-page">
+      <div className="portfolio-roadmap-toolbar">
+        <label className="portfolio-roadmap-search">
+          <Search aria-hidden="true" size={15} />
+          <input
+            aria-label="Поиск проекта"
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            placeholder="Проект, код или РП"
+            type="search"
+            value={query}
+          />
+        </label>
+
+        <label className="portfolio-roadmap-select">
+          <span>Портфель</span>
           <select
-            aria-label="Сортировка проектов"
-            value={projectSort}
-            onChange={(event) => {
-              const value = event.target.value as typeof projectSort;
-              window.localStorage.setItem("pms:portfolio-v2-sort", value);
-              setProjectSort(value);
-            }}
+            aria-label="Фильтр по портфелю"
+            onChange={(event) => setPortfolioFilter(event.currentTarget.value)}
+            value={effectivePortfolioFilter}
           >
-            <option value="risk">По риску</option>
-            <option value="decisions">По решениям</option>
-            <option value="schedule">По срокам</option>
-            <option value="name">По названию</option>
+            <option value="ALL">Все портфели</option>
+            {portfolioOptions.map((portfolio) => (
+              <option key={portfolio} value={portfolio}>
+                {portfolio}
+              </option>
+            ))}
           </select>
+        </label>
+
+        <div className="portfolio-roadmap-range" role="group" aria-label="Горизонт планирования">
+          {RANGE_OPTIONS.map((option) => (
+            <button
+              className={range === option.value ? "active" : ""}
+              key={option.value}
+              onClick={() => {
+                saveRange(option.value);
+                setRange(option.value);
+              }}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="portfolio-roadmap-actions">
           <button
+            disabled={roadmap.todayOffset === null}
+            onClick={scrollToToday}
+            title="Прокрутить к текущей дате"
             type="button"
-            onClick={() => topProject && openProject(topProject.project.id)}
-            disabled={!topProject}
           >
-            Открыть фокус-проект
+            <CalendarClock aria-hidden="true" size={15} />
+            Сегодня
+          </button>
+          <button
+            onClick={() => setLegendOpen(true)}
+            ref={legendTriggerRef}
+            type="button"
+          >
+            <BookOpenText aria-hidden="true" size={15} />
+            Легенда
           </button>
         </div>
       </div>
 
-      <div className="v2-attention-strip v2-summary-line">
-        <div className="v2-attention-chip red">
-          <strong>{portfolioSummary.redRiskCount + portfolioSummary.blockerCount}</strong>
-          <span>красных сигналов</span>
+      <div
+        aria-label="Сводка дорожной карты"
+        className="portfolio-roadmap-summary"
+        role="group"
+      >
+        <div>
+          <strong>{roadmap.projectCount}</strong>
+          <span>проектов показано</span>
         </div>
-        <div className="v2-attention-chip amber">
-          <strong>{decisionQueue.length}</strong>
-          <span>решений ожидают</span>
+        <div>
+          <strong>{roadmap.mappedProjectCount}</strong>
+          <span>с этапами HW / SW / G2M</span>
         </div>
-        <div className="v2-attention-chip blue">
-          <strong>{portfolioTimeline.items.length}</strong>
-          <span>целей в окне</span>
+        <div>
+          <strong>{roadmap.launchProjectCount}</strong>
+          <span>проектов с запуском в ближайшие 12 мес.</span>
         </div>
-        <div className="v2-attention-chip green">
-          <strong>{portfolioSummary.projectCount}</strong>
-          <span>активных проектов</span>
+        <div className={roadmap.unmappedProjectCount > 0 ? "attention" : ""}>
+          <strong>{roadmap.unmappedProjectCount}</strong>
+          <span>требуют разметки ИСР</span>
         </div>
       </div>
 
-      <div className="v2-portfolio-grid">
-        <article className="v2-card v2-risk-projects">
-          <div className="v2-card-title">
-            <div>
-              <h3>Проекты по риску</h3>
-            </div>
-          </div>
-          <div className="v2-risk-list">
-            {projectRows.slice(0, 7).map(({ project, redCount, decisions, riskScore, scheduleImpact }) => (
-              <button
-                type="button"
-                className={`v2-risk-project risk-${project.rag.toLowerCase()}`}
-                key={project.id}
-                onClick={() => openProject(project.id)}
-              >
-                <span className="v2-risk-score">{riskScore || redCount}</span>
-                <span className="v2-risk-main">
-                  <b>{project.name}</b>
-                  <small>
-                    {redCount} красных RAID · {decisions} решений ·{" "}
-                    {projectHealthLabel(project.rag)}
-                  </small>
-                </span>
-                <span className="v2-risk-impact">{scheduleImpact > 0 ? `+${scheduleImpact} дн.` : date(project.targetDate)}</span>
-              </button>
-            ))}
-          </div>
-        </article>
-
-        <article className="v2-card v2-decision-queue">
-          <div className="v2-card-title">
-            <div>
-              <h3>Decision queue</h3>
-            </div>
-          </div>
-          <div className="v2-decision-list">
-            {decisionItems.slice(0, 5).map((item) => (
-              <button
-                type="button"
-                className={`v2-decision-card ${dueTone(item.dueDate)}`}
-                key={item.id}
-                onClick={() => openRaid(item)}
-              >
-                <span>{dueLabel(item.dueDate)}</span>
-                <b>{item.title}</b>
-                <small>
-                  {item.projectName} · {item.owner || "ответственный не задан"} ·{" "}
-                  риск {item.riskScore}
-                </small>
-              </button>
-            ))}
-            {decisionItems.length === 0 && (
-              <div className="v2-empty">Решений и красных RAID нет.</div>
-            )}
-          </div>
-        </article>
-
-      </div>
-
-      <div className="v2-portfolio-bottom v2-portfolio-bottom-single">
-        <article className="v2-card v2-timeline-card v2-timeline-compact">
-          <div className="v2-card-title">
-            <div>
-              <h3>Timeline goals</h3>
-            </div>
-          </div>
-          <div className="v2-timeline">
-            <span
-              className="v2-timeline-today"
-              style={{ left: `${portfolioTimeline.todayOffset}%` }}
-            >
-              сегодня
+      {selectedSegment && (
+        <aside
+          aria-describedby="portfolio-roadmap-selection-meta portfolio-roadmap-selection-description"
+          aria-labelledby="portfolio-roadmap-selection-title"
+          aria-live="polite"
+          className="portfolio-roadmap-selection"
+          ref={selectionRef}
+          tabIndex={-1}
+        >
+          <span
+            aria-hidden="true"
+            className="portfolio-roadmap-swatch"
+            style={{ backgroundColor: selectedSegment.segment.color }}
+          />
+          <div>
+            <strong id="portfolio-roadmap-selection-title">
+              {selectedSegment.segment.label}
+            </strong>
+            <span id="portfolio-roadmap-selection-meta">
+              {selectedSegment.projectName} · {selectedSegment.trackLabel} ·{" "}
+              {portfolioRoadmapDateLabel(selectedSegment.segment.startDate)} -{" "}
+              {portfolioRoadmapDateLabel(selectedSegment.segment.endDate)} ·{" "}
+              {itemCountLabel(selectedSegment.segment.itemCount)} · готовность{" "}
+              {selectedSegment.segment.progress}%
             </span>
-            {timelineRows.map((row) => (
-              <div className="v2-timeline-row" key={row.projectId}>
-                <button type="button" onClick={() => openProject(row.projectId)}>
-                  <b>{row.projectName}</b>
-                  <small>{row.projectCode}</small>
-                </button>
-                <div className="v2-timeline-track">
-                  {row.items.map((item, index) => (
-                    <span
-                      className={`v2-goal-dot status-${item.status.toLowerCase()}`}
-                      key={item.id}
-                      style={{ left: `${item.offset}%` }}
-                      title={`${item.goalTitle}: ${date(item.dueDate)}`}
-                    >
-                      {index + 1}
-                    </span>
-                  ))}
-                </div>
+            <small id="portfolio-roadmap-selection-description">
+              {selectedSegment.segment.description}
+            </small>
+          </div>
+          <button
+            onClick={() => openProject(selectedSegment.projectId)}
+            type="button"
+          >
+            Открыть проект
+          </button>
+          <button
+            aria-label="Закрыть детали этапа"
+            className="portfolio-roadmap-selection-close"
+            onClick={() => setSelectedSegment(null)}
+            title="Закрыть"
+            type="button"
+          >
+            <X aria-hidden="true" size={16} />
+          </button>
+        </aside>
+      )}
+
+      <div
+        aria-label="Календарная дорожная карта портфеля"
+        className="portfolio-roadmap-scroll"
+        data-testid="portfolio-v2-roadmap"
+        ref={scrollRef}
+        role="region"
+        tabIndex={0}
+      >
+        <div className="portfolio-roadmap-grid" style={gridStyle}>
+          <div className="portfolio-roadmap-calendar-head">
+            <div className="portfolio-roadmap-project-head">Проект</div>
+            <div className="portfolio-roadmap-track-head">Трек</div>
+            {roadmap.quarters.map((quarter) => (
+              <div
+                className="portfolio-roadmap-quarter"
+                key={quarter.key}
+                style={{
+                  gridColumn: `${quarter.startIndex + 3} / span ${quarter.monthSpan}`,
+                }}
+              >
+                {quarter.label}
               </div>
             ))}
-            {timelineRows.length === 0 && (
-              <div className="v2-empty">Целей в диапазоне шкалы нет.</div>
-            )}
+            {roadmap.months.map((month, index) => (
+              <div
+                className={`portfolio-roadmap-month ${month.isCurrent ? "current" : ""}`}
+                key={month.key}
+                style={{ gridColumn: index + 3 }}
+              >
+                {month.label}
+              </div>
+            ))}
           </div>
-        </article>
+
+          {roadmap.groups.map((group) => (
+            <section className="portfolio-roadmap-group" key={group.name}>
+              <div className="portfolio-roadmap-group-head">
+                <span>
+                  <b>{group.name}</b>
+                  <small>{group.projects.length}</small>
+                </span>
+              </div>
+              {group.projects.map((project) => {
+                const hasSegments = project.tracks.some(
+                  (track) => track.segments.length > 0,
+                );
+                return (
+                  <div
+                    className={`portfolio-roadmap-project ${hasSegments ? "" : "is-empty"}`}
+                    data-project-id={project.projectId}
+                    key={project.projectId}
+                  >
+                    <button
+                      className="portfolio-roadmap-project-cell"
+                      onClick={() => openProject(project.projectId)}
+                      type="button"
+                    >
+                      <span className={`portfolio-roadmap-rag ${project.rag.toLowerCase()}`} />
+                      <span>
+                        <b>{project.projectName}</b>
+                        <small>
+                          {project.projectCode}
+                          {project.projectManager ? ` · ${project.projectManager}` : ""}
+                        </small>
+                      </span>
+                    </button>
+
+                    {project.tracks.map((track, trackIndex) => (
+                      <div
+                        className="portfolio-roadmap-track"
+                        key={track.id}
+                        style={{
+                          "--portfolio-roadmap-lane-count": track.laneCount,
+                          gridRow: trackIndex + 1,
+                        } as CSSProperties}
+                      >
+                        <div className={`portfolio-roadmap-track-label track-${track.id.toLowerCase()}`}>
+                          {track.label}
+                        </div>
+                        <div
+                          aria-label={`${track.label}: ${project.projectName}`}
+                          className="portfolio-roadmap-lane"
+                          role="group"
+                        >
+                          {roadmap.months.map((month) => (
+                            <span
+                              aria-hidden="true"
+                              className={`portfolio-roadmap-month-cell ${month.isCurrent ? "current" : ""}`}
+                              key={month.key}
+                            />
+                          ))}
+                          {roadmap.todayOffset !== null && (
+                            <span
+                              aria-hidden="true"
+                              className="portfolio-roadmap-today"
+                              data-today-marker={trackIndex === 0 ? "true" : undefined}
+                              style={{ left: `${roadmap.todayOffset}%` }}
+                            />
+                          )}
+                          {track.segments.map((segment) => (
+                            <button
+                              aria-label={`${segment.label}, ${project.projectName}, ${track.label}, ${portfolioRoadmapDateLabel(segment.startDate)} - ${portfolioRoadmapDateLabel(segment.endDate)}, ${itemCountLabel(segment.itemCount)}, готовность ${segment.progress}%. ${segment.description}`}
+                              className="portfolio-roadmap-segment"
+                              key={segment.id}
+                              onClick={() =>
+                                setSelectedSegment({
+                                  projectId: project.projectId,
+                                  projectName: project.projectName,
+                                  trackLabel: track.label,
+                                  segment,
+                                })
+                              }
+                              style={{
+                                "--portfolio-roadmap-segment-row": segment.row,
+                                backgroundColor: segment.color,
+                                left: `${segment.offset}%`,
+                                width: `${segment.width}%`,
+                              } as CSSProperties}
+                              title="Показать детали этапа"
+                              type="button"
+                            >
+                              <span>{segment.label}</span>
+                            </button>
+                          ))}
+                          {!hasSegments && trackIndex === 0 && (
+                            <span className="portfolio-roadmap-empty-label">
+                              Нет распознанных этапов в выбранном горизонте
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </section>
+          ))}
+
+          {projectItems === null && !loadError && (
+            <div className="portfolio-roadmap-no-results" role="status">
+              Загружаем дорожную карту...
+            </div>
+          )}
+
+          {loadError && (
+            <div className="portfolio-roadmap-no-results" role="alert">
+              <span>{loadError}</span>
+              <button
+                onClick={() => {
+                  setProjectItems(null);
+                  setLoadError("");
+                  setReloadToken((value) => value + 1);
+                }}
+                type="button"
+              >
+                Повторить
+              </button>
+            </div>
+          )}
+
+          {projectItems !== null && !loadError && roadmap.projectCount === 0 && (
+            <div className="portfolio-roadmap-no-results">
+              Проекты по заданным фильтрам не найдены.
+            </div>
+          )}
+        </div>
       </div>
+
+      {legendOpen && (
+        <div
+          className="portfolio-roadmap-legend-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) setLegendOpen(false);
+          }}
+        >
+          <section
+            aria-labelledby="portfolio-roadmap-legend-title"
+            aria-modal="true"
+            className="portfolio-roadmap-legend"
+            ref={legendDialogRef}
+            role="dialog"
+          >
+            <header>
+              <div>
+                <h2 id="portfolio-roadmap-legend-title">Легенда этапов</h2>
+                <span>HW / SW / G2M</span>
+              </div>
+              <button
+                aria-label="Закрыть легенду"
+                className="portfolio-roadmap-legend-close"
+                onClick={() => setLegendOpen(false)}
+                ref={legendCloseRef}
+                title="Закрыть"
+                type="button"
+              >
+                <X aria-hidden="true" size={18} />
+              </button>
+            </header>
+            <div className="portfolio-roadmap-legend-content">
+              {PORTFOLIO_ROADMAP_TRACKS.map((track) => (
+                <section className="portfolio-roadmap-legend-track" key={track.id}>
+                  <h3>{track.label}-трек</h3>
+                  <div>
+                    {track.phases.map((phase) => (
+                      <div className="portfolio-roadmap-legend-row" key={phase.id}>
+                        <span
+                          aria-hidden="true"
+                          className="portfolio-roadmap-swatch"
+                          style={{ backgroundColor: phase.color }}
+                        />
+                        <span>
+                          <b>{phase.label}</b>
+                          <small>{phase.description}</small>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
-import { useState } from "react";

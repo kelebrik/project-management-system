@@ -784,6 +784,12 @@ export const openApiDocument = {
         "List active projects and current Structure phases available for copying",
       ),
     },
+    "/api/projects/portfolio-roadmap": {
+      get: securedOperation(
+        ["Projects"],
+        "List active projects with the complete WBS hierarchy for the portfolio roadmap",
+      ),
+    },
     "/api/projects/{projectId}": {
       patch: securedOperation(
         ["Projects"],

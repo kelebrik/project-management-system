@@ -15,6 +15,9 @@ test('application data requires authentication while both login methods are publ
   const projects = await fetch(`${baseUrl}/api/projects`);
   assert.equal(projects.status, 401);
 
+  const portfolioRoadmap = await fetch(`${baseUrl}/api/projects/portfolio-roadmap`);
+  assert.equal(portfolioRoadmap.status, 401);
+
   const localLogin = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST' });
   assert.equal(localLogin.status, 400);
 

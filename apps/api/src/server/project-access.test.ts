@@ -9,6 +9,7 @@ test('static project collection routes are not treated as project ids', async ()
     await projectIdForWritePath('/projects/structure-copy-options?search=phase'),
     null,
   );
+  assert.equal(await projectIdForWritePath('/projects/portfolio-roadmap'), null);
 });
 
 test('project entity routes still resolve the project id', async () => {

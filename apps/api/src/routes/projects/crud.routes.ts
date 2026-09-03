@@ -22,7 +22,11 @@ import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
 import { createDefaultProjectStructure } from './default-structure.js';
 import { sanitizeProjectUiState, wouldCreateProjectCycle } from './helpers.js';
-import { projectDetailsInclude, projectInclude } from './includes.js';
+import {
+  portfolioRoadmapProjectSelect,
+  projectDetailsInclude,
+  projectInclude,
+} from './includes.js';
 import {
   createProjectSchema,
   projectTargetDateChangeSchema,
@@ -79,6 +83,18 @@ export function registerProjectCrudRoutes(
           currentUserAccessLevel: accessByProjectId.get(project.id) ?? null,
         })),
     );
+  });
+
+  router.get('/projects/portfolio-roadmap', async (req, res) => {
+    const projects = await prisma.project.findMany({
+      where: {
+        ...(await readableProjectWhere(req)),
+        status: { not: 'CLOSED' },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
+      select: portfolioRoadmapProjectSelect,
+    });
+    res.json(projects);
   });
 
   router.get('/projects/structure-copy-options', async (req, res) => {

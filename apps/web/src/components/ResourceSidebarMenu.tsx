@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BarChart3, CircleHelp, LayoutDashboard, Settings2, Users } from "lucide-react";
+import { CircleHelp, LayoutDashboard, Settings2, Users } from "lucide-react";
 
 import type { AppView } from "../app/routes";
 
@@ -18,11 +18,6 @@ const resourceNavItems: ResourceNavItem[] = [
 ];
 
 const developmentNavItems: ResourceNavItem[] = [
-  {
-    view: "portfolio-v2",
-    label: "Портфель_v2",
-    icon: <BarChart3 size={17} />,
-  },
   {
     view: "project-pm-workspace",
     label: "Рабочий стол PM",
