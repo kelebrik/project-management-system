@@ -241,7 +241,7 @@ test("keeps the next-year launch metric independent of the visible horizon", () 
   ];
   const today = new Date(2026, 8, 3);
 
-  for (const range of [12, 24, 36] as const) {
+  for (const range of [6, 12, 24] as const) {
     const roadmap = createPortfolioRoadmap(source, range, today);
     assert.equal(roadmap.monthCount, range);
     assert.equal(roadmap.launchProjectCount, 1);

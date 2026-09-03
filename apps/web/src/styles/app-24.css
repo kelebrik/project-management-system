@@ -2,9 +2,22 @@
   --portfolio-roadmap-project-width: 248px;
   --portfolio-roadmap-track-width: 62px;
   --portfolio-roadmap-month-width: 86px;
+  --portfolio-roadmap-scaled-month-min-width: 44px;
   display: grid;
   gap: 10px;
   min-width: 0;
+}
+
+.portfolio-roadmap-grid.is-viewport-scaled {
+  --portfolio-roadmap-month-width: max(
+    var(--portfolio-roadmap-scaled-month-min-width),
+    calc(
+      (
+          100cqw - var(--portfolio-roadmap-project-width) -
+            var(--portfolio-roadmap-track-width)
+        ) / var(--portfolio-roadmap-month-count)
+    )
+  );
 }
 
 .portfolio-roadmap-toolbar {
@@ -793,6 +806,7 @@
     --portfolio-roadmap-project-width: 190px;
     --portfolio-roadmap-track-width: 52px;
     --portfolio-roadmap-month-width: 78px;
+    --portfolio-roadmap-scaled-month-min-width: 40px;
   }
 
   .portfolio-roadmap-search,

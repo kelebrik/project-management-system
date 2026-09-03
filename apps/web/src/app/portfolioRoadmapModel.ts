@@ -1,7 +1,7 @@
 import type { ProjectListItem, WbsItem } from "./domainTypes";
 
 export type PortfolioRoadmapTrackId = "HW" | "SW" | "G2M";
-export type PortfolioRoadmapRange = 12 | 24 | 36;
+export type PortfolioRoadmapRange = 6 | 12 | 24;
 
 type PhaseDefinition = {
   id: string;
@@ -688,7 +688,7 @@ const LAUNCH_PHASE_IDS = new Set(["hw-launch", "sw-launch", "g2m-launch"]);
 
 export function createPortfolioRoadmap(
   projects: PreparedPortfolioRoadmapProject[],
-  range: PortfolioRoadmapRange = 36,
+  range: PortfolioRoadmapRange = 12,
   today = new Date(),
 ): PortfolioRoadmapModel {
   const startDate = new Date(

@@ -184,12 +184,55 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap to a project manager", asy
   expect(shortSegmentBox?.width).toBeGreaterThanOrEqual(24);
   await expect(page.getByRole("button", { name: "Разработка" })).toHaveCount(0);
 
+  const twelveMonthWidth = await roadmap
+    .locator(".portfolio-roadmap-month")
+    .first()
+    .evaluate((element) => element.getBoundingClientRect().width);
+  const twelveMonthSizes = await roadmap.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(twelveMonthSizes.scrollWidth).toBeLessThanOrEqual(
+    twelveMonthSizes.clientWidth + 1,
+  );
+
+  await page.setViewportSize({ width: 1200, height: 1000 });
+  await expect
+    .poll(() =>
+      roadmap
+        .locator(".portfolio-roadmap-month")
+        .first()
+        .evaluate((element) => element.getBoundingClientRect().width),
+    )
+    .toBeLessThan(twelveMonthWidth - 5);
+  const narrowerTwelveMonthSizes = await roadmap.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(narrowerTwelveMonthSizes.scrollWidth).toBeLessThanOrEqual(
+    narrowerTwelveMonthSizes.clientWidth + 3,
+  );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+
+  await page.getByRole("button", { name: "6 мес." }).click();
+  await expect(roadmap.locator(".portfolio-roadmap-month")).toHaveCount(6);
+  const sixMonthWidth = await roadmap
+    .locator(".portfolio-roadmap-month")
+    .first()
+    .evaluate((element) => element.getBoundingClientRect().width);
+  expect(sixMonthWidth).toBeGreaterThan(twelveMonthWidth * 1.9);
+
   await page.getByRole("button", { name: "12 мес." }).click();
   await expect(roadmap.locator(".portfolio-roadmap-month")).toHaveCount(12);
   await page.getByRole("button", { name: "24 мес." }).click();
   await expect(roadmap.locator(".portfolio-roadmap-month")).toHaveCount(24);
-  await page.getByRole("button", { name: "36 мес." }).click();
-  await expect(roadmap.locator(".portfolio-roadmap-month")).toHaveCount(36);
+  const twentyFourMonthSizes = await roadmap.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(twentyFourMonthSizes.scrollWidth).toBeGreaterThan(
+    twentyFourMonthSizes.clientWidth,
+  );
 
   await roadmap.evaluate((element) => {
     element.scrollLeft = 500;

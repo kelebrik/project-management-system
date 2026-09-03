@@ -20,9 +20,9 @@ import { apiClient } from "../api/client";
 import { usePageContext } from "./PageContext";
 
 const RANGE_OPTIONS: Array<{ value: PortfolioRoadmapRange; label: string }> = [
+  { value: 6, label: "6 мес." },
   { value: 12, label: "12 мес." },
   { value: 24, label: "24 мес." },
-  { value: 36, label: "36 мес." },
 ];
 
 function itemCountLabel(value: number) {
@@ -37,9 +37,9 @@ function itemCountLabel(value: number) {
 function initialRange(): PortfolioRoadmapRange {
   try {
     const saved = Number(window.localStorage.getItem("pms:portfolio-v2-range"));
-    return saved === 12 || saved === 24 ? saved : 36;
+    return saved === 6 || saved === 12 || saved === 24 ? saved : 12;
   } catch {
-    return 36;
+    return 12;
   }
 }
 
@@ -231,6 +231,7 @@ export function PortfolioV2Page() {
         <div className="portfolio-roadmap-range" role="group" aria-label="Горизонт планирования">
           {RANGE_OPTIONS.map((option) => (
             <button
+              aria-pressed={range === option.value}
               className={range === option.value ? "active" : ""}
               key={option.value}
               onClick={() => {
@@ -343,7 +344,10 @@ export function PortfolioV2Page() {
         role="region"
         tabIndex={0}
       >
-        <div className="portfolio-roadmap-grid" style={gridStyle}>
+        <div
+          className={`portfolio-roadmap-grid ${range <= 12 ? "is-viewport-scaled" : ""}`}
+          style={gridStyle}
+        >
           <div className="portfolio-roadmap-calendar-head">
             <div className="portfolio-roadmap-project-head">Проект</div>
             <div className="portfolio-roadmap-track-head">Трек</div>
