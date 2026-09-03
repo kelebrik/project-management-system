@@ -47,6 +47,7 @@ export const jiraSystemAggregateKeys = [
   "critical-blocker-risk",
   "in-progress-resolution",
   "gitlab-branch-commits",
+  "cvte968-mp-unresolved",
 ] as const;
 
 export type JiraSystemAggregateKey = (typeof jiraSystemAggregateKeys)[number];

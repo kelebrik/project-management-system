@@ -41,6 +41,7 @@ type Catalog = {
   dashboard: JiraSemanticDashboard;
   dashboardConfigHash: string;
   dashboardSeedRequired: boolean;
+  systemAggregatesSeedRequired: boolean;
 };
 type SemanticResult = Omit<JiraAnalyticsEvaluationResult, "records"> & {
   records: Array<{
@@ -262,6 +263,10 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
   const loadCatalog = async () => {
     const request = ++catalogRequestRef.current;
     let response = await apiClient.get<Catalog>(`/api/projects/${project.id}/jira/semantic-aggregates`, "Не удалось загрузить агрегаты и виджеты");
+    if (response.systemAggregatesSeedRequired && canEdit) {
+      await apiClient.post(`/api/projects/${project.id}/jira/semantic-aggregates/bootstrap-missing`, {}, "Не удалось создать недостающие системные агрегаты");
+      response = await apiClient.get<Catalog>(`/api/projects/${project.id}/jira/semantic-aggregates`, "Не удалось загрузить системные агрегаты");
+    }
     if (response.dashboardSeedRequired && canEdit) {
       await apiClient.post(`/api/projects/${project.id}/jira/semantic-aggregates/bootstrap`, {}, "Не удалось создать стартовые виджеты");
       response = await apiClient.get<Catalog>(`/api/projects/${project.id}/jira/semantic-aggregates`, "Не удалось загрузить стартовые виджеты");

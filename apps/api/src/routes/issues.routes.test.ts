@@ -243,6 +243,7 @@ test('Jira aggregate and widget mutations reject non-admin users before database
   const cases = [
     ['/projects/:projectId/jira/semantic-aggregates', 'post', 'Настраивать агрегаты может только системный администратор'],
     ['/projects/:projectId/jira/semantic-aggregates/bootstrap', 'post', 'Создавать системные агрегаты может только системный администратор'],
+    ['/projects/:projectId/jira/semantic-aggregates/bootstrap-missing', 'post', 'Создавать системные агрегаты может только системный администратор'],
     ['/projects/:projectId/jira/semantic-aggregates/:aggregateId', 'patch', 'Настраивать агрегаты может только системный администратор'],
     ['/projects/:projectId/jira/semantic-aggregates/:aggregateId', 'delete', 'Архивировать агрегаты может только системный администратор'],
     ['/projects/:projectId/jira/semantic-aggregates/preview', 'post', 'Предпросмотр черновика доступен только системному администратору'],

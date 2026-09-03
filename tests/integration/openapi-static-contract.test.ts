@@ -167,6 +167,7 @@ test("OpenAPI keeps semantic aggregates separate from widget presentation", () =
   }
   assert.ok(document.paths["/api/projects/{projectId}/jira/semantic-aggregates/query-batch"]?.post);
   assert.ok(document.paths["/api/projects/{projectId}/jira/semantic-aggregates/bootstrap"]?.post);
+  assert.ok(document.paths["/api/projects/{projectId}/jira/semantic-aggregates/bootstrap-missing"]?.post);
   for (const retiredPath of [
     "/api/projects/{projectId}/jira/aggregates",
     "/api/projects/{projectId}/jira/aggregate-dashboard-results",

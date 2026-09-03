@@ -1281,6 +1281,12 @@ export const openApiDocument = {
         responses: { "204": { description: "System semantic aggregates are present" }, ...jiraAggregateErrorResponses },
       },
     },
+    "/api/projects/{projectId}/jira/semantic-aggregates/bootstrap-missing": {
+      post: {
+        ...createOperation(["Jira"], "Create only missing system semantic aggregates as system administrator", [projectIdParam]),
+        responses: { "204": { description: "Missing system semantic aggregates are present; dashboard is unchanged" }, ...jiraAggregateErrorResponses },
+      },
+    },
     "/api/projects/{projectId}/jira/semantic-aggregates/{aggregateId}": {
       patch: {
         ...securedOperation(["Jira"], "Save a new semantic aggregate draft revision", [projectIdParam, pathParam("aggregateId")]),

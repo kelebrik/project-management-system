@@ -29,7 +29,11 @@ type GoalMapping = {
   dueDate: string | null;
   jiraGoalLabels: string[];
 };
-type Catalog = { definitions: JiraSemanticAggregatePublic[]; goals: GoalMapping[] };
+type Catalog = {
+  definitions: JiraSemanticAggregatePublic[];
+  systemAggregatesSeedRequired: boolean;
+  goals: GoalMapping[];
+};
 type PreviewResponse = {
   result: Omit<JiraAnalyticsEvaluationResult, "records"> & {
     records: Array<{
@@ -271,8 +275,8 @@ export function JiraAggregatesPage() {
   const load = async (preferredId?: string | null) => {
     const request = ++requestRef.current;
     let response = await apiClient.get<Catalog>(`/api/projects/${project.id}/jira/semantic-aggregates`, "Не удалось загрузить агрегаты");
-    if (canEdit && response.definitions.length === 0) {
-      await apiClient.post(`/api/projects/${project.id}/jira/semantic-aggregates/bootstrap`, {}, "Не удалось создать системные агрегаты");
+    if (canEdit && response.systemAggregatesSeedRequired) {
+      await apiClient.post(`/api/projects/${project.id}/jira/semantic-aggregates/bootstrap-missing`, {}, "Не удалось создать недостающие системные агрегаты");
       response = await apiClient.get<Catalog>(`/api/projects/${project.id}/jira/semantic-aggregates`, "Не удалось загрузить системные агрегаты");
     }
     if (request !== requestRef.current) return;

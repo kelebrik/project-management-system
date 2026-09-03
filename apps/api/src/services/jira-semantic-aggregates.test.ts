@@ -3,10 +3,12 @@ import fs from "node:fs";
 import test from "node:test";
 
 import {
+  evaluateJiraAnalyticsAggregate,
   jiraSemanticAggregateDefinitionSchema,
   jiraSemanticCompatibleChange,
   jiraSemanticDashboardSchema,
   jiraSemanticWidgetSchema,
+  type JiraAnalyticsIssueData,
 } from "@pms/shared";
 import { Prisma } from "@prisma/client";
 
@@ -22,6 +24,40 @@ import {
   withCurrentTicketFields,
 } from "./jira-semantic-aggregates.js";
 
+function issue(
+  id: string,
+  patch: Partial<JiraAnalyticsIssueData> = {},
+): JiraAnalyticsIssueData {
+  return {
+    id,
+    issueKey: `CVTE-${id}`,
+    issueUrl: `https://tasks.sberdevices.ru/browse/CVTE-${id}`,
+    summary: `Issue ${id}`,
+    status: "Open",
+    priority: "Major",
+    assignee: null,
+    reporter: null,
+    issueType: "Task",
+    resolution: null,
+    sprint: null,
+    sprintCount: 0,
+    labels: ["cvte968", "mp"],
+    issueCreatedAt: "2026-09-01T00:00:00.000Z",
+    criticalPriorityAt: null,
+    criticalEndPriority: null,
+    resolutionAt: null,
+    criticalSlaTracked: false,
+    commitCount: 0,
+    mergeRequestCount: 0,
+    developmentDataAvailable: false,
+    transitionHistoryComplete: true,
+    updatedAt: "2026-09-01T00:00:00.000Z",
+    statusTransitions: [],
+    developmentActivities: [],
+    ...patch,
+  };
+}
+
 test("semantic catalog exposes the managed Jira row sets", () => {
   assert.deepEqual(
     JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate) => aggregate.key),
@@ -36,6 +72,7 @@ test("semantic catalog exposes the managed Jira row sets", () => {
       "critical-blocker-risk",
       "in-progress-resolution",
       "gitlab-branch-commits",
+      "cvte968-mp-unresolved",
     ],
   );
   for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {
@@ -51,6 +88,71 @@ test("semantic catalog exposes the managed Jira row sets", () => {
       );
     }
   }
+});
+
+test("MP risk aggregate matches the requested Jira population", () => {
+  const aggregate = JIRA_SYSTEM_SEMANTIC_AGGREGATES.find(
+    (item) => item.key === "cvte968-mp-unresolved",
+  );
+
+  assert.ok(aggregate);
+  assert.equal(aggregate.definition.grain, "issue");
+  assert.deepEqual(aggregate.definition.rowConfig, { kind: "issue" });
+  assert.deepEqual(aggregate.definition.basePopulation, {
+    logic: "and",
+    filters: [
+      { id: "cvte968-mp-label-cvte968", field: "labels", operator: "equals", value: "cvte968" },
+      { id: "cvte968-mp-label-mp", field: "labels", operator: "equals", value: "mp" },
+      { id: "cvte968-mp-not-epic", field: "issueType", operator: "notEquals", value: "Epic" },
+      { id: "cvte968-mp-not-story", field: "issueType", operator: "notEquals", value: "Story" },
+      { id: "cvte968-mp-resolution-empty", field: "resolution", operator: "empty", value: "" },
+      { id: "cvte968-mp-not-cancelled", field: "status", operator: "notEquals", value: "Cancelled" },
+    ],
+  });
+
+  const executable = jiraSemanticExecutableDefinition(aggregate.definition, {
+    metric: "count",
+    groupBy: "none",
+    filters: [],
+    filterLogic: "and",
+    periodDays: null,
+    dateField: null,
+    sortBy: "issueKey",
+    sortDirection: "asc",
+  });
+  const result = evaluateJiraAnalyticsAggregate(executable, [
+    issue("1", { labels: ["CVTE968", "MP"] }),
+    issue("2", { resolution: "" }),
+    issue("3", { resolution: "Unresolved" }),
+    issue("4", { labels: ["cvte9680", "mp"] }),
+    issue("5", { labels: ["cvte968", "mp-extra"] }),
+    issue("6", { labels: ["mp"] }),
+    issue("7", { labels: ["cvte968"] }),
+    issue("8", { issueType: "Epic" }),
+    issue("9", { issueType: "Story" }),
+    issue("10", { resolution: "Fixed" }),
+    issue("11", { status: "Cancelled" }),
+  ], {
+    now: "2026-09-03T00:00:00.000Z",
+    assignee: "",
+    page: 1,
+    pageSize: 100,
+  });
+  assert.deepEqual(result.records.map((record) => record.issue.issueKey), ["CVTE-1", "CVTE-2", "CVTE-3"]);
+});
+
+test("MP risk aggregate is not added to the default dashboard", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((item, index) => ({
+    id: `aggregate-${index}`,
+    aggregateKey: item.key,
+    publishedVersion: 1,
+  }));
+  const aggregate = references.find((item) => item.aggregateKey === "cvte968-mp-unresolved");
+  assert.ok(aggregate);
+  assert.equal(
+    jiraDefaultSemanticDashboard(references).widgets.some((widget) => widget.aggregateId === aggregate.id),
+    false,
+  );
 });
 
 test("system aggregate compatibility upgrades remain valid for every source", () => {

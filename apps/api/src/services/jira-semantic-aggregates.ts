@@ -275,6 +275,33 @@ export const JIRA_SYSTEM_SEMANTIC_AGGREGATES: Array<{
       asOfSupport: "none",
     },
   },
+  {
+    key: "cvte968-mp-unresolved",
+    definition: {
+      schemaVersion: 5,
+      name: "Нерешённые тикеты MP",
+      description: "Тикеты с метками cvte968 и MP, кроме Epic и Story, без Resolution и вне статуса Cancelled.",
+      grain: "issue",
+      basePopulation: {
+        logic: "and",
+        filters: [
+          { id: "cvte968-mp-label-cvte968", field: "labels", operator: "equals", value: "cvte968" },
+          { id: "cvte968-mp-label-mp", field: "labels", operator: "equals", value: "mp" },
+          { id: "cvte968-mp-not-epic", field: "issueType", operator: "notEquals", value: "Epic" },
+          { id: "cvte968-mp-not-story", field: "issueType", operator: "notEquals", value: "Story" },
+          { id: "cvte968-mp-resolution-empty", field: "resolution", operator: "empty", value: "" },
+          { id: "cvte968-mp-not-cancelled", field: "status", operator: "notEquals", value: "Cancelled" },
+        ],
+      },
+      rowConfig: { kind: "issue" },
+      rowIdentity: ["issueKey"],
+      outputFields: fields(...JIRA_ANALYTICS_FIELDS_BY_SOURCE.issues),
+      incompleteDataPolicy: "includeWithWarning",
+      qualityRules,
+      timeZone: "Europe/Moscow",
+      asOfSupport: "supported",
+    },
+  },
 ];
 
 type SystemAggregateReference = {
@@ -649,6 +676,41 @@ export function withCurrentTicketFields(definition: JiraSemanticAggregateDefinit
     ...definition,
     outputFields: [...definition.outputFields, ...added],
   } satisfies JiraSemanticAggregateDefinition;
+}
+
+export async function ensureMissingJiraSystemSemanticAggregates(client: PrismaClient, projectId: string) {
+  return client.$transaction(async (transaction) => {
+    await lockJiraAggregateProject(transaction, projectId);
+    const existing = await transaction.jiraAggregateDefinition.findMany({
+      where: {
+        projectId,
+        aggregateKey: { in: JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate) => aggregate.key) },
+      },
+      select: { aggregateKey: true },
+    });
+    const existingKeys = new Set(existing.map((row) => row.aggregateKey));
+    const created: string[] = [];
+    for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {
+      if (existingKeys.has(aggregate.key)) continue;
+      const row = await transaction.jiraAggregateDefinition.create({
+        data: definitionData(projectId, aggregate.key, aggregate.definition, true),
+      });
+      await transaction.jiraAggregateDefinitionRevision.create({
+        data: {
+          projectId,
+          aggregateId: row.id,
+          version: 1,
+          definition: aggregate.definition as unknown as Prisma.InputJsonObject,
+          fingerprint: hash(aggregate.definition),
+          status: "published",
+          changeKind: "compatible",
+          publishedAt: new Date(),
+        },
+      });
+      created.push(aggregate.key);
+    }
+    return created;
+  });
 }
 
 export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, projectId: string) {

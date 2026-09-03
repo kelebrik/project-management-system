@@ -39,6 +39,8 @@ import {
 } from "../services/jira-aggregates.js";
 import {
   JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
+  JIRA_SYSTEM_SEMANTIC_AGGREGATES,
+  ensureMissingJiraSystemSemanticAggregates,
   ensureJiraSystemSemanticAggregates,
   jiraSemanticAggregateCost,
   jiraSemanticCreateData,
@@ -293,6 +295,11 @@ export function registerJiraSemanticAggregateRoutes(
       dashboard: dashboardConfig,
       dashboardConfigHash: jiraDashboardConfigHash(settings?.dashboardConfig ?? null),
       dashboardSeedRequired: (settings?.semanticDefaultWidgetsVersion ?? 0) < JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
+      systemAggregatesSeedRequired: JIRA_SYSTEM_SEMANTIC_AGGREGATES.some(
+        (systemAggregate) => !definitions.some(
+          (definition) => definition.system && definition.key === systemAggregate.key,
+        ),
+      ),
       goals: goals.map((goal) => ({
         ...goal,
         dueDate: goal.dueDate?.toISOString() ?? null,
@@ -376,6 +383,31 @@ export function registerJiraSemanticAggregateRoutes(
     await recordAuditEvent({
       req, actor: user, action: "jira.semantic_aggregates.bootstrap", objectType: "Project",
       objectId: project.id, projectId: project.id,
+    });
+    res.status(204).send();
+  });
+
+  router.post("/projects/:projectId/jira/semantic-aggregates/bootstrap-missing", async (req, res) => {
+    const user = currentUser(req);
+    if (!user || !admin(req)) {
+      res.status(user ? 403 : 401).json({ error: user ? "Создавать системные агрегаты может только системный администратор" : "Требуется вход в систему" });
+      return;
+    }
+    const project = await editableProject(prisma, req.params.projectId, res);
+    if (!project) return;
+    let created: string[];
+    try {
+      created = await ensureMissingJiraSystemSemanticAggregates(prisma, project.id);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        res.status(409).json({ error: "Название системного агрегата уже занято пользовательским агрегатом" });
+        return;
+      }
+      throw error;
+    }
+    await recordAuditEvent({
+      req, actor: user, action: "jira.semantic_aggregates.bootstrap_missing", objectType: "Project",
+      objectId: project.id, projectId: project.id, metadata: { created },
     });
     res.status(204).send();
   });

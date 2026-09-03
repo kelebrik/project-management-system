@@ -3,7 +3,11 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { jiraSemanticAggregateDefinitionSchema, jiraSemanticDashboardSchema } from '@pms/shared';
+import {
+  JIRA_SEMANTIC_EMPTY_DASHBOARD,
+  jiraSemanticAggregateDefinitionSchema,
+  jiraSemanticDashboardSchema,
+} from '@pms/shared';
 import { JiraSyncRunKind, Prisma, PrismaClient } from '@prisma/client';
 
 import type { JiraIssue } from '../../apps/api/src/jira.js';
@@ -18,6 +22,7 @@ import {
   JiraProjectDataBusyError,
 } from '../../apps/api/src/services/jira-project-data.js';
 import {
+  ensureMissingJiraSystemSemanticAggregates,
   ensureJiraSystemSemanticAggregates,
   JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
   JIRA_SYSTEM_SEMANTIC_AGGREGATES,
@@ -37,6 +42,66 @@ import {
 } from '../../apps/api/src/services/jira-sync-runs.js';
 
 const testDatabaseUrl = process.env.JIRA_HISTORY_TEST_DATABASE_URL?.trim() ?? '';
+
+test('missing system aggregate bootstrap is idempotent and leaves dashboard settings unchanged', {
+  skip: !testDatabaseUrl,
+}, async () => {
+  const databaseName = new URL(testDatabaseUrl).pathname.replace(/^\//, '');
+  assert.match(databaseName, /test/i, 'JIRA_HISTORY_TEST_DATABASE_URL must target a test database');
+  const prisma = new PrismaClient({ datasourceUrl: testDatabaseUrl });
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+  let businessUnitId: string | null = null;
+  try {
+    const businessUnit = await prisma.businessUnit.create({
+      data: { code: `missing-aggregates-${suffix}`, name: `Missing aggregates ${suffix}` },
+    });
+    businessUnitId = businessUnit.id;
+    const project = await prisma.project.create({
+      data: {
+        businessUnitId: businessUnit.id,
+        code: `MISAGG-${suffix}`,
+        name: 'Missing aggregate bootstrap test',
+        portfolio: 'Integration',
+        sponsor: 'Integration',
+        projectManager: 'Integration',
+        startDate: new Date('2026-08-01T00:00:00Z'),
+        targetDate: new Date('2026-09-01T00:00:00Z'),
+        budgetPlanned: '0',
+        budgetForecast: '0',
+        summary: 'Disposable integration fixture',
+      },
+    });
+    await prisma.jiraAnalyticsSettings.create({
+      data: {
+        projectId: project.id,
+        jiraScopeType: 'LABEL',
+        jiraScopeValue: 'cvte968',
+        dashboardConfig: JIRA_SEMANTIC_EMPTY_DASHBOARD as unknown as Prisma.InputJsonObject,
+        semanticDefaultWidgetsVersion: 42,
+      },
+    });
+    const settingsBefore = await prisma.jiraAnalyticsSettings.findUniqueOrThrow({
+      where: { projectId: project.id },
+      select: { dashboardConfig: true, semanticDefaultWidgetsVersion: true, jiraScopeType: true, jiraScopeValue: true },
+    });
+
+    const first = await ensureMissingJiraSystemSemanticAggregates(prisma, project.id);
+    const second = await ensureMissingJiraSystemSemanticAggregates(prisma, project.id);
+
+    assert.deepEqual(first, JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate) => aggregate.key));
+    assert.deepEqual(second, []);
+    assert.equal(await prisma.jiraAggregateDefinition.count({ where: { projectId: project.id } }), JIRA_SYSTEM_SEMANTIC_AGGREGATES.length);
+    assert.equal(await prisma.jiraAggregateDefinitionRevision.count({ where: { projectId: project.id } }), JIRA_SYSTEM_SEMANTIC_AGGREGATES.length);
+    assert.deepEqual(await prisma.jiraAnalyticsSettings.findUniqueOrThrow({
+      where: { projectId: project.id },
+      select: { dashboardConfig: true, semanticDefaultWidgetsVersion: true, jiraScopeType: true, jiraScopeValue: true },
+    }), settingsBefore);
+  } finally {
+    if (businessUnitId) await prisma.project.deleteMany({ where: { businessUnitId } });
+    if (businessUnitId) await prisma.businessUnit.delete({ where: { id: businessUnitId } });
+    await prisma.$disconnect();
+  }
+});
 
 test('open issue register migration preserves existing rows and applies defaults in PostgreSQL', {
   skip: !testDatabaseUrl,
