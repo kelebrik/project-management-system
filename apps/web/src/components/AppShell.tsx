@@ -292,6 +292,11 @@ const adminNavItems: AdminNavItem[] = [
 
 const developmentNavItems: AdminNavItem[] = [
   {
+    view: "portfolio-v2",
+    label: "Портфель v2",
+    icon: <GanttChartSquare size={15} />,
+  },
+  {
     view: "project-pm-workspace",
     label: "Рабочий стол PM",
     icon: <LayoutDashboard size={15} />,
@@ -417,13 +422,6 @@ export function AppShell({
             onClick={() => openView("portfolio")}
           >
             <BriefcaseBusiness size={15} /> Портфель
-          </button>
-          <button
-            type="button"
-            className={activeView === "portfolio-v2" ? "active" : ""}
-            onClick={() => openView("portfolio-v2")}
-          >
-            <GanttChartSquare size={15} /> Портфель v2
           </button>
           <button
             type="button"

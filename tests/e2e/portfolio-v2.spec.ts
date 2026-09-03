@@ -112,7 +112,10 @@ function projectFixture() {
   };
 }
 
-async function mockPortfolio(page: Page) {
+async function mockPortfolio(
+  page: Page,
+  role: "ADMIN" | "PROJECT_MANAGER" = "ADMIN",
+) {
   const project = projectFixture();
   const respond = (route: Route) => {
     const { pathname } = new URL(route.request().url());
@@ -122,8 +125,8 @@ async function mockPortfolio(page: Page) {
           user: {
             id: "pm-1",
             email: "pm@example.test",
-            name: "Портфельный управляющий",
-            role: "PROJECT_MANAGER",
+            name: role === "ADMIN" ? "Администратор" : "Портфельный управляющий",
+            role,
             isActive: true,
             lastLoginAt: null,
             businessUnitAdminIds: [],
@@ -157,13 +160,13 @@ async function mockPortfolio(page: Page) {
   await page.route(/^https?:\/\/[^/]+\/api\//, respond);
 }
 
-test("portfolio v2 exposes the HW, SW and G2M roadmap to a project manager", async ({
+test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.clock.setFixedTime(new Date("2026-09-03T12:00:00"));
   await mockPortfolio(page);
-  await page.goto("/portfolio-v2");
+  await page.goto("/development/portfolio-v2");
 
   await expect(page.getByRole("heading", { name: "Портфель v2", exact: true })).toBeVisible();
   const roadmap = page.getByTestId("portfolio-v2-roadmap");
@@ -182,7 +185,20 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap to a project manager", asy
   const shortSegment = roadmap.getByRole("button", { name: /^PVT,/ });
   const shortSegmentBox = await shortSegment.boundingBox();
   expect(shortSegmentBox?.width).toBeGreaterThanOrEqual(24);
-  await expect(page.getByRole("button", { name: "Разработка" })).toHaveCount(0);
+  const globalNavigation = page.getByRole("navigation", {
+    name: "Основные разделы",
+  });
+  await expect(
+    globalNavigation.getByRole("button", { name: "Портфель v2" }),
+  ).toHaveCount(0);
+  await expect(
+    globalNavigation.getByRole("button", { name: "Разработка" }),
+  ).toHaveClass(/active/);
+  await expect(
+    page
+      .getByRole("navigation", { name: "Разработка" })
+      .getByRole("button", { name: "Портфель v2" }),
+  ).toHaveClass(/active/);
 
   const twelveMonthWidth = await roadmap
     .locator(".portfolio-roadmap-month")
@@ -291,7 +307,7 @@ test("portfolio v2 keeps the wide roadmap inside its mobile scroller", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.setFixedTime(new Date("2026-09-03T12:00:00"));
   await mockPortfolio(page);
-  await page.goto("/portfolio-v2");
+  await page.goto("/development/portfolio-v2");
 
   const roadmap = page.getByTestId("portfolio-v2-roadmap");
   await expect(roadmap).toBeVisible();
@@ -313,4 +329,19 @@ test("portfolio v2 keeps the wide roadmap inside its mobile scroller", async ({
       path: "/private/tmp/pms-portfolio-v2-mobile.png",
     });
   }
+});
+
+test("portfolio v2 redirects a non-admin out of development", async ({ page }) => {
+  await mockPortfolio(page, "PROJECT_MANAGER");
+  await page.goto("/development/portfolio-v2");
+
+  await expect(page).toHaveURL(/\/portfolio$/);
+  await expect(
+    page.getByRole("heading", { name: "Портфель v2", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page
+      .getByRole("navigation", { name: "Основные разделы" })
+      .getByRole("button", { name: "Разработка" }),
+  ).toHaveCount(0);
 });

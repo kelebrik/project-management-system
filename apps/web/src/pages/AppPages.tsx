@@ -64,14 +64,14 @@ export function AppPages() {
     usePageContext();
   const isDevelopmentSectionView = isDevelopmentSectionViewName(activeView);
 
-  if (!(project || activeView === "portfolio" || activeView === "portfolio-v2" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isDevelopmentSectionView))) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isDevelopmentSectionView))) {
     return null;
   }
 
   return (
     <>
       {activeView === "portfolio" && <PortfolioPage />}
-      {activeView === "portfolio-v2" && (
+      {isAdminUser && activeView === "portfolio-v2" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <PortfolioV2Page />
         </Suspense>
