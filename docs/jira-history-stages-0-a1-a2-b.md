@@ -37,6 +37,31 @@ This is durable recovery, not a promise that an idle free instance stays awake.
 The browser polls for at most 15 minutes per interaction and then releases its loading
 state; the durable server run continues and is available through its status URL.
 
+User-facing Jira analytics also has an on-demand current-projection refresh. Opening a
+dashboard returns the local projection immediately, then queues at most one durable
+`CURRENT` run per project when the projection is older than five minutes. Concurrent
+viewers share that run. It reads only current issue fields in the configured label/epic
+scope and never requests changelog, comments, worklogs, remote development data, or a
+full history document. It updates no immutable versions and does not resolve history
+retry rows. The UI shows the effective Jira refresh time and recalculates its local
+aggregates after a successful refresh.
+
+The defaults can be tuned with `JIRA_CURRENT_REFRESH_TTL_MS` (five minutes) and
+`JIRA_CURRENT_REFRESH_RETRY_MS` (five minutes). The retry delay also applies when the
+queue is occupied or Jira returns an empty scope. Empty results preserve the previous
+projection. Current-projection freshness is stored separately, so a lightweight run does
+not change the status or timestamp of a full synchronization. The durable project lease
+still serializes `CURRENT`, `SYNC`, and `BACKFILL`, so lightweight refresh cannot race a
+full import or overwrite a concurrently changed label/epic scope. An explicit full import,
+backfill, or project-data clear preempts a queued or running lightweight refresh; the
+regular administrative operation therefore never waits for the five-minute cache refresh.
+
+The lightweight run never invents a historical Critical/Blocker start. For an unresolved
+ticket it can only deactivate or keep active an already known SLA start from the current
+type and priority; for a resolved ticket it preserves the full synchronization's verified
+resolution-time priority. Current-field changes are marked for historical repair by the
+next full synchronization.
+
 An explicit full import starts a new sweep. A paused attempt of the same durable run
 resumes after its saved issue-key checkpoint and retains the original scan boundary.
 History gaps are repaired from the active projections marked as unversioned; permanent

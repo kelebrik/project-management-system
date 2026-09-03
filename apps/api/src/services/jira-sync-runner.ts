@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-import { JiraSyncRunStatus, type PrismaClient } from '@prisma/client';
+import { JiraSyncRunKind, JiraSyncRunStatus, type PrismaClient } from '@prisma/client';
 
 import {
   captureJiraReadOnlyRequestSummary,
   jiraReadOnlyRequestSummaryForError,
 } from '../jira.js';
 import { logEvent } from '../server/logger.js';
+import { runJiraCurrentRefreshPipeline } from './jira-current-refresh.js';
 import { redactJiraHistoryError } from './jira-history.js';
 import { runJiraSyncPipeline } from './jira-sync-pipeline.js';
 import { registerJiraSyncRunnerWake } from './jira-sync-runtime.js';
@@ -109,7 +110,10 @@ export function createJiraSyncRunner(prisma: PrismaClient) {
     const heartbeat = setInterval(startHeartbeat, JIRA_SYNC_HEARTBEAT_MS);
     heartbeat.unref();
     try {
-      const captured = await captureJiraReadOnlyRequestSummary(() => runJiraSyncPipeline(run, {
+      const pipeline = run.kind === JiraSyncRunKind.CURRENT
+        ? runJiraCurrentRefreshPipeline
+        : runJiraSyncPipeline;
+      const captured = await captureJiraReadOnlyRequestSummary(() => pipeline(run, {
         prisma,
         signal: controller.signal,
         onProgress(next) {

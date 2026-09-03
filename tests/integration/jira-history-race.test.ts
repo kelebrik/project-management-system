@@ -22,6 +22,10 @@ import {
   JiraProjectDataBusyError,
 } from '../../apps/api/src/services/jira-project-data.js';
 import {
+  requestJiraCurrentRefresh,
+  runJiraCurrentRefreshPipeline,
+} from '../../apps/api/src/services/jira-current-refresh.js';
+import {
   ensureMissingJiraSystemSemanticAggregates,
   ensureJiraSystemSemanticAggregates,
   JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
@@ -32,6 +36,7 @@ import {
   assertJiraSyncFence,
   checkpointJiraSyncRun,
   claimNextJiraSyncRun,
+  completeJiraSyncRun,
   enqueueJiraSyncRun,
   heartbeatJiraSyncRun,
   JiraSyncFencedError,
@@ -39,9 +44,307 @@ import {
   pauseJiraSyncRun,
   reapExpiredJiraSyncRuns,
   releaseJiraProjectionRebuildLease,
+  releaseJiraSyncRunOnShutdown,
 } from '../../apps/api/src/services/jira-sync-runs.js';
 
 const testDatabaseUrl = process.env.JIRA_HISTORY_TEST_DATABASE_URL?.trim() ?? '';
+
+async function createCurrentRefreshFixture(prisma: PrismaClient, prefix: string) {
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+  const businessUnit = await prisma.businessUnit.create({
+    data: { code: `${prefix}-bu-${suffix}`, name: `${prefix} BU ${suffix}` },
+  });
+  const project = await prisma.project.create({
+    data: {
+      businessUnitId: businessUnit.id,
+      code: `${prefix}-${suffix}`,
+      name: `${prefix} current Jira refresh fixture`,
+      portfolio: 'Integration',
+      sponsor: 'Integration',
+      projectManager: 'Integration',
+      startDate: new Date('2026-08-01T00:00:00Z'),
+      targetDate: new Date('2026-09-01T00:00:00Z'),
+      budgetPlanned: '0',
+      budgetForecast: '0',
+      summary: 'Disposable integration fixture',
+    },
+  });
+  const lastSyncedAt = new Date('2026-09-01T08:00:00Z');
+  const currentProjectionRefreshedAt = new Date('2026-09-01T09:00:00Z');
+  await prisma.jiraAnalyticsSettings.create({
+    data: {
+      projectId: project.id,
+      jiraScopeType: 'LABEL',
+      jiraScopeValue: `${prefix}-scope`,
+      jiraLabel: `${prefix}-scope`,
+      syncStatus: 'OK',
+      lastSyncedAt,
+      currentProjectionRefreshedAt,
+    },
+  });
+  return { businessUnit, project, lastSyncedAt, currentProjectionRefreshedAt };
+}
+
+const emptyRequestSummary = {
+  count: 0,
+  durationMsTotal: 0,
+  durationMsMax: 0,
+  byRoute: {},
+  byStatusClass: {},
+};
+
+test('CURRENT lifecycle preserves full-sync state and yields to explicit operations', {
+  skip: !testDatabaseUrl,
+}, async () => {
+  const databaseName = new URL(testDatabaseUrl).pathname.replace(/^\//, '');
+  assert.match(databaseName, /test/i, 'JIRA_HISTORY_TEST_DATABASE_URL must target a test database');
+  const prisma = new PrismaClient({ datasourceUrl: testDatabaseUrl });
+  let businessUnitId: string | null = null;
+  try {
+    const fixture = await createCurrentRefreshFixture(prisma, 'current-life');
+    businessUnitId = fixture.businessUnit.id;
+    const enqueueCurrent = async () => {
+      const run = await enqueueJiraSyncRun(prisma, {
+        projectId: fixture.project.id,
+        kind: JiraSyncRunKind.CURRENT,
+        scopeType: 'LABEL',
+        scopeValue: 'current-life-scope',
+        scopeChanged: false,
+        preserveStoredScope: true,
+      });
+      await prisma.jiraSyncRun.update({
+        where: { id: run.id },
+        data: { enqueuedAt: new Date('2000-01-01T00:00:00Z') },
+      });
+      return run;
+    };
+    const assertFullSyncState = async () => {
+      const settings = await prisma.jiraAnalyticsSettings.findUniqueOrThrow({
+        where: { projectId: fixture.project.id },
+      });
+      assert.equal(settings.syncStatus, 'OK');
+      assert.equal(settings.lastSyncedAt?.toISOString(), fixture.lastSyncedAt.toISOString());
+    };
+
+    const completedRun = await enqueueCurrent();
+    const completedClaim = await claimNextJiraSyncRun(prisma, 'current-complete-worker');
+    assert.equal(completedClaim?.id, completedRun.id);
+    await assertFullSyncState();
+    await completeJiraSyncRun(prisma, completedClaim!, {
+      status: 'SUCCEEDED',
+      result: { currentProjectionOnly: true },
+      requestSummary: emptyRequestSummary,
+      discoveredIssueCount: 0,
+      hydratedIssueCount: 0,
+      versionsCreated: 0,
+      retriesQueued: 0,
+    });
+    await assertFullSyncState();
+
+    const shutdownRun = await enqueueCurrent();
+    const shutdownClaim = await claimNextJiraSyncRun(prisma, 'current-shutdown-worker');
+    assert.equal(shutdownClaim?.id, shutdownRun.id);
+    await releaseJiraSyncRunOnShutdown(prisma, shutdownClaim!);
+    await assertFullSyncState();
+
+    const explicitRun = await enqueueJiraSyncRun(prisma, {
+      projectId: fixture.project.id,
+      kind: JiraSyncRunKind.SYNC,
+      scopeType: 'LABEL',
+      scopeValue: 'current-life-scope',
+      scopeChanged: false,
+    });
+    const preempted = await prisma.jiraSyncRun.findUniqueOrThrow({ where: { id: shutdownRun.id } });
+    assert.equal(preempted.status, 'CANCELLED');
+    assert.equal(preempted.errorCode, 'PREEMPTED_BY_EXPLICIT_OPERATION');
+    await prisma.jiraSyncRun.update({
+      where: { id: explicitRun.id },
+      data: { status: 'CANCELLED', phase: 'DONE', activeSlot: null, finishedAt: new Date() },
+    });
+
+    const reapedRun = await enqueueCurrent();
+    const reapedClaim = await claimNextJiraSyncRun(prisma, 'current-reap-worker');
+    assert.equal(reapedClaim?.id, reapedRun.id);
+    const expiredAt = new Date(Date.now() - 60_000);
+    await prisma.jiraSyncRun.update({
+      where: { id: reapedRun.id },
+      data: { maxAttempts: reapedClaim!.attempt, leaseExpiresAt: expiredAt },
+    });
+    await prisma.jiraAnalyticsSettings.update({
+      where: { projectId: fixture.project.id },
+      data: { syncLockExpiresAt: expiredAt },
+    });
+    await reapExpiredJiraSyncRuns(prisma);
+    assert.equal(
+      (await prisma.jiraSyncRun.findUniqueOrThrow({ where: { id: reapedRun.id } })).status,
+      'FAILED',
+    );
+    await assertFullSyncState();
+
+    const clearRun = await enqueueCurrent();
+    const clearClaim = await claimNextJiraSyncRun(prisma, 'current-clear-worker');
+    assert.equal(clearClaim?.id, clearRun.id);
+    await clearJiraProjectData(prisma, fixture.project.id);
+    assert.equal(
+      (await prisma.jiraSyncRun.findUniqueOrThrow({ where: { id: clearRun.id } })).status,
+      'CANCELLED',
+    );
+    const runCountAfterClear = await prisma.jiraSyncRun.count({
+      where: { projectId: fixture.project.id },
+    });
+    const refreshAfterClear = await requestJiraCurrentRefresh(
+      prisma,
+      fixture.project.id,
+      { id: 'reader-after-clear', role: 'USER' },
+    );
+    assert.equal(refreshAfterClear.queued, false);
+    assert.equal(refreshAfterClear.freshness.state, 'NOT_CONFIGURED');
+    assert.equal(refreshAfterClear.freshness.pollAfterMs, null);
+    assert.equal(await prisma.jiraSyncRun.count({
+      where: { projectId: fixture.project.id },
+    }), runCountAfterClear);
+  } finally {
+    if (businessUnitId) await prisma.project.deleteMany({ where: { businessUnitId } });
+    if (businessUnitId) await prisma.businessUnit.delete({ where: { id: businessUnitId } });
+    await prisma.$disconnect();
+  }
+});
+
+test('explicit Jira runs are claimed before older background CURRENT runs', {
+  skip: !testDatabaseUrl,
+}, async () => {
+  const databaseName = new URL(testDatabaseUrl).pathname.replace(/^\//, '');
+  assert.match(databaseName, /test/i, 'JIRA_HISTORY_TEST_DATABASE_URL must target a test database');
+  const prisma = new PrismaClient({ datasourceUrl: testDatabaseUrl });
+  const businessUnitIds: string[] = [];
+  try {
+    const currentFixture = await createCurrentRefreshFixture(prisma, 'current-priority');
+    const explicitFixture = await createCurrentRefreshFixture(prisma, 'sync-priority');
+    businessUnitIds.push(currentFixture.businessUnit.id, explicitFixture.businessUnit.id);
+
+    const currentRun = await enqueueJiraSyncRun(prisma, {
+      projectId: currentFixture.project.id,
+      kind: JiraSyncRunKind.CURRENT,
+      scopeType: 'LABEL',
+      scopeValue: 'current-priority-scope',
+      scopeChanged: false,
+      preserveStoredScope: true,
+    });
+    await prisma.jiraSyncRun.update({
+      where: { id: currentRun.id },
+      data: { enqueuedAt: new Date('2000-01-01T00:00:00Z') },
+    });
+    const explicitRun = await enqueueJiraSyncRun(prisma, {
+      projectId: explicitFixture.project.id,
+      kind: JiraSyncRunKind.SYNC,
+      scopeType: 'LABEL',
+      scopeValue: 'sync-priority-scope',
+      scopeChanged: false,
+    });
+    await prisma.jiraSyncRun.update({
+      where: { id: explicitRun.id },
+      data: { enqueuedAt: new Date('2001-01-01T00:00:00Z') },
+    });
+
+    const claimed = await claimNextJiraSyncRun(prisma, 'explicit-priority-worker');
+    assert.equal(claimed?.id, explicitRun.id);
+    assert.equal(claimed?.kind, JiraSyncRunKind.SYNC);
+  } finally {
+    await prisma.project.deleteMany({ where: { businessUnitId: { in: businessUnitIds } } });
+    await prisma.businessUnit.deleteMany({ where: { id: { in: businessUnitIds } } });
+    await prisma.$disconnect();
+  }
+});
+
+test('CURRENT enqueue rejects a stale stored scope without creating a run', {
+  skip: !testDatabaseUrl,
+}, async () => {
+  const databaseName = new URL(testDatabaseUrl).pathname.replace(/^\//, '');
+  assert.match(databaseName, /test/i, 'JIRA_HISTORY_TEST_DATABASE_URL must target a test database');
+  const prisma = new PrismaClient({ datasourceUrl: testDatabaseUrl });
+  let businessUnitId: string | null = null;
+  try {
+    const fixture = await createCurrentRefreshFixture(prisma, 'current-scope');
+    businessUnitId = fixture.businessUnit.id;
+    await assert.rejects(enqueueJiraSyncRun(prisma, {
+      projectId: fixture.project.id,
+      kind: JiraSyncRunKind.CURRENT,
+      scopeType: 'LABEL',
+      scopeValue: 'stale-browser-scope',
+      scopeChanged: false,
+      preserveStoredScope: true,
+    }), JiraSyncFencedError);
+    assert.equal(await prisma.jiraSyncRun.count({ where: { projectId: fixture.project.id } }), 0);
+  } finally {
+    if (businessUnitId) await prisma.project.deleteMany({ where: { businessUnitId } });
+    if (businessUnitId) await prisma.businessUnit.delete({ where: { id: businessUnitId } });
+    await prisma.$disconnect();
+  }
+});
+
+test('empty CURRENT response preserves snapshots and the successful refresh timestamp', {
+  skip: !testDatabaseUrl,
+}, async () => {
+  const databaseName = new URL(testDatabaseUrl).pathname.replace(/^\//, '');
+  assert.match(databaseName, /test/i, 'JIRA_HISTORY_TEST_DATABASE_URL must target a test database');
+  const prisma = new PrismaClient({ datasourceUrl: testDatabaseUrl });
+  let businessUnitId: string | null = null;
+  try {
+    const fixture = await createCurrentRefreshFixture(prisma, 'current-empty');
+    businessUnitId = fixture.businessUnit.id;
+    const snapshot = await prisma.jiraIssueSnapshot.create({
+      data: {
+        projectId: fixture.project.id,
+        jiraId: 'current-empty-1',
+        issueKey: 'EMPTY-1',
+        issueUrl: 'https://jira.example/browse/EMPTY-1',
+        summary: 'Existing projection must survive an empty response',
+        status: 'In Progress',
+        priority: 'Critical',
+        issueType: 'Bug',
+        criticalPriorityAt: new Date('2026-08-20T00:00:00Z'),
+        criticalEndPriority: 'Critical',
+        criticalSlaTracked: true,
+        updatedAt: new Date('2026-09-01T07:00:00Z'),
+      },
+    });
+    const queued = await enqueueJiraSyncRun(prisma, {
+      projectId: fixture.project.id,
+      kind: JiraSyncRunKind.CURRENT,
+      scopeType: 'LABEL',
+      scopeValue: 'current-empty-scope',
+      scopeChanged: false,
+      preserveStoredScope: true,
+    });
+    await prisma.jiraSyncRun.update({
+      where: { id: queued.id },
+      data: { enqueuedAt: new Date('2000-01-01T00:00:00Z') },
+    });
+    const claimed = await claimNextJiraSyncRun(prisma, 'current-empty-worker');
+    assert.equal(claimed?.id, queued.id);
+    const result = await runJiraCurrentRefreshPipeline(claimed!, {
+      prisma,
+      fetchIssues: async () => ({ issues: [], jiraUsers: ['read-only-test'] }),
+    });
+    assert.equal(result.result.emptyScope, true);
+    const preserved = await prisma.jiraIssueSnapshot.findUniqueOrThrow({
+      where: { id: snapshot.id },
+    });
+    assert.equal(preserved.retiredAt, null);
+    assert.equal(preserved.criticalSlaTracked, true);
+    const settings = await prisma.jiraAnalyticsSettings.findUniqueOrThrow({
+      where: { projectId: fixture.project.id },
+    });
+    assert.equal(
+      settings.currentProjectionRefreshedAt?.toISOString(),
+      fixture.currentProjectionRefreshedAt.toISOString(),
+    );
+  } finally {
+    if (businessUnitId) await prisma.project.deleteMany({ where: { businessUnitId } });
+    if (businessUnitId) await prisma.businessUnit.delete({ where: { id: businessUnitId } });
+    await prisma.$disconnect();
+  }
+});
 
 test('missing system aggregate bootstrap is idempotent and leaves dashboard settings unchanged', {
   skip: !testDatabaseUrl,
@@ -170,6 +473,7 @@ function jiraIssue(summary: string, updatedAt: Date): JiraIssue {
     updatedAt,
     transitions: [],
     transitionHistoryComplete: true,
+    labelChanges: [],
     development: {
       commitCount: 0,
       mergeRequestCount: 0,
@@ -1257,10 +1561,12 @@ test('system aggregate bootstrap publishes labels, preserves drafts, and repins 
       publishedVersions.set(row.id, row.publishedVersion);
       const published = row.revisions.find((revision) => revision.version === row.publishedVersion);
       assert.ok(published);
-      assert.ok(
-        jiraSemanticAggregateDefinitionSchema.parse(published.definition)
-          .outputFields.some((field) => field.key === 'labels'),
-      );
+      const publishedDefinition = jiraSemanticAggregateDefinitionSchema.parse(published.definition);
+      if (publishedDefinition.rowConfig.kind !== 'gitlabBranchCommit') {
+        assert.ok(
+          publishedDefinition.outputFields.some((field) => field.key === 'labels'),
+        );
+      }
       if (row.aggregateKey === 'issues') {
         assert.equal(row.publishedVersion, 3);
         assert.equal(row.version, 4);
@@ -1272,6 +1578,9 @@ test('system aggregate bootstrap publishes labels, preserves drafts, and repins 
           jiraSemanticAggregateDefinitionSchema.parse(draft?.definition)
             .outputFields.some((field) => field.key === 'labels'),
         );
+      } else if (publishedDefinition.rowConfig.kind === 'gitlabBranchCommit') {
+        assert.equal(row.publishedVersion, 1);
+        assert.equal(row.version, 1);
       } else {
         assert.equal(row.publishedVersion, 2);
         assert.equal(row.version, 2);

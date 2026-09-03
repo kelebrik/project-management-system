@@ -681,6 +681,7 @@ export async function runJiraSyncPipeline(
     const updated = await transaction.$executeRaw(Prisma.sql`
       UPDATE "JiraAnalyticsSettings"
          SET "lastSyncedAt" = ${syncedAt},
+             "currentProjectionRefreshedAt" = ${syncedAt},
              "historyCursorUpdatedAt" = CASE WHEN ${run.historyWriteEnabled}
                THEN ${finalHistoryCursor?.updatedAt ?? null}
                ELSE "historyCursorUpdatedAt" END,

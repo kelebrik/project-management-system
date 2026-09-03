@@ -9,6 +9,7 @@ import {
   type JiraRiskAggregateQueryResponse,
   type JiraRiskTicket,
 } from "../app/jiraRiskTickets";
+import { useJiraCurrentFreshness } from "./useJiraCurrentFreshness";
 
 type Catalog = {
   definitions: JiraSemanticAggregatePublic[];
@@ -36,6 +37,10 @@ export function useJiraRiskTickets(projectId: string | null | undefined) {
     loading: Boolean(projectId),
   }));
   const requestRef = useRef(0);
+  const [projectionRevision, setProjectionRevision] = useState(0);
+  const currentFreshness = useJiraCurrentFreshness(projectId, () => {
+    setProjectionRevision((current) => current + 1);
+  });
 
   useEffect(() => {
     const request = ++requestRef.current;
@@ -116,7 +121,7 @@ export function useJiraRiskTickets(projectId: string | null | undefined) {
     return () => {
       if (request === requestRef.current) requestRef.current += 1;
     };
-  }, [projectId]);
+  }, [projectId, projectionRevision]);
 
-  return state;
+  return { ...state, currentFreshness };
 }

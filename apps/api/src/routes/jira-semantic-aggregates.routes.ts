@@ -23,6 +23,7 @@ import { prisma as defaultPrisma } from "../db.js";
 import { currentUser } from "../server/auth.js";
 import { userCanReadProject } from "../server/business-units.js";
 import { recordAuditEvent } from "../services/audit.js";
+import { requestJiraCurrentRefresh } from "../services/jira-current-refresh.js";
 import {
   JiraAggregateEventLimitError,
   JiraAggregateExportLimitError,
@@ -305,6 +306,26 @@ export function registerJiraSemanticAggregateRoutes(
         dueDate: goal.dueDate?.toISOString() ?? null,
       })),
     });
+  });
+
+  router.post("/projects/:projectId/jira/current-refresh", async (req, res) => {
+    const user = currentUser(req);
+    if (!user || !await canRead(req, req.params.projectId)) {
+      res.status(user ? 404 : 401).json({
+        error: user ? "Проект не найден" : "Требуется вход в систему",
+      });
+      return;
+    }
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.projectId },
+      select: { id: true },
+    });
+    if (!project) {
+      res.status(404).json({ error: "Проект не найден" });
+      return;
+    }
+    const result = await requestJiraCurrentRefresh(prisma, project.id, user);
+    res.status(result.freshness.state === "REFRESHING" ? 202 : 200).json(result);
   });
 
   router.patch("/projects/:projectId/jira/goal-labels", async (req, res) => {

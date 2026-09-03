@@ -154,6 +154,7 @@ enum JiraAnalyticsScopeType {
 enum JiraSyncRunKind {
   SYNC
   BACKFILL
+  CURRENT
 }
 
 enum JiraSyncRunStatus {
@@ -532,6 +533,7 @@ model JiraAnalyticsSettings {
   semanticDefaultWidgetsVersion Int                    @default(0)
   syncStatus                    String                 @default("NOT_CONFIGURED")
   lastSyncedAt                  DateTime?
+  currentProjectionRefreshedAt  DateTime?
   syncStartedAt                 DateTime?
   syncLockExpiresAt             DateTime?
   syncRunId                     String?

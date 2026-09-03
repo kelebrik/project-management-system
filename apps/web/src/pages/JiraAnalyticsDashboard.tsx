@@ -33,6 +33,8 @@ import {
   jiraWidgetWithSelectedFields,
 } from "../app/jiraWidgetColumns";
 import { JiraWidgetFilters } from "../components/JiraWidgetFilters";
+import { JiraCurrentFreshnessNotice } from "../components/JiraCurrentFreshnessNotice";
+import { useJiraCurrentFreshness } from "../hooks/useJiraCurrentFreshness";
 import { usePageContext } from "./PageContext";
 
 type JiraAnalyticsSection = "active" | "retro";
@@ -319,6 +321,12 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
   const refreshSection = useEffectEvent(async () => {
     if (catalog && !editing) await refresh();
   });
+  const reloadAfterCurrentRefresh = async () => {
+    if (editing) return;
+    const response = await loadCatalog();
+    if (response) await refresh(response, response.dashboard);
+  };
+  const currentFreshness = useJiraCurrentFreshness(project.id, reloadAfterCurrentRefresh);
 
   useEffect(() => { queueMicrotask(() => { void loadInitial(); }); }, [project.id, dataRevision]);
   useEffect(() => { queueMicrotask(() => { void refreshSection(); }); }, [section]);
@@ -371,6 +379,7 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
   if (!catalog) return <div className="jira-analytics-empty">Загрузка виджетов...</div>;
   return <div className="jira-analytics-workspace">
     <div className="jira-analytics-toolbar"><label><span>Период событий</span><select value={config.periodDays} disabled={editing} onChange={(event) => setConfig((current) => ({ ...current, periodDays: Number(event.target.value) as JiraSemanticDashboard["periodDays"] }))}><option value="30">30 дней</option><option value="90">90 дней</option><option value="180">180 дней</option><option value="365">365 дней</option></select></label><label><span>Исполнитель</span><input value={config.assignee} disabled={editing} placeholder="Все" onChange={(event) => setConfig((current) => ({ ...current, assignee: event.target.value }))} /></label><div className="jira-analytics-toolbar-actions">{editing ? <><button type="button" className="secondary-button" onClick={addWidget}><Plus size={18} />Добавить виджет</button><button type="button" className="secondary-button" onClick={() => { setConfig(structuredClone(baseline)); setSelectedId(null); onEditingChange(false); }}><X size={18} />Отменить</button><button type="button" className="primary-button" disabled={loading} onClick={() => void save()}><Save size={18} />Сохранить</button></> : <><button type="button" className="secondary-button" disabled={loading} onClick={() => void refresh()}><RefreshCw size={18} />Обновить</button>{canEdit ? <button type="button" className="secondary-button" onClick={onStartEditing}><Pencil size={18} />Редактировать</button> : null}</>}</div></div>
+    <JiraCurrentFreshnessNotice {...currentFreshness} />
     {aggregates.length === 0 ? <div className="jira-aggregate-validation">Нет опубликованных агрегатов. <button type="button" className="button" onClick={onOpenAggregates}>Открыть агрегаты</button></div> : null}
     <div className={`jira-analytics-edit-layout ${editing && selectedWidget ? "with-editor" : ""}`}><div className="jira-analytics-grid">{widgets.map((widget, index) => <article key={widget.id} className={`jira-analytics-widget width-${widget.width} ${selectedId === widget.id ? "selected" : ""}`}><header><div><h3>{widget.title}</h3><small>{aggregates.find((aggregate) => aggregate.id === widget.aggregateId)?.published?.name ?? "Агрегат недоступен"} · v{widget.aggregateVersion}</small></div>{editing ? <div className="jira-analytics-widget-actions"><button type="button" className="icon-button" title="Влево" disabled={index === 0} onClick={() => setConfig((current) => ({ ...current, widgets: moveWidget(current.widgets, widget.id, -1, section) }))}><ChevronLeft size={17} /></button><button type="button" className="icon-button" title="Вправо" disabled={index === widgets.length - 1} onClick={() => setConfig((current) => ({ ...current, widgets: moveWidget(current.widgets, widget.id, 1, section) }))}><ChevronRight size={17} /></button><button type="button" className="icon-button" title="Настроить" onClick={() => setSelectedId(widget.id)}><Settings2 size={17} /></button><button type="button" className="icon-button danger" title="Удалить" onClick={() => { setConfig((current) => ({ ...current, widgets: current.widgets.filter((item) => item.id !== widget.id) })); if (selectedId === widget.id) setSelectedId(null); }}><Trash2 size={17} /></button></div> : <div className="jira-analytics-widget-actions"><button type="button" className="icon-button" title="Скачать CSV" onClick={() => void exportWidget(widget)}><Download size={17} /></button></div>}</header><WidgetContent widget={widget} result={results[widget.id] ?? null} error={widgetErrors[widget.id] ?? null} drilldown={drilldowns[widget.id] ?? null} onGroup={(group) => void refreshWidget(widget, group)} onBack={() => void refreshWidget(widget)} />{results[widget.id]?.quality.warnings.length ? <footer className="jira-analytics-quality">Качество: {results[widget.id]?.quality.status}; предупреждений {results[widget.id]?.quality.warnings.reduce((sum, warning) => sum + warning.count, 0)}</footer> : null}</article>)}</div>{editing && selectedWidget && selectedAggregate ? <WidgetEditor key={selectedWidget.id} widget={selectedWidget} aggregate={selectedAggregate} aggregates={aggregates} onChange={patchWidget} onClose={() => setSelectedId(null)} /> : null}</div>
   </div>;

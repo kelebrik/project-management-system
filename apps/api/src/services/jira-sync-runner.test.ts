@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
@@ -42,4 +43,10 @@ test('runner log messages redact database and Jira credentials', () => {
   );
   assert.doesNotMatch(message, /secret|token-value/u);
   assert.match(message, /\*\*\*/u);
+});
+
+test('runner sends current-only runs to the lightweight projection pipeline', async () => {
+  const source = await readFile(new URL('./jira-sync-runner.ts', import.meta.url), 'utf8');
+  assert.match(source, /run\.kind\s*===\s*JiraSyncRunKind\.CURRENT/u);
+  assert.match(source, /\?\s*runJiraCurrentRefreshPipeline\s*:\s*runJiraSyncPipeline/u);
 });

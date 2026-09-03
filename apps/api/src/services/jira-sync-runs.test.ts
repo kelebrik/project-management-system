@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import { JiraSyncRunKind } from '@prisma/client';
+
 import { JiraSyncDeadlineError, jiraReadOnlyRouteTemplate } from '../jira.js';
 import {
   isFatalJiraHistoryBatchError,
@@ -12,6 +14,8 @@ import {
 } from './jira-sync-pipeline.js';
 import {
   jiraHistoryWriteEnabled,
+  jiraHistoryWriteEnabledForRun,
+  jiraSyncRunTouchesFullSyncStatus,
   JiraSyncCapacityError,
   publicJiraSyncRun,
 } from './jira-sync-runs.js';
@@ -21,6 +25,14 @@ test('history dual-write flag is fail-safe and only exact false disables it', ()
   assert.equal(jiraHistoryWriteEnabled({}), true);
   assert.equal(jiraHistoryWriteEnabled({ JIRA_HISTORY_WRITE_ENABLED: 'FALSE' }), true);
   assert.equal(jiraHistoryWriteEnabled({ JIRA_HISTORY_WRITE_ENABLED: 'false' }), false);
+  assert.equal(jiraHistoryWriteEnabledForRun(JiraSyncRunKind.SYNC, {}), true);
+  assert.equal(jiraHistoryWriteEnabledForRun(JiraSyncRunKind.CURRENT, {}), false);
+});
+
+test('current refresh keeps the status of the full Jira synchronization independent', () => {
+  assert.equal(jiraSyncRunTouchesFullSyncStatus(JiraSyncRunKind.CURRENT), false);
+  assert.equal(jiraSyncRunTouchesFullSyncStatus(JiraSyncRunKind.SYNC), true);
+  assert.equal(jiraSyncRunTouchesFullSyncStatus(JiraSyncRunKind.BACKFILL), true);
 });
 
 test('history storage budget rejects malformed and non-positive overrides', () => {

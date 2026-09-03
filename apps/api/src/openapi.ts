@@ -1403,6 +1403,29 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/current-refresh": {
+      post: {
+        ...securedOperation(
+          ["Jira"],
+          "Return freshness and queue a TTL-limited read-only Jira current projection refresh when stale",
+          [projectIdParam],
+        ),
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { type: "object", additionalProperties: false },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Current projection is fresh or cannot be refreshed" },
+          "202": { description: "Current projection refresh is queued or running" },
+          "401": { description: "Authentication required" },
+          "404": { description: "Project not found or not accessible" },
+        },
+      },
+    },
     "/api/projects/{projectId}/jira/capacity-sample": {
       post: {
         tags: ["Jira"],

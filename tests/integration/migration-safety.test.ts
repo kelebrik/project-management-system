@@ -195,6 +195,13 @@ test("Jira analytics C1 as-of reconstruction adds no database migration", () => 
   assert.deepEqual(c1Migrations, []);
 });
 
+test("Jira current projection refresh migration is additive and separates freshness", () => {
+  const migration = migrationSql("20260903120000_jira_current_projection_refresh");
+  assert.match(migration, /ALTER\s+TYPE\s+"JiraSyncRunKind"\s+ADD\s+VALUE\s+IF\s+NOT\s+EXISTS\s+'CURRENT'/i);
+  assert.match(migration, /ADD\s+COLUMN\s+"currentProjectionRefreshedAt"\s+TIMESTAMP\(3\)/i);
+  assert.doesNotMatch(migration, /\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE)\b/i);
+});
+
 test("Jira aggregate revisions are additive and backfill immutable definitions", () => {
   const migration = migrationSql("20260825090000_jira_aggregate_definition_revisions");
   assert.match(migration, /CREATE TABLE "JiraAggregateDefinitionRevision"/);

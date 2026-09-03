@@ -34,6 +34,58 @@ export function lockJiraProjectData(
   `);
 }
 
+export async function preemptActiveJiraCurrentRun(
+  transaction: Prisma.TransactionClient,
+  projectId: string,
+) {
+  await transaction.$queryRaw(Prisma.sql`
+    SELECT "projectId"
+      FROM "JiraAnalyticsSettings"
+     WHERE "projectId" = ${projectId}
+     FOR UPDATE
+  `);
+  const runs = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT "id"
+      FROM "JiraSyncRun"
+     WHERE "projectId" = ${projectId}
+       AND "kind" = 'CURRENT'
+       AND "activeSlot" IS NOT NULL
+     LIMIT 1
+     FOR UPDATE
+  `);
+  const runId = runs[0]?.id;
+  if (!runId) return false;
+
+  await transaction.$executeRaw(Prisma.sql`
+    UPDATE "JiraAnalyticsSettings"
+       SET "syncRunId" = NULL,
+           "syncStartedAt" = NULL,
+           "syncLockExpiresAt" = NULL,
+           "syncFenceToken" = COALESCE("syncFenceToken", 0) + 1,
+           "updatedAt" = now()
+     WHERE "projectId" = ${projectId}
+       AND "syncRunId" = ${runId}
+  `);
+  const cancelled = await transaction.$executeRaw(Prisma.sql`
+    UPDATE "JiraSyncRun"
+       SET "status" = 'CANCELLED',
+           "phase" = 'DONE',
+           "activeSlot" = NULL,
+           "finishedAt" = now(),
+           "errorCode" = 'PREEMPTED_BY_EXPLICIT_OPERATION',
+           "errorMessage" = 'Фоновое обновление отменено явной операцией',
+           "workerId" = NULL,
+           "leaseExpiresAt" = NULL,
+           "heartbeatAt" = NULL,
+           "deadlineAt" = NULL,
+           "updatedAt" = now()
+     WHERE "id" = ${runId}
+       AND "kind" = 'CURRENT'
+       AND "activeSlot" IS NOT NULL
+  `);
+  return cancelled === 1;
+}
+
 export async function clearJiraProjectData(
   database: PrismaClient,
   projectId: string,
@@ -47,6 +99,8 @@ export async function clearJiraProjectData(
     });
     if (!project) throw new JiraProjectDataNotFoundError();
     if (project.status === 'CLOSED') throw new JiraProjectDataReadOnlyError();
+
+    await preemptActiveJiraCurrentRun(transaction, projectId);
 
     const settingsRows = await transaction.$queryRaw<Array<{
       leaseActive: boolean;
@@ -93,6 +147,7 @@ export async function clearJiraProjectData(
       data: {
         syncStatus: 'CONFIGURED',
         lastSyncedAt: null,
+        currentProjectionRefreshedAt: null,
         syncStartedAt: null,
         syncLockExpiresAt: null,
         syncRunId: null,
@@ -106,7 +161,10 @@ export async function clearJiraProjectData(
     });
     await transaction.jiraIntegration.updateMany({
       where: { projectId },
-      data: { lastSyncedAt: null, syncStatus: 'CONFIGURED' },
+      data: {
+        lastSyncedAt: null,
+        syncStatus: 'CONFIGURED',
+      },
     });
 
     return {

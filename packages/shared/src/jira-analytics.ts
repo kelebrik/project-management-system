@@ -32,6 +32,26 @@ export const jiraAnalyticsScopeValueMaxLength = 2_000;
 
 export type JiraAnalyticsScopeType = (typeof jiraAnalyticsScopeTypes)[number];
 
+export const jiraCurrentFreshnessStates = [
+  "FRESH",
+  "REFRESHING",
+  "STALE",
+  "ERROR",
+  "NOT_CONFIGURED",
+] as const;
+
+export type JiraCurrentFreshnessState = (typeof jiraCurrentFreshnessStates)[number];
+
+export type JiraCurrentFreshness = {
+  state: JiraCurrentFreshnessState;
+  refreshedAt: string | null;
+  ageSeconds: number | null;
+  staleAfterSeconds: number;
+  pollAfterMs: number | null;
+  runId: string | null;
+  refreshAllowed: boolean;
+};
+
 const jiraAnalyticsLabelPattern = /^[^\s"'\\,]+$/u;
 const jiraAnalyticsEpicPattern = /^[A-Z][A-Z0-9_]*-\d+$/u;
 

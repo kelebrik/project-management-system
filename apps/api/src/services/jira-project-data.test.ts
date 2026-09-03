@@ -126,6 +126,7 @@ test('project Jira clear deletes only imported data for the selected project', a
     data: {
       syncStatus: 'CONFIGURED',
       lastSyncedAt: null,
+      currentProjectionRefreshedAt: null,
       syncStartedAt: null,
       syncLockExpiresAt: null,
       syncRunId: null,

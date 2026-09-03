@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, Link as LinkIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { IssueStatusUpdate, RaidItemStatusUpdate } from "../app/domainTypes";
+import { JiraCurrentFreshnessNotice } from "../components/JiraCurrentFreshnessNotice";
 import { useJiraRiskTickets } from "../hooks/useJiraRiskTickets";
 import { usePageContext } from "./PageContext";
 
@@ -224,6 +225,7 @@ export function ProjectOverviewSummaryPage() {
           className="executive-overview-list"
           id={`${RISK_TICKETS_SECTION_ID}-content`}
         >
+          <JiraCurrentFreshnessNotice {...riskTickets.currentFreshness} />
           {riskTickets.tickets.map((ticket) => (
             <div className="executive-overview-row" key={ticket.id}>
               <b>

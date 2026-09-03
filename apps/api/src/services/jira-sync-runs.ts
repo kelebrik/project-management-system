@@ -7,7 +7,10 @@ import {
 
 import { redactJiraHistoryError } from './jira-history.js';
 import { JiraSyncDeadlineError } from '../jira.js';
-import { lockJiraProjectData } from './jira-project-data.js';
+import {
+  lockJiraProjectData,
+  preemptActiveJiraCurrentRun,
+} from './jira-project-data.js';
 
 export { JiraSyncDeadlineError } from '../jira.js';
 
@@ -42,6 +45,17 @@ function positiveEnvInt(name: string, fallback: number) {
 
 export function jiraHistoryWriteEnabled(env: NodeJS.ProcessEnv = process.env) {
   return env.JIRA_HISTORY_WRITE_ENABLED !== 'false';
+}
+
+export function jiraHistoryWriteEnabledForRun(
+  kind: JiraSyncRunKind,
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  return kind !== JiraSyncRunKind.CURRENT && jiraHistoryWriteEnabled(env);
+}
+
+export function jiraSyncRunTouchesFullSyncStatus(kind: JiraSyncRunKind) {
+  return kind !== JiraSyncRunKind.CURRENT;
 }
 
 export type JiraSyncFence = {
@@ -147,46 +161,66 @@ export type EnqueueJiraSyncInput = {
   scopeChanged: boolean;
   requestedById?: string | null;
   requestedByRole?: string | null;
+  preserveStoredScope?: boolean;
 };
 
 export async function enqueueJiraSyncRun(
   prisma: PrismaClient,
   input: EnqueueJiraSyncInput,
 ) {
-  const historyWriteEnabled = jiraHistoryWriteEnabled();
+  const historyWriteEnabled = jiraHistoryWriteEnabledForRun(input.kind);
   return prisma.$transaction(async (transaction) => {
     await lockJiraProjectData(transaction, input.projectId);
-    await transaction.jiraAnalyticsSettings.createMany({
-      data: [{
-        projectId: input.projectId,
-        jiraScopeType: input.scopeType,
-        jiraScopeValue: input.scopeValue,
-        jiraLabel: input.scopeType === 'LABEL' ? input.scopeValue : '',
-        syncStatus: 'CONFIGURED',
-      }],
-      skipDuplicates: true,
-    });
+    if (input.kind !== JiraSyncRunKind.CURRENT) {
+      await preemptActiveJiraCurrentRun(transaction, input.projectId);
+    }
+    if (input.preserveStoredScope) {
+      const settings = await transaction.$queryRaw<Array<{ projectId: string }>>(Prisma.sql`
+        SELECT "projectId"
+          FROM "JiraAnalyticsSettings"
+         WHERE "projectId" = ${input.projectId}
+           AND "jiraScopeType" = ${input.scopeType}::"JiraAnalyticsScopeType"
+           AND "jiraScopeValue" = ${input.scopeValue}
+           AND "lastSyncedAt" IS NOT NULL
+           AND ("syncStartedAt" IS NULL OR "syncLockExpiresAt" <= now())
+         FOR UPDATE
+      `);
+      if (settings.length !== 1) throw new JiraSyncFencedError();
+    } else {
+      await transaction.jiraAnalyticsSettings.createMany({
+        data: [{
+          projectId: input.projectId,
+          jiraScopeType: input.scopeType,
+          jiraScopeValue: input.scopeValue,
+          jiraLabel: input.scopeType === 'LABEL' ? input.scopeValue : '',
+          syncStatus: 'CONFIGURED',
+        }],
+        skipDuplicates: true,
+      });
 
-    const settingsAvailable = await transaction.$executeRaw(Prisma.sql`
-      UPDATE "JiraAnalyticsSettings"
-         SET "jiraScopeType" = ${input.scopeType}::"JiraAnalyticsScopeType",
-             "jiraScopeValue" = ${input.scopeValue},
-             "jiraLabel" = ${input.scopeType === 'LABEL' ? input.scopeValue : ''},
-             "historyCursorUpdatedAt" = CASE WHEN ${input.scopeChanged}
-               THEN NULL ELSE "historyCursorUpdatedAt" END,
-             "historyCursorJiraIssueId" = CASE WHEN ${input.scopeChanged}
-               THEN NULL ELSE "historyCursorJiraIssueId" END,
-             "historyLastFullReconciledAt" = CASE WHEN ${input.scopeChanged}
-               THEN NULL ELSE "historyLastFullReconciledAt" END,
-             "historyFullCursorIssueKey" = CASE WHEN ${input.scopeChanged}
-               THEN NULL ELSE "historyFullCursorIssueKey" END,
-             "historyFullStartedAt" = CASE WHEN ${input.scopeChanged}
-               THEN NULL ELSE "historyFullStartedAt" END,
-             "updatedAt" = now()
-       WHERE "projectId" = ${input.projectId}
-         AND ("syncStartedAt" IS NULL OR "syncLockExpiresAt" <= now())
-    `);
-    if (settingsAvailable !== 1) throw new JiraSyncFencedError();
+      const settingsAvailable = await transaction.$executeRaw(Prisma.sql`
+        UPDATE "JiraAnalyticsSettings"
+           SET "jiraScopeType" = ${input.scopeType}::"JiraAnalyticsScopeType",
+               "jiraScopeValue" = ${input.scopeValue},
+               "jiraLabel" = ${input.scopeType === 'LABEL' ? input.scopeValue : ''},
+               "historyCursorUpdatedAt" = CASE WHEN ${input.scopeChanged}
+                 THEN NULL ELSE "historyCursorUpdatedAt" END,
+               "historyCursorJiraIssueId" = CASE WHEN ${input.scopeChanged}
+                 THEN NULL ELSE "historyCursorJiraIssueId" END,
+               "historyLastFullReconciledAt" = CASE WHEN ${input.scopeChanged}
+                 THEN NULL ELSE "historyLastFullReconciledAt" END,
+               "historyFullCursorIssueKey" = CASE WHEN ${input.scopeChanged}
+                 THEN NULL ELSE "historyFullCursorIssueKey" END,
+               "historyFullStartedAt" = CASE WHEN ${input.scopeChanged}
+                 THEN NULL ELSE "historyFullStartedAt" END,
+               "currentProjectionRefreshedAt" = CASE WHEN ${input.scopeChanged}
+                 THEN NULL ELSE "currentProjectionRefreshedAt" END,
+               "updatedAt" = now()
+         WHERE "projectId" = ${input.projectId}
+           AND ("syncStartedAt" IS NULL OR "syncLockExpiresAt" <= now())
+      `);
+      if (settingsAvailable !== 1) throw new JiraSyncFencedError();
+    }
 
     return transaction.jiraSyncRun.create({
       data: {
@@ -259,7 +293,8 @@ export async function claimNextJiraSyncRun(
              OR (r."status" = 'RUNNING' AND r."leaseExpiresAt" < now())
            )
            AND (s."syncStartedAt" IS NULL OR s."syncLockExpiresAt" <= now())
-         ORDER BY r."enqueuedAt" ASC
+         ORDER BY CASE WHEN r."kind" = 'CURRENT' THEN 1 ELSE 0 END ASC,
+                  r."enqueuedAt" ASC
          LIMIT 1
          FOR UPDATE OF s SKIP LOCKED
       `);
@@ -274,7 +309,9 @@ export async function claimNextJiraSyncRun(
         await transaction.$executeRaw(Prisma.sql`
           UPDATE "JiraAnalyticsSettings"
              SET "syncRunId" = NULL, "syncStartedAt" = NULL,
-                 "syncLockExpiresAt" = NULL, "syncStatus" = 'CANCELLED',
+                 "syncLockExpiresAt" = NULL,
+                 "syncStatus" = CASE WHEN ${jiraSyncRunTouchesFullSyncStatus(candidate.kind)}
+                   THEN 'CANCELLED' ELSE "syncStatus" END,
                  "updatedAt" = now()
            WHERE "projectId" = ${candidate.projectId}
              AND "syncRunId" = ${candidate.id}
@@ -293,7 +330,9 @@ export async function claimNextJiraSyncRun(
       const leaseSeconds = JIRA_SYNC_LEASE_MS / 1_000;
       const settingsRows = await transaction.$queryRaw<Array<{ syncFenceToken: number }>>(Prisma.sql`
         UPDATE "JiraAnalyticsSettings"
-           SET "syncStatus" = ${candidate.kind === JiraSyncRunKind.BACKFILL ? 'BACKFILLING' : 'SYNCING'},
+           SET "syncStatus" = CASE WHEN ${jiraSyncRunTouchesFullSyncStatus(candidate.kind)}
+                 THEN ${candidate.kind === JiraSyncRunKind.BACKFILL ? 'BACKFILLING' : 'SYNCING'}
+                 ELSE "syncStatus" END,
                "syncRunId" = ${candidate.id},
                "syncFenceToken" = COALESCE("syncFenceToken", 0) + 1,
                "syncStartedAt" = now(),
@@ -599,9 +638,21 @@ async function finishJiraSyncRun(
   const completedSuccessfully = status === JiraSyncRunStatus.SUCCEEDED
     || status === JiraSyncRunStatus.SUCCEEDED_WITH_RETRIES;
   await prisma.$transaction(async (transaction) => {
+    const stored = await transaction.jiraSyncRun.findUniqueOrThrow({
+      where: { id: fence.runId },
+      select: {
+        kind: true,
+        jiraRequestCount: true,
+        jiraRequestDurationMsTotal: true,
+        jiraRequestDurationMsMax: true,
+        jiraRequestsByRoute: true,
+        jiraRequestsByStatusClass: true,
+      },
+    });
     const released = await transaction.$executeRaw(Prisma.sql`
       UPDATE "JiraAnalyticsSettings"
-         SET "syncStatus" = ${completedSuccessfully ? 'OK' : status},
+         SET "syncStatus" = CASE WHEN ${jiraSyncRunTouchesFullSyncStatus(stored.kind)}
+               THEN ${completedSuccessfully ? 'OK' : status} ELSE "syncStatus" END,
              "syncRunId" = NULL,
              "syncStartedAt" = NULL,
              "syncLockExpiresAt" = NULL,
@@ -612,16 +663,6 @@ async function finishJiraSyncRun(
          AND "syncLockExpiresAt" > now()
     `);
     if (released !== 1) throw new JiraSyncFencedError();
-    const stored = await transaction.jiraSyncRun.findUniqueOrThrow({
-      where: { id: fence.runId },
-      select: {
-        jiraRequestCount: true,
-        jiraRequestDurationMsTotal: true,
-        jiraRequestDurationMsMax: true,
-        jiraRequestsByRoute: true,
-        jiraRequestsByStatusClass: true,
-      },
-    });
     const requestCount = stored.jiraRequestCount + (data.jiraRequestCount ?? 0);
     const requestDurationMsTotal = stored.jiraRequestDurationMsTotal
       + (data.jiraRequestDurationMsTotal ?? 0);
@@ -683,10 +724,16 @@ export async function releaseJiraSyncRunOnShutdown(
 ) {
   const attemptDeadlineSeconds = JIRA_SYNC_ATTEMPT_DEADLINE_MS / 1_000;
   await prisma.$transaction(async (transaction) => {
+    const run = await transaction.jiraSyncRun.findUniqueOrThrow({
+      where: { id: fence.runId },
+      select: { kind: true },
+    });
     const released = await transaction.$executeRaw(Prisma.sql`
       UPDATE "JiraAnalyticsSettings"
          SET "syncRunId" = NULL, "syncStartedAt" = NULL,
-             "syncLockExpiresAt" = NULL, "syncStatus" = 'CONFIGURED',
+             "syncLockExpiresAt" = NULL,
+             "syncStatus" = CASE WHEN ${jiraSyncRunTouchesFullSyncStatus(run.kind)}
+               THEN 'CONFIGURED' ELSE "syncStatus" END,
              "updatedAt" = now()
        WHERE "projectId" = ${fence.projectId}
          AND "syncRunId" = ${fence.runId}
@@ -725,7 +772,8 @@ export async function reapExpiredJiraSyncRuns(prisma: PrismaClient) {
              "syncFenceToken" = COALESCE(s."syncFenceToken", 0) + 1,
              "syncStartedAt" = NULL,
              "syncLockExpiresAt" = NULL,
-             "syncStatus" = 'FAILED',
+             "syncStatus" = CASE WHEN r."kind" = 'CURRENT'
+               THEN s."syncStatus" ELSE 'FAILED' END,
              "updatedAt" = now()
         FROM "JiraSyncRun" r
        WHERE s."projectId" = r."projectId"
