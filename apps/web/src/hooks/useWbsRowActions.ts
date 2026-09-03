@@ -791,7 +791,7 @@ export function useWbsRowActions({
         );
         const result = await response.json().catch(() => null);
         if (!response.ok) {
-          throw new Error(result.error ?? "Не удалось удалить связь Структуры");
+          throw new Error(result?.error ?? "Не удалось удалить связь Структуры");
         }
         latestSnapshot = result;
       }

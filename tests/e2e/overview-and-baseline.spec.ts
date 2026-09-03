@@ -2335,6 +2335,151 @@ test("WBS deletion uses one in-app confirmation without a browser dialog", async
   expect(browserDialogs).toBe(0);
 });
 
+test("pressing Enter replaces a stale WBS predecessor only once", async ({
+  page,
+}) => {
+  const project = await mockAdminProject(page, (fixture) => {
+    const successor = fixture.wbsItems[0];
+    successor.code = "2.5";
+    successor.predecessor1 = "2.4.12";
+    const oldPredecessor = {
+      ...successor,
+      id: "predecessor-old",
+      code: "2.4.12",
+      title: "Прежний предшественник",
+      predecessor1: null,
+      sortOrder: 5,
+    };
+    const newPredecessor = {
+      ...successor,
+      id: "predecessor-new",
+      code: "2.4.13",
+      title: "Новый предшественник",
+      predecessor1: null,
+      sortOrder: 6,
+    };
+    fixture.wbsItems.unshift(oldPredecessor, newPredecessor);
+    fixture.wbsDependencies = [
+      {
+        id: "dependency-old",
+        predecessorId: oldPredecessor.id,
+        successorId: successor.id,
+        type: "FS",
+        lagDays: 0,
+        predecessor: {
+          id: oldPredecessor.id,
+          code: oldPredecessor.code,
+          title: oldPredecessor.title,
+        },
+        successor: {
+          id: successor.id,
+          code: successor.code,
+          title: successor.title,
+        },
+      },
+    ];
+  });
+  let patchRequests = 0;
+  let deleteRequests = 0;
+  let createRequests = 0;
+
+  await page.route("**/api/wbs-items/wbs-1", async (route) => {
+    patchRequests += 1;
+    const patch = route.request().postDataJSON() as Record<string, unknown>;
+    Object.assign(project.wbsItems.find((item) => item.id === "wbs-1")!, patch);
+    await route.fulfill({
+      json: {
+        wbsItems: project.wbsItems,
+        wbsDependencies: project.wbsDependencies,
+        criticalPath: null,
+      },
+    });
+  });
+  await page.route("**/api/wbs-dependencies/dependency-old", async (route) => {
+    deleteRequests += 1;
+    if (deleteRequests > 1) {
+      await route.fulfill({
+        status: 404,
+        json: { error: "Связь Структуры не найдена" },
+      });
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    project.wbsDependencies = [];
+    await route.fulfill({
+      json: {
+        wbsItems: project.wbsItems,
+        wbsDependencies: project.wbsDependencies,
+        criticalPath: null,
+      },
+    });
+  });
+  await page.route(
+    "**/api/projects/project-1/wbs-dependencies",
+    async (route) => {
+      createRequests += 1;
+      const body = route.request().postDataJSON() as {
+        predecessorId: string;
+        successorId: string;
+        type: "FS";
+        lagDays: number;
+      };
+      project.wbsDependencies = [
+        {
+          id: "dependency-new",
+          ...body,
+          predecessor: {
+            id: "predecessor-new",
+            code: "2.4.13",
+            title: "Новый предшественник",
+          },
+          successor: {
+            id: "wbs-1",
+            code: "2.5",
+            title: project.wbsItems.find((item) => item.id === "wbs-1")!.title,
+          },
+        },
+      ];
+      await route.fulfill({
+        status: 201,
+        json: {
+          wbsItems: project.wbsItems,
+          wbsDependencies: project.wbsDependencies,
+          criticalPath: null,
+        },
+      });
+    },
+  );
+
+  await page.goto("/TV-OVERVIEW/wbs");
+  const predecessorInput = page
+    .locator("#wbs-item-wbs-1 .wbs-predecessor-input")
+    .first();
+  const initialPredecessor = await predecessorInput.inputValue();
+  await predecessorInput.fill("2.4.13");
+  await predecessorInput.press("Escape");
+  await page.waitForTimeout(1_200);
+  await expect(predecessorInput).toHaveValue(initialPredecessor);
+  expect(patchRequests).toBe(0);
+
+  const titleInput = page.locator("#wbs-item-wbs-1 .wbs-title-input");
+  await titleInput.fill("Задача с обновленным названием");
+  await titleInput.press("Tab");
+  await expect.poll(() => patchRequests).toBe(1);
+  await page.waitForTimeout(800);
+  expect(patchRequests).toBe(1);
+  patchRequests = 0;
+
+  await predecessorInput.fill("2.4.13");
+  await predecessorInput.press("Enter");
+
+  await expect.poll(() => createRequests).toBe(1);
+  await page.waitForTimeout(1_500);
+  expect(patchRequests).toBe(1);
+  expect(deleteRequests).toBe(1);
+  await expect(page.getByText("Связь Структуры не найдена")).toHaveCount(0);
+});
+
 test("inline WBS insert button stays above the following row", async ({ page }) => {
   await mockAdminProject(page, (project) => {
     project.wbsItems.push({
