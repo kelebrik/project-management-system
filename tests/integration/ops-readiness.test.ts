@@ -85,6 +85,8 @@ test("Jira history PostgreSQL race gate is explicit and fail-closed", () => {
   assert.match(gate, /databaseName[\s\S]*\/test\/i/);
   assert.match(gate, /prisma migrate deploy/);
   assert.match(gate, /jira-history-race\.test\.ts/);
+  assert.match(gate, /jira-history-replay\.test\.ts/);
+  assert.match(gate, /jira-history-asof\.test\.ts/);
   assert.match(contract, /npm run test:history:postgres/);
   assert.match(contract, /skipped result does not satisfy[\s\S]*pre-merge gate/);
 });

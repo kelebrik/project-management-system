@@ -1,0 +1,147 @@
+
+.portfolio-raid-impact {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.empty-state.compact {
+  min-height: 62px;
+}
+
+.project-tree-panel {
+  min-height: 0;
+}
+
+.project-tree-list {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.project-tree-head,
+.project-tree-row {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 170px minmax(260px, 1fr) 92px 180px 18px;
+}
+
+.project-tree-head {
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 9px 12px;
+  text-transform: uppercase;
+}
+
+.project-tree-row {
+  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  min-width: 0;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.project-tree-row + .project-tree-row {
+  border-top: 1px solid var(--border);
+}
+
+.project-tree-row:hover,
+.project-tree-row.active {
+  background: var(--surface-2);
+}
+
+.project-tree-row.closed {
+  background: #fbfdff;
+}
+
+.project-tree-code-input,
+.project-tree-name-input {
+  border-color: transparent;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.project-tree-code-input {
+  background: #e0f2fe;
+  color: var(--info-800);
+  width: calc(100% - var(--project-indent, 0px));
+}
+
+.project-tree-name-input {
+  background: transparent;
+  color: var(--text);
+}
+
+.project-tree-code-static,
+.project-tree-name-static {
+  align-items: center;
+  display: flex;
+  min-height: 34px;
+  min-width: 0;
+}
+
+.project-tree-code-static {
+  background: var(--surface-3b);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 900;
+  padding: 6px 8px;
+  width: calc(100% - var(--project-indent, 0px));
+}
+
+.project-tree-name-static {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-tree-code-input:hover,
+.project-tree-code-input:focus,
+.project-tree-name-input:hover,
+.project-tree-name-input:focus {
+  background: var(--surface);
+  border-color: var(--brand-border-strong);
+}
+
+.project-tree-open {
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.project-tree-row > span {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rag-dot {
+  border-radius: 999px;
+  height: 9px;
+  width: 9px;
+}
+
+.rag-dot.green {
+  background: #22c55e;
+}
+
+.rag-dot.amber {
+  background: var(--warning-500);
+}
+
+.rag-dot.red {
+  background: var(--danger-500);
+}

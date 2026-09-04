@@ -584,13 +584,25 @@ test("semantic revision compatibility protects row meaning and allows added outp
 });
 
 test("production router registers only semantic aggregate API", () => {
-  const source = fs.readFileSync(new URL("../routes/issues.routes.ts", import.meta.url), "utf8");
+  const source = [
+    "../routes/issues.routes.ts",
+    "../routes/issues-open.routes.ts",
+    "../routes/issues-open-links.routes.ts",
+    "../routes/issues-jira.routes.ts",
+  ]
+    .map((fileName) => fs.readFileSync(new URL(fileName, import.meta.url), "utf8"))
+    .join("\n");
   assert.match(source, /registerJiraSemanticAggregateRoutes\(router\)/);
   assert.doesNotMatch(source, /registerJiraAggregateRoutes\(router\)/);
 });
 
 test("semantic aggregate mutations serialize project changes and system seeding is idempotent", () => {
-  const route = fs.readFileSync(new URL("../routes/jira-semantic-aggregates.routes.ts", import.meta.url), "utf8");
+  const route = [
+    "../routes/jira-semantic-aggregates.routes.ts",
+    "../routes/jira-semantic-aggregates.support.ts",
+  ]
+    .map((fileName) => fs.readFileSync(new URL(fileName, import.meta.url), "utf8"))
+    .join("\n");
   const service = fs.readFileSync(new URL("./jira-semantic-aggregates.ts", import.meta.url), "utf8");
   assert.ok((route.match(/lockJiraAggregateProject\(transaction, req\.params\.projectId\)/g) ?? []).length >= 4);
   assert.match(route, /lockJiraAggregateProject\(transaction, project\.id\)/);
@@ -600,6 +612,9 @@ test("semantic aggregate mutations serialize project changes and system seeding 
   const listStart = service.indexOf("export async function listJiraSemanticAggregates");
   const listEnd = service.indexOf("export function jiraSemanticAggregateSource", listStart);
   assert.doesNotMatch(service.slice(listStart, listEnd), /ensureJiraSystemSemanticAggregates/u);
-  assert.doesNotMatch(route, /from ["']\.\.\/jira/u);
+  assert.doesNotMatch(
+    route,
+    /from\s+["'][^"']*\/jira(?:\.js|-(?:client|search|data|model|changelog)\.js)["']/u,
+  );
   assert.doesNotMatch(route, /\bpayload\s*:\s*true\b/u);
 });

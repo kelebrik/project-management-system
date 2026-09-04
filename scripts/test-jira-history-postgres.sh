@@ -23,4 +23,7 @@ if (!['postgres:', 'postgresql:'].includes(url.protocol) || !/test/i.test(databa
 NODE
 
 DATABASE_URL="$JIRA_HISTORY_TEST_DATABASE_URL" ./node_modules/.bin/prisma migrate deploy
-./node_modules/.bin/tsx --test tests/integration/jira-history-race.test.ts
+./node_modules/.bin/tsx --test \
+  tests/integration/jira-history-race.test.ts \
+  tests/integration/jira-history-replay.test.ts \
+  tests/integration/jira-history-asof.test.ts
