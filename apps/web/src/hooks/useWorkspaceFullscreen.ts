@@ -29,9 +29,12 @@ export function useWorkspaceFullscreen(activeView: AppView) {
     if (!fullscreenWorkspaceView) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setFullscreenWorkspaceView(null);
-      }
+      if (event.key !== "Escape") return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest('[role="dialog"][aria-modal="true"]')
+      ) return;
+      setFullscreenWorkspaceView(null);
     };
 
     window.addEventListener("keydown", onKeyDown);

@@ -57,7 +57,7 @@ export type DevelopmentSectionView = Extract<
 
 export type FullscreenWorkspaceView = Extract<
   AppView,
-  "project-structure" | "project-gantt"
+  "portfolio-v2" | "project-structure" | "project-gantt"
 > | "overview-milestones-by-phase" | "overview-milestones-all";
 
 export const adminSectionViews: AdminSectionView[] = [

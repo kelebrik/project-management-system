@@ -101,13 +101,6 @@ type PreparedSegment = {
   progress: number;
 };
 
-type PreparedGroupCandidate = {
-  item: PortfolioRoadmapWbsItem;
-  anchorId: string;
-  path: PortfolioRoadmapWbsItem[];
-  segment: PreparedSegment;
-};
-
 export type PreparedPortfolioRoadmapProject = {
   portfolio: string;
   projectId: string;
@@ -383,24 +376,24 @@ const TRACK_PATTERNS: Record<PortfolioRoadmapTrackId, RegExp[]> = {
 const STRUCTURE_FALLBACK_PHASES: Record<PortfolioRoadmapTrackId, PhaseDefinition> = {
   HW: {
     id: "hw-structure",
-    label: "Группа из Структуры",
-    description: "Группа работ HW без отдельного соответствия этапу легенды.",
+    label: "Пакет работ из Структуры",
+    description: "Пакет работ HW без отдельного соответствия этапу легенды.",
     color: "#f1f3f5",
     patterns: [],
     isStructureFallback: true,
   },
   SW: {
     id: "sw-structure",
-    label: "Группа из Структуры",
-    description: "Группа работ SW без отдельного соответствия этапу легенды.",
+    label: "Пакет работ из Структуры",
+    description: "Пакет работ SW без отдельного соответствия этапу легенды.",
     color: "#f1f3f5",
     patterns: [],
     isStructureFallback: true,
   },
   G2M: {
     id: "g2m-structure",
-    label: "Группа из Структуры",
-    description: "Группа работ G2M без отдельного соответствия этапу легенды.",
+    label: "Пакет работ из Структуры",
+    description: "Пакет работ G2M без отдельного соответствия этапу легенды.",
     color: "#f1f3f5",
     patterns: [],
     isStructureFallback: true,
@@ -640,33 +633,6 @@ function descendantCountForItem(
   return count;
 }
 
-function isStructureGroup(
-  item: PortfolioRoadmapWbsItem,
-  childrenByParentId: Map<string, PortfolioRoadmapWbsItem[]>,
-) {
-  return item.type === "PHASE" ||
-    item.type === "WORK_PACKAGE" ||
-    (childrenByParentId.get(item.id) ?? []).some(
-      (child) => child.status !== "CANCELLED",
-    );
-}
-
-function scheduleIsCovered(
-  schedule: { start: Date; end: Date },
-  candidates: PreparedGroupCandidate[],
-) {
-  let nextUncoveredDay = schedule.start;
-  for (const candidate of [...candidates].sort(
-    (left, right) => left.segment.start.getTime() - right.segment.start.getTime(),
-  )) {
-    if (candidate.segment.end < nextUncoveredDay) continue;
-    if (candidate.segment.start > nextUncoveredDay) return false;
-    if (candidate.segment.end >= schedule.end) return true;
-    nextUncoveredDay = addDays(candidate.segment.end, 1);
-  }
-  return false;
-}
-
 function portfolioName(project: PortfolioRoadmapSourceProject) {
   return project.portfolio.trim() || project.businessUnit?.name?.trim() || "Без портфеля";
 }
@@ -721,137 +687,44 @@ export function preparePortfolioRoadmapProjects(
           launchWindows.push(schedule);
         }
       }
-      const groupCandidates: PreparedGroupCandidate[] = [];
+      const segments: PreparedSegment[] = [];
       for (const item of wbsItems) {
         if (item.status === "CANCELLED") continue;
-        if (!isStructureGroup(item, childrenByParentId)) continue;
-        const schedule = scheduleForGroup(item, childrenByParentId, scheduleCache);
-        if (!schedule) continue;
+        if (item.type !== "WORK_PACKAGE") continue;
         const path = pathsByItemId.get(item.id)!;
         if (path.some((pathItem) => pathItem.status === "CANCELLED")) continue;
+        if (path.slice(1).some((pathItem) => pathItem.type === "WORK_PACKAGE")) {
+          continue;
+        }
+        const schedule = scheduleForGroup(item, childrenByParentId, scheduleCache);
+        if (!schedule) continue;
         const trackContext = trackContextForPath(path);
         if (!trackContext) continue;
         const { trackId } = trackContext;
         const phaseMatch = phaseForPath(trackId, path);
         const fallbackPhase = STRUCTURE_FALLBACK_PHASES[trackId];
         const displayedPhase = phaseMatch?.phase ?? fallbackPhase;
-        groupCandidates.push({
-          item,
-          anchorId: trackContext.anchor.id,
-          path,
-          segment: {
-            id: `${project.id}:${item.id}`,
-            trackId,
-            phaseId: displayedPhase.id,
-            code: item.code,
-            label: item.title,
-            legendLabel: displayedPhase.label,
-            description: displayedPhase.description,
-            color: displayedPhase.color,
-            isStructureFallback: displayedPhase.isStructureFallback === true,
-            phaseIndex: phaseMatch?.index ?? TRACK_PHASES[trackId].length,
-            sortOrder: item.sortOrder,
-            start: schedule.start,
-            end: schedule.end,
-            itemCount: 1 + descendantCountForItem(
-              item,
-              childrenByParentId,
-              descendantCountCache,
-            ),
-            progress: schedule.progress,
-          },
+        segments.push({
+          id: `${project.id}:${item.id}`,
+          trackId,
+          phaseId: displayedPhase.id,
+          code: item.code,
+          label: item.title,
+          legendLabel: displayedPhase.label,
+          description: displayedPhase.description,
+          color: displayedPhase.color,
+          isStructureFallback: displayedPhase.isStructureFallback === true,
+          phaseIndex: phaseMatch?.index ?? TRACK_PHASES[trackId].length,
+          sortOrder: item.sortOrder,
+          start: schedule.start,
+          end: schedule.end,
+          itemCount: 1 + descendantCountForItem(
+            item,
+            childrenByParentId,
+            descendantCountCache,
+          ),
+          progress: schedule.progress,
         });
-      }
-      const directAnchorByGroupId = new Map(
-        groupCandidates.map((candidate) => [candidate.item.id, candidate.anchorId]),
-      );
-      const canonicalAnchorId = (initialAnchorId: string) => {
-        const path: string[] = [];
-        const seenAt = new Map<string, number>();
-        let anchorId = initialAnchorId;
-        while (true) {
-          const cycleStart = seenAt.get(anchorId);
-          if (cycleStart !== undefined) {
-            return [...path.slice(cycleStart), anchorId].sort()[0];
-          }
-          seenAt.set(anchorId, path.length);
-          path.push(anchorId);
-          const parentAnchorId = directAnchorByGroupId.get(anchorId);
-          if (!parentAnchorId || parentAnchorId === anchorId) return anchorId;
-          anchorId = parentAnchorId;
-        }
-      };
-      for (const candidate of groupCandidates) {
-        candidate.anchorId = canonicalAnchorId(candidate.anchorId);
-      }
-      const looseWorkByAnchorAndTrack = new Map<
-        string,
-        Array<{ start: Date; end: Date }>
-      >();
-      for (const item of wbsItems) {
-        const looseSchedule = scheduleForItem(item);
-        if (
-          item.status === "CANCELLED" ||
-          isStructureGroup(item, childrenByParentId) ||
-          !looseSchedule
-        ) continue;
-        const path = pathsByItemId.get(item.id)!;
-        if (path.some((pathItem) => pathItem.status === "CANCELLED")) continue;
-        const trackContext = trackContextForPath(path);
-        if (!trackContext || trackContext.anchor.id === item.id) continue;
-        const anchorId = canonicalAnchorId(trackContext.anchor.id);
-        const anchorIndex = path.findIndex(
-          (pathItem) => pathItem.id === anchorId,
-        );
-        if (anchorIndex < 0) continue;
-        const hasGroupBetween = path.slice(1, anchorIndex).some(
-          (pathItem) => isStructureGroup(pathItem, childrenByParentId),
-        );
-        if (hasGroupBetween) continue;
-        const key = `${anchorId}:${trackContext.trackId}`;
-        looseWorkByAnchorAndTrack.set(key, [
-          ...(looseWorkByAnchorAndTrack.get(key) ?? []),
-          looseSchedule,
-        ]);
-      }
-      const candidatesByAnchorAndTrack = new Map<string, PreparedGroupCandidate[]>();
-      for (const candidate of groupCandidates) {
-        const key = `${candidate.anchorId}:${candidate.segment.trackId}`;
-        const candidates = candidatesByAnchorAndTrack.get(key);
-        if (candidates) candidates.push(candidate);
-        else candidatesByAnchorAndTrack.set(key, [candidate]);
-      }
-      const segments: PreparedSegment[] = [];
-      for (const [key, candidates] of candidatesByAnchorAndTrack) {
-        const anchorId = candidates[0].anchorId;
-        const anchor = itemsById.get(anchorId);
-        const anchorCandidate = candidates.find(
-          (candidate) => candidate.item.id === anchorId,
-        );
-        const topLevelCandidates = candidates.filter((candidate) => {
-          if (candidate.item.id === anchorId) return false;
-          const anchorIndex = candidate.path.findIndex(
-            (pathItem) => pathItem.id === anchorId,
-          );
-          return !candidate.path.slice(1, anchorIndex).some(
-            (pathItem) => isStructureGroup(pathItem, childrenByParentId),
-          );
-        });
-        const anchorDefinesLegendPhase = Boolean(
-          anchor && phaseForTitle(candidates[0].segment.trackId, anchor.title),
-        );
-        const hasUncoveredLooseWork = (looseWorkByAnchorAndTrack.get(key) ?? [])
-          .some((schedule) => !scheduleIsCovered(schedule, topLevelCandidates));
-        if (
-          anchorCandidate &&
-          (anchorDefinesLegendPhase ||
-            hasUncoveredLooseWork ||
-            topLevelCandidates.length === 0)
-        ) {
-          segments.push(anchorCandidate.segment);
-        } else {
-          segments.push(...topLevelCandidates.map((candidate) => candidate.segment));
-        }
       }
       return {
         portfolio: portfolioName(project),

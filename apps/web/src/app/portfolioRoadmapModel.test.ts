@@ -112,7 +112,7 @@ test("builds a quarter-aligned monthly horizon", () => {
   assert.equal(roadmap.months.filter((month) => month.isCurrent).length, 1);
 });
 
-test("classifies nested Russian WBS branches into HW, SW and G2M phases", () => {
+test("classifies nested work packages into HW, SW and G2M tracks", () => {
   const hardware = wbsItem({
     id: "hw",
     code: "1",
@@ -244,7 +244,7 @@ test("counts a launch ending today regardless of the current time", () => {
   assert.equal(roadmap.launchProjectCount, 1);
 });
 
-test("counts a launch milestone even though only Structure groups become bars", () => {
+test("counts a launch milestone even though only work packages become bars", () => {
   const marketing = wbsItem({
     id: "marketing",
     code: "3",
@@ -343,7 +343,7 @@ test("aligns bars to equal-width calendar months", () => {
   assert.equal(segment.width, (1 / 12) * 100);
 });
 
-test("preserves gaps and assigns overlapping phases to separate rows", () => {
+test("preserves gaps and assigns overlapping work packages to separate rows", () => {
   const roadmap = createPortfolioRoadmap(
     [
       project({
@@ -388,6 +388,7 @@ test("ignores cancelled work, repairs reversed dates and stops on hierarchy cycl
     code: "A",
     parentId: "second",
     title: "Аппаратная часть",
+    type: "PHASE",
     startDate: null,
     dueDate: null,
   });
@@ -419,11 +420,21 @@ test("ignores cancelled work, repairs reversed dates and stops on hierarchy cycl
   assert.equal(segments[0].endDate, "2026-10-31");
 });
 
-test("uses the dates and progress stored on a Structure work group", () => {
-  const parent = wbsItem({
+test("uses the dates and progress stored on a work package, not its phase", () => {
+  const phase = wbsItem({
     id: "phase",
-    title: "HW EVT",
+    code: "1",
+    title: "Аппаратная часть",
     type: "PHASE",
+    startDate: "2026-07-01",
+    dueDate: "2026-12-31",
+    progress: 10,
+  });
+  const workPackage = wbsItem({
+    id: "package",
+    parentId: phase.id,
+    code: "1.1",
+    title: "HW EVT",
     startDate: "2026-08-01",
     dueDate: "2026-10-31",
     progress: 30,
@@ -432,10 +443,12 @@ test("uses the dates and progress stored on a Structure work group", () => {
     [
       project({
         wbsItems: [
-          parent,
+          phase,
+          workPackage,
           wbsItem({
             id: "leaf",
-            parentId: parent.id,
+            parentId: workPackage.id,
+            code: "1.1.1",
             title: "Проверка платы",
             type: "TASK",
             startDate: "2026-09-01",
@@ -457,7 +470,7 @@ test("uses the dates and progress stored on a Structure work group", () => {
   assert.equal(segment.endDate, "2026-10-31");
 });
 
-test("renders one top-level Structure group when aggregate groups are nested", () => {
+test("renders work packages while excluding their phase containers", () => {
   const hardware = wbsItem({
     id: "hardware-root",
     code: "1",
@@ -507,16 +520,75 @@ test("renders one top-level Structure group when aggregate groups are nested", (
 
   assert.deepEqual(
     segments.map((segment) => segment.label),
-    ["HW EVT"],
+    ["Сборка пилотной партии", "Проверка пилотной партии"],
   );
   assert.deepEqual(
     segments.map((segment) => segment.legendLabel),
-    ["EVT"],
+    ["EVT", "EVT"],
   );
-  assert.equal(segments[0].itemCount, 3);
+  assert.deepEqual(
+    segments.map((segment) => segment.itemCount),
+    [1, 1],
+  );
 });
 
-test("treats legacy TASK parents as Structure groups", () => {
+test("renders the outer work package once when work packages are nested", () => {
+  const hardware = wbsItem({
+    id: "hardware",
+    code: "1",
+    title: "Аппаратная часть",
+    type: "PHASE",
+    startDate: null,
+    dueDate: null,
+  });
+  const outerPackage = wbsItem({
+    id: "outer-package",
+    parentId: hardware.id,
+    code: "1.1",
+    title: "HW EVT",
+    startDate: null,
+    dueDate: null,
+  });
+  const innerPackage = wbsItem({
+    id: "inner-package",
+    parentId: outerPackage.id,
+    code: "1.1.1",
+    title: "Пилотная сборка",
+    startDate: "2026-08-01",
+    dueDate: "2026-09-30",
+  });
+  const roadmap = createPortfolioRoadmap(
+    [
+      project({
+        wbsItems: [
+          hardware,
+          outerPackage,
+          innerPackage,
+          wbsItem({
+            id: "inner-task",
+            parentId: innerPackage.id,
+            code: "1.1.1.1",
+            title: "Проверка сборки",
+            type: "TASK",
+            startDate: "2026-08-15",
+            dueDate: "2026-09-15",
+          }),
+        ],
+      }),
+    ],
+    12,
+    new Date(2026, 8, 3),
+  );
+  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+
+  assert.equal(segments.length, 1);
+  assert.equal(segments[0].label, "HW EVT");
+  assert.equal(segments[0].itemCount, 3);
+  assert.equal(segments[0].startDate, "2026-08-01");
+  assert.equal(segments[0].endDate, "2026-09-30");
+});
+
+test("does not promote legacy TASK parents to work packages", () => {
   const hardware = wbsItem({
     id: "legacy-hardware",
     code: "1",
@@ -557,12 +629,10 @@ test("treats legacy TASK parents as Structure groups", () => {
   );
   const segments = roadmap.groups[0].projects[0].tracks[0].segments;
 
-  assert.equal(segments.length, 1);
-  assert.equal(segments[0].label, "HW EVT");
-  assert.equal(segments[0].legendLabel, "EVT");
+  assert.equal(segments.length, 0);
 });
 
-test("keeps a dated phase when its only nested group has no calendar", () => {
+test("does not substitute a dated phase for an unscheduled work package", () => {
   const hardware = wbsItem({
     id: "hardware-with-placeholder",
     code: "1",
@@ -592,13 +662,10 @@ test("keeps a dated phase when its only nested group has no calendar", () => {
   );
   const segments = roadmap.groups[0].projects[0].tracks[0].segments;
 
-  assert.equal(segments.length, 1);
-  assert.equal(segments[0].label, "Аппаратная часть");
-  assert.equal(segments[0].startDate, "2026-07-01");
-  assert.equal(segments[0].endDate, "2026-12-31");
+  assert.equal(segments.length, 0);
 });
 
-test("uses the covering phase when dated work sits outside its nested groups", () => {
+test("keeps work packages and ignores loose phase work", () => {
   const hardware = wbsItem({
     id: "hardware-with-loose-work",
     code: "1",
@@ -638,12 +705,12 @@ test("uses the covering phase when dated work sits outside its nested groups", (
   const segments = roadmap.groups[0].projects[0].tracks[0].segments;
 
   assert.equal(segments.length, 1);
-  assert.equal(segments[0].label, "Аппаратная часть");
-  assert.equal(segments[0].startDate, "2026-07-01");
-  assert.equal(segments[0].endDate, "2026-12-31");
+  assert.equal(segments[0].label, "HW EVT");
+  assert.equal(segments[0].startDate, "2026-08-01");
+  assert.equal(segments[0].endDate, "2026-09-30");
 });
 
-test("keeps structured bars when loose work is already covered by their dates", () => {
+test("keeps work-package bars when loose work is covered by their dates", () => {
   const hardware = wbsItem({
     id: "hardware-with-covered-work",
     code: "1",
@@ -688,7 +755,7 @@ test("keeps structured bars when loose work is already covered by their dates", 
   assert.equal(segments[0].endDate, "2026-12-31");
 });
 
-test("rolls dates and progress up from children for a dateless Structure group", () => {
+test("rolls dates and progress up from children for a dateless work package", () => {
   const hardware = wbsItem({
     id: "hardware",
     title: "Аппаратная часть",
@@ -751,7 +818,7 @@ test("rolls dates and progress up from children for a dateless Structure group",
 
   assert.equal(segment.code, "1.7");
   assert.equal(segment.label, "Корпус и механика");
-  assert.equal(segment.legendLabel, "Группа из Структуры");
+  assert.equal(segment.legendLabel, "Пакет работ из Структуры");
   assert.equal(segment.phaseId, "hw-structure");
   assert.equal(segment.itemCount, 3);
   assert.equal(segment.progress, 50);

@@ -209,6 +209,41 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async
       .getByRole("button", { name: "Портфель v2" }),
   ).toHaveClass(/active/);
 
+  const portfolioPage = page.locator(".portfolio-roadmap-page");
+  const enterFullscreen = page.getByRole("button", {
+    name: "Развернуть Портфель v2 на весь экран",
+  });
+  await enterFullscreen.click();
+  await expect(portfolioPage).toHaveClass(/portfolio-roadmap-page-fullscreen/);
+  await expect(portfolioPage).toHaveCSS("position", "fixed");
+  expect(
+    await page.evaluate(() =>
+      Boolean(
+        document
+          .elementFromPoint(2, 2)
+          ?.closest(".portfolio-roadmap-page-fullscreen"),
+      ),
+    ),
+  ).toBe(true);
+  if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
+    await page.screenshot({
+      fullPage: true,
+      path: "/private/tmp/pms-portfolio-v2-fullscreen.png",
+    });
+  }
+  await page
+    .getByRole("button", { name: "Вернуть обычный режим Портфеля v2" })
+    .click();
+  await expect(portfolioPage).not.toHaveClass(/portfolio-roadmap-page-fullscreen/);
+  await enterFullscreen.click();
+  await page.getByRole("button", { name: "Легенда", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Легенда этапов" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Легенда этапов" })).toBeHidden();
+  await expect(portfolioPage).toHaveClass(/portfolio-roadmap-page-fullscreen/);
+  await page.keyboard.press("Escape");
+  await expect(portfolioPage).not.toHaveClass(/portfolio-roadmap-page-fullscreen/);
+
   const twelveMonthWidth = await roadmap
     .locator(".portfolio-roadmap-month")
     .first()
@@ -301,7 +336,7 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async
   await expect(legend.getByRole("button", { name: "Закрыть легенду" })).toBeFocused();
   await expect(legend.getByText("MP FW + 1st OTA", { exact: true })).toBeVisible();
   await expect(legend.getByText("Post-Launch Analysis, Retrospective & Handover", { exact: true })).toBeVisible();
-  await expect(legend.getByText("Группа из Структуры", { exact: true })).toHaveCount(3);
+  await expect(legend.getByText("Пакет работ из Структуры", { exact: true })).toHaveCount(3);
   if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
     await page.screenshot({
       fullPage: true,

@@ -5,7 +5,14 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { BookOpenText, CalendarClock, Search, X } from "lucide-react";
+import {
+  BookOpenText,
+  CalendarClock,
+  Maximize2,
+  Minimize2,
+  Search,
+  X,
+} from "lucide-react";
 
 import {
   createPortfolioRoadmap,
@@ -61,8 +68,11 @@ type SelectedSegment = {
 export function PortfolioV2Page() {
   const {
     firstEnabledProjectView,
+    fullscreenWorkspaceView,
     selectProject,
+    toggleWorkspaceFullscreen,
   } = usePageContext();
+  const isFullscreen = fullscreenWorkspaceView === "portfolio-v2";
   const [range, setRange] = useState<PortfolioRoadmapRange>(initialRange);
   const [query, setQuery] = useState("");
   const [portfolioFilter, setPortfolioFilter] = useState("ALL");
@@ -199,7 +209,9 @@ export function PortfolioV2Page() {
   } as CSSProperties;
 
   return (
-    <section className="portfolio-roadmap-page">
+    <section
+      className={`portfolio-roadmap-page ${isFullscreen ? "portfolio-roadmap-page-fullscreen" : ""}`}
+    >
       <div className="portfolio-roadmap-toolbar">
         <label className="portfolio-roadmap-search">
           <Search aria-hidden="true" size={15} />
@@ -247,6 +259,20 @@ export function PortfolioV2Page() {
 
         <div className="portfolio-roadmap-actions">
           <button
+            aria-label={
+              isFullscreen
+                ? "Вернуть обычный режим Портфеля v2"
+                : "Развернуть Портфель v2 на весь экран"
+            }
+            className="workspace-fullscreen-button"
+            onClick={() => toggleWorkspaceFullscreen("portfolio-v2")}
+            title={isFullscreen ? "Вернуть обычный режим" : "На весь экран"}
+            type="button"
+          >
+            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            {isFullscreen ? "Обычный режим" : "На весь экран"}
+          </button>
+          <button
             disabled={roadmap.todayOffset === null}
             onClick={scrollToToday}
             title="Прокрутить к текущей дате"
@@ -277,7 +303,7 @@ export function PortfolioV2Page() {
         </div>
         <div>
           <strong>{roadmap.mappedProjectCount}</strong>
-          <span>с группами работ HW / SW / G2M</span>
+          <span>с пакетами работ HW / SW / G2M</span>
         </div>
         <div>
           <strong>{roadmap.launchProjectCount}</strong>
@@ -285,7 +311,7 @@ export function PortfolioV2Page() {
         </div>
         <div className={roadmap.unmappedProjectCount > 0 ? "attention" : ""}>
           <strong>{roadmap.unmappedProjectCount}</strong>
-          <span>без групп HW / SW / G2M</span>
+          <span>без пакетов HW / SW / G2M</span>
         </div>
       </div>
 
@@ -326,7 +352,7 @@ export function PortfolioV2Page() {
             Открыть проект
           </button>
           <button
-            aria-label="Закрыть детали группы работ"
+            aria-label="Закрыть детали пакета работ"
             className="portfolio-roadmap-selection-close"
             onClick={() => setSelectedSegment(null)}
             title="Закрыть"
@@ -466,7 +492,7 @@ export function PortfolioV2Page() {
                           ))}
                           {!hasSegments && trackIndex === 0 && (
                             <span className="portfolio-roadmap-empty-label">
-                              Нет групп работ в выбранном горизонте
+                              Нет пакетов работ в выбранном горизонте
                             </span>
                           )}
                         </div>
