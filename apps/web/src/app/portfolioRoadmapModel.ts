@@ -9,6 +9,7 @@ type PhaseDefinition = {
   description: string;
   color: string;
   patterns: RegExp[];
+  isStructureFallback?: boolean;
 };
 
 export type PortfolioRoadmapPhase = Omit<PhaseDefinition, "patterns">;
@@ -22,9 +23,12 @@ export type PortfolioRoadmapTrackDefinition = {
 export type PortfolioRoadmapSegment = {
   id: string;
   phaseId: string;
+  code: string;
   label: string;
+  legendLabel: string;
   description: string;
   color: string;
+  isStructureFallback: boolean;
   startDate: string;
   endDate: string;
   offset: number;
@@ -61,6 +65,7 @@ type PortfolioRoadmapWbsItem = Pick<
   | "forecastStartDate"
   | "forecastDueDate"
   | "progress"
+  | "sortOrder"
 >;
 
 export type PortfolioRoadmapSourceProject = Pick<
@@ -81,20 +86,25 @@ export type PortfolioRoadmapSourceProject = Pick<
 type PreparedSegment = {
   id: string;
   trackId: PortfolioRoadmapTrackId;
-  phase: PhaseDefinition;
+  phaseId: string;
+  code: string;
+  label: string;
+  legendLabel: string;
+  description: string;
+  color: string;
+  isStructureFallback: boolean;
   phaseIndex: number;
+  sortOrder: number;
   start: Date;
   end: Date;
   itemCount: number;
   progress: number;
-  progressTotal: number;
-  progressWeight: number;
 };
 
-type ClassifiedCandidate = {
-  itemId: string;
-  parentId: string | null;
-  phaseKey: string;
+type PreparedGroupCandidate = {
+  item: PortfolioRoadmapWbsItem;
+  anchorId: string;
+  path: PortfolioRoadmapWbsItem[];
   segment: PreparedSegment;
 };
 
@@ -107,6 +117,7 @@ export type PreparedPortfolioRoadmapProject = {
   rag: ProjectListItem["rag"];
   sortOrder: number;
   segments: PreparedSegment[];
+  launchWindows: Array<{ start: Date; end: Date }>;
 };
 
 export type PortfolioRoadmapModel = {
@@ -369,6 +380,33 @@ const TRACK_PATTERNS: Record<PortfolioRoadmapTrackId, RegExp[]> = {
   ],
 };
 
+const STRUCTURE_FALLBACK_PHASES: Record<PortfolioRoadmapTrackId, PhaseDefinition> = {
+  HW: {
+    id: "hw-structure",
+    label: "Группа из Структуры",
+    description: "Группа работ HW без отдельного соответствия этапу легенды.",
+    color: "#f1f3f5",
+    patterns: [],
+    isStructureFallback: true,
+  },
+  SW: {
+    id: "sw-structure",
+    label: "Группа из Структуры",
+    description: "Группа работ SW без отдельного соответствия этапу легенды.",
+    color: "#f1f3f5",
+    patterns: [],
+    isStructureFallback: true,
+  },
+  G2M: {
+    id: "g2m-structure",
+    label: "Группа из Структуры",
+    description: "Группа работ G2M без отдельного соответствия этапу легенды.",
+    color: "#f1f3f5",
+    patterns: [],
+    isStructureFallback: true,
+  },
+};
+
 const MONTH_LABELS = [
   "Янв",
   "Фев",
@@ -390,11 +428,12 @@ export const PORTFOLIO_ROADMAP_TRACKS: PortfolioRoadmapTrackDefinition[] =
   TRACK_IDS.map((id) => ({
     id,
     label: TRACK_LABELS[id],
-    phases: TRACK_PHASES[id].map((phase) => ({
+    phases: [...TRACK_PHASES[id], STRUCTURE_FALLBACK_PHASES[id]].map((phase) => ({
       id: phase.id,
       label: phase.label,
       description: phase.description,
       color: phase.color,
+      isStructureFallback: phase.isStructureFallback,
     })),
   }));
 
@@ -434,18 +473,41 @@ function isoDay(value: Date) {
 function pathForItem(
   item: PortfolioRoadmapWbsItem,
   itemsById: Map<string, PortfolioRoadmapWbsItem>,
+  parentIdByItemId: Map<string, string | null>,
 ) {
   const path = [item];
   const visited = new Set([item.id]);
   let current = item;
-  while (current.parentId) {
-    const parent = itemsById.get(current.parentId);
+  let parentId = parentIdByItemId.get(current.id) ?? null;
+  while (parentId) {
+    const parent = itemsById.get(parentId);
     if (!parent || visited.has(parent.id)) break;
     path.push(parent);
     visited.add(parent.id);
     current = parent;
+    parentId = parentIdByItemId.get(current.id) ?? null;
   }
   return path;
+}
+
+function resolvedParentIds(items: PortfolioRoadmapWbsItem[]) {
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  const itemsByCode = new Map(items.map((item) => [item.code, item]));
+  return new Map(
+    items.map((item) => {
+      const codeParts = item.code.split(".").filter(Boolean);
+      const parentCode = codeParts.length > 1
+        ? codeParts.slice(0, -1).join(".")
+        : null;
+      const parentByCode = parentCode ? itemsByCode.get(parentCode) : null;
+      const parentId = parentByCode?.id ?? (
+        item.parentId && item.parentId !== item.id && itemsById.has(item.parentId)
+          ? item.parentId
+          : null
+      );
+      return [item.id, parentId] as const;
+    }),
+  );
 }
 
 function matchingTrack(title: string) {
@@ -455,26 +517,34 @@ function matchingTrack(title: string) {
   ) ?? null;
 }
 
-function trackForPath(path: PortfolioRoadmapWbsItem[]) {
+function trackContextForPath(path: PortfolioRoadmapWbsItem[]) {
   for (const item of path.slice(1)) {
     const track = matchingTrack(item.title);
-    if (track) return track;
+    if (track) return { trackId: track, anchor: item };
   }
-  return matchingTrack(path[0]?.title ?? "");
+  const item = path[0];
+  const track = matchingTrack(item?.title ?? "");
+  return item && track ? { trackId: track, anchor: item } : null;
+}
+
+function phaseForTitle(trackId: PortfolioRoadmapTrackId, title: string) {
+  const phases = TRACK_PHASES[trackId];
+  const normalizedTitle = normalize(title);
+  for (let index = phases.length - 1; index >= 0; index -= 1) {
+    if (phases[index].patterns.some((pattern) => pattern.test(normalizedTitle))) {
+      return { phase: phases[index], index };
+    }
+  }
+  return null;
 }
 
 function phaseForPath(
   trackId: PortfolioRoadmapTrackId,
   path: PortfolioRoadmapWbsItem[],
 ) {
-  const phases = TRACK_PHASES[trackId];
   for (const item of path) {
-    const title = normalize(item.title);
-    for (let index = phases.length - 1; index >= 0; index -= 1) {
-      if (phases[index].patterns.some((pattern) => pattern.test(title))) {
-        return { phase: phases[index], index };
-      }
-    }
+    const phase = phaseForTitle(trackId, item.title);
+    if (phase) return phase;
   }
   return null;
 }
@@ -485,6 +555,116 @@ function scheduleForItem(item: PortfolioRoadmapWbsItem) {
   const end = validDate(hasForecast ? item.forecastDueDate : item.dueDate);
   if (!start || !end) return null;
   return start <= end ? { start, end } : { start: end, end: start };
+}
+
+type ScheduleSummary = {
+  start: Date;
+  end: Date;
+  progress: number;
+  progressTotal: number;
+  progressWeight: number;
+};
+
+function scheduleForGroup(
+  item: PortfolioRoadmapWbsItem,
+  childrenByParentId: Map<string, PortfolioRoadmapWbsItem[]>,
+  cache: Map<string, ScheduleSummary | null>,
+  trail = new Set<string>(),
+): ScheduleSummary | null {
+  if (cache.has(item.id)) return cache.get(item.id) ?? null;
+  if (trail.has(item.id)) return null;
+  const ownSchedule = scheduleForItem(item);
+  if (ownSchedule) {
+    const progressWeight = calendarDayWeight(ownSchedule.start, ownSchedule.end);
+    const result = {
+      ...ownSchedule,
+      progress: item.progress,
+      progressTotal: item.progress * progressWeight,
+      progressWeight,
+    };
+    cache.set(item.id, result);
+    return result;
+  }
+
+  const nextTrail = new Set(trail).add(item.id);
+  const childSchedules = (childrenByParentId.get(item.id) ?? [])
+    .filter((child) => child.status !== "CANCELLED" && !nextTrail.has(child.id))
+    .map((child) => scheduleForGroup(child, childrenByParentId, cache, nextTrail))
+    .filter((schedule): schedule is ScheduleSummary => schedule !== null);
+  if (childSchedules.length === 0) {
+    cache.set(item.id, null);
+    return null;
+  }
+
+  const progressTotal = childSchedules.reduce(
+    (total, schedule) => total + schedule.progressTotal,
+    0,
+  );
+  const progressWeight = childSchedules.reduce(
+    (total, schedule) => total + schedule.progressWeight,
+    0,
+  );
+  const result = {
+    start: new Date(Math.min(...childSchedules.map((schedule) => schedule.start.getTime()))),
+    end: new Date(Math.max(...childSchedules.map((schedule) => schedule.end.getTime()))),
+    progress: Math.round(progressTotal / progressWeight),
+    progressTotal,
+    progressWeight,
+  };
+  cache.set(item.id, result);
+  return result;
+}
+
+function descendantCountForItem(
+  item: PortfolioRoadmapWbsItem,
+  childrenByParentId: Map<string, PortfolioRoadmapWbsItem[]>,
+  cache: Map<string, number>,
+  trail = new Set<string>(),
+): number {
+  const cached = cache.get(item.id);
+  if (cached !== undefined) return cached;
+  if (trail.has(item.id)) return 0;
+
+  const nextTrail = new Set(trail).add(item.id);
+  let count = 0;
+  for (const child of childrenByParentId.get(item.id) ?? []) {
+    if (child.status === "CANCELLED" || nextTrail.has(child.id)) continue;
+    count += 1 + descendantCountForItem(
+      child,
+      childrenByParentId,
+      cache,
+      nextTrail,
+    );
+  }
+  cache.set(item.id, count);
+  return count;
+}
+
+function isStructureGroup(
+  item: PortfolioRoadmapWbsItem,
+  childrenByParentId: Map<string, PortfolioRoadmapWbsItem[]>,
+) {
+  return item.type === "PHASE" ||
+    item.type === "WORK_PACKAGE" ||
+    (childrenByParentId.get(item.id) ?? []).some(
+      (child) => child.status !== "CANCELLED",
+    );
+}
+
+function scheduleIsCovered(
+  schedule: { start: Date; end: Date },
+  candidates: PreparedGroupCandidate[],
+) {
+  let nextUncoveredDay = schedule.start;
+  for (const candidate of [...candidates].sort(
+    (left, right) => left.segment.start.getTime() - right.segment.start.getTime(),
+  )) {
+    if (candidate.segment.end < nextUncoveredDay) continue;
+    if (candidate.segment.start > nextUncoveredDay) return false;
+    if (candidate.segment.end >= schedule.end) return true;
+    nextUncoveredDay = addDays(candidate.segment.end, 1);
+  }
+  return false;
 }
 
 function portfolioName(project: PortfolioRoadmapSourceProject) {
@@ -502,28 +682,6 @@ function calendarDayWeight(start: Date, end: Date) {
   );
 }
 
-function mergeConnectedSegments(segments: PreparedSegment[]) {
-  const merged: PreparedSegment[] = [];
-  for (const segment of [...segments].sort((left, right) =>
-    left.start.getTime() - right.start.getTime(),
-  )) {
-    const previous = merged.at(-1);
-    if (!previous || segment.start > addDays(previous.end, 1)) {
-      merged.push({ ...segment });
-      continue;
-    }
-    previous.progressTotal += segment.progressTotal;
-    previous.progressWeight += segment.progressWeight;
-    previous.progress = Math.round(previous.progressTotal / previous.progressWeight);
-    if (segment.end > previous.end) previous.end = segment.end;
-    previous.itemCount += segment.itemCount;
-  }
-  return merged.map((segment, index) => ({
-    ...segment,
-    id: `${segment.id}:${index}`,
-  }));
-}
-
 export function preparePortfolioRoadmapProjects(
   projects: PortfolioRoadmapSourceProject[],
 ): PreparedPortfolioRoadmapProject[] {
@@ -532,58 +690,168 @@ export function preparePortfolioRoadmapProjects(
     .map((project) => {
       const wbsItems = project.wbsItems ?? [];
       const itemsById = new Map(wbsItems.map((item) => [item.id, item]));
-      const candidates: ClassifiedCandidate[] = [];
-      const segmentsByPhase = new Map<string, PreparedSegment[]>();
+      const parentIdByItemId = resolvedParentIds(wbsItems);
+      const childrenByParentId = new Map<string, PortfolioRoadmapWbsItem[]>();
+      for (const item of wbsItems) {
+        const parentId = parentIdByItemId.get(item.id);
+        if (!parentId) continue;
+        const siblings = childrenByParentId.get(parentId);
+        if (siblings) siblings.push(item);
+        else childrenByParentId.set(parentId, [item]);
+      }
+      const scheduleCache = new Map<string, ScheduleSummary | null>();
+      const descendantCountCache = new Map<string, number>();
+      const pathsByItemId = new Map(
+        wbsItems.map((item) => [
+          item.id,
+          pathForItem(item, itemsById, parentIdByItemId),
+        ]),
+      );
+      const launchWindows: Array<{ start: Date; end: Date }> = [];
       for (const item of wbsItems) {
         if (item.status === "CANCELLED") continue;
         const schedule = scheduleForItem(item);
         if (!schedule) continue;
-        const path = pathForItem(item, itemsById);
-        const trackId = trackForPath(path);
-        if (!trackId) continue;
+        const path = pathsByItemId.get(item.id)!;
+        if (path.some((pathItem) => pathItem.status === "CANCELLED")) continue;
+        const trackContext = trackContextForPath(path);
+        if (!trackContext) continue;
+        const phaseMatch = phaseForPath(trackContext.trackId, path);
+        if (phaseMatch && LAUNCH_PHASE_IDS.has(phaseMatch.phase.id)) {
+          launchWindows.push(schedule);
+        }
+      }
+      const groupCandidates: PreparedGroupCandidate[] = [];
+      for (const item of wbsItems) {
+        if (item.status === "CANCELLED") continue;
+        if (!isStructureGroup(item, childrenByParentId)) continue;
+        const schedule = scheduleForGroup(item, childrenByParentId, scheduleCache);
+        if (!schedule) continue;
+        const path = pathsByItemId.get(item.id)!;
+        if (path.some((pathItem) => pathItem.status === "CANCELLED")) continue;
+        const trackContext = trackContextForPath(path);
+        if (!trackContext) continue;
+        const { trackId } = trackContext;
         const phaseMatch = phaseForPath(trackId, path);
-        if (!phaseMatch) continue;
-        const key = `${trackId}:${phaseMatch.phase.id}`;
-        const progressWeight = calendarDayWeight(schedule.start, schedule.end);
-        candidates.push({
-          itemId: item.id,
-          parentId: item.parentId,
-          phaseKey: key,
+        const fallbackPhase = STRUCTURE_FALLBACK_PHASES[trackId];
+        const displayedPhase = phaseMatch?.phase ?? fallbackPhase;
+        groupCandidates.push({
+          item,
+          anchorId: trackContext.anchor.id,
+          path,
           segment: {
-            id: `${project.id}:${key}:${item.id}`,
+            id: `${project.id}:${item.id}`,
             trackId,
-            phase: phaseMatch.phase,
-            phaseIndex: phaseMatch.index,
+            phaseId: displayedPhase.id,
+            code: item.code,
+            label: item.title,
+            legendLabel: displayedPhase.label,
+            description: displayedPhase.description,
+            color: displayedPhase.color,
+            isStructureFallback: displayedPhase.isStructureFallback === true,
+            phaseIndex: phaseMatch?.index ?? TRACK_PHASES[trackId].length,
+            sortOrder: item.sortOrder,
             start: schedule.start,
             end: schedule.end,
-            itemCount: 1,
-            progress: item.progress,
-            progressTotal: item.progress * progressWeight,
-            progressWeight,
+            itemCount: 1 + descendantCountForItem(
+              item,
+              childrenByParentId,
+              descendantCountCache,
+            ),
+            progress: schedule.progress,
           },
         });
       }
-      const candidateByItemId = new Map(
-        candidates.map((candidate) => [candidate.itemId, candidate]),
+      const directAnchorByGroupId = new Map(
+        groupCandidates.map((candidate) => [candidate.item.id, candidate.anchorId]),
       );
-      const supersededItemIds = new Set<string>();
-      for (const candidate of candidates) {
-        const visited = new Set([candidate.itemId]);
-        let parentId = candidate.parentId;
-        while (parentId && !visited.has(parentId)) {
-          visited.add(parentId);
-          const parentCandidate = candidateByItemId.get(parentId);
-          if (parentCandidate?.phaseKey === candidate.phaseKey) {
-            supersededItemIds.add(parentCandidate.itemId);
+      const canonicalAnchorId = (initialAnchorId: string) => {
+        const path: string[] = [];
+        const seenAt = new Map<string, number>();
+        let anchorId = initialAnchorId;
+        while (true) {
+          const cycleStart = seenAt.get(anchorId);
+          if (cycleStart !== undefined) {
+            return [...path.slice(cycleStart), anchorId].sort()[0];
           }
-          parentId = itemsById.get(parentId)?.parentId ?? null;
+          seenAt.set(anchorId, path.length);
+          path.push(anchorId);
+          const parentAnchorId = directAnchorByGroupId.get(anchorId);
+          if (!parentAnchorId || parentAnchorId === anchorId) return anchorId;
+          anchorId = parentAnchorId;
         }
+      };
+      for (const candidate of groupCandidates) {
+        candidate.anchorId = canonicalAnchorId(candidate.anchorId);
       }
-      for (const candidate of candidates) {
-        if (supersededItemIds.has(candidate.itemId)) continue;
-        const phaseSegments = segmentsByPhase.get(candidate.phaseKey) ?? [];
-        phaseSegments.push(candidate.segment);
-        segmentsByPhase.set(candidate.phaseKey, phaseSegments);
+      const looseWorkByAnchorAndTrack = new Map<
+        string,
+        Array<{ start: Date; end: Date }>
+      >();
+      for (const item of wbsItems) {
+        const looseSchedule = scheduleForItem(item);
+        if (
+          item.status === "CANCELLED" ||
+          isStructureGroup(item, childrenByParentId) ||
+          !looseSchedule
+        ) continue;
+        const path = pathsByItemId.get(item.id)!;
+        if (path.some((pathItem) => pathItem.status === "CANCELLED")) continue;
+        const trackContext = trackContextForPath(path);
+        if (!trackContext || trackContext.anchor.id === item.id) continue;
+        const anchorId = canonicalAnchorId(trackContext.anchor.id);
+        const anchorIndex = path.findIndex(
+          (pathItem) => pathItem.id === anchorId,
+        );
+        if (anchorIndex < 0) continue;
+        const hasGroupBetween = path.slice(1, anchorIndex).some(
+          (pathItem) => isStructureGroup(pathItem, childrenByParentId),
+        );
+        if (hasGroupBetween) continue;
+        const key = `${anchorId}:${trackContext.trackId}`;
+        looseWorkByAnchorAndTrack.set(key, [
+          ...(looseWorkByAnchorAndTrack.get(key) ?? []),
+          looseSchedule,
+        ]);
+      }
+      const candidatesByAnchorAndTrack = new Map<string, PreparedGroupCandidate[]>();
+      for (const candidate of groupCandidates) {
+        const key = `${candidate.anchorId}:${candidate.segment.trackId}`;
+        const candidates = candidatesByAnchorAndTrack.get(key);
+        if (candidates) candidates.push(candidate);
+        else candidatesByAnchorAndTrack.set(key, [candidate]);
+      }
+      const segments: PreparedSegment[] = [];
+      for (const [key, candidates] of candidatesByAnchorAndTrack) {
+        const anchorId = candidates[0].anchorId;
+        const anchor = itemsById.get(anchorId);
+        const anchorCandidate = candidates.find(
+          (candidate) => candidate.item.id === anchorId,
+        );
+        const topLevelCandidates = candidates.filter((candidate) => {
+          if (candidate.item.id === anchorId) return false;
+          const anchorIndex = candidate.path.findIndex(
+            (pathItem) => pathItem.id === anchorId,
+          );
+          return !candidate.path.slice(1, anchorIndex).some(
+            (pathItem) => isStructureGroup(pathItem, childrenByParentId),
+          );
+        });
+        const anchorDefinesLegendPhase = Boolean(
+          anchor && phaseForTitle(candidates[0].segment.trackId, anchor.title),
+        );
+        const hasUncoveredLooseWork = (looseWorkByAnchorAndTrack.get(key) ?? [])
+          .some((schedule) => !scheduleIsCovered(schedule, topLevelCandidates));
+        if (
+          anchorCandidate &&
+          (anchorDefinesLegendPhase ||
+            hasUncoveredLooseWork ||
+            topLevelCandidates.length === 0)
+        ) {
+          segments.push(anchorCandidate.segment);
+        } else {
+          segments.push(...topLevelCandidates.map((candidate) => candidate.segment));
+        }
       }
       return {
         portfolio: portfolioName(project),
@@ -593,7 +861,8 @@ export function preparePortfolioRoadmapProjects(
         projectManager: project.projectManager,
         rag: project.rag,
         sortOrder: project.sortOrder,
-        segments: Array.from(segmentsByPhase.values()).flatMap(mergeConnectedSegments),
+        segments,
+        launchWindows,
       };
     })
     .sort(
@@ -643,7 +912,8 @@ function buildProject(
         .sort(
           (left, right) =>
             left.start.getTime() - right.start.getTime() ||
-            left.phaseIndex - right.phaseIndex,
+            left.phaseIndex - right.phaseIndex ||
+            left.sortOrder - right.sortOrder,
         )
         .map((segment) => {
           const clippedStart = segment.start < startDate ? startDate : segment.start;
@@ -661,10 +931,13 @@ function buildProject(
           const offset = Math.min((startPosition / range) * 100, 100 - width);
           return {
             id: segment.id,
-            phaseId: segment.phase.id,
-            label: segment.phase.label,
-            description: segment.phase.description,
-            color: segment.phase.color,
+            phaseId: segment.phaseId,
+            code: segment.code,
+            label: segment.label,
+            legendLabel: segment.legendLabel,
+            description: segment.description,
+            color: segment.color,
+            isStructureFallback: segment.isStructureFallback,
             startDate: isoDay(segment.start),
             endDate: isoDay(segment.end),
             offset,
@@ -745,11 +1018,10 @@ export function createPortfolioRoadmap(
     comparisonToday.getDate(),
   );
   const launchProjectCount = projects.filter((project) =>
-    project.segments.some(
-      (segment) =>
-        LAUNCH_PHASE_IDS.has(segment.phase.id) &&
-        segment.end >= comparisonToday &&
-        segment.start <= nextYear,
+    project.launchWindows.some(
+      (window) =>
+        window.end >= comparisonToday &&
+        window.start <= nextYear,
     ),
   ).length;
 

@@ -584,6 +584,17 @@
   text-overflow: ellipsis;
 }
 
+.portfolio-roadmap-segment.is-structure-fallback,
+.portfolio-roadmap-swatch.is-structure-fallback {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 4px,
+    rgba(63, 75, 88, 0.28) 4px,
+    rgba(63, 75, 88, 0.28) 5px
+  );
+}
+
 .portfolio-roadmap-segment:hover,
 .portfolio-roadmap-segment:focus-visible {
   border-color: #17212b;

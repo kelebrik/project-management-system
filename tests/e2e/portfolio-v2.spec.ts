@@ -4,8 +4,8 @@ function wbsItem(
   id: string,
   parentId: string | null,
   title: string,
-  startDate: string,
-  dueDate: string,
+  startDate: string | null,
+  dueDate: string | null,
 ) {
   return {
     id,
@@ -89,6 +89,7 @@ function projectFixture() {
       wbsItem("1.2", hw.id, "HW EVT", "2026-09-01", "2026-10-31"),
       wbsItem("1.3", hw.id, "HW DVT", "2026-11-01", "2026-12-31"),
       wbsItem("1.4", hw.id, "HW PVT", "2027-06-30", "2027-06-30"),
+      wbsItem("1.5", hw.id, "Корпус и механика", "2027-02-01", "2027-03-15"),
       wbsItem("2.1", sw.id, "SW Architecture", "2026-08-01", "2026-09-30"),
       wbsItem("2.2", sw.id, "Beta", "2026-10-01", "2027-01-31"),
       wbsItem("2.3", sw.id, "Alpha", "2026-09-15", "2026-11-15"),
@@ -177,12 +178,20 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async
     "SW",
     "G2M",
   ]);
-  await expect(roadmap.locator(".portfolio-roadmap-segment")).toHaveCount(9);
+  await expect(roadmap.locator(".portfolio-roadmap-segment")).toHaveCount(10);
+  const unmatchedStructureGroup = roadmap.getByTitle("1.5 · Корпус и механика");
+  await expect(unmatchedStructureGroup).toBeVisible();
+  await expect(unmatchedStructureGroup).toHaveCSS("background-color", "rgb(241, 243, 245)");
+  await expect(unmatchedStructureGroup).not.toHaveCSS("background-image", "none");
+  await expect(roadmap.getByTitle("1.1 · HW Product Requirements")).not.toHaveCSS(
+    "background-color",
+    "rgb(241, 243, 245)",
+  );
   await expect(roadmap.locator(".portfolio-roadmap-track").nth(1)).toHaveCSS(
     "min-height",
     "60px",
   );
-  const shortSegment = roadmap.getByRole("button", { name: /^PVT,/ });
+  const shortSegment = roadmap.getByTitle("1.4 · HW PVT");
   const shortSegmentBox = await shortSegment.boundingBox();
   expect(shortSegmentBox?.width).toBeGreaterThanOrEqual(24);
   const globalNavigation = page.getByRole("navigation", {
@@ -271,9 +280,11 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async
   await page.getByRole("searchbox", { name: "Поиск проекта" }).fill("DEVICE-01");
   await expect(roadmap.getByText("Новое устройство", { exact: true })).toBeVisible();
 
-  await roadmap.getByRole("button", { name: /^EVT,/ }).click();
-  const details = page.getByRole("complementary", { name: "EVT" });
+  await roadmap.getByTitle("1.2 · HW EVT").click();
+  const details = page.getByRole("complementary", { name: "HW EVT" });
   await expect(details).toBeFocused();
+  await expect(details).toContainText("ИСР 1.2");
+  await expect(details).toContainText("Легенда: EVT");
   await expect(details).toContainText("Engineering Validation Test");
   await expect(details).toContainText("01.09.2026 - 31.10.2026");
   if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
@@ -283,13 +294,14 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async
     });
   }
 
-  const legendTrigger = page.getByRole("button", { name: "Легенда" });
+  const legendTrigger = page.getByRole("button", { name: "Легенда", exact: true });
   await legendTrigger.click();
   const legend = page.getByRole("dialog", { name: "Легенда этапов" });
   await expect(legend).toBeVisible();
   await expect(legend.getByRole("button", { name: "Закрыть легенду" })).toBeFocused();
   await expect(legend.getByText("MP FW + 1st OTA", { exact: true })).toBeVisible();
   await expect(legend.getByText("Post-Launch Analysis, Retrospective & Handover", { exact: true })).toBeVisible();
+  await expect(legend.getByText("Группа из Структуры", { exact: true })).toHaveCount(3);
   if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
     await page.screenshot({
       fullPage: true,

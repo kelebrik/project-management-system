@@ -113,9 +113,30 @@ test("builds a quarter-aligned monthly horizon", () => {
 });
 
 test("classifies nested Russian WBS branches into HW, SW and G2M phases", () => {
-  const hardware = wbsItem({ id: "hw", title: "Аппаратная часть" });
-  const software = wbsItem({ id: "sw", title: "Программная часть" });
-  const marketing = wbsItem({ id: "g2m", title: "Маркетинг и вывод на рынок" });
+  const hardware = wbsItem({
+    id: "hw",
+    code: "1",
+    title: "Аппаратная часть",
+    type: "PHASE",
+    startDate: null,
+    dueDate: null,
+  });
+  const software = wbsItem({
+    id: "sw",
+    code: "2",
+    title: "Программная часть",
+    type: "PHASE",
+    startDate: null,
+    dueDate: null,
+  });
+  const marketing = wbsItem({
+    id: "g2m",
+    code: "3",
+    title: "Маркетинг и вывод на рынок",
+    type: "PHASE",
+    startDate: null,
+    dueDate: null,
+  });
   const roadmap = createPortfolioRoadmap(
     [
       project({
@@ -158,6 +179,14 @@ test("classifies nested Russian WBS branches into HW, SW and G2M phases", () => 
   assert.deepEqual(
     tracks.map((track) => track.segments.map((segment) => segment.phaseId)),
     [["hw-evt"], ["sw-rc"], ["g2m-launch"]],
+  );
+  assert.deepEqual(
+    tracks.map((track) => track.segments.map((segment) => segment.label)),
+    [["Тесты EVT"], ["Подготовка SW Release Candidate"], ["Market Launch & Start of Sales"]],
+  );
+  assert.deepEqual(
+    tracks.map((track) => track.segments.map((segment) => segment.code)),
+    [["1.1"], ["2.1"], ["3.1"]],
   );
   assert.equal(roadmap.mappedProjectCount, 1);
   assert.equal(roadmap.launchProjectCount, 1);
@@ -213,6 +242,45 @@ test("counts a launch ending today regardless of the current time", () => {
   );
 
   assert.equal(roadmap.launchProjectCount, 1);
+});
+
+test("counts a launch milestone even though only Structure groups become bars", () => {
+  const marketing = wbsItem({
+    id: "marketing",
+    code: "3",
+    title: "Маркетинг и вывод на рынок",
+    type: "PHASE",
+    startDate: null,
+    dueDate: null,
+  });
+  const roadmap = createPortfolioRoadmap(
+    [
+      project({
+        wbsItems: [
+          marketing,
+          wbsItem({
+            id: "launch-milestone",
+            parentId: marketing.id,
+            code: "3.1",
+            title: "Market Launch & Start of Sales",
+            type: "MILESTONE",
+            startDate: "2026-09-03",
+            dueDate: "2026-09-03",
+          }),
+        ],
+      }),
+    ],
+    12,
+    new Date(2026, 8, 3, 18, 30),
+  );
+
+  assert.equal(roadmap.launchProjectCount, 1);
+  assert.equal(
+    roadmap.groups[0].projects[0].tracks[2].segments.some(
+      (segment) => segment.phaseId === "g2m-launch",
+    ),
+    false,
+  );
 });
 
 test("keeps the next-year launch metric independent of the visible horizon", () => {
@@ -317,6 +385,7 @@ test("preserves gaps and assigns overlapping phases to separate rows", () => {
 test("ignores cancelled work, repairs reversed dates and stops on hierarchy cycles", () => {
   const first = wbsItem({
     id: "first",
+    code: "A",
     parentId: "second",
     title: "Аппаратная часть",
     startDate: null,
@@ -324,6 +393,7 @@ test("ignores cancelled work, repairs reversed dates and stops on hierarchy cycl
   });
   const second = wbsItem({
     id: "second",
+    code: "B",
     parentId: "first",
     title: "HW EVT",
     startDate: "2026-10-31",
@@ -349,7 +419,7 @@ test("ignores cancelled work, repairs reversed dates and stops on hierarchy cycl
   assert.equal(segments[0].endDate, "2026-10-31");
 });
 
-test("uses leaf progress instead of double-counting its phase parent", () => {
+test("uses the dates and progress stored on a Structure work group", () => {
   const parent = wbsItem({
     id: "phase",
     title: "HW EVT",
@@ -380,10 +450,313 @@ test("uses leaf progress instead of double-counting its phase parent", () => {
   );
   const segment = roadmap.groups[0].projects[0].tracks[0].segments[0];
 
-  assert.equal(segment.itemCount, 1);
-  assert.equal(segment.progress, 80);
-  assert.equal(segment.startDate, "2026-09-01");
-  assert.equal(segment.endDate, "2026-09-30");
+  assert.equal(segment.itemCount, 2);
+  assert.equal(segment.label, "HW EVT");
+  assert.equal(segment.progress, 30);
+  assert.equal(segment.startDate, "2026-08-01");
+  assert.equal(segment.endDate, "2026-10-31");
+});
+
+test("renders one top-level Structure group when aggregate groups are nested", () => {
+  const hardware = wbsItem({
+    id: "hardware-root",
+    code: "1",
+    title: "Аппаратная часть",
+    type: "PHASE",
+    startDate: "2026-08-01",
+    dueDate: "2026-11-30",
+  });
+  const evt = wbsItem({
+    id: "evt-phase",
+    parentId: hardware.id,
+    code: "1.2",
+    title: "HW EVT",
+    type: "PHASE",
+    startDate: "2026-08-01",
+    dueDate: "2026-11-30",
+  });
+  const roadmap = createPortfolioRoadmap(
+    [
+      project({
+        wbsItems: [
+          hardware,
+          evt,
+          wbsItem({
+            id: "evt-build",
+            parentId: evt.id,
+            code: "1.2.1",
+            title: "Сборка пилотной партии",
+            startDate: "2026-08-01",
+            dueDate: "2026-09-30",
+          }),
+          wbsItem({
+            id: "evt-test",
+            parentId: evt.id,
+            code: "1.2.2",
+            title: "Проверка пилотной партии",
+            startDate: "2026-10-01",
+            dueDate: "2026-11-30",
+          }),
+        ],
+      }),
+    ],
+    12,
+    new Date(2026, 8, 3),
+  );
+  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+
+  assert.deepEqual(
+    segments.map((segment) => segment.label),
+    ["HW EVT"],
+  );
+  assert.deepEqual(
+    segments.map((segment) => segment.legendLabel),
+    ["EVT"],
+  );
+  assert.equal(segments[0].itemCount, 3);
+});
+
+test("treats legacy TASK parents as Structure groups", () => {
+  const hardware = wbsItem({
+    id: "legacy-hardware",
+    code: "1",
+    title: "Аппаратная часть",
+    type: "TASK",
+    startDate: "2026-08-01",
+    dueDate: "2026-11-30",
+  });
+  const evt = wbsItem({
+    id: "legacy-evt",
+    parentId: hardware.id,
+    code: "1.1",
+    title: "HW EVT",
+    type: "TASK",
+    startDate: "2026-08-01",
+    dueDate: "2026-11-30",
+  });
+  const roadmap = createPortfolioRoadmap(
+    [
+      project({
+        wbsItems: [
+          hardware,
+          evt,
+          wbsItem({
+            id: "legacy-evt-test",
+            parentId: evt.id,
+            code: "1.1.1",
+            title: "Проверка платы",
+            type: "TASK",
+            startDate: "2026-09-01",
+            dueDate: "2026-10-31",
+          }),
+        ],
+      }),
+    ],
+    12,
+    new Date(2026, 8, 3),
+  );
+  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+
+  assert.equal(segments.length, 1);
+  assert.equal(segments[0].label, "HW EVT");
+  assert.equal(segments[0].legendLabel, "EVT");
+});
+
+test("keeps a dated phase when its only nested group has no calendar", () => {
+  const hardware = wbsItem({
+    id: "hardware-with-placeholder",
+    code: "1",
+    title: "Аппаратная часть",
+    type: "PHASE",
+    startDate: "2026-07-01",
+    dueDate: "2026-12-31",
+  });
+  const roadmap = createPortfolioRoadmap(
+    [
+      project({
+        wbsItems: [
+          hardware,
+          wbsItem({
+            id: "empty-package",
+            parentId: hardware.id,
+            code: "1.1",
+            title: "Будущий пакет работ",
+            startDate: null,
+            dueDate: null,
+          }),
+        ],
+      }),
+    ],
+    12,
+    new Date(2026, 8, 3),
+  );
+  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+
+  assert.equal(segments.length, 1);
+  assert.equal(segments[0].label, "Аппаратная часть");
+  assert.equal(segments[0].startDate, "2026-07-01");
+  assert.equal(segments[0].endDate, "2026-12-31");
+});
+
+test("uses the covering phase when dated work sits outside its nested groups", () => {
+  const hardware = wbsItem({
+    id: "hardware-with-loose-work",
+    code: "1",
+    title: "Аппаратная часть",
+    type: "PHASE",
+    startDate: "2026-07-01",
+    dueDate: "2026-12-31",
+  });
+  const roadmap = createPortfolioRoadmap(
+    [
+      project({
+        wbsItems: [
+          hardware,
+          wbsItem({
+            id: "nested-package",
+            parentId: hardware.id,
+            code: "1.1",
+            title: "HW EVT",
+            startDate: "2026-08-01",
+            dueDate: "2026-09-30",
+          }),
+          wbsItem({
+            id: "loose-task",
+            parentId: hardware.id,
+            code: "1.2",
+            title: "Доработка платы",
+            type: "TASK",
+            startDate: "2026-10-01",
+            dueDate: "2026-12-31",
+          }),
+        ],
+      }),
+    ],
+    12,
+    new Date(2026, 8, 3),
+  );
+  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+
+  assert.equal(segments.length, 1);
+  assert.equal(segments[0].label, "Аппаратная часть");
+  assert.equal(segments[0].startDate, "2026-07-01");
+  assert.equal(segments[0].endDate, "2026-12-31");
+});
+
+test("keeps structured bars when loose work is already covered by their dates", () => {
+  const hardware = wbsItem({
+    id: "hardware-with-covered-work",
+    code: "1",
+    title: "Аппаратная часть",
+    type: "PHASE",
+    startDate: "2026-07-01",
+    dueDate: "2026-12-31",
+  });
+  const roadmap = createPortfolioRoadmap(
+    [
+      project({
+        wbsItems: [
+          hardware,
+          wbsItem({
+            id: "covering-package",
+            parentId: hardware.id,
+            code: "1.1",
+            title: "HW EVT",
+            startDate: "2026-08-01",
+            dueDate: "2026-12-31",
+          }),
+          wbsItem({
+            id: "covered-task",
+            parentId: hardware.id,
+            code: "1.2",
+            title: "Проверка документации",
+            type: "TASK",
+            startDate: "2026-10-01",
+            dueDate: "2026-10-31",
+          }),
+        ],
+      }),
+    ],
+    12,
+    new Date(2026, 8, 3),
+  );
+  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+
+  assert.equal(segments.length, 1);
+  assert.equal(segments[0].label, "HW EVT");
+  assert.equal(segments[0].startDate, "2026-08-01");
+  assert.equal(segments[0].endDate, "2026-12-31");
+});
+
+test("rolls dates and progress up from children for a dateless Structure group", () => {
+  const hardware = wbsItem({
+    id: "hardware",
+    title: "Аппаратная часть",
+    type: "PHASE",
+    startDate: null,
+    dueDate: null,
+  });
+  const group = wbsItem({
+    id: "casework",
+    parentId: null,
+    code: "1.7",
+    title: "Корпус и механика",
+    startDate: null,
+    dueDate: null,
+  });
+  const roadmap = createPortfolioRoadmap(
+    [
+      project({
+        wbsItems: [
+          hardware,
+          group,
+          wbsItem({
+            id: "casework-design",
+            parentId: group.id,
+            code: "1.7.1",
+            title: "Проработка корпуса",
+            type: "TASK",
+            startDate: "2026-08-01",
+            dueDate: "2026-08-10",
+            progress: 0,
+          }),
+          wbsItem({
+            id: "casework-test",
+            parentId: group.id,
+            code: "1.7.2",
+            title: "Испытания корпуса",
+            type: "TASK",
+            startDate: "2026-08-11",
+            dueDate: "2026-08-20",
+            progress: 100,
+          }),
+          wbsItem({
+            id: "casework-cancelled",
+            parentId: group.id,
+            code: "1.7.3",
+            title: "Отменённая переработка",
+            type: "TASK",
+            status: "CANCELLED",
+            startDate: "2026-09-01",
+            dueDate: "2026-12-31",
+            progress: 100,
+          }),
+        ],
+      }),
+    ],
+    12,
+    new Date(2026, 8, 3),
+  );
+  const segment = roadmap.groups[0].projects[0].tracks[0].segments[0];
+
+  assert.equal(segment.code, "1.7");
+  assert.equal(segment.label, "Корпус и механика");
+  assert.equal(segment.legendLabel, "Группа из Структуры");
+  assert.equal(segment.phaseId, "hw-structure");
+  assert.equal(segment.itemCount, 3);
+  assert.equal(segment.progress, 50);
+  assert.equal(segment.startDate, "2026-08-01");
+  assert.equal(segment.endDate, "2026-08-20");
 });
 
 test("uses forecast dates only as a complete pair", () => {

@@ -48,14 +48,6 @@ export const portfolioRoadmapProjectSelect = {
   sortOrder: true,
   businessUnit: { select: { id: true, code: true, name: true } },
   wbsItems: {
-    where: {
-      OR: [
-        { startDate: { not: null } },
-        { dueDate: { not: null } },
-        { forecastStartDate: { not: null } },
-        { forecastDueDate: { not: null } },
-      ],
-    },
     orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
     select: {
       id: true,
@@ -69,6 +61,7 @@ export const portfolioRoadmapProjectSelect = {
       forecastStartDate: true,
       forecastDueDate: true,
       progress: true,
+      sortOrder: true,
     },
   },
 } satisfies Prisma.ProjectSelect;

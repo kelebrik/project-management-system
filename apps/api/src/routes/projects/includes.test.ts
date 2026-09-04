@@ -3,19 +3,11 @@ import test from 'node:test';
 
 import { portfolioRoadmapProjectSelect } from './includes.js';
 
-test('portfolio roadmap query includes scheduled rows from every WBS hierarchy level', () => {
+test('portfolio roadmap query includes the complete WBS hierarchy for work-group rollups', () => {
   assert.equal(
-    JSON.stringify(portfolioRoadmapProjectSelect.wbsItems.where).includes('type'),
+    'where' in portfolioRoadmapProjectSelect.wbsItems,
     false,
   );
-  assert.deepEqual(portfolioRoadmapProjectSelect.wbsItems.where, {
-    OR: [
-      { startDate: { not: null } },
-      { dueDate: { not: null } },
-      { forecastStartDate: { not: null } },
-      { forecastDueDate: { not: null } },
-    ],
-  });
   assert.deepEqual(Object.keys(portfolioRoadmapProjectSelect.wbsItems.select).sort(), [
     'code',
     'dueDate',
@@ -24,6 +16,7 @@ test('portfolio roadmap query includes scheduled rows from every WBS hierarchy l
     'id',
     'parentId',
     'progress',
+    'sortOrder',
     'startDate',
     'status',
     'title',

@@ -277,7 +277,7 @@ export function PortfolioV2Page() {
         </div>
         <div>
           <strong>{roadmap.mappedProjectCount}</strong>
-          <span>с этапами HW / SW / G2M</span>
+          <span>с группами работ HW / SW / G2M</span>
         </div>
         <div>
           <strong>{roadmap.launchProjectCount}</strong>
@@ -285,7 +285,7 @@ export function PortfolioV2Page() {
         </div>
         <div className={roadmap.unmappedProjectCount > 0 ? "attention" : ""}>
           <strong>{roadmap.unmappedProjectCount}</strong>
-          <span>требуют разметки ИСР</span>
+          <span>без групп HW / SW / G2M</span>
         </div>
       </div>
 
@@ -300,7 +300,7 @@ export function PortfolioV2Page() {
         >
           <span
             aria-hidden="true"
-            className="portfolio-roadmap-swatch"
+            className={`portfolio-roadmap-swatch ${selectedSegment.segment.isStructureFallback ? "is-structure-fallback" : ""}`}
             style={{ backgroundColor: selectedSegment.segment.color }}
           />
           <div>
@@ -308,13 +308,14 @@ export function PortfolioV2Page() {
               {selectedSegment.segment.label}
             </strong>
             <span id="portfolio-roadmap-selection-meta">
-              {selectedSegment.projectName} · {selectedSegment.trackLabel} ·{" "}
+              {selectedSegment.projectName} · {selectedSegment.trackLabel} · ИСР {selectedSegment.segment.code} ·{" "}
               {portfolioRoadmapDateLabel(selectedSegment.segment.startDate)} -{" "}
               {portfolioRoadmapDateLabel(selectedSegment.segment.endDate)} ·{" "}
               {itemCountLabel(selectedSegment.segment.itemCount)} · готовность{" "}
               {selectedSegment.segment.progress}%
             </span>
             <small id="portfolio-roadmap-selection-description">
+              Легенда: {selectedSegment.segment.legendLabel}.{" "}
               {selectedSegment.segment.description}
             </small>
           </div>
@@ -325,7 +326,7 @@ export function PortfolioV2Page() {
             Открыть проект
           </button>
           <button
-            aria-label="Закрыть детали этапа"
+            aria-label="Закрыть детали группы работ"
             className="portfolio-roadmap-selection-close"
             onClick={() => setSelectedSegment(null)}
             title="Закрыть"
@@ -440,8 +441,8 @@ export function PortfolioV2Page() {
                           )}
                           {track.segments.map((segment) => (
                             <button
-                              aria-label={`${segment.label}, ${project.projectName}, ${track.label}, ${portfolioRoadmapDateLabel(segment.startDate)} - ${portfolioRoadmapDateLabel(segment.endDate)}, ${itemCountLabel(segment.itemCount)}, готовность ${segment.progress}%. ${segment.description}`}
-                              className="portfolio-roadmap-segment"
+                              aria-label={`${segment.code}, ${segment.label}, ${project.projectName}, ${track.label}, легенда ${segment.legendLabel}, ${portfolioRoadmapDateLabel(segment.startDate)} - ${portfolioRoadmapDateLabel(segment.endDate)}, ${itemCountLabel(segment.itemCount)}, готовность ${segment.progress}%. ${segment.description}`}
+                              className={`portfolio-roadmap-segment ${segment.isStructureFallback ? "is-structure-fallback" : ""}`}
                               key={segment.id}
                               onClick={() =>
                                 setSelectedSegment({
@@ -457,7 +458,7 @@ export function PortfolioV2Page() {
                                 left: `${segment.offset}%`,
                                 width: `${segment.width}%`,
                               } as CSSProperties}
-                              title="Показать детали этапа"
+                              title={`${segment.code} · ${segment.label}`}
                               type="button"
                             >
                               <span>{segment.label}</span>
@@ -465,7 +466,7 @@ export function PortfolioV2Page() {
                           ))}
                           {!hasSegments && trackIndex === 0 && (
                             <span className="portfolio-roadmap-empty-label">
-                              Нет распознанных этапов в выбранном горизонте
+                              Нет групп работ в выбранном горизонте
                             </span>
                           )}
                         </div>
@@ -546,7 +547,7 @@ export function PortfolioV2Page() {
                       <div className="portfolio-roadmap-legend-row" key={phase.id}>
                         <span
                           aria-hidden="true"
-                          className="portfolio-roadmap-swatch"
+                          className={`portfolio-roadmap-swatch ${phase.isStructureFallback ? "is-structure-fallback" : ""}`}
                           style={{ backgroundColor: phase.color }}
                         />
                         <span>
