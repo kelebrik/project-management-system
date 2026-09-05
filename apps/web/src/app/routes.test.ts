@@ -25,10 +25,10 @@ test("system admin can open every administration section", () => {
   assert.equal(canAccessAdminView("admin-analytics", true, false), true);
 });
 
-test("portfolio v2 belongs to the protected development section", () => {
-  assert.equal(isDevelopmentSectionViewName("portfolio-v2"), true);
-  assert.equal(writeProtectedViews.has("portfolio-v2"), true);
-  assert.equal(appPathForView("portfolio-v2"), "/development/portfolio-v2");
-  assert.equal(appViewFromPath("/development/portfolio-v2"), "portfolio-v2");
-  assert.equal(appViewFromPath("/portfolio-v2"), "portfolio-v2");
+test("legacy portfolio v2 routes resolve to the main portfolio", () => {
+  assert.equal(isDevelopmentSectionViewName("portfolio-v2"), false);
+  assert.equal(writeProtectedViews.has("portfolio-v2"), false);
+  assert.equal(appPathForView("portfolio-v2"), "/portfolio");
+  assert.equal(appViewFromPath("/development/portfolio-v2"), "portfolio");
+  assert.equal(appViewFromPath("/portfolio-v2"), "portfolio");
 });

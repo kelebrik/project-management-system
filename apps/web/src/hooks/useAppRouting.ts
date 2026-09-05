@@ -19,6 +19,11 @@ import { projectModuleKeyByView } from "../app/projectModules";
 
 type AppRoutingDeps = Record<string, any>;
 
+const LEGACY_PORTFOLIO_ROADMAP_PATHS = new Set([
+  "/portfolio-v2",
+  "/development/portfolio-v2",
+]);
+
 export function useAppRouting({
   activeView,
   authMode,
@@ -63,6 +68,18 @@ export function useAppRouting({
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [projects, setActiveView, setError, setNotice, setSelectedProjectId]);
+
+  useEffect(() => {
+    if (activeView !== "portfolio") return;
+    if (!LEGACY_PORTFOLIO_ROADMAP_PATHS.has(normalizeAppPath(window.location.pathname))) {
+      return;
+    }
+    window.history.replaceState(
+      null,
+      "",
+      `/portfolio${window.location.search}#roadmap-v2`,
+    );
+  }, [activeView]);
 
   useEffect(() => {
     if (authMode !== "ready") return;

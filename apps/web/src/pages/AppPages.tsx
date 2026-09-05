@@ -37,9 +37,6 @@ import { usePageContext } from "./PageContext";
 import { WikiPage } from "./WikiPage";
 import { isDevelopmentSectionViewName } from "../app/routes";
 
-const PortfolioV2Page = lazy(() =>
-  import("./PortfolioV2Page").then((module) => ({ default: module.PortfolioV2Page })),
-);
 const ProjectPmWorkspacePage = lazy(() =>
   import("./ProjectPmWorkspacePage").then((module) => ({
     default: module.ProjectPmWorkspacePage,
@@ -71,11 +68,6 @@ export function AppPages() {
   return (
     <>
       {activeView === "portfolio" && <PortfolioPage />}
-      {isAdminUser && activeView === "portfolio-v2" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <PortfolioV2Page />
-        </Suspense>
-      )}
       {isAdminUser && activeView === "decision-queue" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <DecisionQueuePage />

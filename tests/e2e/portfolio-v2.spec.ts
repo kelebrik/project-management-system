@@ -161,15 +161,19 @@ async function mockPortfolio(
   await page.route(/^https?:\/\/[^/]+\/api\//, respond);
 }
 
-test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async ({
+test("portfolio exposes the HW, SW and G2M roadmap as its last section", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.clock.setFixedTime(new Date("2026-09-03T12:00:00"));
   await mockPortfolio(page);
-  await page.goto("/development/portfolio-v2");
+  await page.goto("/portfolio");
 
-  await expect(page.getByRole("heading", { name: "Портфель v2", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Портфель", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Дорожная карта v2", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("main h2").last()).toHaveText("Дорожная карта v2");
   const roadmap = page.getByTestId("portfolio-v2-roadmap");
   await expect(roadmap).toBeVisible();
   await expect(roadmap.getByText("Новое устройство", { exact: true })).toBeVisible();
@@ -198,20 +202,17 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async
     name: "Основные разделы",
   });
   await expect(
-    globalNavigation.getByRole("button", { name: "Портфель v2" }),
-  ).toHaveCount(0);
-  await expect(
-    globalNavigation.getByRole("button", { name: "Разработка" }),
+    globalNavigation.getByRole("button", { name: "Портфель", exact: true }),
   ).toHaveClass(/active/);
   await expect(
     page
       .getByRole("navigation", { name: "Разработка" })
       .getByRole("button", { name: "Портфель v2" }),
-  ).toHaveClass(/active/);
+  ).toHaveCount(0);
 
   const portfolioPage = page.locator(".portfolio-roadmap-page");
   const enterFullscreen = page.getByRole("button", {
-    name: "Развернуть Портфель v2 на весь экран",
+    name: "Развернуть Дорожную карту v2 на весь экран",
   });
   await enterFullscreen.click();
   await expect(portfolioPage).toHaveClass(/portfolio-roadmap-page-fullscreen/);
@@ -232,7 +233,7 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async
     });
   }
   await page
-    .getByRole("button", { name: "Вернуть обычный режим Портфеля v2" })
+    .getByRole("button", { name: "Вернуть обычный режим Дорожной карты v2" })
     .click();
   await expect(portfolioPage).not.toHaveClass(/portfolio-roadmap-page-fullscreen/);
   await enterFullscreen.click();
@@ -348,14 +349,20 @@ test("portfolio v2 exposes the HW, SW and G2M roadmap inside development", async
   await expect(legendTrigger).toBeFocused();
 });
 
-test("portfolio v2 keeps the wide roadmap inside its mobile scroller", async ({
+test("portfolio keeps the wide roadmap inside its mobile scroller", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.setFixedTime(new Date("2026-09-03T12:00:00"));
   await mockPortfolio(page);
-  await page.goto("/development/portfolio-v2");
+  await page.goto("/portfolio");
 
+  const roadmapHeading = page.getByRole("heading", {
+    name: "Дорожная карта v2",
+    exact: true,
+  });
+  await expect(roadmapHeading).toBeVisible();
+  await roadmapHeading.scrollIntoViewIfNeeded();
   const roadmap = page.getByTestId("portfolio-v2-roadmap");
   await expect(roadmap).toBeVisible();
   const sizes = await roadmap.evaluate((element) => ({
@@ -378,14 +385,22 @@ test("portfolio v2 keeps the wide roadmap inside its mobile scroller", async ({
   }
 });
 
-test("portfolio v2 redirects a non-admin out of development", async ({ page }) => {
+test("legacy portfolio v2 URL opens the roadmap section for a non-admin", async ({ page }) => {
   await mockPortfolio(page, "PROJECT_MANAGER");
   await page.goto("/development/portfolio-v2");
 
-  await expect(page).toHaveURL(/\/portfolio$/);
-  await expect(
-    page.getByRole("heading", { name: "Портфель v2", exact: true }),
-  ).toHaveCount(0);
+  await expect(page).toHaveURL(/\/portfolio#roadmap-v2$/);
+  const roadmapHeading = page.getByRole("heading", {
+    name: "Дорожная карта v2",
+    exact: true,
+  });
+  await expect(roadmapHeading).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  const headingBox = await roadmapHeading.boundingBox();
+  expect(headingBox).not.toBeNull();
+  expect(headingBox!.y).toBeGreaterThanOrEqual(0);
+  expect(headingBox!.y).toBeLessThan(page.viewportSize()!.height);
+  await expect(page.getByTestId("portfolio-v2-roadmap")).toBeVisible();
   await expect(
     page
       .getByRole("navigation", { name: "Основные разделы" })

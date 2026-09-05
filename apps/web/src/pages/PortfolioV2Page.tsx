@@ -65,14 +65,18 @@ type SelectedSegment = {
   segment: PortfolioRoadmapSegment;
 };
 
-export function PortfolioV2Page() {
+type PortfolioRoadmapV2Props = {
+  onContentReady?: () => void;
+};
+
+export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) {
   const {
     firstEnabledProjectView,
     fullscreenWorkspaceView,
     selectProject,
     toggleWorkspaceFullscreen,
   } = usePageContext();
-  const isFullscreen = fullscreenWorkspaceView === "portfolio-v2";
+  const isFullscreen = fullscreenWorkspaceView === "portfolio";
   const [range, setRange] = useState<PortfolioRoadmapRange>(initialRange);
   const [query, setQuery] = useState("");
   const [portfolioFilter, setPortfolioFilter] = useState("ALL");
@@ -108,6 +112,11 @@ export function PortfolioV2Page() {
       cancelled = true;
     };
   }, [reloadToken]);
+
+  useEffect(() => {
+    if (projectItems === null && !loadError) return;
+    onContentReady?.();
+  }, [loadError, onContentReady, projectItems]);
 
   const preparedProjects = useMemo(
     () => preparePortfolioRoadmapProjects(projectItems ?? []),
@@ -261,11 +270,11 @@ export function PortfolioV2Page() {
           <button
             aria-label={
               isFullscreen
-                ? "Вернуть обычный режим Портфеля v2"
-                : "Развернуть Портфель v2 на весь экран"
+                ? "Вернуть обычный режим Дорожной карты v2"
+                : "Развернуть Дорожную карту v2 на весь экран"
             }
             className="workspace-fullscreen-button"
-            onClick={() => toggleWorkspaceFullscreen("portfolio-v2")}
+            onClick={() => toggleWorkspaceFullscreen("portfolio")}
             title={isFullscreen ? "Вернуть обычный режим" : "На весь экран"}
             type="button"
           >

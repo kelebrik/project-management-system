@@ -292,11 +292,6 @@ const adminNavItems: AdminNavItem[] = [
 
 const developmentNavItems: AdminNavItem[] = [
   {
-    view: "portfolio-v2",
-    label: "Портфель v2",
-    icon: <GanttChartSquare size={15} />,
-  },
-  {
     view: "project-pm-workspace",
     label: "Рабочий стол PM",
     icon: <LayoutDashboard size={15} />,

@@ -1,3 +1,11 @@
+.portfolio-roadmap-section {
+  scroll-margin-top: 88px;
+}
+
+.portfolio-roadmap-panel {
+  min-width: 0;
+}
+
 .portfolio-roadmap-page {
   --portfolio-roadmap-project-width: 248px;
   --portfolio-roadmap-track-width: 62px;

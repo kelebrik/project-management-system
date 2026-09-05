@@ -1,7 +1,16 @@
-import { useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { signedDaysUntil } from "../app/dateUtils";
 import type { ProjectListItem } from "../app/domainTypes";
+import { PageSkeleton } from "../components/Skeleton";
 import type {
   PortfolioGoalTimelineProjectRow,
   PortfolioRedRaidItem,
@@ -14,6 +23,12 @@ import {
 } from "../app/portfolioProjectFilter";
 import { usePageContext } from "./PageContext";
 import { ProjectsOverview } from "./ProjectsOverview";
+
+const PortfolioRoadmapV2 = lazy(() =>
+  import("./PortfolioV2Page").then((module) => ({
+    default: module.PortfolioRoadmapV2,
+  })),
+);
 
 function dueDateTone(dueDate: string | null) {
   const days = signedDaysUntil(dueDate);
@@ -35,6 +50,8 @@ export function PortfolioPage() {
   const [excludedProjectIds, setExcludedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [shouldLoadRoadmap, setShouldLoadRoadmap] = useState(false);
+  const roadmapSectionRef = useRef<HTMLElement>(null);
   const ctx = usePageContext();
   const {
     date,
@@ -46,6 +63,34 @@ export function PortfolioPage() {
     visiblePortfolioProblemProjects,
     visiblePortfolioRiskProjects,
   } = ctx;
+
+  const scrollToRoadmapHash = useCallback(() => {
+    if (window.location.hash !== "#roadmap-v2") return;
+    roadmapSectionRef.current?.scrollIntoView();
+  }, []);
+
+  useEffect(() => {
+    scrollToRoadmapHash();
+  }, [scrollToRoadmapHash]);
+
+  useEffect(() => {
+    const section = roadmapSectionRef.current;
+    if (!section) return;
+    if (typeof IntersectionObserver === "undefined") {
+      const timeoutId = setTimeout(() => setShouldLoadRoadmap(true), 0);
+      return () => clearTimeout(timeoutId);
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setShouldLoadRoadmap(true);
+        observer.disconnect();
+      },
+      { rootMargin: "320px 0px" },
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
   const projectFilterOptions = useMemo(
     () => createPortfolioProjectFilterOptions(projects as ProjectListItem[]),
     [projects],
@@ -397,6 +442,28 @@ export function PortfolioPage() {
             projects={projects as ProjectListItem[]}
             selectProject={selectProject}
           />
+        </article>
+      </section>
+
+      <section
+        aria-labelledby="portfolio-roadmap-v2-title"
+        className="projects-tree-section portfolio-roadmap-section"
+        id="roadmap-v2"
+        ref={roadmapSectionRef}
+      >
+        <article className="panel portfolio-roadmap-panel">
+          <div className="panel-title">
+            <div>
+              <h2 id="portfolio-roadmap-v2-title">Дорожная карта v2</h2>
+            </div>
+          </div>
+          {shouldLoadRoadmap ? (
+            <Suspense fallback={<PageSkeleton label="Загрузка дорожной карты" />}>
+              <PortfolioRoadmapV2 onContentReady={scrollToRoadmapHash} />
+            </Suspense>
+          ) : (
+            <PageSkeleton label="Загрузка дорожной карты" />
+          )}
         </article>
       </section>
     </>
