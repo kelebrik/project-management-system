@@ -362,9 +362,13 @@ test("portfolio keeps the wide roadmap inside its mobile scroller", async ({
     exact: true,
   });
   await expect(roadmapHeading).toBeVisible();
-  await roadmapHeading.scrollIntoViewIfNeeded();
   const roadmap = page.getByTestId("portfolio-v2-roadmap");
-  await expect(roadmap).toBeVisible();
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => document.getElementById("roadmap-v2")?.scrollIntoView());
+      return roadmap.isVisible();
+    })
+    .toBe(true);
   const sizes = await roadmap.evaluate((element) => ({
     clientWidth: element.clientWidth,
     scrollWidth: element.scrollWidth,
@@ -396,11 +400,16 @@ test("legacy portfolio v2 URL opens the roadmap section for a non-admin", async 
   });
   await expect(roadmapHeading).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-  const headingBox = await roadmapHeading.boundingBox();
-  expect(headingBox).not.toBeNull();
-  expect(headingBox!.y).toBeGreaterThanOrEqual(0);
-  expect(headingBox!.y).toBeLessThan(page.viewportSize()!.height);
-  await expect(page.getByTestId("portfolio-v2-roadmap")).toBeVisible();
+  const roadmap = page.getByTestId("portfolio-v2-roadmap");
+  await expect(roadmap.getByText("Новое устройство", { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => {
+      const headingBox = await roadmapHeading.boundingBox();
+      return Boolean(
+        headingBox && headingBox.y >= 0 && headingBox.y < page.viewportSize()!.height,
+      );
+    })
+    .toBe(true);
   await expect(
     page
       .getByRole("navigation", { name: "Основные разделы" })
