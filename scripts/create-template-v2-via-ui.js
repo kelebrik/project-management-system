@@ -103,9 +103,11 @@
     "Первый пакет работ",
   ];
   const RETAINED_DEFAULT_ROW_INDEXES = new Set([6, 7, 8]);
+  const LEDGER_STORAGE_KEY = "template-v2-ui-import:last-run";
 
   const options = window.__TEMPLATE_V2_UI_IMPORT_OPTIONS__ ?? {};
   const state = {
+    runId: `${options.mode ?? "dry-run"}-${new Date().toISOString()}`,
     status: "running",
     mode: options.mode ?? "dry-run",
     step: "starting",
@@ -115,11 +117,38 @@
     result: null,
     error: null,
   };
+  window.__TEMPLATE_V2_UI_IMPORT_ABORT__ = false;
   window.__TEMPLATE_V2_UI_IMPORT__ = state;
+
+  function persistState() {
+    localStorage.setItem(
+      LEDGER_STORAGE_KEY,
+      JSON.stringify({
+        runId: state.runId,
+        mode: state.mode,
+        status: state.status,
+        step: state.step,
+        startedAt: state.startedAt,
+        finishedAt: state.finishedAt ?? null,
+        mutationLedger: state.mutationLedger,
+        result: state.result,
+        error: state.error,
+      }),
+    );
+  }
+
+  function readPersistedState() {
+    try {
+      return JSON.parse(localStorage.getItem(LEDGER_STORAGE_KEY) ?? "null");
+    } catch {
+      return null;
+    }
+  }
 
   function log(step, details = "") {
     state.step = step;
     state.logs.push({ at: new Date().toISOString(), step, details });
+    persistState();
   }
 
   function assert(condition, message) {
@@ -128,6 +157,13 @@
 
   function sleep(milliseconds) {
     return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  }
+
+  function assertNotAborted() {
+    assert(
+      window.__TEMPLATE_V2_UI_IMPORT_ABORT__ !== true,
+      "Импорт остановлен внешним флагом; дальнейшие изменения запрещены",
+    );
   }
 
   function beginMutation(action, details = "") {
@@ -140,6 +176,7 @@
       confirmedAt: null,
     };
     state.mutationLedger.push(entry);
+    persistState();
     return entry;
   }
 
@@ -147,6 +184,7 @@
     entry.details = details;
     entry.status = "confirmed";
     entry.confirmedAt = new Date().toISOString();
+    persistState();
   }
 
   function errorToastTexts() {
@@ -160,6 +198,7 @@
     let lastError = null;
     const existingErrors = new Set(errorToastTexts());
     while (Date.now() < deadline) {
+      assertNotAborted();
       const newError = errorToastTexts().find((message) => !existingErrors.has(message));
       if (newError) throw new Error(`Интерфейс сообщил об ошибке: ${newError}`);
       try {
@@ -296,6 +335,7 @@
   }
 
   async function saveInput(rowId, inputGetter, value, description) {
+    assertNotAborted();
     const input = inputGetter(currentRow(rowId));
     setInputValue(input, value);
     pressEnter(input);
@@ -307,6 +347,7 @@
   }
 
   async function saveSelect(rowId, selectGetter, value, description) {
+    assertNotAborted();
     const select = selectGetter(currentRow(rowId));
     if (select.value === value) return;
     setSelectValue(select, value);
@@ -318,6 +359,7 @@
   }
 
   async function saveRowTextFields(rowId, title, owner) {
+    assertNotAborted();
     const row = currentRow(rowId);
     const titleInput = row.querySelector(".wbs-title-input");
     const ownerInput = rowCellByHeader(row, "ИСПОЛНИТЕЛЬ").querySelector("input");
@@ -343,6 +385,7 @@
   }
 
   async function saveRowDates(rowId, start, due) {
+    assertNotAborted();
     const row = currentRow(rowId);
     const startInput = rowCellByHeader(row, "СТАРТ").querySelector('input[type="date"]');
     const dueInput = rowCellByHeader(row, "СРОК").querySelector('input[type="date"]');
@@ -359,6 +402,7 @@
   }
 
   async function configureWbsRow(rowId, item) {
+    assertNotAborted();
     if (rowLevel(currentRow(rowId)) !== item.level) {
       await saveInput(
         rowId,
@@ -377,6 +421,29 @@
     await saveRowTextFields(rowId, item.title, "Не назначен");
     await saveRowDates(rowId, item.start, item.due);
     await saveSelect(rowId, rowCalendarSelect, "RU", `календарь RU для «${item.title}»`);
+  }
+
+  async function repairPhaseDates() {
+    await expandWbsToLevelFive();
+    validateRootPhases({ checkDates: false });
+    assert(
+      wbsRows().length === PHASES.length,
+      `Восстановление дат разрешено только без пакетов: найдено строк ${wbsRows().length}`,
+    );
+    for (const phase of PHASES) {
+      assertNotAborted();
+      const { phaseRow, children } = phaseChildren(phase.title);
+      assert(children.length === 0, `У фазы ${phase.title} неожиданно есть дочерние строки`);
+      const actual = rowSnapshot(phaseRow);
+      if (actual.start === phase.start && actual.due === phase.due) continue;
+      const mutation = beginMutation(
+        "phase-dates-repair",
+        `${phase.title}: ${actual.start} - ${actual.due} -> ${phase.start} - ${phase.due}`,
+      );
+      await saveRowDates(phaseRow.id, phase.start, phase.due);
+      confirmMutation(mutation);
+    }
+    validatePhasesOnly();
   }
 
   function rowSnapshot(row) {
@@ -476,6 +543,13 @@
     assert(start && !start.readOnly && !start.disabled, "Дату старта нельзя редактировать");
     assert(due && !due.readOnly && !due.disabled, "Дату срока нельзя редактировать");
     assert(table.contains(row), "Строка не принадлежит таблице Структуры");
+  }
+
+  function assertProjectIsDraftOnWbsPage() {
+    assert(
+      document.body.innerText.includes("Статус: Черновик"),
+      `Проект ${PROJECT.code} должен оставаться в статусе DRAFT`,
+    );
   }
 
   async function preflightCreatePage() {
@@ -755,11 +829,22 @@
     return { phaseRow: rows[phaseIndex], children };
   }
 
-  async function addMissingPackages() {
-    await expandWbsToLevelFive();
-    validateRootPhases({ checkDates: false });
+  function validatePackageImportProgress({ requireEmpty = false, checkPhaseDates = false } = {}) {
+    const existingPackageCount = PHASES.reduce(
+      (sum, phase) => sum + phaseChildren(phase.title).children.length,
+      0,
+    );
+    validateRootPhases({ checkDates: checkPhaseDates });
+    assert(
+      wbsRows().length === PHASES.length + existingPackageCount,
+      "В Структуре есть строки вне трех ожидаемых фаз и их прямых дочерних пакетов",
+    );
+    if (requireEmpty) {
+      assert(existingPackageCount === 0, `Импорт должен начинаться без пакетов, найдено: ${existingPackageCount}`);
+    }
+    const existingByPhase = {};
     for (const phase of PHASES) {
-      let current = phaseChildren(phase.title);
+      const current = phaseChildren(phase.title);
       assert(
         current.children.length <= phase.packages.length,
         `В фазе ${phase.title} уже больше пакетов, чем в шаблоне`,
@@ -774,13 +859,56 @@
           level: 2,
         });
       });
+      existingByPhase[phase.title] = current.children.length;
+    }
+    return { existingPackageCount, existingByPhase };
+  }
+
+  async function addMissingPackages() {
+    await expandWbsToLevelFive();
+    const startingPoint = validatePackageImportProgress({
+      requireEmpty: true,
+      checkPhaseDates: true,
+    });
+    let confirmedPackageCount = startingPoint.existingPackageCount;
+    for (const phase of PHASES) {
+      let current = phaseChildren(phase.title);
 
       for (let index = current.children.length; index < phase.packages.length; index += 1) {
+        assertNotAborted();
+        await expandWbsToLevelFive();
+        const progress = validatePackageImportProgress();
+        assert(
+          progress.existingPackageCount === confirmedPackageCount,
+          `Перед вставкой ожидалось ${confirmedPackageCount} пакетов, найдено ${progress.existingPackageCount}`,
+        );
+        current = phaseChildren(phase.title);
+        assert(
+          current.children.length === index,
+          `Перед вставкой ${phase.title} ${index + 1} найдено ${current.children.length} дочерних строк`,
+        );
         const [title, start, due] = phase.packages[index];
-        const beforeCount = wbsRows().length;
+        const rowsBefore = wbsRows();
+        const beforeCount = rowsBefore.length;
+        assert(
+          beforeCount === PHASES.length + confirmedPackageCount,
+          `Перед вставкой ожидалось ${PHASES.length + confirmedPackageCount} строк, найдено ${beforeCount}`,
+        );
+        const rootsBefore = rowsBefore.filter((row) => rowLevel(row) === 1);
+        assert(rootsBefore.length === 3, `Перед вставкой найдено корневых фаз: ${rootsBefore.length}`);
         const insertAfter = current.children.at(-1) ?? current.phaseRow;
-        const insertAfterIndex = wbsRows().findIndex((row) => row.id === insertAfter.id);
+        const insertAfterIndex = rowsBefore.findIndex((row) => row.id === insertAfter.id);
         assert(insertAfterIndex >= 0, `Не найдена позиция вставки для «${title}»`);
+        assert(
+          rowsBefore[insertAfterIndex]?.id === insertAfter.id,
+          `Перед вставкой изменилась целевая строка для «${title}»`,
+        );
+        const beforeItem = rowsBefore[insertAfterIndex + 1] ?? null;
+        const expectedInitialLevel = beforeItem ? rowLevel(beforeItem) : rowLevel(insertAfter);
+        assert(
+          expectedInitialLevel === 1 || expectedInitialLevel === 2,
+          `Новая строка «${title}» получила бы недопустимый начальный уровень ${expectedInitialLevel}`,
+        );
         log("insert-package", `${phase.title} ${index + 1}/${phase.packages.length}: ${title}`);
         const packageMutation = beginMutation(
           "package-insert-and-configure",
@@ -792,9 +920,19 @@
           `добавление пакета «${title}»`,
           60000,
         );
-        const inserted = wbsRows()[insertAfterIndex + 1];
+        const rowsAfterInsert = wbsRows();
+        const inserted = rowsAfterInsert[insertAfterIndex + 1];
         assert(inserted, `Не найдена новая строка пакета «${title}»`);
         assert(rowTitle(inserted) === "", `Новая строка для «${title}» оказалась непустой`);
+        assert(
+          rowLevel(inserted) === expectedInitialLevel,
+          `Новая строка «${title}» вставлена на уровне ${rowLevel(inserted)}, ожидался ${expectedInitialLevel}`,
+        );
+        const expectedRootsAfterInsert = 3 + (expectedInitialLevel === 1 ? 1 : 0);
+        assert(
+          rowsAfterInsert.filter((row) => rowLevel(row) === 1).length === expectedRootsAfterInsert,
+          `После вставки «${title}» нарушено ожидаемое число корневых строк`,
+        );
         await configureWbsRow(inserted.id, {
           title,
           start,
@@ -802,8 +940,32 @@
           type: "WORK_PACKAGE",
           level: 2,
         });
+        await expandWbsToLevelFive();
+        const rowsAfterConfigure = wbsRows();
+        assert(
+          rowsAfterConfigure.length === beforeCount + 1,
+          `После настройки «${title}» ожидалось ${beforeCount + 1} строк`,
+        );
+        assert(
+          rowsAfterConfigure.filter((row) => rowLevel(row) === 1).length === 3,
+          `После перевода «${title}» на второй уровень должно остаться 3 корневые фазы`,
+        );
+        const configured = document.getElementById(inserted.id);
+        assert(configured, `Настроенная строка «${title}» исчезла`);
+        assertRowMatches(configured, {
+          title,
+          start,
+          due,
+          type: "WORK_PACKAGE",
+          level: 2,
+        });
         confirmMutation(packageMutation);
+        confirmedPackageCount += 1;
         current = phaseChildren(phase.title);
+        assert(
+          current.children[index]?.id === inserted.id,
+          `Пакет «${title}» оказался не на ожидаемой позиции ${index + 1} в фазе ${phase.title}`,
+        );
       }
     }
   }
@@ -879,7 +1041,9 @@
   async function run() {
     preflightOrigin();
     assert(
-      ["dry-run", "phases-only", "full"].includes(state.mode),
+      ["dry-run", "full-dry-run", "phases-only", "repair-phases", "full", "full-verify"].includes(
+        state.mode,
+      ),
       `Неизвестный режим: ${state.mode}`,
     );
 
@@ -900,6 +1064,78 @@
         project: PROJECT.code,
         phases: PHASES.length,
         packagesPrepared: PHASES.reduce((sum, phase) => sum + phase.packages.length, 0),
+      };
+      return;
+    }
+
+    if (state.mode === "full-dry-run") {
+      assert(
+        location.pathname === `/${PROJECT.code}/wbs`,
+        `Проверка полного импорта разрешена только со страницы /${PROJECT.code}/wbs`,
+      );
+      await preflightWbsTable();
+      assertProjectIsDraftOnWbsPage();
+      await expandWbsToLevelFive();
+      const startingPoint = validatePackageImportProgress({
+        requireEmpty: true,
+        checkPhaseDates: true,
+      });
+      state.result = {
+        message: "Проверка полного импорта пройдена; prod не изменен",
+        projectUrl: `${PROD_ORIGIN}/${PROJECT.code}/wbs`,
+        statusExpected: "DRAFT",
+        ...startingPoint,
+        packagesRemaining:
+          PHASES.reduce((sum, phase) => sum + phase.packages.length, 0) -
+          startingPoint.existingPackageCount,
+      };
+      return;
+    }
+
+    if (state.mode === "repair-phases") {
+      assert(
+        options.mutationToken === "REPAIR_TEMPLATE_V2_PHASE_DATES",
+        "Нет защитного токена для восстановления дат фаз",
+      );
+      assert(
+        location.pathname === `/${PROJECT.code}/wbs`,
+        `Восстановление дат разрешено только со страницы /${PROJECT.code}/wbs`,
+      );
+      await preflightWbsTable();
+      assertProjectIsDraftOnWbsPage();
+      await repairPhaseDates();
+      assertProjectIsDraftOnWbsPage();
+      state.result = {
+        message: "Даты трех фаз восстановлены через UI; проект оставлен в DRAFT",
+        projectUrl: `${PROD_ORIGIN}/${PROJECT.code}/wbs`,
+        status: "DRAFT",
+        phases: PHASES.map(({ title, start, due }) => ({ title, start, due })),
+      };
+      return;
+    }
+
+    if (state.mode === "full-verify") {
+      assert(
+        location.pathname === `/${PROJECT.code}/wbs`,
+        `Итоговая проверка разрешена только со страницы /${PROJECT.code}/wbs`,
+      );
+      const previousRun = readPersistedState();
+      assert(previousRun?.mode === "full", "Не найден сохраненный журнал полного импорта");
+      assert(previousRun?.status === "complete", "Сохраненный полный импорт не завершен успешно");
+      await preflightWbsTable();
+      assertProjectIsDraftOnWbsPage();
+      await expandWbsToLevelFive();
+      validateFullStructure();
+      state.result = {
+        message: "Полная Структура проверена после нового открытия страницы",
+        projectUrl: `${PROD_ORIGIN}/${PROJECT.code}/wbs`,
+        status: "DRAFT",
+        phases: PHASES.length,
+        packagesVerified: PHASES.reduce((sum, phase) => sum + phase.packages.length, 0),
+        importedByRunId: previousRun.runId,
+        confirmedMutations: previousRun.mutationLedger.filter(
+          (entry) => entry.status === "confirmed",
+        ).length,
       };
       return;
     }
@@ -932,13 +1168,15 @@
       location.pathname === `/${PROJECT.code}/wbs`,
       `Полный импорт разрешен только со страницы /${PROJECT.code}/wbs`,
     );
+    await preflightWbsTable();
+    assertProjectIsDraftOnWbsPage();
     await addMissingPackages();
     validateFullStructure();
-    await setProjectStatus("ACTIVE");
+    assertProjectIsDraftOnWbsPage();
     state.result = {
-      message: "Полная Структура создана через UI",
+      message: "Полная Структура создана через UI; проект оставлен в DRAFT",
       projectUrl: `${PROD_ORIGIN}/${PROJECT.code}/wbs`,
-      status: "ACTIVE",
+      status: "DRAFT",
       phases: PHASES.length,
       packagesCreatedOrVerified: PHASES.reduce((sum, phase) => sum + phase.packages.length, 0),
     };
@@ -949,6 +1187,7 @@
       state.status = "complete";
       state.step = "complete";
       state.finishedAt = new Date().toISOString();
+      persistState();
     })
     .catch((error) => {
       state.status = "error";
@@ -958,6 +1197,7 @@
         mutationLedger: state.mutationLedger.map((entry) => ({ ...entry })),
       };
       state.finishedAt = new Date().toISOString();
+      persistState();
       console.error("TEMPLATE-V2 UI import failed", error);
     });
 
