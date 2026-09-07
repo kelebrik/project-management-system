@@ -343,6 +343,45 @@ test("aligns bars to equal-width calendar months", () => {
   assert.equal(segment.width, (1 / 12) * 100);
 });
 
+for (const range of [6, 12, 24] as const) {
+  test(`keeps consecutive monthly packages in one row over ${range} months`, () => {
+    const isoDate = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const roadmap = createPortfolioRoadmap(
+      [project({
+        wbsItems: Array.from({ length: range }, (_, index) => wbsItem({
+          id: `month-${index}`,
+          title: "HW EVT",
+          startDate: isoDate(new Date(2026, 6 + index, 1)),
+          dueDate: isoDate(new Date(2026, 7 + index, 0)),
+        })),
+      })],
+      range,
+      new Date(2026, 8, 3),
+    );
+    const track = roadmap.groups[0].projects[0].tracks[0];
+    assert.equal(track.segments.length, range);
+    assert.equal(track.laneCount, 1);
+    assert.deepEqual(track.segments.map((segment) => segment.row), Array(range).fill(0));
+  });
+}
+
+test("keeps packages touching inside a month in one row", () => {
+  for (const range of [6, 12, 24] as const) {
+    const roadmap = createPortfolioRoadmap(
+      [project({ wbsItems: [
+        wbsItem({ id: "first", title: "HW EVT", startDate: "2026-07-01", dueDate: "2026-08-14" }),
+        wbsItem({ id: "second", title: "HW EVT", startDate: "2026-08-15", dueDate: "2026-09-30" }),
+      ] })],
+      range,
+      new Date(2026, 8, 3),
+    );
+    const track = roadmap.groups[0].projects[0].tracks[0];
+    assert.equal(track.laneCount, 1);
+    assert.deepEqual(track.segments.map((segment) => segment.row), [0, 0]);
+  }
+});
+
 test("preserves gaps and assigns overlapping work packages to separate rows", () => {
   const roadmap = createPortfolioRoadmap(
     [

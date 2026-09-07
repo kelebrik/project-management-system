@@ -799,7 +799,9 @@ function buildProject(
             ((endPosition - startPosition) / range) * 100,
           );
           const offset = Math.min((startPosition / range) * 100, 100 - width);
-          let row = rowEnds.findIndex((rowEnd) => rowEnd <= offset);
+          // Touching boundaries round independently; 1e-9 percentage points is far below one day.
+          const rowTouchEpsilon = 1e-9;
+          let row = rowEnds.findIndex((rowEnd) => rowEnd <= offset + rowTouchEpsilon);
           if (row === -1) row = rowEnds.length;
           rowEnds[row] = offset + width;
           return {

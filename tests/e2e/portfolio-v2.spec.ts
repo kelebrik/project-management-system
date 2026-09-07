@@ -118,8 +118,8 @@ function projectFixture() {
 async function mockPortfolio(
   page: Page,
   role: "ADMIN" | "PROJECT_MANAGER" = "ADMIN",
+  project = projectFixture(),
 ) {
-  const project = projectFixture();
   const respond = (route: Route) => {
     const { pathname } = new URL(route.request().url());
     if (pathname === "/api/auth/me") {
@@ -380,6 +380,46 @@ test("portfolio exposes the HW, SW and G2M roadmap as its last section", async (
   await expect(legend).toBeHidden();
   await expect(legendTrigger).toBeFocused();
 });
+
+for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+  test(`monthly packages keep a consistent gap at viewport ${viewport.width}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date("2026-09-03T12:00:00"));
+    const project = projectFixture();
+    const isoDate = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    project.wbsItems = [
+      wbsItem("1", null, "Аппаратная часть", "2026-07-01", "2028-06-30"),
+      ...Array.from({ length: 24 }, (_, index) => wbsItem(
+        `1.${index + 1}`, "1", `HW EVT ${index + 1}`,
+        isoDate(new Date(2026, 6 + index, 1)),
+        isoDate(new Date(2026, 7 + index, 0)),
+      )),
+    ];
+    await mockPortfolio(page, "ADMIN", project);
+    await page.goto("/portfolio#roadmap-v2");
+    const roadmap = page.getByTestId("portfolio-v2-roadmap");
+    await expect(roadmap).toBeVisible();
+    for (const months of [6, 12, 24]) {
+      await page.getByRole("button", { name: `${months} мес.` }).click();
+      const segments = roadmap.locator(".portfolio-roadmap-segment");
+      await expect(segments).toHaveCount(months);
+      const boxes = await segments.evaluateAll((elements) => elements.map((element) => {
+        const { x, y, width } = element.getBoundingClientRect();
+        return { x, y, width };
+      }));
+      expect(boxes[0].width).toBeGreaterThan(24);
+      for (let index = 1; index < boxes.length; index += 1) {
+        expect(boxes[index].y).toBeCloseTo(boxes[0].y, 1);
+        expect(boxes[index].x - boxes[index - 1].x - boxes[index - 1].width).toBeCloseTo(3, 0);
+      }
+    }
+    if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
+      await roadmap.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `/private/tmp/pms-roadmap-spacing-${viewport.width}.png` });
+    }
+  });
+}
 
 test("portfolio keeps the wide roadmap inside its mobile scroller", async ({
   page,
