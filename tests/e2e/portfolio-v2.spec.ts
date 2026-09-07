@@ -90,6 +90,8 @@ function projectFixture() {
       wbsItem("1.3", hw.id, "HW DVT", "2026-11-01", "2026-12-31"),
       wbsItem("1.4", hw.id, "HW PVT", "2027-06-30", "2027-06-30"),
       wbsItem("1.5", hw.id, "Корпус и механика", "2027-02-01", "2027-03-15"),
+      wbsItem("1.6", hw.id, "HW ES1", "2027-01-10", "2027-01-10"),
+      wbsItem("1.7", hw.id, "HW ES2", "2027-01-11", "2027-01-11"),
       wbsItem("2.1", sw.id, "SW Architecture", "2026-08-01", "2026-09-30"),
       wbsItem("2.2", sw.id, "Beta", "2026-10-01", "2027-01-31"),
       wbsItem("2.3", sw.id, "Alpha", "2026-09-15", "2026-11-15"),
@@ -182,7 +184,7 @@ test("portfolio exposes the HW, SW and G2M roadmap as its last section", async (
     "SW",
     "G2M",
   ]);
-  await expect(roadmap.locator(".portfolio-roadmap-segment")).toHaveCount(10);
+  await expect(roadmap.locator(".portfolio-roadmap-segment")).toHaveCount(12);
   const unmatchedStructureGroup = roadmap.getByTitle("1.5 · Корпус и механика");
   await expect(unmatchedStructureGroup).toBeVisible();
   await expect(unmatchedStructureGroup).toHaveCSS("background-color", "rgb(241, 243, 245)");
@@ -198,6 +200,36 @@ test("portfolio exposes the HW, SW and G2M roadmap as its last section", async (
   const shortSegment = roadmap.getByTitle("1.4 · HW PVT");
   const shortSegmentBox = await shortSegment.boundingBox();
   expect(shortSegmentBox?.width).toBeGreaterThanOrEqual(24);
+  const [firstShortBox, secondShortBox] = await Promise.all([
+    roadmap.getByTitle("1.6 · HW ES1").boundingBox(),
+    roadmap.getByTitle("1.7 · HW ES2").boundingBox(),
+  ]);
+  expect(firstShortBox).not.toBeNull();
+  expect(secondShortBox).not.toBeNull();
+  if (firstShortBox && secondShortBox) {
+    const shortVerticalGap = secondShortBox.y - firstShortBox.y - firstShortBox.height;
+    expect(shortVerticalGap).toBeGreaterThanOrEqual(2.5);
+    expect(Math.abs(shortVerticalGap - 3)).toBeLessThanOrEqual(0.75);
+    expect(firstShortBox.x + firstShortBox.width).toBeLessThanOrEqual(
+      secondShortBox.x + secondShortBox.width,
+    );
+  }
+  const [firstHwBox, secondHwBox, firstSwBox, overlappingSwBox] = await Promise.all([
+    roadmap.getByTitle("1.1 · HW Product Requirements").boundingBox(),
+    roadmap.getByTitle("1.2 · HW EVT").boundingBox(),
+    roadmap.getByTitle("2.1 · SW Architecture").boundingBox(),
+    roadmap.getByTitle("2.3 · Alpha").boundingBox(),
+  ]);
+  expect(firstHwBox).not.toBeNull();
+  expect(secondHwBox).not.toBeNull();
+  expect(firstSwBox).not.toBeNull();
+  expect(overlappingSwBox).not.toBeNull();
+  if (firstHwBox && secondHwBox && firstSwBox && overlappingSwBox) {
+    const horizontalGap = secondHwBox.x - firstHwBox.x - firstHwBox.width;
+    const verticalGap = overlappingSwBox.y - firstSwBox.y - firstSwBox.height;
+    expect(Math.abs(horizontalGap - verticalGap)).toBeLessThanOrEqual(0.75);
+    expect(horizontalGap).toBeGreaterThanOrEqual(2.5);
+  }
   const globalNavigation = page.getByRole("navigation", {
     name: "Основные разделы",
   });

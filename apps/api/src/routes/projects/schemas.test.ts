@@ -33,6 +33,13 @@ test('create project accepts unique current structure selections', () => {
   assert.equal(result.success, true);
 });
 
+test('create project accepts an omitted portfolio because it is derived from the business unit', () => {
+  const { portfolio: _portfolio, ...projectWithoutPortfolio } = project;
+  const result = createProjectSchema.safeParse(projectWithoutPortfolio);
+  assert.equal(result.success, true);
+  if (result.success) assert.equal(result.data.portfolio, '');
+});
+
 test('create project rejects duplicate source projects', () => {
   const result = createProjectSchema.safeParse({
     ...project,

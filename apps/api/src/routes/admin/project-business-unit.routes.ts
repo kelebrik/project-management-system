@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { recordAuditEvent } from '../../services/audit.js';
+import { projectBusinessUnitFields } from '../../services/project-business-unit.js';
 import { projectBusinessUnitMoveSchema } from './schemas.js';
 import type { AdminRoutesContext } from './types.js';
 
@@ -92,7 +93,7 @@ export async function moveProjectSubtreeInTransaction(
   });
   await tx.project.updateMany({
     where: { id: { in: movedProjectIds } },
-    data: { businessUnitId: targetBusinessUnit.id },
+    data: projectBusinessUnitFields(targetBusinessUnit),
   });
   await tx.project.update({ where: { id: root.id }, data: { parentId: null } });
 

@@ -213,6 +213,12 @@ test("portfolio project filter scopes goals problems and risks only", async ({ p
   await expect(summary).toContainText("Все 2");
   await expect(filter).not.toHaveClass(/is-filtered/);
   await expect(page.locator(".portfolio-project-timeline-row")).toHaveCount(2);
+  await expect(
+    page
+      .locator(".portfolio-project-timeline-row", { hasText: "Первый проект" })
+      .locator(".portfolio-project-timeline-title small"),
+  ).toHaveText("TV-FIRST");
+  await expect(page.getByText("Основной", { exact: true })).toHaveCount(0);
 
   await summary.click();
   await filter.getByRole("checkbox", { name: /TV-SECOND.*Второй проект/ }).uncheck();
@@ -262,6 +268,10 @@ test("portfolio project filter scopes goals problems and risks only", async ({ p
   await expect(summary).toContainText("Все 2");
   await expect(filter).not.toHaveClass(/is-filtered/);
   await expect(page.locator(".portfolio-project-timeline-row")).toHaveCount(2);
+
+  await page.goto("/projects");
+  await expect(page.locator(".projects-overview-card")).toHaveCount(2);
+  await expect(page.getByText("Основной", { exact: true })).toHaveCount(0);
 });
 
 test("risk page keeps the color matrix visible", async ({ page }) => {

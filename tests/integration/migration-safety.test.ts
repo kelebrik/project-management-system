@@ -302,6 +302,29 @@ test("open issue thread and risk migration is additive and keeps test links unto
   );
 });
 
+test("project portfolio alignment migration derives the label only from the business unit", () => {
+  const migration = migrationSql(
+    "20260905130000_align_project_portfolio_with_business_unit",
+  );
+  assert.match(migration, /UPDATE\s+"Project"\s+AS\s+project/i);
+  assert.match(migration, /FROM\s+"BusinessUnit"\s+AS\s+business_unit/i);
+  assert.match(migration, /project\."businessUnitId"\s*=\s*business_unit\."id"/i);
+  assert.doesNotMatch(migration, /Jira/i);
+
+  const seed = fs.readFileSync(path.join(repoRoot, "prisma/seed.ts"), "utf8");
+  assert.doesNotMatch(seed, /portfolio:\s*['"]/);
+  assert.match(
+    seed,
+    /project\.updateMany\([\s\S]*businessUnitId:\s*defaultBusinessUnit\.id[\s\S]*data:\s*\{\s*portfolio:\s*defaultBusinessUnit\.name\s*\}/,
+  );
+  const erpUpsert = seed.slice(seed.indexOf("const project = await prisma.project.upsert"));
+  assert.equal(
+    erpUpsert.match(/portfolio:\s*defaultBusinessUnit\.name/g)?.length,
+    2,
+    "ERP seed must derive portfolio in both update and create branches",
+  );
+});
+
 test("Durable Jira runs migration is additive and leaves existing history rows untouched", () => {
   const migration = migrationSql("20260823180000_jira_sync_runs_backfill");
   assert.match(migration, /CREATE TABLE "JiraSyncRun"/);

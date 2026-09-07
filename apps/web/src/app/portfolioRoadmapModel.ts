@@ -414,8 +414,8 @@ const MONTH_LABELS = [
   "Ноя",
   "Дек",
 ];
-const MIN_SEGMENT_TARGET_PX = 24;
-const MIN_RESPONSIVE_MONTH_WIDTH_PX = 78;
+const MIN_SEGMENT_SLOT_PX = 27;
+const MIN_RESPONSIVE_MONTH_WIDTH_PX = 40;
 
 export const PORTFOLIO_ROADMAP_TRACKS: PortfolioRoadmapTrackDefinition[] =
   TRACK_IDS.map((id) => ({
@@ -766,7 +766,7 @@ function buildProject(
   range: PortfolioRoadmapRange,
 ): PortfolioRoadmapProject {
   const minWidthPercent =
-    (MIN_SEGMENT_TARGET_PX / (range * MIN_RESPONSIVE_MONTH_WIDTH_PX)) * 100;
+    (MIN_SEGMENT_SLOT_PX / (range * MIN_RESPONSIVE_MONTH_WIDTH_PX)) * 100;
   return {
     projectId: project.projectId,
     projectCode: project.projectCode,
@@ -774,7 +774,7 @@ function buildProject(
     projectManager: project.projectManager,
     rag: project.rag,
     tracks: TRACK_IDS.map((trackId) => {
-      const rowEnds: Date[] = [];
+      const rowEnds: number[] = [];
       const segments = project.segments
         .filter(
           (segment) =>
@@ -792,9 +792,6 @@ function buildProject(
           const clippedStart = segment.start < startDate ? startDate : segment.start;
           const rawEnd = addDays(segment.end, 1);
           const clippedEnd = rawEnd > endDate ? endDate : rawEnd;
-          let row = rowEnds.findIndex((rowEnd) => rowEnd < segment.start);
-          if (row === -1) row = rowEnds.length;
-          rowEnds[row] = segment.end;
           const startPosition = Math.max(0, monthPosition(clippedStart, startDate));
           const endPosition = Math.min(range, monthPosition(clippedEnd, startDate));
           const width = Math.max(
@@ -802,6 +799,9 @@ function buildProject(
             ((endPosition - startPosition) / range) * 100,
           );
           const offset = Math.min((startPosition / range) * 100, 100 - width);
+          let row = rowEnds.findIndex((rowEnd) => rowEnd <= offset);
+          if (row === -1) row = rowEnds.length;
+          rowEnds[row] = offset + width;
           return {
             id: segment.id,
             phaseId: segment.phaseId,

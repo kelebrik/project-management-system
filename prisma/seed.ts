@@ -13,6 +13,13 @@ async function main() {
       isDefault: true,
     },
   });
+  await prisma.project.updateMany({
+    where: {
+      businessUnitId: defaultBusinessUnit.id,
+      portfolio: { not: defaultBusinessUnit.name },
+    },
+    data: { portfolio: defaultBusinessUnit.name },
+  });
   const businessUnitRolePermissions = [
     { role: 'ADMIN', permission: 'PROJECT_VIEW', enabled: true },
     { role: 'ADMIN', permission: 'PROJECT_CREATE', enabled: true },
@@ -83,7 +90,7 @@ async function main() {
           businessUnitId: defaultBusinessUnit.id,
           parentId: null,
           name: item.name,
-          portfolio: 'Project Management',
+          portfolio: defaultBusinessUnit.name,
           sponsor: item.sponsor,
           projectManager: item.projectManager,
           status: 'ACTIVE',
@@ -102,7 +109,7 @@ async function main() {
           businessUnitId: defaultBusinessUnit.id,
           code: item.code,
           name: item.name,
-          portfolio: 'Project Management',
+          portfolio: defaultBusinessUnit.name,
           sponsor: item.sponsor,
           projectManager: item.projectManager,
           status: 'ACTIVE',
@@ -126,6 +133,7 @@ async function main() {
     update: {
       businessUnitId: defaultBusinessUnit.id,
       parentId: null,
+      portfolio: defaultBusinessUnit.name,
       sortOrder: 10,
     },
     create: {
@@ -133,7 +141,7 @@ async function main() {
       parentId: null,
       code: 'ERP',
       name: 'ERP rollout',
-      portfolio: 'Digital Transformation',
+      portfolio: defaultBusinessUnit.name,
       sponsor: 'CFO',
       projectManager: 'Иванов А.А.',
       rag: 'AMBER',

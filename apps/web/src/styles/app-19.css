@@ -24,6 +24,14 @@
   white-space: nowrap;
 }
 
+.topbar-project-compact .topbar-project-forecast {
+  max-width: none;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .global-search label {
   grid-template-columns: 18px minmax(0, 1fr) auto;
 }

@@ -61,6 +61,10 @@ export function createProjectTargetSummary(project: ProjectDetails | null) {
           code: activeGoal.code,
           title: activeGoal.title,
           status: activeGoal.status,
+          baselineTargetDate: activeGoalBaselineDate,
+          currentTargetDate: activeGoalTargetDate,
+          targetDate:
+            activeGoalBaselineDate ?? activeGoalTargetDate ?? forecastFinishDate,
         }
       : null,
     initialTargetDate,

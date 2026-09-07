@@ -90,6 +90,9 @@ type AppShellProps = {
   projectTargetSummary: {
     activeGoal: {
       title: string;
+      baselineTargetDate: Date | null;
+      currentTargetDate: Date | null;
+      targetDate: Date | null;
     } | null;
     initialTargetDate: Date | null;
     currentTargetDate: Date | null;

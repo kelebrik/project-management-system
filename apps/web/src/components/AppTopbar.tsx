@@ -11,6 +11,9 @@ type ScheduleHealth = {
 type ProjectTargetSummary = {
   activeGoal: {
     title: string;
+    baselineTargetDate: Date | null;
+    currentTargetDate: Date | null;
+    targetDate: Date | null;
   } | null;
   initialTargetDate: Date | null;
   currentTargetDate: Date | null;
@@ -42,13 +45,30 @@ export function AppTopbar({
   const showProjectTitle = project && isProjectView && activeView !== "project-create";
   const showProjectBadges = Boolean(project && showProjectTitle);
   const targetChangeDays = projectTargetSummary?.targetChangeDays ?? null;
-  const hasCurrentTargetChange = targetChangeDays !== null && targetChangeDays !== 0;
   const initialTargetDate =
     projectTargetSummary?.initialTargetDate ?? project?.initialTargetDate ?? project?.targetDate ?? null;
   const currentTargetDate =
     projectTargetSummary?.currentTargetDate ?? project?.targetDate ?? null;
-  const activeGoalTitle = projectTargetSummary?.activeGoal?.title ?? "ближайшая цель";
+  const activeGoal = projectTargetSummary?.activeGoal ?? null;
+  const activeGoalTitle = activeGoal?.title ?? "ближайшая цель";
   const effectiveDelayDays = projectTargetSummary?.effectiveDelayDays ?? null;
+  const hasActiveGoalTargetPair = Boolean(
+    activeGoal?.baselineTargetDate && activeGoal.currentTargetDate,
+  );
+  const hasProjectTargetChange = targetChangeDays !== null && targetChangeDays !== 0;
+  const displayedTargetDate = hasActiveGoalTargetPair
+    ? activeGoal?.baselineTargetDate
+    : hasProjectTargetChange
+      ? initialTargetDate
+      : activeGoal?.targetDate ?? initialTargetDate ?? currentTargetDate;
+  const displayedCurrentTargetDate = hasActiveGoalTargetPair
+    ? activeGoal?.currentTargetDate
+    : currentTargetDate;
+  const displayedTargetChangeDays = hasActiveGoalTargetPair
+    ? effectiveDelayDays
+    : targetChangeDays;
+  const hasCurrentTargetChange =
+    displayedTargetChangeDays !== null && displayedTargetChangeDays !== 0;
   const delayTone =
     effectiveDelayDays === null
       ? scheduleHealth?.tone ?? project?.rag.toLowerCase() ?? "green"
@@ -77,15 +97,15 @@ export function AppTopbar({
         <div className="topbar-project topbar-project-compact">
           <span>Статус: {projectStatusLabel(project.status)}</span>
           <span>РП: {project.projectManager}</span>
-          <span>Цель: {date(initialTargetDate)}</span>
+          <span>Цель: {date(displayedTargetDate)}</span>
           {hasCurrentTargetChange && (
             <span>
-              Актуальная: {date(currentTargetDate)} (
-              {signedDaysLabel(targetChangeDays)})
+              Актуальная: {date(displayedCurrentTargetDate)} (
+              {signedDaysLabel(displayedTargetChangeDays)})
             </span>
           )}
           <b className={`rag ${delayTone}`}>{delayLabel}</b>
-          <span>
+          <span className="topbar-project-forecast">
             Прогноз "{activeGoalTitle}": {date(projectTargetSummary?.forecastFinishDate ?? null)}
           </span>
         </div>

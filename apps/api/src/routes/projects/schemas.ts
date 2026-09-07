@@ -2,6 +2,7 @@ import { projectSchema } from '@pms/shared';
 import { z } from 'zod';
 
 export const createProjectSchema = projectSchema.extend({
+  portfolio: z.string().trim().optional().default(''),
   copyCurrentStructureFrom: z
     .array(
       z.object({

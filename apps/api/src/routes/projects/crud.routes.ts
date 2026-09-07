@@ -7,6 +7,7 @@ import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { copyCurrentStructuresToProject } from '../../services/wbs-current-structure-copy.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
+import { projectBusinessUnitFields } from '../../services/project-business-unit.js';
 import {
   userProjectAccessLevel,
   userProjectAccessLevelMap,
@@ -149,6 +150,14 @@ export function registerProjectCrudRoutes(
       res.status(403).json({ error: 'Нет права создавать проекты в выбранном бизнес-юните' });
       return;
     }
+    const businessUnit = await prisma.businessUnit.findUnique({
+      where: { id: businessUnitId },
+      select: { id: true, name: true },
+    });
+    if (!businessUnit) {
+      res.status(400).json({ error: 'Бизнес-юнит не найден' });
+      return;
+    }
     const actor = currentUser(req);
 
     for (const selection of copyCurrentStructureFrom) {
@@ -177,7 +186,7 @@ export function registerProjectCrudRoutes(
         const createdProject = await tx.project.create({
           data: {
             ...projectData,
-            businessUnitId,
+            ...projectBusinessUnitFields(businessUnit),
             projectManager:
               actor && actor.role !== 'ADMIN'
                 ? actor.name
@@ -359,6 +368,7 @@ export function registerProjectCrudRoutes(
 
     const project = await prisma.project.findUnique({
       where: { id: req.params.projectId },
+      include: { businessUnit: { select: { id: true, name: true } } },
     });
 
     if (!project) {
@@ -402,6 +412,7 @@ export function registerProjectCrudRoutes(
         where: { id: project.id },
         data: {
           ...parsed.data,
+          ...projectBusinessUnitFields(project.businessUnit),
           parentId: parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
           startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : undefined,
           targetDate: parsed.data.targetDate ? new Date(parsed.data.targetDate) : undefined,

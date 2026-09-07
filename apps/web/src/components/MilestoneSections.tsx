@@ -53,6 +53,10 @@ function phaseTimelineLeft(offset: number) {
   return `calc(${PHASE_TIMELINE_LEFT_PX}px + ${(offset * 100).toFixed(3)}% - ${(offset * (PHASE_TIMELINE_LEFT_PX + PHASE_TIMELINE_RIGHT_PX)).toFixed(3)}px)`;
 }
 
+function phaseTimelineCenter(centerOffset: number, width: number) {
+  return `calc(${PHASE_TIMELINE_LEFT_PX}px + ${(centerOffset * 100).toFixed(3)}% - ${(centerOffset * (PHASE_TIMELINE_LEFT_PX + PHASE_TIMELINE_RIGHT_PX)).toFixed(3)}px - ${(width / 2).toFixed(3)}px)`;
+}
+
 function phaseAxisTitlePreferredWidth(code: string | undefined, title: string) {
   const codeWidth = code ? Math.max(28, code.length * 8 + 18) : 0;
   const titleWidth = Math.ceil(title.length * 8);
@@ -93,25 +97,45 @@ export function phaseAxisTitleStyle(
     gaps.push({ start: cursor, end: usableWidth });
   }
 
-  const preferredGap =
-    gaps[0] && gaps[0].start === 0 && gaps[0].end >= Math.min(PHASE_LABEL_MIN_WIDTH_PX, preferredWidth)
-      ? gaps[0]
-      : gaps.find((gap) => gap.end - gap.start >= preferredWidth) ??
-    gaps.reduce(
-      (best, gap) =>
-        gap.end - gap.start > best.end - best.start ? gap : best,
-      { start: 0, end: Math.min(preferredWidth, usableWidth) },
+  const minimumWidth = Math.min(PHASE_LABEL_MIN_WIDTH_PX, preferredWidth, usableWidth);
+  const eligibleGaps = gaps.filter((gap) => gap.end - gap.start >= minimumWidth);
+  const candidateGaps = eligibleGaps.length > 0 ? eligibleGaps : gaps;
+  const timelineCenter = usableWidth / 2;
+  const placements = candidateGaps
+    .map((gap) => {
+      const availableWidth = Math.max(0, gap.end - gap.start);
+      const width = Math.min(preferredWidth, availableWidth);
+      const idealLeft = timelineCenter - width / 2;
+      const left = Math.min(
+        Math.max(idealLeft, gap.start),
+        Math.max(gap.start, gap.end - width),
+      );
+      return {
+        left,
+        width,
+        centerDistance: Math.abs(left + width / 2 - timelineCenter),
+      };
+    })
+    .sort((left, right) =>
+      eligibleGaps.length > 0
+        ? left.centerDistance - right.centerDistance ||
+          right.width - left.width ||
+          left.left - right.left
+        : right.width - left.width ||
+          left.centerDistance - right.centerDistance ||
+          left.left - right.left,
     );
-  const availableWidth = Math.max(0, preferredGap.end - preferredGap.start);
-  const width = Math.min(
-    preferredWidth,
-    Math.max(Math.min(PHASE_LABEL_MIN_WIDTH_PX, usableWidth), availableWidth),
-  );
-  const leftOffset = usableWidth > 0 ? preferredGap.start / usableWidth : 0;
+  const placement = placements[0] ?? {
+    left: Math.max(0, timelineCenter - Math.min(preferredWidth, usableWidth) / 2),
+    width: Math.min(preferredWidth, usableWidth),
+    centerDistance: 0,
+  };
+  const centerOffset =
+    usableWidth > 0 ? (placement.left + placement.width / 2) / usableWidth : 0;
 
   return {
-    "--milestone-axis-title-left": phaseTimelineLeft(leftOffset),
-    "--milestone-axis-title-width": `${Math.round(width)}px`,
+    "--milestone-axis-title-left": phaseTimelineCenter(centerOffset, placement.width),
+    "--milestone-axis-title-width": `${Math.round(placement.width)}px`,
   } as CSSProperties;
 }
 

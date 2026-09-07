@@ -737,9 +737,21 @@ a,
   }
 
   .topbar-project-compact {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: flex-start;
     max-width: 100%;
-    overflow-x: auto;
+    overflow-x: visible;
+  }
+
+  .topbar-project-compact > span:not(.topbar-project-forecast),
+  .topbar-project-compact > b {
+    flex: 0 0 auto;
+  }
+
+  .topbar-project-compact .topbar-project-forecast {
+    flex: 1 0 100%;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
   }
 }

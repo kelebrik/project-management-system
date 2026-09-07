@@ -17,6 +17,8 @@ import {
   projectFixture,
 } from "./overview-and-baseline.support";
 
+const displayDate = (value: string) => value.split("-").reverse().join(".");
+
 test("project passport keeps the initial target and updates the current target", async ({
   page,
 }) => {
@@ -90,6 +92,238 @@ test("project passport keeps the initial target and updates the current target",
     isoDay(60).split("-").reverse().join("."),
   );
 });
+
+test("project header uses the next goal baseline and shows the full forecast", async ({
+  page,
+}) => {
+  const nextGoalTitle = "Отгрузка телевизоров с завода и передача полного комплекта заказчику";
+  await mockAdminProject(page, (project) => {
+    const baseItem = project.wbsItems[0];
+    project.initialTargetDate = isoDay(-3);
+    project.targetDate = isoDay(18);
+    project.targetDateChanges = [
+      {
+        id: "target-change",
+        projectId: project.id,
+        previousDate: isoDay(-3),
+        newDate: isoDay(18),
+        reason: "Согласованный перенос",
+        approvedBy: "Проектный комитет",
+        createdById: "admin-1",
+        createdAt: `${isoDay(-1)}T10:00:00.000Z`,
+        createdBy: null,
+      },
+    ];
+    project.wbsItems = [
+      {
+        ...baseItem,
+        id: "completed-goal",
+        code: "1",
+        title: "Прошедшая цель",
+        type: "GOAL",
+        status: "DONE",
+        baselineDueDate: isoDay(-2),
+        dueDate: isoDay(-1),
+        forecastDueDate: isoDay(-1),
+        sortOrder: 10,
+      },
+      {
+        ...baseItem,
+        id: "next-goal",
+        code: "2",
+        title: nextGoalTitle,
+        type: "GOAL",
+        status: "NOT_STARTED",
+        baselineDueDate: isoDay(14),
+        dueDate: isoDay(18),
+        forecastDueDate: isoDay(18),
+        sortOrder: 20,
+      },
+    ];
+  });
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto("/TV-OVERVIEW/schedule");
+
+  await expect(
+    page.locator(".topbar-project").getByText(
+      `Цель: ${displayDate(isoDay(14))}`,
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.locator(".topbar-project").getByText(
+      `Актуальная: ${displayDate(isoDay(18))} (+4 дн.)`,
+      { exact: true },
+    ),
+  ).toBeVisible();
+  const forecast = page.locator(".topbar-project-forecast");
+  await expect(forecast).toHaveText(
+    `Прогноз "${nextGoalTitle}": ${displayDate(isoDay(18))}`,
+  );
+  const forecastLayout = await forecast.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    textOverflow: getComputedStyle(element).textOverflow,
+  }));
+  expect(forecastLayout.textOverflow).toBe("clip");
+  expect(forecastLayout.scrollWidth).toBeLessThanOrEqual(forecastLayout.clientWidth + 1);
+  if (process.env.CAPTURE_UI_CONSISTENCY === "1") {
+    await page.screenshot({
+      fullPage: true,
+      path: "/private/tmp/pms-project-header-desktop.png",
+    });
+  }
+
+  await page.setViewportSize({ width: 800, height: 900 });
+  const compactForecastLayout = await forecast.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(compactForecastLayout.scrollWidth).toBeLessThanOrEqual(
+    compactForecastLayout.clientWidth + 1,
+  );
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(forecast).toBeVisible();
+  const mobileForecastLayout = await forecast.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    textOverflow: getComputedStyle(element).textOverflow,
+  }));
+  expect(mobileForecastLayout.textOverflow).toBe("clip");
+  expect(mobileForecastLayout.scrollWidth).toBeLessThanOrEqual(
+    mobileForecastLayout.clientWidth + 1,
+  );
+  if (process.env.CAPTURE_UI_CONSISTENCY === "1") {
+    await page.screenshot({
+      fullPage: true,
+      path: "/private/tmp/pms-project-header-mobile.png",
+    });
+  }
+});
+
+test("project header keeps goal dates consistent without project target history", async ({
+  page,
+}) => {
+  await mockAdminProject(page, (project) => {
+    const baseItem = project.wbsItems[0];
+    project.initialTargetDate = isoDay(-60);
+    project.targetDate = isoDay(-60);
+    project.targetDateChanges = [];
+    project.wbsItems = [
+      {
+        ...baseItem,
+        id: "next-goal",
+        code: "1",
+        title: "Ближайшая цель",
+        type: "GOAL",
+        status: "NOT_STARTED",
+        baselineDueDate: isoDay(12),
+        dueDate: isoDay(15),
+        forecastDueDate: isoDay(15),
+        sortOrder: 10,
+      },
+    ];
+  });
+  await page.goto("/TV-OVERVIEW/schedule");
+
+  const badges = page.locator(".topbar-project");
+  await expect(
+    badges.getByText(`Цель: ${displayDate(isoDay(12))}`, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    badges.getByText(`Актуальная: ${displayDate(isoDay(15))} (+3 дн.)`, {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(badges).not.toContainText(displayDate(isoDay(-60)));
+});
+
+test("project header keeps the project target pair when the active goal has no baseline", async ({
+  page,
+}) => {
+  await mockAdminProject(page, (project) => {
+    const baseItem = project.wbsItems[0];
+    project.initialTargetDate = isoDay(6);
+    project.targetDate = isoDay(10);
+    project.targetDateChanges = [
+      {
+        id: "target-change",
+        projectId: project.id,
+        previousDate: isoDay(6),
+        newDate: isoDay(10),
+        reason: "Согласованный перенос",
+        approvedBy: "Проектный комитет",
+        createdById: "admin-1",
+        createdAt: `${isoDay(-1)}T10:00:00.000Z`,
+        createdBy: null,
+      },
+    ];
+    project.wbsItems = [
+      {
+        ...baseItem,
+        id: "next-goal",
+        code: "1",
+        title: "Ближайшая цель",
+        type: "GOAL",
+        status: "NOT_STARTED",
+        baselineDueDate: null,
+        dueDate: isoDay(10),
+        forecastDueDate: isoDay(10),
+        sortOrder: 10,
+      },
+    ];
+  });
+  await page.goto("/TV-OVERVIEW/schedule");
+
+  const badges = page.locator(".topbar-project");
+  await expect(
+    badges.getByText(`Цель: ${displayDate(isoDay(6))}`, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    badges.getByText(`Актуальная: ${displayDate(isoDay(10))} (+4 дн.)`, {
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
+test("project header does not duplicate an approved target date without active goals", async ({
+  page,
+}) => {
+  await mockAdminProject(page, (project) => {
+    project.initialTargetDate = isoDay(8);
+    project.targetDate = isoDay(13);
+    project.targetDateChanges = [
+      {
+        id: "target-change",
+        projectId: project.id,
+        previousDate: isoDay(8),
+        newDate: isoDay(13),
+        reason: "Согласованный перенос",
+        approvedBy: "Проектный комитет",
+        createdById: "admin-1",
+        createdAt: `${isoDay(-1)}T10:00:00.000Z`,
+        createdBy: null,
+      },
+    ];
+    project.wbsItems = project.wbsItems.map((item) => ({
+      ...item,
+      type: "TASK",
+    }));
+  });
+  await page.goto("/TV-OVERVIEW/schedule");
+
+  const badges = page.locator(".topbar-project");
+  await expect(
+    badges.getByText(`Цель: ${displayDate(isoDay(8))}`, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    badges.getByText(`Актуальная: ${displayDate(isoDay(13))} (+5 дн.)`, {
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
 test("schedule PDF keeps the print layout until afterprint", async ({ page }) => {
   await page.addInitScript(() => {
     window.print = () => {
@@ -161,6 +395,12 @@ test("schedule PDF prints goals and milestones on two complete pages", async ({
   });
   await page.goto("/TV-OVERVIEW/schedule");
   await expect(page.locator("#milestones-by-phase")).toBeVisible();
+  if (process.env.CAPTURE_UI_CONSISTENCY === "1") {
+    await page.screenshot({
+      fullPage: true,
+      path: "/private/tmp/pms-phase-titles-desktop.png",
+    });
+  }
   await page.evaluate(() => {
     document.documentElement.dataset.printTarget = "project-schedule-print";
     document.body.dataset.printTarget = "project-schedule-print";

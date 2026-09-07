@@ -300,9 +300,7 @@ export function PortfolioPage() {
                     >
                       <span>
                         <b>{row.projectName}</b>
-                        <small>
-                          {row.projectCode} · {row.portfolio}
-                        </small>
+                        <small>{row.projectCode}</small>
                       </span>
                       <strong>{row.items.length}</strong>
                     </button>

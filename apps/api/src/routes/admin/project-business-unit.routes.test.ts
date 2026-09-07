@@ -71,7 +71,7 @@ test('moveProjectSubtreeInTransaction moves descendants, detaches root and reset
       operation: 'updateMany',
       value: {
         where: { id: { in: ['root', 'child'] } },
-        data: { businessUnitId: 'target' },
+        data: { businessUnitId: 'target', portfolio: 'Target BU' },
       },
     },
     {

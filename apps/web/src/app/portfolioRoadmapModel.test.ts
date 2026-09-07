@@ -868,6 +868,39 @@ test("keeps the minimum touch target inside the horizon", () => {
   );
   const segment = roadmap.groups[0].projects[0].tracks[0].segments[0];
 
-  assert.ok(segment.width >= (24 / (12 * 78)) * 100);
+  assert.ok(segment.width >= (27 / (12 * 40)) * 100);
   assert.ok(segment.offset + segment.width <= 100);
+});
+
+test("packs adjacent one-day work packages by their minimum visual slots", () => {
+  const roadmap = createPortfolioRoadmap(
+    [
+      project({
+        wbsItems: [
+          wbsItem({
+            id: "es-1",
+            title: "HW ES1",
+            startDate: "2027-01-10",
+            dueDate: "2027-01-10",
+          }),
+          wbsItem({
+            id: "es-2",
+            title: "HW ES2",
+            startDate: "2027-01-11",
+            dueDate: "2027-01-11",
+          }),
+        ],
+      }),
+    ],
+    12,
+    new Date(2026, 8, 3),
+  );
+  const track = roadmap.groups[0].projects[0].tracks[0];
+
+  assert.equal(track.laneCount, 2);
+  assert.deepEqual(
+    track.segments.map((segment) => segment.row),
+    [0, 1],
+  );
+  assert.ok(track.segments.every((segment) => segment.width >= (27 / (12 * 40)) * 100));
 });

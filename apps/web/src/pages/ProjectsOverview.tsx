@@ -131,7 +131,6 @@ export function ProjectsOverview({
             <span className="projects-overview-main">
               <span className="projects-overview-code">{project.code}</span>
               <b>{project.name}</b>
-              <small>{project.portfolio}</small>
             </span>
             <span className="projects-overview-meta">
               <span>{projectStatusLabel(project.status)}</span>
