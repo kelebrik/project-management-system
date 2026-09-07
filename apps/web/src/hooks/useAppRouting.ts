@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { apiClient } from "../api/client";
 import type { ProjectListItem } from "../app/domainTypes";
+import { pickDefaultProject } from "../app/defaultProject";
 import { projectsToRegistryDrafts } from "../app/formState";
 import {
   appPathForView,
@@ -45,12 +46,22 @@ export function useAppRouting({
   setSelectedProjectId,
 }: AppRoutingDeps) {
   const initialProjectCodeRef = useRef<string | null>(initialRouteProjectCode());
+  const pendingDefaultProjectRef = useRef(false);
+  const selectDefaultProject = useCallback(() => {
+    const nextProject = pickDefaultProject(projects as ProjectListItem[]);
+    pendingDefaultProjectRef.current = !nextProject;
+    if (nextProject) setSelectedProjectId(nextProject.id);
+  }, [projects, setSelectedProjectId]);
 
   useEffect(() => {
     const onPopState = () => {
       setError(null);
       setNotice(null);
       const route = appRouteFromPath(window.location.pathname);
+      pendingDefaultProjectRef.current = false;
+      if (activeView === "portfolio" && route.view === "projects" && !route.projectCode) {
+        selectDefaultProject();
+      }
       setActiveView(route.view);
       if (route.projectCode) {
         const nextProject = projects.find(
@@ -67,7 +78,7 @@ export function useAppRouting({
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [projects, setActiveView, setError, setNotice, setSelectedProjectId]);
+  }, [activeView, projects, selectDefaultProject, setActiveView, setError, setNotice, setSelectedProjectId]);
 
   useEffect(() => {
     if (activeView !== "portfolio") return;
@@ -162,6 +173,10 @@ export function useAppRouting({
         setError("Страница проекта отключена администратором");
         return;
       }
+      pendingDefaultProjectRef.current = false;
+      if (activeView === "portfolio" && nextView === "projects" && !options?.projectCode) {
+        selectDefaultProject();
+      }
       setActiveView(nextView);
       const routeProjectCode =
         options?.projectCode ??
@@ -179,12 +194,14 @@ export function useAppRouting({
       }
     },
     [
+      activeView,
       isAdminUser,
       isBusinessUnitAdmin,
       isAuthenticated,
       isProjectModuleEnabled,
       project?.code,
       selectedProjectListItem?.code,
+      selectDefaultProject,
       setActiveView,
       setAuthMode,
       setError,
@@ -208,6 +225,15 @@ export function useAppRouting({
     setSelectedProjectId(routeProject.id);
     initialProjectCodeRef.current = null;
   }, [projects, setError, setSelectedProjectId]);
+
+  // Resolve after the initial deep link so a later portfolio transition takes precedence.
+  useEffect(() => {
+    if (activeView !== "projects") {
+      pendingDefaultProjectRef.current = false;
+    } else if (pendingDefaultProjectRef.current && projects.length > 0) {
+      selectDefaultProject();
+    }
+  }, [activeView, projects, selectDefaultProject]);
 
   useEffect(() => {
     if (!selectedProjectListItem || !isProjectSectionViewName(activeView)) {

@@ -80,6 +80,7 @@ export type ProjectListItem = {
   raidItems: RaidItem[];
   currentUserAccessLevel: ProjectAccessLevel | null;
   _count: {
+    wbsItems?: number;
     tasks: number;
     issues: number;
     jiraSnapshots: number;

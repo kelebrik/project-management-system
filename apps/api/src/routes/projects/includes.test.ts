@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { portfolioRoadmapProjectSelect } from './includes.js';
+import { portfolioRoadmapProjectSelect, projectInclude } from './includes.js';
+
+test('project list counts the complete WBS independently of its filtered preview', () => {
+  assert.equal(projectInclude._count.select.wbsItems, true);
+});
 
 test('portfolio roadmap query includes the complete WBS hierarchy for work-group rollups', () => {
   assert.equal(

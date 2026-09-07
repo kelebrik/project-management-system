@@ -30,6 +30,7 @@ export const projectInclude = {
   },
   _count: {
     select: {
+      wbsItems: true,
       tasks: true,
       issues: true,
       jiraSnapshots: { where: { retiredAt: null } },
