@@ -143,16 +143,16 @@ const projectNavItems: ProjectNavItem[] = [
     icon: <ListTodo size={17} />,
   },
   {
-    key: "jiraWork",
-    view: "project-jira-work",
-    label: "Работы в Jira",
-    icon: <BriefcaseBusiness size={17} />,
-  },
-  {
     key: "structure",
     view: "project-structure",
     label: "Структура",
     icon: <ListChecks size={17} />,
+  },
+  {
+    key: "jiraWork",
+    view: "project-jira-work",
+    label: "Работы в Jira",
+    icon: <BriefcaseBusiness size={17} />,
   },
   {
     key: "passport",

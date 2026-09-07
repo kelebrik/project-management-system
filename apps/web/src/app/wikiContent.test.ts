@@ -21,6 +21,16 @@ test("FAQ groups and articles have unique anchors and non-empty content", () => 
   );
 });
 
+test("FAQ documents Structure immediately before Jira Work", () => {
+  const article = wikiGroups
+    .flatMap((group) => group.articles)
+    .find((candidate) => candidate.id === "wiki-navigation-access");
+  const text = article?.sections.flatMap((section) => section.points).join(" ") ?? "";
+
+  assert.ok(article);
+  assert.match(text, /Текучка, Структура, Работы Jira, Паспорт/);
+});
+
 test("FAQ documents the current work selection rules", () => {
   const article = wikiGroups
     .flatMap((group) => group.articles)

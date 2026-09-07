@@ -61,14 +61,6 @@ export function AppTopbar({
     : hasProjectTargetChange
       ? initialTargetDate
       : activeGoal?.targetDate ?? initialTargetDate ?? currentTargetDate;
-  const displayedCurrentTargetDate = hasActiveGoalTargetPair
-    ? activeGoal?.currentTargetDate
-    : currentTargetDate;
-  const displayedTargetChangeDays = hasActiveGoalTargetPair
-    ? effectiveDelayDays
-    : targetChangeDays;
-  const hasCurrentTargetChange =
-    displayedTargetChangeDays !== null && displayedTargetChangeDays !== 0;
   const delayTone =
     effectiveDelayDays === null
       ? scheduleHealth?.tone ?? project?.rag.toLowerCase() ?? "green"
@@ -98,12 +90,6 @@ export function AppTopbar({
           <span>Статус: {projectStatusLabel(project.status)}</span>
           <span>РП: {project.projectManager}</span>
           <span>Цель: {date(displayedTargetDate)}</span>
-          {hasCurrentTargetChange && (
-            <span>
-              Актуальная: {date(displayedCurrentTargetDate)} (
-              {signedDaysLabel(displayedTargetChangeDays)})
-            </span>
-          )}
           <b className={`rag ${delayTone}`}>{delayLabel}</b>
           <span className="topbar-project-forecast">
             Прогноз "{activeGoalTitle}": {date(projectTargetSummary?.forecastFinishDate ?? null)}

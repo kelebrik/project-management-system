@@ -150,11 +150,9 @@ test("project header uses the next goal baseline and shows the full forecast", a
       { exact: true },
     ),
   ).toBeVisible();
+  await expect(page.locator(".topbar-project")).not.toContainText("Актуальная:");
   await expect(
-    page.locator(".topbar-project").getByText(
-      `Актуальная: ${displayDate(isoDay(18))} (+4 дн.)`,
-      { exact: true },
-    ),
+    page.locator(".topbar-project").getByText("Отставание +4 дн.", { exact: true }),
   ).toBeVisible();
   const forecast = page.locator(".topbar-project-forecast");
   await expect(forecast).toHaveText(
@@ -231,11 +229,11 @@ test("project header keeps goal dates consistent without project target history"
   await expect(
     badges.getByText(`Цель: ${displayDate(isoDay(12))}`, { exact: true }),
   ).toBeVisible();
-  await expect(
-    badges.getByText(`Актуальная: ${displayDate(isoDay(15))} (+3 дн.)`, {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect(badges).not.toContainText("Актуальная:");
+  await expect(badges.getByText("Отставание +3 дн.", { exact: true })).toBeVisible();
+  await expect(badges.locator(".topbar-project-forecast")).toHaveText(
+    `Прогноз "Ближайшая цель": ${displayDate(isoDay(15))}`,
+  );
   await expect(badges).not.toContainText(displayDate(isoDay(-60)));
 });
 
@@ -280,11 +278,10 @@ test("project header keeps the project target pair when the active goal has no b
   await expect(
     badges.getByText(`Цель: ${displayDate(isoDay(6))}`, { exact: true }),
   ).toBeVisible();
-  await expect(
-    badges.getByText(`Актуальная: ${displayDate(isoDay(10))} (+4 дн.)`, {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect(badges).not.toContainText("Актуальная:");
+  await expect(badges.locator(".topbar-project-forecast")).toHaveText(
+    `Прогноз "Ближайшая цель": ${displayDate(isoDay(10))}`,
+  );
 });
 
 test("project header does not duplicate an approved target date without active goals", async ({
@@ -317,11 +314,10 @@ test("project header does not duplicate an approved target date without active g
   await expect(
     badges.getByText(`Цель: ${displayDate(isoDay(8))}`, { exact: true }),
   ).toBeVisible();
-  await expect(
-    badges.getByText(`Актуальная: ${displayDate(isoDay(13))} (+5 дн.)`, {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect(badges).not.toContainText("Актуальная:");
+  await expect(badges.locator(".topbar-project-forecast")).toContainText(
+    'Прогноз "ближайшая цель":',
+  );
 });
 
 test("schedule PDF keeps the print layout until afterprint", async ({ page }) => {
