@@ -1,3 +1,4 @@
+import { JiraReconciliationPage } from './JiraReconciliationPage';
 import { lazy, Suspense } from "react";
 import { PageSkeleton } from "../components/Skeleton";
 import { AdminAuditPageContent } from "./AdminAuditPageContent";
@@ -75,6 +76,7 @@ export function AppPages() {
       )}
       {activeView === "projects" && <ProjectsPage />}
       {activeView === "reports" && <ReportsPage />}
+      {isAdminUser && activeView === "jira-reconciliation" && <JiraReconciliationPage />}
       {activeView === "wiki" && <WikiPage />}
       {project && activeView === "project-overview" && (
         <ProjectOverviewSummaryPage key={project.id} />

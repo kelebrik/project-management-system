@@ -18,6 +18,7 @@ const resourceNavItems: ResourceNavItem[] = [
 ];
 
 const developmentNavItems: ResourceNavItem[] = [
+  { view: "jira-reconciliation", label: "Сверка Jira и WBS", icon: <CircleHelp size={15} /> },
   {
     view: "project-pm-workspace",
     label: "Рабочий стол PM",

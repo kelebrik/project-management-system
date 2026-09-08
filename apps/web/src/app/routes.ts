@@ -49,6 +49,7 @@ export type ResourceSectionView = Extract<
 
 export type DevelopmentSectionView = Extract<
   AppView,
+  | "jira-reconciliation"
   | "decision-queue"
   | "project-pm-workspace"
   | ResourceSectionView
@@ -93,6 +94,7 @@ export function canAccessAdminView(
 }
 
 export const developmentSectionViews: DevelopmentSectionView[] = [
+  "jira-reconciliation",
   "decision-queue",
   "project-pm-workspace",
   "resources",
@@ -126,6 +128,7 @@ export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
   "portfolio-v2": "/portfolio",
   "decision-queue": "/development/decision-queue",
+  "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
   reports: "/reports",
   wiki: "/faq",
@@ -214,6 +217,7 @@ export const appPathViews: Record<string, AppView> = {
   "/development": "resources",
   "/development/portfolio-v2": "portfolio",
   "/development/decision-queue": "decision-queue",
+  "/development/jira-reconciliation": "jira-reconciliation",
   "/development/pm-workspace": "project-pm-workspace",
   "/development/workspace": "project-pm-workspace",
   "/development/resources": "resources",

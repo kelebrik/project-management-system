@@ -294,6 +294,7 @@ const adminNavItems: AdminNavItem[] = [
 ];
 
 const developmentNavItems: AdminNavItem[] = [
+  { view: "jira-reconciliation", label: "Сверка Jira и WBS", icon: <CircleHelp size={15} /> },
   {
     view: "project-pm-workspace",
     label: "Рабочий стол PM",

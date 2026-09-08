@@ -7,7 +7,6 @@ import { JiraAggregatesPage } from "./JiraAggregatesPage";
 import { JiraAnalyticsDashboard } from "./JiraAnalyticsDashboard";
 import { JiraWorkDataSections } from "./JiraWorkDataSections";
 import { usePageContext } from "./PageContext";
-import { ReconciliationPanel } from '../components/automation/ReconciliationPanel';
 
 export const JIRA_PRODUCTION_BASE_URL = "https://tasks.sberdevices.ru";
 
@@ -21,8 +20,6 @@ export function ProjectJiraWorkPage() {
     setError,
     setNotice,
     syncing,
-    isReadOnly,
-    refreshProject,
   } = usePageContext();
   const confirm = useConfirm();
   const [view, setView] = useState<JiraWorkView>("active");
@@ -68,7 +65,6 @@ export function ProjectJiraWorkPage() {
 
   return (
     <article className="jira-work-page">
-      <ReconciliationPanel projectId={project.id} readOnly={isReadOnly || isClosedProject} refresh={refreshProject} />
       <div className="jira-work-page-head">
         <div>
           <h2>Работы в Jira</h2>

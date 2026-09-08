@@ -45,7 +45,9 @@ test('Jira reconciliation applies only selected local fields with source precond
     return route.fulfill({ json: { ...project, updatedCount: 1 } });
   });
   await page.goto('/TV-OVERVIEW/jira-work');
-  await page.getByText('Сверка Jira и WBS', { exact: true }).click();
+  await expect(page.getByText('Сверка Jira и WBS', { exact: true })).toHaveCount(0);
+  await page.goto('/development/jira-reconciliation');
+  await page.getByLabel('Проект для сверки').selectOption('project-1');
   const apply = page.getByRole('button', { name: 'Применить выбранное к WBS' });
   await expect(apply).toBeDisabled();
   await page.locator('.automation-body').getByRole('checkbox').check();
@@ -110,4 +112,29 @@ test('meeting drafts require review, create valid payloads and never retry uncer
   await expect(page.getByText(/Результат сохранения неизвестен/)).toBeVisible();
   await expect(create).toBeDisabled();
   expect(created).toEqual(['task', 'issue', 'risk']);
+});
+
+
+test('development reconciliation switches project scope and clears selected proposals', async ({ page }) => {
+  const project = await mockAdminProject(page);
+  await page.route('**/api/projects', (route) => route.fulfill({ json: [project, { ...project, id: 'project-2', code: 'OTHER', name: 'Другой проект', status: 'CLOSED' }] }));
+  const requested: string[] = [];
+  await page.route('**/automation/insights', (route) => {
+    requested.push(route.request().url());
+    return route.fulfill({ json: insight });
+  });
+  await page.goto('/development/jira-reconciliation');
+  const picker = page.getByLabel('Проект для сверки');
+  await expect(picker).toHaveValue('');
+  expect(requested).toHaveLength(0);
+  await picker.selectOption('project-1');
+  const checkbox = page.locator('.automation-body').getByRole('checkbox');
+  await checkbox.check();
+  const apply = page.getByRole('button', { name: 'Применить выбранное к WBS' });
+  await expect(apply).toBeEnabled();
+  await picker.selectOption('project-2');
+  await expect(checkbox).not.toBeChecked();
+  await expect(checkbox).toBeDisabled();
+  await expect(apply).toBeDisabled();
+  expect(requested.at(-1)).toContain('/projects/project-2/automation/insights');
 });

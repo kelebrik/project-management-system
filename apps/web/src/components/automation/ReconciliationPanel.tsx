@@ -4,9 +4,9 @@ import type { AutomationInsight } from '@pms/shared';
 import { apiClient } from '../../api/client';
 import { wbsStatusLabel } from '../../app/labels';
 import type { WbsItemStatus } from '../../app/domainTypes';
-import { AutomationError, AutomationPanel } from './AutomationPanel';
+import { AutomationError } from './AutomationPanel';
 
-function ReconciliationContent({ projectId, readOnly, refresh }: { projectId: string; readOnly: boolean; refresh: () => Promise<unknown> }) {
+export function ReconciliationContent({ projectId, readOnly, refresh }: { projectId: string; readOnly: boolean; refresh?: () => Promise<unknown> }) {
   const [revision, setRevision] = useState(0);
   const { data, error } = useAutomationData<AutomationInsight>(`/api/projects/${encodeURIComponent(projectId)}/automation/insights`, revision);
   const [selected, setSelected] = useState<Record<string, { status?: boolean; owner?: boolean }>>({});
@@ -24,7 +24,7 @@ function ReconciliationContent({ projectId, readOnly, refresh }: { projectId: st
     try {
       await apiClient.patch(`/api/projects/${encodeURIComponent(projectId)}/wbs-items/bulk`, { items }, 'Не удалось применить сверку');
       setSelected({}); setMessage(`Обновлено работ: ${items.length}`); setRevision((value) => value + 1);
-      await refresh();
+      await refresh?.().catch(() => setMessage('Изменения сохранены. Обновите страницу проекта для загрузки актуальной Структуры.'));
     } catch (error) { setSaveError(error instanceof Error ? error.message : 'Не удалось применить сверку'); setSelected({}); setRevision((value) => value + 1); }
     finally { setSaving(false); }
   };
@@ -42,4 +42,3 @@ function ReconciliationContent({ projectId, readOnly, refresh }: { projectId: st
     </article>)}
   </>;
 }
-export function ReconciliationPanel(props: { projectId: string; readOnly: boolean; refresh: () => Promise<unknown> }) { return <AutomationPanel title="Сверка Jira и WBS"><ReconciliationContent key={props.projectId} {...props} /></AutomationPanel>; }

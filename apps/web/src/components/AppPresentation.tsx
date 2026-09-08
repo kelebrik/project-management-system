@@ -128,6 +128,7 @@ function createViewTitle(project: any): Record<AppView, string> {
     portfolio: "Портфель",
     "portfolio-v2": "Портфель v2",
     "decision-queue": "Очередь решений",
+    "jira-reconciliation": "Сверка Jira и WBS",
     projects: "Проекты",
     reports: "Отчёты",
     wiki: "FAQ",
