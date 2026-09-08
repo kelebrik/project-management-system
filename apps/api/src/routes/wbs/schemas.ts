@@ -26,6 +26,8 @@ export const wbsBulkUpdateSchema = z.object({
       z.object({
         id: z.string().trim().min(1),
         patch: wbsItemBaseSchema.partial(),
+        expectedUpdatedAt: z.string().datetime().optional(),
+        expectedJira: z.object({ key: z.string().min(1), updatedAt: z.string().datetime() }).optional(),
       }),
     )
     .min(1)

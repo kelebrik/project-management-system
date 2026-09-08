@@ -53,6 +53,8 @@ export type WbsScheduleUpdate = {
 };
 
 export type WbsScheduleCalculationOptions = {
+  /** Temporary scenario constraints; live callers leave this unset. */
+  startNotBeforeById?: ReadonlyMap<string, Date>;
   changedItemId?: string;
   changedFields?: Iterable<string>;
   changedItems?: Iterable<{

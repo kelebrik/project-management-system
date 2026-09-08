@@ -291,6 +291,7 @@ export function AppPresentation({
 
   const pageContext = {
     ...context,
+    isProjectModuleEnabled,
     adminDictionaryLabels,
     adminPermissionLabel,
     adminPermissionOrder,

@@ -1,0 +1,23 @@
+.automation-panel { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 8px; background: var(--panel, var(--bg)); margin: 12px 0; min-width: 0; }
+.automation-panel > summary { cursor: pointer; padding: 14px 16px; font-weight: 700; }
+.automation-body { padding: 0 16px 16px; min-width: 0; }
+.automation-body p { line-height: 1.5; overflow-wrap: anywhere; }
+.automation-actions, .automation-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
+.automation-actions label { display: grid; gap: 4px; }
+.automation-card { padding: 12px; border: 1px solid var(--border); border-radius: 6px; margin: 10px 0; min-width: 0; }
+.automation-card a { overflow-wrap: anywhere; }
+.automation-check { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.automation-check input { width: auto; }
+.automation-error { color: var(--danger, #b42318); }
+.automation-warning { color: var(--warning-text, #945900); }
+.automation-table-wrap { overflow-x: auto; }
+.automation-table { width: 100%; border-collapse: collapse; }
+.automation-table th, .automation-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.automation-table td { min-width: 90px; max-width: 380px; overflow-wrap: anywhere; }
+.automation-textarea { width: 100%; min-height: 150px; resize: vertical; }
+.automation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.automation-grid label { display: grid; gap: 4px; }
+.automation-grid input, .automation-grid select { width: 100%; min-width: 0; }
+.automation-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.automation-tabs [aria-pressed="true"] { font-weight: 700; border-color: var(--accent, #287c74); }
+@media print { .automation-actions, .automation-tabs { display: none; } .automation-table-wrap { overflow: visible; } }

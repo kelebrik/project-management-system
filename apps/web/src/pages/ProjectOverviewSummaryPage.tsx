@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, Link as LinkIcon } from "lucide-react";
+import { ReadinessPanel } from '../components/automation/ReadinessPanel';
 import { useEffect, useState } from "react";
 import type { IssueStatusUpdate, RaidItemStatusUpdate } from "../app/domainTypes";
 import { JiraCurrentFreshnessNotice } from "../components/JiraCurrentFreshnessNotice";
@@ -103,6 +104,7 @@ export function ProjectOverviewSummaryPage() {
 
   return (
     <section className="executive-overview-grid">
+      <ReadinessPanel key={project.id} projectId={project.id} />
       <article className="executive-overview-card danger">
         <div className="executive-overview-card-title">
           <span>Ключевые риски и проблемы в красной зоне</span>

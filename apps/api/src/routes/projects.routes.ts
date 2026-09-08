@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { registerProjectAutomationRoutes } from './projects/automation.routes.js';
 import { registerProjectArtifactsRoutes } from './projects/artifacts.routes.js';
 import { registerProjectBusinessRequirementsRoutes } from './projects/business-requirements.routes.js';
 import { registerProjectCalendarRoutes } from './projects/calendar.routes.js';
@@ -11,6 +12,7 @@ export function createProjectsRouter(context: ProjectsRoutesContext) {
   const router = Router();
 
   registerProjectCrudRoutes(router, context);
+  registerProjectAutomationRoutes(router);
   registerProjectOverviewRoutes(router, context);
   registerProjectCalendarRoutes(router, context);
   registerProjectArtifactsRoutes(router, context);

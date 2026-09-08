@@ -29,6 +29,7 @@ import {
   type ReportTask,
 } from "../app/reportBuilder";
 import { usePageContext } from "./PageContext";
+import { WeeklyBriefPanel } from '../components/automation/WeeklyBriefPanel';
 
 type ReportPeriodValue = "7" | "14";
 type ReportDataItem = ReportTask | RaidItem | Issue;
@@ -233,6 +234,19 @@ function TaskReportSections({
 }
 
 export function ReportsPage() {
+  const [weekly, setWeekly] = useState(() => new URLSearchParams(window.location.search).get('reportView') === 'weekly');
+  useEffect(() => {
+    const sync = () => setWeekly(new URLSearchParams(window.location.search).get('reportView') === 'weekly');
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, []);
+  return <><div className="automation-tabs" role="group" aria-label="Вид отчета">
+    <button aria-pressed={!weekly} onClick={() => { setWeekly(false); const url = new URL(window.location.href); url.searchParams.delete('reportView'); window.history.replaceState(null, '', url); }}>Конструктор отчетов</button>
+    <button aria-pressed={weekly} onClick={() => { setWeekly(true); const url = new URL(window.location.href); url.searchParams.set('reportView', 'weekly'); window.history.replaceState(null, '', url); }}>Что изменилось за неделю</button>
+  </div>{weekly ? <WeeklyBriefPanel /> : <CurrentReportsPage />}</>;
+}
+
+function CurrentReportsPage() {
   const { projects, selectedProjectId } = usePageContext();
   const projectOptions = (projects as ProjectListItem[]).filter(
     (item) => item.status !== "CLOSED",

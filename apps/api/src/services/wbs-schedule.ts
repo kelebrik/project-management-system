@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { calculateWbsScheduleUpdates } from "./wbs-schedule/calculate.js";
 import type { WbsScheduleCalculationOptions } from "./wbs-schedule/types.js";
@@ -53,21 +54,25 @@ export async function recalculateProjectWbsSchedule(
   );
   if (updates.length === 0) return 0;
 
-  await prisma.$transaction(
-    updates.map((update) =>
-      prisma.wbsItem.update({
-        where: { id: update.id },
-        data: {
-          startDate: update.startDate,
-          dueDate: update.dueDate,
-          forecastStartDate: update.forecastStartDate,
-          forecastDueDate: update.forecastDueDate,
-          workDays: update.workDays,
-          calendarDays: update.calendarDays,
-        },
-      }),
-    ),
-  );
+  const beforeById = new Map(items.map((item) => [item.id, item]));
+  const historyRow = (item: typeof items[number]) => ({
+    id: item.id, code: item.code, title: item.title, status: item.status, owner: item.owner,
+    startDate: item.startDate, dueDate: item.dueDate, forecastDueDate: item.forecastDueDate,
+    baselineDueDate: item.baselineDueDate, progress: item.progress,
+  });
+  await prisma.$transaction([
+    ...updates.map((update) => prisma.wbsItem.update({
+      where: { id: update.id },
+      data: { startDate: update.startDate, dueDate: update.dueDate,
+        forecastStartDate: update.forecastStartDate, forecastDueDate: update.forecastDueDate,
+        workDays: update.workDays, calendarDays: update.calendarDays },
+    })),
+    prisma.wbsCommand.create({ data: {
+      projectId, type: "BULK_UPDATE", payload: { automaticSchedule: true },
+      beforeSnapshot: JSON.parse(JSON.stringify(updates.map((update) => historyRow(beforeById.get(update.id)!)))) as Prisma.InputJsonValue,
+      afterSnapshot: JSON.parse(JSON.stringify(updates.map((update) => historyRow({ ...beforeById.get(update.id)!, ...update })))) as Prisma.InputJsonValue,
+    } }),
+  ]);
 
   return updates.length;
 }

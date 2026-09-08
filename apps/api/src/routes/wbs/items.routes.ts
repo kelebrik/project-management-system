@@ -1,4 +1,5 @@
 import { wbsItemBaseSchema, wbsItemSchema } from '@pms/shared';
+import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { jiraUrlMatchesConfiguredBase } from '../../jira-url-policy.js';
@@ -271,6 +272,10 @@ export function registerWbsItemRoutes(router: Router) {
     });
     for (const requested of parsed.data.items) {
       const existing = existingById.get(requested.id)!;
+      if (requested.expectedUpdatedAt && existing.updatedAt.toISOString() !== requested.expectedUpdatedAt) {
+        res.status(409).json({ error: 'Работа изменилась после подготовки предложения. Обновите сверку.', itemId: existing.id });
+        return;
+      }
       const phaseIssue = linkedIssues.find((issue) => issue.phaseId === requested.id);
       if (phaseIssue && requested.patch.type !== undefined && requested.patch.type !== 'PHASE') {
         res.status(409).json({
@@ -367,12 +372,18 @@ export function registerWbsItemRoutes(router: Router) {
       const results = [];
       for (const item of parsed.data.items) {
         const existing = existingById.get(item.id)!;
+        if (item.expectedJira) {
+          const source = await tx.jiraIssueSnapshot.findUnique({ where: { projectId_issueKey: { projectId: project.id, issueKey: item.expectedJira.key } } });
+          if (!item.expectedUpdatedAt || existing.jiraTicketKey?.trim().toUpperCase() !== item.expectedJira.key || !source || source.retiredAt || source.projectionUnversionedSince || source.updatedAt.toISOString() !== item.expectedJira.updatedAt || Date.now() - source.syncedAt.getTime() > 86400000) {
+            throw new Error('AUTOMATION_STALE_SOURCE');
+          }
+        }
         const patch = item.patch;
         const schedulePatch = schedulePatchesByItemId.get(item.id)!;
         const scheduleDateWrites = resolveWbsScheduleDateWrites(patch, schedulePatch);
         results.push(
           await tx.wbsItem.update({
-            where: { id: existing.id },
+            where: { id: existing.id, ...(item.expectedUpdatedAt ? { updatedAt: new Date(item.expectedUpdatedAt) } : {}) },
             data: {
               parentId: patch.parentId === undefined ? undefined : patch.parentId || null,
               code: undefined,
@@ -419,7 +430,31 @@ export function registerWbsItemRoutes(router: Router) {
         );
       }
       return results;
+    }, { isolationLevel: parsed.data.items.some((item) => item.expectedJira) ? Prisma.TransactionIsolationLevel.Serializable : Prisma.TransactionIsolationLevel.ReadCommitted }).catch((error: unknown) => {
+      if ((error instanceof Error && error.message === 'AUTOMATION_STALE_SOURCE') || (error instanceof Prisma.PrismaClientKnownRequestError && ['P2025', 'P2034'].includes(error.code))) {
+        res.status(409).json({ error: 'Данные изменились после подготовки предложения. Обновите сверку и повторите проверку.' });
+        return null;
+      }
+      throw error;
     });
+    if (!updatedItems) return;
+
+    await Promise.all(
+      updatedItems.map((updated) =>
+        recordWbsCommand({
+          projectId: project.id,
+          userId: currentUser(req)?.id,
+          type: 'UPDATE',
+          payload: {
+            itemId: updated.id,
+            patch: parsed.data.items.find((item) => item.id === updated.id)?.patch,
+            bulk: true,
+          },
+          beforeSnapshot: existingById.get(updated.id),
+          afterSnapshot: updated,
+        }),
+      ),
+    );
 
     if (parsed.data.renumber) {
       await renumberProjectWbs(project.id);
@@ -433,21 +468,6 @@ export function registerWbsItemRoutes(router: Router) {
     await recalculateProjectWbsHierarchyStatuses(project.id);
     const snapshot = await getProjectWbsSnapshot(project.id);
 
-    await Promise.all(
-      updatedItems.map((updated) =>
-        recordWbsCommand({
-          projectId: project.id,
-          type: 'UPDATE',
-          payload: {
-            itemId: updated.id,
-            patch: parsed.data.items.find((item) => item.id === updated.id)?.patch,
-            bulk: true,
-          },
-          beforeSnapshot: existingById.get(updated.id),
-          afterSnapshot: snapshot.wbsItems.find((item) => item.id === updated.id) ?? updated,
-        }),
-      ),
-    );
     await emitWebhookEvent({
       eventType: 'wbs.items.updated',
       projectId: project.id,

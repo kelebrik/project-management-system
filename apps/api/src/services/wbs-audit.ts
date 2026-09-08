@@ -7,6 +7,7 @@ function toJsonValue(value: unknown): Prisma.InputJsonValue {
 
 export async function recordWbsCommand(input: {
   projectId: string;
+  userId?: string;
   type: WbsCommandType;
   payload: unknown;
   beforeSnapshot?: unknown;
@@ -15,6 +16,7 @@ export async function recordWbsCommand(input: {
   await prisma.wbsCommand.create({
     data: {
       projectId: input.projectId,
+      userId: input.userId,
       type: input.type,
       payload: toJsonValue(input.payload),
       beforeSnapshot:

@@ -2,6 +2,7 @@ import { LocateFixed, Maximize2, Minimize2, Redo2, Undo2 } from "lucide-react";
 
 import { usePageContext } from "./PageContext";
 import { ProjectGanttPanel } from "./ProjectGanttPanel";
+import { ScenarioPanel } from '../components/automation/ScenarioPanel';
 
 export function ProjectGanttSection() {
   const {
@@ -11,6 +12,7 @@ export function ProjectGanttSection() {
     ganttScale,
     ganttRangeDays,
     project,
+    currentUser,
     redoWbsChange,
     resetGanttPanelSize,
     restoringWbsSnapshot,
@@ -33,6 +35,7 @@ export function ProjectGanttSection() {
 
   return (
                         <>
+                            <ScenarioPanel projectId={project.id} userId={currentUser?.id ?? 'viewer'} items={project.wbsItems} />
                             <div className="gantt-controls">
                               <div className="gantt-controls-row">
                             <button

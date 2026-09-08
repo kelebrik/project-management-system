@@ -1,6 +1,7 @@
 import { usePageContext } from "./PageContext";
 import { ProjectClosedIssuesSection } from "./ProjectClosedIssuesSection";
 import { ProjectOpenIssuesSection } from "./ProjectOpenIssuesSection";
+import { MeetingNotesPanel } from '../components/automation/MeetingNotesPanel';
 
 export function ProjectIssuesPage() {
   const ctx = usePageContext();
@@ -8,10 +9,12 @@ export function ProjectIssuesPage() {
     emptyIssueForm,
     setIssueDrawerMode,
     setIssueForm,
+    project,
   } = ctx;
 
   return (
                   <article className="panel overview-panel">
+                    <MeetingNotesPanel projectId={project.id} />
                     <div className="panel-title">
                       <div>
                         <h2>Реестр открытых вопросов</h2>

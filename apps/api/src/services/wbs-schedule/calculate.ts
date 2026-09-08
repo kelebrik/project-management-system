@@ -180,7 +180,8 @@ function calculateWbsSchedulePass(
         "forecastDueDate",
       ].some((field) => changedFields.has(field));
 
-    const startConstraints: Date[] = [];
+    const earliestStart = options.startNotBeforeById?.get(item.id);
+    const startConstraints: Date[] = earliestStart ? [earliestStart] : [];
     const finishConstraints: Date[] = [];
     for (const predecessorRef of predecessorRefs) {
       const predecessor = itemsById.get(predecessorRef.predecessorId);
@@ -418,7 +419,7 @@ function calculateWbsSchedulePass(
   return [...updatesById.values()];
 }
 
-function applyScheduleUpdates(
+export function applyScheduleUpdates(
   items: WbsScheduleItem[],
   updates: WbsScheduleUpdate[],
 ): WbsScheduleItem[] {

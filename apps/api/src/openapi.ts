@@ -1,3 +1,4 @@
+import { openApiAutomationPaths } from './openapi-automation-paths.js';
 import { openApiAdminPaths } from "./openapi-admin-paths.js";
 import { openApiComponents } from "./openapi-components.js";
 import { openApiCorePaths } from "./openapi-core-paths.js";
@@ -37,6 +38,7 @@ export const openApiDocument = {
   components: openApiComponents,
   paths: {
     ...openApiCorePaths,
+    ...openApiAutomationPaths,
     ...openApiJiraPaths,
     ...openApiAdminPaths,
   },
