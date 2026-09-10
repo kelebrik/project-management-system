@@ -71,6 +71,22 @@
   flex-direction: column;
 }
 
+.workspace-focus-gantt .wbs-gantt-layout {
+  row-gap: 8px;
+}
+
+.workspace-focus-gantt .wbs-gantt-layout > .automation-panel {
+  margin-block: 0;
+}
+
+.workspace-focus-gantt .gantt-controls {
+  margin-top: 0;
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-gantt {
+  padding-top: 8px;
+}
+
 .workspace-focus-panel-fullscreen.workspace-focus-gantt .wbs-gantt-layout {
   grid-template-rows: auto auto minmax(200px, 1fr);
   overflow-y: auto;
