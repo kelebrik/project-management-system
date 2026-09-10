@@ -67,7 +67,9 @@ type DatedWbsItem = {
 
 type WbsGanttOptions = {
   visibleWbsTree: WbsTreeItem[];
-  criticalPath: WbsCriticalPath | null | undefined;
+  criticalPath: (Partial<Omit<WbsCriticalPath, "items">> & Pick<WbsCriticalPath, "criticalItemIds" | "criticalDependencyIds"> & {
+    items: Array<Partial<WbsCriticalPath["items"][number]> & Pick<WbsCriticalPath["items"][number], "itemId" | "totalFloatWorkDays" | "isNearCritical">>;
+  }) | null | undefined;
   wbsDependencies: WbsDependency[];
   rangeDays?: 30 | 90 | 180 | null;
 };

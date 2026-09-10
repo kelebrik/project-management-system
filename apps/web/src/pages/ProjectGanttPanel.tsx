@@ -1,7 +1,10 @@
+import { useMemo } from "react";
+import type { ScenarioResult } from "@pms/shared";
+import { createScenarioGantt } from "../app/scenarioGanttModel";
 import { usePageContext } from "./PageContext";
 import type { GanttCssProperties } from "../app/uiStyleTypes";
 
-export function ProjectGanttPanel() {
+export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResult | null }) {
   const {
     activeGanttLinkIds,
     activeWbsItemId,
@@ -36,8 +39,10 @@ export function ProjectGanttPanel() {
     toggleWbsCollapse,
     visibleWbsTree,
     wbsDisplayLevel,
-    wbsGantt,
+    wbsGantt: workingGantt,
+    ganttRangeDays,
   } = usePageContext();
+  const wbsGantt = useMemo(() => scenario ? createScenarioGantt(visibleWbsTree, project.wbsDependencies ?? [], ganttRangeDays, scenario) : workingGantt, [scenario, visibleWbsTree, project.wbsDependencies, ganttRangeDays, workingGantt]);
   const primaryPeriods =
     ganttScale === "week"
       ? wbsGantt.weeks
@@ -259,7 +264,7 @@ export function ProjectGanttPanel() {
                                             : ""
                                         }`}
                                         onPointerDown={(event) =>
-                                          startGanttLinkDrag(
+                                          !scenario && startGanttLinkDrag(
                                             {
                                               itemId: line.predecessorId,
                                               side: line.fromSide,
@@ -401,14 +406,15 @@ export function ProjectGanttPanel() {
                                     <button
                                       type="button"
                                       className="gantt-link-handle start"
+                                      disabled={Boolean(scenario)}
                                       onPointerDown={(event) =>
-                                        startGanttLinkDrag(
+                                        !scenario && startGanttLinkDrag(
                                           { itemId: item.id, side: "start" },
                                           event,
                                         )
                                       }
                                       onPointerUp={(event) =>
-                                        void completeGanttLinkDrag(
+                                        !scenario && void completeGanttLinkDrag(
                                           { itemId: item.id, side: "start" },
                                           event,
                                         )
@@ -419,14 +425,15 @@ export function ProjectGanttPanel() {
                                     <button
                                       type="button"
                                       className="gantt-link-handle end"
+                                      disabled={Boolean(scenario)}
                                       onPointerDown={(event) =>
-                                        startGanttLinkDrag(
+                                        !scenario && startGanttLinkDrag(
                                           { itemId: item.id, side: "end" },
                                           event,
                                         )
                                       }
                                       onPointerUp={(event) =>
-                                        void completeGanttLinkDrag(
+                                        !scenario && void completeGanttLinkDrag(
                                           { itemId: item.id, side: "end" },
                                           event,
                                         )

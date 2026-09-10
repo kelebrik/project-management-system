@@ -156,6 +156,8 @@ export function scheduleScenario(code: string, items: WbsItem[], dependencies: W
     const actual = after.find((item) => item.id === patch.id)!;
     if ((patch.startDate && automationDay(actual.startDate) !== patch.startDate) || (patch.dueDate && automationDay(actual.dueDate) !== patch.dueDate)) warnings.push(`${actual.code}: даты скорректированы по зависимостям и календарю`);
   }
+  const undated = after.filter((item) => item.status !== 'CANCELLED' && (!item.startDate || !item.dueDate));
+  if (undated.length) warnings.push(`Без рассчитанных дат: ${undated.length} работ (${undated.slice(0, 5).map((item) => item.code).join(', ')}${undated.length > 5 ? ', …' : ''}) — не отображаются на диаграмме`);
   const residual = calculateWbsScheduleUpdates(after, dependencies, calendars, scenarioOptions);
   if (residual.length) warnings.push('Расчет не достиг устойчивого состояния: результат требует проверки');
   const beforeCritical = calculateWbsCriticalPath(baseline, dependencies, calendars);
@@ -164,6 +166,11 @@ export function scheduleScenario(code: string, items: WbsItem[], dependencies: W
     fingerprint: createHash('sha256').update(JSON.stringify({ items: items.map(({ id, code, type, parentId, wbsLevel, sortOrder, status, startDate, dueDate, forecastStartDate, forecastDueDate, workDays, calendarDays, calendarCode, leadLagDays, predecessor1, predecessor2, predecessor3, predecessor4, predecessor5, predecessor6 }) => ({ id, code, type, parentId, wbsLevel, sortOrder, status, startDate, dueDate, forecastStartDate, forecastDueDate, workDays, calendarDays, calendarCode, leadLagDays, predecessor1, predecessor2, predecessor3, predecessor4, predecessor5, predecessor6 })), dependencies: dependencies.map(({ predecessorId, successorId, type, lagDays }) => ({ predecessorId, successorId, type, lagDays })), calendars })).digest('hex'),
     generatedAt: new Date().toISOString(), beforeFinish: automationDay(beforeCritical.projectFinishDate), afterFinish: automationDay(afterCritical.projectFinishDate),
     beforeCriticalIds: beforeCritical.criticalItemIds, afterCriticalIds: afterCritical.criticalItemIds,
+    schedule: {
+      items: after.map((item) => ({ id: item.id, startDate: automationDay(item.startDate), dueDate: automationDay(item.dueDate) })),
+      criticalDependencyIds: afterCritical.criticalDependencyIds,
+      floatById: afterCritical.items.map(({ itemId, totalFloatWorkDays, isNearCritical }) => ({ itemId, totalFloatWorkDays, isNearCritical })),
+    },
     warnings: [...new Set([...warnings, ...beforeCritical.warnings, ...afterCritical.warnings])],
     changes: after.flatMap((item) => {
       const before = byId.get(item.id)!;

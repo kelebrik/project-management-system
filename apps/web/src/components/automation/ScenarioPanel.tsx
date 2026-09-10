@@ -1,5 +1,5 @@
 import { displayDay } from './useAutomationData';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ScenarioPatch, ScenarioResult } from '@pms/shared';
 import { apiClient } from '../../api/client';
 import type { WbsItem } from '../../app/domainTypes';
@@ -7,22 +7,36 @@ import { AutomationError, AutomationPanel } from './AutomationPanel';
 
 type EditorRow = { id: string; startDate: string; dueDate: string; workDays: string };
 type SavedScenario = { version: 1; name: string; fingerprint: string; rows: EditorRow[] };
-function ScenarioContent({ projectId, userId, items }: { projectId: string; userId: string; items: WbsItem[] }) {
+type ScenarioPanelProps = { projectId: string; userId: string; items: WbsItem[]; sourceKey: string; result: ScenarioResult | null; onResult: (result: ScenarioResult | null) => void };
+function ScenarioContent({ projectId, userId, items, sourceKey, result, onResult }: ScenarioPanelProps) {
+  const requestVersion = useRef(0);
   const key = `pms:scenarios:v1:${userId}:${projectId}`;
-  const [rows, setRows] = useState<EditorRow[]>([]); const [result, setResult] = useState<ScenarioResult | null>(null);
+  const [rows, setRows] = useState<EditorRow[]>([]);
+  const setResult = onResult;
   const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
   const [name, setName] = useState('Вариант 1');
   const [saved, setSaved] = useState<SavedScenario[]>(() => {
     try { const data: unknown = JSON.parse(localStorage.getItem(key) ?? '[]'); return Array.isArray(data) ? data.filter((value): value is SavedScenario => value?.version === 1 && typeof value.name === 'string' && typeof value.fingerprint === 'string' && Array.isArray(value.rows) && value.rows.length <= 20 && value.rows.every((row: EditorRow) => typeof row.id === 'string' && typeof row.startDate === 'string' && typeof row.dueDate === 'string' && typeof row.workDays === 'string')) : []; } catch { return []; }
   });
   const [savedFingerprint, setSavedFingerprint] = useState<string | null>(null);
+  useEffect(() => {
+    requestVersion.current++;
+    // Invalidate the calculation after a working-plan refresh, preserving the draft.
+    onResult(null);
+    // This is a request generation counter, not a DOM ref: invalidate the latest request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { requestVersion.current++; };
+  }, [sourceKey, onResult]);
   const eligible = items.filter((item) => !['PHASE', 'GOAL', 'MILESTONE'].includes(item.type) && item.status !== 'CANCELLED' && !items.some((child) => child.parentId === item.id));
   const edit = (index: number, patch: Partial<EditorRow>) => { setRows((value) => value.map((row, i) => i === index ? { ...row, ...patch } : row)); setResult(null); };
   const calculate = async () => {
+    const version = ++requestVersion.current;
     setSaving(true); setError(''); setNotice(''); setResult(null);
     const patches: ScenarioPatch[] = rows.map((row) => ({ id: row.id, ...(row.startDate ? { startDate: row.startDate } : {}), ...(row.dueDate ? { dueDate: row.dueDate } : {}), ...(row.workDays ? { workDays: Number(row.workDays) } : {}) }));
     try {
       const data = await apiClient.get<ScenarioResult>(`/api/projects/${encodeURIComponent(projectId)}/automation/scenario?patches=${encodeURIComponent(JSON.stringify(patches))}`, 'Не удалось рассчитать сценарий');
+      if (version !== requestVersion.current) return;
+      if (!data.schedule) throw new Error('Обновите страницу после обновления сервера: полный расчёт сценария пока недоступен');
       setResult(data);
       if (savedFingerprint && savedFingerprint !== data.fingerprint) setNotice('Рабочий план изменился после сохранения варианта. Сценарий пересчитан относительно текущего плана.');
     } catch (error) { setError(error instanceof Error ? error.message : 'Ошибка расчета'); }
@@ -41,11 +55,10 @@ function ScenarioContent({ projectId, userId, items }: { projectId: string; user
     </div>)}
     <AutomationError error={error} />{notice && <p role="status">{notice}</p>}
     {result && <><p><strong>Завершение графика:</strong> {displayDay(result.beforeFinish)} → {displayDay(result.afterFinish)}. Критических работ: {result.beforeCriticalIds.length} → {result.afterCriticalIds.length}.</p>
-      {result.warnings.map((warning) => <p className="automation-warning" key={warning}>{warning}</p>)}
       {result.changes.length === 0 ? <p>Сроки не изменились. Проверьте зависимости и введенные значения.</p> : <div className="automation-table-wrap"><table className="automation-table"><thead><tr><th>Работа / веха</th><th>Начало: было → стало</th><th>Окончание: было → стало</th><th>Критический путь</th></tr></thead><tbody>{result.changes.map((row) => <tr key={row.id}><td><a href={row.href}>{row.code} {row.title}</a>{row.checkpoint && <strong> · Веха</strong>}</td><td>{displayDay(row.beforeStart)} → {displayDay(row.afterStart)}</td><td>{displayDay(row.beforeFinish)} → {displayDay(row.afterFinish)}</td><td>{result.beforeCriticalIds.includes(row.id) ? 'Да' : 'Нет'} → {result.afterCriticalIds.includes(row.id) ? 'Да' : 'Нет'}</td></tr>)}</tbody></table></div>}
       <div className="automation-actions"><label>Название варианта<input maxLength={80} value={name} onChange={(event) => setName(event.target.value)} /></label><button disabled={!name.trim()} onClick={() => { if (store([{ version: 1 as const, name: name.trim(), fingerprint: result.fingerprint, rows }, ...saved.filter((value) => value.name !== name.trim())].slice(0, 10))) setNotice('Вариант сохранен в этом браузере'); }}>Сохранить вариант</button></div>
     </>}
     {saved.length > 0 && <><h4>Сохраненные варианты в этом браузере</h4>{saved.map((variant) => <div className="automation-row" key={variant.name}><span>{variant.name}</span><button disabled={saving} onClick={() => { setRows(variant.rows); setName(variant.name); setSavedFingerprint(variant.fingerprint); setResult(null); setNotice('Нажмите «Сравнить», чтобы пересчитать вариант'); }}>Загрузить</button><button onClick={() => store(saved.filter((value) => value.name !== variant.name))}>Удалить вариант</button></div>)}</>}
   </>;
 }
-export function ScenarioPanel(props: { projectId: string; userId: string; items: WbsItem[] }) { return <AutomationPanel title="Сценарии «Что будет, если…»"><ScenarioContent key={`${props.userId}:${props.projectId}`} {...props} /></AutomationPanel>; }
+export function ScenarioPanel(props: ScenarioPanelProps) { return <AutomationPanel title="Сценарии «Что будет, если…»"><ScenarioContent key={`${props.userId}:${props.projectId}`} {...props} /></AutomationPanel>; }

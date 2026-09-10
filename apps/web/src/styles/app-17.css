@@ -72,7 +72,50 @@
 }
 
 .workspace-focus-panel-fullscreen.workspace-focus-gantt .wbs-gantt-layout {
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(200px, 1fr);
+  overflow-y: auto;
+  align-content: stretch;
+}
+
+.workspace-focus-gantt .gantt-controls {
+  align-content: start;
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-gantt .automation-panel .automation-body {
+  max-height: 28vh;
+  overflow: auto;
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-gantt .gantt-controls {
+  position: sticky;
+  top: 0;
+  z-index: 22;
+}
+
+.workspace-focus-panel-fullscreen.workspace-focus-gantt .gantt-panel {
+  min-height: 0;
+}
+
+.gantt-warnings {
+  max-height: 64px;
+  overflow-y: auto;
+}
+
+.gantt-warnings:empty {
+  display: none;
+}
+
+.gantt-scenario-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  color: var(--brand);
+}
+
+.workspace-focus-gantt .gantt-link-handle:disabled {
+  display: none;
 }
 
 .workspace-focus-panel-fullscreen .gantt-panel {

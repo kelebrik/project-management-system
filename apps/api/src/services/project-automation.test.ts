@@ -54,7 +54,13 @@ test('scenario merges changed rows, propagates duration and leaves source untouc
   assert.ok(result.changes.some((row) => row.id === 'a'));
   assert.ok(result.changes.some((row) => row.id === 'b'));
   assert.notEqual(result.beforeFinish, result.afterFinish);
-  assert.equal(scheduleScenario('TV', items, [], [], []).changes.length, 0);
+  const unchanged = scheduleScenario('TV', items, [], [], []);
+  assert.equal(unchanged.changes.length, 0);
+  assert.equal(unchanged.schedule.items.length, items.length);
+  for (const change of result.changes) {
+    assert.deepEqual(result.schedule.items.find((item) => item.id === change.id), { id: change.id, startDate: change.afterStart, dueDate: change.afterFinish });
+  }
+  assert.ok(result.schedule.floatById.length > 0);
 });
 
 test('scenario rejects cycles and checkpoint overrides', () => {

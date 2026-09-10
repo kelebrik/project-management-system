@@ -65,15 +65,21 @@ test('scenario preview changes no live data and restores a saved variant', async
   await page.route('**/automation/scenario?*', (route) => {
     const patches = JSON.parse(new URL(route.request().url()).searchParams.get('patches')!);
     expect(patches).toEqual([{ id: 'wbs-1', workDays: 5 }]);
-    return route.fulfill({ json: { fingerprint: 'baseline-v1', generatedAt: '2026-09-08', beforeFinish: '2026-09-10', afterFinish: '2026-09-15', beforeCriticalIds: ['wbs-1'], afterCriticalIds: ['wbs-1'], warnings: [], changes: [{ id: 'wbs-1', code: '1.1', title: 'Тестовая задача', href: '/TV-OVERVIEW/wbs', beforeStart: '2026-09-08', afterStart: '2026-09-08', beforeFinish: '2026-09-10', afterFinish: '2026-09-15', checkpoint: false }] } });
+    return route.fulfill({ json: { schedule: { items: [{ id: 'wbs-1', startDate: '2026-09-08', dueDate: '2026-09-15' }], criticalDependencyIds: [], floatById: [{ itemId: 'wbs-1', totalFloatWorkDays: 0, isNearCritical: false }] }, fingerprint: 'baseline-v1', generatedAt: '2026-09-08', beforeFinish: '2026-09-10', afterFinish: '2026-09-15', beforeCriticalIds: ['wbs-1'], afterCriticalIds: ['wbs-1'], warnings: [], changes: [{ id: 'wbs-1', code: '1.1', title: 'Тестовая задача', href: '/TV-OVERVIEW/wbs', beforeStart: '2026-09-08', afterStart: '2026-09-08', beforeFinish: '2026-09-10', afterFinish: '2026-09-15', checkpoint: false }] } });
   });
   await page.goto('/TV-OVERVIEW/gantt');
   await page.getByText('Сценарии «Что будет, если…»', { exact: true }).click();
   await page.getByRole('button', { name: 'Добавить изменение' }).click();
   await page.getByLabel('Длительность, раб. дней').fill('5');
+  const bar = page.locator('.gantt-bar').first();
+  const workingTitle = await bar.getAttribute('title');
   await page.getByRole('button', { name: 'Сравнить с рабочим планом' }).click();
-  await expect(page.getByText('Завершение графика:', { exact: true })).toBeVisible();
+  await expect(bar).toHaveAttribute('title', /15\.09\.2026/);
+  await expect(page.locator('.gantt-link-handle:enabled')).toHaveCount(0);
   await page.getByRole('button', { name: 'Сохранить вариант' }).click();
+  await page.getByRole('button', { name: 'Вернуться к рабочему плану' }).click();
+  await expect(bar).toHaveAttribute('title', workingTitle!);
+  await expect(page.getByText('Завершение графика:', { exact: true })).toHaveCount(0);
   await page.reload();
   await page.getByText('Сценарии «Что будет, если…»', { exact: true }).click();
   await page.getByRole('button', { name: 'Загрузить', exact: true }).click();
@@ -137,4 +143,40 @@ test('development reconciliation switches project scope and clears selected prop
   await expect(checkbox).toBeDisabled();
   await expect(apply).toBeDisabled();
   expect(requested.at(-1)).toContain('/projects/project-2/automation/insights');
+});
+
+
+test('Gantt keeps compact controls and scrolls expanded rows inside fullscreen', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockAdminProject(page, (project) => {
+    const task = project.wbsItems[0];
+    project.wbsItems = Array.from({ length: 4 }, (_, phase) => [
+      { ...task, id: `phase-${phase}`, code: `${phase + 1}`, title: `Фаза ${phase + 1}`, type: 'PHASE', parentId: null, wbsLevel: 1, sortOrder: phase * 20 },
+      ...Array.from({ length: 15 }, (_, index) => ({ ...task, id: `task-${phase}-${index}`, parentId: `phase-${phase}`, code: `${phase + 1}.${index + 1}`, wbsLevel: 2, sortOrder: phase * 20 + index + 1 })),
+    ]).flat();
+  });
+  await page.goto('/TV-OVERVIEW/gantt');
+  const controls = page.locator('.gantt-controls');
+  const normalHeight = (await controls.boundingBox())!.height;
+  await page.getByRole('button', { name: 'Развернуть Гантт на весь экран' }).click();
+  const fullscreenHeight = (await controls.boundingBox())!.height;
+  expect(Math.abs(fullscreenHeight - normalHeight)).toBeLessThan(3);
+  await page.locator('[aria-label="Глубина иерархии Гантта"]').getByRole('button', { name: '5', exact: true }).click();
+  const scroll = page.locator('.gantt-panel-scroll');
+  await expect.poll(() => scroll.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await scroll.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(page.getByRole('button', { name: 'Вернуть обычный режим Гантта' })).toBeInViewport();
+  expect(Math.abs((await controls.boundingBox())!.height - fullscreenHeight)).toBeLessThan(3);
+  const chart = (await page.locator('.gantt-panel').boundingBox())!;
+  expect(chart.y + chart.height).toBeLessThanOrEqual(900);
+  await page.getByText('Сценарии «Что будет, если…»', { exact: true }).click();
+  await page.getByRole('button', { name: 'Добавить изменение' }).click();
+  await expect(page.getByRole('button', { name: 'Вернуть обычный режим Гантта' })).toBeInViewport();
+  expect((await page.locator('.gantt-panel').boundingBox())!.height).toBeGreaterThan(150);
+  await page.getByRole('button', { name: 'Вернуть обычный режим Гантта' }).click();
+  expect(Math.abs((await controls.boundingBox())!.height - normalHeight)).toBeLessThan(3);
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.getByRole('button', { name: 'Развернуть Гантт на весь экран' }).click();
+  await expect(page.getByRole('button', { name: 'Вернуть обычный режим Гантта' })).toBeInViewport();
+  expect((await page.locator('.gantt-panel').boundingBox())!.height).toBeGreaterThanOrEqual(200);
 });

@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+import type { ScenarioResult } from "@pms/shared";
 import { LocateFixed, Maximize2, Minimize2, Redo2, Undo2 } from "lucide-react";
 
 import { usePageContext } from "./PageContext";
@@ -33,11 +35,18 @@ export function ProjectGanttSection() {
     wbsUndoStack,
   } = usePageContext();
 
+  const sourceKey = useMemo(() => JSON.stringify([project.wbsItems, project.wbsDependencies, project.criticalPath]), [project.wbsItems, project.wbsDependencies, project.criticalPath]);
+  const [scenario, setScenario] = useState<ScenarioResult | null>(null);
+
   return (
                         <>
-                            <ScenarioPanel projectId={project.id} userId={currentUser?.id ?? 'viewer'} items={project.wbsItems} />
+                            <ScenarioPanel projectId={project.id} userId={currentUser?.id ?? 'viewer'} items={project.wbsItems} sourceKey={sourceKey} result={scenario} onResult={setScenario} />
                             <div className="gantt-controls">
                               <div className="gantt-controls-row">
+                              {scenario && <div className="gantt-scenario-notice">
+                                <span role="status">Показан сценарий · рабочий план не изменён</span>
+                                <button type="button" onClick={() => setScenario(null)}>Вернуться к рабочему плану</button>
+                              </div>}
                             <button
                               type="button"
                               className="workspace-fullscreen-button"
@@ -67,7 +76,7 @@ export function ProjectGanttSection() {
                                   onClick={() => void undoWbsChange()}
                                 onMouseDown={(event) => event.preventDefault()}
                                 disabled={
-                                  restoringWbsSnapshot ||
+                                  Boolean(scenario) || restoringWbsSnapshot ||
                                   wbsUndoStack.length === 0
                                 }
                                 aria-label="Откатить последнее изменение Гантта"
@@ -80,7 +89,7 @@ export function ProjectGanttSection() {
                                 onClick={() => void redoWbsChange()}
                                 onMouseDown={(event) => event.preventDefault()}
                                 disabled={
-                                  restoringWbsSnapshot ||
+                                  Boolean(scenario) || restoringWbsSnapshot ||
                                   wbsRedoStack.length === 0
                                 }
                                 aria-label="Вернуть отмененное изменение Гантта"
@@ -213,12 +222,14 @@ export function ProjectGanttSection() {
                               <span><i className="tone-critical" />Критический путь</span>
                               <span><i className="tone-near-critical" />Резерв до 5 дн.</span>
                             </div>
-                            {project.criticalPath?.warnings?.map((warning) => (
+                            <div className="gantt-warnings">
+                            {(scenario?.warnings ?? project.criticalPath?.warnings)?.map((warning) => (
                               <p className="gantt-warning" key={warning}>{warning}</p>
                             ))}
+                            </div>
                           </div>
                           
-                          <ProjectGanttPanel />
+                          <ProjectGanttPanel scenario={scenario} />
                         </>
                       );
 }

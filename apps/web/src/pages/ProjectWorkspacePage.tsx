@@ -38,7 +38,7 @@ export function ProjectWorkspacePage() {
                         </div>
                       <div className="wbs-gantt-layout">
                       {activeView === "project-structure" && <ProjectStructureSection />}
-                      {activeView === "project-gantt" && <ProjectGanttSection />}
+                      {activeView === "project-gantt" && <ProjectGanttSection key={`${ctx.currentUser?.id}:${ctx.project.id}`} />}
                   </div>
                 </article>
     </>

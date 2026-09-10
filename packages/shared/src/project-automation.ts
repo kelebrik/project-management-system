@@ -45,7 +45,13 @@ export type WeeklyBrief = {
   warnings: string[];
 };
 export type ScenarioPatch = { id: string; startDate?: string; dueDate?: string; workDays?: number };
+export type ScenarioSchedule = {
+  items: Array<{ id: string; startDate: string | null; dueDate: string | null }>;
+  criticalDependencyIds: string[];
+  floatById: Array<{ itemId: string; totalFloatWorkDays: number; isNearCritical: boolean }>;
+};
 export type ScenarioResult = {
+  schedule: ScenarioSchedule;
   fingerprint: string;
   generatedAt: string;
   beforeFinish: string | null;
