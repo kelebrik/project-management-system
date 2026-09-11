@@ -518,6 +518,20 @@
   box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.22);
 }
 
+.portfolio-goal-dot.goal-health-done,
+.portfolio-goal-item.goal-health-done .portfolio-goal-item-index {
+  background: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+.portfolio-goal-dot.goal-health-late,
+.portfolio-goal-dot.goal-health-risk,
+.portfolio-goal-item.goal-health-late .portfolio-goal-item-index,
+.portfolio-goal-item.goal-health-risk .portfolio-goal-item-index {
+  background: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 22%, transparent);
+}
+
 .portfolio-goal-dot.status-at_risk,
 .portfolio-goal-dot.status-blocked {
   background: var(--danger);

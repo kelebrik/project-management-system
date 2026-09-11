@@ -315,3 +315,8 @@ select.field-invalid {
   font-size: var(--fs-xs);
   font-weight: 600;
 }
+.unified-list-toolbar { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.unified-list-search { align-items: center; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 6px; display: flex; flex: 1 1 280px; gap: 7px; min-height: 36px; padding: 0 9px; }
+.unified-list-search input { background: transparent; border: 0; box-shadow: none; flex: 1; min-width: 120px; }
+.unified-list-search input:focus { box-shadow: none; }
+.unified-list-search button { border: 0; background: transparent; min-height: 24px; padding: 2px; }

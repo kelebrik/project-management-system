@@ -2,8 +2,10 @@ import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
 import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { RaidItemStatus, RaidItemType } from "../app/domainTypes";
+import type { RaidItem, RaidItemStatus, RaidItemType } from "../app/domainTypes";
 import type { RaidTypeFilter } from "../app/raidModels";
+import { ListToolbar } from "../components/ListToolbar";
+import { usePersistedViewState } from "../app/usePersistedViewState";
 
 export function ProjectRaidRegister() {
   const {
@@ -37,6 +39,9 @@ export function ProjectRaidRegister() {
     updateRaidDraft,
     updateRaidStatusDraft,
   } = usePageContext();
+  const [query, setQuery] = usePersistedViewState(`pms:raid:${window.location.pathname}:query`, "");
+  const normalizedQuery = query.trim().toLowerCase();
+  const filterRaidSearch = (items: RaidItem[]) => items.filter((item) => !normalizedQuery || [item.title, item.owner, item.jiraTicketKey].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
   const confirm = useConfirm();
   const [requestedFocusRaidId] = useState(() =>
     new URLSearchParams(window.location.search).get("focusRaid"),
@@ -104,6 +109,7 @@ export function ProjectRaidRegister() {
                     <section className="raid-register">
                       <div className="subhead">Реестр рисков и проблем</div>
                       <section className="raid-filter-card">
+                        <ListToolbar label="Поиск рисков и проблем" query={query} onQueryChange={setQuery} />
                         <div className="subhead">Фильтры</div>
                         <div className="raid-filter-bar">
                           {[
@@ -156,16 +162,16 @@ export function ProjectRaidRegister() {
                         </div>
                       </section>
                       {([
-                        { key: "risks", title: "Риски", items: groupedRaidItems.risks },
+                        { key: "risks", title: "Риски", items: filterRaidSearch(groupedRaidItems.risks) },
                         {
                           key: "problems",
                           title: "Проблемы",
-                          items: groupedRaidItems.problems,
+                          items: filterRaidSearch(groupedRaidItems.problems),
                         },
                         {
                           key: "assumptions",
                           title: "Допущения",
-                          items: groupedRaidItems.assumptions,
+                          items: filterRaidSearch(groupedRaidItems.assumptions),
                         },
                       ] as const).map(({ key, title, items }) => (
                         <section className="raid-section" key={key}>
@@ -570,12 +576,13 @@ export function ProjectRaidRegister() {
                             )}
                           </div>
                         ))}
-                        {items.length === 0 && (
+                        {items.length === 0 && !normalizedQuery && (
                           <div className="empty-state">Записей пока нет.</div>
                         )}
                       </div>
                         </section>
                       ))}
+                      {normalizedQuery && ![...filterRaidSearch(groupedRaidItems.risks), ...filterRaidSearch(groupedRaidItems.problems), ...filterRaidSearch(groupedRaidItems.assumptions)].length && <div className="empty-state"><strong>Записи не найдены</strong><span>Измените запрос или очистите поиск.</span><button type="button" onClick={() => setQuery("")}>Очистить поиск</button></div>}
                       <details
                         className="raid-closed-section"
                         open={closedRaidItems.some((item: { id: string }) => item.id === requestedFocusRaidId) || undefined}

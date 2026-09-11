@@ -1,6 +1,8 @@
 import { usePageContext } from "./PageContext";
 import type { ArtifactStatus } from "../app/domainTypes";
 import { useConfirm } from "../hooks/useConfirm";
+import { ListToolbar } from "../components/ListToolbar";
+import { usePersistedViewState } from "../app/usePersistedViewState";
 
 export function ProjectArtifactsPage() {
   const confirm = useConfirm();
@@ -17,6 +19,9 @@ export function ProjectArtifactsPage() {
     setExpandedArtifactId,
     updateArtifactDraft,
   } = ctx;
+  const [query, setQuery] = usePersistedViewState(`pms:artifacts:${project.id}:query`, "");
+  const normalizedQuery = query.trim().toLowerCase();
+  const artifacts = project.artifacts.filter((artifact) => !normalizedQuery || [artifact.title, artifact.owner, artifact.type, artifact.status].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
   const confirmArtifactDeletion = async (artifactId: string) => {
     if (
       await confirm({
@@ -41,11 +46,12 @@ export function ProjectArtifactsPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => void createArtifactRow()}
+                      onClick={() => { setQuery(""); void createArtifactRow(); }}
                     >
                       + Добавить строку
                     </button>
                   </div>
+                  <ListToolbar label="Поиск артефактов" query={query} onQueryChange={setQuery} />
                   <div className="artifact-list">
                     <div className="artifact-head">
                       <span />
@@ -56,7 +62,7 @@ export function ProjectArtifactsPage() {
                       <span>URL</span>
                       <span />
                     </div>
-                    {project.artifacts.map((artifact, index) => (
+                    {artifacts.map((artifact) => { const index = project.artifacts.findIndex((item) => item.id === artifact.id); return (
                       <div className="artifact-item" key={artifact.id}>
                         <div
                           className="artifact-row"
@@ -85,6 +91,7 @@ export function ProjectArtifactsPage() {
                               className="wbs-inline-insert-button"
                               onClick={(event) => {
                                 event.stopPropagation();
+                                setQuery("");
                                 void createArtifactRow(artifact.id);
                               }}
                               title="Добавить строку ниже"
@@ -286,12 +293,8 @@ export function ProjectArtifactsPage() {
                           </div>
                         )}
                       </div>
-                    ))}
-                    {project.artifacts.length === 0 && (
-                      <div className="empty-state">
-                        Артефакты пока не заведены. Добавьте первую строку.
-                      </div>
-                    )}
+                    ); })}
+                    {artifacts.length === 0 && <div className="empty-state"><strong>{normalizedQuery ? "Артефакты не найдены" : "Артефактов пока нет"}</strong><span>{normalizedQuery ? "Измените запрос или очистите поиск." : "Добавьте первый артефакт проекта кнопкой выше."}</span>{normalizedQuery && <button type="button" onClick={() => setQuery("")}>Очистить поиск</button>}</div>}
                   </div>
                 </article>
               );

@@ -23,6 +23,7 @@ import {
 } from "../app/portfolioProjectFilter";
 import { usePageContext } from "./PageContext";
 import { ProjectsOverview } from "./ProjectsOverview";
+import { goalScheduleHealth } from "../app/goalScheduleHealth";
 
 const PortfolioRoadmapV2 = lazy(() =>
   import("./PortfolioV2Page").then((module) => ({
@@ -332,7 +333,7 @@ export function PortfolioPage() {
                       />
                       {row.items.map((item, index) => (
                         <span
-                          className={`portfolio-goal-dot status-${item.status.toLowerCase()}`}
+                          className={`portfolio-goal-dot goal-health-${goalScheduleHealth(item)}`}
                           key={item.id}
                           style={{ left: `${item.offset}%` }}
                           title={`${item.goalTitle}: ${date(item.dueDate)}`}
@@ -346,7 +347,7 @@ export function PortfolioPage() {
                         row.items.map((item, index) => (
                           <button
                             type="button"
-                            className={`portfolio-goal-item status-${item.status.toLowerCase()}`}
+                            className={`portfolio-goal-item goal-health-${goalScheduleHealth(item)}`}
                             key={item.id}
                             onClick={() =>
                               selectProject(item.projectId, firstEnabledProjectView)

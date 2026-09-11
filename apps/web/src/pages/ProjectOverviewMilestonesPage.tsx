@@ -6,6 +6,7 @@ import {
   startOfDay,
 } from "../app/dateUtils";
 import type { WbsItem } from "../app/domainTypes";
+import { goalScheduleHealth } from "../app/goalScheduleHealth";
 
 const GOAL_RANGE_PADDING_DAYS = 14;
 const DAY_MS = 86_400_000;
@@ -234,7 +235,7 @@ export function ProjectOverviewMilestonesPage() {
               ))}
               {projectGoalTimeline.items.map((item, index) => (
                 <span
-                  className={`portfolio-goal-dot status-${item.status.toLowerCase()}`}
+                  className={`portfolio-goal-dot goal-health-${goalScheduleHealth(item)}`}
                   key={item.id}
                   style={{ left: `${item.offset}%` }}
                 >
@@ -246,7 +247,7 @@ export function ProjectOverviewMilestonesPage() {
               {projectGoalTimeline.items.map((item, index) => (
                 <button
                   type="button"
-                  className={`portfolio-goal-item status-${item.status.toLowerCase()}`}
+                  className={`portfolio-goal-item goal-health-${goalScheduleHealth(item)}`}
                   key={item.id}
                   onClick={() => {
                     setActiveWbsItemId(item.id);

@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ProjectListItem } from "../app/domainTypes";
 import { projectHealthLabel, projectStatusLabel } from "../app/labels";
 import { createProjectWorkProgress } from "../app/projectWorkProgress";
 import { getActiveProjects } from "../app/portfolioModels";
 import type { ProjectSectionView } from "../app/routes";
+import { ListToolbar } from "../components/ListToolbar";
+import { usePersistedViewState } from "../app/usePersistedViewState";
 
 type SortKey = "code" | "name" | "status" | "target";
 
@@ -52,11 +54,13 @@ export function ProjectsOverview({
   projects,
   selectProject,
 }: ProjectsOverviewProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("code");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortKey, setSortKey] = usePersistedViewState<SortKey>("pms:projects-overview:sort-key", "code");
+  const [sortDir, setSortDir] = usePersistedViewState<"asc" | "desc">("pms:projects-overview:sort-dir", "asc");
+  const [query, setQuery] = usePersistedViewState("pms:projects-overview:query", "");
 
   const sortedItems = useMemo(() => {
-    const items = getActiveProjects(projects);
+    const normalizedQuery = query.trim().toLowerCase();
+    const items = getActiveProjects(projects).filter((project) => !normalizedQuery || [project.code, project.name, project.projectManager, project.sponsor].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
     const direction = sortDir === "asc" ? 1 : -1;
     const valueOf = (project: ProjectListItem) => {
       switch (sortKey) {
@@ -77,11 +81,9 @@ export function ProjectsOverview({
       if (av > bv) return 1 * direction;
       return 0;
     });
-  }, [projects, sortKey, sortDir]);
+  }, [projects, query, sortKey, sortDir]);
 
-  if (sortedItems.length === 0) {
-    return <div className="empty-state compact">Активных проектов нет.</div>;
-  }
+  if (sortedItems.length === 0) return <><ListToolbar label="Поиск проектов" query={query} onQueryChange={setQuery} /><div className="empty-state compact"><strong>{query.trim() ? "Проекты не найдены" : "Активных проектов нет"}</strong><span>{query.trim() ? "Измените запрос поиска или очистите его." : "Создайте первый активный проект, чтобы он появился здесь."}</span>{query.trim() && <button type="button" onClick={() => setQuery("")}>Очистить поиск</button>}</div></>;
 
   const onSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -94,25 +96,12 @@ export function ProjectsOverview({
 
   return (
     <>
-      <div
-        className="projects-overview-toolbar"
-        role="group"
-        aria-label="Сортировка проектов"
-      >
-        <span>Сортировать:</span>
-        {SORT_OPTIONS.map((option) => (
-          <button
-            type="button"
-            key={option.key}
-            className={sortKey === option.key ? "active" : ""}
-            aria-pressed={sortKey === option.key}
-            onClick={() => onSort(option.key)}
-          >
-            {option.label}
-            {sortKey === option.key ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
-          </button>
-        ))}
-      </div>
+      <ListToolbar label="Поиск проектов" query={query} onQueryChange={setQuery}>
+        <div className="projects-overview-toolbar" role="group" aria-label="Сортировка проектов">
+          <span>Сортировать:</span>
+          {SORT_OPTIONS.map((option) => <button type="button" key={option.key} className={sortKey === option.key ? "active" : ""} aria-pressed={sortKey === option.key} onClick={() => onSort(option.key)}>{option.label}{sortKey === option.key ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</button>)}
+        </div>
+      </ListToolbar>
       <div className="projects-overview-grid">
         {sortedItems.map((project) => {
         const passportRows = compactPassportRows(project);

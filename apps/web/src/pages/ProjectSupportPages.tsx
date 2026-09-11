@@ -3,9 +3,14 @@ import {
 } from "lucide-react";
 
 import { usePageContext } from "./PageContext";
+import { ListToolbar } from "../components/ListToolbar";
+import { usePersistedViewState } from "../app/usePersistedViewState";
 
 export function ProjectChangesPage() {
   const { overviewDashboard, project } = usePageContext();
+  const [query, setQuery] = usePersistedViewState(`pms:changes:${project.id}:query`, "");
+  const normalizedQuery = query.trim().toLowerCase();
+  const changes = overviewDashboard.scheduleDeltaItems.filter(({ item }) => !normalizedQuery || [item.code, item.title, item.owner].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
   return (
                 <article className="panel project-card project-module-page">
                   <div className="panel-title">
@@ -41,6 +46,7 @@ export function ProjectChangesPage() {
                       <small>Первичные источники сдвига сроков</small>
                     </div>
                   </div>
+                  <ListToolbar label="Поиск изменений" query={query} onQueryChange={setQuery} />
                   <div className="module-table">
                     <div className="module-table-head">
                       <span>Объект</span>
@@ -48,7 +54,7 @@ export function ProjectChangesPage() {
                       <span>Влияние</span>
                       <span>Ответственный</span>
                     </div>
-                    {overviewDashboard.scheduleDeltaItems.map(({ item, delay }) => (
+                    {changes.map(({ item, delay }) => (
                       <div className="module-table-row" key={item.id}>
                         <b>
                           {item.code} {item.title}
@@ -58,10 +64,8 @@ export function ProjectChangesPage() {
                         <span>{item.owner || "не назначен"}</span>
                       </div>
                     ))}
-                    {overviewDashboard.scheduleDeltaItems.length === 0 && (
-                      <div className="empty-state">
-                        Изменения сроков относительно базового плана не найдены.
-                      </div>
+                    {changes.length === 0 && (
+                      <div className="empty-state"><strong>{normalizedQuery ? "Изменения не найдены" : "Изменения сроков не найдены"}</strong><span>{normalizedQuery ? "Измените запрос или очистите поиск." : "Отклонения появятся, когда прогнозная дата отойдёт от базового плана."}</span>{normalizedQuery && <button type="button" onClick={() => setQuery("")}>Очистить поиск</button>}</div>
                     )}
                   </div>
                 </article>
