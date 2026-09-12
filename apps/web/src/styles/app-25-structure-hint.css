@@ -20,12 +20,14 @@
   width: 120px;
   height: 90px;
   overflow: visible;
-  fill: none;
-  stroke: var(--accent, #2f8f88);
+  display: block !important;
+  fill: none !important;
+  stroke: var(--accent, #2f8f88) !important;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 4;
+  stroke-width: 4 !important;
 }
+.structure-fullscreen-hint-arrow path { fill: none !important; stroke: inherit !important; stroke-width: inherit !important; }
 .structure-fullscreen-hint strong { font-size: 15px; }
 .structure-fullscreen-hint span { color: var(--text-secondary, #64736f); font-size: 13px; line-height: 1.4; }
 .structure-fullscreen-hint-close { position: absolute; top: 8px; right: 8px; padding: 3px; border: 0; background: transparent; color: inherit; }
