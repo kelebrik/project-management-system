@@ -976,8 +976,8 @@
 }
 .structure-fullscreen-hint {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  left: 24px;
+  top: 230px;
   z-index: 30;
   display: grid;
   gap: 8px;
@@ -988,6 +988,19 @@
   background: var(--surface, #fff);
   box-shadow: 0 10px 30px rgb(20 45 42 / 18%);
   color: var(--text, #263633);
+}
+.structure-fullscreen-hint-arrow {
+  position: absolute;
+  left: 150px;
+  top: -86px;
+  width: 120px;
+  height: 90px;
+  overflow: visible;
+  fill: none;
+  stroke: var(--accent, #2f8f88);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
 }
 .structure-fullscreen-hint strong { font-size: 15px; }
 .structure-fullscreen-hint span { color: var(--text-secondary, #64736f); font-size: 13px; line-height: 1.4; }

@@ -944,6 +944,10 @@ export function ProjectStructureSection() {
                       </div>
                       {showFullscreenHint && fullscreenWorkspaceView !== "project-structure" && createPortal(
                         <aside className="structure-fullscreen-hint" aria-label="Подсказка по режиму просмотра">
+                          <svg className="structure-fullscreen-hint-arrow" viewBox="0 0 120 90" aria-hidden="true">
+                            <path d="M12 82 C12 38 34 14 82 14" />
+                            <path d="M70 7 L84 14 L72 24" />
+                          </svg>
                           <button
                             type="button"
                             className="structure-fullscreen-hint-close"
