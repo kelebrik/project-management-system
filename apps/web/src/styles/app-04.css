@@ -524,9 +524,7 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 22%, transparent);
 }
 
-.portfolio-goal-dot.goal-health-late,
 .portfolio-goal-dot.goal-health-risk,
-.portfolio-goal-item.goal-health-late .portfolio-goal-item-index,
 .portfolio-goal-item.goal-health-risk .portfolio-goal-item-index {
   background: var(--danger);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 22%, transparent);
@@ -643,6 +641,28 @@
 .portfolio-goal-item.status-at_risk .portfolio-goal-item-index,
 .portfolio-goal-item.status-blocked .portfolio-goal-item-index {
   background: var(--danger);
+}
+
+.portfolio-goal-dot.goal-health-late-warning,
+.portfolio-goal-item.goal-health-late-warning .portfolio-goal-item-index {
+  background: var(--warning-500);
+  color: #92400e;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning-500) 28%, transparent);
+}
+.portfolio-goal-dot.goal-health-late-danger,
+.portfolio-goal-item.goal-health-late-danger .portfolio-goal-item-index {
+  background: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 24%, transparent);
+}
+.portfolio-goal-dot.goal-health-done-late-warning,
+.portfolio-goal-item.goal-health-done-late-warning .portfolio-goal-item-index {
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--warning-500);
+}
+.portfolio-goal-dot.goal-health-done-late-danger,
+.portfolio-goal-item.goal-health-done-late-danger .portfolio-goal-item-index {
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--danger);
 }
 
 .portfolio-goal-range {
