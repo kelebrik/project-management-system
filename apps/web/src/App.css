@@ -35,3 +35,5 @@
 .empty-state strong { color: var(--text-heading); }
 .empty-state span { color: var(--text-muted); }
 .empty-state button { margin-top: 4px; }
+
+@import "./styles/app-25-structure-hint.css";
