@@ -29,11 +29,10 @@
 @import "./styles/app-22.css";
 @import "./styles/app-23.css";
 @import "./styles/app-24.css";
+@import "./styles/app-25-structure-hint.css";
 
 .sr-only { border: 0; clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; width: 1px; }
 .empty-state { display: grid; gap: 6px; justify-items: start; }
 .empty-state strong { color: var(--text-heading); }
 .empty-state span { color: var(--text-muted); }
 .empty-state button { margin-top: 4px; }
-
-@import "./styles/app-25-structure-hint.css";
