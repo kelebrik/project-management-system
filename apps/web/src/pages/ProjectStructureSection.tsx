@@ -1,5 +1,6 @@
-import { FileDown, Languages, Maximize2, Minimize2, RefreshCw } from "lucide-react";
+import { FileDown, Languages, Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
@@ -132,6 +133,8 @@ export function ProjectStructureSection() {
   const englishPrintTitle = `${englishProjectName} - Structure`;
   const [showEnglishMenu, setShowEnglishMenu] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [showFullscreenHint, setShowFullscreenHint] = useState(false);
+  const fullscreenHintShownRef = useRef(false);
   const previousDirtyCountRef = useRef(dirtyWbsItemIds.size);
   const translationImportInputRef = useRef<HTMLInputElement | null>(null);
   const [manualEnglishTranslations, setManualEnglishTranslations] = useState(
@@ -140,6 +143,22 @@ export function ProjectStructureSection() {
   const [cachedEnglishTranslations] = useState(
     () => loadWbsEnglishTranslationCache(),
   );
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        fullscreenWorkspaceView === "project-structure" ||
+        fullscreenHintShownRef.current ||
+        window.scrollY < 180
+      ) {
+        return;
+      }
+      fullscreenHintShownRef.current = true;
+      setShowFullscreenHint(true);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [fullscreenWorkspaceView]);
 
   useLayoutEffect(() => {
     if (
@@ -923,6 +942,32 @@ export function ProjectStructureSection() {
                           );
                         })}
                       </div>
+                      {showFullscreenHint && fullscreenWorkspaceView !== "project-structure" && createPortal(
+                        <aside className="structure-fullscreen-hint" aria-label="Подсказка по режиму просмотра">
+                          <button
+                            type="button"
+                            className="structure-fullscreen-hint-close"
+                            onClick={() => setShowFullscreenHint(false)}
+                            aria-label="Закрыть подсказку"
+                          >
+                            <X size={16} />
+                          </button>
+                          <strong>Удобнее работать со структурой?</strong>
+                          <span>Разверните её на весь экран — шапка и панель управления всегда будут доступны.</span>
+                          <button
+                            type="button"
+                            className="structure-fullscreen-hint-action"
+                            onClick={() => {
+                              setShowFullscreenHint(false);
+                              toggleWorkspaceFullscreen("project-structure");
+                            }}
+                          >
+                            <Maximize2 size={15} />
+                            На весь экран
+                          </button>
+                        </aside>,
+                        document.body,
+                      )}
                     </div>
                       </>
                       );
