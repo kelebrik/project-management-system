@@ -7,6 +7,7 @@ import {
   type CurrentUser,
   type PermissionName,
   userHasPermission,
+  PUBLIC_DEMO_MODE,
 } from './auth.js';
 import { projectIdForWritePath, userCanWriteProject } from './project-access.js';
 import { isReadRequest } from './project-write-guards.js';
@@ -188,6 +189,15 @@ export async function canProceedWithWrite(
 
 export async function writePermissionMiddleware(req: Request, res: Response, next: NextFunction) {
   if (isReadRequest(req)) {
+    next();
+    return;
+  }
+  if (
+    PUBLIC_DEMO_MODE &&
+    currentUser(req)?.id === 'public-demo-user' &&
+    !req.path.startsWith('/admin') &&
+    !req.path.startsWith('/users')
+  ) {
     next();
     return;
   }

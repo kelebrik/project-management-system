@@ -19,6 +19,7 @@ import {
   userCanCreateInBusinessUnit,
   userCanReadProject,
 } from '../../server/business-units.js';
+import { PUBLIC_DEMO_MODE } from '../../server/auth.js';
 import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
 import { createDefaultProjectStructure } from './default-structure.js';
@@ -70,6 +71,10 @@ export function registerProjectCrudRoutes(
     }
     if (user.role === 'ADMIN') {
       res.json(projects.map((project) => ({ ...project, currentUserAccessLevel: 'ADMIN' })));
+      return;
+    }
+    if (PUBLIC_DEMO_MODE && user.id === 'public-demo-user') {
+      res.json(projects.map((project) => ({ ...project, currentUserAccessLevel: 'EDIT' })));
       return;
     }
 

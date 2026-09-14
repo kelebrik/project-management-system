@@ -4,6 +4,20 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { prisma } from '../db.js';
 
+export const PUBLIC_DEMO_MODE =
+  process.env.PUBLIC_DEMO_MODE === 'true' ||
+  process.env.WEB_ORIGIN?.includes('project-management-system-lorj.onrender.com') === true;
+
+const publicDemoUser: CurrentUser = {
+  id: 'public-demo-user',
+  email: 'public-demo@local.invalid',
+  name: 'Публичная демонстрация',
+  role: 'PROJECT_MANAGER',
+  isActive: true,
+  lastLoginAt: null,
+  businessUnitAdminIds: [],
+};
+
 const authCookieName = process.env.AUTH_COOKIE_NAME ?? 'pms_session';
 const sessionDays = Math.max(1, Number(process.env.AUTH_SESSION_DAYS ?? 7));
 const authCookieSecure =
@@ -208,6 +222,7 @@ export async function attachAuth(req: Request, _res: Response, next: NextFunctio
 
     const token = readCookie(req, authCookieName);
     if (!token) {
+      if (PUBLIC_DEMO_MODE) (req as AuthRequest).currentUser = publicDemoUser;
       next();
       return;
     }
@@ -227,17 +242,20 @@ export async function attachAuth(req: Request, _res: Response, next: NextFunctio
     });
 
     if (!session) {
+      if (PUBLIC_DEMO_MODE) (req as AuthRequest).currentUser = publicDemoUser;
       next();
       return;
     }
 
     if (session.expiresAt.getTime() <= Date.now()) {
       await prisma.userSession.delete({ where: { id: session.id } }).catch(() => undefined);
+      if (PUBLIC_DEMO_MODE) (req as AuthRequest).currentUser = publicDemoUser;
       next();
       return;
     }
 
     if (!session.user.isActive) {
+      if (PUBLIC_DEMO_MODE) (req as AuthRequest).currentUser = publicDemoUser;
       next();
       return;
     }
@@ -274,6 +292,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = currentUser(req);
   const apiToken = currentApiToken(req);
+  if (PUBLIC_DEMO_MODE && user?.id === 'public-demo-user' && ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    next();
+    return;
+  }
   if (!user && apiToken && apiTokenHasPermission(apiToken, 'admin.config')) {
     next();
     return;
