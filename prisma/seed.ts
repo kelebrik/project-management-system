@@ -1,3 +1,4 @@
+import { completeDemoData } from '../apps/api/src/demo/complete.js';
 import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -367,6 +368,8 @@ async function main() {
     for (const [type, title, status, score, dueDate] of [['RISK', 'Высокий риск поставки', 'OPEN', 20, '2026-09-20'], ['RISK', 'Риск качества данных', 'IN_PROGRESS', 12, '2026-10-05'], ['DEPENDENCY', 'Зависимость от внешнего API', 'BREACHED', 25, '2026-09-10'], ['ASSUMPTION', 'Допущение по доступности команды', 'MITIGATED', 4, '2026-08-20'], ['ASSUMPTION', 'Допущение по тестовым данным', 'VALIDATED', 2, '2026-09-01']] as const) await prisma.raidItem.create({ data: { projectId: demoProject.id, type, title, description: 'Демо-запись для проверки всех вариантов', owner: demoProject.projectManager, status, probability: Math.min(score, 5), impact: Math.min(score, 5), riskScore: score, dueDate: new Date(dueDate), decisionRequired: score >= 15, mitigationPlan: 'Контрольный план' } });
     for (const [source, title, severity, status, dueDate] of [['INTERNAL', 'Критический вопрос по сроку', 'CRITICAL', 'Open', '2026-09-12'], ['JIRA', 'Вопрос по интеграции', 'HIGH', 'In Progress', '2026-09-25'], ['INTERNAL', 'Нужно подтвердить владельца', 'MEDIUM', 'Resolved', '2026-08-20'], ['JIRA', 'Закрытый вопрос пилота', 'LOW', 'Closed', '2026-08-31']] as const) await prisma.issue.create({ data: { projectId: demoProject.id, source, title, severity, status, owner: demoProject.projectManager, impact: 'Влияние на демонстрационную выборку', decisionRequired: severity === 'CRITICAL', dueDate: new Date(dueDate) } });
   }
+
+  if (process.env.SEED_DEMO_DATA === 'true') await completeDemoData(prisma);
 
   console.log(
     `Seeded projects ${[...extraTestProjects.map((item) => item.code), project.code, ...additionalProjects.map((item) => item.code)].join(', ')}`,

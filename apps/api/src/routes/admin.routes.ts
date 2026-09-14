@@ -1,3 +1,4 @@
+import { registerDemoDataRoutes } from './admin/demo-data.routes.js';
 import { Router } from 'express';
 import { registerAdminConfigRoutes } from './admin/config.routes.js';
 import { registerBusinessUnitAdminRoutes } from './admin/business-units.routes.js';
@@ -13,6 +14,7 @@ import { registerAdminWbsTombstoneRoutes } from './admin/wbs-tombstones.routes.j
 export function createAdminRouter(context: AdminRoutesContext) {
   const router = Router();
 
+  registerDemoDataRoutes(router, context);
   registerAdminHealthRoutes(router, context);
   registerProjectModuleRoutes(router, context);
   registerAdminConfigRoutes(router, context);

@@ -8,6 +8,9 @@ import {
 } from "./openapi-helpers.js";
 
 export const openApiAdminPaths = {
+    "/api/admin/demo-data/projects/{projectId}": {
+      post: securedOperation(["Admin"], "Add synthetic demo data to a project (system admin, demo runtime only)", [pathParam("projectId")]),
+    },
     "/api/admin/business-units/{businessUnitId}": {
       patch: {
         ...securedOperation(["Admin"], "Rename a business unit and its project portfolio labels (system admin only)", [pathParam("businessUnitId")]),
