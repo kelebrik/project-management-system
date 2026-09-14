@@ -334,9 +334,19 @@ async function main() {
     },
   });
 
+  const additionalUnits = await Promise.all([
+    { code: 'bu-2', name: 'BU_2' }, { code: 'bu-3', name: 'BU_3' },
+  ].map((unit) => prisma.businessUnit.upsert({ where: { code: unit.code }, update: {}, create: { code: unit.code, name: unit.name } })));
+  const additionalProjects = await Promise.all([
+    { unit: additionalUnits[0], code: 'BU2-CRM', name: 'CRM трансформация', sponsor: 'CCO', manager: 'Анна Орлова', status: 'ACTIVE' as const, rag: 'GREEN' as const, start: '2026-05-01', target: '2026-11-30', progress: 48, variance: 0, budget: '42000000.00', forecast: '41500000.00', summary: 'Демо-проект клиентского контура с устойчивым графиком.' },
+    { unit: additionalUnits[0], code: 'BU2-DATA', name: 'Единая витрина данных', sponsor: 'CFO', manager: 'Елена Волкова', status: 'ON_HOLD' as const, rag: 'RED' as const, start: '2026-02-15', target: '2027-01-31', progress: 22, variance: 34, budget: '68000000.00', forecast: '79000000.00', summary: 'Проект остановлен до решения по качеству исходных данных.' },
+    { unit: additionalUnits[1], code: 'BU3-DEVICE', name: 'Платформа устройств', sponsor: 'CTO', manager: 'Михаил Соколов', status: 'ACTIVE' as const, rag: 'AMBER' as const, start: '2026-07-01', target: '2026-12-15', progress: 61, variance: 9, budget: '51000000.00', forecast: '54800000.00', summary: 'Развитие платформы устройств и интеграционного API.' },
+    { unit: additionalUnits[1], code: 'BU3-OPS', name: 'Операционная аналитика', sponsor: 'COO', manager: 'Ольга Лебедева', status: 'DRAFT' as const, rag: 'GREEN' as const, start: '2026-10-01', target: '2027-03-31', progress: 5, variance: 0, budget: '19000000.00', forecast: '19000000.00', summary: 'Подготовка операционной модели и набора метрик.' },
+  ].map((item) => prisma.project.upsert({ where: { code: item.code }, update: { businessUnitId: item.unit.id, portfolio: item.unit.name, sponsor: item.sponsor, projectManager: item.manager, status: item.status, rag: item.rag, startDate: new Date(item.start), initialTargetDate: new Date(item.target), targetDate: new Date(item.target), progress: item.progress, scheduleVariance: item.variance, budgetPlanned: item.budget, budgetForecast: item.forecast, summary: item.summary, parentId: null }, create: { businessUnitId: item.unit.id, code: item.code, name: item.name, portfolio: item.unit.name, sponsor: item.sponsor, projectManager: item.manager, status: item.status, rag: item.rag, startDate: new Date(item.start), initialTargetDate: new Date(item.target), targetDate: new Date(item.target), progress: item.progress, scheduleVariance: item.variance, budgetPlanned: item.budget, budgetForecast: item.forecast, summary: item.summary } })));
+
   // Rich deterministic fixture for public review: all WBS statuses, dates,
   // dependencies, milestones/goals, RAID variants and issue states.
-  for (const demoProject of [...extraTestProjects, project]) {
+  for (const demoProject of [...extraTestProjects, project, ...additionalProjects]) {
     const existingWbsCount = await prisma.wbsItem.count({ where: { projectId: demoProject.id } });
     if (existingWbsCount > 0) continue;
     const phase = await prisma.wbsItem.create({ data: { projectId: demoProject.id, code: '1', title: 'Демо-фаза реализации', type: 'PHASE', status: 'IN_PROGRESS', owner: demoProject.projectManager, startDate: new Date('2026-08-03'), dueDate: new Date('2026-11-30'), wbsLevel: 1, sortOrder: 1 } });
@@ -345,7 +355,7 @@ async function main() {
     const dates = ['2026-08-14', '2026-09-12', '2026-09-16', '2026-09-10', '2026-10-02', '2026-10-20', '2026-09-01'];
     const tasks = [];
     for (let i = 0; i < statuses.length; i += 1) {
-      tasks.push(await prisma.wbsItem.create({ data: { projectId: demoProject.id, parentId: workPackage.id, code: '1.1.' + (i + 1), title: 'Демо-задача ' + statuses[i], type: i === 2 ? 'DELIVERABLE' : 'TASK', status: statuses[i], owner: ['Иванов', 'Петров', 'Сидорова'][i % 3], startDate: new Date(dates[i]), dueDate: new Date(dates[i]), wbsLevel: 3, sortOrder: 10 + i, predecessor1: i > 0 ? '1.1.' + i : null, progress: statuses[i] === 'DONE' ? 100 : statuses[i] === 'IN_PROGRESS' ? 55 : 0, effortPercent: 50 + (i % 3) * 25 } }));
+      tasks.push(await prisma.wbsItem.create({ data: { projectId: demoProject.id, parentId: workPackage.id, code: '1.1.' + (i + 1), title: 'Демо-задача ' + statuses[i], type: i === 2 ? 'DELIVERABLE' : 'TASK', status: statuses[i], owner: ['Иванов', 'Петров', 'Сидорова'][i % 3], startDate: new Date(dates[i]), dueDate: new Date(dates[i]), wbsLevel: 3, sortOrder: 10 + i, predecessor1: i > 0 ? '1.1.' + i : null, progress: statuses[i] === 'DONE' ? 100 : statuses[i] === 'IN_PROGRESS' ? 55 : 0, effortPercent: 50 + (i % 3) * 25, priority: ['Low', 'Medium', 'High', 'Critical', 'High', 'Medium', 'Low'][i] } }));
     }
     await prisma.wbsItem.createMany({ data: [
       { projectId: demoProject.id, parentId: phase.id, code: '1.2', title: 'Цель: готовность к запуску', type: 'GOAL', status: 'NOT_STARTED', owner: demoProject.projectManager, startDate: new Date('2026-10-01'), dueDate: new Date('2026-11-30'), wbsLevel: 2, sortOrder: 30 },
@@ -359,7 +369,7 @@ async function main() {
   }
 
   console.log(
-    `Seeded projects ${[...extraTestProjects.map((item) => item.code), project.code].join(', ')}`,
+    `Seeded projects ${[...extraTestProjects.map((item) => item.code), project.code, ...additionalProjects.map((item) => item.code)].join(', ')}`,
   );
 }
 
