@@ -359,7 +359,7 @@
 .workspace {
   min-width: 0;
   overflow-x: hidden;
-  padding: 16px 24px 28px;
+  padding: 0 24px 28px;
 }
 
 .topbar {
@@ -367,8 +367,8 @@
   border: 0;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
-  margin-bottom: 14px;
-  padding: 6px 0 14px;
+  margin-bottom: 0;
+  padding: 0;
   position: relative;
   top: auto;
 }
