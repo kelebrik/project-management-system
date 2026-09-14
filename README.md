@@ -2,6 +2,12 @@
 
 Corporate project management system with PM web UI, admin back office scope, Jira issue synchronization, open issues list, and executive overview generation for top management.
 
+## Open Source and License
+
+This repository is source-available for personal, educational, research, and internal non-commercial use. Commercial use, monetization, paid hosting, resale, and licensing for payment are prohibited. Copies and derivative works must retain the license and clearly credit **kelebrik <kelebrik@gmail.com>**. See [LICENSE](LICENSE) for the full terms.
+
+The public repository contains application code and deployment templates only. Configure database credentials, authentication bootstrap passwords, Jira tokens, and other secrets through environment variables; never commit them.
+
 ## Current Scope
 
 - React PM dashboard.
