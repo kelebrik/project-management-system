@@ -334,6 +334,30 @@ async function main() {
     },
   });
 
+  // Rich deterministic fixture for public review: all WBS statuses, dates,
+  // dependencies, milestones/goals, RAID variants and issue states.
+  for (const demoProject of [...extraTestProjects, project]) {
+    const existingWbsCount = await prisma.wbsItem.count({ where: { projectId: demoProject.id } });
+    if (existingWbsCount > 0) continue;
+    const phase = await prisma.wbsItem.create({ data: { projectId: demoProject.id, code: '1', title: 'Демо-фаза реализации', type: 'PHASE', status: 'IN_PROGRESS', owner: demoProject.projectManager, startDate: new Date('2026-08-03'), dueDate: new Date('2026-11-30'), wbsLevel: 1, sortOrder: 1 } });
+    const workPackage = await prisma.wbsItem.create({ data: { projectId: demoProject.id, parentId: phase.id, code: '1.1', title: 'Пакет работ демонстрации', type: 'WORK_PACKAGE', status: 'AT_RISK', owner: 'Команда проекта', startDate: new Date('2026-08-03'), dueDate: new Date('2026-11-30'), wbsLevel: 2, sortOrder: 2 } });
+    const statuses = ['DONE', 'IN_PROGRESS', 'IN_REVIEW', 'AT_RISK', 'BLOCKED', 'NOT_STARTED', 'CANCELLED'] as const;
+    const dates = ['2026-08-14', '2026-09-12', '2026-09-16', '2026-09-10', '2026-10-02', '2026-10-20', '2026-09-01'];
+    const tasks = [];
+    for (let i = 0; i < statuses.length; i += 1) {
+      tasks.push(await prisma.wbsItem.create({ data: { projectId: demoProject.id, parentId: workPackage.id, code: '1.1.' + (i + 1), title: 'Демо-задача ' + statuses[i], type: i === 2 ? 'DELIVERABLE' : 'TASK', status: statuses[i], owner: ['Иванов', 'Петров', 'Сидорова'][i % 3], startDate: new Date(dates[i]), dueDate: new Date(dates[i]), wbsLevel: 3, sortOrder: 10 + i, predecessor1: i > 0 ? '1.1.' + i : null, progress: statuses[i] === 'DONE' ? 100 : statuses[i] === 'IN_PROGRESS' ? 55 : 0, effortPercent: 50 + (i % 3) * 25 } }));
+    }
+    await prisma.wbsItem.createMany({ data: [
+      { projectId: demoProject.id, parentId: phase.id, code: '1.2', title: 'Цель: готовность к запуску', type: 'GOAL', status: 'NOT_STARTED', owner: demoProject.projectManager, startDate: new Date('2026-10-01'), dueDate: new Date('2026-11-30'), wbsLevel: 2, sortOrder: 30 },
+      { projectId: demoProject.id, parentId: phase.id, code: '1.3', title: 'Веха: архитектура утверждена', type: 'MILESTONE', status: 'DONE', owner: 'Архитектура', startDate: new Date('2026-08-28'), dueDate: new Date('2026-08-28'), wbsLevel: 2, sortOrder: 31 },
+      { projectId: demoProject.id, parentId: phase.id, code: '1.4', title: 'Веха: UAT старт', type: 'MILESTONE', status: 'AT_RISK', owner: 'QA Lead', startDate: new Date('2026-09-22'), dueDate: new Date('2026-09-22'), wbsLevel: 2, sortOrder: 32 },
+      { projectId: demoProject.id, parentId: phase.id, code: '1.5', title: 'Цель: закрытие пилота', type: 'GOAL', status: 'DONE', owner: 'Sponsor', startDate: new Date('2026-07-01'), dueDate: new Date('2026-08-31'), wbsLevel: 2, sortOrder: 33 },
+    ] });
+    for (let i = 1; i < tasks.length; i += 1) await prisma.wbsDependency.create({ data: { projectId: demoProject.id, predecessorId: tasks[i - 1].id, successorId: tasks[i].id, type: i % 3 === 0 ? 'SS' : i % 3 === 1 ? 'FS' : 'FF', lagDays: i - 2 } });
+    for (const [type, title, status, score, dueDate] of [['RISK', 'Высокий риск поставки', 'OPEN', 20, '2026-09-20'], ['RISK', 'Риск качества данных', 'IN_PROGRESS', 12, '2026-10-05'], ['DEPENDENCY', 'Зависимость от внешнего API', 'BREACHED', 25, '2026-09-10'], ['ASSUMPTION', 'Допущение по доступности команды', 'MITIGATED', 4, '2026-08-20'], ['ASSUMPTION', 'Допущение по тестовым данным', 'VALIDATED', 2, '2026-09-01']] as const) await prisma.raidItem.create({ data: { projectId: demoProject.id, type, title, description: 'Демо-запись для проверки всех вариантов', owner: demoProject.projectManager, status, probability: Math.min(score, 5), impact: Math.min(score, 5), riskScore: score, dueDate: new Date(dueDate), decisionRequired: score >= 15, mitigationPlan: 'Контрольный план' } });
+    for (const [source, title, severity, status, dueDate] of [['INTERNAL', 'Критический вопрос по сроку', 'CRITICAL', 'Open', '2026-09-12'], ['JIRA', 'Вопрос по интеграции', 'HIGH', 'In Progress', '2026-09-25'], ['INTERNAL', 'Нужно подтвердить владельца', 'MEDIUM', 'Resolved', '2026-08-20'], ['JIRA', 'Закрытый вопрос пилота', 'LOW', 'Closed', '2026-08-31']] as const) await prisma.issue.create({ data: { projectId: demoProject.id, source, title, severity, status, owner: demoProject.projectManager, impact: 'Влияние на демонстрационную выборку', decisionRequired: severity === 'CRITICAL', dueDate: new Date(dueDate) } });
+  }
+
   console.log(
     `Seeded projects ${[...extraTestProjects.map((item) => item.code), project.code].join(', ')}`,
   );

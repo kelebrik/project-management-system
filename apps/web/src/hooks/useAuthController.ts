@@ -38,6 +38,7 @@ type UseAuthControllerOptions = {
   projectModules: ProjectModule[];
   isAuthenticated: boolean;
   isAdminUser: boolean;
+  isDemoUser?: boolean;
   isBusinessUnitAdmin: boolean;
   isBusinessUnitAdminResolved: boolean;
   openView: (view: AppView, options?: OpenViewOptions) => void;
@@ -63,6 +64,7 @@ export function useAuthController({
   projectModules,
   isAuthenticated,
   isAdminUser,
+  isDemoUser = false,
   isBusinessUnitAdmin,
   isBusinessUnitAdminResolved,
   openView,
@@ -173,8 +175,8 @@ export function useAuthController({
         isBusinessUnitAdminResolved &&
         (
           (isAdminSectionViewName(activeView) &&
-            !canAccessAdminView(activeView, isAdminUser, isBusinessUnitAdmin)) ||
-          (isDevelopmentSectionViewName(activeView) && !isAdminUser)
+            !canAccessAdminView(activeView, isAdminUser, isBusinessUnitAdmin) && !isDemoUser) ||
+          (isDevelopmentSectionViewName(activeView) && !isAdminUser && !isDemoUser)
         ));
     if (!shouldRedirect) return;
 
@@ -195,6 +197,7 @@ export function useAuthController({
     activeView,
     authMode,
     isAdminUser,
+    isDemoUser,
     isBusinessUnitAdmin,
     isBusinessUnitAdminResolved,
     isAuthenticated,
