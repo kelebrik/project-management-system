@@ -83,7 +83,7 @@ function issueTicketLinks(issue: Issue) {
   return links;
 }
 
-export function ProjectOpenIssuesSection() {
+export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all", issueSortDesc = false }: { issueSearch?: string; issueFilter?: "all" | "high" | "overdue"; issueSortDesc?: boolean }) {
   const confirm = useConfirm();
   const {
     addIssueJiraLink,
@@ -142,13 +142,18 @@ export function ProjectOpenIssuesSection() {
     [project.raidItems],
   );
   const groups = useMemo(() => {
+    const query = issueSearch.trim().toLowerCase();
     const result = new Map<string, Issue[]>();
     for (const issue of project.issues as Issue[]) {
+      const matchesQuery = !query || [issue.title, issue.owner, issue.jiraTicketKey, issue.impact].some((value) => String(value ?? "").toLowerCase().includes(query));
+      const overdue = Boolean(issue.dueDate && new Date(issue.dueDate) < new Date());
+      const matchesFilter = issueFilter === "all" || (issueFilter === "high" && ["HIGH", "CRITICAL"].includes(issue.severity)) || (issueFilter === "overdue" && overdue);
+      if (!matchesQuery || !matchesFilter) continue;
       const category = issue.category.trim() || "Без раздела";
       result.set(category, [...(result.get(category) ?? []), issue]);
     }
-    return [...result.entries()];
-  }, [project.issues]);
+    return [...result.entries()].map(([category, issues]) => [category, [...issues].sort((left, right) => (left.dueDate ?? "9999").localeCompare(right.dueDate ?? "9999") * (issueSortDesc ? -1 : 1))] as [string, Issue[]]);
+  }, [issueFilter, issueSearch, issueSortDesc, project.issues]);
   const categoryOptions = groups.map(([category]) => category);
   const tableWidth = openIssueTableWidth(columnWidths);
 
