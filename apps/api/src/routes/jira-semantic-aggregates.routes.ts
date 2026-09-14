@@ -713,7 +713,7 @@ export function registerJiraSemanticAggregateRoutes(
     });
     res.status(204).send();
   });
-
+  // Must remain read-only: closed-project write guard explicitly permits this query.
   router.post("/projects/:projectId/jira/semantic-aggregates/query-batch", async (req, res) => {
     if (!await readable(req.params.projectId, req, canRead)) {
       res.status(currentUser(req) ? 404 : 401).json({ error: currentUser(req) ? "Проект не найден" : "Требуется вход в систему" });
@@ -870,7 +870,7 @@ export function registerJiraSemanticAggregateRoutes(
       cost,
     });
   });
-
+  // Must remain read-only: closed-project write guard explicitly permits this query.
   router.post("/projects/:projectId/jira/semantic-aggregates/:aggregateId/query", async (req, res) => {
     if (!await readable(req.params.projectId, req, canRead)) {
       res.status(currentUser(req) ? 404 : 401).json({ error: currentUser(req) ? "Проект не найден" : "Требуется вход в систему" });

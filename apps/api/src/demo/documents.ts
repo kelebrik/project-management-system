@@ -3,6 +3,33 @@ import { dateAt, demoId, owners } from './project.js';
 
 export async function fillDocuments(tx: Prisma.TransactionClient, project: Project, base: Date) {
   const id = (key: string) => demoId(project.id, key);
+  project = await tx.project.findUniqueOrThrow({ where: { id: project.id } });
+  const uiState = project.uiState && typeof project.uiState === 'object' && !Array.isArray(project.uiState)
+    ? project.uiState as Prisma.JsonObject : {};
+  const passport = Array.isArray(uiState.passportRows)
+    ? uiState.passportRows.filter((row): row is Prisma.JsonObject => row !== null && typeof row === 'object' && !Array.isArray(row)) : [];
+  const manager = !project.projectManager || ['Не назначен', 'Руководитель проекта'].includes(project.projectManager)
+    ? owners[1] : project.projectManager;
+  const sponsor = !project.sponsor || ['Не назначен', 'Спонсор'].includes(project.sponsor) ? owners[0] : project.sponsor;
+  const examples = [
+    ['Название', project.name], ['Код', project.code], ['Руководитель проекта', manager], ['Спонсор', sponsor],
+    ['Бизнес-цель', 'Сократить цикл выпуска продукта на 20% и обеспечить доступность сервиса 99,9%.'],
+    ['Границы проекта', 'Проектирование, разработка, интеграционные испытания, пилот и передача в эксплуатацию.'],
+    ['Критерии успеха', 'Четыре цели приняты; критические дефекты устранены; время ответа API не превышает 500 мс.'],
+    ['Ограничения', 'Работы в пределах согласованного бюджета; выделенная команда из шести специалистов.'],
+    ['Заказчик', 'Демонстрационная продуктовая команда'],
+  ];
+  const rows = [...passport];
+  examples.forEach(([field, description], i) => {
+    const index = rows.findIndex(row => row.field === field);
+    if (index < 0 && !rows.some(row => row.id === id(`passport-${i}`))) rows.push({ id: id(`passport-${i}`), field, description });
+    else if (index >= 0 && !rows[index].description) rows[index] = { ...rows[index], description };
+  });
+  await tx.project.update({ where: { id: project.id }, data: {
+    projectManager: manager, sponsor, uiState: { ...uiState, passportRows: rows },
+    ...(Number(project.budgetPlanned) === 0 ? { budgetPlanned: Number(project.budgetForecast) / 1.06 || 5000000 } : {}),
+    ...(Number(project.budgetForecast) === 0 ? { budgetForecast: Number(project.budgetPlanned) * 1.06 || 5300000 } : {}),
+  } });
   for (let i = 0; i < 3; i++) {
     await tx.changeRequest.upsert({ where: { id: id(`change-${i}`) }, update: {}, create: {
       id: id(`change-${i}`), projectId: project.id, type: (['SCHEDULE', 'BUDGET', 'SCOPE'] as const)[i],

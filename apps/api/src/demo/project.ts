@@ -93,6 +93,14 @@ export async function fillProject(tx: Prisma.TransactionClient, project: Project
       });
     }
   }
+  // Connect each goal to its implementation so the overview can trace delay causes.
+  for (let phaseIndex = 0; phaseIndex < 4; phaseIndex++) {
+    const predecessorId = id(`task-${phaseIndex}-3`), successorId = id(`goal-${phaseIndex}`);
+    await tx.wbsDependency.upsert({
+      where: { projectId_predecessorId_successorId_type: { projectId: project.id, predecessorId, successorId, type: 'FS' } },
+      update: {}, create: { projectId: project.id, predecessorId, successorId, type: 'FS', lagDays: 0 },
+    });
+  }
   for (let r = 0; r < 6; r++) {
     const probability = [5, 4, 3, 2, 1, 4][r], impact = [5, 4, 3, 2, 2, 5][r];
     const risk = await tx.raidItem.upsert({ where: { id: id(`risk-${r}`) }, update: {}, create: {

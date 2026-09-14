@@ -20,6 +20,7 @@ test('existing partly populated demo projects receive all sections and non-empty
       businessUnitId: unit.id, code: `DEMO-005-${Date.now()}`, name: 'Пульс', portfolio: unit.name,
       sponsor: 'Sponsor', projectManager: 'Мария Новикова', startDate: new Date('2026-07-01'),
       targetDate: new Date('2026-12-31'), budgetPlanned: 1000000, budgetForecast: 1100000, summary: 'Existing demo',
+      uiState: { customFlag: true, passportRows: [{ id: 'existing', field: 'Заказчик', description: 'Существующий заказчик' }] },
     } });
     const existingWbs = await client.wbsItem.create({ data: {
       projectId: project.id, code: '1', type: 'TASK', title: 'Существующая задача', owner: 'Пользователь',
@@ -48,6 +49,12 @@ test('existing partly populated demo projects receive all sections and non-empty
     await client.jiraIssueSnapshot.updateMany({ data: { issueCreatedAt: new Date('2020-01-01'), resolutionAt: null } });
     await completeDemoData(client);
     assert.deepEqual(await counts(), before);
+    const updated = await client.project.findUniqueOrThrow({ where: { id: project.id } });
+    const ui = updated.uiState as { customFlag: boolean; passportRows: Array<{ field: string; description: string }> };
+    assert.equal(ui.customFlag, true);
+    assert.equal(ui.passportRows.length, 9);
+    assert.equal(ui.passportRows.find(row => row.field === 'Заказчик')?.description, 'Существующий заказчик');
+    assert.equal(Number(updated.budgetPlanned), 1000000);
     assert.equal((await client.wbsItem.findUniqueOrThrow({ where: { id: existingWbs.id } })).title, 'Существующая задача');
     const requirements = await client.projectBusinessRequirements.findUniqueOrThrow({ where: { projectId: project.id } });
     const rows = requirements.rows as Array<{ id: string; cells: Record<string, string> }>;

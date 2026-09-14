@@ -6,6 +6,11 @@ export function isReadRequest(req: Request) {
   return ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
 }
 
+// These POST endpoints evaluate saved data; route handlers still check read access.
+export function isProjectAnalyticsRead(req: Pick<Request, 'method' | 'path'>) {
+  return req.method === 'POST' && /^\/jira\/semantic-aggregates\/(?:query-batch|[^/]+\/query)\/?$/.test(req.path);
+}
+
 export async function ensureProjectWritable(projectId: string, res: Response) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -79,7 +84,7 @@ function registerEntityWriteGuard(
 
 export function registerClosedProjectWriteGuards(app: Express) {
   app.use('/api/projects/:projectId', async (req, res, next) => {
-    if (isReadRequest(req)) {
+    if (isReadRequest(req) || isProjectAnalyticsRead(req)) {
       next();
       return;
     }
