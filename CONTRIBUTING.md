@@ -1,8 +1,8 @@
 # Contributing
 
-This repository is published for reading and copying the unmodified source.
-Changes and derivative works are not permitted under the
-[Project Management System Non-Commercial License](LICENSE).
+Copies may be modified for personal, educational, research, or internal corporate
+use. Commercial monetization is prohibited and attribution must be retained under
+the [Project Management System Non-Commercial License](LICENSE).
 
 Before opening a pull request:
 
