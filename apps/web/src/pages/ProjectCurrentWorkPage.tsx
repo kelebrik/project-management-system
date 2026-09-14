@@ -4,7 +4,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { createCurrentWorkRows } from "../app/currentWorkModel";
+import { createCurrentWorkRows, type CurrentWorkFilter } from "../app/currentWorkModel";
 import {
   CURRENT_WORK_COLUMNS,
   currentWorkGridTemplate,
