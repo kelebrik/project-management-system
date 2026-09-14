@@ -131,6 +131,11 @@
   justify-content: space-between;
 }
 
+.save-state { font-size: 0.82rem; }
+.save-state.saving { color: var(--accent, #2563eb); }
+.save-state.dirty { color: var(--warning, #b45309); }
+.save-state.saved { color: var(--text-muted, #718096); }
+
 .business-requirements-status .dirty,
 .business-requirements-status .saved {
   border-radius: 999px;

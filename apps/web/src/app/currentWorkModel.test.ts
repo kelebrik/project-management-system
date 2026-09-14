@@ -57,7 +57,7 @@ test("current work selects active and upcoming tasks and deliverables", () => {
     new Date(2026, 6, 20),
   );
 
-  assert.deepEqual(rows.map((row) => row.id), ["active", "upcoming", "deliverable"]);
+  assert.deepEqual(rows.map((row) => row.id), ["active", "upcoming", "deliverable", "failed"]);
   assert.equal(rows[0].workPackage, "1 Пакет");
   assert.equal(rows[1].comment, "Важно");
 });

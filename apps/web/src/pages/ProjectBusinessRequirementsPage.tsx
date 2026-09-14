@@ -1,14 +1,14 @@
-import { ClipboardPaste, Plus, Save, Table2, Trash2 } from "lucide-react";
+import { Plus, Save, Table2, Trash2 } from "lucide-react";
 import {
   useEffect,
   useMemo,
   useState,
-  type ClipboardEvent,
   type CSSProperties,
 } from "react";
 import { apiClient } from "../api/client";
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
+import { SaveStateIndicator } from "../components/SaveStateIndicator";
 
 type RequirementColumn = {
   id: string;
@@ -61,14 +61,6 @@ function normalizeTable(data: BusinessRequirementsTable | null) {
   return { columns, rows };
 }
 
-function parseClipboardGrid(text: string) {
-  return text
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .filter((row, index, rows) => row.length > 0 || index < rows.length - 1)
-    .map((row) => row.split("\t"));
-}
 
 export function ProjectBusinessRequirementsPage() {
   const { isReadOnly, project, setError, setNotice } = usePageContext();
@@ -104,6 +96,17 @@ export function ProjectBusinessRequirementsPage() {
       cancelled = true;
     };
   }, [project?.id, setError]);
+
+  useEffect(() => {
+    (window as Window & { __pmsUnsaved?: boolean }).__pmsUnsaved = dirty;
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      (window as Window & { __pmsUnsaved?: boolean }).__pmsUnsaved = false;
+    };
+  }, [dirty]);
 
   const columnCount = columns.length;
   const rowCount = rows.length;
@@ -201,55 +204,6 @@ export function ProjectBusinessRequirementsPage() {
     }
   };
 
-  const replaceTableFromClipboard = (clipboardText: string) => {
-    const pastedGrid = parseClipboardGrid(clipboardText);
-    if (pastedGrid.length === 0) return;
-
-    const columnCount = Math.max(...pastedGrid.map((row) => row.length));
-    if (columnCount === 0) return;
-
-    const headerRow = pastedGrid[0] ?? [];
-    const nextColumns = Array.from({ length: columnCount }, (_, columnIndex) => ({
-      id: makeId("col"),
-      title: headerRow[columnIndex]?.trim() || `Столбец ${columnIndex + 1}`,
-    }));
-    const bodyRows = pastedGrid.slice(1);
-    const nextRows = (bodyRows.length ? bodyRows : [[]]).map((pastedRow) => ({
-      id: makeId("row"),
-      cells: Object.fromEntries(
-        nextColumns.map((column, columnIndex) => [column.id, pastedRow[columnIndex] ?? ""]),
-      ),
-    }));
-
-    setTable({ columns: nextColumns, rows: nextRows });
-    setDirty(true);
-    setNotice(`Вставлена таблица: ${nextRows.length} строк, ${nextColumns.length} столбцов`);
-  };
-
-  const pasteTableFromClipboard = async () => {
-    if (!canEdit) return;
-    setError(null);
-    try {
-      const clipboardText = await navigator.clipboard.readText();
-      if (!clipboardText || !/[\t\n\r]/.test(clipboardText)) {
-        setError("В буфере обмена нет табличных данных");
-        return;
-      }
-      replaceTableFromClipboard(clipboardText);
-    } catch {
-      setError("Браузер не дал доступ к буферу обмена");
-    }
-  };
-
-  const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
-    if (!canEdit) return;
-    const clipboardText = event.clipboardData.getData("text/plain");
-    if (!clipboardText || !/[\t\n\r]/.test(clipboardText)) return;
-
-    event.preventDefault();
-    replaceTableFromClipboard(clipboardText);
-  };
-
   return (
     <article className="panel project-card project-module-page business-requirements-page">
       <div className="panel-title">
@@ -266,10 +220,6 @@ export function ProjectBusinessRequirementsPage() {
             <Table2 size={16} />
             Добавить столбец
           </button>
-          <button type="button" onClick={() => void pasteTableFromClipboard()} disabled={!canEdit}>
-            <ClipboardPaste size={16} />
-            Вставить Excel
-          </button>
           <button type="button" onClick={() => void saveTable()} disabled={!canEdit || !dirty}>
             <Save size={16} />
             {saving ? "Сохраняю..." : "Сохранить"}
@@ -279,10 +229,10 @@ export function ProjectBusinessRequirementsPage() {
 
       <div className="business-requirements-status">
         <span>{loading ? "Загрузка..." : `${rowCount} строк, ${columnCount} столбцов`}</span>
-        <span className={dirty ? "dirty" : "saved"}>{dirty ? "Есть несохраненные изменения" : "Сохранено"}</span>
+        <SaveStateIndicator saving={saving} dirty={dirty} />
       </div>
 
-      <div className="business-requirements-table-shell" onPaste={handlePaste} tabIndex={canEdit ? 0 : -1}>
+      <div className="business-requirements-table-shell" tabIndex={canEdit ? 0 : -1}>
         <div
           className="business-requirements-table"
           style={{ "--requirements-template": tableTemplate } as CSSProperties}

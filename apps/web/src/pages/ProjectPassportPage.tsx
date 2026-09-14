@@ -1,9 +1,11 @@
+import { useEffect, useRef } from "react";
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
 
 export function ProjectPassportPage() {
   const ctx = usePageContext();
   const confirm = useConfirm();
+  const initialPassportRef = useRef<string | null>(null);
   const {
     addPassportRow,
     date,
@@ -25,6 +27,24 @@ export function ProjectPassportPage() {
     signedDaysLabel,
     updatePassportRow,
   } = ctx;
+
+  const passportSnapshot = JSON.stringify(passportRows);
+  useEffect(() => {
+    if (initialPassportRef.current === null || (initialPassportRef.current === "[]" && passportRows.length > 0)) {
+      initialPassportRef.current = passportSnapshot;
+    }
+  }, [passportRows, passportSnapshot]);
+  useEffect(() => {
+    const dirty = initialPassportRef.current !== null && initialPassportRef.current !== passportSnapshot;
+    (window as Window & { __pmsUnsaved?: boolean }).__pmsUnsaved = dirty;
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      (window as Window & { __pmsUnsaved?: boolean }).__pmsUnsaved = false;
+    };
+  }, [passportSnapshot]);
 
   return (
                   <article className="panel project-card">

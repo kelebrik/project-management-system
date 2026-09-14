@@ -367,6 +367,7 @@ function AppController() {
     isBusinessUnitAdmin,
     isAuthenticated,
     isProjectModuleEnabled,
+    dirtyWbsItemIds,
     project,
     projects,
     selectedProjectListItem,
@@ -379,6 +380,15 @@ function AppController() {
     setProjects,
     setSelectedProjectId,
   });
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (dirtyWbsItemIds.size === 0) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirtyWbsItemIds]);
   usePageVisitTracking({
     activeView,
     authReady: authMode === "ready",

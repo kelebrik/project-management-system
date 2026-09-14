@@ -8,7 +8,7 @@ const ACTIVE_STATUSES = new Set([
   "AT_RISK",
 ]);
 const CURRENT_WORK_TYPES = new Set(["TASK", "DELIVERABLE"]);
-const EXCLUDED_STATUSES = new Set(["BLOCKED", "DONE", "CANCELLED"]);
+const EXCLUDED_STATUSES = new Set(["DONE", "CANCELLED"]);
 const CODE_COLLATOR = new Intl.Collator("ru", {
   numeric: true,
   sensitivity: "base",
@@ -26,6 +26,8 @@ export type CurrentWorkRow = {
   jiraTicketUrl: string;
   mattermostUrl: string;
 };
+
+export type CurrentWorkFilter = "all" | "active" | "blocked" | "overdue";
 
 function startOfLocalDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
@@ -98,6 +100,7 @@ export function createCurrentWorkRows(
   items: WbsItem[],
   drafts: Record<string, WbsFormState> = {},
   today = new Date(),
+  filter: CurrentWorkFilter = "all",
 ): CurrentWorkRow[] {
   const range = currentWorkDateRange(today);
   const itemsById = new Map(items.map((item) => [item.id, item]));
@@ -107,9 +110,14 @@ export function createCurrentWorkRows(
       const draft = draftFor(item, drafts);
       if (!CURRENT_WORK_TYPES.has(draft.type)) return false;
       if (EXCLUDED_STATUSES.has(draft.status)) return false;
+      const dueDate = parseLocalDate(draft.dueDate || null);
+      const overdue = Boolean(dueDate && dueDate < startOfLocalDay(today));
+      if (filter === "blocked") return draft.status === "BLOCKED";
+      if (filter === "overdue") return overdue;
+      if (filter === "all" && (overdue || draft.status === "BLOCKED")) return true;
+      if (filter === "active" && draft.status === "BLOCKED") return false;
       if (ACTIVE_STATUSES.has(draft.status)) return true;
       if (draft.status === "NOT_STARTED") {
-        const dueDate = parseLocalDate(draft.dueDate || null);
         return Boolean(
           dueDate &&
             dueDate >= range.upcomingMonday &&

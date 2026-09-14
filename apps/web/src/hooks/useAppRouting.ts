@@ -33,6 +33,7 @@ export function useAppRouting({
   isBusinessUnitAdmin,
   isAuthenticated,
   isProjectModuleEnabled,
+  dirtyWbsItemIds,
   project,
   projects,
   selectedProjectListItem,
@@ -156,6 +157,14 @@ export function useAppRouting({
         return;
       }
       if (
+        typeof window !== "undefined" &&
+        ((window as Window & { __pmsUnsaved?: boolean }).__pmsUnsaved ||
+          (dirtyWbsItemIds?.size ?? 0) > 0) &&
+        !window.confirm("Есть несохранённые изменения. Уйти без сохранения?")
+      ) {
+        return;
+      }
+      if (
         isAdminSectionViewName(nextView) &&
         !canAccessAdminView(nextView, isAdminUser, isBusinessUnitAdmin)
       ) {
@@ -199,6 +208,7 @@ export function useAppRouting({
       isBusinessUnitAdmin,
       isAuthenticated,
       isProjectModuleEnabled,
+      dirtyWbsItemIds,
       project?.code,
       selectedProjectListItem?.code,
       selectDefaultProject,

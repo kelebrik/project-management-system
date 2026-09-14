@@ -52,12 +52,18 @@
   flex: 0 1 auto;
   min-width: 0;
   overflow-x: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
 }
 
 .global-section-nav::-webkit-scrollbar,
 .section-tabs::-webkit-scrollbar {
-  display: none;
+  height: 5px;
+}
+
+.global-section-nav::-webkit-scrollbar-thumb,
+.section-tabs::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 999px;
 }
 
 .global-section-nav button {
@@ -261,7 +267,37 @@
   min-width: 0;
   overflow-x: auto;
   padding: 0 10px;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  mask-image: linear-gradient(to right, transparent 0, #000 18px, #000 calc(100% - 28px), transparent 100%);
+}
+
+.section-navigation:has(.section-tabs) {
+  position: relative;
+}
+
+.section-navigation:has(.section-tabs)::after {
+  content: "›";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-muted, #718096);
+}
+
+.issues-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 16px;
+}
+
+.issues-toolbar input {
+  min-width: 220px;
+  flex: 1 1 260px;
 }
 
 .section-navigation.section-tabs {

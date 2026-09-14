@@ -49,8 +49,9 @@ export function ProjectCurrentWorkPage() {
   const [columnWidths, setColumnWidths] = useState(() =>
     normalizeCurrentWorkColumnWidths(project.uiState?.currentWorkColumnWidths),
   );
+  const [workFilter, setWorkFilter] = useState<CurrentWorkFilter>("all");
   const normalizedQuery = query.trim().toLowerCase();
-  const rows = createCurrentWorkRows(project.wbsItems, wbsDrafts ?? {}).filter((row) => !normalizedQuery || [row.code, row.title, row.owner, row.workPackage].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
+  const rows = createCurrentWorkRows(project.wbsItems, wbsDrafts ?? {}, new Date(), workFilter).filter((row) => !normalizedQuery || [row.code, row.title, row.owner, row.workPackage].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
   const gridTemplate = currentWorkGridTemplate(columnWidths);
   const tableMinWidth = currentWorkTableMinWidth(columnWidths);
 
@@ -112,6 +113,7 @@ export function ProjectCurrentWorkPage() {
         <div>
           <h2>Текучка</h2>
           <p>Текущие и ближайшие работы проекта</p>
+        <div className="segmented-control">{([["all", "Все"], ["active", "Активные"], ["blocked", "Заблокированные"], ["overdue", "Просроченные"]] as const).map(([value, label]) => <button type="button" key={value} className={workFilter === value ? "active" : ""} onClick={() => setWorkFilter(value)}>{label}</button>)}</div>
         </div>
       </div>
       <ListToolbar label="Поиск текущих работ" query={query} onQueryChange={setQuery} />
