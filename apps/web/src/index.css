@@ -176,6 +176,10 @@ body {
   flex: 0 0 220px;
 }
 
+.business-unit-name > b {
+  margin-right: 12px;
+}
+
 .business-unit-members {
   display: flex;
   flex: 1;
