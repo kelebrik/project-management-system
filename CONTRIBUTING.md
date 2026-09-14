@@ -1,9 +1,8 @@
 # Contributing
 
-Contributions are welcome for personal, educational, research, and internal
-non-commercial use. By contributing, you agree that your contribution is
-provided under the [Project Management System Non-Commercial License](LICENSE)
-and retains attribution to `kelebrik <kelebrik@gmail.com>`.
+This repository is published for reading and copying the unmodified source.
+Changes and derivative works are not permitted under the
+[Project Management System Non-Commercial License](LICENSE).
 
 Before opening a pull request:
 
