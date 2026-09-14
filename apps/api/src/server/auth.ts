@@ -6,7 +6,8 @@ import { prisma } from '../db.js';
 
 export const PUBLIC_DEMO_MODE =
   process.env.PUBLIC_DEMO_MODE === 'true' ||
-  process.env.WEB_ORIGIN?.includes('project-management-system-lorj.onrender.com') === true;
+  process.env.WEB_ORIGIN?.includes('project-management-system-lorj.onrender.com') === true ||
+  process.env.RENDER_EXTERNAL_URL?.includes('project-management-system-lorj.onrender.com') === true;
 
 const publicDemoUser: CurrentUser = {
   id: 'public-demo-user',
