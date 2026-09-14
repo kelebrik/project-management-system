@@ -8,7 +8,6 @@
   min-height: 42px;
   text-transform: uppercase;
 }
-
 .project-module-head span,
 .project-module-row > div,
 .project-module-row > code,
@@ -17,7 +16,6 @@
   min-width: 0;
   padding: 11px 12px;
 }
-
 .project-module-row {
   background: var(--surface);
   border-top: 1px solid var(--border-3);

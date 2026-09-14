@@ -23,6 +23,8 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
   const confirm = useConfirm();
   const [units, setUnits] = useState<BusinessUnit[]>([]);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
+  const [renaming, setRenaming] = useState(false);
   const [creating, setCreating] = useState(false);
   const [unitDraft, setUnitDraft] = useState({ code: "", name: "" });
   const [assignment, setAssignment] = useState({ businessUnitId: "", userId: "" });
@@ -93,6 +95,27 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
       setError(createError instanceof Error ? createError.message : "Не удалось создать бизнес-юнит");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function renameUnit(event: FormEvent) {
+    event.preventDefault();
+    if (!editing || renaming) return;
+    setRenaming(true);
+    setError("");
+    try {
+      const updated = await apiClient.patch<BusinessUnit>(
+        `/api/admin/business-units/${editing.id}`,
+        { name: editing.name.trim() },
+        "Не удалось переименовать бизнес-юнит",
+      );
+      setUnits((current) => current.map((unit) => unit.id === updated.id ? updated : unit));
+      setEditing(null);
+      window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Не удалось переименовать бизнес-юнит");
+    } finally {
+      setRenaming(false);
     }
   }
 
@@ -198,7 +221,33 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
           return (
             <div className="business-unit-row" key={unit.id}>
               <div className="business-unit-name">
-                <b>{unit.name}</b>
+                {editing?.id === unit.id ? (
+                  <form onSubmit={renameUnit}>
+                    <input
+                      aria-label={`Новое название БЮ ${unit.name}`}
+                      value={editing.name}
+                      onChange={(event) => setEditing({ id: unit.id, name: event.currentTarget.value })}
+                      minLength={2}
+                      maxLength={120}
+                      required
+                      autoFocus
+                      disabled={renaming}
+                    />
+                    <button type="submit" disabled={renaming || editing.name.trim().length < 2}>
+                      {renaming ? "Сохраняю…" : "Сохранить"}
+                    </button>
+                    <button type="button" disabled={renaming} onClick={() => setEditing(null)}>Отмена</button>
+                  </form>
+                ) : (
+                  <>
+                    <b>{unit.name}</b>
+                    <button type="button" className="ghost-button" disabled={editing !== null}
+                      aria-label={`Переименовать БЮ ${unit.name}`}
+                      onClick={() => { setError(""); setEditing({ id: unit.id, name: unit.name }); }}>
+                      Переименовать
+                    </button>
+                  </>
+                )}
                 <small>{unit.code} · проектов: {unit._count.projects}{unit.isDefault ? " · основной" : ""}</small>
               </div>
               <div className="business-unit-members">

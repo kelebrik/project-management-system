@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 async function main() {
   const defaultBusinessUnit = await prisma.businessUnit.upsert({
     where: { code: 'main' },
-    update: { name: 'TV&Box', isDefault: true, isActive: true },
+    update: { isDefault: true, isActive: true },
     create: {
       id: 'business-unit-default',
       code: 'main',

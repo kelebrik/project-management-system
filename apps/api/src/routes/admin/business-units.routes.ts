@@ -109,6 +109,43 @@ export function registerBusinessUnitAdminRoutes(router: Router, context: AdminRo
     }
   });
 
+  router.patch('/admin/business-units/:businessUnitId', requireAdmin, async (req, res) => {
+    const businessUnitId = param(req.params.businessUnitId);
+    const parsed = businessUnitSchema.pick({ name: true }).strict().safeParse(req.body);
+    if (!businessUnitId || !parsed.success) {
+      res.status(400).json({ error: parsed.success ? 'Бизнес-юнит не указан' : parsed.error.flatten() });
+      return;
+    }
+    const result = await prisma.$transaction(async (tx) => {
+      const before = await tx.businessUnit.findUnique({ where: { id: businessUnitId } });
+      if (!before) return null;
+      const unit = await tx.businessUnit.update({
+        where: { id: businessUnitId },
+        data: { name: parsed.data.name },
+        include: unitInclude,
+      });
+      await tx.project.updateMany({
+        where: { businessUnitId },
+        data: { portfolio: unit.name },
+      });
+      return { before, unit };
+    });
+    if (!result) {
+      res.status(404).json({ error: 'Бизнес-юнит не найден' });
+      return;
+    }
+    await recordAuditEvent({
+      req,
+      actor: currentUser(req),
+      action: 'business_unit.rename',
+      objectType: 'BusinessUnit',
+      objectId: businessUnitId,
+      beforeValue: { name: result.before.name },
+      afterValue: { name: result.unit.name },
+    });
+    res.json(result.unit);
+  });
+
   router.post('/admin/business-units/:businessUnitId/memberships', requireAdmin, async (req, res) => {
     const businessUnitId = param(req.params.businessUnitId);
     const parsed = businessUnitMembershipSchema.safeParse(req.body);

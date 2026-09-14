@@ -8,6 +8,18 @@ import {
 } from "./openapi-helpers.js";
 
 export const openApiAdminPaths = {
+    "/api/admin/business-units/{businessUnitId}": {
+      patch: {
+        ...securedOperation(["Admin"], "Rename a business unit and its project portfolio labels (system admin only)", [pathParam("businessUnitId")]),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: {
+            type: "object", additionalProperties: false, required: ["name"],
+            properties: { name: { type: "string", minLength: 2, maxLength: 120 } },
+          } } },
+        },
+      },
+    },
     "/api/executive-overviews/{overviewId}/status": {
       post: securedOperation(
         ["ExecutiveOverview"],
