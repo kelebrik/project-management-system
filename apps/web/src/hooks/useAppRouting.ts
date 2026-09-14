@@ -194,7 +194,8 @@ export function useAppRouting({
           : selectedProjectListItem?.code ?? project?.code ?? null);
       const nextPath = appPathForView(nextView, routeProjectCode);
       if (window.location.pathname !== nextPath) {
-        const nextUrl = `${nextPath}${window.location.search}${window.location.hash}`;
+        const nextHash = nextView === "portfolio" ? "" : window.location.hash;
+        const nextUrl = `${nextPath}${window.location.search}${nextHash}`;
         if (options?.replace) {
           window.history.replaceState(null, "", nextUrl);
         } else {
