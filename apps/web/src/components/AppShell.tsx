@@ -182,18 +182,6 @@ const projectNavItems: ProjectNavItem[] = [
     icon: <BarChart3 size={17} />,
   },
   {
-    key: "changes",
-    view: "project-changes",
-    label: "view.project-changes",
-    icon: <GitBranch size={17} />,
-  },
-  {
-    key: "budget",
-    view: "project-budget",
-    label: "view.project-budget",
-    icon: <BriefcaseBusiness size={17} />,
-  },
-  {
     key: "calendars",
     view: "project-calendars",
     label: "view.project-calendars",

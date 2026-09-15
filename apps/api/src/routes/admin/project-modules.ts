@@ -76,7 +76,7 @@ export const projectModuleDefaults: ProjectModuleConfig[] = [
     label: 'Управление изменениями',
     description: 'Запросы на изменение scope, сроков и управленческих решений',
     route: 'changes',
-    enabled: true,
+    enabled: false,
   },
   {
     key: 'resources',
@@ -90,7 +90,7 @@ export const projectModuleDefaults: ProjectModuleConfig[] = [
     label: 'Управление бюджетом',
     description: 'Контур план-факт-прогноз бюджета проекта',
     route: 'budget',
-    enabled: true,
+    enabled: false,
   },
   {
     key: 'calendars',
