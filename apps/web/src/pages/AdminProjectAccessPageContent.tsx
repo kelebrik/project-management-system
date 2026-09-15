@@ -1,17 +1,14 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { ProjectAccessLevel } from "../app/domainTypes";
-import { userRoleLabel } from "../app/adminHelpers";
+
 import type { UserRole } from "../app/adminTypes";
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
 
-const projectAccessLevelLabels: Record<ProjectAccessLevel, string> = {
-  VIEW: "Просмотр",
-  EDIT: "Изменение",
-  ADMIN: "Администрирование",
-};
+
 
 type AccessUser = {
   id: string;
@@ -41,6 +38,8 @@ type AccessRecord = {
 };
 
 export function AdminProjectAccessPageContent() {
+  const { t, labels: { userRoleLabel } } = useI18n();
+  const projectAccessLevelLabels: Record<ProjectAccessLevel, string> = { VIEW: t("admin.access.view"), EDIT: t("admin.access.edit"), ADMIN: t("admin.access.admin") };
   const {
     activeProjectTree,
     deleteProjectAccess,
@@ -81,7 +80,7 @@ export function AdminProjectAccessPageContent() {
         .toLowerCase()
         .includes(query),
     );
-  }, [activeUsers, userSearch]);
+  }, [activeUsers, userSearch, userRoleLabel]);
   const filteredProjects = useMemo(() => {
     const query = projectSearch.trim().toLowerCase();
     if (!query) return orderedProjects;
@@ -110,25 +109,24 @@ export function AdminProjectAccessPageContent() {
     <article className="panel project-card admin-project-access">
       <div className="project-access-section-title">
         <div>
-          <h2>Доступы к проектам</h2>
+          <h2>{t("admin.access.title")}</h2>
           <p>
-            Все пользователи уже видят все проекты. Администратор БЮ может выдавать
-            право изменения только в выбранном бизнес-юните.
+            {t("admin.access.description")}
           </p>
         </div>
       </div>
       <form className="project-access-grant" onSubmit={grantProjectAccess}>
         <div className="project-access-picker">
           <div className="project-access-picker-title">
-            <h3>Пользователи</h3>
-            <span>{selectedUsers.length} выбрано</span>
+            <h3>{t("admin.users")}</h3>
+            <span>{t("admin.access.selected", { count: selectedUsers.length })}</span>
           </div>
           <label className="project-access-search">
             <Search size={17} />
             <input
               value={userSearch}
               onChange={(event) => setUserSearch(event.currentTarget.value)}
-              placeholder="Поиск пользователя"
+              placeholder={t("admin.access.searchUser")}
             />
           </label>
           <div className="project-access-choice-list">
@@ -155,15 +153,15 @@ export function AdminProjectAccessPageContent() {
 
         <div className="project-access-picker">
           <div className="project-access-picker-title">
-            <h3>Проекты</h3>
-            <span>{selectedProjects.length} выбрано</span>
+            <h3>{t("admin.projects")}</h3>
+            <span>{t("admin.access.selected", { count: selectedProjects.length })}</span>
           </div>
           <label className="project-access-search">
             <Search size={17} />
             <input
               value={projectSearch}
               onChange={(event) => setProjectSearch(event.currentTarget.value)}
-              placeholder="Поиск проекта"
+              placeholder={t("admin.access.searchProject")}
             />
           </label>
           <div className="project-access-choice-list">
@@ -184,7 +182,7 @@ export function AdminProjectAccessPageContent() {
                     <b>{project.name}</b>
                     <small>
                       {project.code}
-                      {project.status === "CLOSED" ? " · закрыт" : ""}
+                      {project.status === "CLOSED" ? t("admin.access.closed") : ""}
                     </small>
                   </span>
                 </label>
@@ -195,7 +193,7 @@ export function AdminProjectAccessPageContent() {
 
         <aside className="project-access-summary">
           <div>
-            <h3>Уровень доступа</h3>
+            <h3>{t("admin.access.level")}</h3>
             <div className="project-access-levels">
               {grantLevels.map((level) => (
                 <button
@@ -210,8 +208,8 @@ export function AdminProjectAccessPageContent() {
             </div>
           </div>
           <div className="project-access-selection-summary">
-            <span>Пользователей: {selectedUsers.length}</span>
-            <span>Проектов: {selectedProjects.length}</span>
+            <span>{t("admin.access.userCount", { count: selectedUsers.length })}</span>
+            <span>{t("admin.access.projectCount", { count: selectedProjects.length })}</span>
           </div>
           <button
             type="submit"
@@ -221,22 +219,22 @@ export function AdminProjectAccessPageContent() {
               selectedProjects.length === 0
             }
           >
-            Выдать доступ
+            {t("admin.access.grant")}
           </button>
         </aside>
       </form>
 
       <div className="project-access-section-title">
-        <h3>Текущие доступы</h3>
+        <h3>{t("admin.access.current")}</h3>
         <span>{projectAccesses.length}</span>
       </div>
       <div className="project-access-table">
         <div className="project-access-head">
-          <span>Пользователь</span>
-          <span>Проект</span>
-          <span>Уровень</span>
-          <span>Роль</span>
-          <span>Статус</span>
+          <span>{t("admin.user")}</span>
+          <span>{t("admin.project")}</span>
+          <span>{t("admin.level")}</span>
+          <span>{t("admin.role")}</span>
+          <span>{t("fields.status")}</span>
           <span />
         </div>
         {(projectAccesses as AccessRecord[]).map(
@@ -251,7 +249,7 @@ export function AdminProjectAccessPageContent() {
                 <small>{access.project.code}</small>
               </div>
               <label>
-                <span>Уровень</span>
+                <span>{t("admin.level")}</span>
                 <select
                   value={access.level}
                   disabled={savingProjectAccess}
@@ -263,7 +261,7 @@ export function AdminProjectAccessPageContent() {
                   }
                 >
                   {isAdminUser && (
-                    <option value="VIEW" disabled>{projectAccessLevelLabels.VIEW} (уже есть у всех)</option>
+                    <option value="VIEW" disabled>{projectAccessLevelLabels.VIEW} ({t("admin.access.everyone")})</option>
                   )}
                   <option value="EDIT">{projectAccessLevelLabels.EDIT}</option>
                   {isAdminUser && <option value="ADMIN">{projectAccessLevelLabels.ADMIN}</option>}
@@ -271,20 +269,20 @@ export function AdminProjectAccessPageContent() {
               </label>
               <span>{userRoleLabel(access.user.role)}</span>
               <span>
-                {access.user.isActive ? "Активен" : "Отключен"}
-                {access.project.status === "CLOSED" ? " · проект закрыт" : ""}
+                {access.user.isActive ? t("admin.active") : t("admin.disabled")}
+                {access.project.status === "CLOSED" ? t("admin.access.projectClosed") : ""}
               </span>
               <button
                 type="button"
                 className="ghost-button icon-button"
-                aria-label="Удалить доступ"
+                aria-label={t("admin.access.delete")}
                 disabled={savingProjectAccess}
                 onClick={async () => {
                   if (
                     await confirm({
-                      title: "Удалить доступ?",
-                      message: "Пользователь потеряет право изменять или администрировать проект. Просмотр сохранится.",
-                      confirmLabel: "Удалить",
+                      title: t("admin.access.deleteConfirm"),
+                      message: t("admin.access.deleteWarning"),
+                      confirmLabel: t("fields.delete"),
                     })
                   ) {
                     void deleteProjectAccess(access.id);
@@ -297,7 +295,7 @@ export function AdminProjectAccessPageContent() {
           ),
         )}
         {projectAccesses.length === 0 && (
-          <p className="project-access-empty">Назначенных доступов пока нет.</p>
+          <p className="project-access-empty">{t("admin.access.empty")}</p>
         )}
       </div>
     </article>

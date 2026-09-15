@@ -40,7 +40,7 @@ import {
   type AppView,
   type ProjectSectionView,
 } from "../app/routes";
-import { wikiGroups } from "../app/wikiContent";
+import { getWikiGroups } from "../i18n/wiki";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
 import { PageContextProvider, type PageContextValue } from "../pages/PageContext";
 import { AppTopbar } from "./AppTopbar";
@@ -49,7 +49,10 @@ import { ProjectPicker } from "./ProjectPicker";
 import type { ProjectNavItem } from "./ProjectSidebarMenu";
 import { SidebarIdentity } from "./SidebarIdentity";
 import { SystemBanners } from "./SystemBanners";
-import { ThemeToggle } from "./ThemeToggle";
+import { LanguageToggle } from "./LanguageToggle";
+import { useTheme } from "../hooks/useTheme";
+import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
+import { useI18n } from "../i18n/I18nProvider";
 
 type ScheduleHealth = {
   tone: string;
@@ -121,217 +124,217 @@ const projectNavItems: ProjectNavItem[] = [
   {
     key: "overview",
     view: "project-overview",
-    label: "Состояние проекта",
+    label: "view.project-overview",
     icon: <LayoutDashboard size={17} />,
   },
   {
     key: "overview",
     view: "project-schedule",
-    label: "График проекта",
+    label: "view.project-schedule",
     icon: <GanttChartSquare size={17} />,
   },
   {
     key: "gantt",
     view: "project-gantt",
-    label: "Гантт",
+    label: "view.project-gantt",
     icon: <GanttChartSquare size={17} />,
   },
   {
     key: "structure",
     view: "project-current-work",
-    label: "Текучка",
+    label: "view.project-current-work",
     icon: <ListTodo size={17} />,
   },
   {
     key: "structure",
     view: "project-structure",
-    label: "Структура",
+    label: "view.project-structure",
     icon: <ListChecks size={17} />,
   },
   {
     key: "jiraWork",
     view: "project-jira-work",
-    label: "Работы в Jira",
+    label: "view.project-jira-work",
     icon: <BriefcaseBusiness size={17} />,
   },
   {
     key: "passport",
     view: "project-passport",
-    label: "Паспорт проекта",
+    label: "view.project-passport",
     icon: <FileText size={17} />,
   },
   {
     key: "businessRequirements",
     view: "project-business-requirements",
-    label: "Бизнес требования",
+    label: "view.project-business-requirements",
     icon: <FileSpreadsheet size={17} />,
   },
   {
     key: "issues",
     view: "project-issues",
-    label: "Открытые вопросы",
+    label: "view.project-issues",
     icon: <ShieldAlert size={17} />,
   },
   {
     key: "raid",
     view: "project-raid",
-    label: "Риски и проблемы",
+    label: "view.project-raid",
     icon: <BarChart3 size={17} />,
   },
   {
     key: "changes",
     view: "project-changes",
-    label: "Управление изменениями",
+    label: "view.project-changes",
     icon: <GitBranch size={17} />,
   },
   {
     key: "budget",
     view: "project-budget",
-    label: "Управление бюджетом",
+    label: "view.project-budget",
     icon: <BriefcaseBusiness size={17} />,
   },
   {
     key: "calendars",
     view: "project-calendars",
-    label: "Календари",
+    label: "view.project-calendars",
     icon: <CalendarDays size={17} />,
   },
   {
     key: "artifacts",
     view: "project-artifacts",
-    label: "Артефакты проекта",
+    label: "view.project-artifacts",
     icon: <FileArchive size={17} />,
   },
 ];
 
 type AdminNavItem = {
   view: AppView;
-  label: string;
+  label: TranslationKey;
   icon: ReactNode;
 };
 
 const adminNavItems: AdminNavItem[] = [
   {
     view: "admin-projects",
-    label: "Реестр проектов",
+    label: "view.admin-projects",
     icon: <FolderTree size={17} />,
   },
   {
     view: "admin-business-units",
-    label: "Бизнес-юниты",
+    label: "view.admin-business-units",
     icon: <BriefcaseBusiness size={17} />,
   },
   {
     view: "admin-modules",
-    label: "Управление модулями",
+    label: "view.admin-modules",
     icon: <SlidersHorizontal size={17} />,
   },
   {
     view: "admin-project-access",
-    label: "Доступы",
+    label: "view.admin-project-access",
     icon: <ShieldCheck size={17} />,
   },
   {
     view: "admin-users",
-    label: "Пользователи",
+    label: "view.admin-users",
     icon: <Users size={17} />,
   },
   {
     view: "admin-roles",
-    label: "Роли и права",
+    label: "view.admin-roles",
     icon: <KeyRound size={17} />,
   },
   {
     view: "admin-dictionaries",
-    label: "Справочники",
+    label: "view.admin-dictionaries",
     icon: <ListChecks size={17} />,
   },
   {
     view: "admin-templates",
-    label: "Шаблоны Структуры",
+    label: "view.admin-templates",
     icon: <GanttChartSquare size={17} />,
   },
   {
     view: "admin-rag",
-    label: "Формулы RAG",
+    label: "view.admin-rag",
     icon: <SlidersHorizontal size={17} />,
   },
   {
     view: "admin-workflows",
-    label: "Workflow согласований",
+    label: "view.admin-workflows",
     icon: <GitBranch size={17} />,
   },
   {
     view: "admin-integrations",
-    label: "Интеграции и API",
+    label: "view.admin-integrations",
     icon: <GitBranch size={17} />,
   },
   {
     view: "admin-health",
-    label: "System health",
+    label: "view.admin-health",
     icon: <HeartPulse size={17} />,
   },
   {
     view: "admin-backups",
-    label: "Backup/restore",
+    label: "view.admin-backups",
     icon: <HardDriveDownload size={17} />,
   },
   {
     view: "admin-config",
-    label: "Import/export",
+    label: "view.admin-config",
     icon: <Import size={17} />,
   },
   {
     view: "admin-audit",
-    label: "Журнал аудита",
+    label: "view.admin-audit",
     icon: <FileText size={17} />,
   },
   {
     view: "admin-analytics",
-    label: "Посещаемость",
+    label: "view.admin-analytics",
     icon: <BarChart3 size={17} />,
   },
 ];
 
 const developmentNavItems: AdminNavItem[] = [
-  { view: "jira-reconciliation", label: "Сверка Jira и WBS", icon: <CircleHelp size={15} /> },
+  { view: "jira-reconciliation", label: "view.jira-reconciliation", icon: <CircleHelp size={15} /> },
   {
     view: "project-pm-workspace",
-    label: "Рабочий стол PM",
+    label: "view.project-pm-workspace",
     icon: <LayoutDashboard size={15} />,
   },
   {
     view: "decision-queue",
-    label: "Очередь решений",
+    label: "view.decision-queue",
     icon: <CircleHelp size={15} />,
   },
   {
     view: "resources",
-    label: "Управление ресурсами",
+    label: "view.resources",
     icon: <Users size={15} />,
   },
   {
     view: "resources-capacity",
-    label: "Параметры ресурсов",
+    label: "view.resources-capacity",
     icon: <Settings2 size={15} />,
   },
 ];
 
-const projectNavShortLabels: Partial<Record<ProjectSectionView, string>> = {
-  "project-overview": "Состояние",
-  "project-schedule": "График",
-  "project-passport": "Паспорт",
-  "project-business-requirements": "Требования",
-  "project-current-work": "Текучка",
-  "project-structure": "Структура",
-  "project-gantt": "Гантт",
-  "project-jira-work": "Работы Jira",
-  "project-issues": "Вопросы",
-  "project-raid": "Риски",
-  "project-changes": "Изменения",
-  "project-budget": "Бюджет",
-  "project-calendars": "Календари",
-  "project-artifacts": "Артефакты",
+const projectNavShortLabels: Partial<Record<ProjectSectionView, TranslationKey>> = {
+  "project-overview": "tab.project-overview",
+  "project-schedule": "tab.project-schedule",
+  "project-passport": "tab.project-passport",
+  "project-business-requirements": "tab.project-business-requirements",
+  "project-current-work": "tab.project-current-work",
+  "project-structure": "tab.project-structure",
+  "project-gantt": "tab.project-gantt",
+  "project-jira-work": "tab.project-jira-work",
+  "project-issues": "tab.project-issues",
+  "project-raid": "tab.project-raid",
+  "project-changes": "tab.project-changes",
+  "project-budget": "tab.project-budget",
+  "project-calendars": "tab.project-calendars",
+  "project-artifacts": "tab.project-artifacts",
 };
 
 export function AppShell({
@@ -377,6 +380,9 @@ export function AppShell({
   signedDaysLabel,
   viewTitle,
 }: AppShellProps) {
+  const { t, locale } = useI18n();
+  const wikiGroups = getWikiGroups(locale);
+  useTheme();
   const login = () => {
     onAuthModeChange("login");
     onErrorChange(null);
@@ -414,34 +420,34 @@ export function AppShell({
           onLogout={logout}
         />
         <BusinessUnitSwitcher />
-        <nav className="global-section-nav" aria-label="Основные разделы">
+        <nav className="global-section-nav" aria-label={t("nav.mainSections")}>
           <button
             type="button"
             className={activeView === "portfolio" ? "active" : ""}
             onClick={() => openView("portfolio")}
           >
-            <BriefcaseBusiness size={15} /> Портфель
+            <BriefcaseBusiness size={15} /> {t("view.portfolio")}
           </button>
           <button
             type="button"
             className={projectsActive ? "active" : ""}
             onClick={() => openView("projects")}
           >
-            <FolderTree size={15} /> Проекты
+            <FolderTree size={15} /> {t("nav.projects")}
           </button>
           <button
             type="button"
             className={activeView === "reports" ? "active" : ""}
             onClick={() => openView("reports")}
           >
-            <NotebookText size={15} /> Отчёты
+            <NotebookText size={15} /> {t("nav.reports")}
           </button>
           <button
             type="button"
             className={activeView === "closed-projects" ? "active" : ""}
             onClick={() => openView("closed-projects")}
           >
-            <Archive size={15} /> Архив
+            <Archive size={15} /> {t("nav.archive")}
           </button>
           {(isAdminUser || isBusinessUnitAdmin) && (
             <button
@@ -449,7 +455,7 @@ export function AppShell({
               className={isAdminSectionView ? "active" : ""}
               onClick={() => openView("admin-projects")}
             >
-              <Settings size={15} /> Администрирование
+              <Settings size={15} /> {t("nav.administration")}
             </button>
           )}
           {isAdminUser && (
@@ -458,7 +464,7 @@ export function AppShell({
               className={isDevelopmentSectionView ? "active" : ""}
               onClick={() => openView("resources")}
             >
-              <Code2 size={15} /> Разработка
+              <Code2 size={15} /> {t("nav.development")}
             </button>
           )}
           <button
@@ -472,7 +478,7 @@ export function AppShell({
         <div className="global-header-search">
           {renderGlobalSearch("global-search-topbar")}
         </div>
-        <ThemeToggle sidebarCollapsed />
+        <LanguageToggle sidebarCollapsed />
       </header>
 
       {shouldShowProjectMenu && (
@@ -480,13 +486,13 @@ export function AppShell({
           <div className="section-project-picker">
             {projectPicker(firstEnabledProjectView)}
           </div>
-          <nav className="section-tabs" aria-label="Разделы проекта">
+          <nav className="section-tabs" aria-label={t("nav.projectSections")}>
             <button
               type="button"
               className={activeView === "projects" ? "active" : ""}
               onClick={() => openView("projects")}
             >
-              <FolderTree size={15} /> Реестр
+              <FolderTree size={15} /> {t("nav.registry")}
             </button>
             {projectNavItems
               .filter((item) => isProjectModuleEnabled(item.key))
@@ -496,10 +502,10 @@ export function AppShell({
                   key={item.view}
                   className={activeView === item.view ? "active" : ""}
                   onClick={() => openView(item.view)}
-                  title={item.label}
+                  title={t(item.label)}
                 >
                   {item.icon}
-                  {projectNavShortLabels[item.view] ?? item.label}
+                  {t(projectNavShortLabels[item.view] ?? item.label)}
                 </button>
               ))}
             <button
@@ -507,14 +513,14 @@ export function AppShell({
               className={activeView === "project-create" ? "active" : ""}
               onClick={() => void pageContext.openProjectCreate()}
             >
-              <Plus size={15} /> Создать
+              <Plus size={15} /> {t("common.create")}
             </button>
           </nav>
         </div>
       )}
 
       {shouldShowAdminMenu && (
-        <nav className="section-navigation section-tabs" aria-label="Администрирование">
+        <nav className="section-navigation section-tabs" aria-label={t("nav.administration")}>
           {adminNavItems
             .filter((item) =>
               !isAdminSectionViewName(item.view) ||
@@ -527,7 +533,7 @@ export function AppShell({
               className={activeView === item.view ? "active" : ""}
               onClick={() => openView(item.view)}
             >
-              {item.icon} {item.label}
+              {item.icon} {t(item.label)}
             </button>
             ))}
         </nav>
@@ -538,7 +544,7 @@ export function AppShell({
           {(activeView === "project-pm-workspace" || activeView === "decision-queue") && (
             <div className="section-project-picker">{projectPicker("project-pm-workspace")}</div>
           )}
-          <nav className="section-tabs" aria-label="Разработка">
+          <nav className="section-tabs" aria-label={t("nav.development")}>
             {developmentNavItems.map((item) => (
               <button
                 type="button"
@@ -546,7 +552,7 @@ export function AppShell({
                 className={activeView === item.view ? "active" : ""}
                 onClick={() => openView(item.view)}
               >
-                {item.icon} {item.label}
+                {item.icon} {t(item.label)}
               </button>
             ))}
           </nav>
@@ -554,7 +560,7 @@ export function AppShell({
       )}
 
       {activeView === "wiki" && (
-        <nav className="section-navigation section-tabs wiki-section-tabs" aria-label="Оглавление FAQ">
+        <nav className="section-navigation section-tabs wiki-section-tabs" aria-label={t("nav.contents")}>
           {wikiGroups.flatMap((group) => [
             <a href={`#${group.id}`} key={group.id}>{group.title}</a>,
             ...group.articles.map((article) => (

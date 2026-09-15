@@ -1,3 +1,5 @@
+import { useI18n } from "../i18n/I18nProvider";
+import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
 import type { ReactNode } from "react";
 import { FolderTree, Plus } from "lucide-react";
 
@@ -7,7 +9,7 @@ import type { AppView, ProjectSectionView } from "../app/routes";
 export type ProjectNavItem = {
   key: ProjectModuleKey;
   view: ProjectSectionView;
-  label: string;
+  label: TranslationKey;
   icon: ReactNode;
 };
 
@@ -34,15 +36,16 @@ export function ProjectSidebarMenu({
   projectPicker,
   shouldShowProjectMenu,
 }: ProjectSidebarMenuProps) {
+  const { t } = useI18n();
   return (
     <>
       <button
         type="button"
         className={activeView === "projects" || isProjectSectionView ? "active" : ""}
         onClick={() => onOpenView("projects")}
-        aria-label="Проекты"
+        aria-label={t("nav.projects")}
       >
-        {navLabel(<FolderTree size={17} />, "Проекты")}
+        {navLabel(<FolderTree size={17} />, t("nav.projects"))}
       </button>
       {shouldShowProjectMenu && (
         <div className="sidebar-group">
@@ -60,9 +63,9 @@ export function ProjectSidebarMenu({
                       : "nested child"
                   }
                   onClick={() => onOpenView(item.view)}
-                  aria-label={item.label}
+                  aria-label={t(item.label)}
                 >
-                  {navLabel(item.icon, item.label)}
+                  {navLabel(item.icon, t(item.label))}
                 </button>
               ))}
             <button
@@ -73,9 +76,9 @@ export function ProjectSidebarMenu({
                   : "nested child project-create-nav"
               }
               onClick={onCreateProject}
-              aria-label="Создать проект"
+              aria-label={t("nav.createProject")}
             >
-              {navLabel(<Plus size={17} />, "Создать проект")}
+              {navLabel(<Plus size={17} />, t("nav.createProject"))}
             </button>
           </div>
         </div>

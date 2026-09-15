@@ -1,3 +1,7 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { intlLocale } from "../i18n/locale";
+import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
+import type { Locale } from "../i18n/types";
 import { DatabaseZap, Download, Play, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -162,16 +166,16 @@ const capacityLevelLabel: Record<CapacityReport["capacityGate"]["level"], string
   EXCEEDED: "бюджет превышен",
 };
 
-function formatBytes(value: number) {
+function formatBytes(value: number, uiLocale: Locale) {
   if (value < 1024) return `${Math.round(value)} Б`;
-  if (value < 1024 ** 2) return `${(value / 1024).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} КБ`;
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} МБ`;
-  return `${(value / 1024 ** 3).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ГиБ`;
+  if (value < 1024 ** 2) return `${(value / 1024).toLocaleString(intlLocale(uiLocale), { maximumFractionDigits: 1 })} КБ`;
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toLocaleString(intlLocale(uiLocale), { maximumFractionDigits: 1 })} МБ`;
+  return `${(value / 1024 ** 3).toLocaleString(intlLocale(uiLocale), { maximumFractionDigits: 2 })} ГиБ`;
 }
 
-function formatDuration(value: number) {
+function formatDuration(value: number, uiLocale: Locale) {
   if (value < 1_000) return `${value} мс`;
-  return `${(value / 1_000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} с`;
+  return `${(value / 1_000).toLocaleString(intlLocale(uiLocale), { maximumFractionDigits: 1 })} с`;
 }
 
 // Shared with the compact admin toolbar rendered above the capacity report.
@@ -309,6 +313,8 @@ export function JiraCapacitySampler({
 }: {
   history: JiraHistoryAdminControls;
 }) {
+  const { t: uiText } = useInterfaceTranslation();
+  const { locale: uiLocale } = useLocaleTranslation();
   const { currentUser, project, setError, setNotice } = usePageContext();
   const [scopeType, setScopeType] = useState<"LABEL" | "EPIC">("LABEL");
   const [scopeValue, setScopeValue] = useState("");
@@ -376,11 +382,11 @@ export function JiraCapacitySampler({
     <section className="jira-capacity-tool" aria-busy={running}>
       <header>
         <div>
-          <h3><DatabaseZap size={18} /> Ёмкость полной истории</h3>
-          <span>Этап 0.1 · только чтение · вложения исключены</span>
+          <h3><DatabaseZap size={18} /> {uiText("ui.jira.fullHistoryCapacity")}</h3>
+          <span>{uiText("ui.jira.stageReadOnlyNote")}</span>
         </div>
         {report && (
-          <button className="icon-button" type="button" onClick={download} title="Скачать отчёт" aria-label="Скачать отчёт">
+          <button className="icon-button" type="button" onClick={download} title={uiText("ui.jira.downloadReport")} aria-label={uiText("ui.jira.downloadReport")}>
             <Download size={17} />
           </button>
         )}
@@ -389,8 +395,8 @@ export function JiraCapacitySampler({
       <div className="jira-history-status" aria-busy={historyLoading}>
         <div className="jira-history-status-heading">
           <div>
-            <h4>Фактическая история A1</h4>
-            <span>Глобальный бюджет основной БД · raw payload недоступен через API</span>
+            <h4>{uiText("ui.jira.actualA1History")}</h4>
+            <span>{uiText("ui.jira.globalDbBudgetNote")}</span>
           </div>
         </div>
         {historyStatus ? (
@@ -398,29 +404,29 @@ export function JiraCapacitySampler({
             <div className="jira-capacity-gates">
               <span className={historyStatus.storage.level === "NORMAL" ? "complete" : "review"}>
                 Capacity · {capacityLevelLabel[historyStatus.storage.level]}
-                {` · ${historyStatus.storage.utilizationPercent.toLocaleString("ru-RU")}%`}
-                {` · ${formatBytes(historyStatus.storage.databaseBytes)} / ${formatBytes(historyStatus.storage.budgetBytes)}`}
+                {` · ${historyStatus.storage.utilizationPercent.toLocaleString(intlLocale(uiLocale))}%`}
+                {` · ${formatBytes(historyStatus.storage.databaseBytes, uiLocale)} / ${formatBytes(historyStatus.storage.budgetBytes, uiLocale)}`}
               </span>
               <span className={historyStatus.retry.pending === 0 ? "complete" : "review"}>
-                Retry: {historyStatus.retry.pending.toLocaleString("ru-RU")}
-                {` · batch: ${historyStatus.retry.failedBatches.toLocaleString("ru-RU")}`}
+                Retry: {historyStatus.retry.pending.toLocaleString(intlLocale(uiLocale))}
+                {` · batch: ${historyStatus.retry.failedBatches.toLocaleString(intlLocale(uiLocale))}`}
               </span>
             </div>
             <dl className="jira-capacity-summary">
-              <div><dt>Версий глобально</dt><dd>{historyStatus.global.versions.toLocaleString("ru-RU")}</dd></div>
-              <div><dt>Тикетов проекта</dt><dd>{historyStatus.project.tickets.toLocaleString("ru-RU")}</dd></div>
-              <div><dt>Версий проекта</dt><dd>{historyStatus.project.versions.toLocaleString("ru-RU")}</dd></div>
-              <div><dt>Изменений меток</dt><dd>{(historyStatus.labelChanges?.project ?? 0).toLocaleString("ru-RU")}</dd></div>
-              <div><dt>Средний снимок</dt><dd>{formatBytes(historyStatus.project.averageBytes)}</dd></div>
-              <div><dt>Снимок P95</dt><dd>{formatBytes(historyStatus.project.p95Bytes)}</dd></div>
-              <div><dt>Неполных снимков</dt><dd>{historyStatus.project.incompleteHydration.toLocaleString("ru-RU")}</dd></div>
+              <div><dt>{uiText("ui.jira.versionsGlobally")}</dt><dd>{historyStatus.global.versions.toLocaleString(intlLocale(uiLocale))}</dd></div>
+              <div><dt>{uiText("ui.jira.projectTickets")}</dt><dd>{historyStatus.project.tickets.toLocaleString(intlLocale(uiLocale))}</dd></div>
+              <div><dt>{uiText("ui.jira.projectVersions")}</dt><dd>{historyStatus.project.versions.toLocaleString(intlLocale(uiLocale))}</dd></div>
+              <div><dt>{uiText("ui.jira.labelChanges")}</dt><dd>{(historyStatus.labelChanges?.project ?? 0).toLocaleString(intlLocale(uiLocale))}</dd></div>
+              <div><dt>{uiText("ui.jira.averageSnapshot")}</dt><dd>{formatBytes(historyStatus.project.averageBytes, uiLocale)}</dd></div>
+              <div><dt>{uiText("ui.jira.snapshotP95")}</dt><dd>{formatBytes(historyStatus.project.p95Bytes, uiLocale)}</dd></div>
+              <div><dt>{uiText("ui.jira.incompleteSnapshots")}</dt><dd>{historyStatus.project.incompleteHydration.toLocaleString(intlLocale(uiLocale))}</dd></div>
             </dl>
             <p className="jira-history-cursor">
-              Курсор: {historyStatus.cursor.updatedAt
-                ? new Date(historyStatus.cursor.updatedAt).toLocaleString("ru-RU")
-                : "ещё не установлен"}
+              {uiText("ui.jira.cursorLabel")} {historyStatus.cursor.updatedAt
+                ? new Date(historyStatus.cursor.updatedAt).toLocaleString(intlLocale(uiLocale))
+                : uiText("ui.jira.notSetYet")}
               {historyStatus.cursor.lastFullReconciledAt
-                ? ` · полная сверка ${new Date(historyStatus.cursor.lastFullReconciledAt).toLocaleString("ru-RU")}`
+                ? ` · полная сверка ${new Date(historyStatus.cursor.lastFullReconciledAt).toLocaleString(intlLocale(uiLocale))}`
                 : ""}
               {historyStatus.cursor.fullCursorIssueKey
                 ? ` · полный импорт продолжится после ${historyStatus.cursor.fullCursorIssueKey}`
@@ -428,14 +434,14 @@ export function JiraCapacitySampler({
             </p>
             {completeness && (
               <div className="jira-backfill-completeness">
-                <h4>Полнота backfill</h4>
+                <h4>{uiText("ui.jira.backfillCompleteness")}</h4>
                 <dl className="jira-capacity-summary">
-                  <div><dt>Тикетов области</dt><dd>{completeness.scope.tickets.toLocaleString("ru-RU")}</dd></div>
-                  <div><dt>Стабильный Jira ID</dt><dd>{completeness.scope.stableJiraId.toLocaleString("ru-RU")}</dd></div>
-                  <div><dt>С текущей версией</dt><dd>{completeness.scope.observed.toLocaleString("ru-RU")}</dd></div>
-                  <div><dt>Полностью загружено</dt><dd>{completeness.scope.fullyHydrated.toLocaleString("ru-RU")}</dd></div>
-                  <div><dt>Покрытие</dt><dd>{completeness.scope.coveragePercent === null ? "-" : `${completeness.scope.coveragePercent}%`}</dd></div>
-                  <div><dt>Всего версий</dt><dd>{completeness.versions.total.toLocaleString("ru-RU")}</dd></div>
+                  <div><dt>{uiText("ui.jira.ticketsInScope")}</dt><dd>{completeness.scope.tickets.toLocaleString(intlLocale(uiLocale))}</dd></div>
+                  <div><dt>{uiText("ui.jira.stableJiraId")}</dt><dd>{completeness.scope.stableJiraId.toLocaleString(intlLocale(uiLocale))}</dd></div>
+                  <div><dt>{uiText("ui.jira.withCurrentVersion")}</dt><dd>{completeness.scope.observed.toLocaleString(intlLocale(uiLocale))}</dd></div>
+                  <div><dt>{uiText("ui.jira.fullyLoaded")}</dt><dd>{completeness.scope.fullyHydrated.toLocaleString(intlLocale(uiLocale))}</dd></div>
+                  <div><dt>{uiText("ui.jira.coverage")}</dt><dd>{completeness.scope.coveragePercent === null ? "-" : `${completeness.scope.coveragePercent}%`}</dd></div>
+                  <div><dt>{uiText("ui.jira.totalVersions")}</dt><dd>{completeness.versions.total.toLocaleString(intlLocale(uiLocale))}</dd></div>
                 </dl>
                 <p className="jira-history-cursor">
                   {completeness.latestBackfill
@@ -444,8 +450,8 @@ export function JiraCapacitySampler({
                       + ` · ${completeness.latestBackfill.jiraRequestCount} Jira-запросов`
                       + (completeness.latestBackfill.elapsedMs === null
                         ? ""
-                        : ` · ${formatDuration(completeness.latestBackfill.elapsedMs)}`)
-                    : "Backfill ещё не запускался"}
+                        : ` · ${formatDuration(completeness.latestBackfill.elapsedMs, uiLocale)}`)
+                    : uiText("ui.jira.backfillNotRunYet")}
                   {completeness.historyWriteGap.runs > 0
                     ? ` · запусков без исторической записи: ${completeness.historyWriteGap.runs}`
                     : ""}
@@ -457,16 +463,16 @@ export function JiraCapacitySampler({
             )}
             {historyStatus.retry.items.length > 0 && (
               <div className="jira-history-retry-list">
-                <strong>Ожидают повторной обработки</strong>
+                <strong>{uiText("ui.jira.awaitingReprocessing")}</strong>
                 <ul>
                   {historyStatus.retry.items.map((retry) => (
                     <li key={retry.issueKey}>
                       <b>{retry.issueKey}</b>
-                      <span>{retry.reasonCode} · попыток {retry.attempts}</span>
+                      <span>{retry.reasonCode} {uiText("ui.jira.attemptsSuffix")} {retry.attempts}</span>
                       <span>{retry.lastError}</span>
                       <small>
-                        с {new Date(retry.firstFailedAt).toLocaleString("ru-RU")}
-                        {` · следующая ${new Date(retry.nextRetryAt).toLocaleString("ru-RU")}`}
+                        {uiText("ui.jira.fromPreposition")} {new Date(retry.firstFailedAt).toLocaleString(intlLocale(uiLocale))}
+                        {` · следующая ${new Date(retry.nextRetryAt).toLocaleString(intlLocale(uiLocale))}`}
                       </small>
                     </li>
                   ))}
@@ -475,20 +481,20 @@ export function JiraCapacitySampler({
             )}
           </>
         ) : (
-          <p className="jira-history-cursor">{historyLoading ? "Загружаю состояние..." : "История ещё не измерена"}</p>
+          <p className="jira-history-cursor">{historyLoading ? uiText("ui.jira.loadingState") : uiText("ui.jira.historyNotMeasuredYet")}</p>
         )}
       </div>
 
       <div className="jira-capacity-controls">
         <label>
-          <span>Область</span>
+          <span>{uiText("ui.jira.scope")}</span>
           <select value={scopeType} onChange={(event) => setScopeType(event.target.value as "LABEL" | "EPIC")}>
-            <option value="LABEL">Лейбл</option>
-            <option value="EPIC">Код эпика</option>
+            <option value="LABEL">{uiText("ui.jira.label")}</option>
+            <option value="EPIC">{uiText("ui.jira.epicCode")}</option>
           </select>
         </label>
         <label className="jira-capacity-scope-value">
-          <span>{scopeType === "LABEL" ? "Лейбл" : "Код эпика"}</span>
+          <span>{scopeType === "LABEL" ? uiText("ui.jira.label") : uiText("ui.jira.epicCode")}</span>
           <input
             value={scopeValue}
             onChange={(event) => setScopeValue(event.target.value)}
@@ -496,19 +502,19 @@ export function JiraCapacitySampler({
           />
         </label>
         <label>
-          <span>Выборка</span>
+          <span>{uiText("ui.jira.sample")}</span>
           <input type="number" min={10} max={100} value={sampleSize} onChange={(event) => setSampleSize(Number(event.target.value))} />
         </label>
         <label>
-          <span>Бюджет истории, ГиБ</span>
+          <span>{uiText("ui.jira.historyBudgetGib")}</span>
           <input type="number" min={1} max={10000} value={storageBudgetGiB} onChange={(event) => setStorageBudgetGiB(Number(event.target.value))} />
         </label>
         <label>
-          <span>Учтено ранее без текущей области, ГиБ</span>
+          <span>{uiText("ui.jira.previouslyCountedExcludingScopeGib")}</span>
           <input type="number" min={0} max={10000} step="0.001" value={allocatedHistoryGiB} onChange={(event) => setAllocatedHistoryGiB(Number(event.target.value))} />
         </label>
         <button className="button primary" type="button" onClick={run} disabled={running || !scopeValue.trim()}>
-          <Play size={16} /> {running ? "Измеряю..." : "Запустить замер"}
+          <Play size={16} /> {running ? uiText("ui.jira.measuring") : uiText("ui.jira.runMeasurement")}
         </button>
       </div>
 
@@ -526,23 +532,23 @@ export function JiraCapacitySampler({
                 ? "complete"
                 : "review"
             }>
-              Capacity: {report.capacityGate.status === "PASS" ? "PASS" : "нужна проверка"}
+              Capacity: {report.capacityGate.status === "PASS" ? "PASS" : uiText("ui.jira.needsChecking")}
               {` · ${capacityLevelLabel[report.capacityGate.level]}`}
-              {` · ${report.capacityGate.utilizationPercent.toLocaleString("ru-RU")}%`}
-              {` · ${report.capacityGate.projectedTotalDatabaseGiB.toLocaleString("ru-RU")} / ${report.capacityGate.storageBudgetGiB.toLocaleString("ru-RU")} ГиБ`}
+              {` · ${report.capacityGate.utilizationPercent.toLocaleString(intlLocale(uiLocale))}%`}
+              {` · ${report.capacityGate.projectedTotalDatabaseGiB.toLocaleString(intlLocale(uiLocale))} / ${report.capacityGate.storageBudgetGiB.toLocaleString(intlLocale(uiLocale))} ГиБ`}
             </span>
           </div>
 
           <dl className="jira-capacity-summary">
-            <div><dt>Тикетов</dt><dd>{report.scope.tickets.toLocaleString("ru-RU")}</dd></div>
-            <div><dt>Измерено</dt><dd>{report.scope.observedSample} / {report.scope.requestedSample}</dd></div>
-            <div><dt>Снимок P50</dt><dd>{formatBytes(report.sample.estimatedFullJsonBytes.p50)}</dd></div>
-            <div><dt>Снимок P95</dt><dd>{formatBytes(report.sample.estimatedFullJsonBytes.p95)}</dd></div>
-            <div><dt>История полная</dt><dd>{report.sample.completeChangelogPercent}%</dd></div>
+            <div><dt>{uiText("ui.jira.ticketsCount")}</dt><dd>{report.scope.tickets.toLocaleString(intlLocale(uiLocale))}</dd></div>
+            <div><dt>{uiText("ui.jira.measured")}</dt><dd>{report.scope.observedSample} / {report.scope.requestedSample}</dd></div>
+            <div><dt>{uiText("ui.jira.snapshotP50")}</dt><dd>{formatBytes(report.sample.estimatedFullJsonBytes.p50, uiLocale)}</dd></div>
+            <div><dt>{uiText("ui.jira.snapshotP95")}</dt><dd>{formatBytes(report.sample.estimatedFullJsonBytes.p95, uiLocale)}</dd></div>
+            <div><dt>{uiText("ui.jira.historyComplete")}</dt><dd>{report.sample.completeChangelogPercent}%</dd></div>
             <div>
-              <dt>Jira-запросы</dt>
+              <dt>{uiText("ui.jira.jiraRequests")}</dt>
               <dd>
-                {report.collection.requests} · {formatDuration(report.collection.elapsedMs)}
+                {report.collection.requests} · {formatDuration(report.collection.elapsedMs, uiLocale)}
                 {report.collection.failedRequests > 0 ? ` · ошибок ${report.collection.failedRequests}` : ""}
               </dd>
             </div>
@@ -550,7 +556,7 @@ export function JiraCapacitySampler({
 
           <div className="table-scroll">
             <table className="jira-capacity-table">
-              <thead><tr><th>Состав снимка</th><th>Минимум</th><th>P50</th><th>P95</th><th>Максимум</th></tr></thead>
+              <thead><tr><th>{uiText("ui.jira.snapshotContents")}</th><th>{uiText("ui.jira.minimum")}</th><th>P50</th><th>P95</th><th>{uiText("ui.jira.maximum")}</th></tr></thead>
               <tbody>
                 {([
                   ["Поля", report.sample.fields],
@@ -560,10 +566,10 @@ export function JiraCapacitySampler({
                 ] as Array<[string, Distribution]>).map(([label, distribution]) => (
                   <tr key={label}>
                     <td>{label}</td>
-                    <td>{distribution.min.toLocaleString("ru-RU")}</td>
-                    <td>{distribution.p50.toLocaleString("ru-RU")}</td>
-                    <td>{distribution.p95.toLocaleString("ru-RU")}</td>
-                    <td>{distribution.max.toLocaleString("ru-RU")}</td>
+                    <td>{distribution.min.toLocaleString(intlLocale(uiLocale))}</td>
+                    <td>{distribution.p50.toLocaleString(intlLocale(uiLocale))}</td>
+                    <td>{distribution.p95.toLocaleString(intlLocale(uiLocale))}</td>
+                    <td>{distribution.max.toLocaleString(intlLocale(uiLocale))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -572,15 +578,15 @@ export function JiraCapacitySampler({
 
           <div className="table-scroll">
             <table className="jira-capacity-table">
-              <thead><tr><th>Версий на тикет</th><th>JSON</th><th>Основная БД</th><th>Gzip-архив</th><th>3 экземпляра БД (справочно)</th></tr></thead>
+              <thead><tr><th>{uiText("ui.jira.versionsPerTicket")}</th><th>JSON</th><th>{uiText("ui.jira.primaryDatabase")}</th><th>{uiText("ui.jira.gzipArchive")}</th><th>{uiText("ui.jira.threeDbInstancesReference")}</th></tr></thead>
               <tbody>
                 {report.projections.map((item) => (
                   <tr key={item.versionsPerTicket}>
                     <td>{item.versionsPerTicket}</td>
-                    <td>{item.rawJsonGiB.toLocaleString("ru-RU")} ГиБ</td>
-                    <td>{item.estimatedDatabaseGiB.toLocaleString("ru-RU")} ГиБ</td>
-                    <td>{item.estimatedGzipArchiveGiB.toLocaleString("ru-RU")} ГиБ</td>
-                    <td>{item.threeDatabaseCopiesGiB.toLocaleString("ru-RU")} ГиБ</td>
+                    <td>{item.rawJsonGiB.toLocaleString(intlLocale(uiLocale))} {uiText("ui.jira.gib")}</td>
+                    <td>{item.estimatedDatabaseGiB.toLocaleString(intlLocale(uiLocale))} {uiText("ui.jira.gib")}</td>
+                    <td>{item.estimatedGzipArchiveGiB.toLocaleString(intlLocale(uiLocale))} {uiText("ui.jira.gib")}</td>
+                    <td>{item.threeDatabaseCopiesGiB.toLocaleString(intlLocale(uiLocale))} {uiText("ui.jira.gib")}</td>
                   </tr>
                 ))}
               </tbody>

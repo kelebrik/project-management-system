@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { Check, ExternalLink, Pencil, Plus, X } from "lucide-react";
 import {
   useMemo,
@@ -84,6 +85,7 @@ function issueTicketLinks(issue: Issue) {
 }
 
 export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all", issueSortDesc = false }: { issueSearch?: string; issueFilter?: "all" | "high" | "overdue"; issueSortDesc?: boolean }) {
+  const { t: uiText } = useInterfaceTranslation();
   const confirm = useConfirm();
   const {
     addIssueJiraLink,
@@ -394,7 +396,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
   };
 
   if (project.issues.length === 0) {
-    return <div className="empty-state issue-register-empty">Открытых вопросов нет.</div>;
+    return <div className="empty-state issue-register-empty">{uiText("ui.projects.noOpenQuestions")}</div>;
   }
 
   return (
@@ -403,14 +405,14 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
         className="issue-register-scroll"
         role="region"
         tabIndex={0}
-        aria-label="Таблица открытых вопросов, доступна горизонтальная прокрутка"
+        aria-label={uiText("ui.projects.openQuestionsTableScrollHint")}
       >
         <table
           className="issue-register"
           style={{ width: tableWidth, minWidth: tableWidth } as CSSProperties}
         >
           <caption className="issue-register-caption">
-            Открытые вопросы проекта с редактированием полей в таблице
+            {uiText("ui.projects.openQuestionsTableCaption")}
           </caption>
           <colgroup>
             {OPEN_ISSUE_COLUMNS.map((column) => (
@@ -472,11 +474,11 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                         aria-busy={isSaving("title")}
                         onChange={(event) => patchDraft(issue, { title: event.target.value })}
                         onBlur={() => void persistField(issue, "title")}
-                        aria-label="Название вопроса"
+                        aria-label={uiText("ui.projects.questionTitleColumn")}
                       />
                       <div className="issue-inline-classification">
                         <label>
-                          <span>Раздел</span>
+                          <span>{uiText("ui.projects.section")}</span>
                           <input
                             className="issue-inline-category"
                             list="open-issue-categories"
@@ -486,20 +488,20 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                             onChange={(event) => patchDraft(issue, { category: event.target.value })}
                             onBlur={() => void persistField(issue, "category")}
                             onKeyDown={(event) => commitOnEnter(event, issue, "category")}
-                            aria-label="Раздел вопроса"
+                            aria-label={uiText("ui.projects.questionSectionColumn")}
                           />
                         </label>
                         {!workPackage ? (
                           <label>
-                            <span>Фаза</span>
+                            <span>{uiText("ui.projects.phase")}</span>
                             <select
                               value={draft.phaseId}
                               disabled={isReadOnly || isSaving("phaseId")}
                               onChange={(event) => void selectIssuePhase(issue, event.target.value)}
-                              aria-label="Фаза проекта"
+                              aria-label={uiText("ui.projects.projectPhaseColumn")}
                               aria-describedby={`${issue.id}-phase-error`}
                             >
-                              <option value="">Без фазы</option>
+                              <option value="">{uiText("ui.projects.noPhase")}</option>
                               {phases.map((phase: { id: string; code: string; title: string }) => (
                                 <option value={phase.id} key={phase.id}>
                                   {phase.code} · {phase.title}
@@ -513,7 +515,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                         </span>
                         {workPackage ? (
                           <div className="issue-work-package-reference">
-                            <span>Пакет</span>
+                            <span>{uiText("ui.projects.workPackageColumn")}</span>
                             <a
                               href={`${appPathForView("project-structure", project.code)}?focusWbs=${encodeURIComponent(workPackage.id)}`}
                               onClick={(event) => openFocusedProjectView(event, "project-structure")}
@@ -527,7 +529,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                       {fieldError("category", "title")}
                     </td>
                     <td className="issue-register-cell issue-register-links">
-                      <div className="issue-thread-links" aria-label="Ссылки на трэды">
+                      <div className="issue-thread-links" aria-label={uiText("ui.projects.threadLinksLabel")}>
                         {(issue.threadLinks ?? []).map((link) => {
                           const editingThread = editingThreadLinkIds.has(link.id);
                           return (
@@ -537,7 +539,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                                   autoFocus
                                   type="url"
                                   value={threadUrlDrafts[link.id] ?? link.threadUrl}
-                                  aria-label="URL трэда"
+                                  aria-label={uiText("ui.projects.threadUrlLabel")}
                                   onChange={(event) => setThreadUrlDrafts((current) => ({
                                     ...current,
                                     [link.id]: event.target.value,
@@ -561,7 +563,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                                   target="_blank"
                                   rel="noreferrer"
                                 >
-                                  <span>Трэд</span>
+                                  <span>{uiText("ui.projects.threadLabel")}</span>
                                   <ExternalLink size={15} />
                                 </a>
                               )}
@@ -569,7 +571,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                                 <button
                                   type="button"
                                   className="icon-button issue-thread-edit"
-                                  aria-label="Изменить ссылку на трэд"
+                                  aria-label={uiText("ui.projects.editThreadLink")}
                                   onClick={() => {
                                     setThreadUrlDrafts((current) => ({
                                       ...current,
@@ -585,7 +587,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                                 <button
                                   type="button"
                                   className="icon-button"
-                                  aria-label="Удалить ссылку на трэд"
+                                  aria-label={uiText("ui.projects.deleteThreadLink")}
                                   onClick={() => void removeIssueThreadLink(issue.id, link.id)}
                                 >
                                   <X size={13} />
@@ -608,11 +610,11 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                             onKeyDown={(event) => {
                               if (event.key === "Enter") void addThreadUrl(issue);
                             }}
-                            aria-label="URL дополнительного трэда"
+                            aria-label={uiText("ui.projects.additionalThreadUrlLabel")}
                           />
                           <button
                             type="button"
-                            aria-label="Добавить трэд"
+                            aria-label={uiText("ui.projects.addThreadAction")}
                             disabled={!(newThreadUrlDrafts[issue.id] ?? "").trim()}
                             onClick={() => void addThreadUrl(issue)}
                           >
@@ -620,7 +622,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                           </button>
                         </div>
                       ) : null}
-                      <div className="issue-ticket-links" aria-label="Ссылки на тикеты">
+                      <div className="issue-ticket-links" aria-label={uiText("ui.projects.ticketLinksLabel")}>
                         {ticketLinks.map((link) => {
                           const editingTicket = editingTicketLinkIds.has(link.id);
                           return (
@@ -696,11 +698,11 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                               ...issueLinkDrafts,
                               [issue.id]: { ...jiraDraft, jiraKey: event.target.value },
                             })}
-                            aria-label="Ключ дополнительного тикета"
+                            aria-label={uiText("ui.projects.additionalTicketKeyLabel")}
                           />
                           <button
                             type="button"
-                            aria-label="Сохранить ссылку на тикет"
+                            aria-label={uiText("ui.projects.saveTicketLinkAction")}
                             disabled={!jiraDraft.jiraKey.trim()}
                             onClick={() => void addIssueJiraLink(issue.id)}
                           >
@@ -715,10 +717,10 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                           <time dateTime={latestStatus.statusAt}>{date(latestStatus.statusAt)}</time>
                           <p>{latestStatus.text}</p>
                         </div>
-                      ) : <p className="muted-inline">Статус ещё не добавлен</p>}
+                      ) : <p className="muted-inline">{uiText("ui.projects.questionStatusNotAddedYet")}</p>}
                       {statuses.length > 1 ? (
                         <details className="issue-status-history">
-                          <summary>История · {statuses.length}</summary>
+                          <summary>{uiText("ui.projects.historyPrefixLabel")} {statuses.length}</summary>
                           {statuses.slice(1).map((status) => (
                             <div key={status.id}>
                               <time dateTime={status.statusAt}>{date(status.statusAt)}</time>
@@ -729,18 +731,18 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                       ) : null}
                       {!isReadOnly ? (
                         <div className="issue-inline-status-add">
-                          <span className="issue-status-today">Сегодня</span>
+                          <span className="issue-status-today">{uiText("ui.common.today")}</span>
                           <textarea
                             rows={2}
                             value={statusDraft.text}
-                            placeholder="Добавить новый статус"
+                            placeholder={uiText("ui.projects.addNewStatusAction")}
                             disabled={isSaving("statusUpdate")}
                             onChange={(event) => updateIssueStatusDraft(issue.id, { text: event.target.value })}
-                            aria-label="Текст нового статуса"
+                            aria-label={uiText("ui.projects.newStatusTextLabel")}
                           />
                           <button
                             type="button"
-                            aria-label="Добавить статус с текущей датой"
+                            aria-label={uiText("ui.projects.addStatusWithCurrentDateAction")}
                             disabled={isSaving("statusUpdate") || !statusDraft.text.trim()}
                             onClick={() => void appendStatus(issue)}
                           >
@@ -754,12 +756,12 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                       <textarea
                         rows={2}
                         value={draft.owner}
-                        placeholder="Ответственный"
+                        placeholder={uiText("ui.automation.owner")}
                         disabled={isReadOnly}
                         aria-busy={isSaving("owner")}
                         onChange={(event) => patchDraft(issue, { owner: event.target.value })}
                         onBlur={() => void persistField(issue, "owner")}
-                        aria-label="Ответственный"
+                        aria-label={uiText("ui.automation.owner")}
                       />
                       {fieldError("owner")}
                     </td>
@@ -768,7 +770,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                         <select
                           autoFocus
                           value={draft.riskId}
-                          aria-label="Связанный риск"
+                          aria-label={uiText("ui.projects.linkedRiskLabel")}
                           disabled={isSaving("riskId")}
                           onChange={(event) => {
                             const riskId = event.target.value;
@@ -783,7 +785,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                             });
                           }}
                         >
-                          <option value="">Без риска</option>
+                          <option value="">{uiText("ui.projects.noLinkedRiskValue")}</option>
                           {linkedRisk && !projectRisks.some((risk: { id: string }) => risk.id === linkedRisk.id) ? (
                             <option value={linkedRisk.id}>{linkedRisk.title}</option>
                           ) : null}
@@ -808,7 +810,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                             <button
                               type="button"
                               className="icon-button"
-                              aria-label={linkedRisk ? "Изменить связанный риск" : "Связать риск"}
+                              aria-label={linkedRisk ? uiText("ui.projects.changeLinkedRiskAction") : uiText("ui.projects.linkRiskAction")}
                               onClick={() => setEditingRiskIssueIds((current) => new Set(current).add(issue.id))}
                             >
                               {linkedRisk ? <Pencil size={13} /> : <Plus size={14} />}
@@ -829,7 +831,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                           patchDraft(issue, { readiness });
                           void persistField(issue, "readiness", readiness);
                         }}
-                        aria-label="Готовность"
+                        aria-label={uiText("ui.projects.readiness")}
                       >
                         {Object.entries(readinessLabels).map(([value, label]) => (
                           <option value={value} key={value}>{label}</option>
@@ -839,7 +841,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                     </td>
                     <td className="issue-register-cell issue-register-parameters">
                       <label>
-                        <span>Срок</span>
+                        <span>{uiText("ui.automation.dueDate")}</span>
                         <input
                           type="date"
                           value={draft.dueDate}
@@ -850,9 +852,9 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                         />
                       </label>
                       <div className="issue-inline-history-meta">
-                        {issue.initialDueDate ? <span>Исходный срок: {date(issue.initialDueDate)}</span> : null}
+                        {issue.initialDueDate ? <span>{uiText("ui.projects.originalDueDateLabel")} {date(issue.initialDueDate)}</span> : null}
                         {delayDays !== 0 ? (
-                          <span>Сдвиг: {delayDays > 0 ? "+" : ""}{delayDays} кал. дн.</span>
+                          <span>{uiText("ui.projects.dateShiftLabel")} {delayDays > 0 ? "+" : ""}{delayDays} {uiText("ui.projects.calendarDaysShortUnit")}</span>
                         ) : null}
                       </div>
                       <label className="issue-inline-decision">
@@ -867,13 +869,13 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                             void persistField(issue, "decisionRequired", decisionRequired);
                           }}
                         />
-                        Требует решения
+                        {uiText("ui.projects.requiresDecision")}
                       </label>
                       {fieldError("dueDate", "decisionRequired")}
                       {!isReadOnly ? (
                         <div className="issue-inline-actions">
-                          <button type="button" className="secondary-button" onClick={() => void convertIssueToProblem(issue.id)}>В проблему</button>
-                          <button type="button" className="secondary-button" onClick={() => void closeOpenIssue(issue.id)}><Check size={14} />Закрыть</button>
+                          <button type="button" className="secondary-button" onClick={() => void convertIssueToProblem(issue.id)}>{uiText("ui.projects.convertToIssueAction")}</button>
+                          <button type="button" className="secondary-button" onClick={() => void closeOpenIssue(issue.id)}><Check size={14} />{uiText("ui.admin.close")}</button>
                         </div>
                       ) : null}
                     </td>

@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import {
   jiraAnalyticsScopeValueIsValid,
   jiraAnalyticsScopeValueMaxLength,
@@ -24,6 +25,7 @@ export function JiraWorkDataSections({
   dataRevision: number;
   onClearData: () => void;
 }) {
+  const { t: uiText } = useInterfaceTranslation();
   const {
     currentUser,
     isClosedProject,
@@ -56,13 +58,13 @@ export function JiraWorkDataSections({
     <div className="jira-work-data-view">
       <section className="jira-data-scope-panel">
         <header>
-          <h3>Область синхронизации Jira</h3>
+          <h3>{uiText("ui.jira.jiraSyncScope")}</h3>
         </header>
         <div className="jira-data-scope-controls">
           <label>
-            <span>Отбор тикетов</span>
+            <span>{uiText("ui.jira.ticketSelection")}</span>
             <select
-              aria-label="Способ отбора тикетов"
+              aria-label={uiText("ui.jira.ticketSelectionMethod")}
               disabled={!canEditScope}
               value={scope.type}
               onChange={(event) => setScopeDraft({
@@ -71,14 +73,14 @@ export function JiraWorkDataSections({
                 value: "",
               })}
             >
-              <option value="LABEL">Лейбл</option>
-              <option value="EPIC">Код эпика</option>
+              <option value="LABEL">{uiText("ui.jira.label")}</option>
+              <option value="EPIC">{uiText("ui.jira.epicCode")}</option>
             </select>
           </label>
           <label className="jira-data-scope-value">
-            <span>{scope.type === "LABEL" ? "Лейблы" : "Код эпика"}</span>
+            <span>{scope.type === "LABEL" ? uiText("ui.jira.labels") : uiText("ui.jira.epicCode")}</span>
             <input
-              aria-label={scope.type === "LABEL" ? "Лейблы Jira" : "Код эпика Jira"}
+              aria-label={scope.type === "LABEL" ? uiText("ui.jira.jiraLabelsField") : uiText("ui.jira.jiraEpicCode")}
               disabled={!canEditScope}
               maxLength={jiraAnalyticsScopeValueMaxLength}
               placeholder={scope.type === "LABEL" ? "cvte968, cvte950" : "CVTE-1234"}
@@ -97,7 +99,7 @@ export function JiraWorkDataSections({
             disabled={!canEditScope || syncing || clearing || !scopeValueValid}
           >
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
-            {syncing ? "Обновляю..." : "Обновить"}
+            {syncing ? uiText("ui.jira.refreshingDots") : uiText("ui.admin.refresh")}
           </button>
           {canClear && (
             <button
@@ -106,7 +108,7 @@ export function JiraWorkDataSections({
               onClick={onClearData}
               disabled={syncing || clearing}
             >
-              <Trash2 size={16} /> {clearing ? "Очищаю..." : "Очистить"}
+              <Trash2 size={16} /> {clearing ? uiText("ui.jira.clearing") : uiText("ui.jira.clear")}
             </button>
           )}
           <button
@@ -115,15 +117,15 @@ export function JiraWorkDataSections({
             onClick={() => void history.runBackfill()}
             disabled={!canEditScope || syncing || clearing || history.backfillRunning || history.historyStatus?.historyWrite?.enabled !== true}
           >
-            <Play size={16} /> {history.backfillRunning ? "Импортирую..." : "Полный импорт"}
+            <Play size={16} /> {history.backfillRunning ? uiText("ui.jira.importing") : uiText("ui.jira.fullImport")}
           </button>
           <button
             type="button"
             className="icon-button jira-data-history-refresh"
             onClick={() => void history.refresh()}
             disabled={!canEditScope || history.historyLoading}
-            aria-label="Обновить состояние импорта"
-            title="Обновить состояние импорта"
+            aria-label={uiText("ui.jira.refreshImportStatus")}
+            title={uiText("ui.jira.refreshImportStatus")}
           >
             <RefreshCw size={17} className={history.historyLoading ? "spin" : ""} />
           </button>

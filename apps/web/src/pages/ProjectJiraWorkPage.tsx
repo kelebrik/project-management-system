@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { BarChart3, Database, History, Sigma } from "lucide-react";
 import { useState } from "react";
 
@@ -13,6 +14,7 @@ export const JIRA_PRODUCTION_BASE_URL = "https://tasks.sberdevices.ru";
 type JiraWorkView = "active" | "retro" | "data" | "aggregates";
 
 export function ProjectJiraWorkPage() {
+  const { t: uiText } = useInterfaceTranslation();
   const {
     currentUser,
     isClosedProject,
@@ -67,38 +69,38 @@ export function ProjectJiraWorkPage() {
     <article className="jira-work-page">
       <div className="jira-work-page-head">
         <div>
-          <h2>Работы в Jira</h2>
-          <p>Аналитика потока и контроль работ</p>
+          <h2>{uiText("ui.jira.jiraWorkPageTitle")}</h2>
+          <p>{uiText("ui.jira.jiraWorkPageSubtitle")}</p>
         </div>
         <div className="jira-work-page-actions">
-          <div className="jira-work-view-switch" aria-label="Раздел Работы в Jira">
+          <div className="jira-work-view-switch" aria-label={uiText("ui.jira.jiraWorkSectionRegionLabel")}>
             <button
               type="button"
               className={view === "active" ? "active" : ""}
               onClick={() => setView("active")}
             >
-              <BarChart3 size={16} /> В работе
+              <BarChart3 size={16} /> {uiText("ui.projects.statusInProgress")}
             </button>
             <button
               type="button"
               className={view === "retro" ? "active" : ""}
               onClick={() => setView("retro")}
             >
-              <History size={16} /> Ретро
+              <History size={16} /> {uiText("ui.jira.jiraWorkRetroTab")}
             </button>
             <button
               type="button"
               className={view === "data" ? "active" : ""}
               onClick={() => setView("data")}
             >
-              <Database size={16} /> Данные Jira
+              <Database size={16} /> {uiText("ui.jira.jiraWorkDataTab")}
             </button>
             <button
               type="button"
               className={view === "aggregates" ? "active" : ""}
               onClick={() => setView("aggregates")}
             >
-              <Sigma size={16} /> Агрегаты
+              <Sigma size={16} /> {uiText("ui.jira.aggregates")}
             </button>
           </div>
         </div>

@@ -1,3 +1,5 @@
+import type { SimpleTranslationKey } from "../i18n/types";
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import {
   useEffect,
   useMemo,
@@ -6,8 +8,8 @@ import {
   type DragEvent,
 } from "react";
 import { Check, ChevronDown, Copy, GripVertical, Printer } from "lucide-react";
-import { apiClient } from "../api/client";
-import { date } from "../app/dateUtils";
+import { ApiError, apiClient } from "../api/client";
+import { useI18n } from "../i18n/I18nProvider";
 import type {
   Issue,
   ProjectDetails,
@@ -16,8 +18,9 @@ import type {
 } from "../app/domainTypes";
 import { printSectionAsPdf } from "../app/pdfPrint";
 import {
+  localizedReportFields,
   DEFAULT_REPORT_FIELDS,
-  REPORT_FIELDS,
+  REPORT_FIELD_ORDER,
   createProjectReport,
   projectReportText,
   reportFieldText,
@@ -34,20 +37,20 @@ import { WeeklyBriefPanel } from '../components/automation/WeeklyBriefPanel';
 type ReportPeriodValue = "7" | "14";
 type ReportDataItem = ReportTask | RaidItem | Issue;
 
-const PERIOD_OPTIONS: Array<{ value: ReportPeriodValue; label: string }> = [
-  { value: "7", label: "Закрыто на этой неделе" },
-  { value: "14", label: "Закрыто за две недели" },
+const PERIOD_OPTIONS: Array<{ value: ReportPeriodValue; label: SimpleTranslationKey }> = [
+  { value: "7", label: "report.period.week" },
+  { value: "14", label: "report.period.twoWeeks" },
 ];
 
-const ACTIVITY_OPTIONS: Array<{ value: ReportActivity; label: string }> = [
-  { value: "closed", label: "Закрыто за две недели" },
-  { value: "opened", label: "Открыто за две недели" },
+const ACTIVITY_OPTIONS: Array<{ value: ReportActivity; label: SimpleTranslationKey }> = [
+  { value: "closed", label: "report.activity.closed" },
+  { value: "opened", label: "report.activity.opened" },
 ];
 
-const REPORT_KIND_OPTIONS: Array<{ value: ReportKind; label: string }> = [
-  { value: "tasks", label: "Задачи" },
-  { value: "raid", label: "Риски и проблемы" },
-  { value: "issues", label: "Открытые вопросы" },
+const REPORT_KIND_OPTIONS: Array<{ value: ReportKind; label: SimpleTranslationKey }> = [
+  { value: "tasks", label: "report.kind.tasks" },
+  { value: "raid", label: "report.kind.raid" },
+  { value: "issues", label: "report.kind.issues" },
 ];
 
 const FIELD_WIDTHS: Record<ReportFieldKey, string> = {
@@ -84,9 +87,9 @@ const FIELD_MIN_WIDTHS: Record<ReportFieldKey, number> = {
 
 function initialFieldOrder(): Record<ReportKind, ReportFieldKey[]> {
   return {
-    tasks: REPORT_FIELDS.tasks.map((field) => field.key),
-    raid: REPORT_FIELDS.raid.map((field) => field.key),
-    issues: REPORT_FIELDS.issues.map((field) => field.key),
+    tasks: [...REPORT_FIELD_ORDER.tasks],
+    raid: [...REPORT_FIELD_ORDER.raid],
+    issues: [...REPORT_FIELD_ORDER.issues],
   };
 }
 
@@ -117,8 +120,9 @@ function ReportDataTable({
   items: ReportDataItem[];
   emptyText: string;
 }) {
+  const { locale } = useI18n();
   if (items.length === 0) return <div className="report-empty">{emptyText}</div>;
-  const fieldLabels = new Map(REPORT_FIELDS[kind].map((field) => [field.key, field.label]));
+  const fieldLabels = new Map(localizedReportFields(locale)[kind].map((field) => [field.key, field.label]));
   const gridStyle = reportGridStyle(fields);
 
   return (
@@ -130,7 +134,7 @@ function ReportDataTable({
         <div className="report-data-row" key={item.id} style={gridStyle}>
           {fields.map((field) => (
             <span className={`report-data-cell field-${field}`} key={field}>
-              {reportFieldText(kind, field, item)}
+              {reportFieldText(kind, field, item, locale)}
             </span>
           ))}
         </div>
@@ -158,11 +162,13 @@ function ReportFieldPicker({
   onDragEnd: () => void;
   onDrop: (field: ReportFieldKey) => void;
 }) {
-  const definitions = new Map(REPORT_FIELDS[kind].map((field) => [field.key, field]));
+  const { t: uiText } = useInterfaceTranslation();
+  const { locale } = useI18n();
+  const definitions = new Map(localizedReportFields(locale)[kind].map((field) => [field.key, field]));
   return (
     <div className="report-field-picker">
       <div className="report-field-picker-head">
-        <span>Поля</span>
+        <span>{uiText("ui.jira.fields")}</span>
         <small>{selectedFields.length}/{fieldOrder.length}</small>
       </div>
       <div className="report-field-list">
@@ -186,8 +192,8 @@ function ReportFieldPicker({
                 draggable
                 onDragStart={(event) => onDragStart(field, event)}
                 onDragEnd={onDragEnd}
-                aria-label={`Перетащить поле ${definition.label}`}
-                title={`Перетащить поле ${definition.label}`}
+                aria-label={uiText("report.drag", { label: definition.label })}
+                title={uiText("report.drag", { label: definition.label })}
               >
                 <GripVertical size={15} />
               </button>
@@ -215,38 +221,42 @@ function TaskReportSections({
   report: ProjectReport;
   fields: ReportFieldKey[];
 }) {
+  const { t: uiText } = useInterfaceTranslation();
   return (
     <>
       <section className="report-section tone-done">
-        <h4>Что сделано <span>{report.done.length}</span></h4>
-        <ReportDataTable kind="tasks" fields={fields} items={report.done} emptyText="Нет закрытых задач за выбранный период" />
+        <h4>{uiText("ui.reports.reportSectionDoneTitle")} <span>{report.done.length}</span></h4>
+        <ReportDataTable kind="tasks" fields={fields} items={report.done} emptyText={uiText("report.empty.done")} />
       </section>
       <section className="report-section tone-progress">
-        <h4>Что в работе <span>{report.inProgress.length}</span></h4>
-        <ReportDataTable kind="tasks" fields={fields} items={report.inProgress} emptyText="Нет задач в работе за выбранный период" />
+        <h4>{uiText("ui.reports.reportSectionInProgressTitle")} <span>{report.inProgress.length}</span></h4>
+        <ReportDataTable kind="tasks" fields={fields} items={report.inProgress} emptyText={uiText("report.empty.active")} />
       </section>
       <section className="report-section tone-upcoming">
-        <h4>Что предстоит сделать <span>{report.upcoming.length}</span></h4>
-        <ReportDataTable kind="tasks" fields={fields} items={report.upcoming} emptyText="Нет предстоящих задач в выбранном горизонте" />
+        <h4>{uiText("ui.reports.reportSectionUpcomingTitle")} <span>{report.upcoming.length}</span></h4>
+        <ReportDataTable kind="tasks" fields={fields} items={report.upcoming} emptyText={uiText("report.empty.upcoming")} />
       </section>
     </>
   );
 }
 
 export function ReportsPage() {
+  const { t: uiText } = useInterfaceTranslation();
   const [weekly, setWeekly] = useState(() => new URLSearchParams(window.location.search).get('reportView') === 'weekly');
   useEffect(() => {
     const sync = () => setWeekly(new URLSearchParams(window.location.search).get('reportView') === 'weekly');
     window.addEventListener('popstate', sync);
     return () => window.removeEventListener('popstate', sync);
   }, []);
-  return <><div className="automation-tabs" role="group" aria-label="Вид отчета">
-    <button aria-pressed={!weekly} onClick={() => { setWeekly(false); const url = new URL(window.location.href); url.searchParams.delete('reportView'); window.history.replaceState(null, '', url); }}>Конструктор отчетов</button>
-    <button aria-pressed={weekly} onClick={() => { setWeekly(true); const url = new URL(window.location.href); url.searchParams.set('reportView', 'weekly'); window.history.replaceState(null, '', url); }}>Что изменилось за неделю</button>
-  </div>{weekly ? <WeeklyBriefPanel /> : <CurrentReportsPage />}</>;
+  return <><div className="automation-tabs" role="group" aria-label={uiText("ui.reports.reportViewLabel")}>
+    <button aria-pressed={!weekly} onClick={() => { setWeekly(false); const url = new URL(window.location.href); url.searchParams.delete('reportView'); window.history.pushState(null, '', url); }}>{uiText("ui.reports.reportBuilderOptionLabel")}</button>
+    <button aria-pressed={weekly} onClick={() => { setWeekly(true); const url = new URL(window.location.href); url.searchParams.set('reportView', 'weekly'); window.history.pushState(null, '', url); }}>{uiText("ui.automation.whatChangedThisWeek")}</button>
+  </div>{weekly && <WeeklyBriefPanel />}<div hidden={weekly}><CurrentReportsPage /></div></>;
 }
 
 function CurrentReportsPage() {
+  const { t: uiText } = useInterfaceTranslation();
+  const { locale, formatters: { date } } = useI18n();
   const { projects, selectedProjectId } = usePageContext();
   const projectOptions = (projects as ProjectListItem[]).filter(
     (item) => item.status !== "CLOSED",
@@ -264,7 +274,7 @@ function CurrentReportsPage() {
   const [loadedProject, setLoadedProject] = useState<{
     id: string;
     data: ProjectDetails | null;
-    error: string | null;
+    error: { message: string | null } | null;
   }>({ id: "", data: null, error: null });
   const [copied, setCopied] = useState(false);
 
@@ -274,7 +284,7 @@ function CurrentReportsPage() {
     apiClient
       .get<ProjectDetails>(
         `/api/projects/${effectiveProjectId}/overview`,
-        "Не удалось загрузить данные для отчёта",
+        "",
       )
       .then((result) => {
         if (!cancelled) {
@@ -286,10 +296,7 @@ function CurrentReportsPage() {
           setLoadedProject({
             id: effectiveProjectId,
             data: null,
-            error:
-              loadError instanceof Error
-                ? loadError.message
-                : "Не удалось загрузить данные для отчёта",
+            error: { message: loadError instanceof ApiError && loadError.message ? loadError.message : null },
           });
         }
       });
@@ -299,7 +306,7 @@ function CurrentReportsPage() {
   }, [effectiveProjectId]);
 
   const project = loadedProject.id === effectiveProjectId ? loadedProject.data : null;
-  const error = loadedProject.id === effectiveProjectId ? loadedProject.error : null;
+  const error = loadedProject.id === effectiveProjectId && loadedProject.error ? loadedProject.error.message || uiText("report.loadError") : null;
   const loading = Boolean(effectiveProjectId && loadedProject.id !== effectiveProjectId);
   const periodDays = Number(period) as ReportPeriodDays;
   const report = useMemo(
@@ -346,7 +353,7 @@ function CurrentReportsPage() {
   const copyReport = async () => {
     if (!project || !report) return;
     await navigator.clipboard.writeText(
-      projectReportText(project, report, reportKind, activeFields, activity),
+      projectReportText(project, report, reportKind, activeFields, activity, locale),
     );
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
@@ -356,19 +363,19 @@ function CurrentReportsPage() {
     <section className="reports-page">
       <header className="reports-header">
         <div>
-          <h1>Конструктор отчётов</h1>
-          <p>Статус проекта за выбранный период</p>
+          <h1>{uiText("ui.reports.reportBuilderHeading")}</h1>
+          <p>{uiText("ui.reports.reportStatusForPeriodSubtitle")}</p>
         </div>
         <div className="reports-actions">
           <button type="button" onClick={() => void copyReport()} disabled={!report}>
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? "Скопировано" : "Копировать"}
+            {copied ? uiText("ui.automation.copied") : uiText("ui.reports.copyAction")}
           </button>
           <button
             type="button"
             onClick={() =>
               project &&
-              printSectionAsPdf("project-status-report", `Отчёт ${project.code}`)
+              printSectionAsPdf("project-status-report", uiText("report.pdfTitle", { code: project.code }))
             }
             disabled={!report}
           >
@@ -379,9 +386,9 @@ function CurrentReportsPage() {
       </header>
 
       <div className="report-builder-layout">
-        <aside className="report-controls" aria-label="Настройки отчёта">
+        <aside className="report-controls" aria-label={uiText("ui.reports.reportSettingsTitle")}>
           <label className="report-control-field">
-            <span>Проект</span>
+            <span>{uiText("ui.admin.project")}</span>
             <div className="report-select-wrap">
               <select
                 value={effectiveProjectId}
@@ -399,7 +406,7 @@ function CurrentReportsPage() {
 
           <div className="report-constructor">
             <label className="report-control-field">
-              <span>Содержание</span>
+              <span>{uiText("ui.reports.reportContentsTitle")}</span>
               <div className="report-select-wrap">
                 <select
                   value={reportKind}
@@ -409,16 +416,16 @@ function CurrentReportsPage() {
                   }}
                 >
                   {REPORT_KIND_OPTIONS.map((item) => (
-                    <option value={item.value} key={item.value}>{item.label}</option>
+                    <option value={item.value} key={item.value}>{uiText(item.label)}</option>
                   ))}
                 </select>
                 <ChevronDown size={17} strokeWidth={2.4} aria-hidden="true" />
               </div>
             </label>
             <div className="report-control-field">
-              <span>Период</span>
-              <div className="segmented-control report-period-control" aria-label="Период отчёта">
-                {(reportKind === "tasks" ? PERIOD_OPTIONS : ACTIVITY_OPTIONS).map((item) => {
+              <span>{uiText("ui.automation.period")}</span>
+              <div className="segmented-control report-period-control" aria-label={uiText("ui.reports.reportPeriodLabel")}>
+                {(reportKind === "tasks" ? PERIOD_OPTIONS : ACTIVITY_OPTIONS).map((item: { value: string; label: SimpleTranslationKey }) => {
                   const selected = reportKind === "tasks"
                     ? period === item.value
                     : activity === item.value;
@@ -436,7 +443,7 @@ function CurrentReportsPage() {
                         }
                       }}
                     >
-                      {item.label}
+                      {uiText(item.label)}
                     </button>
                   );
                 })}
@@ -460,7 +467,7 @@ function CurrentReportsPage() {
         </aside>
 
         <article className="report-preview" id="project-status-report">
-          {loading && <div className="report-loading">Формируем отчёт...</div>}
+          {loading && <div className="report-loading">{uiText("ui.reports.reportGeneratingMessage")}</div>}
           {error && <div className="report-error">{error}</div>}
           {!loading && !error && project && report && (
             <>
@@ -468,40 +475,40 @@ function CurrentReportsPage() {
                 <div>
                   <span>{project.code}</span>
                   <h3>{project.name}</h3>
-                  <small>{REPORT_KIND_OPTIONS.find((item) => item.value === reportKind)?.label}</small>
+                  <small>{uiText(REPORT_KIND_OPTIONS.find((item) => item.value === reportKind)!.label)}</small>
                 </div>
                 <dl>
                   {reportKind === "tasks" ? (
                     <>
-                      <div><dt>Период</dt><dd>{date(report.pastStart)} - {date(report.generatedAt)}</dd></div>
-                      <div><dt>Следующий горизонт</dt><dd>до {date(report.futureEnd)}</dd></div>
+                      <div><dt>{uiText("ui.automation.period")}</dt><dd>{date(report.pastStart)} - {date(report.generatedAt)}</dd></div>
+                      <div><dt>{uiText("ui.reports.reportNextHorizonLabel")}</dt><dd>{uiText("ui.reports.dateRangeToSeparator")} {date(report.futureEnd)}</dd></div>
                     </>
                   ) : (
                     <>
-                      <div><dt>Период</dt><dd>{date(report.activityStart)} - {date(report.generatedAt)}</dd></div>
-                      <div><dt>Записей</dt><dd>{reportKind === "raid" ? visibleRaidItems.length : visibleIssues.length}</dd></div>
+                      <div><dt>{uiText("ui.automation.period")}</dt><dd>{date(report.activityStart)} - {date(report.generatedAt)}</dd></div>
+                      <div><dt>{uiText("ui.reports.reportEntriesCountLabel")}</dt><dd>{reportKind === "raid" ? visibleRaidItems.length : visibleIssues.length}</dd></div>
                     </>
                   )}
-                  <div><dt>РП</dt><dd>{project.projectManager || "не назначен"}</dd></div>
+                  <div><dt>{uiText("ui.admin.projectManagerShort")}</dt><dd>{project.projectManager || uiText("ui.projects.notAssignedLowercase")}</dd></div>
                 </dl>
               </div>
 
               <div className="report-summary-counts">
                 {reportKind === "tasks" && (
                   <>
-                    <span><b>{report.done.length}</b> сделано</span>
-                    <span><b>{report.inProgress.length}</b> в работе</span>
-                    <span><b>{report.upcoming.length}</b> предстоит</span>
+                    <span><b>{report.done.length}</b> {uiText("ui.reports.reportCountDoneLowercase")}</span>
+                    <span><b>{report.inProgress.length}</b> {uiText("ui.reports.reportCountInProgressLowercase")}</span>
+                    <span><b>{report.upcoming.length}</b> {uiText("ui.reports.reportCountUpcomingLowercase")}</span>
                   </>
                 )}
                 {reportKind === "raid" && (
                   <>
-                    <span><b>{risks.length}</b> рисков</span>
-                    <span><b>{problems.length}</b> проблем</span>
+                    <span><b>{risks.length}</b> {uiText("ui.reports.reportCountRisksLowercase")}</span>
+                    <span><b>{problems.length}</b> {uiText("ui.reports.reportCountIssuesLowercase")}</span>
                   </>
                 )}
                 {reportKind === "issues" && (
-                  <span><b>{visibleIssues.length}</b> {activity === "closed" ? "закрытых" : "открытых"} вопросов</span>
+                  <span><b>{visibleIssues.length}</b> {activity === "closed" ? uiText("ui.reports.reportCountClosedLowercase") : uiText("ui.reports.reportCountOpenLowercase")} {uiText("ui.reports.reportCountQuestionsLowercase")}</span>
                 )}
               </div>
 
@@ -509,19 +516,19 @@ function CurrentReportsPage() {
               {reportKind === "raid" && (
                 <>
                   <section className="report-section tone-risk">
-                    <h4>{activity === "closed" ? "Закрытые риски" : "Открытые риски"} <span>{risks.length}</span></h4>
-                    <ReportDataTable kind="raid" fields={activeFields} items={risks} emptyText={activity === "closed" ? "Закрытых рисков за две недели нет" : "Новых открытых рисков за две недели нет"} />
+                    <h4>{activity === "closed" ? uiText("ui.reports.reportClosedRisksTitle") : uiText("ui.reports.reportOpenRisksTitle")} <span>{risks.length}</span></h4>
+                    <ReportDataTable kind="raid" fields={activeFields} items={risks} emptyText={activity === "closed" ? uiText("ui.reports.reportNoClosedRisksTwoWeeks") : uiText("ui.reports.reportNoNewOpenRisksTwoWeeks")} />
                   </section>
                   <section className="report-section tone-problem">
-                    <h4>{activity === "closed" ? "Закрытые проблемы" : "Открытые проблемы"} <span>{problems.length}</span></h4>
-                    <ReportDataTable kind="raid" fields={activeFields} items={problems} emptyText={activity === "closed" ? "Закрытых проблем за две недели нет" : "Новых открытых проблем за две недели нет"} />
+                    <h4>{activity === "closed" ? uiText("ui.reports.reportClosedIssuesTitle") : uiText("ui.reports.reportOpenIssuesTitle")} <span>{problems.length}</span></h4>
+                    <ReportDataTable kind="raid" fields={activeFields} items={problems} emptyText={activity === "closed" ? uiText("ui.reports.reportNoClosedIssuesTwoWeeks") : uiText("ui.reports.reportNoNewOpenIssuesTwoWeeks")} />
                   </section>
                 </>
               )}
               {reportKind === "issues" && (
                 <section className="report-section tone-issue">
-                  <h4>{activity === "closed" ? "Закрытые вопросы" : "Открытые вопросы"} <span>{visibleIssues.length}</span></h4>
-                  <ReportDataTable kind="issues" fields={activeFields} items={visibleIssues} emptyText={activity === "closed" ? "Закрытых вопросов за две недели нет" : "Новых открытых вопросов за две недели нет"} />
+                  <h4>{activity === "closed" ? uiText("ui.reports.reportClosedQuestionsTitle") : uiText("ui.reports.reportOpenQuestionsTitle")} <span>{visibleIssues.length}</span></h4>
+                  <ReportDataTable kind="issues" fields={activeFields} items={visibleIssues} emptyText={activity === "closed" ? uiText("ui.reports.reportNoClosedQuestionsTwoWeeks") : uiText("ui.reports.reportNoNewOpenQuestionsTwoWeeks")} />
                 </section>
               )}
             </>

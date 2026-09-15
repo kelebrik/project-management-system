@@ -1,32 +1,34 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
 export function AdminHealthPageContent() {
+  const { t } = useI18n();
   const { adminHealth, dateTime, reloadAdminHealth } = usePageContext();
   return (
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <p>Техническое состояние приложения и подключений</p>
+                      <p>{t("admin.health.description")}</p>
                     </div>
                     <button type="button" onClick={() => void reloadAdminHealth()}>
-                      Обновить
+                      {t("admin.refresh")}
                     </button>
                   </div>
                   <div className="admin-status-grid">
                     <div className="metric-card">
                       <span>API</span>
-                      <b>{adminHealth?.ok ? "В норме" : "Ошибка"}</b>
-                      <small>Запущен: {dateTime(adminHealth?.startedAt ?? null)}</small>
+                      <b>{adminHealth?.ok ? t("admin.health.ok") : t("admin.health.error")}</b>
+                      <small>{t("admin.health.started", { date: dateTime(adminHealth?.startedAt ?? null) })}</small>
                     </div>
                     <div className="metric-card">
-                      <span>База данных</span>
-                      <b>{adminHealth?.database ?? "неизвестно"}</b>
-                      <small>Latency: {adminHealth?.databaseLatencyMs ?? 0} мс</small>
+                      <span>{t("admin.health.database")}</span>
+                      <b>{adminHealth?.database ?? t("admin.health.unknown")}</b>
+                      <small>{t("admin.health.latency", { count: adminHealth?.databaseLatencyMs ?? 0 })}</small>
                     </div>
                     <div className="metric-card">
-                      <span>Окружение</span>
+                      <span>{t("admin.health.environment")}</span>
                       <b>{adminHealth?.nodeEnv ?? "development"}</b>
-                      <small>Uptime: {adminHealth?.uptimeSeconds ?? 0} сек.</small>
+                      <small>{t("admin.health.uptime", { count: adminHealth?.uptimeSeconds ?? 0 })}</small>
                     </div>
                   </div>
                 </article>
@@ -34,43 +36,44 @@ export function AdminHealthPageContent() {
 }
 
 export function AdminBackupsPageContent() {
+  const { t } = useI18n();
   const { backupStatus, dateTime, fileSize, reloadAdminHealth } = usePageContext();
   return (
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <p>Состояние каталога backup и последнего архивного файла</p>
+                      <p>{t("admin.backups.description")}</p>
                     </div>
                     <button type="button" onClick={() => void reloadAdminHealth()}>
-                      Обновить
+                      {t("admin.refresh")}
                     </button>
                   </div>
                   <div className="admin-status-grid">
                     <div className="metric-card span-2">
-                      <span>Каталог backup</span>
-                      <b>{backupStatus?.backupDir ?? "не задан"}</b>
-                      <small>{backupStatus?.message ?? "Нет данных"}</small>
+                      <span>{t("admin.backups.directory")}</span>
+                      <b>{backupStatus?.backupDir ?? t("fields.notSet")}</b>
+                      <small>{backupStatus?.message ?? t("admin.backups.noData")}</small>
                     </div>
                     <div className="metric-card">
-                      <span>Файлы</span>
+                      <span>{t("admin.backups.files")}</span>
                       <b>{backupStatus?.totalBackups ?? 0}</b>
-                      <small>Retention: {backupStatus?.retentionDays ?? 0} дн.</small>
+                      <small>{t("admin.backups.retention", { count: backupStatus?.retentionDays ?? 0 })}</small>
                     </div>
                     <div className="metric-card">
-                      <span>Последний backup</span>
-                      <b>{backupStatus?.latestBackup?.file ?? "не найден"}</b>
+                      <span>{t("admin.backups.latest")}</span>
+                      <b>{backupStatus?.latestBackup?.file ?? t("admin.backups.notFound")}</b>
                       <small>
                         {backupStatus?.latestBackup
                           ? `${dateTime(backupStatus.latestBackup.updatedAt)} / ${fileSize(
                               backupStatus.latestBackup.sizeBytes,
                             )}`
-                          : "Файл отсутствует"}
+                          : t("admin.backups.noFile")}
                       </small>
                     </div>
                     <div className="metric-card span-2">
                       <span>Checksum</span>
-                      <b>{backupStatus?.latestChecksum ?? "не найден"}</b>
-                      <small>Restore выполняется ops-скриптом с RESTORE_CONFIRM=yes</small>
+                      <b>{backupStatus?.latestChecksum ?? t("admin.backups.notFound")}</b>
+                      <small>{t("admin.backups.restore")}</small>
                     </div>
                   </div>
                 </article>
@@ -78,23 +81,24 @@ export function AdminBackupsPageContent() {
 }
 
 export function AdminConfigPageContent() {
+  const { t } = useI18n();
   const { configTransferText, exportAdminConfig, importAdminConfig, importingConfig, setConfigTransferText } = usePageContext();
   return (
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <p>Перенос ролей, справочников и системных настроек между средами</p>
+                      <p>{t("admin.config.description")}</p>
                     </div>
                     <div className="panel-title-actions">
                       <button type="button" onClick={() => void exportAdminConfig()}>
-                        Экспортировать
+                        {t("admin.config.export")}
                       </button>
                       <button
                         type="button"
                         onClick={() => void importAdminConfig()}
                         disabled={importingConfig || !configTransferText.trim()}
                       >
-                        {importingConfig ? "Импортирую..." : "Импортировать"}
+                        {importingConfig ? t("admin.config.importing") : t("admin.config.import")}
                       </button>
                     </div>
                   </div>
@@ -102,7 +106,7 @@ export function AdminConfigPageContent() {
                     className="admin-config-textarea"
                     value={configTransferText}
                     onChange={(event) => setConfigTransferText(event.target.value)}
-                    placeholder="JSON конфигурации"
+                    placeholder={t("admin.config.placeholder")}
                   />
                 </article>
               );

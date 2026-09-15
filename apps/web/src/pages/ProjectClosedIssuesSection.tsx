@@ -1,6 +1,8 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
 export function ProjectClosedIssuesSection() {
+  const { t: uiText } = useInterfaceTranslation();
   const {
     calendarDelayDays,
     date,
@@ -15,18 +17,18 @@ export function ProjectClosedIssuesSection() {
   return <section className="closed-issues-section">
                       <div className="section-heading compact">
                         <div>
-                          <h3>Закрытые ранее вопросы</h3>
-                          <p>Вопросы со статусом Решено или Закрыто</p>
+                          <h3>{uiText("ui.projects.closedQuestionsSectionTitle")}</h3>
+                          <p>{uiText("ui.projects.closedQuestionsSectionSubtitle")}</p>
                         </div>
                         <span>{project.closedIssues?.length ?? 0}</span>
                       </div>
                       <div className="issue-list closed-issue-list">
                         <div className="issue-list-head" aria-hidden="true">
-                          <span>Наименование</span>
-                          <span>Ключ Jira</span>
-                          <span>Срок</span>
-                          <span>Отставание</span>
-                          <span>Ответственный</span>
+                          <span>{uiText("ui.admin.itemName")}</span>
+                          <span>{uiText("ui.projects.jiraKeyLabel")}</span>
+                          <span>{uiText("ui.automation.dueDate")}</span>
+                          <span>{uiText("ui.projects.delayColumnLabel")}</span>
+                          <span>{uiText("ui.automation.owner")}</span>
                           <span />
                         </div>
                         {(project.closedIssues ?? []).map((issue) => {
@@ -72,7 +74,7 @@ export function ProjectClosedIssuesSection() {
                                       {jiraLink.key}
                                     </a>
                                   ) : (
-                                    jiraLink.key || "не задан"
+                                    jiraLink.key || uiText("ui.admin.notSetMasculine")
                                   )}
                                 </span>
                                 <span className="issue-summary-cell">
@@ -81,10 +83,10 @@ export function ProjectClosedIssuesSection() {
                                 <span
                                   className={`issue-summary-cell ${delayDays > 0 ? "issue-delay" : ""}`}
                                 >
-                                  {delayDays > 0 ? `+${delayDays} дн.` : "нет"}
+                                  {delayDays > 0 ? `+${delayDays} дн.` : uiText("ui.projects.noneValue")}
                                 </span>
                                 <span className="issue-summary-cell">
-                                  {issue.owner || "не назначен"}
+                                  {issue.owner || uiText("ui.projects.notAssignedLowercase")}
                                 </span>
                                 <span className="issue-chevron" aria-hidden="true">
                                   {expandedIssueId === issue.id ? "-" : "+"}
@@ -102,20 +104,20 @@ export function ProjectClosedIssuesSection() {
                                       {issueSeverityLabel(issue.severity)}
                                     </span>
                                     <span>
-                                      Статус: {issueStatusLabel(issue.status)}
+                                      {uiText("ui.common.statusLabel")} {issueStatusLabel(issue.status)}
                                     </span>
                                     <span>
-                                      Отставание на момент закрытия:{" "}
-                                      {delayDays > 0 ? `+${delayDays} кал. дн.` : "нет"}
+                                      {uiText("ui.projects.delayAtClosureLabel")}{" "}
+                                      {delayDays > 0 ? `+${delayDays} кал. дн.` : uiText("ui.projects.noneValue")}
                                     </span>
                                     <span>
-                                      Источник:{" "}
-                                      {issue.source === "JIRA" ? "Jira" : "Внутренний"}
+                                      {uiText("ui.projects.sourceLabel")}{" "}
+                                      {issue.source === "JIRA" ? "Jira" : uiText("ui.projects.sourceInternalValue")}
                                     </span>
                                   </div>
                                   <div className="issue-impact">
-                                    <span>Влияние</span>
-                                    <p>{issue.impact || "не заполнено"}</p>
+                                    <span>{uiText("ui.projects.impact")}</span>
+                                    <p>{issue.impact || uiText("ui.projects.notFilledInValue")}</p>
                                   </div>
                                   <div className="jira-link-list">
                                     {issue.jiraLinks.map((link) => (
@@ -131,7 +133,7 @@ export function ProjectClosedIssuesSection() {
                                     ))}
                                     {issue.jiraLinks.length === 0 && !jiraLink.url && (
                                       <span className="muted-inline">
-                                        Задачи Jira не связаны
+                                        {uiText("ui.projects.noJiraIssuesLinked")}
                                       </span>
                                     )}
                                   </div>
@@ -142,7 +144,7 @@ export function ProjectClosedIssuesSection() {
                         })}
                         {(project.closedIssues?.length ?? 0) === 0 && (
                           <div className="empty-state">
-                            Закрытых вопросов пока нет.
+                            {uiText("ui.projects.noClosedQuestionsYet")}
                           </div>
                         )}
                       </div>

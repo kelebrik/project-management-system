@@ -12,6 +12,7 @@ import {
   type ConfirmOptions,
 } from "../hooks/useConfirm";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useI18n } from "../i18n/I18nProvider";
 
 type PendingState = {
   options: ConfirmOptions;
@@ -27,6 +28,7 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const containerRef = useFocusTrap<HTMLDivElement>(true, onCancel);
   const tone = options.tone ?? "danger";
   const [calloutPosition, setCalloutPosition] = useState<{
@@ -140,14 +142,14 @@ function ConfirmDialog({
             className="confirm-cancel"
             onClick={onCancel}
           >
-            {options.cancelLabel ?? "Отмена"}
+            {options.cancelLabel ?? t("common.cancel")}
           </button>
           <button
             type="button"
             className={`confirm-accept ${tone}`}
             onClick={onConfirm}
           >
-            {options.confirmLabel ?? "Удалить"}
+            {options.confirmLabel ?? t("common.delete")}
           </button>
         </div>
       </div>

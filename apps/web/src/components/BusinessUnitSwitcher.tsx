@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { Building2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
@@ -18,6 +19,7 @@ type BusinessUnitOption = {
 };
 
 export function BusinessUnitSwitcher() {
+  const { t } = useI18n();
   const [units, setUnits] = useState<BusinessUnitOption[]>([]);
   const [selectedId, setSelectedId] = useState(selectedBusinessUnitId() ?? '');
 
@@ -58,10 +60,10 @@ export function BusinessUnitSwitcher() {
 
   return (
     <div className="business-unit-switcher-group">
-      <label className="business-unit-switcher" title="Текущий бизнес-юнит">
+      <label className="business-unit-switcher" title={t("unit.current")}>
         <Building2 size={15} aria-hidden="true" />
         <select
-          aria-label="Бизнес-юнит"
+          aria-label={t("unit.label")}
           value={selectedId}
           onChange={(event) => {
             const nextId = event.currentTarget.value;

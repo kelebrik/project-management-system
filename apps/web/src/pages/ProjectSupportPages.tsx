@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/I18nProvider";
 import {
   BriefcaseBusiness,
 } from "lucide-react";
@@ -7,6 +8,7 @@ import { ListToolbar } from "../components/ListToolbar";
 import { usePersistedViewState } from "../app/usePersistedViewState";
 
 export function ProjectChangesPage() {
+  const { t } = useI18n();
   const { overviewDashboard, project } = usePageContext();
   const [query, setQuery] = usePersistedViewState(`pms:changes:${project.id}:query`, "");
   const normalizedQuery = query.trim().toLowerCase();
@@ -15,21 +17,20 @@ export function ProjectChangesPage() {
                 <article className="panel project-card project-module-page">
                   <div className="panel-title">
                     <div>
-                      <h2>Управление изменениями</h2>
+                      <h2>{t("changes.title")}</h2>
                       <p>
-                        Запросы на изменение состава работ, сроков и
-                        управленческих решений проекта.
+                        {t("changes.description")}
                       </p>
                     </div>
                   </div>
                   <div className="module-summary-grid">
                     <div className="metric-card">
-                      <span>Запросы на изменение</span>
+                      <span>{t("changes.requests")}</span>
                       <b>{project.changeRequests.length}</b>
-                      <small>Подготовлено для будущего workflow согласований</small>
+                      <small>{t("changes.workflow")}</small>
                     </div>
                     <div className="metric-card">
-                      <span>Открытые решения</span>
+                      <span>{t("changes.decisions")}</span>
                       <b>
                         {
                           project.issues.filter(
@@ -38,34 +39,34 @@ export function ProjectChangesPage() {
                           ).length
                         }
                       </b>
-                      <small>Открытые вопросы, влияющие на изменения</small>
+                      <small>{t("changes.decisionsHelp")}</small>
                     </div>
                     <div className="metric-card">
-                      <span>Отклонения от базового плана</span>
+                      <span>{t("changes.baseline")}</span>
                       <b>{overviewDashboard.scheduleDeltaItems.length}</b>
-                      <small>Первичные источники сдвига сроков</small>
+                      <small>{t("changes.sources")}</small>
                     </div>
                   </div>
-                  <ListToolbar label="Поиск изменений" query={query} onQueryChange={setQuery} />
+                  <ListToolbar label={t("changes.search")} query={query} onQueryChange={setQuery} />
                   <div className="module-table">
                     <div className="module-table-head">
-                      <span>Объект</span>
-                      <span>Тип изменения</span>
-                      <span>Влияние</span>
-                      <span>Ответственный</span>
+                      <span>{t("changes.object")}</span>
+                      <span>{t("changes.type")}</span>
+                      <span>{t("changes.impact")}</span>
+                      <span>{t("fields.owner")}</span>
                     </div>
                     {changes.map(({ item, delay }) => (
                       <div className="module-table-row" key={item.id}>
                         <b>
                           {item.code} {item.title}
                         </b>
-                        <span>Сдвиг срока</span>
-                        <span>+{delay} кал. дн.</span>
-                        <span>{item.owner || "не назначен"}</span>
+                        <span>{t("changes.shift")}</span>
+                        <span>{t("changes.days", { count: delay })}</span>
+                        <span>{item.owner || t("fields.unassigned")}</span>
                       </div>
                     ))}
                     {changes.length === 0 && (
-                      <div className="empty-state"><strong>{normalizedQuery ? "Изменения не найдены" : "Изменения сроков не найдены"}</strong><span>{normalizedQuery ? "Измените запрос или очистите поиск." : "Отклонения появятся, когда прогнозная дата отойдёт от базового плана."}</span>{normalizedQuery && <button type="button" onClick={() => setQuery("")}>Очистить поиск</button>}</div>
+                      <div className="empty-state"><strong>{normalizedQuery ? t("changes.noResults") : t("changes.empty")}</strong><span>{normalizedQuery ? t("fields.searchHelp") : t("changes.emptyHelp")}</span>{normalizedQuery && <button type="button" onClick={() => setQuery("")}>{t("fields.clearSearch")}</button>}</div>
                     )}
                   </div>
                 </article>
@@ -73,27 +74,23 @@ export function ProjectChangesPage() {
 }
 
 export function ProjectBudgetPage() {
+  const { t } = useI18n();
   return (
                 <article className="panel project-card project-module-page">
                   <div className="panel-title">
                     <div>
-                      <h2>Управление бюджетом</h2>
+                      <h2>{t("budget.title")}</h2>
                       <p>
-                        Контур бюджетного планирования выделен в отдельную
-                        страницу и будет наполнен после согласования модели
-                        финансовых данных.
+                        {t("budget.description")}
                       </p>
                     </div>
                   </div>
                   <div className="budget-placeholder">
                     <BriefcaseBusiness size={34} />
                     <div>
-                      <b>Бюджетный модуль подготовлен</b>
+                      <b>{t("budget.ready")}</b>
                       <span>
-                        Сейчас страница не считает финансы и не влияет на
-                        проектные показатели. После согласования состава полей
-                        сюда можно вынести план, факт, прогноз, лимиты и
-                        отклонения.
+                        {t("budget.details")}
                       </span>
                     </div>
                   </div>

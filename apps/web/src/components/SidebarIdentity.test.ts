@@ -1,3 +1,4 @@
+import { I18nProvider } from "../i18n/I18nProvider";
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as React from "react";
@@ -7,11 +8,11 @@ import { SidebarIdentity } from "./SidebarIdentity";
 test("application header uses the product name and plan icon", () => {
   Object.assign(globalThis, { React });
   const html = renderToStaticMarkup(
-    React.createElement(SidebarIdentity, {
+    React.createElement(I18nProvider, { initialLocale: "ru", children: React.createElement(SidebarIdentity, {
       currentUser: null,
       onLogin: () => undefined,
       onLogout: () => undefined,
-    }),
+    }) }),
   );
 
   assert.match(html, /Управление проектами/);

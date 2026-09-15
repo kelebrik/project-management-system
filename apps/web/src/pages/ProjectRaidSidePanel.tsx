@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import type { RaidItemType } from "../app/domainTypes";
 import { ProjectRaidMatrixCard } from "./ProjectRaidMatrixCard";
@@ -7,6 +8,7 @@ type ProjectRaidSidePanelProps = {
 };
 
 export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanelProps) {
+  const { t: uiText } = useInterfaceTranslation();
   const {
     createRaidItem,
     raidForm,
@@ -17,11 +19,11 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
   return <div className="raid-side-column">
                       {showMatrix && <ProjectRaidMatrixCard />}
                         <form className="raid-form stack-form" onSubmit={createRaidItem}>
-                          <h3>Новая запись</h3>
-                        <div className="form-section-title">Основное</div>
+                          <h3>{uiText("ui.projects.newEntryAction")}</h3>
+                        <div className="form-section-title">{uiText("ui.projects.raidPanelGeneralTab")}</div>
                         <div className="two-col">
                         <label>
-                          Тип
+                          {uiText("ui.admin.type")}
                           <select
                             value={raidForm.type}
                             onChange={(event) =>
@@ -41,7 +43,7 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
                           </select>
                         </label>
                         <label>
-                          Ответственный
+                          {uiText("ui.automation.owner")}
                           <input
                             value={raidForm.owner}
                             onChange={(event) =>
@@ -50,13 +52,13 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
                                 owner: event.target.value,
                               })
                             }
-                            placeholder="Ответственный"
+                            placeholder={uiText("ui.automation.owner")}
                           />
                         </label>
                       </div>
                       <div className="two-col">
                         <label>
-                          Ключ Jira
+                          {uiText("ui.projects.jiraKeyLabel")}
                           <input
                             value={raidForm.jiraTicketKey}
                             onChange={(event) =>
@@ -83,7 +85,7 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
                         </label>
                       </div>
                       <label>
-                        Наименование
+                        {uiText("ui.admin.itemName")}
                         <input
                           value={raidForm.title}
                           onChange={(event) =>
@@ -92,11 +94,11 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
                               title: event.target.value,
                             })
                           }
-                          placeholder="Поставщик может не подтвердить SLA"
+                          placeholder={uiText("ui.projects.raidPanelTitlePlaceholderExample")}
                         />
                       </label>
                       <label>
-                        Описание
+                        {uiText("ui.jira.description")}
                         <textarea
                           value={raidForm.description}
                           onChange={(event) =>
@@ -108,10 +110,10 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
                             rows={3}
                           />
                         </label>
-                        <div className="form-section-title">Оценка и влияние</div>
+                        <div className="form-section-title">{uiText("ui.projects.raidPanelScoreAndImpactTab")}</div>
                         <div className="two-col">
                         <label>
-                          Вероятность
+                          {uiText("ui.projects.raidProbabilityLabel")}
                           <input
                             type="number"
                             min="0"
@@ -126,7 +128,7 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
                           />
                         </label>
                         <label>
-                          Влияние
+                          {uiText("ui.projects.impact")}
                           <input
                             type="number"
                             min="0"
@@ -143,7 +145,7 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
                       </div>
                       <div className="two-col">
                         <label>
-                          Срок
+                          {uiText("ui.automation.dueDate")}
                           <input
                             type="date"
                             value={raidForm.dueDate}
@@ -156,9 +158,9 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
                           />
                         </label>
                           </div>
-                        <div className="form-section-title">План действий</div>
+                        <div className="form-section-title">{uiText("ui.projects.raidActionPlanLabel")}</div>
                         <label>
-                          План действий
+                          {uiText("ui.projects.raidActionPlanLabel")}
                         <textarea
                           value={raidForm.mitigationPlan}
                           onChange={(event) =>
@@ -181,9 +183,9 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
                             })
                           }
                         />
-                        Требует решения
+                        {uiText("ui.projects.requiresDecision")}
                       </label>
-                      <button type="submit">Создать запись</button>
+                      <button type="submit">{uiText("ui.automation.createRecord")}</button>
                     </form>
                     </div>;
 }

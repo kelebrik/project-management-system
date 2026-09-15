@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
 const RISK_TONE_LABELS = {
@@ -7,12 +8,13 @@ const RISK_TONE_LABELS = {
 } as const;
 
 export function ProjectRaidMatrixCard() {
+  const { t: uiText } = useInterfaceTranslation();
   const { riskMatrix, riskTone } = usePageContext();
 
   return (
     <section className="risk-matrix-card">
-      <div className="subhead">Матрица рисков</div>
-      <div className="risk-matrix" aria-label="Матрица рисков">
+      <div className="subhead">{uiText("ui.projects.riskMatrixTitle")}</div>
+      <div className="risk-matrix" aria-label={uiText("ui.projects.riskMatrixTitle")}>
         {[5, 4, 3, 2, 1].map((impact) =>
           [1, 2, 3, 4, 5].map((probability) => {
             const count = riskMatrix.get(`${probability}:${impact}`) ?? 0;

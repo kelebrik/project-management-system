@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import {
   useState,
   type CSSProperties,
@@ -12,9 +13,9 @@ import {
   normalizeCurrentWorkColumnWidths,
   type CurrentWorkColumnKey,
 } from "../app/currentWorkTable";
-import { date } from "../app/dateUtils";
+import { useI18n } from "../i18n/I18nProvider";
 import type { WbsItemStatus } from "../app/domainTypes";
-import { wbsStatusLabel } from "../app/labels";
+
 import { appPathForView } from "../app/routes";
 import { WbsUrlField } from "../components/WbsUrlField";
 import { usePageContext } from "./PageContext";
@@ -32,6 +33,8 @@ const STATUS_OPTIONS: WbsItemStatus[] = [
 ];
 
 export function ProjectCurrentWorkPage() {
+  const { t: uiText } = useInterfaceTranslation();
+  const { formatters: { date }, labels: { wbsStatusLabel } } = useI18n();
   const {
     isReadOnly,
     isAuthenticated,
@@ -49,6 +52,7 @@ export function ProjectCurrentWorkPage() {
   const [columnWidths, setColumnWidths] = useState(() =>
     normalizeCurrentWorkColumnWidths(project.uiState?.currentWorkColumnWidths),
   );
+  const [widthError, setWidthError] = useState<{ message: string | null } | null>(null);
   const [workFilter, setWorkFilter] = useState<CurrentWorkFilter>("all");
   const normalizedQuery = query.trim().toLowerCase();
   const rows = createCurrentWorkRows(project.wbsItems, wbsDrafts ?? {}, new Date(), workFilter).filter((row) => !normalizedQuery || [row.code, row.title, row.owner, row.workPackage].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
@@ -96,11 +100,7 @@ export function ProjectCurrentWorkPage() {
       void saveProjectUiState({
         currentWorkColumnWidths: latestWidths,
       }).catch((error: unknown) =>
-        setError(
-          error instanceof Error
-            ? error.message
-            : "Не удалось сохранить ширину колонок Текучки",
-        ),
+        setWidthError({ message: error instanceof Error ? error.message : null }),
       );
     };
     window.addEventListener("pointermove", onPointerMove);
@@ -109,21 +109,22 @@ export function ProjectCurrentWorkPage() {
 
   return (
     <article className="panel project-card current-work-page">
+      {widthError && <div role="alert">{widthError.message || uiText("work.saveWidthsError")}</div>}
       <div className="panel-title">
         <div>
-          <h2>Текучка</h2>
-          <p>Текущие и ближайшие работы проекта</p>
-        <div className="segmented-control">{([["all", "Все"], ["active", "Активные"], ["blocked", "Заблокированные"], ["overdue", "Просроченные"]] as const).map(([value, label]) => <button type="button" key={value} className={workFilter === value ? "active" : ""} onClick={() => setWorkFilter(value)}>{label}</button>)}</div>
+          <h2>{uiText("ui.projects.currentWorkPageTitle")}</h2>
+          <p>{uiText("ui.projects.currentWorkPageSubtitle")}</p>
+        <div className="segmented-control">{([["all", uiText("work.filter.all")], ["active", uiText("work.filter.active")], ["blocked", uiText("work.filter.blocked")], ["overdue", uiText("work.filter.overdue")]] as const).map(([value, label]) => <button type="button" key={value} className={workFilter === value ? "active" : ""} onClick={() => setWorkFilter(value)}>{label}</button>)}</div>
         </div>
       </div>
-      <ListToolbar label="Поиск текущих работ" query={query} onQueryChange={setQuery} />
+      <ListToolbar label={uiText("ui.projects.currentWorkSearchLabel")} query={query} onQueryChange={setQuery} />
       {rows.length === 0 ? (
-        <div className="empty-state"><strong>{normalizedQuery ? "Работы не найдены" : "Работ по заданным условиям нет"}</strong><span>{normalizedQuery ? "Измените запрос или очистите поиск." : "Задачи появятся после добавления дат и работ в структуру проекта."}</span>{normalizedQuery && <button type="button" onClick={() => setQuery("")}>Очистить поиск</button>}</div>
+        <div className="empty-state"><strong>{normalizedQuery ? uiText("ui.projects.currentWorkNotFoundTitle") : uiText("ui.projects.currentWorkNoneForConditionsTitle")}</strong><span>{normalizedQuery ? uiText("ui.projects.changeQueryOrClearSearchHint") : uiText("ui.projects.currentWorkEmptyStructureHint")}</span>{normalizedQuery && <button type="button" onClick={() => setQuery("")}>{uiText("ui.projects.clearSearchAction")}</button>}</div>
       ) : (
         <div
           className="current-work-table"
           role="table"
-          aria-label="Текучка проекта"
+          aria-label={uiText("ui.projects.currentWorkRegionLabel")}
           style={
             {
               "--current-work-template": gridTemplate,
@@ -134,11 +135,11 @@ export function ProjectCurrentWorkPage() {
           <div className="current-work-head" role="row">
             {CURRENT_WORK_COLUMNS.map((column) => (
               <span role="columnheader" key={column.key}>
-                {column.label}
+                {uiText(`work.column.${column.key}`)}
                 <button
                   type="button"
                   className="current-work-column-resizer"
-                  aria-label={`Изменить ширину колонки ${column.label}`}
+                  aria-label={uiText("work.resizeColumn", { label: uiText(`work.column.${column.key}`) })}
                   onPointerDown={(event) =>
                     startColumnResize(column.key, event)
                   }
@@ -160,7 +161,7 @@ export function ProjectCurrentWorkPage() {
                   className="current-work-structure-link"
                   href={`${appPathForView("project-structure", project.code)}?focusWbs=${encodeURIComponent(row.id)}`}
                   onClick={openWorkInStructure}
-                  title="Открыть работу в Структуре"
+                  title={uiText("ui.projects.currentWorkOpenInStructure")}
                 >
                   {row.title}
                 </a>
@@ -173,7 +174,7 @@ export function ProjectCurrentWorkPage() {
                   wbsStatusLabel(row.status)
                 ) : (
                   <select
-                    aria-label={`Статус ${row.code}`}
+                    aria-label={uiText("work.status", { code: row.code })}
                     value={row.status}
                     onChange={(event) =>
                       saveWbsDraftPatch(
@@ -200,7 +201,7 @@ export function ProjectCurrentWorkPage() {
                 ) : (
                   <input
                     type="date"
-                    aria-label={`Срок ${row.code}`}
+                    aria-label={uiText("work.due", { code: row.code })}
                     value={row.dueDate ?? ""}
                     onChange={(event) => {
                       const dueDate = event.target.value;
@@ -225,7 +226,7 @@ export function ProjectCurrentWorkPage() {
                   row.owner || "—"
                 ) : (
                   <input
-                    aria-label={`Исполнитель ${row.code}`}
+                    aria-label={uiText("work.owner", { code: row.code })}
                     value={row.owner}
                     onChange={(event) =>
                       updateWbsDraft(row.id, { owner: event.target.value })
@@ -253,7 +254,7 @@ export function ProjectCurrentWorkPage() {
                 ) : (
                   <textarea
                     className="current-work-comment-editor"
-                    aria-label={`Комментарий ${row.code}`}
+                    aria-label={uiText("work.comment", { code: row.code })}
                     rows={3}
                     wrap="soft"
                     value={row.comment}

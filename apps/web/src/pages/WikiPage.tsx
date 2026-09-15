@@ -1,10 +1,15 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { getWikiGroups } from "../i18n/wiki";
+import { intlLocale } from "../i18n/locale";
+import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
+import type { Locale } from "../i18n/types";
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { wikiGroups, type WikiArticle, type WikiGroup } from "../app/wikiContent";
+import { type WikiArticle, type WikiGroup } from "../app/wikiContent";
 
-function normalizeSearch(value: string) {
-  return value.trim().toLocaleLowerCase("ru-RU");
+function normalizeSearch(value: string, uiLocale: Locale) {
+  return value.trim().toLocaleLowerCase(intlLocale(uiLocale));
 }
 
 function articleText(article: WikiArticle) {
@@ -19,8 +24,9 @@ function articleText(article: WikiArticle) {
   ].join(" ");
 }
 
-function filterWikiGroups(query: string): WikiGroup[] {
-  const normalizedQuery = normalizeSearch(query);
+function filterWikiGroups(query: string, uiLocale: Locale): WikiGroup[] {
+  const wikiGroups = getWikiGroups(uiLocale);
+  const normalizedQuery = normalizeSearch(query, uiLocale);
 
   if (!normalizedQuery) {
     return wikiGroups;
@@ -28,11 +34,11 @@ function filterWikiGroups(query: string): WikiGroup[] {
 
   return wikiGroups
     .map((group) => {
-      const groupMatches = normalizeSearch(`${group.title} ${group.description}`).includes(
+      const groupMatches = normalizeSearch(`${group.title} ${group.description}`, uiLocale).includes(
         normalizedQuery,
       );
       const articles = group.articles.filter((article) =>
-        normalizeSearch(articleText(article)).includes(normalizedQuery),
+        normalizeSearch(articleText(article), uiLocale).includes(normalizedQuery),
       );
 
       return {
@@ -43,11 +49,11 @@ function filterWikiGroups(query: string): WikiGroup[] {
     .filter((group) => group.articles.length > 0);
 }
 
-function highlightText(value: string, query: string): ReactNode {
-  const normalizedQuery = normalizeSearch(query);
+function highlightText(value: string, query: string, uiLocale: Locale): ReactNode {
+  const normalizedQuery = normalizeSearch(query, uiLocale);
   if (!normalizedQuery) return value;
 
-  const normalizedValue = value.toLocaleLowerCase("ru-RU");
+  const normalizedValue = value.toLocaleLowerCase(intlLocale(uiLocale));
   const startIndex = normalizedValue.indexOf(normalizedQuery);
   if (startIndex === -1) return value;
 
@@ -62,9 +68,11 @@ function highlightText(value: string, query: string): ReactNode {
 }
 
 export function WikiPage() {
+  const { t: uiText } = useInterfaceTranslation();
+  const { locale: uiLocale } = useLocaleTranslation();
   const [query, setQuery] = useState("");
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
-  const filteredGroups = useMemo(() => filterWikiGroups(query), [query]);
+  const filteredGroups = useMemo(() => filterWikiGroups(query, uiLocale), [query, uiLocale]);
   const articleCount = filteredGroups.reduce(
     (count, group) => count + group.articles.length,
     0,
@@ -112,39 +120,38 @@ export function WikiPage() {
           <div>
             <h2>FAQ</h2>
             <p>
-              Подробное описание реализованной логики системы, расчетов,
-              ограничений и сценариев работы.
+              {uiText("ui.wiki.wikiPageSubtitle")}
             </p>
           </div>
-          <label className="wiki-search" aria-label="Поиск по FAQ">
+          <label className="wiki-search" aria-label={uiText("ui.wiki.wikiSearchLabel")}>
             <Search size={18} />
             <input
               type="search"
               value={query}
               onChange={(event) => setQuery(event.currentTarget.value)}
-              placeholder="Поиск по функциям, алгоритмам и разделам"
+              placeholder={uiText("ui.wiki.wikiSearchPlaceholder")}
             />
           </label>
         </div>
 
         <div className="wiki-result-count">
           {query.trim()
-            ? `Найдено статей: ${articleCount}`
-            : `Разделов: ${filteredGroups.length}, статей: ${articleCount}`}
+            ? uiText("wiki.found", { count: articleCount })
+            : uiText("wiki.counts", { sections: filteredGroups.length, articles: articleCount })}
         </div>
 
         {filteredGroups.length === 0 ? (
           <div className="empty-state wiki-empty">
-            <strong>Ничего не найдено</strong>
-            <span>Попробуйте другой запрос по названию раздела или алгоритму.</span>
+            <strong>{uiText("ui.wiki.wikiNothingFoundTitle")}</strong>
+            <span>{uiText("ui.wiki.wikiNothingFoundHint")}</span>
           </div>
         ) : (
           <div className="wiki-content">
             {filteredGroups.map((group) => (
               <section className="wiki-group" id={group.id} key={group.id}>
                 <div className="wiki-group-title">
-                  <h3>{highlightText(group.title, query)}</h3>
-                  <p>{highlightText(group.description, query)}</p>
+                  <h3>{highlightText(group.title, query, uiLocale)}</h3>
+                  <p>{highlightText(group.description, query, uiLocale)}</p>
                 </div>
                 <div className="wiki-articles">
                   {group.articles.map((article) => (
@@ -156,18 +163,18 @@ export function WikiPage() {
                     >
                       <summary className="wiki-article-head">
                         <div>
-                          <h4>{highlightText(article.title, query)}</h4>
-                          <p>{highlightText(article.summary, query)}</p>
+                          <h4>{highlightText(article.title, query, uiLocale)}</h4>
+                          <p>{highlightText(article.summary, query, uiLocale)}</p>
                         </div>
                       </summary>
                       <div className="wiki-article-sections">
                         {article.sections.map((section) => (
                           <section className="wiki-article-section" key={section.heading}>
-                            <h5>{highlightText(section.heading, query)}</h5>
+                            <h5>{highlightText(section.heading, query, uiLocale)}</h5>
                             <ul>
                               {section.points.map((point, pointIndex) => (
                                 <li key={`${section.heading}-${pointIndex}`}>
-                                  {highlightText(point, query)}
+                                  {highlightText(point, query, uiLocale)}
                                 </li>
                               ))}
                             </ul>

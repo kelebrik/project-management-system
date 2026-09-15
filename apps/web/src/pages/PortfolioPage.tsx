@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import {
   lazy,
   Suspense,
@@ -48,6 +49,7 @@ function dueDateLabel(dueDate: string | null) {
 }
 
 export function PortfolioPage() {
+  const { t: uiText } = useInterfaceTranslation();
   const [excludedProjectIds, setExcludedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -172,17 +174,17 @@ export function PortfolioPage() {
                     <span className="portfolio-raid-item-main">
                       <b>{item.title}</b>
                       <small>
-                        {item.owner || "не назначен"}
+                        {item.owner || uiText("ui.projects.notAssignedLowercase")}
                         {item.dueDate ? ` · срок ${date(item.dueDate)}` : ""}
                         {item.jiraTicketKey ? ` · ${item.jiraTicketKey}` : ""}
                       </small>
                     </span>
                     <span className={`portfolio-raid-due ${dueTone}`}>
-                      {relativeDueDate ?? "срок не задан"}
+                      {relativeDueDate ?? uiText("ui.portfolio.noDueDateSet")}
                     </span>
                     {item.scheduleImpactDays > 0 && (
                       <span className="portfolio-raid-impact">
-                        +{item.scheduleImpactDays} дн.
+                        +{item.scheduleImpactDays} {uiText("ui.portfolio.daysAbbrev")}
                       </span>
                     )}
                   </button>
@@ -201,8 +203,8 @@ export function PortfolioPage() {
         <article className="panel portfolio-goal-timeline-panel">
           <div className="panel-title">
             <div>
-              <h2>Цели проектов</h2>
-              <p>Отдельная шкала целей ИСР для каждого активного проекта</p>
+              <h2>{uiText("ui.portfolio.projectGoals")}</h2>
+              <p>{uiText("ui.portfolio.wbsGoalScalePerProject")}</p>
             </div>
             <details
               className={`portfolio-project-filter ${
@@ -216,7 +218,7 @@ export function PortfolioPage() {
                 {isProjectFilterActive && (
                   <AlertTriangle aria-hidden="true" size={15} />
                 )}
-                <span>Проекты для отображения</span>
+                <span>{uiText("ui.portfolio.projectsToDisplay")}</span>
                 <strong>{projectFilterStatus}</strong>
                 <ChevronDown
                   aria-hidden="true"
@@ -231,7 +233,7 @@ export function PortfolioPage() {
                     disabled={selectedProjectCount === projectCount}
                     onClick={() => setExcludedProjectIds(new Set())}
                   >
-                    Выбрать все
+                    {uiText("ui.portfolio.selectAll")}
                   </button>
                   <button
                     type="button"
@@ -242,13 +244,13 @@ export function PortfolioPage() {
                       )
                     }
                   >
-                    Снять все
+                    {uiText("ui.portfolio.clearAll")}
                   </button>
                 </div>
                 <div
                   className="portfolio-project-filter-list"
                   role="group"
-                  aria-label="Проекты портфеля"
+                  aria-label={uiText("ui.portfolio.portfolioProjects")}
                 >
                   {projectFilterOptions.map((project) => (
                     <label key={project.id}>
@@ -266,7 +268,7 @@ export function PortfolioPage() {
                     </label>
                   ))}
                   {projectFilterOptions.length === 0 && (
-                    <p>Активных проектов нет.</p>
+                    <p>{uiText("ui.portfolio.noActiveProjects")}</p>
                   )}
                 </div>
                 <div
@@ -274,14 +276,14 @@ export function PortfolioPage() {
                   role="status"
                   aria-live="polite"
                 >
-                  Показано {selectedProjectCount} из {projectCount}
+                  {uiText("ui.portfolio.portfolioShowingLabel")} {selectedProjectCount} {uiText("ui.portfolio.countRangeOf")} {projectCount}
                 </div>
               </div>
             </details>
           </div>
           {noProjectsSelected ? (
             <div className="empty-state compact">
-              Для отображения не выбран ни один проект.
+              {uiText("ui.portfolio.portfolioNoProjectsSelected")}
             </div>
           ) : timelineRows.length > 0 ? (
             <div className="portfolio-goal-timeline">
@@ -362,12 +364,12 @@ export function PortfolioPage() {
                               </b>
                               <small className="portfolio-goal-meta">
                                 <span>
-                                  базовый план {date(item.baselineDueDate)}
+                                  {uiText("ui.portfolio.baselineLowercase")} {date(item.baselineDueDate)}
                                 </span>
-                                <span>актуальный прогноз {date(item.dueDate)}</span>
+                                <span>{uiText("ui.portfolio.currentForecastLowercase")} {date(item.dueDate)}</span>
                                 {item.delayDays !== null && item.delayDays > 0 && (
                                   <span className="portfolio-goal-delay">
-                                    отставание +{item.delayDays} дн.
+                                    {uiText("ui.portfolio.delayPrefixPlus")}{item.delayDays} {uiText("ui.portfolio.daysAbbrev")}
                                   </span>
                                 )}
                               </small>
@@ -376,7 +378,7 @@ export function PortfolioPage() {
                         ))
                       ) : (
                         <div className="portfolio-goal-row-empty">
-                          Целей в диапазоне шкалы нет.
+                          {uiText("ui.portfolio.portfolioNoGoalsInRange")}
                         </div>
                       )}
                     </div>
@@ -390,7 +392,7 @@ export function PortfolioPage() {
             </div>
           ) : (
             <div className="empty-state compact">
-              Активных проектов с непройденными целями нет.
+              {uiText("ui.portfolio.portfolioNoActiveProjectsWithPendingGoals")}
             </div>
           )}
         </article>
@@ -400,30 +402,30 @@ export function PortfolioPage() {
         <article className="panel portfolio-blockers-panel">
           <div className="panel-title">
             <div>
-              <h2>Блокирующие проблемы</h2>
-              <p>Проблемы в красной зоне по проектам</p>
+              <h2>{uiText("ui.portfolio.portfolioBlockingIssuesTitle")}</h2>
+              <p>{uiText("ui.portfolio.portfolioBlockingIssuesSubtitle")}</p>
             </div>
           </div>
           {renderRaidProjects(
             visibleProblemProjects,
             noProjectsSelected
-              ? "Для отображения не выбран ни один проект."
-              : "Блокирующих проблем нет.",
+              ? uiText("ui.portfolio.portfolioNoProjectsSelected")
+              : uiText("ui.portfolio.portfolioNoBlockingIssues"),
           )}
         </article>
 
         <article className="panel portfolio-blockers-panel">
           <div className="panel-title">
             <div>
-              <h2>Ключевые риски</h2>
-              <p>Риски в красной зоне по проектам</p>
+              <h2>{uiText("ui.portfolio.portfolioKeyRisksTitle")}</h2>
+              <p>{uiText("ui.portfolio.portfolioKeyRisksSubtitle")}</p>
             </div>
           </div>
           {renderRaidProjects(
             visibleRiskProjects,
             noProjectsSelected
-              ? "Для отображения не выбран ни один проект."
-              : "Ключевых рисков нет.",
+              ? uiText("ui.portfolio.portfolioNoProjectsSelected")
+              : uiText("ui.portfolio.portfolioNoKeyRisks"),
           )}
         </article>
       </section>
@@ -432,8 +434,8 @@ export function PortfolioPage() {
         <article className="panel project-tree-panel">
           <div className="panel-title">
             <div>
-              <h2>Проекты</h2>
-              <p>Компактная сводка по паспортам всех проектов</p>
+              <h2>{uiText("ui.admin.projects")}</h2>
+              <p>{uiText("ui.portfolio.portfolioPassportsSummarySubtitle")}</p>
             </div>
           </div>
           <ProjectsOverview
@@ -453,15 +455,15 @@ export function PortfolioPage() {
         <article className="panel portfolio-roadmap-panel">
           <div className="panel-title">
             <div>
-              <h2 id="portfolio-roadmap-v2-title">Дорожная карта v2</h2>
+              <h2 id="portfolio-roadmap-v2-title">{uiText("ui.portfolio.roadmapV2Title")}</h2>
             </div>
           </div>
           {shouldLoadRoadmap ? (
-            <Suspense fallback={<PageSkeleton label="Загрузка дорожной карты" />}>
+            <Suspense fallback={<PageSkeleton label={uiText("ui.portfolio.roadmapLoadingRegion")} />}>
               <PortfolioRoadmapV2 onContentReady={scrollToRoadmapHash} />
             </Suspense>
           ) : (
-            <PageSkeleton label="Загрузка дорожной карты" />
+            <PageSkeleton label={uiText("ui.portfolio.roadmapLoadingRegion")} />
           )}
         </article>
       </section>

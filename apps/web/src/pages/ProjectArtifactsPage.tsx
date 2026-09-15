@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import type { ArtifactStatus } from "../app/domainTypes";
 import { useConfirm } from "../hooks/useConfirm";
@@ -5,6 +6,7 @@ import { ListToolbar } from "../components/ListToolbar";
 import { usePersistedViewState } from "../app/usePersistedViewState";
 
 export function ProjectArtifactsPage() {
+  const { t } = useI18n();
   const confirm = useConfirm();
   const ctx = usePageContext();
   const {
@@ -25,9 +27,9 @@ export function ProjectArtifactsPage() {
   const confirmArtifactDeletion = async (artifactId: string) => {
     if (
       await confirm({
-        title: "Удалить артефакт?",
-        message: "Артефакт проекта будет удалён безвозвратно.",
-        confirmLabel: "Удалить",
+        title: t("artifacts.deleteConfirm"),
+        message: t("artifacts.deleteWarning"),
+        confirmLabel: t("fields.delete"),
       })
     ) {
       void deleteArtifact(artifactId);
@@ -38,27 +40,26 @@ export function ProjectArtifactsPage() {
                   <article className="panel project-card">
                     <div className="panel-title">
                       <div>
-                        <h2>Артефакты проекта</h2>
+                        <h2>{t("artifacts.title")}</h2>
                         <p>
-                          Рабочие управленческие артефакты, собранные из данных
-                          проекта
+                          {t("artifacts.description")}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => { setQuery(""); void createArtifactRow(); }}
                     >
-                      + Добавить строку
+                      {t("fields.addRow")}
                     </button>
                   </div>
-                  <ListToolbar label="Поиск артефактов" query={query} onQueryChange={setQuery} />
+                  <ListToolbar label={t("artifacts.search")} query={query} onQueryChange={setQuery} />
                   <div className="artifact-list">
                     <div className="artifact-head">
                       <span />
-                      <span>Артефакт</span>
-                      <span>Тип</span>
-                      <span>Ответственный</span>
-                      <span>Статус</span>
+                      <span>{t("artifacts.artifact")}</span>
+                      <span>{t("fields.type")}</span>
+                      <span>{t("fields.owner")}</span>
+                      <span>{t("fields.status")}</span>
                       <span>URL</span>
                       <span />
                     </div>
@@ -94,7 +95,7 @@ export function ProjectArtifactsPage() {
                                 setQuery("");
                                 void createArtifactRow(artifact.id);
                               }}
-                              title="Добавить строку ниже"
+                              title={t("fields.rowBelow")}
                             >
                               +
                             </button>
@@ -106,7 +107,7 @@ export function ProjectArtifactsPage() {
                                 void moveArtifact(artifact.id, -1);
                               }}
                               disabled={index === 0}
-                              title="Переместить выше"
+                              title={t("fields.moveUp")}
                             >
                               ↑
                             </button>
@@ -118,7 +119,7 @@ export function ProjectArtifactsPage() {
                                 void moveArtifact(artifact.id, 1);
                               }}
                               disabled={index === project.artifacts.length - 1}
-                              title="Переместить ниже"
+                              title={t("fields.moveDown")}
                             >
                               ↓
                             </button>
@@ -129,7 +130,7 @@ export function ProjectArtifactsPage() {
                                 event.stopPropagation();
                                 void confirmArtifactDeletion(artifact.id);
                               }}
-                              title="Удалить"
+                              title={t("fields.delete")}
                             >
                               x
                             </button>
@@ -138,7 +139,7 @@ export function ProjectArtifactsPage() {
                           <span>{artifact.type}</span>
                           <span>{artifact.owner}</span>
                           <span>{artifactStatusLabel(artifact.status)}</span>
-                          <span>{artifact.url ? "Ссылка" : "не задан"}</span>
+                          <span>{artifact.url ? t("fields.link") : t("fields.notSet")}</span>
                           <span className="issue-chevron">
                             {expandedArtifactId === artifact.id ? "-" : "+"}
                           </span>
@@ -151,7 +152,7 @@ export function ProjectArtifactsPage() {
                                 target="_blank"
                                 rel="noreferrer"
                               >
-                                Открыть ссылку
+                                {t("fields.openLink")}
                               </a>
                             )}
                             {artifact.description && (
@@ -159,7 +160,7 @@ export function ProjectArtifactsPage() {
                             )}
                             <div className="artifact-edit-grid">
                                   <label>
-                                    Название
+                                    {t("fields.title")}
                                     <input
                                       value={
                                         artifactDrafts[artifact.id]?.title ?? ""
@@ -172,7 +173,7 @@ export function ProjectArtifactsPage() {
                                     />
                                   </label>
                                   <label>
-                                    Тип
+                                    {t("fields.type")}
                                     <input
                                       value={
                                         artifactDrafts[artifact.id]?.type ?? ""
@@ -185,7 +186,7 @@ export function ProjectArtifactsPage() {
                                     />
                                   </label>
                                   <label>
-                                    Ответственный
+                                    {t("fields.owner")}
                                     <input
                                       value={
                                         artifactDrafts[artifact.id]?.owner ?? ""
@@ -198,7 +199,7 @@ export function ProjectArtifactsPage() {
                                     />
                                   </label>
                                   <label>
-                                    Статус
+                                    {t("fields.status")}
                                     <select
                                       value={
                                         artifactDrafts[artifact.id]?.status ??
@@ -229,7 +230,7 @@ export function ProjectArtifactsPage() {
                                     </select>
                                   </label>
                                   <label>
-                                    Порядок
+                                    {t("fields.order")}
                                     <input
                                       type="number"
                                       value={
@@ -258,7 +259,7 @@ export function ProjectArtifactsPage() {
                                     />
                                   </label>
                                   <label className="span-2">
-                                    Описание
+                                    {t("fields.description")}
                                     <textarea
                                       value={
                                         artifactDrafts[artifact.id]
@@ -277,7 +278,7 @@ export function ProjectArtifactsPage() {
                                       type="button"
                                       onClick={() => saveArtifact(artifact.id)}
                                     >
-                                      Сохранить
+                                      {t("fields.save")}
                                     </button>
                                     <button
                                       type="button"
@@ -286,7 +287,7 @@ export function ProjectArtifactsPage() {
                                         void confirmArtifactDeletion(artifact.id)
                                       }
                                     >
-                                      Удалить
+                                      {t("fields.delete")}
                                     </button>
                                   </div>
                             </div>
@@ -294,7 +295,7 @@ export function ProjectArtifactsPage() {
                         )}
                       </div>
                     ); })}
-                    {artifacts.length === 0 && <div className="empty-state"><strong>{normalizedQuery ? "Артефакты не найдены" : "Артефактов пока нет"}</strong><span>{normalizedQuery ? "Измените запрос или очистите поиск." : "Добавьте первый артефакт проекта кнопкой выше."}</span>{normalizedQuery && <button type="button" onClick={() => setQuery("")}>Очистить поиск</button>}</div>}
+                    {artifacts.length === 0 && <div className="empty-state"><strong>{normalizedQuery ? t("artifacts.noResults") : t("artifacts.empty")}</strong><span>{normalizedQuery ? t("fields.searchHelp") : t("artifacts.emptyHelp")}</span>{normalizedQuery && <button type="button" onClick={() => setQuery("")}>{t("fields.clearSearch")}</button>}</div>}
                   </div>
                 </article>
               );

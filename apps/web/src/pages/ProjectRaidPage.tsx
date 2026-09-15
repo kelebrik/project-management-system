@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { ProjectRaidRegister } from "./ProjectRaidRegister";
@@ -6,6 +7,7 @@ import { ProjectRaidSidePanel } from "./ProjectRaidSidePanel";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 
 export function ProjectRaidPage() {
+  const { t: uiText } = useInterfaceTranslation();
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   const drawerRef = useFocusTrap<HTMLElement>(showCreatePanel, () =>
     setShowCreatePanel(false),
@@ -15,14 +17,13 @@ export function ProjectRaidPage() {
                   <article className="panel overview-panel">
                     <div className="panel-title">
                       <div>
-                        <h2>Риски и проблемы</h2>
+                        <h2>{uiText("ui.projects.raidPageTitle")}</h2>
                         <p>
-                          Риски, проблемы и допущения с влиянием на сроки и обзор
-                          для руководства
+                          {uiText("ui.projects.raidPageSubtitle")}
                         </p>
                       </div>
                       <button type="button" onClick={() => setShowCreatePanel(true)}>
-                        <Plus size={15} /> Новая запись
+                        <Plus size={15} /> {uiText("ui.projects.newEntryAction")}
                       </button>
                   </div>
                   <div className="raid-board raid-board-matrix">
@@ -35,17 +36,17 @@ export function ProjectRaidPage() {
                         className="raid-create-drawer"
                         role="dialog"
                         aria-modal="true"
-                        aria-label="Создание записи RAID"
+                        aria-label={uiText("ui.projects.raidCreateEntryDialogLabel")}
                         ref={drawerRef}
                         tabIndex={-1}
                         onMouseDown={(event) => event.stopPropagation()}
                       >
                         <div className="drawer-header">
-                          <strong>Новая запись RAID</strong>
+                          <strong>{uiText("ui.projects.raidNewEntryTitle")}</strong>
                           <button
                             type="button"
-                            aria-label="Закрыть"
-                            title="Закрыть"
+                            aria-label={uiText("ui.admin.close")}
+                            title={uiText("ui.admin.close")}
                             onClick={() => setShowCreatePanel(false)}
                           >
                             <X size={17} />

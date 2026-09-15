@@ -1,6 +1,7 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { ClipboardCheck, KeyRound, LogOut, Users } from "lucide-react";
 
-import { userRoleLabel } from "../app/adminHelpers";
+
 import type { CurrentUser } from "../app/adminTypes";
 
 type SidebarIdentityProps = {
@@ -14,6 +15,7 @@ export function SidebarIdentity({
   onLogin,
   onLogout,
 }: SidebarIdentityProps) {
+  const { t } = useI18n();
   return (
     <>
       <div className="brand">
@@ -21,7 +23,7 @@ export function SidebarIdentity({
           <ClipboardCheck size={20} />
         </span>
         <span className="brand-text">
-          <b>Управление проектами</b>
+          <b>{t("auth.product")}</b>
         </span>
       </div>
       <div className="sidebar-user">
@@ -29,18 +31,18 @@ export function SidebarIdentity({
           <Users size={16} />
         </span>
         <span className="sidebar-user-text">
-          <b>{currentUser?.name ?? "Только просмотр"}</b>
+          <b>{currentUser?.name ?? t("identity.readonly")}</b>
           <small>
             {currentUser
-              ? userRoleLabel(currentUser.role)
-              : "Вход нужен для редактирования"}
+              ? t(currentUser.role === "ADMIN" ? "identity.admin" : "identity.user")
+              : t("identity.loginRequired")}
           </small>
         </span>
         <button
           type="button"
           onClick={currentUser ? onLogout : onLogin}
-          aria-label={currentUser ? "Выйти" : "Войти"}
-          title={currentUser ? "Выйти" : "Войти для редактирования"}
+          aria-label={currentUser ? t("auth.logout") : t("auth.login")}
+          title={currentUser ? t("auth.logout") : t("identity.loginRequired")}
         >
           {currentUser ? <LogOut size={15} /> : <KeyRound size={15} />}
         </button>

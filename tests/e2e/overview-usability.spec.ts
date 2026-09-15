@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { projectPagePath } from "./project-routes";
 
 test("schedule milestone PDF fits one A4 landscape page", async ({ page }) => {

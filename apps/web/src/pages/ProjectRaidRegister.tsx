@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
 import { X } from "lucide-react";
@@ -8,6 +9,7 @@ import { ListToolbar } from "../components/ListToolbar";
 import { usePersistedViewState } from "../app/usePersistedViewState";
 
 export function ProjectRaidRegister() {
+  const { t: uiText } = useInterfaceTranslation();
   const {
     addRaidStatusUpdate,
     closeRaidItem,
@@ -86,31 +88,31 @@ export function ProjectRaidRegister() {
   return <div className="raid-main-column">
                     <div className="wbs-kpis raid-kpis">
                       <div>
-                        <span>Активные записи</span>
+                        <span>{uiText("ui.projects.raidActiveEntriesTitle")}</span>
                         <strong>{raidSummary.activeRaid}</strong>
-                        <small>открыто / в работе / нарушено</small>
+                        <small>{uiText("ui.projects.raidActiveEntriesHint")}</small>
                       </div>
                       <div>
-                        <span>Высокие риски</span>
+                        <span>{uiText("ui.projects.raidHighRisksTitle")}</span>
                         <strong>{raidSummary.highRisks}</strong>
-                        <small>оценка 15+</small>
+                        <small>{uiText("ui.projects.raidScore15PlusHint")}</small>
                       </div>
                       <div>
-                        <span>Проблемы</span>
+                        <span>{uiText("ui.projects.raidIssuesTitle")}</span>
                         <strong>{raidSummary.problems}</strong>
-                        <small>активные записи</small>
+                        <small>{uiText("ui.projects.raidActiveEntriesHintLowercase")}</small>
                       </div>
                       <div>
-                        <span>Допущения</span>
+                        <span>{uiText("ui.projects.raidAssumptionsTitle")}</span>
                         <strong>{raidSummary.assumptions}</strong>
-                        <small>активные записи</small>
+                        <small>{uiText("ui.projects.raidActiveEntriesHintLowercase")}</small>
                       </div>
                     </div>
                     <section className="raid-register">
-                      <div className="subhead">Реестр рисков и проблем</div>
+                      <div className="subhead">{uiText("ui.projects.raidRegisterTitle")}</div>
                       <section className="raid-filter-card">
-                        <ListToolbar label="Поиск рисков и проблем" query={query} onQueryChange={setQuery} />
-                        <div className="subhead">Фильтры</div>
+                        <ListToolbar label={uiText("ui.projects.raidRegisterSearchLabel")} query={query} onQueryChange={setQuery} />
+                        <div className="subhead">{uiText("ui.projects.filtersLabel")}</div>
                         <div className="raid-filter-bar">
                           {[
                             ["ALL", "Все"],
@@ -137,7 +139,7 @@ export function ProjectRaidRegister() {
                                 setRaidDecisionOnly(event.target.checked)
                               }
                             />
-                            Требуют решения
+                            {uiText("ui.projects.raidFilterNeedsDecision")}
                           </label>
                           <label>
                             <input
@@ -147,7 +149,7 @@ export function ProjectRaidRegister() {
                                 setRaidOverdueOnly(event.target.checked)
                               }
                             />
-                            Просрочены
+                            {uiText("ui.projects.raidFilterOverdue")}
                           </label>
                           <label>
                             <input
@@ -157,7 +159,7 @@ export function ProjectRaidRegister() {
                                 setRaidHighOnly(event.target.checked)
                               }
                             />
-                            Высокий риск
+                            {uiText("ui.projects.raidFilterHighRisk")}
                           </label>
                         </div>
                       </section>
@@ -178,11 +180,11 @@ export function ProjectRaidRegister() {
                           <h3>{title}</h3>
                       <div className="raid-list">
                         <div className="raid-head">
-                          <span>Запись</span>
-                          <span>Ключ Jira</span>
-                          <span>Оценка</span>
-                          <span>Срок</span>
-                          <span>Ответственный</span>
+                          <span>{uiText("ui.projects.raidEntryColumn")}</span>
+                          <span>{uiText("ui.projects.jiraKeyLabel")}</span>
+                          <span>{uiText("ui.projects.raidScoreColumn")}</span>
+                          <span>{uiText("ui.automation.dueDate")}</span>
+                          <span>{uiText("ui.automation.owner")}</span>
                           <span />
                         </div>
                         {items.map((item) => (
@@ -224,7 +226,7 @@ export function ProjectRaidRegister() {
                                   </a>
                                 ) : (
                                   <span className="raid-jira-empty">
-                                    {item.jiraTicketKey || "не задан"}
+                                    {item.jiraTicketKey || uiText("ui.admin.notSetMasculine")}
                                   </span>
                                 )}
                               </span>
@@ -242,12 +244,12 @@ export function ProjectRaidRegister() {
                                 <div className="raid-edit-drawer-header">
                                   <div>
                                     <strong>{item.title}</strong>
-                                    <span>{item.owner || "ответственный не задан"}</span>
+                                    <span>{item.owner || uiText("ui.projects.raidNoOwnerAssigned")}</span>
                                   </div>
                                   <button
                                     type="button"
-                                    aria-label="Закрыть редактирование"
-                                    title="Закрыть"
+                                    aria-label={uiText("ui.projects.raidCloseEditorAction")}
+                                    title={uiText("ui.admin.close")}
                                     onClick={() => setExpandedRaidId(null)}
                                   >
                                     <X size={17} />
@@ -272,7 +274,7 @@ export function ProjectRaidRegister() {
                                     });
                                   return (
                                     <section className="raid-status-panel">
-                                      <div className="subhead">Статус</div>
+                                      <div className="subhead">{uiText("ui.admin.status")}</div>
                                       {latestStatus ? (
                                         <div className="raid-status-latest">
                                           <strong>{date(latestStatus.statusAt)}</strong>
@@ -280,7 +282,7 @@ export function ProjectRaidRegister() {
                                         </div>
                                       ) : (
                                         <p className="muted-text">
-                                          Статус пока не добавлен.
+                                          {uiText("ui.projects.raidStatusNotAddedYet")}
                                         </p>
                                       )}
                                       {statusHistory.length > 0 && (
@@ -317,13 +319,13 @@ export function ProjectRaidRegister() {
                                               text: event.target.value,
                                             })
                                           }
-                                          placeholder="Новый статус: что изменилось, что требуется, следующий шаг"
+                                          placeholder={uiText("ui.projects.raidNewStatusPlaceholder")}
                                         />
                                         <button
                                           type="button"
                                           onClick={() => addRaidStatusUpdate(item.id)}
                                         >
-                                          Добавить статус
+                                          {uiText("ui.projects.addStatusAction")}
                                         </button>
                                       </div>
                                     </section>
@@ -332,15 +334,15 @@ export function ProjectRaidRegister() {
                                 <div className="raid-detail-meta">
                                   <span>{raidStatusLabel(item.status)}</span>
                                   <span>{raidTypeLabel(item.type)}</span>
-                                  <span>Остаточный риск: {item.residualRisk}</span>
+                                  <span>{uiText("ui.projects.raidResidualRiskLabel")} {item.residualRisk}</span>
                                   <span>
-                                    Сроки: {item.scheduleImpactDays} дн.
+                                    {uiText("ui.projects.raidDatesLabel")} {item.scheduleImpactDays} {uiText("ui.portfolio.daysAbbrev")}
                                   </span>
                                   {item.jiraTicketKey && (
                                     <span>Jira: {item.jiraTicketKey}</span>
                                   )}
                                     {item.decisionRequired && (
-                                    <b>Требует решения</b>
+                                    <b>{uiText("ui.projects.requiresDecision")}</b>
                                   )}
                                 </div>
                                 <p>{item.description}</p>
@@ -403,7 +405,7 @@ export function ProjectRaidRegister() {
                                         title: event.target.value,
                                       })
                                     }
-                                    placeholder="Наименование"
+                                    placeholder={uiText("ui.admin.itemName")}
                                   />
                                   <input
                                     value={raidDrafts[item.id].owner}
@@ -412,7 +414,7 @@ export function ProjectRaidRegister() {
                                         owner: event.target.value,
                                       })
                                     }
-                                    placeholder="Ответственный"
+                                    placeholder={uiText("ui.automation.owner")}
                                   />
                                   <input
                                     value={raidDrafts[item.id].jiraTicketKey}
@@ -421,7 +423,7 @@ export function ProjectRaidRegister() {
                                         jiraTicketKey: event.target.value,
                                       })
                                     }
-                                    placeholder="Ключ Jira"
+                                    placeholder={uiText("ui.projects.jiraKeyLabel")}
                                   />
                                   <input
                                     value={raidDrafts[item.id].jiraTicketUrl}
@@ -442,7 +444,7 @@ export function ProjectRaidRegister() {
                                         probability: event.target.value,
                                       })
                                     }
-                                    placeholder="Вероятность"
+                                    placeholder={uiText("ui.projects.raidProbabilityLabel")}
                                   />
                                   <input
                                     type="number"
@@ -454,7 +456,7 @@ export function ProjectRaidRegister() {
                                         impact: event.target.value,
                                       })
                                     }
-                                    placeholder="Влияние"
+                                    placeholder={uiText("ui.projects.impact")}
                                   />
                                   <input
                                     type="date"
@@ -484,7 +486,7 @@ export function ProjectRaidRegister() {
                                         })
                                       }
                                     />
-                                    Требует решения
+                                    {uiText("ui.projects.requiresDecision")}
                                   </label>
                                   <textarea
                                     className="span-2"
@@ -504,7 +506,7 @@ export function ProjectRaidRegister() {
                                       })
                                     }
                                     rows={2}
-                                    placeholder="План действий"
+                                    placeholder={uiText("ui.projects.raidActionPlanLabel")}
                                   />
                                   <textarea
                                     value={raidDrafts[item.id].contingencyPlan}
@@ -514,14 +516,14 @@ export function ProjectRaidRegister() {
                                       })
                                     }
                                     rows={2}
-                                    placeholder="Резервный план"
+                                    placeholder={uiText("ui.projects.raidContingencyPlanLabel")}
                                   />
                                   <div className="issue-actions">
                                     <button
                                       type="button"
                                       onClick={() => saveRaidItem(item.id)}
                                     >
-                                      Сохранить запись
+                                      {uiText("ui.projects.raidSaveEntryAction")}
                                     </button>
                                     {item.type === "RISK" && (
                                       <>
@@ -530,14 +532,14 @@ export function ProjectRaidRegister() {
                                           className="secondary-button"
                                           onClick={() => convertRiskToProblem(item.id)}
                                         >
-                                          В проблему
+                                          {uiText("ui.projects.convertToIssueAction")}
                                         </button>
                                         <button
                                           type="button"
                                           className="secondary-button"
                                           onClick={() => convertRiskToAssumption(item.id)}
                                         >
-                                          В допущение
+                                          {uiText("ui.projects.convertToAssumptionAction")}
                                         </button>
                                       </>
                                     )}
@@ -549,7 +551,7 @@ export function ProjectRaidRegister() {
                                           className="secondary-button"
                                           onClick={() => closeRaidItem(item.id)}
                                         >
-                                          Закрыть
+                                          {uiText("ui.admin.close")}
                                         </button>
                                       )}
                                     <button
@@ -568,7 +570,7 @@ export function ProjectRaidRegister() {
                                         }
                                       }}
                                     >
-                                      Удалить
+                                      {uiText("ui.admin.delete")}
                                     </button>
                                   </div>
                                 </div>
@@ -577,27 +579,27 @@ export function ProjectRaidRegister() {
                           </div>
                         ))}
                         {items.length === 0 && !normalizedQuery && (
-                          <div className="empty-state">Записей пока нет.</div>
+                          <div className="empty-state">{uiText("ui.projects.raidNoEntriesYet")}</div>
                         )}
                       </div>
                         </section>
                       ))}
-                      {normalizedQuery && ![...filterRaidSearch(groupedRaidItems.risks), ...filterRaidSearch(groupedRaidItems.problems), ...filterRaidSearch(groupedRaidItems.assumptions)].length && <div className="empty-state"><strong>Записи не найдены</strong><span>Измените запрос или очистите поиск.</span><button type="button" onClick={() => setQuery("")}>Очистить поиск</button></div>}
+                      {normalizedQuery && ![...filterRaidSearch(groupedRaidItems.risks), ...filterRaidSearch(groupedRaidItems.problems), ...filterRaidSearch(groupedRaidItems.assumptions)].length && <div className="empty-state"><strong>{uiText("ui.projects.raidNoEntriesFound")}</strong><span>{uiText("ui.projects.changeQueryOrClearSearchHint")}</span><button type="button" onClick={() => setQuery("")}>{uiText("ui.projects.clearSearchAction")}</button></div>}
                       <details
                         className="raid-closed-section"
                         open={closedRaidItems.some((item: { id: string }) => item.id === requestedFocusRaidId) || undefined}
                       >
                         <summary>
-                          <span>Закрытые риски и проблемы</span>
+                          <span>{uiText("ui.projects.raidClosedEntriesTitle")}</span>
                           <strong>{closedRaidItems.length}</strong>
                         </summary>
                         <div className="raid-list">
                           <div className="raid-head raid-closed-head">
-                            <span>Запись</span>
-                            <span>Тип</span>
-                            <span>Статус</span>
-                            <span>Срок</span>
-                            <span>Ответственный</span>
+                            <span>{uiText("ui.projects.raidEntryColumn")}</span>
+                            <span>{uiText("ui.admin.type")}</span>
+                            <span>{uiText("ui.admin.status")}</span>
+                            <span>{uiText("ui.automation.dueDate")}</span>
+                            <span>{uiText("ui.automation.owner")}</span>
                           </div>
                           {closedRaidItems.map((item) => (
                             <div
@@ -616,7 +618,7 @@ export function ProjectRaidRegister() {
                           ))}
                           {closedRaidItems.length === 0 && (
                             <div className="empty-state">
-                              Закрытых рисков и проблем пока нет.
+                              {uiText("ui.projects.raidNoClosedEntriesYet")}
                             </div>
                           )}
                         </div>

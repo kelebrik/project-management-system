@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { ChevronDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -24,6 +25,7 @@ export function ProjectStructureCopyField({
   options,
   value,
 }: ProjectStructureCopyFieldProps) {
+  const { t: uiText } = useInterfaceTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const filteredOptions = useMemo(
@@ -47,7 +49,7 @@ export function ProjectStructureCopyField({
         <span>
           {selectedCount > 0
             ? `Выбрано: ${selectedCount}`
-            : "Не копировать, создать тестовую структуру"}
+            : uiText("ui.common.createTestStructureInstead")}
         </span>
         <ChevronDown size={16} />
       </button>
@@ -56,10 +58,10 @@ export function ProjectStructureCopyField({
           <label className="structure-copy-search">
             <Search size={16} />
             <input
-              aria-label="Поиск проектов и фаз"
+              aria-label={uiText("ui.common.searchProjectsAndPhases")}
               value={query}
               onChange={(event) => setQuery(event.currentTarget.value)}
-              placeholder="Поиск по проекту или фазе"
+              placeholder={uiText("ui.common.searchByProjectOrPhase")}
             />
           </label>
           <div className="structure-copy-options">
@@ -84,7 +86,7 @@ export function ProjectStructureCopyField({
                     />
                     <span>
                       <b>{project.code} · {project.name}</b>
-                      <small>{project.businessUnit.name} · весь проект</small>
+                      <small>{project.businessUnit.name} {uiText("ui.common.entireProjectSuffix")}</small>
                     </span>
                   </label>
                   {project.phases.map((phase) => (
@@ -115,10 +117,10 @@ export function ProjectStructureCopyField({
             })}
             {!isLoading && filteredOptions.length === 0 && (
               <div className="structure-copy-empty">
-                {error ?? "Проекты и фазы не найдены"}
+                {error ?? uiText("ui.common.noProjectsOrPhasesFound")}
               </div>
             )}
-            {isLoading && <div className="structure-copy-empty">Загрузка структуры…</div>}
+            {isLoading && <div className="structure-copy-empty">{uiText("ui.common.loadingStructure")}</div>}
           </div>
         </div>
       )}

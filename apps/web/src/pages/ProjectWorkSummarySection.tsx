@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -42,6 +43,7 @@ type WorkSummaryRowsProps = {
 type WorkSummaryPaneKey = "current" | "nextWeek";
 
 export function ProjectWorkSummarySection() {
+  const { t: uiText } = useInterfaceTranslation();
   const {
     date,
     isReadOnly,
@@ -138,11 +140,11 @@ export function ProjectWorkSummarySection() {
             showStart ? "with-start" : "without-start"
           }`}
         >
-          <span>Код</span>
-          <span>Наименование</span>
-          <span>Статус</span>
-          {showStart && <span>Старт</span>}
-          <span>Срок</span>
+          <span>{uiText("ui.admin.code")}</span>
+          <span>{uiText("ui.admin.itemName")}</span>
+          <span>{uiText("ui.admin.status")}</span>
+          {showStart && <span>{uiText("ui.projects.startColumnLabel")}</span>}
+          <span>{uiText("ui.automation.dueDate")}</span>
         </div>
         {items.map((item) => {
           const draft = taskDraft(item, wbsDrafts);
@@ -158,7 +160,7 @@ export function ProjectWorkSummarySection() {
                 type="button"
                 className="work-summary-code"
                 onClick={() => setActiveWbsItemId(item.id)}
-                title="Выделить задачу в Структуре"
+                title={uiText("ui.projects.workSummaryHighlightTaskInStructure")}
               >
                 {item.code}
               </button>
@@ -233,8 +235,8 @@ export function ProjectWorkSummarySection() {
     <section className="panel project-card work-summary-section">
       <div className="panel-title">
         <div>
-          <h2>Сводка по работам</h2>
-          <p>Текущие задачи и задачи со стартом на следующей неделе</p>
+          <h2>{uiText("ui.projects.workSummaryTitle")}</h2>
+          <p>{uiText("ui.projects.workSummarySubtitle")}</p>
         </div>
       </div>
       <div className="work-summary-grid">
@@ -253,8 +255,8 @@ export function ProjectWorkSummarySection() {
                   aria-expanded={!collapsedPanes.current}
                   aria-label={
                     collapsedPanes.current
-                      ? "Развернуть текущие задачи"
-                      : "Свернуть текущие задачи"
+                      ? uiText("ui.projects.workSummaryExpandCurrentTasks")
+                      : uiText("ui.projects.workSummaryCollapseCurrentTasks")
                   }
                 >
                   {collapsedPanes.current ? (
@@ -262,16 +264,16 @@ export function ProjectWorkSummarySection() {
                   ) : (
                     <ChevronDown size={17} />
                   )}
-                  Текущие задачи
+                  {uiText("ui.projects.workSummaryCurrentTasksTitle")}
                 </button>
               </h3>
               <select
                 className="work-summary-phase-filter"
                 value={currentTasksPhaseId}
                 onChange={(event) => setCurrentTasksPhaseId(event.target.value)}
-                aria-label="Фильтр текущих задач по фазе"
+                aria-label={uiText("ui.projects.workSummaryPhaseFilterLabel")}
               >
-                <option value={ALL_PHASES_FILTER}>Все фазы</option>
+                <option value={ALL_PHASES_FILTER}>{uiText("ui.projects.workSummaryAllPhasesOption")}</option>
                 {phaseOptions.map((phase) => (
                   <option key={phase.id} value={phase.id}>
                     {phase.code} {phase.title}
@@ -302,8 +304,8 @@ export function ProjectWorkSummarySection() {
                 aria-expanded={!collapsedPanes.nextWeek}
                 aria-label={
                   collapsedPanes.nextWeek
-                    ? "Развернуть задачи на следующей неделе"
-                    : "Свернуть задачи на следующей неделе"
+                    ? uiText("ui.projects.workSummaryExpandNextWeekTasks")
+                    : uiText("ui.projects.workSummaryCollapseNextWeekTasks")
                 }
               >
                 {collapsedPanes.nextWeek ? (
@@ -311,7 +313,7 @@ export function ProjectWorkSummarySection() {
                 ) : (
                   <ChevronDown size={17} />
                 )}
-                Старт на следующей неделе
+                {uiText("ui.projects.workSummaryNextWeekStartTitle")}
               </button>
             </h3>
             <span>

@@ -1,11 +1,8 @@
 import type { Issue, ProjectDetails, RaidItem, WbsItem } from "./domainTypes";
-import {
-  issueSeverityLabel,
-  issueStatusLabel,
-  raidStatusLabel,
-  raidTypeLabel,
-  wbsStatusLabel,
-} from "./labels";
+import { createDomainLabels } from "../i18n/domainLabels";
+import { createTranslator } from "../i18n/translate";
+import { createFormatters } from "../i18n/formatters";
+import type { Locale, SimpleTranslationKey } from "../i18n/types";
 
 export type ReportPeriodDays = 7 | 14;
 export type ReportKind = "tasks" | "raid" | "issues";
@@ -30,34 +27,41 @@ export type ReportFieldDefinition = {
   label: string;
 };
 
-export const REPORT_FIELDS: Record<ReportKind, ReportFieldDefinition[]> = {
-  tasks: [
-    { key: "workPackage", label: "Пакет работ" },
-    { key: "task", label: "Задача" },
-    { key: "status", label: "Статус" },
-    { key: "startDate", label: "Дата начала" },
-    { key: "endDate", label: "Дата завершения" },
-    { key: "owner", label: "Исполнитель" },
-  ],
-  raid: [
-    { key: "type", label: "Тип" },
-    { key: "title", label: "Наименование" },
-    { key: "status", label: "Статус" },
-    { key: "owner", label: "Ответственный" },
-    { key: "riskScore", label: "Оценка" },
-    { key: "dueDate", label: "Срок" },
-    { key: "impact", label: "Влияние" },
-  ],
-  issues: [
-    { key: "title", label: "Вопрос" },
-    { key: "status", label: "Статус" },
-    { key: "severity", label: "Критичность" },
-    { key: "owner", label: "Ответственный" },
-    { key: "dueDate", label: "Срок" },
-    { key: "impact", label: "Влияние" },
-    { key: "decisionRequired", label: "Требуется решение" },
-  ],
-};
+const REPORT_FIELD_DEFINITIONS = {
+    tasks: [
+    { key: "workPackage", labelKey: "report.field.workPackage" },
+    { key: "task", labelKey: "report.field.task" },
+    { key: "status", labelKey: "report.field.status" },
+    { key: "startDate", labelKey: "report.field.startDate" },
+    { key: "endDate", labelKey: "report.field.endDate" },
+    { key: "owner", labelKey: "report.field.assignee" },
+    ],
+    raid: [
+    { key: "type", labelKey: "report.field.type" },
+    { key: "title", labelKey: "report.field.name" },
+    { key: "status", labelKey: "report.field.status" },
+    { key: "owner", labelKey: "report.field.owner" },
+    { key: "riskScore", labelKey: "report.field.score" },
+    { key: "dueDate", labelKey: "report.field.dueDate" },
+    { key: "impact", labelKey: "report.field.impact" },
+    ],
+    issues: [
+    { key: "title", labelKey: "report.field.issue" },
+    { key: "status", labelKey: "report.field.status" },
+    { key: "severity", labelKey: "report.field.severity" },
+    { key: "owner", labelKey: "report.field.owner" },
+    { key: "dueDate", labelKey: "report.field.dueDate" },
+    { key: "impact", labelKey: "report.field.impact" },
+    { key: "decisionRequired", labelKey: "report.field.decisionRequired" },
+    ],
+  } as const;
+
+export const REPORT_FIELD_ORDER = Object.fromEntries(Object.entries(REPORT_FIELD_DEFINITIONS).map(([kind, fields]) => [kind, fields.map((field) => field.key)])) as Record<ReportKind, ReportFieldKey[]>;
+
+export function localizedReportFields(locale: Locale): Record<ReportKind, ReportFieldDefinition[]> {
+  const t = createTranslator(locale);
+  return Object.fromEntries(Object.entries(REPORT_FIELD_DEFINITIONS).map(([kind, fields]) => [kind, fields.map((field: { key: ReportFieldKey; labelKey: SimpleTranslationKey }) => ({ key: field.key, label: t(field.labelKey) }))])) as Record<ReportKind, ReportFieldDefinition[]>;
+}
 
 export const DEFAULT_REPORT_FIELDS: Record<ReportKind, ReportFieldKey[]> = {
   tasks: ["workPackage", "task", "status", "startDate", "endDate", "owner"],
@@ -281,37 +285,41 @@ export function createProjectReport(
   };
 }
 
-function textDate(value: Date | string | null) {
-  if (!value) return "срок не задан";
-  return new Intl.DateTimeFormat("ru-RU").format(new Date(value));
+function textDate(value: Date | string | null, locale: Locale) {
+  const t = createTranslator(locale);
+  if (!value) return t("report.dateNotSet");
+  return createFormatters(locale).date(value);
 }
 
-function fieldLabel(kind: ReportKind, field: ReportFieldKey) {
-  return REPORT_FIELDS[kind].find((item) => item.key === field)?.label ?? field;
+function fieldLabel(kind: ReportKind, field: ReportFieldKey, locale: Locale) {
+  return localizedReportFields(locale)[kind].find((item) => item.key === field)?.label ?? field;
 }
 
 export function reportFieldText(
   kind: ReportKind,
   field: ReportFieldKey,
   item: ReportTask | RaidItem | Issue,
+  locale: Locale,
 ) {
+  const t = createTranslator(locale);
+  const { issueSeverityLabel, issueStatusLabel, raidStatusLabel, raidTypeLabel, wbsStatusLabel } = createDomainLabels(locale);
   if (kind === "tasks") {
     const task = item as ReportTask;
     switch (field) {
       case "workPackage":
         return task.workPackage
           ? `${task.workPackage.code} ${task.workPackage.title}`
-          : "не задан";
+          : t("report.ownerNotSet");
       case "task":
         return `${task.code} ${task.title}`;
       case "status":
         return wbsStatusLabel(task.status);
       case "startDate":
-        return textDate(task.reportStartDate);
+        return textDate(task.reportStartDate, locale);
       case "endDate":
-        return textDate(task.reportEndDate);
+        return textDate(task.reportEndDate, locale);
       case "owner":
-        return task.owner || "не задан";
+        return task.owner || t("report.ownerNotSet");
       default:
         return "—";
     }
@@ -327,11 +335,11 @@ export function reportFieldText(
       case "status":
         return raidStatusLabel(raid.status);
       case "owner":
-        return raid.owner || "не задан";
+        return raid.owner || t("report.ownerNotSet");
       case "riskScore":
         return String(raid.riskScore);
       case "dueDate":
-        return textDate(raid.dueDate);
+        return textDate(raid.dueDate, locale);
       case "impact":
         return String(raid.impact);
       default:
@@ -348,13 +356,13 @@ export function reportFieldText(
     case "severity":
       return issueSeverityLabel(issue.severity);
     case "owner":
-      return issue.owner || "не задан";
+      return issue.owner || t("report.ownerNotSet");
     case "dueDate":
-      return textDate(issue.dueDate);
+      return textDate(issue.dueDate, locale);
     case "impact":
-      return issue.impact || "не задано";
+      return issue.impact || t("report.valueNotSet");
     case "decisionRequired":
-      return issue.decisionRequired ? "Да" : "Нет";
+      return issue.decisionRequired ? t("report.yes") : t("report.no");
     default:
       return "—";
   }
@@ -364,13 +372,15 @@ function customLines(
   kind: ReportKind,
   fields: ReportFieldKey[],
   items: Array<ReportTask | RaidItem | Issue>,
+  locale: Locale,
 ) {
-  if (items.length === 0) return ["- Нет данных"];
+  const t = createTranslator(locale);
+  if (items.length === 0) return [t("report.emptyData")];
   return items.map((item) =>
     fields
       .map((field) => {
-        const value = reportFieldText(kind, field, item);
-        return `${fieldLabel(kind, field)}: ${value}`;
+        const value = reportFieldText(kind, field, item, locale);
+        return `${fieldLabel(kind, field, locale)}: ${value}`;
       })
       .join("; "),
   ).map((line) => `- ${line}`);
@@ -382,39 +392,41 @@ export function projectReportText(
   kind: ReportKind = "tasks",
   fields: ReportFieldKey[] = DEFAULT_REPORT_FIELDS.tasks,
   activity: ReportActivity = "opened",
+  locale: Locale,
 ) {
+  const t = createTranslator(locale);
   const lines = [
-    `Статус-отчёт: ${project.code} ${project.name}`,
+    t("report.textTitle", { code: project.code, name: project.name }),
   ];
 
   if (kind === "tasks") {
     lines.push(
-      `Период: ${textDate(report.pastStart)} - ${textDate(report.generatedAt)}`,
+      t("report.period", { start: textDate(report.pastStart, locale), end: textDate(report.generatedAt, locale) }),
       "",
-      "Что сделано",
-      ...customLines("tasks", fields, report.done),
+      t("report.section.done"),
+      ...customLines("tasks", fields, report.done, locale),
       "",
-      "Что в работе",
-      ...customLines("tasks", fields, report.inProgress),
+      t("report.section.active"),
+      ...customLines("tasks", fields, report.inProgress, locale),
       "",
-      "Что предстоит сделать",
-      ...customLines("tasks", fields, report.upcoming),
+      t("report.section.upcoming"),
+      ...customLines("tasks", fields, report.upcoming, locale),
     );
   } else if (kind === "raid") {
     const items = activity === "closed" ? report.closedRaidItems : report.recentRaidItems;
     lines.push(
-      `Период: ${textDate(report.activityStart)} - ${textDate(report.generatedAt)}`,
+      t("report.period", { start: textDate(report.activityStart, locale), end: textDate(report.generatedAt, locale) }),
       "",
-      activity === "closed" ? "Закрытые риски и проблемы" : "Открытые риски и проблемы",
-      ...customLines("raid", fields, items),
+      activity === "closed" ? t("report.section.closedRaid") : t("report.section.openRaid"),
+      ...customLines("raid", fields, items, locale),
     );
   } else {
     const items = activity === "closed" ? report.closedIssues : report.recentOpenIssues;
     lines.push(
-      `Период: ${textDate(report.activityStart)} - ${textDate(report.generatedAt)}`,
+      t("report.period", { start: textDate(report.activityStart, locale), end: textDate(report.generatedAt, locale) }),
       "",
-      activity === "closed" ? "Закрытые вопросы" : "Открытые вопросы",
-      ...customLines("issues", fields, items),
+      activity === "closed" ? t("report.section.closedIssues") : t("report.section.openIssues"),
+      ...customLines("issues", fields, items, locale),
     );
   }
 

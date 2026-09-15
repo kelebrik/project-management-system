@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { JiraReconciliationPage } from './JiraReconciliationPage';
 import { lazy, Suspense } from "react";
 import { PageSkeleton } from "../components/Skeleton";
@@ -50,9 +51,10 @@ const DecisionQueuePage = lazy(() =>
 );
 
 function DevelopmentPageFallback() {
+  const { t: uiText } = useInterfaceTranslation();
   return (
-    <div className="page-loading-skeleton" aria-label="Загрузка страницы">
-      <PageSkeleton label="Загрузка страницы" />
+    <div className="page-loading-skeleton" aria-label={uiText("ui.projects.loadingPage")}>
+      <PageSkeleton label={uiText("ui.projects.loadingPage")} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SearchResult } from "../app/domainTypes";
+import { useI18n } from "../i18n/I18nProvider";
 
 type GlobalSearchProps = {
   className?: string;
@@ -14,14 +15,16 @@ type GlobalSearchProps = {
   results: SearchResult[];
 };
 
+import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
+
 type SearchScope = "all" | SearchResult["type"];
 
-const searchScopes: Array<{ value: SearchScope; label: string }> = [
-  { value: "all", label: "Все" },
-  { value: "project", label: "Проекты" },
-  { value: "wbs", label: "Структура" },
-  { value: "raid", label: "RAID" },
-  { value: "issue", label: "Вопросы" },
+const searchScopes: Array<{ value: SearchScope; label: TranslationKey }> = [
+  { value: "all", label: "search.all" },
+  { value: "project", label: "nav.projects" },
+  { value: "wbs", label: "search.structure" },
+  { value: "raid", label: "search.raid" },
+  { value: "issue", label: "search.issues" },
 ];
 
 export function GlobalSearch({
@@ -34,6 +37,7 @@ export function GlobalSearch({
   query,
   results,
 }: GlobalSearchProps) {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [scope, setScope] = useState<SearchScope>("all");
@@ -45,18 +49,18 @@ export function GlobalSearch({
   );
   const safeActiveIndex = Math.min(activeIndex, Math.max(0, scopedResults.length - 1));
   const groupedResults = useMemo(() => {
-    const groups = new Map<string, SearchResult[]>();
+    const groups = new Map<TranslationKey, SearchResult[]>();
     scopedResults.forEach((result) => {
       const label =
         result.type === "project"
-          ? "Проекты"
+          ? "nav.projects"
           : result.type === "wbs"
-            ? "Структура"
+            ? "search.structure"
             : result.type === "raid"
-              ? "RAID"
+              ? "search.raid"
               : result.type === "issue"
-                ? "Вопросы"
-                : "Остальное";
+                ? "search.issues"
+                : "search.other";
       groups.set(label, [...(groups.get(label) ?? []), result]);
     });
     return Array.from(groups.entries());
@@ -113,13 +117,13 @@ export function GlobalSearch({
               onOpenChange(false);
             }
           }}
-          placeholder="Поиск по проектам, задачам, рискам, вопросам"
+          placeholder={t("search.placeholder")}
         />
         <kbd>Ctrl K</kbd>
       </label>
       {shouldShowPopover && (
         <div className="global-search-popover">
-          <div className="search-scope-tabs" role="tablist" aria-label="Область поиска">
+          <div className="search-scope-tabs" role="tablist" aria-label={t("search.scope")}>
             {searchScopes.map((item) => (
               <button
                 type="button"
@@ -133,16 +137,16 @@ export function GlobalSearch({
                   setScope(item.value);
                 }}
               >
-                {item.label}
+                {t(item.label)}
               </button>
             ))}
           </div>
-          {loading && <span className="search-muted">Ищу...</span>}
+          {loading && <span className="search-muted">{t("search.loading")}</span>}
           {!loading && (
             <div className="global-search-results">
               {groupedResults.map(([group, groupResults]) => (
                 <section key={group}>
-                  <span className="search-result-group">{group}</span>
+                  <span className="search-result-group">{t(group)}</span>
                   {groupResults.map((result) => {
                     const flatIndex = scopedResults.findIndex(
                       (item) =>
@@ -160,7 +164,7 @@ export function GlobalSearch({
                         <span className="search-result-project">
                           {result.projectCode
                             ? `${result.projectCode}${result.projectName ? ` - ${result.projectName}` : ""}`
-                            : "Без проекта"}
+                            : t("search.noProject")}
                         </span>
                         <b>{result.title}</b>
                         <small>{result.subtitle}</small>
@@ -172,7 +176,7 @@ export function GlobalSearch({
             </div>
           )}
           {!loading && scopedResults.length === 0 && (
-            <span className="search-muted">Ничего не найдено</span>
+            <span className="search-muted">{t("search.empty")}</span>
           )}
         </div>
       )}

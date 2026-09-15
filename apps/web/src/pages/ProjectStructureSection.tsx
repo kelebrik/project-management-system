@@ -1,3 +1,6 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { intlLocale } from "../i18n/locale";
+import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
 import { FileDown, Languages, Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -58,6 +61,8 @@ function safeFilename(value: string) {
 }
 
 export function ProjectStructureSection() {
+  const { t: uiText } = useInterfaceTranslation();
+  const { locale: uiLocale } = useLocaleTranslation();
   const {
     activeWbsHierarchyLevel,
     activeWbsItemId,
@@ -362,7 +367,7 @@ export function ProjectStructureSection() {
 
   return (
                         <>
-                          <div className="gantt-controls wbs-structure-controls" aria-label="Панель управления Структурой">
+                          <div className="gantt-controls wbs-structure-controls" aria-label={uiText("ui.projects.structureToolbarLabel")}>
                           <div className="gantt-controls-row">
                             <button
                               type="button"
@@ -372,13 +377,13 @@ export function ProjectStructureSection() {
                               }
                               aria-label={
                                 fullscreenWorkspaceView === "project-structure"
-                                  ? "Вернуть обычный режим Структуры"
-                                  : "Развернуть Структуру на весь экран"
+                                  ? uiText("ui.projects.structureExitFullScreen")
+                                  : uiText("ui.projects.structureEnterFullScreen")
                               }
                               title={
                                 fullscreenWorkspaceView === "project-structure"
-                                  ? "Вернуть обычный режим"
-                                  : "На весь экран"
+                                  ? uiText("ui.common.exitFullscreen")
+                                  : uiText("ui.common.fullScreen")
                               }
                             >
                               {fullscreenWorkspaceView === "project-structure" ? (
@@ -387,8 +392,8 @@ export function ProjectStructureSection() {
                                 <Maximize2 size={15} />
                               )}
                               {fullscreenWorkspaceView === "project-structure"
-                                ? "Обычный режим"
-                                : "На весь экран"}
+                                ? uiText("ui.common.normalMode")
+                                : uiText("ui.common.fullScreen")}
                             </button>
                             {!isReadOnly && (
                               <>
@@ -400,10 +405,10 @@ export function ProjectStructureSection() {
                                     restoringWbsSnapshot ||
                                     wbsUndoStack.length === 0
                                   }
-                                  aria-label="Откатить последнее изменение Структуры"
-                                  title="Назад"
+                                  aria-label={uiText("ui.projects.structureUndoLastChange")}
+                                  title={uiText("ui.projects.undoBackLabel")}
                                 >
-                                  ← Назад
+                                  {uiText("ui.projects.structureUndoBackLabel")}
                                 </button>
                                 <button
                                   type="button"
@@ -413,10 +418,10 @@ export function ProjectStructureSection() {
                                     restoringWbsSnapshot ||
                                     wbsRedoStack.length === 0
                                   }
-                                  aria-label="Вернуть отмененное изменение Структуры"
-                                  title="Вперед"
+                                  aria-label={uiText("ui.projects.structureRedoLastChange")}
+                                  title={uiText("ui.projects.redoForwardLabel")}
                                 >
-                                  Вперед →
+                                  {uiText("ui.projects.structureRedoForwardLabel")}
                                 </button>
                                 <button
                                   type="button"
@@ -426,8 +431,8 @@ export function ProjectStructureSection() {
                                   }
                                 >
                                   {savingWbsBulk
-                                    ? "Сохраняю..."
-                                    : "Сохранить изменения"}
+                                    ? uiText("ui.admin.savingEllipsisDots")
+                                    : uiText("ui.projects.saveChangesAction")}
                                 </button>
                                 <button
                                   type="button"
@@ -437,7 +442,7 @@ export function ProjectStructureSection() {
                                     project.wbsItems.length === 0
                                   }
                                 >
-                                  Зафиксировать базовый план
+                                  {uiText("ui.projects.structureSetBaselineAction")}
                                 </button>
                               </>
                             )}
@@ -448,7 +453,7 @@ export function ProjectStructureSection() {
                                   setShowWbsColumnMenu((current) => !current)
                                 }
                               >
-                                Колонки
+                                {uiText("ui.projects.structureColumnsAction")}
                               </button>
                               {showWbsColumnMenu && (
                                 <div className="column-menu-popover">
@@ -463,7 +468,7 @@ export function ProjectStructureSection() {
                                         checked={!wbsHiddenColumns.includes(column.key)}
                                         onChange={() => toggleWbsColumn(column.key)}
                                       />
-                                      {column.label}
+                                      {uiText(`work.column.${column.key as WbsTableColumnKey}`)}
                                     </label>
                                   ))}
                                 </div>
@@ -475,11 +480,11 @@ export function ProjectStructureSection() {
                               onClick={() =>
                                 printSectionAsPdf(
                                   "project-structure-print",
-                                  `${project.name ?? "Проект"} - Структура`,
+                                  uiText("structure.printTitle", { name: project.name ?? uiText("structure.projectFallback") }),
                                 )
                               }
                               disabled={project.wbsItems.length === 0}
-                              title="Сохранить Структуру в PDF"
+                              title={uiText("ui.projects.structureSaveToPdfAction")}
                             >
                               <FileDown size={15} />
                               PDF
@@ -494,7 +499,7 @@ export function ProjectStructureSection() {
                                 )
                               }
                               disabled={project.wbsItems.length === 0}
-                              title="Save Structure to PDF in English"
+                              title={uiText("structure.savePdfEnAction")}
                             >
                               <FileDown size={15} />
                               PDF EN
@@ -506,7 +511,7 @@ export function ProjectStructureSection() {
                                 onClick={() =>
                                   setShowEnglishMenu((current) => !current)
                                 }
-                                title="Импорт и экспорт английских переводов Структуры"
+                                title={uiText("ui.projects.structureTranslationsImportExportAction")}
                               >
                                 <Languages size={15} />
                                 EN
@@ -519,14 +524,14 @@ export function ProjectStructureSection() {
                                       translationImportInputRef.current?.click()
                                     }
                                   >
-                                    Import
+                                    {uiText("structure.translationsImport")}
                                   </button>
                                   <button
                                     type="button"
                                     onClick={exportEnglishTranslationsHtml}
                                     disabled={editableEnglishRows.length === 0}
                                   >
-                                    Export
+                                    {uiText("structure.translationsExport")}
                                   </button>
                                 </div>
                               )}
@@ -540,7 +545,7 @@ export function ProjectStructureSection() {
                             </div>
                             <div
                               className="segmented-control hierarchy-control"
-                              aria-label="Глубина иерархии Структуры"
+                              aria-label={uiText("ui.projects.structureHierarchyDepthLabel")}
                             >
                               {GANTT_HIERARCHY_LEVELS.map((level) => (
                                 <button
@@ -550,7 +555,7 @@ export function ProjectStructureSection() {
                                     activeWbsHierarchyLevel === level ? "active" : ""
                                   }
                                   onClick={() => setWbsHierarchyLevel(level)}
-                                  title={`Показать структуру до ${level} уровня`}
+                                  title={uiText("structure.showLevel", { level })}
                                 >
                                   {level}
                                 </button>
@@ -560,17 +565,17 @@ export function ProjectStructureSection() {
                               className={`wbs-save-state ${savingWbsBulk ? "saving" : dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
                             >
                               {savingWbsBulk
-                                ? `Сохраняется: ${dirtyWbsItemIds.size}`
+                                ? uiText("structure.savingCount", { count: dirtyWbsItemIds.size })
                                 : dirtyWbsItemIds.size > 0
-                                  ? `Есть изменения: ${dirtyWbsItemIds.size}`
+                                  ? uiText("structure.dirtyCount", { count: dirtyWbsItemIds.size })
                                   : lastSavedAt
-                                    ? `Сохранено в ${lastSavedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`
-                                    : "Все изменения сохранены"}
+                                    ? uiText("structure.savedAt", { time: lastSavedAt.toLocaleTimeString(intlLocale(uiLocale), { hour: "2-digit", minute: "2-digit" }) })
+                                    : uiText("ui.projects.allChangesSavedNotice")}
                             </span>
                           </div>
                           {selectedWbsIds.size > 0 && (
                             <div className="wbs-bulk-toolbar">
-                          <span>Выбрано: {selectedWbsIds.size}</span>
+                          <span>{uiText("ui.projects.selectedCountPrefix")} {selectedWbsIds.size}</span>
                           <select
                             defaultValue=""
                             onChange={(event) => {
@@ -585,9 +590,9 @@ export function ProjectStructureSection() {
                               });
                               event.currentTarget.value = "";
                             }}
-                            aria-label="Массово изменить статус"
+                            aria-label={uiText("ui.projects.structureBulkChangeStatusAction")}
                           >
-                            <option value="">Статус</option>
+                            <option value="">{uiText("ui.admin.status")}</option>
                             <option value="NOT_STARTED">
                               {wbsStatusLabel("NOT_STARTED")}
                             </option>
@@ -609,7 +614,7 @@ export function ProjectStructureSection() {
                             </option>
                           </select>
                           <input
-                            placeholder="Исполнитель"
+                            placeholder={uiText("ui.jira.assignee")}
                             onKeyDown={(event) => {
                               if (event.key !== "Enter") return;
                               updateSelectedWbsDrafts({
@@ -635,9 +640,9 @@ export function ProjectStructureSection() {
                               });
                               event.currentTarget.value = "";
                             }}
-                            aria-label="Массово изменить календарь"
+                            aria-label={uiText("ui.projects.structureBulkChangeCalendarAction")}
                           >
-                            <option value="">Календарь</option>
+                            <option value="">{uiText("ui.projects.calendarLabel")}</option>
                             <option value="RU">RU</option>
                             <option value="CN">CN</option>
                             <option value="RU_CN">RU+CN</option>
@@ -653,14 +658,14 @@ export function ProjectStructureSection() {
                               }
                               title={
                                 selectedBaselineHasUnsavedChanges
-                                  ? "Сначала сохраните изменения выбранных работ"
-                                  : "Зафиксировать текущие даты выбранных работ как базовые"
+                                  ? uiText("ui.projects.structureSaveSelectedFirstHint")
+                                  : uiText("ui.projects.structureSetSelectedDatesAsBaselineHint")
                               }
                             >
                               <RefreshCw size={15} />
                               {savingBaseline
-                                ? "Обновляю базовый план..."
-                                : "Обновить базовый план"}
+                                ? uiText("ui.projects.structureUpdatingBaselineMessage")
+                                : uiText("ui.projects.structureUpdateBaselineAction")}
                             </button>
                           )}
                           <button
@@ -669,10 +674,10 @@ export function ProjectStructureSection() {
                             onClick={async () => {
                               if (
                                 await confirm({
-                                  title: "Удалить выбранные элементы?",
+                                  title: uiText("structure.deleteTitle"),
                                   message:
-                                    "Выбранные строки Структуры будут удалены безвозвратно.",
-                                  confirmLabel: "Удалить",
+                                    uiText("structure.deleteBody"),
+                                  confirmLabel: uiText("structure.deleteAction"),
                                 })
                               ) {
                                 void deleteSelectedWbsItems();
@@ -680,25 +685,25 @@ export function ProjectStructureSection() {
                             }}
                             disabled={savingWbsBulk}
                           >
-                            Удалить выбранные
+                            {uiText("ui.projects.deleteSelectedAction")}
                           </button>
                           <button
                             type="button"
                             onClick={() => setSelectedWbsIds(new Set())}
                             disabled={savingWbsBulk}
                           >
-                            Снять выбор
+                            {uiText("ui.projects.clearSelectionAction")}
                           </button>
                         </div>
                       )}
-                          <div className="status-legend gantt-status-legend" aria-label="Легенда статусов Структуры">
-                            <span><i className="tone-b" />В работе</span>
-                            <span><i className="tone-g" />Сделано</span>
-                            <span><i className="tone-r" />Провалено</span>
-                            <span><i className="tone-p" />Просрочено</span>
-                            <span><i className="tone-x" />Не начато</span>
-                            <span><i className="tone-o" />Веха</span>
-                            <span><i className="tone-goal" />Цель</span>
+                          <div className="status-legend gantt-status-legend" aria-label={uiText("ui.projects.structureStatusLegendLabel")}>
+                            <span><i className="tone-b" />{uiText("ui.projects.statusInProgress")}</span>
+                            <span><i className="tone-g" />{uiText("ui.projects.statusDone")}</span>
+                            <span><i className="tone-r" />{uiText("ui.projects.statusFailed")}</span>
+                            <span><i className="tone-p" />{uiText("ui.projects.statusOverdue")}</span>
+                            <span><i className="tone-x" />{uiText("ui.projects.statusNotStarted")}</span>
+                            <span><i className="tone-o" />{uiText("ui.projects.itemTypeMilestone")}</span>
+                            <span><i className="tone-goal" />{uiText("ui.projects.itemTypeGoal")}</span>
                           </div>
                         </div>
                     <div
@@ -759,9 +764,9 @@ export function ProjectStructureSection() {
                                   event.stopPropagation();
                                   toggleWbsSort(column.key);
                                 }}
-                                title={`Сортировать по полю «${column.label}»`}
+                                title={uiText("structure.sortColumn", { label: uiText(`work.column.${column.key as WbsTableColumnKey}`) })}
                               >
-                                <span className="wbs-column-title">{column.label}</span>
+                                <span className="wbs-column-title">{uiText(`work.column.${column.key as WbsTableColumnKey}`)}</span>
                                 <span className="wbs-sort-indicator" aria-hidden="true">
                                   {wbsSort?.columnKey === column.key
                                     ? wbsSort.direction === "asc"
@@ -776,7 +781,7 @@ export function ProjectStructureSection() {
                                 onPointerDown={(event) =>
                                   startWbsColumnResize(column.key, event)
                                 }
-                                aria-label={`Изменить ширину колонки ${column.label}`}
+                                aria-label={uiText("work.resizeColumn", { label: uiText(`work.column.${column.key as WbsTableColumnKey}`) })}
                               />
                             </span>
                           ))}
@@ -843,12 +848,12 @@ export function ProjectStructureSection() {
                           );
                         })}
                           {project.wbsItems.length === 0 && (
-                            <div className="empty-state">Структура еще не создана.</div>
+                            <div className="empty-state">{uiText("ui.projects.structureNotCreatedYet")}</div>
                           )}
                           {project.wbsItems.length > 0 &&
                             visibleStructureWbsTree.length === 0 && (
                             <div className="empty-state">
-                              Нет задач критического пути для текущего фильтра.
+                              {uiText("ui.projects.structureNoCriticalPathTasksForFilter")}
                             </div>
                           )}
                         </div>
@@ -943,7 +948,7 @@ export function ProjectStructureSection() {
                         })}
                       </div>
                       {showFullscreenHint && fullscreenWorkspaceView !== "project-structure" && createPortal(
-                        <aside className="structure-fullscreen-hint" aria-label="Подсказка по режиму просмотра">
+                        <aside className="structure-fullscreen-hint" aria-label={uiText("ui.projects.structureViewModeTipLabel")}>
                           <svg className="structure-fullscreen-hint-arrow" viewBox="0 0 120 90" aria-hidden="true">
                             <path d="M12 82 C12 38 34 14 82 14" />
                             <path d="M70 7 L84 14 L72 24" />
@@ -952,12 +957,12 @@ export function ProjectStructureSection() {
                             type="button"
                             className="structure-fullscreen-hint-close"
                             onClick={() => setShowFullscreenHint(false)}
-                            aria-label="Закрыть подсказку"
+                            aria-label={uiText("ui.projects.closeTipAction")}
                           >
                             <X size={16} />
                           </button>
-                          <strong>Удобнее работать со структурой?</strong>
-                          <span>Разверните её на весь экран — шапка и панель управления всегда будут доступны.</span>
+                          <strong>{uiText("ui.projects.structureFullScreenTipTitle")}</strong>
+                          <span>{uiText("ui.projects.structureFullScreenTipBody")}</span>
                           <button
                             type="button"
                             className="structure-fullscreen-hint-action"
@@ -967,7 +972,7 @@ export function ProjectStructureSection() {
                             }}
                           >
                             <Maximize2 size={15} />
-                            На весь экран
+                            {uiText("ui.common.fullScreen")}
                           </button>
                         </aside>,
                         document.body,

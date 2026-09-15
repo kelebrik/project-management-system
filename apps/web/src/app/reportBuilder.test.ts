@@ -205,10 +205,16 @@ test("custom report text follows selected fields", () => {
     ],
   } as unknown as ProjectDetails;
   const report = createProjectReport(project, 7, new Date("2026-07-11T12:00:00"));
-  const text = projectReportText(project, report, "issues", ["title", "owner"]);
+  const text = projectReportText(project, report, "issues", ["title", "owner"], "opened", "ru");
 
   assert.match(text, /Вопрос: Нужно решение/);
   assert.match(text, /Ответственный: РП/);
   assert.doesNotMatch(text, /Критичность:/);
-  assert.equal(reportFieldText("issues", "decisionRequired", report.openIssues[0]), "Нет");
+  assert.equal(reportFieldText("issues", "decisionRequired", report.openIssues[0], "ru"), "Нет");
+  const english = projectReportText(project, report, "issues", ["title", "owner", "decisionRequired"], "opened", "en");
+  assert.match(english, /Status report: TV-1 Проект/);
+  assert.match(english, /Issue: Нужно решение/);
+  assert.match(english, /Owner: РП/);
+  assert.match(english, /Decision required: No/);
+  assert.doesNotMatch(english, /Период:|Ответственный:|Требуется решение:/);
 });

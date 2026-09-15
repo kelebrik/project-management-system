@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { Building2, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -20,6 +21,7 @@ type BusinessUnit = {
 };
 
 export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
+  const { t: uiText } = useInterfaceTranslation();
   const confirm = useConfirm();
   const [units, setUnits] = useState<BusinessUnit[]>([]);
   const [error, setError] = useState("");
@@ -159,13 +161,13 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
     <section className="business-unit-admin" aria-labelledby="business-unit-settings-heading">
       <div className="business-unit-admin-heading">
         <div>
-          <h2 id="business-unit-settings-heading"><Building2 size={20} /> Реестр бизнес-юнитов</h2>
-          <p>Создание бизнес-юнитов и назначение их администраторов.</p>
+          <h2 id="business-unit-settings-heading"><Building2 size={20} /> {uiText("ui.admin.businessUnitRegistry")}</h2>
+          <p>{uiText("ui.admin.businessUnitRegistryDescription")}</p>
         </div>
         <form className="business-unit-create" onSubmit={createUnit}>
           <input
-            aria-label="Код бизнес-юнита"
-            placeholder="Код"
+            aria-label={uiText("ui.admin.businessUnitCode")}
+            placeholder={uiText("ui.admin.code")}
             pattern="[a-z0-9-]+"
             value={unitDraft.code}
             onChange={(event) => setUnitDraft({
@@ -175,14 +177,14 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
             required
           />
           <input
-            aria-label="Название бизнес-юнита"
-            placeholder="Название"
+            aria-label={uiText("ui.admin.businessUnitName")}
+            placeholder={uiText("ui.admin.name")}
             value={unitDraft.name}
             onChange={(event) => setUnitDraft({ ...unitDraft, name: event.currentTarget.value })}
             required
           />
           <button type="submit" disabled={creating}>
-            <Plus size={16} /> {creating ? "Создаю..." : "Создать БЮ"}
+            <Plus size={16} /> {creating ? uiText("ui.admin.creatingEllipsis") : uiText("ui.admin.createBusinessUnitShort")}
           </button>
         </form>
       </div>
@@ -191,7 +193,7 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
 
       <form className="business-unit-membership-form" onSubmit={assignAdministrator}>
         <select
-          aria-label="Бизнес-юнит для назначения администратора"
+          aria-label={uiText("ui.admin.businessUnitForAdminAssignment")}
           value={assignment.businessUnitId}
           onChange={(event) => setAssignment({
             businessUnitId: event.currentTarget.value,
@@ -202,17 +204,17 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
           {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
         </select>
         <select
-          aria-label="Новый администратор БЮ"
+          aria-label={uiText("ui.admin.newBusinessUnitAdmin")}
           value={assignment.userId}
           onChange={(event) => setAssignment({ ...assignment, userId: event.currentTarget.value })}
           required
         >
-          <option value="">Выберите администратора БЮ</option>
+          <option value="">{uiText("ui.admin.selectBusinessUnitAdmin")}</option>
           {availableUsers.map((user) => (
             <option key={user.id} value={user.id}>{user.name} · {user.email}</option>
           ))}
         </select>
-        <button type="submit">Назначить</button>
+        <button type="submit">{uiText("ui.admin.assign")}</button>
       </form>
 
       <div className="business-unit-list">
@@ -234,9 +236,9 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
                       disabled={renaming}
                     />
                     <button type="submit" disabled={renaming || editing.name.trim().length < 2}>
-                      {renaming ? "Сохраняю…" : "Сохранить"}
+                      {renaming ? uiText("ui.admin.savingEllipsisChar") : uiText("ui.admin.save")}
                     </button>
-                    <button type="button" disabled={renaming} onClick={() => setEditing(null)}>Отмена</button>
+                    <button type="button" disabled={renaming} onClick={() => setEditing(null)}>{uiText("ui.admin.cancel")}</button>
                   </form>
                 ) : (
                   <>
@@ -244,11 +246,11 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
                     <button type="button" className="ghost-button" disabled={editing !== null}
                       aria-label={`Переименовать БЮ ${unit.name}`}
                       onClick={() => { setError(""); setEditing({ id: unit.id, name: unit.name }); }}>
-                      Переименовать
+                      {uiText("ui.admin.rename")}
                     </button>
                   </>
                 )}
-                <small>{unit.code} · проектов: {unit._count.projects}{unit.isDefault ? " · основной" : ""}</small>
+                <small>{unit.code} {uiText("ui.admin.projectsCountSuffix")} {unit._count.projects}{unit.isDefault ? uiText("ui.admin.primaryBadgeSuffix") : ""}</small>
               </div>
               <div className="business-unit-members">
                 {administrators.map((membership) => (
@@ -267,7 +269,7 @@ export function BusinessUnitSystemSettings({ users }: { users: SystemUser[] }) {
                     </button>
                   </span>
                 ))}
-                {administrators.length === 0 && <small>Администратор БЮ не назначен</small>}
+                {administrators.length === 0 && <small>{uiText("ui.admin.businessUnitAdminNotAssigned")}</small>}
               </div>
             </div>
           );

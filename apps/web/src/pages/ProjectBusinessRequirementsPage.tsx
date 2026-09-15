@@ -1,6 +1,8 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { Plus, Save, Table2, Trash2 } from "lucide-react";
 import {
   useEffect,
+  useEffectEvent,
   useMemo,
   useState,
   type CSSProperties,
@@ -63,6 +65,8 @@ function normalizeTable(data: BusinessRequirementsTable | null) {
 
 
 export function ProjectBusinessRequirementsPage() {
+  const { t, tCount } = useI18n();
+  const tEffect = useEffectEvent(t);
   const { isReadOnly, project, setError, setNotice } = usePageContext();
   const confirm = useConfirm();
   const [{ columns, rows }, setTable] = useState(() => normalizeTable(null));
@@ -78,7 +82,7 @@ export function ProjectBusinessRequirementsPage() {
     apiClient
       .get<BusinessRequirementsTable>(
         `/api/projects/${project.id}/business-requirements`,
-        "Не удалось загрузить бизнес-требования",
+        tEffect("requirements.loadError"),
       )
       .then((data) => {
         if (cancelled) return;
@@ -86,7 +90,7 @@ export function ProjectBusinessRequirementsPage() {
       })
       .catch((error) => {
         if (!cancelled) {
-          setError(error instanceof Error ? error.message : "Не удалось загрузить бизнес-требования");
+          setError(error instanceof Error ? error.message : tEffect("requirements.loadError"));
         }
       })
       .finally(() => {
@@ -148,7 +152,7 @@ export function ProjectBusinessRequirementsPage() {
     setTable((current) => {
       const column = {
         id: makeId("col"),
-        title: `Столбец ${current.columns.length + 1}`,
+        title: t("requirements.column", { count: current.columns.length + 1 }),
       };
       return {
         columns: [...current.columns, column],
@@ -193,12 +197,12 @@ export function ProjectBusinessRequirementsPage() {
       await apiClient.put<BusinessRequirementsTable>(
         `/api/projects/${project.id}/business-requirements`,
         { columns, rows },
-        "Не удалось сохранить бизнес-требования",
+        t("requirements.saveError"),
       );
       setDirty(false);
-      setNotice("Бизнес-требования сохранены");
+      setNotice(t("requirements.saved"));
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Не удалось сохранить бизнес-требования");
+      setError(error instanceof Error ? error.message : t("requirements.saveError"));
     } finally {
       setSaving(false);
     }
@@ -208,27 +212,27 @@ export function ProjectBusinessRequirementsPage() {
     <article className="panel project-card project-module-page business-requirements-page">
       <div className="panel-title">
         <div>
-          <h2>Бизнес требования</h2>
-          <p>Бизнес-требования проекта.</p>
+          <h2>{t("requirements.title")}</h2>
+          <p>{t("requirements.description")}</p>
         </div>
         <div className="business-requirements-actions">
           <button type="button" onClick={addRow} disabled={!canEdit}>
             <Plus size={16} />
-            Добавить строку
+            {t("requirements.addRow")}
           </button>
           <button type="button" onClick={addColumn} disabled={!canEdit}>
             <Table2 size={16} />
-            Добавить столбец
+            {t("requirements.addColumn")}
           </button>
           <button type="button" onClick={() => void saveTable()} disabled={!canEdit || !dirty}>
             <Save size={16} />
-            {saving ? "Сохраняю..." : "Сохранить"}
+            {saving ? t("fields.saving") : t("fields.save")}
           </button>
         </div>
       </div>
 
       <div className="business-requirements-status">
-        <span>{loading ? "Загрузка..." : `${rowCount} строк, ${columnCount} столбцов`}</span>
+        <span>{loading ? t("requirements.loading") : `${tCount("table.rows", rowCount)}, ${tCount("table.columns", columnCount)}`}</span>
         <SaveStateIndicator saving={saving} dirty={dirty} />
       </div>
 
@@ -245,18 +249,18 @@ export function ProjectBusinessRequirementsPage() {
                   value={column.title}
                   disabled={!canEdit}
                   onChange={(event) => updateColumnTitle(column.id, event.target.value)}
-                  aria-label={`Название столбца ${column.title}`}
+                  aria-label={t("requirements.columnName", { title: column.title })}
                 />
                 <button
                   type="button"
-                  title="Удалить столбец"
-                  aria-label={`Удалить столбец ${column.title}`}
+                  title={t("requirements.deleteColumn")}
+                  aria-label={t("requirements.deleteColumnName", { title: column.title })}
                   onClick={async () => {
                     if (
                       await confirm({
-                        title: "Удалить столбец?",
-                        message: "Столбец и его значения будут удалены.",
-                        confirmLabel: "Удалить",
+                        title: t("requirements.deleteColumnConfirm"),
+                        message: t("requirements.deleteColumnMessage"),
+                        confirmLabel: t("fields.delete"),
                       })
                     ) {
                       deleteColumn(column.id);
@@ -275,13 +279,13 @@ export function ProjectBusinessRequirementsPage() {
                 <span>{rowIndex + 1}</span>
                 <button
                   type="button"
-                  title="Удалить строку"
-                  aria-label={`Удалить строку ${rowIndex + 1}`}
+                  title={t("requirements.deleteRow")}
+                  aria-label={t("requirements.deleteRowNumber", { count: rowIndex + 1 })}
                   onClick={async () => {
                     if (
                       await confirm({
-                        title: "Удалить строку?",
-                        confirmLabel: "Удалить",
+                        title: t("requirements.deleteRowConfirm"),
+                        confirmLabel: t("fields.delete"),
                       })
                     ) {
                       deleteRow(row.id);
@@ -298,7 +302,7 @@ export function ProjectBusinessRequirementsPage() {
                   value={row.cells[column.id] ?? ""}
                   disabled={!canEdit}
                   onChange={(event) => updateCell(row.id, column.id, event.target.value)}
-                  aria-label={`Строка ${rowIndex + 1}, ${column.title}`}
+                  aria-label={t("requirements.cell", { count: rowIndex + 1, title: column.title })}
                 />
               ))}
             </div>

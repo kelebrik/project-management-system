@@ -1,17 +1,19 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
 export function AdminTemplatesPageContent() {
+  const { t } = useI18n();
   const { saveSystemSettings, savingSystemSettings, setSystemSettingsDraft, systemSettingsDraft } = usePageContext();
   return (
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <p>Базовые наборы работ для создания новых проектов</p>
+                      <p>{t("admin.templates.description")}</p>
                     </div>
                   </div>
                   <form className="form-grid admin-settings-form" onSubmit={saveSystemSettings}>
                     <label className="span-2">
-                      JSON шаблонов
+                      {t("admin.templates.json")}
                       <textarea
                         className="admin-config-textarea"
                         value={systemSettingsDraft.wbsTemplates}
@@ -25,7 +27,7 @@ export function AdminTemplatesPageContent() {
                     </label>
                     <div className="form-actions span-2">
                       <button type="submit" disabled={savingSystemSettings}>
-                        {savingSystemSettings ? "Сохраняю..." : "Сохранить шаблоны"}
+                        {savingSystemSettings ? t("fields.saving") : t("admin.templates.save")}
                       </button>
                     </div>
                   </form>
@@ -34,17 +36,18 @@ export function AdminTemplatesPageContent() {
 }
 
 export function AdminRagPageContent() {
+  const { t } = useI18n();
   const { saveSystemSettings, savingSystemSettings, setSystemSettingsDraft, systemSettingsDraft } = usePageContext();
   return (
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <p>Правила расчета зеленого, желтого и красного статуса проекта</p>
+                      <p>{t("admin.rag.description")}</p>
                     </div>
                   </div>
                   <form className="form-grid admin-settings-form" onSubmit={saveSystemSettings}>
                     <label className="span-2">
-                      Зеленый
+                      {t("admin.rag.green")}
                       <textarea
                         value={systemSettingsDraft.ragGreenFormula}
                         onChange={(event) =>
@@ -56,7 +59,7 @@ export function AdminRagPageContent() {
                       />
                     </label>
                     <label className="span-2">
-                      Желтый
+                      {t("admin.rag.amber")}
                       <textarea
                         value={systemSettingsDraft.ragAmberFormula}
                         onChange={(event) =>
@@ -68,7 +71,7 @@ export function AdminRagPageContent() {
                       />
                     </label>
                     <label className="span-2">
-                      Красный
+                      {t("admin.rag.red")}
                       <textarea
                         value={systemSettingsDraft.ragRedFormula}
                         onChange={(event) =>
@@ -81,7 +84,7 @@ export function AdminRagPageContent() {
                     </label>
                     <div className="form-actions span-2">
                       <button type="submit" disabled={savingSystemSettings}>
-                        {savingSystemSettings ? "Сохраняю..." : "Сохранить формулы"}
+                        {savingSystemSettings ? t("fields.saving") : t("admin.rag.save")}
                       </button>
                     </div>
                   </form>
@@ -90,17 +93,18 @@ export function AdminRagPageContent() {
 }
 
 export function AdminWorkflowsPageContent() {
+  const { t } = useI18n();
   const { saveSystemSettings, savingSystemSettings, setSystemSettingsDraft, systemSettingsDraft } = usePageContext();
   return (
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <p>Маршруты согласования обзора, базового плана и закрытия проекта</p>
+                      <p>{t("admin.workflow.description")}</p>
                     </div>
                   </div>
                   <form className="form-grid admin-settings-form" onSubmit={saveSystemSettings}>
                     <label className="span-2">
-                      Обзор для руководства
+                      {t("admin.workflow.overview")}
                       <textarea
                         value={systemSettingsDraft.overviewWorkflow}
                         onChange={(event) =>
@@ -112,7 +116,7 @@ export function AdminWorkflowsPageContent() {
                       />
                     </label>
                     <label className="span-2">
-                      Базовый план
+                      {t("admin.workflow.baseline")}
                       <textarea
                         value={systemSettingsDraft.baselineWorkflow}
                         onChange={(event) =>
@@ -124,7 +128,7 @@ export function AdminWorkflowsPageContent() {
                       />
                     </label>
                     <label className="span-2">
-                      Закрытие проекта
+                      {t("admin.workflow.closure")}
                       <textarea
                         value={systemSettingsDraft.projectCloseWorkflow}
                         onChange={(event) =>
@@ -137,7 +141,7 @@ export function AdminWorkflowsPageContent() {
                     </label>
                     <div className="form-actions span-2">
                       <button type="submit" disabled={savingSystemSettings}>
-                        {savingSystemSettings ? "Сохраняю..." : "Сохранить workflow"}
+                        {savingSystemSettings ? t("fields.saving") : t("admin.workflow.save")}
                       </button>
                     </div>
                   </form>

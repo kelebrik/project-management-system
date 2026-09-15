@@ -260,6 +260,8 @@ th.sortable .sort-caret {
 }
 
 /* ---------------- Тумблер темы в сайдбаре ---------------- */
+.auth-page { position: relative; }
+.auth-language-toggle { position: absolute; top: 1rem; right: 1rem; }
 .theme-toggle-nav {
   margin-top: 6px;
 }

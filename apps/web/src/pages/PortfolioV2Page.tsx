@@ -1,3 +1,6 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { intlLocale } from "../i18n/locale";
+import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
 import {
   useEffect,
   useMemo,
@@ -70,6 +73,8 @@ type PortfolioRoadmapV2Props = {
 };
 
 export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) {
+  const { t: uiText } = useInterfaceTranslation();
+  const { locale: uiLocale } = useLocaleTranslation();
   const {
     firstEnabledProjectView,
     fullscreenWorkspaceView,
@@ -134,7 +139,7 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
       ? portfolioFilter
       : "ALL";
   const visibleProjects = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase("ru-RU");
+    const normalizedQuery = query.trim().toLocaleLowerCase(intlLocale(uiLocale));
     return preparedProjects.filter((project) => {
       if (
         effectivePortfolioFilter !== "ALL" &&
@@ -146,10 +151,10 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
       return [project.projectCode, project.projectName, project.projectManager]
         .filter(Boolean)
         .some((value) =>
-          value.toLocaleLowerCase("ru-RU").includes(normalizedQuery),
+          value.toLocaleLowerCase(intlLocale(uiLocale)).includes(normalizedQuery),
         );
     });
-  }, [effectivePortfolioFilter, preparedProjects, query]);
+  }, [effectivePortfolioFilter, preparedProjects, query, uiLocale]);
   const roadmap = useMemo(
     () => createPortfolioRoadmap(visibleProjects, range),
     [range, visibleProjects],
@@ -225,22 +230,22 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
         <label className="portfolio-roadmap-search">
           <Search aria-hidden="true" size={15} />
           <input
-            aria-label="Поиск проекта"
+            aria-label={uiText("ui.portfolio.portfolioV2ProjectSearchLabel")}
             onChange={(event) => setQuery(event.currentTarget.value)}
-            placeholder="Проект, код или РП"
+            placeholder={uiText("ui.portfolio.portfolioV2ProjectSearchPlaceholder")}
             type="search"
             value={query}
           />
         </label>
 
         <label className="portfolio-roadmap-select">
-          <span>Портфель</span>
+          <span>{uiText("ui.portfolio.portfolioLabel")}</span>
           <select
-            aria-label="Фильтр по портфелю"
+            aria-label={uiText("ui.portfolio.portfolioFilterLabel")}
             onChange={(event) => setPortfolioFilter(event.currentTarget.value)}
             value={effectivePortfolioFilter}
           >
-            <option value="ALL">Все портфели</option>
+            <option value="ALL">{uiText("ui.portfolio.portfolioFilterAllOption")}</option>
             {portfolioOptions.map((portfolio) => (
               <option key={portfolio} value={portfolio}>
                 {portfolio}
@@ -249,7 +254,7 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
           </select>
         </label>
 
-        <div className="portfolio-roadmap-range" role="group" aria-label="Горизонт планирования">
+        <div className="portfolio-roadmap-range" role="group" aria-label={uiText("ui.portfolio.planningHorizonLabel")}>
           {RANGE_OPTIONS.map((option) => (
             <button
               aria-pressed={range === option.value}
@@ -270,25 +275,25 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
           <button
             aria-label={
               isFullscreen
-                ? "Вернуть обычный режим Дорожной карты v2"
-                : "Развернуть Дорожную карту v2 на весь экран"
+                ? uiText("ui.portfolio.roadmapV2ExitFullScreen")
+                : uiText("ui.portfolio.roadmapV2EnterFullScreen")
             }
             className="workspace-fullscreen-button"
             onClick={() => toggleWorkspaceFullscreen("portfolio")}
-            title={isFullscreen ? "Вернуть обычный режим" : "На весь экран"}
+            title={isFullscreen ? uiText("ui.common.exitFullscreen") : uiText("ui.common.fullScreen")}
             type="button"
           >
             {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            {isFullscreen ? "Обычный режим" : "На весь экран"}
+            {isFullscreen ? uiText("ui.common.normalMode") : uiText("ui.common.fullScreen")}
           </button>
           <button
             disabled={roadmap.todayOffset === null}
             onClick={scrollToToday}
-            title="Прокрутить к текущей дате"
+            title={uiText("ui.portfolio.roadmapScrollToCurrentDate")}
             type="button"
           >
             <CalendarClock aria-hidden="true" size={15} />
-            Сегодня
+            {uiText("ui.common.today")}
           </button>
           <button
             onClick={() => setLegendOpen(true)}
@@ -296,31 +301,31 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
             type="button"
           >
             <BookOpenText aria-hidden="true" size={15} />
-            Легенда
+            {uiText("ui.admin.legend")}
           </button>
         </div>
       </div>
 
       <div
-        aria-label="Сводка дорожной карты"
+        aria-label={uiText("ui.portfolio.roadmapSummaryTitle")}
         className="portfolio-roadmap-summary"
         role="group"
       >
         <div>
           <strong>{roadmap.projectCount}</strong>
-          <span>проектов показано</span>
+          <span>{uiText("ui.portfolio.roadmapProjectsShownSuffix")}</span>
         </div>
         <div>
           <strong>{roadmap.mappedProjectCount}</strong>
-          <span>с пакетами работ HW / SW / G2M</span>
+          <span>{uiText("ui.portfolio.roadmapWithHwSwG2mPackages")}</span>
         </div>
         <div>
           <strong>{roadmap.launchProjectCount}</strong>
-          <span>проектов с запуском в ближайшие 12 мес.</span>
+          <span>{uiText("ui.portfolio.roadmapProjectsLaunchingNext12Months")}</span>
         </div>
         <div className={roadmap.unmappedProjectCount > 0 ? "attention" : ""}>
           <strong>{roadmap.unmappedProjectCount}</strong>
-          <span>без пакетов HW / SW / G2M</span>
+          <span>{uiText("ui.portfolio.roadmapWithoutHwSwG2mPackages")}</span>
         </div>
       </div>
 
@@ -343,14 +348,14 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
               {selectedSegment.segment.label}
             </strong>
             <span id="portfolio-roadmap-selection-meta">
-              {selectedSegment.projectName} · {selectedSegment.trackLabel} · ИСР {selectedSegment.segment.code} ·{" "}
+              {selectedSegment.projectName} · {selectedSegment.trackLabel} {uiText("ui.portfolio.roadmapWbsSeparatorLabel")} {selectedSegment.segment.code} ·{" "}
               {portfolioRoadmapDateLabel(selectedSegment.segment.startDate)} -{" "}
               {portfolioRoadmapDateLabel(selectedSegment.segment.endDate)} ·{" "}
-              {itemCountLabel(selectedSegment.segment.itemCount)} · готовность{" "}
+              {itemCountLabel(selectedSegment.segment.itemCount)} {uiText("ui.portfolio.roadmapReadinessSeparatorLabel")}{" "}
               {selectedSegment.segment.progress}%
             </span>
             <small id="portfolio-roadmap-selection-description">
-              Легенда: {selectedSegment.segment.legendLabel}.{" "}
+              {uiText("ui.portfolio.roadmapLegendPrefix")} {selectedSegment.segment.legendLabel}.{" "}
               {selectedSegment.segment.description}
             </small>
           </div>
@@ -358,13 +363,13 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
             onClick={() => openProject(selectedSegment.projectId)}
             type="button"
           >
-            Открыть проект
+            {uiText("ui.portfolio.roadmapOpenProject")}
           </button>
           <button
-            aria-label="Закрыть детали пакета работ"
+            aria-label={uiText("ui.portfolio.roadmapCloseWorkPackageDetails")}
             className="portfolio-roadmap-selection-close"
             onClick={() => setSelectedSegment(null)}
-            title="Закрыть"
+            title={uiText("ui.admin.close")}
             type="button"
           >
             <X aria-hidden="true" size={16} />
@@ -373,7 +378,7 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
       )}
 
       <div
-        aria-label="Календарная дорожная карта портфеля"
+        aria-label={uiText("ui.portfolio.roadmapPortfolioCalendarRegion")}
         className="portfolio-roadmap-scroll"
         data-testid="portfolio-v2-roadmap"
         ref={scrollRef}
@@ -385,8 +390,8 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
           style={gridStyle}
         >
           <div className="portfolio-roadmap-calendar-head">
-            <div className="portfolio-roadmap-project-head">Проект</div>
-            <div className="portfolio-roadmap-track-head">Трек</div>
+            <div className="portfolio-roadmap-project-head">{uiText("ui.admin.project")}</div>
+            <div className="portfolio-roadmap-track-head">{uiText("ui.portfolio.roadmapTrackLabel")}</div>
             {roadmap.quarters.map((quarter) => (
               <div
                 className="portfolio-roadmap-quarter"
@@ -501,7 +506,7 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
                           ))}
                           {!hasSegments && trackIndex === 0 && (
                             <span className="portfolio-roadmap-empty-label">
-                              Нет пакетов работ в выбранном горизонте
+                              {uiText("ui.portfolio.roadmapNoWorkPackagesInHorizon")}
                             </span>
                           )}
                         </div>
@@ -515,7 +520,7 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
 
           {projectItems === null && !loadError && (
             <div className="portfolio-roadmap-no-results" role="status">
-              Загружаем дорожную карту...
+              {uiText("ui.portfolio.roadmapLoadingMessage")}
             </div>
           )}
 
@@ -530,14 +535,14 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
                 }}
                 type="button"
               >
-                Повторить
+                {uiText("ui.portfolio.retryAction")}
               </button>
             </div>
           )}
 
           {projectItems !== null && !loadError && roadmap.projectCount === 0 && (
             <div className="portfolio-roadmap-no-results">
-              Проекты по заданным фильтрам не найдены.
+              {uiText("ui.portfolio.roadmapNoProjectsForFilters")}
             </div>
           )}
         </div>
@@ -559,15 +564,15 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
           >
             <header>
               <div>
-                <h2 id="portfolio-roadmap-legend-title">Легенда этапов</h2>
+                <h2 id="portfolio-roadmap-legend-title">{uiText("ui.portfolio.roadmapStageLegendTitle")}</h2>
                 <span>HW / SW / G2M</span>
               </div>
               <button
-                aria-label="Закрыть легенду"
+                aria-label={uiText("ui.portfolio.roadmapCloseLegend")}
                 className="portfolio-roadmap-legend-close"
                 onClick={() => setLegendOpen(false)}
                 ref={legendCloseRef}
-                title="Закрыть"
+                title={uiText("ui.admin.close")}
                 type="button"
               >
                 <X aria-hidden="true" size={18} />
@@ -576,7 +581,7 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
             <div className="portfolio-roadmap-legend-content">
               {PORTFOLIO_ROADMAP_TRACKS.map((track) => (
                 <section className="portfolio-roadmap-legend-track" key={track.id}>
-                  <h3>{track.label}-трек</h3>
+                  <h3>{track.label}{uiText("ui.portfolio.roadmapTrackSuffix")}</h3>
                   <div>
                     {track.phases.map((phase) => (
                       <div className="portfolio-roadmap-legend-row" key={phase.id}>

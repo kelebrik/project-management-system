@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { ChevronDown, ChevronRight, Link as LinkIcon } from "lucide-react";
 import { ReadinessPanel } from '../components/automation/ReadinessPanel';
 import { useEffect, useState } from "react";
@@ -46,9 +47,10 @@ function OverviewStatusHistory({
   date: (value: string | null) => string;
   updates: OverviewStatusUpdate[];
 }) {
+  const { t: uiText } = useInterfaceTranslation();
   const statuses = sortedStatusUpdates(updates);
   if (statuses.length === 0) {
-    return <p className="overview-status-empty">Статусы пока не добавлены.</p>;
+    return <p className="overview-status-empty">{uiText("ui.projects.noStatusesAddedYet")}</p>;
   }
   return (
     <div className="overview-status-history">
@@ -63,6 +65,7 @@ function OverviewStatusHistory({
 }
 
 export function ProjectOverviewSummaryPage() {
+  const { t: uiText } = useInterfaceTranslation();
   const {
     date,
     openRaidItemFromOverview,
@@ -107,7 +110,7 @@ export function ProjectOverviewSummaryPage() {
       <ReadinessPanel key={project.id} projectId={project.id} />
       <article className="executive-overview-card danger">
         <div className="executive-overview-card-title">
-          <span>Ключевые риски и проблемы в красной зоне</span>
+          <span>{uiText("ui.projects.overviewRedZoneRisksAndIssuesTitle")}</span>
           <strong>{overviewDashboard.overviewRedZoneRisks.length}</strong>
         </div>
         <div className="executive-overview-list">
@@ -151,14 +154,14 @@ export function ProjectOverviewSummaryPage() {
             </div>
           ))}
           {overviewDashboard.overviewRedZoneRisks.length === 0 && (
-            <p>Рисков и проблем с оценкой 15+ нет.</p>
+            <p>{uiText("ui.projects.overviewNoScore15PlusRecords")}</p>
           )}
         </div>
       </article>
 
       <article className="executive-overview-card">
         <div className="executive-overview-card-title">
-          <span>Решения по ключевым открытым вопросам</span>
+          <span>{uiText("ui.projects.overviewDecisionsOnKeyQuestionsTitle")}</span>
           <strong>{overviewDashboard.decisionItems}</strong>
         </div>
         <div className="executive-overview-list">
@@ -173,7 +176,7 @@ export function ProjectOverviewSummaryPage() {
                   {issue.title}
                 </button>
                 <span>
-                  {issue.owner || "не назначен"} / срок {date(issue.dueDate)}
+                  {issue.owner || uiText("ui.projects.notAssignedLowercase")} {uiText("ui.projects.dueDateInlineSuffix")} {date(issue.dueDate)}
                 </span>
                 <button
                   type="button"
@@ -199,14 +202,14 @@ export function ProjectOverviewSummaryPage() {
             </div>
           ))}
           {overviewDashboard.overviewOpenDecisionItems.length === 0 && (
-            <p>Открытых вопросов, требующих решения, нет.</p>
+            <p>{uiText("ui.projects.overviewNoQuestionsRequiringDecision")}</p>
           )}
         </div>
       </article>
 
       <article className="executive-overview-card" id={RISK_TICKETS_SECTION_ID}>
         <div className="executive-overview-card-title">
-          <span>Тикеты под риском</span>
+          <span>{uiText("ui.projects.ticketsAtRiskTitle")}</span>
           <div className="executive-overview-card-title-actions">
             <strong>
               {riskTickets.loading || riskTickets.error || !riskTickets.available
@@ -216,8 +219,8 @@ export function ProjectOverviewSummaryPage() {
             <a
               className="overview-section-link"
               href={`#${RISK_TICKETS_SECTION_ID}`}
-              aria-label="Ссылка на раздел Тикеты под риском"
-              title="Ссылка на раздел"
+              aria-label={uiText("ui.projects.ticketsAtRiskAnchorLabel")}
+              title={uiText("ui.projects.sectionAnchorLabel")}
             >
               <LinkIcon size={14} />
             </a>
@@ -240,31 +243,31 @@ export function ProjectOverviewSummaryPage() {
               </span>
               {ticket.jiraTicketUrl && (
                 <a href={ticket.jiraTicketUrl} target="_blank" rel="noreferrer">
-                  Открыть Jira
+                  {uiText("ui.projects.openJiraAction")}
                 </a>
               )}
             </div>
           ))}
-          {riskTickets.loading && <p>Загрузка агрегата...</p>}
+          {riskTickets.loading && <p>{uiText("ui.projects.aggregateLoadingMessage")}</p>}
           {!riskTickets.loading && riskTickets.error && (
             <p>{riskTickets.error}</p>
           )}
           {!riskTickets.loading &&
             !riskTickets.error &&
             !riskTickets.available && (
-              <p>Агрегат «Тикеты под риском» пока не опубликован.</p>
+              <p>{uiText("ui.projects.ticketsAtRiskAggregateNotPublished")}</p>
             )}
           {!riskTickets.loading &&
             !riskTickets.error &&
             riskTickets.available &&
             riskTickets.tickets.length === 0 && (
-              <p>Тикетов под риском нет.</p>
+              <p>{uiText("ui.projects.noTicketsAtRisk")}</p>
             )}
           {riskTickets.total > riskTickets.tickets.length && (
             <p>
-              Показаны первые {riskTickets.tickets.length} из {riskTickets.total}
+              {uiText("ui.projects.showingFirstPrefix")} {riskTickets.tickets.length} {uiText("ui.portfolio.countRangeOf")} {riskTickets.total}
               {" "}
-              тикетов.
+              {uiText("ui.projects.ticketsCountSuffix")}
             </p>
           )}
         </div>
@@ -275,17 +278,17 @@ export function ProjectOverviewSummaryPage() {
         id={SCHEDULE_VARIANCE_SECTION_ID}
       >
         <div className="executive-overview-card-title">
-          <span>Отклонение сроков</span>
+          <span>{uiText("ui.projects.scheduleVarianceTitle")}</span>
           <div className="executive-overview-card-title-actions">
             <strong>
               {overviewDashboard.scheduleVarianceFromStructure > 0 ? "+" : ""}
-              {overviewDashboard.scheduleVarianceFromStructure} дн.
+              {overviewDashboard.scheduleVarianceFromStructure} {uiText("ui.portfolio.daysAbbrev")}
             </strong>
             <a
               className="overview-section-link"
               href={`#${SCHEDULE_VARIANCE_SECTION_ID}`}
-              aria-label="Ссылка на раздел Отклонение сроков"
-              title="Ссылка на раздел"
+              aria-label={uiText("ui.projects.scheduleVarianceAnchorLabel")}
+              title={uiText("ui.projects.sectionAnchorLabel")}
             >
               <LinkIcon size={14} />
             </a>
@@ -297,7 +300,7 @@ export function ProjectOverviewSummaryPage() {
         >
           {overviewDashboard.overviewScheduleDelayItems.length > 0 && (
             <div className="schedule-impact-group">
-              <h4>Максимальное влияние на отставание</h4>
+              <h4>{uiText("ui.projects.largestDelayImpactLabel")}</h4>
               {overviewDashboard.overviewScheduleDelayItems.map(({ item, delay }) => (
                 <div className="executive-overview-row" key={`delay-${item.id}`}>
                   <b>
@@ -305,8 +308,8 @@ export function ProjectOverviewSummaryPage() {
                     {item.code} {item.title}
                   </b>
                   <span>
-                    +{delay} календарных дней / исполнитель:{" "}
-                    {item.owner || "не назначен"}
+                    +{delay} {uiText("ui.projects.calendarDaysAssigneeLabel")}{" "}
+                    {item.owner || uiText("ui.projects.notAssignedLowercase")}
                   </span>
                 </div>
               ))}
@@ -314,7 +317,7 @@ export function ProjectOverviewSummaryPage() {
           )}
           {overviewDashboard.overviewScheduleAccelerationItems.length > 0 && (
             <div className="schedule-impact-group acceleration">
-              <h4>Максимальное влияние на опережение</h4>
+              <h4>{uiText("ui.projects.largestAheadOfScheduleImpactLabel")}</h4>
               {overviewDashboard.overviewScheduleAccelerationItems.map(
                 ({ item, acceleration }) => (
                   <div
@@ -326,8 +329,8 @@ export function ProjectOverviewSummaryPage() {
                       {item.code} {item.title}
                     </b>
                     <span>
-                      -{acceleration} календарных дней / исполнитель:{" "}
-                      {item.owner || "не назначен"}
+                      -{acceleration} {uiText("ui.projects.calendarDaysAssigneeLabel")}{" "}
+                      {item.owner || uiText("ui.projects.notAssignedLowercase")}
                     </span>
                   </div>
                 ),
@@ -336,7 +339,7 @@ export function ProjectOverviewSummaryPage() {
           )}
           {overviewDashboard.overviewScheduleDelayItems.length === 0 &&
             overviewDashboard.overviewScheduleAccelerationItems.length === 0 && (
-              <p>Отклонений от базового плана нет.</p>
+              <p>{uiText("ui.projects.noBaselineDeviations")}</p>
             )}
         </div>
       </article>

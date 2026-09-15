@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const today = new Date();
 
@@ -63,6 +63,7 @@ function wbsItem(
 }
 
 test("report builder creates and filters a project status report", async ({ page }) => {
+  page.on("pageerror", (error) => console.error(error.stack));
   await page.setViewportSize({ width: 1440, height: 900 });
   const wbsItems = [
     {
@@ -219,6 +220,8 @@ test("report builder creates and filters a project status report", async ({ page
       {
         id: "issue-1",
         source: "INTERNAL",
+        reporter: "РП",
+        category: "",
         title: "Вопрос согласования",
         severity: "MEDIUM",
         status: "Open",
@@ -240,6 +243,8 @@ test("report builder creates and filters a project status report", async ({ page
       {
         id: "closed-issue-1",
         source: "INTERNAL",
+        reporter: "РП",
+        category: "",
         title: "Закрытый вопрос согласования",
         severity: "LOW",
         status: "Closed",
@@ -373,4 +378,12 @@ test("report builder creates and filters a project status report", async ({ page
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(pageWidth.scrollWidth).toBeLessThanOrEqual(pageWidth.clientWidth);
+  await page.getByTestId("language-toggle").click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("button", { name: "Closed in the last two weeks", exact: true })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Assignee", exact: true })).not.toBeChecked();
+  await expect(page.locator(".report-data-head").first().locator("span").first()).toHaveText("Status");
+  await expect(page.getByRole("button", { name: "Drag field Status", exact: true })).toBeVisible();
+  await expect(page.locator("#project-status-report")).toContainText("Пакет интеграции");
+
 });

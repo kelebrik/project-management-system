@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/I18nProvider";
 import type { CSSProperties } from "react";
 
 type SkeletonBlockProps = {
@@ -23,9 +24,10 @@ export function SkeletonBlock({
 }
 
 /** Универсальный скелетон страницы: заголовок, ряд KPI-карточек и крупный блок. */
-export function PageSkeleton({ label = "Загрузка данных" }: { label?: string }) {
+export function PageSkeleton({ label }: { label?: string }) {
+  const { t } = useI18n();
   return (
-    <div className="skeleton-page" role="status" aria-busy="true" aria-label={label}>
+    <div className="skeleton-page" role="status" aria-busy="true" aria-label={label ?? t("common.loading")}>
       <SkeletonBlock height={26} width="38%" />
       <div className="skeleton-row">
         <SkeletonBlock height={78} />

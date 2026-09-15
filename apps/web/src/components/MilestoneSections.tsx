@@ -1,6 +1,8 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { useI18n } from "../i18n/I18nProvider";
 import { type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
-import { date, monthLabel, shortDate, startOfMonth } from "../app/dateUtils";
+import { startOfMonth } from "../app/dateUtils";
 import {
   MILESTONE_TODAY_LABEL_ID,
   milestoneLabelOffsetKey,
@@ -140,22 +142,23 @@ export function phaseAxisTitleStyle(
 }
 
 function MilestoneLegend() {
+  const { t: uiText } = useInterfaceTranslation();
   return (
-    <div className="milestone-legend" aria-label="Легенда вех">
+    <div className="milestone-legend" aria-label={uiText("ui.common.milestoneLegend")}>
       <span>
-        <i className="green" /> Пройдена
+        <i className="green" /> {uiText("ui.common.milestonePassed")}
       </span>
       <span>
-        <i className="blue" /> В работе перед вехой
+        <i className="blue" /> {uiText("ui.common.milestoneInProgressBefore")}
       </span>
       <span>
-        <i className="red" /> Просрочена
+        <i className="red" /> {uiText("ui.common.milestoneOverdue")}
       </span>
       <span>
-        <i className="gray" /> Не начата или запланирована
+        <i className="gray" /> {uiText("ui.common.milestoneNotStartedOrPlanned")}
       </span>
       <span>
-        <i className="today" /> Сегодня
+        <i className="today" /> {uiText("ui.common.today")}
       </span>
     </div>
   );
@@ -194,6 +197,8 @@ export function MilestoneTimelineSection({
   ) => void;
   onPrint: () => void;
 }) {
+  const { t: uiText } = useInterfaceTranslation();
+  const { formatters: { date, shortDate } } = useI18n();
   const hasHeader = Boolean(title) || Boolean(onToggleFullscreen) || Boolean(onPrint);
   const printContentHeight =
     timeline.lanes.length * timeline.laneHeight +
@@ -224,17 +229,17 @@ export function MilestoneTimelineSection({
                 onClick={onToggleFullscreen}
                 aria-label={
                   isFullscreen
-                    ? "Вернуть обычный режим вех по фазам"
-                    : "Развернуть вехи по фазам на весь экран"
+                    ? uiText("ui.common.exitFullscreenPhaseMilestones")
+                    : uiText("ui.common.fullscreenPhaseMilestones")
                 }
-                title={isFullscreen ? "Вернуть обычный режим" : "На весь экран"}
+                title={isFullscreen ? uiText("ui.common.exitFullscreen") : uiText("ui.common.fullScreen")}
               >
                 {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-                {isFullscreen ? "Обычный режим" : "На весь экран"}
+                {isFullscreen ? uiText("ui.common.normalMode") : uiText("ui.common.fullScreen")}
               </button>
             )}
             <button type="button" onClick={onPrint}>
-              Сохранить в PDF
+              {uiText("ui.common.saveAsPdf")}
             </button>
           </div>
         </div>
@@ -345,7 +350,7 @@ export function MilestoneTimelineSection({
                                 event,
                               )
                             }
-                            title="Перетащить подпись вехи"
+                            title={uiText("ui.common.dragMilestoneLabel")}
                           >
                             <span className="milestone-label-grip" aria-hidden="true">
                               ⋮⋮
@@ -368,10 +373,10 @@ export function MilestoneTimelineSection({
         ) : (
           <div className="empty-state">
             {timeline.hiddenStaleLaneCount
-              ? "Фазы, у которых все вехи завершены более 3 недель назад, скрыты."
+              ? uiText("ui.common.completedPhasesHiddenNotice")
               : timeline.hasMilestonesOutsideRange
-              ? "В окне от -2 до +4 месяцев от текущей даты нет вех."
-              : "В Структуре пока нет элементов типа «Веха»."}
+              ? uiText("ui.common.noMilestonesInWindow")
+              : uiText("ui.common.noMilestoneItemsInStructure")}
           </div>
         )}
       </div>
@@ -405,6 +410,8 @@ export function MilestoneSnakeTimelineSection({
   ) => void;
   onPrint: () => void;
 }) {
+  const { t: uiText } = useInterfaceTranslation();
+  const { formatters: { date, monthLabel, shortDate } } = useI18n();
   const milestones = timeline.lanes.flatMap((lane) => lane.items);
   const inlineMilestones = milestones;
   const milestoneLayouts = buildSnakeMilestoneLayouts(inlineMilestones);
@@ -471,16 +478,16 @@ export function MilestoneSnakeTimelineSection({
             onClick={onToggleFullscreen}
             aria-label={
               isFullscreen
-                ? "Вернуть обычный режим всех вех"
-                : "Развернуть все вехи на весь экран"
+                ? uiText("ui.common.exitFullscreenAllMilestones")
+                : uiText("ui.common.fullscreenAllMilestones")
             }
-            title={isFullscreen ? "Вернуть обычный режим" : "На весь экран"}
+            title={isFullscreen ? uiText("ui.common.exitFullscreen") : uiText("ui.common.fullScreen")}
           >
             {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            {isFullscreen ? "Обычный режим" : "На весь экран"}
+            {isFullscreen ? uiText("ui.common.normalMode") : uiText("ui.common.fullScreen")}
           </button>
           <button type="button" onClick={onPrint}>
-            Сохранить в PDF
+            {uiText("ui.common.saveAsPdf")}
           </button>
         </div>
       </div>
@@ -491,7 +498,7 @@ export function MilestoneSnakeTimelineSection({
             className="milestone-snake-svg"
             viewBox={`0 0 ${MILESTONE_SNAKE_WIDTH} ${MILESTONE_SNAKE_HEIGHT}`}
             role="img"
-            aria-label="Все вехи проекта на змеевидной временной шкале"
+            aria-label={uiText("ui.common.allMilestonesSerpentineTimeline")}
           >
             <defs>
               <marker
@@ -584,7 +591,7 @@ export function MilestoneSnakeTimelineSection({
                       x={todayLabelX}
                       y={todayLabelY}
                     >
-                      сегодня
+                      {uiText("ui.common.todayLowercase")}
                     </text>
                     <rect
                       className="milestone-snake-today-hitbox"
@@ -728,8 +735,8 @@ export function MilestoneSnakeTimelineSection({
         ) : (
           <div className="empty-state">
             {timeline.hasMilestonesOutsideRange
-              ? "Вехи не попали в диапазон графика."
-              : "В Структуре пока нет элементов типа «Веха»."}
+              ? uiText("ui.common.noMilestonesInChartRange")
+              : uiText("ui.common.noMilestoneItemsInStructure")}
           </div>
         )}
         </div>

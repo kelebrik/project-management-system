@@ -1,0 +1,16 @@
+import { reportMessages } from "./reportMessages";
+import { work } from "./work";
+import { catalogue } from "./messages";
+import { controls } from "./controls";
+import { navigation } from "./navigation";
+import { projects } from "./projects";
+import { admin } from "./admin";
+import { common } from "./common";
+export type Locale = "en" | "ru";
+export type Message = { en: string; ru: string };
+export const translations = { ...reportMessages, ...work, ...common, ...controls, ...navigation, ...projects, ...admin, ...catalogue } as const satisfies Record<string, Message>;
+export type TranslationKey = keyof typeof translations;
+type Slots<S extends string> = S extends `${string}{${infer P}}${infer Rest}` ? P | Slots<Rest> : never;
+export type TranslationParams<K extends TranslationKey> = Record<Slots<(typeof translations)[K]["en"]>, string | number>;
+export type Translator = <K extends TranslationKey>(key: K, ...args: keyof TranslationParams<K> extends never ? [] : [params: TranslationParams<K>]) => string;
+export type SimpleTranslationKey = { [K in TranslationKey]: keyof TranslationParams<K> extends never ? K : never }[TranslationKey];

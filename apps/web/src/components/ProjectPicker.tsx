@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { ChevronDown, Search } from "lucide-react";
 
 import type { ProjectListItem } from "../app/domainTypes";
@@ -28,6 +29,7 @@ export function ProjectPicker({
   selectedProjectId,
   targetView,
 }: ProjectPickerProps) {
+  const { t } = useI18n();
   return (
     <div className="project-picker">
       <button
@@ -35,15 +37,15 @@ export function ProjectPicker({
         className="project-picker-trigger"
         aria-label={
           selectedProject
-            ? `Проект ${selectedProject.code}. Открыть список проектов`
-            : "Выбрать проект"
+            ? t("picker.open", { code: selectedProject.code })
+            : t("picker.select")
         }
         title={selectedProject?.name}
         onClick={() => onOpenChange(!isOpen)}
         aria-expanded={isOpen}
       >
         <span>
-          {selectedProject ? selectedProject.code : "Выбрать проект"}
+          {selectedProject ? selectedProject.code : t("picker.select")}
         </span>
         <ChevronDown size={15} />
       </button>
@@ -54,12 +56,12 @@ export function ProjectPicker({
             <input
               value={projectSearch}
               onChange={(event) => onProjectSearchChange(event.target.value)}
-              placeholder="Поиск по коду, имени, РП"
+              placeholder={t("picker.search")}
             />
           </label>
           {recentProjects.length > 0 && !projectSearch.trim() && (
             <div className="project-picker-section">
-              <span>Недавние</span>
+              <span>{t("picker.recent")}</span>
               {recentProjects.map((item) => (
                 <button
                   type="button"
@@ -73,7 +75,7 @@ export function ProjectPicker({
             </div>
           )}
           <div className="project-picker-section">
-            <span>Все проекты</span>
+            <span>{t("picker.all")}</span>
             {filteredProjects.map((item) => (
               <button
                 type="button"
@@ -85,7 +87,7 @@ export function ProjectPicker({
                 <small>{item.name}</small>
               </button>
             ))}
-            {filteredProjects.length === 0 && <em>Проекты не найдены</em>}
+            {filteredProjects.length === 0 && <em>{t("picker.empty")}</em>}
           </div>
         </div>
       )}

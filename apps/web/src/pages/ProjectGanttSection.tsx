@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { useMemo, useState } from "react";
 import type { ScenarioResult } from "@pms/shared";
 import { LocateFixed, Maximize2, Minimize2, Redo2, Undo2 } from "lucide-react";
@@ -7,6 +8,7 @@ import { ProjectGanttPanel } from "./ProjectGanttPanel";
 import { ScenarioPanel } from '../components/automation/ScenarioPanel';
 
 export function ProjectGanttSection() {
+  const { t: uiText } = useInterfaceTranslation();
   const {
     activeWbsHierarchyLevel,
     fullscreenWorkspaceView,
@@ -44,8 +46,8 @@ export function ProjectGanttSection() {
                             <div className="gantt-controls">
                               <div className="gantt-controls-row">
                               {scenario && <div className="gantt-scenario-notice">
-                                <span role="status">Показан сценарий · рабочий план не изменён</span>
-                                <button type="button" onClick={() => setScenario(null)}>Вернуться к рабочему плану</button>
+                                <span role="status">{uiText("ui.projects.ganttScenarioPreviewNotice")}</span>
+                                <button type="button" onClick={() => setScenario(null)}>{uiText("ui.projects.ganttBackToWorkingPlan")}</button>
                               </div>}
                             <button
                               type="button"
@@ -53,13 +55,13 @@ export function ProjectGanttSection() {
                               onClick={() => toggleWorkspaceFullscreen("project-gantt")}
                               aria-label={
                                 fullscreenWorkspaceView === "project-gantt"
-                                  ? "Вернуть обычный режим Гантта"
-                                  : "Развернуть Гантт на весь экран"
+                                  ? uiText("ui.projects.ganttExitFullScreen")
+                                  : uiText("ui.projects.ganttEnterFullScreen")
                               }
                               title={
                                 fullscreenWorkspaceView === "project-gantt"
-                                  ? "Вернуть обычный режим"
-                                  : "На весь экран"
+                                  ? uiText("ui.common.exitFullscreen")
+                                  : uiText("ui.common.fullScreen")
                               }
                             >
                               {fullscreenWorkspaceView === "project-gantt" ? (
@@ -68,8 +70,8 @@ export function ProjectGanttSection() {
                                 <Maximize2 size={15} />
                               )}
                               {fullscreenWorkspaceView === "project-gantt"
-                                ? "Обычный режим"
-                                : "На весь экран"}
+                                ? uiText("ui.common.normalMode")
+                                : uiText("ui.common.fullScreen")}
                             </button>
                                 <button
                                   type="button"
@@ -79,8 +81,8 @@ export function ProjectGanttSection() {
                                   Boolean(scenario) || restoringWbsSnapshot ||
                                   wbsUndoStack.length === 0
                                 }
-                                aria-label="Откатить последнее изменение Гантта"
-                                title="Назад"
+                                aria-label={uiText("ui.projects.ganttUndoLastChange")}
+                                title={uiText("ui.projects.undoBackLabel")}
                               >
                                 <Undo2 size={15} />
                               </button>
@@ -92,35 +94,35 @@ export function ProjectGanttSection() {
                                   Boolean(scenario) || restoringWbsSnapshot ||
                                   wbsRedoStack.length === 0
                                 }
-                                aria-label="Вернуть отмененное изменение Гантта"
-                                title="Вперед"
+                                aria-label={uiText("ui.projects.ganttRedoLastChange")}
+                                title={uiText("ui.projects.redoForwardLabel")}
                               >
                                 <Redo2 size={15} />
                               </button>
-                              <div className="segmented-control" aria-label="Масштаб Гантта">
+                              <div className="segmented-control" aria-label={uiText("ui.projects.ganttZoomLabel")}>
                                 <button
                                   type="button"
                                   className={ganttScale === "week" ? "active" : ""}
                                   onClick={() => setGanttScale("week")}
                                 >
-                                  Недели
+                                  {uiText("ui.projects.ganttZoomWeeks")}
                                 </button>
                                 <button
                                   type="button"
                                   className={ganttScale === "month" ? "active" : ""}
                                   onClick={() => setGanttScale("month")}
                                 >
-                                  Месяцы
+                                  {uiText("ui.projects.ganttZoomMonths")}
                                 </button>
                                 <button
                                   type="button"
                                   className={ganttScale === "quarter" ? "active" : ""}
                                   onClick={() => setGanttScale("quarter")}
                                 >
-                                  Кварталы
+                                  {uiText("ui.projects.ganttZoomQuarters")}
                                 </button>
                               </div>
-                              <div className="segmented-control" aria-label="Диапазон Гантта">
+                              <div className="segmented-control" aria-label={uiText("ui.projects.ganttRangeLabel")}>
                                 {([30, 90, 180] as const).map((days) => (
                                   <button
                                     type="button"
@@ -128,7 +130,7 @@ export function ProjectGanttSection() {
                                     key={days}
                                     onClick={() => setGanttRangeDays(days)}
                                   >
-                                    {days} дн.
+                                    {days} {uiText("ui.portfolio.daysAbbrev")}
                                   </button>
                                 ))}
                                 <button
@@ -136,7 +138,7 @@ export function ProjectGanttSection() {
                                   className={ganttRangeDays === null ? "active" : ""}
                                   onClick={() => setGanttRangeDays(null)}
                                 >
-                                  Все
+                                  {uiText("ui.jira.all")}
                                 </button>
                               </div>
                               <button
@@ -151,25 +153,25 @@ export function ProjectGanttSection() {
                                     })
                                 }
                               >
-                                <LocateFixed size={15} /> Сегодня
+                                <LocateFixed size={15} /> {uiText("ui.common.today")}
                               </button>
                               <details className="view-settings-menu">
-                                <summary>Настройки вида</summary>
+                                <summary>{uiText("ui.projects.ganttViewSettingsLabel")}</summary>
                                 <div className="view-settings-popover">
                                   <button
                                     type="button"
                                     className={showGanttDependencies ? "active" : ""}
                                     onClick={toggleGanttDependencies}
                                   >
-                                    Связи
+                                    {uiText("ui.projects.ganttDependenciesToggle")}
                                   </button>
                                   <button
                                     type="button"
                                     className={showGanttCriticalPath ? "active" : ""}
                                     onClick={toggleGanttCriticalPath}
-                                    title="Показать задачи и связи с нулевым резервом"
+                                    title={uiText("ui.projects.ganttShowZeroFloatToggle")}
                                   >
-                                    Критический путь
+                                    {uiText("ui.automation.criticalPath")}
                                   </button>
                                   <button
                                     type="button"
@@ -178,7 +180,7 @@ export function ProjectGanttSection() {
                                       setShowGanttBaseline((current) => !current)
                                     }
                                   >
-                                    Базовый план
+                                    {uiText("ui.projects.ganttBaselineToggle")}
                                   </button>
                                   <button
                                     type="button"
@@ -187,17 +189,17 @@ export function ProjectGanttSection() {
                                       setShowGanttForecast((current) => !current)
                                     }
                                   >
-                                    Прогноз
+                                    {uiText("ui.projects.ganttForecastToggle")}
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => void resetGanttPanelSize()}
                                   >
-                                    Сбросить размер
+                                    {uiText("ui.projects.ganttResetSize")}
                                   </button>
                                 </div>
                               </details>
-                              <div className="segmented-control hierarchy-control" aria-label="Глубина иерархии Гантта">
+                              <div className="segmented-control hierarchy-control" aria-label={uiText("ui.projects.ganttHierarchyDepthLabel")}>
                                 {GANTT_HIERARCHY_LEVELS.map((level) => (
                                   <button
                                     type="button"
@@ -211,16 +213,16 @@ export function ProjectGanttSection() {
                                 ))}
                               </div>
                             </div>
-                            <div className="status-legend gantt-status-legend" aria-label="Легенда статусов">
-                              <span><i className="tone-b" />В работе</span>
-                              <span><i className="tone-g" />Сделано</span>
-                              <span><i className="tone-r" />Провалено</span>
-                              <span><i className="tone-p" />Просрочено</span>
-                              <span><i className="tone-x" />Не начато</span>
-                              <span><i className="tone-o" />Веха</span>
-                              <span><i className="tone-goal" />Цель</span>
-                              <span><i className="tone-critical" />Критический путь</span>
-                              <span><i className="tone-near-critical" />Резерв до 5 дн.</span>
+                            <div className="status-legend gantt-status-legend" aria-label={uiText("ui.projects.statusLegendTitle")}>
+                              <span><i className="tone-b" />{uiText("ui.projects.statusInProgress")}</span>
+                              <span><i className="tone-g" />{uiText("ui.projects.statusDone")}</span>
+                              <span><i className="tone-r" />{uiText("ui.projects.statusFailed")}</span>
+                              <span><i className="tone-p" />{uiText("ui.projects.statusOverdue")}</span>
+                              <span><i className="tone-x" />{uiText("ui.projects.statusNotStarted")}</span>
+                              <span><i className="tone-o" />{uiText("ui.projects.itemTypeMilestone")}</span>
+                              <span><i className="tone-goal" />{uiText("ui.projects.itemTypeGoal")}</span>
+                              <span><i className="tone-critical" />{uiText("ui.automation.criticalPath")}</span>
+                              <span><i className="tone-near-critical" />{uiText("ui.projects.ganttFloatUpToFiveDays")}</span>
                             </div>
                             <div className="gantt-warnings">
                             {(scenario?.warnings ?? project.criticalPath?.warnings)?.map((warning) => (

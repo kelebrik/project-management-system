@@ -30,7 +30,7 @@ import {
   wbsDraftDisplayLevel,
   wbsToneClass,
 } from "../app/wbsTree";
-import { wbsStatusLabel, wbsTypeLabel } from "../app/labels";
+import { useI18n } from "../i18n/I18nProvider";
 import type { WbsScheduleDriver } from "../wbsScheduleDriver";
 import {
   emptyReadonlyValue,
@@ -66,6 +66,7 @@ export function useWbsStructureTableController({
   wbsSort,
   wbsTree,
 }: UseWbsStructureTableControllerOptions) {
+  const { t: uiText, labels: { wbsStatusLabel, wbsTypeLabel } } = useI18n();
   const confirm = useConfirm();
   const pendingSaveTimersRef = useRef<Record<string, number>>({});
   const suppressedBlurSaveTargetsRef = useRef<WeakSet<EventTarget>>(
@@ -232,7 +233,7 @@ export function useWbsStructureTableController({
       wbsDraftsRef.current = next;
       return next;
     });
-    setNotice(`Вставлено строк из Excel: ${pastedRows.length}`);
+    setNotice(uiText("structure.pasted", { count: pastedRows.length }));
   };
 
   const renderWbsCell = (
@@ -256,8 +257,8 @@ export function useWbsStructureTableController({
                 onClick={() => toggleWbsCollapse(item.id)}
                 aria-label={
                   collapsedWbsIds.has(item.id)
-                    ? "Раскрыть элемент Структуры"
-                    : "Схлопнуть элемент Структуры"
+                    ? uiText("structure.expand")
+                    : uiText("structure.collapse")
                 }
               >
                 {collapsedWbsIds.has(item.id) ? "+" : "-"}
@@ -270,7 +271,7 @@ export function useWbsStructureTableController({
               className="wbs-row-select wbs-readonly-control"
               disabled
               tabIndex={-1}
-              aria-label={`Строка ${draft.code} доступна только для просмотра`}
+              aria-label={uiText("structure.readonlyRow", { code: draft.code })}
             />
             <span
               className={`wbs-color-dot ${
@@ -339,7 +340,7 @@ export function useWbsStructureTableController({
               readOnly
               tabIndex={-1}
               value={predecessorCode}
-              placeholder="Код"
+              placeholder={uiText("structure.code")}
             />
             <div className="wbs-predecessor-timing" aria-hidden="true">
               <button
@@ -447,8 +448,8 @@ export function useWbsStructureTableController({
                 onClick={() => toggleWbsCollapse(item.id)}
                 aria-label={
                   collapsedWbsIds.has(item.id)
-                    ? "Раскрыть элемент Структуры"
-                    : "Схлопнуть элемент Структуры"
+                    ? uiText("structure.expand")
+                    : uiText("structure.collapse")
                 }
               >
                 {collapsedWbsIds.has(item.id) ? "+" : "-"}
@@ -464,7 +465,7 @@ export function useWbsStructureTableController({
                 toggleWbsSelection(item.id, event.target.checked)
               }
               onClick={(event) => event.stopPropagation()}
-              aria-label={`Выбрать строку ${draft.code}`}
+              aria-label={uiText("structure.selectRow", { code: draft.code })}
             />
             <span
               className={`wbs-color-dot ${
@@ -497,7 +498,7 @@ export function useWbsStructureTableController({
           <div className="wbs-level-cell">
             <div
               className="wbs-level-stepper"
-              aria-label="Изменить уровень вложения"
+              aria-label={uiText("structure.level")}
             >
               <button
                 type="button"
@@ -512,7 +513,7 @@ export function useWbsStructureTableController({
                     { silent: true },
                   );
                 }}
-                aria-label="Уменьшить уровень вложения"
+                aria-label={uiText("structure.levelDown")}
               >
                 -
               </button>
@@ -529,7 +530,7 @@ export function useWbsStructureTableController({
                     { silent: true },
                   );
                 }}
-                aria-label="Увеличить уровень вложения"
+                aria-label={uiText("structure.levelUp")}
               >
                 +
               </button>
@@ -567,13 +568,13 @@ export function useWbsStructureTableController({
                 }}
                 aria-label={
                   wbsSort
-                    ? "Перемещение строк доступно после отключения сортировки"
-                    : "Перетащить строку Структуры"
+                    ? uiText("structure.dragDisabled")
+                    : uiText("structure.dragRow")
                 }
                 title={
                   wbsSort
-                    ? "Перемещение строк доступно после отключения сортировки"
-                    : "Перетащить строку Структуры"
+                    ? uiText("structure.dragDisabled")
+                    : uiText("structure.dragRow")
                 }
               >
                 ::
@@ -584,14 +585,14 @@ export function useWbsStructureTableController({
                 onClick={async () => {
                   if (
                     await confirm({
-                      title: "Удалить строку Структуры?",
-                      confirmLabel: "Удалить",
+                      title: uiText("structure.deleteRowTitle"),
+                      confirmLabel: uiText("structure.deleteAction"),
                     })
                   ) {
                     void deleteWbsItem(item.id);
                   }
                 }}
-                aria-label="Удалить строку Структуры"
+                aria-label={uiText("structure.deleteRow")}
               >
                 x
               </button>
@@ -607,7 +608,7 @@ export function useWbsStructureTableController({
                   void insertWbsRow(afterIndex, visibleStructureWbsTree);
                 }
               }}
-              aria-label="Добавить строку Структуры ниже"
+              aria-label={uiText("structure.addRow")}
             >
               +
             </button>
@@ -853,7 +854,7 @@ export function useWbsStructureTableController({
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
             onBlur={(event) => handleWbsBlur(event.currentTarget, item.id)}
-            placeholder="Комментарий"
+            placeholder={uiText("structure.comment")}
           />
         );
       case "predecessor1":
@@ -885,18 +886,18 @@ export function useWbsStructureTableController({
               onBlur={(event) =>
                 handleWbsBlur(event.currentTarget, item.id)
               }
-              placeholder="Код"
+              placeholder={uiText("structure.code")}
             />
-            <div className="wbs-predecessor-timing" aria-label="Расчет срока">
+            <div className="wbs-predecessor-timing" aria-label={uiText("structure.calculateDate")}>
               <button
                 type="button"
                 className={`wbs-predecessor-timing-button ${
                   timing === "SS" ? "active" : ""
                 }`}
                 disabled={!hasPredecessor}
-                aria-label="Считать от начала предшественника"
+                aria-label={uiText("structure.fromStart")}
                 aria-pressed={timing === "SS"}
-                title="Считать от начала предшественника"
+                title={uiText("structure.fromStart")}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => setPredecessorTiming(item.id, columnKey, "SS")}
               >
@@ -908,9 +909,9 @@ export function useWbsStructureTableController({
                   timing === "FS" ? "active" : ""
                 }`}
                 disabled={!hasPredecessor}
-                aria-label="Считать от конца предшественника"
+                aria-label={uiText("structure.fromEnd")}
                 aria-pressed={timing === "FS"}
-                title="Считать от конца предшественника"
+                title={uiText("structure.fromEnd")}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => setPredecessorTiming(item.id, columnKey, "FS")}
               >

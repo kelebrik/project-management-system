@@ -1,8 +1,10 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import { ProjectGanttSection } from "./ProjectGanttSection";
 import { ProjectStructureSection } from "./ProjectStructureSection";
 
 export function ProjectWorkspacePage() {
+  const { t: uiText } = useInterfaceTranslation();
   const ctx = usePageContext();
   const {
     activeView,
@@ -26,13 +28,13 @@ export function ProjectWorkspacePage() {
                       <div>
                         <h2>
                           {activeView === "project-structure"
-                            ? "Структура"
-                            : "Гантт"}
+                            ? uiText("ui.projects.structureTabLabel")
+                            : uiText("ui.projects.ganttTabLabel")}
                         </h2>
                         <p>
                           {activeView === "project-structure"
-                            ? "Иерархия работ проекта, сроки, ответственные, календарь и связи с предшественниками"
-                          : "Временная шкала проекта, связи и базовый план"}
+                            ? uiText("ui.projects.structureTabDescription")
+                          : uiText("ui.projects.ganttTabDescription")}
                       </p>
                     </div>
                         </div>

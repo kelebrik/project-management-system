@@ -1,3 +1,4 @@
+import { I18nProvider } from "../i18n/I18nProvider";
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as React from "react";
@@ -7,12 +8,12 @@ import { AuthPage } from "./AuthPage";
 test("authentication page offers password login and optional Keycloak SSO", () => {
   Object.assign(globalThis, { React });
   const html = renderToStaticMarkup(
-    React.createElement(AuthPage, {
+    React.createElement(I18nProvider, { initialLocale: "ru", children: React.createElement(AuthPage, {
       error: null,
       keycloakEnabled: true,
       onKeycloakLogin: () => undefined,
       onPasswordLogin: async () => undefined,
-    }),
+    }) }),
   );
 
   assert.match(html, /Войти через SSO/);
@@ -29,12 +30,12 @@ test("authentication page offers password login and optional Keycloak SSO", () =
 test("authentication page keeps password login when Keycloak is not configured", () => {
   Object.assign(globalThis, { React });
   const html = renderToStaticMarkup(
-    React.createElement(AuthPage, {
+    React.createElement(I18nProvider, { initialLocale: "ru", children: React.createElement(AuthPage, {
       error: null,
       keycloakEnabled: false,
       onKeycloakLogin: () => undefined,
       onPasswordLogin: async () => undefined,
-    }),
+    }) }),
   );
 
   assert.match(html, /type="password"/);

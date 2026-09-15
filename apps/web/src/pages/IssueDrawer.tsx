@@ -1,9 +1,11 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useConfirm } from "../hooks/useConfirm";
 import type { Issue } from "../app/domainTypes";
 
 export function IssueDrawer() {
+  const { t: uiText } = useInterfaceTranslation();
   const confirm = useConfirm();
   const ctx = usePageContext();
   const {
@@ -75,15 +77,15 @@ export function IssueDrawer() {
             >
               <div className="drawer-title">
                 <div>
-                  <h2 id="issue-drawer-title">Создать открытый вопрос</h2>
-                  <p>Срок, ответственный, влияние и связь с Jira</p>
+                  <h2 id="issue-drawer-title">{uiText("ui.projects.createOpenIssue")}</h2>
+                  <p>{uiText("ui.projects.issueDrawerSubtitle")}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
                     setIssueDrawerMode(null);
                   }}
-                  aria-label="Закрыть панель"
+                  aria-label={uiText("ui.projects.closePanel")}
                 >
                   x
                 </button>
@@ -91,7 +93,7 @@ export function IssueDrawer() {
               {issueDrawerMode === "create" && (
                 <form className="stack-form" onSubmit={createOpenIssue}>
                   <label className={issueFormErrors.title ? "field-error" : ""}>
-                    Заголовок
+                    {uiText("ui.projects.issueTitle")}
                     <input
                       value={issueForm.title}
                       onChange={(event) => {
@@ -104,7 +106,7 @@ export function IssueDrawer() {
                           title: event.target.value,
                         });
                       }}
-                      placeholder="Например: поставщик не подтвердил SLA"
+                      placeholder={uiText("ui.projects.issueTitlePlaceholder")}
                     />
                     {issueFormErrors.title && (
                       <small>{issueFormErrors.title}</small>
@@ -112,7 +114,7 @@ export function IssueDrawer() {
                   </label>
                   <div className="two-col issue-classification-fields">
                     <label>
-                      Раздел
+                      {uiText("ui.projects.section")}
                       <input
                         list="issue-create-categories"
                         value={issueForm.category}
@@ -120,16 +122,16 @@ export function IssueDrawer() {
                           ...issueForm,
                           category: event.target.value,
                         })}
-                        placeholder="Например: Организационные задачи"
+                        placeholder={uiText("ui.projects.issueSectionPlaceholder")}
                       />
                     </label>
                     <label>
-                      Фаза
+                      {uiText("ui.projects.phase")}
                       <select
                         value={issueForm.phaseId}
                         onChange={(event) => void selectPhase(event.target.value)}
                       >
-                        <option value="">Без фазы</option>
+                        <option value="">{uiText("ui.projects.noPhase")}</option>
                         {phases.map((phase: { id: string; code: string; title: string }) => (
                           <option value={phase.id} key={phase.id}>
                             {phase.code} · {phase.title}
@@ -138,7 +140,7 @@ export function IssueDrawer() {
                       </select>
                     </label>
                     <small>
-                      Выбор фазы создаёт пакет работ перед её последней целью или вехой.
+                      {uiText("ui.projects.phaseSelectionHint")}
                     </small>
                     <datalist id="issue-create-categories">
                       {categories.map((category) => <option value={category} key={category} />)}
@@ -146,7 +148,7 @@ export function IssueDrawer() {
                   </div>
                   <div className="two-col">
                     <label>
-                      Критичность
+                      {uiText("ui.projects.criticality")}
                       <select
                         value={issueForm.severity}
                         onChange={(event) =>
@@ -167,7 +169,7 @@ export function IssueDrawer() {
                       </select>
                     </label>
                     <label>
-                      Готовность
+                      {uiText("ui.projects.readiness")}
                       <select
                         value={issueForm.readiness}
                         onChange={(event) => setIssueForm({
@@ -175,13 +177,13 @@ export function IssueDrawer() {
                           readiness: event.target.value as Issue["readiness"],
                         })}
                       >
-                        <option value="RED">Красная</option>
-                        <option value="AMBER">Жёлтая</option>
-                        <option value="GREEN">Зелёная</option>
+                        <option value="RED">{uiText("ui.projects.red")}</option>
+                        <option value="AMBER">{uiText("ui.projects.yellow")}</option>
+                        <option value="GREEN">{uiText("ui.projects.green")}</option>
                       </select>
                     </label>
                     <label>
-                      Ответственный
+                      {uiText("ui.automation.owner")}
                       <input
                         value={issueForm.owner}
                         onChange={(event) =>
@@ -190,12 +192,12 @@ export function IssueDrawer() {
                             owner: event.target.value,
                           })
                         }
-                        placeholder="РП / поставщик / ИТ-эксплуатация"
+                        placeholder={uiText("ui.projects.ownerPlaceholderRoles")}
                       />
                     </label>
                   </div>
                   <label>
-                    Ссылка на трэд
+                    {uiText("ui.projects.threadLink")}
                     <input
                       type="url"
                       value={issueForm.referenceUrl}
@@ -207,7 +209,7 @@ export function IssueDrawer() {
                     />
                   </label>
                   <label>
-                    Влияние
+                    {uiText("ui.projects.impact")}
                     <textarea
                       value={issueForm.impact}
                       onChange={(event) =>
@@ -217,12 +219,12 @@ export function IssueDrawer() {
                         })
                       }
                       rows={3}
-                      placeholder="Влияние на сроки, содержание или решение руководства"
+                      placeholder={uiText("ui.projects.impactPlaceholder")}
                     />
                   </label>
                   <div className="two-col">
                     <label>
-                      Срок
+                      {uiText("ui.automation.dueDate")}
                       <input
                         type="date"
                         value={issueForm.dueDate}
@@ -245,14 +247,14 @@ export function IssueDrawer() {
                           })
                         }
                       />
-                      Требует решения
+                      {uiText("ui.projects.requiresDecision")}
                     </label>
                   </div>
                   <div className="jira-links-editor">
-                    <div className="subhead">Ссылка на тикет</div>
+                    <div className="subhead">{uiText("ui.projects.ticketLink")}</div>
                     <div className="issue-link-edit is-key-only">
                       <input
-                        aria-label="Ключ основного тикета"
+                        aria-label={uiText("ui.projects.primaryTicketKey")}
                         value={issueForm.jiraTicketKey}
                         onChange={(event) =>
                           setIssueForm({
@@ -263,7 +265,7 @@ export function IssueDrawer() {
                         placeholder="ERP-1842"
                       />
                     </div>
-                    <div className="subhead">Дополнительные ссылки на тикеты</div>
+                    <div className="subhead">{uiText("ui.projects.additionalTicketLinks")}</div>
                     {issueForm.jiraLinks.map((link, index) => (
                       <div className="issue-link-edit is-key-only" key={index}>
                         <input
@@ -280,16 +282,16 @@ export function IssueDrawer() {
                           type="button"
                           onClick={() => removeIssueFormLink(index)}
                         >
-                          Удалить
+                          {uiText("ui.admin.delete")}
                         </button>
                       </div>
                     ))}
                     <button type="button" onClick={addIssueFormLink}>
-                      + Добавить ссылку на тикет
+                      {uiText("ui.projects.addTicketLink")}
                     </button>
                   </div>
                   <button type="submit" disabled={creatingIssue}>
-                    {creatingIssue ? "Создаю..." : "Создать вопрос"}
+                    {creatingIssue ? uiText("ui.admin.creatingEllipsis") : uiText("ui.projects.createIssue")}
                   </button>
                 </form>
               )}

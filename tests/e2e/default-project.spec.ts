@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { mockAdminPortfolio, projectFixture } from "./overview-and-baseline.support";
 
 function projectsFixture() {

@@ -1,7 +1,9 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import type { UserRole } from "../app/adminTypes";
 
 export function AdminUsersPageContent() {
+  const { t } = useI18n();
   const ctx = usePageContext();
   const {
     createUser,
@@ -23,14 +25,14 @@ export function AdminUsersPageContent() {
                   <article className="panel project-card">
                     <div className="panel-title">
                       <div>
-                        <p>Базовые учетные записи, роли и доступ в систему</p>
+                        <p>{t("admin.users.description")}</p>
                       </div>
                     </div>
                     {currentUser?.role === "ADMIN" ? (
                       <>
                         <form className="user-create-form" onSubmit={createUser}>
                           <label>
-                            Имя
+                            {t("admin.name")}
                             <input
                               value={newUserForm.name}
                               onChange={(event) =>
@@ -39,7 +41,7 @@ export function AdminUsersPageContent() {
                                   name: event.target.value,
                                 })
                               }
-                              placeholder="Иван Иванов"
+                              placeholder={t("admin.users.placeholder")}
                             />
                           </label>
                           <label>
@@ -57,7 +59,7 @@ export function AdminUsersPageContent() {
                             />
                           </label>
                           <label>
-                            Роль
+                            {t("admin.role")}
                             <select
                               value={newUserForm.role}
                               onChange={(event) =>
@@ -74,16 +76,16 @@ export function AdminUsersPageContent() {
                             </select>
                           </label>
                           <button type="submit" disabled={creatingUser}>
-                            {creatingUser ? "Создаю..." : "Создать пользователя"}
+                            {creatingUser ? t("admin.users.creating") : t("admin.users.create")}
                           </button>
                         </form>
                         <div className="project-admin-table user-admin-table">
                           <div className="project-admin-head user-admin-head">
-                            <span>Имя</span>
+                            <span>{t("admin.name")}</span>
                             <span>Email</span>
-                            <span>Роль</span>
-                            <span>Активен</span>
-                            <span>Последний вход</span>
+                            <span>{t("admin.role")}</span>
+                            <span>{t("admin.active")}</span>
+                            <span>{t("admin.users.lastLogin")}</span>
                             <span />
                           </div>
                           {users.map((user) => {
@@ -91,7 +93,7 @@ export function AdminUsersPageContent() {
                             return (
                               <div className="project-admin-row user-admin-row" key={user.id}>
                                 <label>
-                                  <span>Имя</span>
+                                  <span>{t("admin.name")}</span>
                                   <input
                                     value={draft.name}
                                     onChange={(event) =>
@@ -114,7 +116,7 @@ export function AdminUsersPageContent() {
                                   />
                                 </label>
                                 <label>
-                                  <span>Роль</span>
+                                  <span>{t("admin.role")}</span>
                                   <select
                                     value={draft.role}
                                     onChange={(event) =>
@@ -130,7 +132,7 @@ export function AdminUsersPageContent() {
                                   </select>
                                 </label>
                                 <label className="checkbox-field">
-                                  <span>Активен</span>
+                                  <span>{t("admin.active")}</span>
                                   <input
                                     type="checkbox"
                                     checked={draft.isActive}
@@ -142,7 +144,7 @@ export function AdminUsersPageContent() {
                                   />
                                 </label>
                                 <div className="project-admin-readonly">
-                                  <span>Последний вход</span>
+                                  <span>{t("admin.users.lastLogin")}</span>
                                   <b>{date(user.lastLoginAt)}</b>
                                 </div>
                                 <div className="project-admin-actions">
@@ -152,8 +154,8 @@ export function AdminUsersPageContent() {
                                     disabled={savingUserId === user.id}
                                   >
                                     {savingUserId === user.id
-                                      ? "Сохраняю..."
-                                      : "Сохранить"}
+                                      ? t("fields.saving")
+                                      : t("fields.save")}
                                   </button>
                                 </div>
                               </div>
@@ -161,14 +163,14 @@ export function AdminUsersPageContent() {
                           })}
                           {users.length === 0 && (
                             <div className="empty-state">
-                              Пользователи еще не созданы.
+                              {t("admin.users.empty")}
                             </div>
                           )}
                         </div>
                       </>
                     ) : (
                       <div className="empty-state">
-                        Управление пользователями доступно только администратору.
+                        {t("admin.users.restricted")}
                       </div>
                     )}
                   </article>

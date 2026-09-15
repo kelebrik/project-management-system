@@ -1,6 +1,8 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
 export function AdminIntegrationsPageContent() {
+  const { t: uiText } = useInterfaceTranslation();
   const ctx = usePageContext();
   const {
     adminIntegrations,
@@ -30,30 +32,29 @@ export function AdminIntegrationsPageContent() {
                   <div className="panel-title">
                     <div>
                       <p>
-                        API-токены, webhook API и настройки внешних контуров:
-                        GitLab, GitHub, Azure DevOps и BI.
+                        {uiText("ui.admin.integrationsDescription")}
                       </p>
                     </div>
                     <button type="button" onClick={() => void reloadAdminIntegrations()}>
-                      Обновить
+                      {uiText("ui.admin.refresh")}
                     </button>
                   </div>
 
                   <div className="admin-integrations-grid">
                     <section className="admin-integration-card">
                       <div className="admin-integration-card-title">
-                        <h3>API-токены</h3>
+                        <h3>{uiText("ui.admin.apiTokens")}</h3>
                         <span>{adminIntegrations?.apiTokens.length ?? 0}</span>
                       </div>
                       {createdApiToken && (
                         <div className="token-once">
-                          <b>Токен показан один раз</b>
+                          <b>{uiText("ui.admin.tokenShownOnce")}</b>
                           <code>{createdApiToken}</code>
                         </div>
                       )}
                       <form className="integration-form" onSubmit={createApiToken}>
                         <label>
-                          Название
+                          {uiText("ui.admin.name")}
                           <input
                             value={apiTokenDraft.name}
                             onChange={(event) =>
@@ -65,7 +66,7 @@ export function AdminIntegrationsPageContent() {
                           />
                         </label>
                         <label>
-                          Права через запятую
+                          {uiText("ui.admin.commaSeparatedScopes")}
                           <input
                             value={apiTokenDraft.scopes}
                             onChange={(event) =>
@@ -78,7 +79,7 @@ export function AdminIntegrationsPageContent() {
                           />
                         </label>
                         <label>
-                          Лимит/мин.
+                          {uiText("ui.admin.limitPerMinute")}
                           <input
                             type="number"
                             min="10"
@@ -93,7 +94,7 @@ export function AdminIntegrationsPageContent() {
                           />
                         </label>
                         <label>
-                          Истекает
+                          {uiText("ui.admin.expires")}
                           <input
                             type="date"
                             value={apiTokenDraft.expiresAt}
@@ -106,7 +107,7 @@ export function AdminIntegrationsPageContent() {
                           />
                         </label>
                         <button type="submit" disabled={savingIntegration}>
-                          Создать токен
+                          {uiText("ui.admin.createToken")}
                         </button>
                       </form>
                       <div className="integration-table">
@@ -115,29 +116,29 @@ export function AdminIntegrationsPageContent() {
                             <div>
                               <b>{token.name}</b>
                               <small>
-                                {token.tokenPrefix}... / лимит {token.rateLimitPerMinute}
-                                /мин.
+                                {token.tokenPrefix}{uiText("ui.admin.usageOfLimit")} {token.rateLimitPerMinute}
+                                {uiText("ui.admin.perMinuteSuffix")}
                               </small>
-                              <small>{token.scopes.join(", ") || "без прав"}</small>
+                              <small>{token.scopes.join(", ") || uiText("ui.admin.noScopes")}</small>
                             </div>
                             <span
                               className={`integration-status ${
                                 token.isActive ? "active" : "inactive"
                               }`}
                             >
-                              {token.isActive ? "Активен" : "Отключен"}
+                              {token.isActive ? uiText("ui.admin.active") : uiText("ui.admin.disabled")}
                             </span>
                             <button
                               type="button"
                               onClick={() => void toggleApiToken(token)}
                               disabled={savingIntegration}
                             >
-                              {token.isActive ? "Отключить" : "Включить"}
+                              {token.isActive ? uiText("ui.admin.disable") : uiText("ui.admin.enable")}
                             </button>
                           </div>
                         ))}
                         {(adminIntegrations?.apiTokens.length ?? 0) === 0 && (
-                          <div className="empty-state">API-токены еще не созданы.</div>
+                          <div className="empty-state">{uiText("ui.admin.noApiTokensYet")}</div>
                         )}
                       </div>
                     </section>
@@ -149,7 +150,7 @@ export function AdminIntegrationsPageContent() {
                       </div>
                       <form className="integration-form" onSubmit={createWebhook}>
                         <label>
-                          Название
+                          {uiText("ui.admin.name")}
                           <input
                             value={webhookDraft.name}
                             onChange={(event) =>
@@ -174,7 +175,7 @@ export function AdminIntegrationsPageContent() {
                           />
                         </label>
                         <label>
-                          События
+                          {uiText("ui.admin.events")}
                           <input
                             value={webhookDraft.events}
                             onChange={(event) =>
@@ -183,7 +184,7 @@ export function AdminIntegrationsPageContent() {
                                 events: event.target.value,
                               })
                             }
-                            placeholder="* или project.updated"
+                            placeholder={uiText("ui.admin.eventsPlaceholderExample")}
                           />
                         </label>
                         <label>
@@ -210,10 +211,10 @@ export function AdminIntegrationsPageContent() {
                               })
                             }
                           />
-                          Активен
+                          {uiText("ui.admin.active")}
                         </label>
                         <button type="submit" disabled={savingIntegration}>
-                          Добавить webhook
+                          {uiText("ui.admin.addWebhook")}
                         </button>
                       </form>
                       <div className="integration-table">
@@ -229,33 +230,33 @@ export function AdminIntegrationsPageContent() {
                                 endpoint.isActive ? "active" : "inactive"
                               }`}
                             >
-                              {endpoint.isActive ? "Активен" : "Отключен"}
+                              {endpoint.isActive ? uiText("ui.admin.active") : uiText("ui.admin.disabled")}
                             </span>
                             <button
                               type="button"
                               onClick={() => void testWebhook(endpoint.id)}
                               disabled={savingIntegration || !endpoint.isActive}
                             >
-                              Тест
+                              {uiText("ui.admin.test")}
                             </button>
                             <button
                               type="button"
                               onClick={() => void toggleWebhook(endpoint)}
                               disabled={savingIntegration}
                             >
-                              {endpoint.isActive ? "Отключить" : "Включить"}
+                              {endpoint.isActive ? uiText("ui.admin.disable") : uiText("ui.admin.enable")}
                             </button>
                           </div>
                         ))}
                         {(adminIntegrations?.webhookEndpoints.length ?? 0) === 0 && (
-                          <div className="empty-state">Webhook endpoints еще не созданы.</div>
+                          <div className="empty-state">{uiText("ui.admin.noWebhookEndpointsYet")}</div>
                         )}
                       </div>
                     </section>
 
                     <section className="admin-integration-card">
                       <div className="admin-integration-card-title">
-                        <h3>Последние доставки</h3>
+                        <h3>{uiText("ui.admin.recentDeliveries")}</h3>
                         <span>{adminIntegrations?.webhookDeliveries.length ?? 0}</span>
                       </div>
                       <div className="integration-table compact">
@@ -277,14 +278,14 @@ export function AdminIntegrationsPageContent() {
                           </div>
                         ))}
                         {(adminIntegrations?.webhookDeliveries.length ?? 0) === 0 && (
-                          <div className="empty-state">Доставок пока нет.</div>
+                          <div className="empty-state">{uiText("ui.admin.noDeliveriesYet")}</div>
                         )}
                       </div>
                     </section>
 
                     <section className="admin-integration-card">
                       <div className="admin-integration-card-title">
-                        <h3>Enterprise-интеграции</h3>
+                        <h3>{uiText("ui.admin.enterpriseIntegrations")}</h3>
                       </div>
                       <form className="integration-form" onSubmit={saveSystemSettings}>
                         <label className="checkbox-line span-2">
@@ -298,7 +299,7 @@ export function AdminIntegrationsPageContent() {
                               })
                             }
                           />
-                          GitLab включен
+                          {uiText("ui.admin.gitlabEnabled")}
                         </label>
                         <label className="span-2">
                           GitLab URL
@@ -326,8 +327,8 @@ export function AdminIntegrationsPageContent() {
                             }
                             placeholder={
                               systemSettingHasValue(systemSettings, "gitlab.token")
-                                ? "задан, введите новый для замены"
-                                : "не задан"
+                                ? uiText("ui.admin.setEnterNewToReplace")
+                                : uiText("ui.admin.notSetMasculine")
                             }
                           />
                         </label>
@@ -342,7 +343,7 @@ export function AdminIntegrationsPageContent() {
                               })
                             }
                           />
-                          GitHub включен
+                          {uiText("ui.admin.githubEnabled")}
                         </label>
                         <label className="span-2">
                           GitHub API URL
@@ -370,8 +371,8 @@ export function AdminIntegrationsPageContent() {
                             }
                             placeholder={
                               systemSettingHasValue(systemSettings, "github.token")
-                                ? "задан, введите новый для замены"
-                                : "не задан"
+                                ? uiText("ui.admin.setEnterNewToReplace")
+                                : uiText("ui.admin.notSetMasculine")
                             }
                           />
                         </label>
@@ -386,7 +387,7 @@ export function AdminIntegrationsPageContent() {
                               })
                             }
                           />
-                          Azure DevOps включен
+                          {uiText("ui.admin.azureDevOpsEnabled")}
                         </label>
                         <label className="span-2">
                           Azure DevOps organization URL
@@ -414,8 +415,8 @@ export function AdminIntegrationsPageContent() {
                             }
                             placeholder={
                               systemSettingHasValue(systemSettings, "azureDevOps.token")
-                                ? "задан, введите новый для замены"
-                                : "не задан"
+                                ? uiText("ui.admin.setEnterNewToReplace")
+                                : uiText("ui.admin.notSetMasculine")
                             }
                           />
                         </label>
@@ -430,7 +431,7 @@ export function AdminIntegrationsPageContent() {
                               })
                             }
                           />
-                          BI включен
+                          {uiText("ui.admin.biEnabled")}
                         </label>
                         <label className="span-2">
                           BI export URL
@@ -446,7 +447,7 @@ export function AdminIntegrationsPageContent() {
                           />
                         </label>
                         <button type="submit" disabled={savingSystemSettings}>
-                          {savingSystemSettings ? "Сохраняю..." : "Сохранить интеграции"}
+                          {savingSystemSettings ? uiText("ui.admin.savingEllipsisDots") : uiText("ui.admin.saveIntegrations")}
                         </button>
                       </form>
                       <div className="integration-settings-list">
@@ -456,9 +457,9 @@ export function AdminIntegrationsPageContent() {
                             <small>
                               {setting.isSecret
                                 ? setting.hasValue
-                                  ? "задано"
-                                  : "не задано"
-                                : setting.value || "не задано"}
+                                  ? uiText("ui.admin.setNeuter")
+                                  : uiText("ui.admin.notSetNeuter")
+                                : setting.value || uiText("ui.admin.notSetNeuter")}
                             </small>
                           </div>
                         ))}

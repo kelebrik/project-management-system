@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { projectPagePath } from "./project-routes";
 
 test("read-only user can open core project pages without authentication", async ({ page }) => {

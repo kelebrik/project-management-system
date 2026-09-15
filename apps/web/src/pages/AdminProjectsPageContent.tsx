@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -8,6 +9,7 @@ import type { ProjectRegistryDraft } from "../app/formState";
 import type { RagStatus } from "../app/domainTypes";
 
 export function AdminProjectsPageContent() {
+  const { t: uiText } = useInterfaceTranslation();
   const ctx = usePageContext();
   const confirm = useConfirm();
   const {
@@ -82,26 +84,26 @@ export function AdminProjectsPageContent() {
                       <div className="panel-title">
                         <div>
                         <p>
-                          Управление кодами, наименованиями и иерархией проектов
+                          {uiText("ui.admin.manageProjectCodesNamesHierarchy")}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => void ctx.openProjectCreate()}
                       >
-                        Создать проект
+                        {uiText("ui.admin.createProject")}
                       </button>
                     </div>
                     <div className="project-admin-table">
                       <div className="project-admin-head">
-                        <span>Код</span>
-                        <span>Наименование</span>
-                        <span>Родитель</span>
-                        <span>БЮ</span>
-                        <span>РП</span>
-                        <span>Статус</span>
-                        <span>Индикатор</span>
-                        <span>Порядок</span>
+                        <span>{uiText("ui.admin.code")}</span>
+                        <span>{uiText("ui.admin.itemName")}</span>
+                        <span>{uiText("ui.admin.parent")}</span>
+                        <span>{uiText("ui.admin.businessUnitShort")}</span>
+                        <span>{uiText("ui.admin.projectManagerShort")}</span>
+                        <span>{uiText("ui.admin.status")}</span>
+                        <span>{uiText("ui.admin.indicator")}</span>
+                        <span>{uiText("ui.admin.order")}</span>
                         <span />
                       </div>
                       {activeProjectTree.map((item) => {
@@ -111,7 +113,7 @@ export function AdminProjectsPageContent() {
                         return (
                           <div className="project-admin-row" key={item.id}>
                             <label>
-                              <span>Код</span>
+                              <span>{uiText("ui.admin.code")}</span>
                               <input
                                 value={draft.code}
                                 onChange={(event) =>
@@ -137,7 +139,7 @@ export function AdminProjectsPageContent() {
                                 paddingLeft: `${Math.min(item.level * 18, 72) + 10}px`,
                               }}
                             >
-                              <span>Наименование</span>
+                              <span>{uiText("ui.admin.itemName")}</span>
                               <input
                                 value={draft.name}
                                 onChange={(event) =>
@@ -158,7 +160,7 @@ export function AdminProjectsPageContent() {
                               />
                             </label>
                             <label>
-                              <span>Родитель</span>
+                              <span>{uiText("ui.admin.parent")}</span>
                               <select
                                 value={draft.parentId}
                                 onChange={(event) =>
@@ -167,7 +169,7 @@ export function AdminProjectsPageContent() {
                                   })
                                 }
                               >
-                                <option value="">Корень</option>
+                                <option value="">{uiText("ui.admin.root")}</option>
                                 {activeProjectTree
                                   .filter((option) => option.id !== item.id)
                                   .map((option) => (
@@ -180,7 +182,7 @@ export function AdminProjectsPageContent() {
                             </label>
                             {currentUser?.role === "ADMIN" ? (
                               <label>
-                                <span>БЮ</span>
+                                <span>{uiText("ui.admin.businessUnitShort")}</span>
                                 <select
                                   value={item.businessUnitId}
                                   disabled={savingProjectRegistryId === item.id}
@@ -208,12 +210,12 @@ export function AdminProjectsPageContent() {
                               </label>
                             ) : (
                               <span className="project-admin-readonly">
-                                <span>БЮ</span>
+                                <span>{uiText("ui.admin.businessUnitShort")}</span>
                                 {item.businessUnit.name}
                               </span>
                             )}
                             <label>
-                              <span>РП</span>
+                              <span>{uiText("ui.admin.projectManagerShort")}</span>
                               <input
                                 value={draft.projectManager}
                                 onChange={(event) =>
@@ -234,7 +236,7 @@ export function AdminProjectsPageContent() {
                               />
                             </label>
                             <label>
-                              <span>Статус</span>
+                              <span>{uiText("ui.admin.status")}</span>
                               <select
                                 value={draft.status}
                                 onChange={(event) =>
@@ -250,7 +252,7 @@ export function AdminProjectsPageContent() {
                               </select>
                             </label>
                             <label>
-                              <span>Индикатор</span>
+                              <span>{uiText("ui.admin.indicator")}</span>
                               <select
                                 value={draft.rag}
                                 onChange={(event) =>
@@ -265,7 +267,7 @@ export function AdminProjectsPageContent() {
                               </select>
                             </label>
                             <label>
-                              <span>Порядок</span>
+                              <span>{uiText("ui.admin.order")}</span>
                               <input
                                 type="number"
                                 value={draft.sortOrder}
@@ -293,7 +295,7 @@ export function AdminProjectsPageContent() {
                                   selectProject(item.id, firstEnabledProjectView)
                                 }
                               >
-                                Открыть
+                                {uiText("ui.admin.open")}
                               </button>
                               <button
                                 type="button"
@@ -301,8 +303,8 @@ export function AdminProjectsPageContent() {
                                 disabled={savingProjectRegistryId === item.id}
                               >
                                 {savingProjectRegistryId === item.id
-                                  ? "Сохраняю..."
-                                  : "Сохранить"}
+                                  ? uiText("ui.admin.savingEllipsisDots")
+                                  : uiText("ui.admin.save")}
                               </button>
                               {currentUser?.role === "ADMIN" && (
                                 <>
@@ -310,9 +312,9 @@ export function AdminProjectsPageContent() {
                                     type="button"
                                     onClick={() => void closeProject(item.id)}
                                     disabled={savingProjectRegistryId === item.id}
-                                    title="Перенести проект в закрытые и заблокировать редактирование"
+                                    title={uiText("ui.admin.closeProjectTooltip")}
                                   >
-                                    Закрыть
+                                    {uiText("ui.admin.close")}
                                   </button>
                                   <button
                                     type="button"
@@ -330,10 +332,10 @@ export function AdminProjectsPageContent() {
                                       }
                                     }}
                                     disabled={savingProjectRegistryId === item.id}
-                                    title="Удалить проект и все связанные данные"
+                                    title={uiText("ui.admin.deleteProjectTooltip")}
                                   >
                                     <Trash2 size={14} />
-                                    Удалить
+                                    {uiText("ui.admin.delete")}
                                   </button>
                                 </>
                               )}
@@ -342,7 +344,7 @@ export function AdminProjectsPageContent() {
                         );
                       })}
                       {activeProjectTree.length === 0 && (
-                        <div className="empty-state">Активные проекты не найдены.</div>
+                        <div className="empty-state">{uiText("ui.admin.noActiveProjectsFound")}</div>
                       )}
                     </div>
                   </article>

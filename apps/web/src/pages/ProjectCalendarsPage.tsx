@@ -1,7 +1,9 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import type { ProjectCalendarCode } from "../app/wbsTable";
 
 export function ProjectCalendarsPage() {
+  const { t } = useI18n();
   const ctx = usePageContext();
   const {
     calendarMonthDays,
@@ -10,7 +12,6 @@ export function ProjectCalendarsPage() {
     isDefaultWorkingDay,
     isoDate,
     MONTH_LABELS,
-    PROJECT_CALENDAR_LABELS,
     projectCalendarYears,
     savingCalendar,
     setSelectedCalendarYear,
@@ -22,17 +23,16 @@ export function ProjectCalendarsPage() {
                   <article className="panel project-card">
                     <div className="panel-title">
                       <div>
-                        <h2>Календари</h2>
+                        <h2>{t("calendar.title")}</h2>
                         <p>
-                          RU и CN календари проекта: клик по дню меняет рабочий
-                          день на выходной или праздник и наоборот
+                          {t("calendar.description")}
                       </p>
                     </div>
                   </div>
                   <div className="calendar-page">
                     <div className="calendar-controls">
-                      <span>Год</span>
-                      <div className="segmented-control" aria-label="Год календарей">
+                      <span>{t("calendar.year")}</span>
+                      <div className="segmented-control" aria-label={t("calendar.yearLabel")}>
                         {projectCalendarYears.map((year) => (
                           <button
                             type="button"
@@ -49,7 +49,7 @@ export function ProjectCalendarsPage() {
                       (calendarCode) => (
                         <section className="calendar-board" key={calendarCode}>
                           <div className="calendar-board-title">
-                            <h3>{PROJECT_CALENDAR_LABELS[calendarCode]}</h3>
+                            <h3>{t("calendar.name", { code: calendarCode })}</h3>
                             <span>{calendarYear}</span>
                           </div>
                           <div className="calendar-months">
@@ -97,8 +97,8 @@ export function ProjectCalendarsPage() {
                                         }
                                         title={
                                           isWorkingDay
-                                            ? "Рабочий день"
-                                            : "Выходной / праздник"
+                                            ? t("calendar.working")
+                                            : t("calendar.holiday")
                                         }
                                       >
                                         {dayValue.getDate()}

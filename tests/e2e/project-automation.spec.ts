@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { createIssueSchema, raidItemSchema, wbsItemSchema } from '@pms/shared';
 import { mockAdminProject } from './overview-and-baseline.support';
 

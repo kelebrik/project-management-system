@@ -1,3 +1,7 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { intlLocale } from "../i18n/locale";
+import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
+import type { Locale } from "../i18n/types";
 import { useEffect, useMemo, type CSSProperties } from "react";
 import { usePageContext } from "./PageContext";
 import {
@@ -71,8 +75,8 @@ function parseGoalDate(value: string | null | undefined) {
   return Number.isNaN(day.getTime()) ? null : day;
 }
 
-function monthTickLabel(value: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
+function monthTickLabel(value: Date, uiLocale: Locale) {
+  return new Intl.DateTimeFormat(intlLocale(uiLocale), {
     month: "short",
     year: "2-digit",
   }).format(value);
@@ -80,6 +84,7 @@ function monthTickLabel(value: Date) {
 
 function createProjectGoalTimeline(
   items: WbsItem[],
+  uiLocale: Locale,
   today = new Date(),
 ): ProjectGoalTimelineModel | null {
   const rawItems = items
@@ -133,7 +138,7 @@ function createProjectGoalTimeline(
   ) {
     monthTicks.push({
       key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
-      label: monthTickLabel(cursor),
+      label: monthTickLabel(cursor, uiLocale),
       offset: offsetForDate(cursor),
     });
   }
@@ -158,6 +163,8 @@ function createProjectGoalTimeline(
 }
 
 export function ProjectOverviewMilestonesPage() {
+  const { t: uiText } = useInterfaceTranslation();
+  const { locale: uiLocale } = useLocaleTranslation();
   const ctx = usePageContext();
   const {
     activeMilestoneLabelDrag,
@@ -173,8 +180,8 @@ export function ProjectOverviewMilestonesPage() {
     toggleWorkspaceFullscreen,
   } = ctx;
   const projectGoalTimeline = useMemo(
-    () => createProjectGoalTimeline(project.wbsItems as WbsItem[]),
-    [project.wbsItems],
+    () => createProjectGoalTimeline(project.wbsItems as WbsItem[], uiLocale),
+    [project.wbsItems, uiLocale],
   );
   const goalPrintContentHeight =
     130 + (projectGoalTimeline?.items.length ?? 0) * 44;
@@ -211,7 +218,7 @@ export function ProjectOverviewMilestonesPage() {
       >
         <div className="panel-title">
           <div>
-            <h2>Цели проекта</h2>
+            <h2>{uiText("ui.projects.projectGoalsTitle")}</h2>
           </div>
         </div>
         {projectGoalTimeline ? (
@@ -222,7 +229,7 @@ export function ProjectOverviewMilestonesPage() {
                 className="portfolio-goal-today"
                 style={{ left: `${projectGoalTimeline.todayOffset}%` }}
               >
-                сегодня
+                {uiText("ui.common.todayLowercase")}
               </span>
               {projectGoalTimeline.monthTicks.map((tick) => (
                 <span
@@ -259,12 +266,12 @@ export function ProjectOverviewMilestonesPage() {
                     <b>{item.goalTitle}</b>
                     <small className="portfolio-goal-meta">
                       <span>
-                        базовый план {formatDate(item.baselineDueDate)}
+                        {uiText("ui.portfolio.baselineLowercase")} {formatDate(item.baselineDueDate)}
                       </span>
-                      <span>актуальный прогноз {formatDate(item.dueDate)}</span>
+                      <span>{uiText("ui.portfolio.currentForecastLowercase")} {formatDate(item.dueDate)}</span>
                       {item.delayDays !== null && item.delayDays > 0 && (
                         <span className="portfolio-goal-delay">
-                          отставание +{item.delayDays} дн.
+                          {uiText("ui.portfolio.delayPrefixPlus")}{item.delayDays} {uiText("ui.portfolio.daysAbbrev")}
                         </span>
                       )}
                     </small>
@@ -278,7 +285,7 @@ export function ProjectOverviewMilestonesPage() {
             </div>
           </div>
         ) : (
-          <div className="empty-state compact">Целей на шкале нет.</div>
+          <div className="empty-state compact">{uiText("ui.projects.noGoalsOnTimeline")}</div>
         )}
       </article>
 
@@ -291,7 +298,7 @@ export function ProjectOverviewMilestonesPage() {
       >
         <div className="panel-title">
           <div>
-            <h2>Вехи</h2>
+            <h2>{uiText("ui.projects.milestonesTitle")}</h2>
           </div>
           <div className="panel-title-actions">
             {project.jiraIntegration && (
@@ -301,7 +308,7 @@ export function ProjectOverviewMilestonesPage() {
                 target="_blank"
                 rel="noreferrer"
               >
-                Открыть доску Jira
+                {uiText("ui.projects.openJiraBoardAction")}
               </a>
             )}
           </div>

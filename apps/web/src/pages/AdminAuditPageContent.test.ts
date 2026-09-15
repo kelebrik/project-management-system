@@ -4,12 +4,14 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AdminAuditPageContent } from "./AdminAuditPageContent";
 import { PageContextProvider } from "./PageContext";
+import { I18nProvider } from "../i18n/I18nProvider";
 
 test("audit page renders field changes without a formatter in page context", () => {
   Object.assign(globalThis, { React });
   const html = renderToStaticMarkup(
     React.createElement(
-      PageContextProvider,
+      I18nProvider,
+      { initialLocale: "ru", children: React.createElement(PageContextProvider,
       {
         value: {
           auditActionLabel: (action: string) => action,
@@ -38,7 +40,7 @@ test("audit page renders field changes without a formatter in page context", () 
           reloadAuditEvents: () => undefined,
         },
         children: React.createElement(AdminAuditPageContent),
-      },
+      }) },
     ),
   );
 

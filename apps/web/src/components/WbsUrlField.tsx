@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { Pencil, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -17,13 +18,13 @@ const URL_FIELD_CONFIG = {
     label: "Jira",
     placeholder: "https://...",
     validate: isHttpsUrl,
-    invalidMessage: "Ссылка Jira должна начинаться с https://",
+    invalidMessageKey: "wbs.url.invalidJira",
   },
   mattermost: {
     label: "MM",
     placeholder: "https://mm.sberdevices.ru/...",
     validate: isMattermostUrl,
-    invalidMessage: "Ссылка MM должна вести на https://mm.sberdevices.ru",
+    invalidMessageKey: "wbs.url.invalidMattermost",
   },
 } as const;
 
@@ -35,6 +36,7 @@ export function WbsUrlField({
   onSave,
   value,
 }: WbsUrlFieldProps) {
+  const { t: uiText } = useInterfaceTranslation();
   const config = URL_FIELD_CONFIG[kind];
   const [editing, setEditing] = useState(false);
   const [buffer, setBuffer] = useState(value);
@@ -54,7 +56,7 @@ export function WbsUrlField({
   const commit = () => {
     const nextValue = buffer.trim();
     if (!config.validate(nextValue)) {
-      onInvalid?.(config.invalidMessage);
+      onInvalid?.(uiText(config.invalidMessageKey));
       cancel();
       return;
     }
@@ -68,7 +70,7 @@ export function WbsUrlField({
         ref={inputRef}
         className={config.validate(buffer) ? "" : "input-error"}
         aria-invalid={!config.validate(buffer)}
-        aria-label={`Ссылка ${config.label} ${contextLabel}`}
+        aria-label={uiText("wbs.url.inputLabel", { label: config.label, context: contextLabel })}
         value={buffer}
         placeholder={config.placeholder}
         onChange={(event) => setBuffer(event.target.value)}
@@ -107,8 +109,8 @@ export function WbsUrlField({
         <button
           type="button"
           className="wbs-url-edit"
-          aria-label={`${href ? "Изменить" : "Добавить"} ссылку ${config.label} ${contextLabel}`}
-          title={href ? `Изменить ссылку ${config.label}` : `Добавить ссылку ${config.label}`}
+          aria-label={uiText(href ? "wbs.url.editAction" : "wbs.url.addAction", { label: config.label, context: contextLabel })}
+          title={uiText(href ? "wbs.url.editTitle" : "wbs.url.addTitle", { label: config.label })}
           onClick={() => {
             skipBlurCommitRef.current = false;
             setBuffer(value);

@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../../i18n/I18nProvider";
 import { useState } from 'react';
 import { parseMeetingNotes, type MeetingDraft } from '@pms/shared';
 import { ApiError, apiClient } from '../../api/client';
@@ -9,6 +10,7 @@ type DraftRow = MeetingDraft & { selected: boolean; parentId: string; state?: 's
 const normalized = (value: string) => value.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 function MeetingNotesContent() {
+  const { t: uiText } = useInterfaceTranslation();
   const { project: rawProject, isReadOnly, isClosedProject, refreshProject, isProjectModuleEnabled } = usePageContext();
   const project = rawProject as ProjectDetails;
   const kindEnabled = (kind: MeetingDraft['kind']) => isProjectModuleEnabled(kind === 'TASK' ? 'structure' : kind === 'RISK' ? 'raid' : 'issues');
@@ -25,7 +27,7 @@ function MeetingNotesContent() {
     // Existing create handlers own the WBS queue; keep requests sequential and don't retry unknown outcomes.
     for (const row of rows.filter((item) => item.selected && kindEnabled(item.kind) && item.state !== 'saved' && item.state !== 'unknown')) {
       if (row.title.trim().length < 3 || savedTitles.has(normalized(row.title))) {
-        setRows((current) => current.map((item) => item.id === row.id ? { ...item, selected: false, state: 'error', message: row.title.trim().length < 3 ? 'Название должно содержать минимум 3 символа' : 'Похожая запись уже существует. Уточните название или пропустите строку.' } : item));
+        setRows((current) => current.map((item) => item.id === row.id ? { ...item, selected: false, state: 'error', message: row.title.trim().length < 3 ? uiText("meeting.shortTitle") : uiText("meeting.duplicate") } : item));
         continue;
       }
       try {
@@ -34,52 +36,53 @@ function MeetingNotesContent() {
             code: String(sequence++), title: row.title.trim(), type: 'TASK', status: 'NOT_STARTED', owner: row.owner.trim(),
             parentId: null, wbsLevel: 1,
             startDate: null, dueDate: row.dueDate || null, description: row.source, sortOrder,
-          }, 'Не удалось создать работу');
+          }, uiText("meeting.createWorkError"));
           sortOrder += 10;
         } else if (row.kind === 'ISSUE') {
-          await apiClient.post(`/api/projects/${project.id}/open-issues`, { title: row.title.trim(), owner: row.owner.trim(), dueDate: row.dueDate || null, impact: row.source, severity: 'MEDIUM', phaseId: null }, 'Не удалось создать вопрос');
+          await apiClient.post(`/api/projects/${project.id}/open-issues`, { title: row.title.trim(), owner: row.owner.trim(), dueDate: row.dueDate || null, impact: row.source, severity: 'MEDIUM', phaseId: null }, uiText("meeting.createIssueError"));
         } else {
-          await apiClient.post(`/api/projects/${project.id}/raid-items`, { type: 'RISK', title: row.title.trim(), description: row.source || row.title, owner: row.owner.trim(), dueDate: row.dueDate || null, probability: 0, impact: 0 }, 'Не удалось создать риск');
+          await apiClient.post(`/api/projects/${project.id}/raid-items`, { type: 'RISK', title: row.title.trim(), description: row.source || row.title, owner: row.owner.trim(), dueDate: row.dueDate || null, probability: 0, impact: 0 }, uiText("meeting.createRiskError"));
         }
         count++; savedTitles.add(normalized(row.title));
-        setRows((current) => current.map((item) => item.id === row.id ? { ...item, selected: false, state: 'saved', message: 'Создано' } : item));
+        setRows((current) => current.map((item) => item.id === row.id ? { ...item, selected: false, state: 'saved', message: uiText("meeting.created") } : item));
       } catch (failure) {
         const knownFailure = failure instanceof ApiError && failure.status >= 400 && failure.status < 500;
-        setRows((current) => current.map((item) => item.id === row.id ? { ...item, selected: false, state: knownFailure ? 'error' : 'unknown', message: knownFailure ? failure.message : 'Результат сохранения неизвестен. Проверьте реестр; автоматического повтора не будет.' } : item));
+        setRows((current) => current.map((item) => item.id === row.id ? { ...item, selected: false, state: knownFailure ? 'error' : 'unknown', message: knownFailure ? failure.message : uiText("meeting.unknown") } : item));
         if (!knownFailure) break;
       }
     }
-    setNotice(`Создано записей: ${count}`);
-    try { await refreshProject(); } catch { setError('Обновите страницу, чтобы увидеть созданные записи'); }
+    setNotice(uiText("meeting.createdCount", { count }));
+    try { await refreshProject(); } catch { setError(uiText("meeting.reload")); }
     setBusy(false);
   };
-  return <><p>Вставьте текст встречи, проверьте черновики и отметьте записи для создания. Неуказанные сроки и ответственные останутся пустыми.</p>
-    <p>Разбор по правилам: одна строка — один черновик. Метки: «Задача:», «Вопрос:», «Риск:», «Ответственный:», «Срок:». До 20 строк. Текст не отправляется внешнему ИИ.</p>
-    <label>Текст протокола<textarea className="automation-textarea" maxLength={30000} disabled={busy} value={text} onChange={(event) => setText(event.target.value)} placeholder={'Задача: Проверить образцы; Ответственный: Иванов; Срок: 2026-09-20\nВопрос: Согласовать дату поставки\nРиск: Задержка компонентов'} /></label>
-    <div className="automation-actions"><button disabled={busy || !text.trim()} onClick={() => { setRows(parseMeetingNotes(text).map((row) => ({ ...row, selected: false, parentId: '' }))); setNotice('Проверьте тип, название, сроки и отметьте нужные строки'); setError(''); }}>Подготовить черновики</button>
-      <button disabled={busy || isReadOnly || isClosedProject || !rows.some((row) => row.selected && !['saved', 'unknown'].includes(row.state ?? ''))} onClick={() => void save()}>{busy ? 'Создаем записи…' : 'Создать проверенные записи'}</button></div>
-    {text.split(/\r?\n/).filter((line) => line.trim()).length > 20 && <p className="automation-warning">Обрабатываются первые 20 непустых строк. Остальные обработайте следующей порцией.</p>}
+  return <><p>{uiText("ui.automation.meetingNotesIntro")}</p>
+    <p>{uiText("ui.automation.meetingNotesParsingRules")}</p>
+    <label>{uiText("ui.automation.meetingNotesText")}<textarea className="automation-textarea" maxLength={30000} disabled={busy} value={text} onChange={(event) => setText(event.target.value)} placeholder={uiText("ui.automation.meetingNotesPlaceholder")} /></label>
+    <div className="automation-actions"><button disabled={busy || !text.trim()} onClick={() => { setRows(parseMeetingNotes(text).map((row) => ({ ...row, selected: false, parentId: '' }))); setNotice(uiText("meeting.review")); setError(''); }}>{uiText("ui.automation.prepareDrafts")}</button>
+      <button disabled={busy || isReadOnly || isClosedProject || !rows.some((row) => row.selected && !['saved', 'unknown'].includes(row.state ?? ''))} onClick={() => void save()}>{busy ? uiText("ui.automation.creatingRecords") : uiText("ui.automation.createReviewedRecords")}</button></div>
+    {text.split(/\r?\n/).filter((line) => line.trim()).length > 20 && <p className="automation-warning">{uiText("ui.automation.firstTwentyLinesProcessed")}</p>}
     <AutomationError error={error} />{notice && <p role="status">{notice}</p>}
     {rows.map((row, index) => {
       const locked = busy || row.state === 'saved' || row.state === 'unknown';
       const duplicate = titles.has(normalized(row.title)) || rows.slice(0, index).some((other) => normalized(other.title) === normalized(row.title));
       return <article className="automation-card" key={row.id}>
-        <label className="automation-check"><input type="checkbox" disabled={locked || duplicate || !kindEnabled(row.kind) || isReadOnly || isClosedProject} checked={row.selected} onChange={(event) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, selected: event.target.checked } : item))} />Создать запись {index + 1}</label>
+        <label className="automation-check"><input type="checkbox" disabled={locked || duplicate || !kindEnabled(row.kind) || isReadOnly || isClosedProject} checked={row.selected} onChange={(event) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, selected: event.target.checked } : item))} />{uiText("ui.automation.createRecord")} {index + 1}</label>
         <div className="automation-grid">
-          <label>Тип записи<select disabled={locked} value={row.kind} onChange={(event) => edit(row.id, { kind: event.target.value as MeetingDraft['kind'] })}><option disabled={!kindEnabled('TASK')} value="TASK">Работа WBS</option><option disabled={!kindEnabled('ISSUE')} value="ISSUE">Открытый вопрос</option><option disabled={!kindEnabled('RISK')} value="RISK">Риск</option></select></label>
-          <label>Название<input disabled={locked} value={row.title} onChange={(event) => edit(row.id, { title: event.target.value })} /></label>
-          <label>Ответственный<input disabled={locked} value={row.owner} onChange={(event) => edit(row.id, { owner: event.target.value })} /></label>
-          <label>Срок<input type="date" disabled={locked} value={row.dueDate} onChange={(event) => edit(row.id, { dueDate: event.target.value })} /></label>
+          <label>{uiText("ui.automation.recordType")}<select disabled={locked} value={row.kind} onChange={(event) => edit(row.id, { kind: event.target.value as MeetingDraft['kind'] })}><option disabled={!kindEnabled('TASK')} value="TASK">{uiText("ui.automation.wbsWork")}</option><option disabled={!kindEnabled('ISSUE')} value="ISSUE">{uiText("ui.automation.openIssue")}</option><option disabled={!kindEnabled('RISK')} value="RISK">{uiText("ui.automation.risk")}</option></select></label>
+          <label>{uiText("ui.admin.name")}<input disabled={locked} value={row.title} onChange={(event) => edit(row.id, { title: event.target.value })} /></label>
+          <label>{uiText("ui.automation.owner")}<input disabled={locked} value={row.owner} onChange={(event) => edit(row.id, { owner: event.target.value })} /></label>
+          <label>{uiText("ui.automation.dueDate")}<input type="date" disabled={locked} value={row.dueDate} onChange={(event) => edit(row.id, { dueDate: event.target.value })} /></label>
         </div>
-        <details><summary>Исходная строка</summary><p>{row.source}</p></details>
-        {duplicate && row.state !== 'saved' && <p className="automation-warning">Похожее название уже существует. Уточните запись перед созданием.</p>}
-        {row.kind === 'TASK' && <p>Работа создается на верхнем уровне. Разместите ее в нужном пакете в Структуре.</p>}
-        {row.kind === 'RISK' && <p>После создания оцените вероятность и влияние риска в реестре.</p>}
-        {!kindEnabled(row.kind) && <p className="automation-warning">Модуль отключен. Выберите другой тип записи.</p>}
+        <details><summary>{uiText("ui.automation.sourceLine")}</summary><p>{row.source}</p></details>
+        {duplicate && row.state !== 'saved' && <p className="automation-warning">{uiText("ui.automation.similarNameExists")}</p>}
+        {row.kind === 'TASK' && <p>{uiText("ui.automation.workCreatedAtTopLevel")}</p>}
+        {row.kind === 'RISK' && <p>{uiText("ui.automation.rateRiskAfterCreation")}</p>}
+        {!kindEnabled(row.kind) && <p className="automation-warning">{uiText("ui.automation.moduleDisabledChooseAnotherType")}</p>}
         {row.message && <p role="status">{row.message}</p>}
-        <button disabled={locked} onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}>Убрать черновик</button>
+        <button disabled={locked} onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}>{uiText("ui.automation.removeDraft")}</button>
       </article>;
     })}
   </>;
 }
-export function MeetingNotesPanel({ projectId }: { projectId: string }) { return <AutomationPanel title="Из протокола — в поручения"><MeetingNotesContent key={projectId} /></AutomationPanel>; }
+export function MeetingNotesPanel({ projectId }: { projectId: string }) {
+  const { t: uiText } = useInterfaceTranslation(); return <AutomationPanel title={uiText("ui.automation.meetingNotesToActionItems")}><MeetingNotesContent key={projectId} /></AutomationPanel>; }

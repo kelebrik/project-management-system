@@ -1,7 +1,9 @@
+import { useI18n } from "../i18n/I18nProvider";
 import type { RolePermission, UserRole } from "../app/adminTypes";
 import { usePageContext } from "./PageContext";
 
 export function AdminRolesPageContent() {
+  const { t } = useI18n();
   const {
     adminPermissionLabel,
     adminPermissionOrder,
@@ -16,16 +18,16 @@ export function AdminRolesPageContent() {
       <section className="admin-role-section" aria-labelledby="system-role-heading">
         <div className="admin-role-section-heading">
           <div>
-            <h2 id="system-role-heading">Системные роли</h2>
-            <p>Две системные роли. Роль РП назначается правом редактирования конкретного проекта.</p>
+            <h2 id="system-role-heading">{t("admin.roles.title")}</h2>
+            <p>{t("admin.roles.description")}</p>
           </div>
           <button type="button" onClick={() => void reloadAdminConfig()}>
-            Обновить
+            {t("admin.refresh")}
           </button>
         </div>
         <div className="permission-table">
           <div className="permission-head">
-            <span>Право</span>
+            <span>{t("admin.roles.permission")}</span>
             <span>{userRoleLabel("ADMIN")}</span>
             <span>{userRoleLabel("EXECUTIVE_VIEWER")}</span>
           </div>
@@ -54,7 +56,7 @@ export function AdminRolesPageContent() {
                           !permission ||
                           savingRolePermissionId === permission.id
                         }
-                        title={isFixedUserPermission ? "Закреплено системной политикой" : undefined}
+                        title={isFixedUserPermission ? t("admin.roles.fixed") : undefined}
                         onChange={() => permission && void toggleRolePermission(permission)}
                       />
                     </label>

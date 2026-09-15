@@ -1,7 +1,9 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import type { CSSProperties } from "react";
 
 export function ClosedProjectsPage() {
+  const { t } = useI18n();
   const ctx = usePageContext();
   const {
     closedProjectTree,
@@ -14,21 +16,20 @@ export function ClosedProjectsPage() {
                 <article className="panel project-tree-panel">
                   <div className="panel-title">
                     <div>
-                      <h2>Закрытые проекты</h2>
+                      <h2>{t("archive.title")}</h2>
                       <p>
-                        Архив завершенных проектов. Проекты в этом разделе
-                        доступны только для просмотра.
+                        {t("archive.description")}
                       </p>
                     </div>
                   </div>
                   <div className="project-tree-list">
                     <div className="project-tree-head">
-                      <span>Код проекта</span>
-                      <span>Имя проекта</span>
+                      <span>{t("fields.projectCode")}</span>
+                      <span>{t("fields.projectName")}</span>
                       <span />
-                      <span>РП</span>
-                      <span>Прогресс</span>
-                      <span>Индикатор</span>
+                      <span>{t("fields.pm")}</span>
+                      <span>{t("fields.progress")}</span>
+                      <span>{t("fields.rag")}</span>
                     </div>
                     {closedProjectTree.map((item) => (
                       <div className="project-tree-row closed" key={item.id}>
@@ -51,7 +52,7 @@ export function ClosedProjectsPage() {
                           className="project-tree-open"
                           onClick={() => selectProject(item.id, firstEnabledProjectView)}
                         >
-                          Посмотреть
+                          {t("fields.view")}
                         </button>
                         <span>{item.projectManager}</span>
                         <span>{item.progress}%</span>
@@ -59,7 +60,7 @@ export function ClosedProjectsPage() {
                       </div>
                     ))}
                     {closedProjectTree.length === 0 && (
-                      <div className="empty-state">Закрытых проектов пока нет.</div>
+                      <div className="empty-state">{t("archive.empty")}</div>
                     )}
                   </div>
                 </article>

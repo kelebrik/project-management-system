@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { useMemo, useState } from "react";
 import { signedDaysUntil } from "../app/dateUtils";
 import type { Issue, RaidItem, WbsItem } from "../app/domainTypes";
@@ -73,6 +74,7 @@ function taskDraft(item: WbsItem, drafts: Record<string, WbsFormState>) {
 }
 
 export function ProjectPmWorkspacePage() {
+  const { t: uiText } = useInterfaceTranslation();
   const ctx = usePageContext();
   const {
     date,
@@ -135,12 +137,12 @@ export function ProjectPmWorkspacePage() {
     <section className="v2-page pm-workspace-page">
       <div className="v2-compact-header pm-workspace-header">
         <div>
-          <h2>Рабочий стол PM</h2>
+          <h2>{uiText("ui.projects.pmWorkspaceTitle")}</h2>
           <span>{project.name}</span>
         </div>
         <div className="v2-compact-actions">
           <button type="button" onClick={() => selectedRaid && openRaidItemFromOverview(selectedRaid.id, selectedRaid.type)}>
-            Открыть главный риск
+            {uiText("ui.projects.pmWorkspaceOpenTopRisk")}
           </button>
         </div>
       </div>
@@ -148,31 +150,31 @@ export function ProjectPmWorkspacePage() {
       <div className="v2-attention-strip pm-health-strip v2-summary-line">
         <div className="v2-attention-chip blue">
           <strong>{project.progress}%</strong>
-          <span>прогресс</span>
+          <span>{uiText("ui.projects.metricProgressLowercase")}</span>
         </div>
         <div className="v2-attention-chip green">
           <strong>{overviewDashboard.scheduleVarianceFromStructure <= 0 ? "OK" : `+${overviewDashboard.scheduleVarianceFromStructure}`}</strong>
-          <span>сроки</span>
+          <span>{uiText("ui.projects.metricScheduleLowercase")}</span>
         </div>
         <div className="v2-attention-chip amber">
           <strong>{openDecisions.length}</strong>
-          <span>решений</span>
+          <span>{uiText("ui.projects.metricDecisionsLowercase")}</span>
         </div>
         <div className="v2-attention-chip red">
           <strong>{redRaid.length}</strong>
-          <span>RAID красной зоны</span>
+          <span>{uiText("ui.projects.pmWorkspaceRedZoneRaidTitle")}</span>
         </div>
       </div>
 
       <div className="pm-priority-line">
         {delayedTasks[0] && (
           <button type="button" className="pm-priority-item red" onClick={() => focusTask(delayedTasks[0])}>
-            <span>Просрочено</span><b>{delayedTasks[0].title}</b><small>{date(delayedTasks[0].dueDate)}</small>
+            <span>{uiText("ui.projects.statusOverdue")}</span><b>{delayedTasks[0].title}</b><small>{date(delayedTasks[0].dueDate)}</small>
           </button>
         )}
         {selectedIssue && (
           <button type="button" className="pm-priority-item amber">
-            <span>Нужно решение</span><b>{selectedIssue.title}</b><small>{date(selectedIssue.dueDate)}</small>
+            <span>{uiText("ui.projects.pmWorkspaceDecisionNeededTitle")}</span><b>{selectedIssue.title}</b><small>{date(selectedIssue.dueDate)}</small>
           </button>
         )}
         {selectedRaid && (
@@ -191,23 +193,23 @@ export function ProjectPmWorkspacePage() {
           </div>
           <div className="pm-toolbar">
             <SegmentedFilter<TaskFilter>
-              ariaLabel="Фильтр задач рабочего стола"
+              ariaLabel={uiText("workspace.filterLabel")}
               value={taskFilter}
               onChange={setTaskFilter}
               options={[
-                { value: "all", label: "Все" },
-                { value: "week", label: "Неделя" },
-                { value: "critical", label: "Критический" },
-                { value: "overdue", label: "Просрочено" },
+                { value: "all", label: uiText("work.filter.all") },
+                { value: "week", label: uiText("workspace.week") },
+                { value: "critical", label: uiText("workspace.critical") },
+                { value: "overdue", label: uiText("work.filter.overdue") },
               ]}
             />
           </div>
           <div className="pm-wbs-table">
             <div className="pm-wbs-head">
-              <span>Код</span>
-              <span>Наименование</span>
-              <span>Статус</span>
-              <span>Срок</span>
+              <span>{uiText("ui.admin.code")}</span>
+              <span>{uiText("ui.admin.itemName")}</span>
+              <span>{uiText("ui.admin.status")}</span>
+              <span>{uiText("ui.automation.dueDate")}</span>
               <span>Owner</span>
             </div>
             {workspaceTasks.map((item) => {
@@ -223,12 +225,12 @@ export function ProjectPmWorkspacePage() {
                   <b>{draft.title}</b>
                   <span>{wbsStatusLabel(draft.status)}</span>
                   <span>{date(draft.dueDate)}</span>
-                  <span>{draft.owner || "не задан"}</span>
+                  <span>{draft.owner || uiText("ui.admin.notSetMasculine")}</span>
                 </button>
               );
             })}
             {workspaceTasks.length === 0 && (
-              <div className="v2-empty">Активных задач для рабочего стола нет.</div>
+              <div className="v2-empty">{uiText("ui.projects.pmWorkspaceNoActiveTasks")}</div>
             )}
           </div>
         </article>
@@ -241,7 +243,7 @@ export function ProjectPmWorkspacePage() {
           </div>
           <div className="pm-gantt">
             <div className="pm-gantt-labels">
-              <span>Структура</span>
+              <span>{uiText("ui.projects.structureTabLabel")}</span>
               {workspaceTasks.slice(0, 5).map((item) => (
                 <button type="button" key={item.id} onClick={() => focusTask(item)}>
                   {item.code} {item.title}
@@ -250,9 +252,9 @@ export function ProjectPmWorkspacePage() {
             </div>
             <div className="pm-gantt-canvas">
               <div className="pm-gantt-months">
-                <span>июль</span>
-                <span>август</span>
-                <span>сентябрь</span>
+                <span>{uiText("ui.projects.monthJulyLowercase")}</span>
+                <span>{uiText("ui.projects.monthAugustLowercase")}</span>
+                <span>{uiText("ui.projects.monthSeptemberLowercase")}</span>
               </div>
               <span className="pm-gantt-today" />
               {workspaceTasks.slice(0, 5).map((item) => {

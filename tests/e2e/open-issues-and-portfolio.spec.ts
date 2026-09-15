@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./fixtures";
 import {
   JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
   JIRA_ANALYTICS_FIELDS_BY_SOURCE,

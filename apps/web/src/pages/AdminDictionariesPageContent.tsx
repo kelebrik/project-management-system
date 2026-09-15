@@ -1,6 +1,8 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
 export function AdminDictionariesPageContent() {
+  const { t } = useI18n();
   const ctx = usePageContext();
   const {
     adminDictionaryLabels,
@@ -24,12 +26,12 @@ export function AdminDictionariesPageContent() {
                     <article className="panel project-card">
                       <div className="panel-title">
                         <div>
-                          <p>Единые значения для типов, статусов и критичности</p>
+                          <p>{t("admin.dictionaries.description")}</p>
                         </div>
                       </div>
                       <div className="dictionary-filter">
                         <label>
-                          Справочник
+                          {t("admin.dictionary")}
                           <select
                             value={selectedDictionary}
                             onChange={(event) => {
@@ -50,7 +52,7 @@ export function AdminDictionariesPageContent() {
                       </div>
                       <form className="dictionary-create-form" onSubmit={createDictionaryItem}>
                         <label>
-                          Справочник
+                          {t("admin.dictionary")}
                           <select
                             value={newDictionaryDraft.dictionary}
                             onChange={(event) =>
@@ -68,7 +70,7 @@ export function AdminDictionariesPageContent() {
                           </select>
                         </label>
                         <label>
-                          Код
+                          {t("fields.code")}
                           <input
                             value={newDictionaryDraft.code}
                             onChange={(event) =>
@@ -81,7 +83,7 @@ export function AdminDictionariesPageContent() {
                           />
                         </label>
                         <label>
-                          Название
+                          {t("fields.title")}
                           <input
                             value={newDictionaryDraft.label}
                             onChange={(event) =>
@@ -90,11 +92,11 @@ export function AdminDictionariesPageContent() {
                                 label: event.target.value,
                               })
                             }
-                            placeholder="Название"
+                            placeholder={t("fields.title")}
                           />
                         </label>
                         <label>
-                          Порядок
+                          {t("fields.order")}
                           <input
                             type="number"
                             value={newDictionaryDraft.sortOrder}
@@ -107,17 +109,17 @@ export function AdminDictionariesPageContent() {
                           />
                         </label>
                         <button type="submit" disabled={creatingDictionaryItem}>
-                          {creatingDictionaryItem ? "Сохраняю..." : "Добавить"}
+                          {creatingDictionaryItem ? t("fields.saving") : t("admin.add")}
                         </button>
                       </form>
                       <div className="dictionary-table">
                         <div className="dictionary-head">
-                          <span>Справочник</span>
-                          <span>Код</span>
-                          <span>Название</span>
-                          <span>Описание</span>
-                          <span>Порядок</span>
-                          <span>Активен</span>
+                          <span>{t("admin.dictionary")}</span>
+                          <span>{t("fields.code")}</span>
+                          <span>{t("fields.title")}</span>
+                          <span>{t("fields.description")}</span>
+                          <span>{t("fields.order")}</span>
+                          <span>{t("admin.active")}</span>
                           <span />
                         </div>
                         {filteredDictionaryItems.map((item) => {
@@ -126,7 +128,7 @@ export function AdminDictionariesPageContent() {
                           return (
                             <div className="dictionary-row" key={item.id}>
                               <label>
-                                <span>Справочник</span>
+                                <span>{t("admin.dictionary")}</span>
                                 <select
                                   value={draft.dictionary}
                                   onChange={(event) =>
@@ -143,7 +145,7 @@ export function AdminDictionariesPageContent() {
                                 </select>
                               </label>
                               <label>
-                                <span>Код</span>
+                                <span>{t("fields.code")}</span>
                                 <input
                                   value={draft.code}
                                   onChange={(event) =>
@@ -154,7 +156,7 @@ export function AdminDictionariesPageContent() {
                                 />
                               </label>
                               <label>
-                                <span>Название</span>
+                                <span>{t("fields.title")}</span>
                                 <input
                                   value={draft.label}
                                   onChange={(event) =>
@@ -165,7 +167,7 @@ export function AdminDictionariesPageContent() {
                                 />
                               </label>
                               <label>
-                                <span>Описание</span>
+                                <span>{t("fields.description")}</span>
                                 <input
                                   value={draft.description}
                                   onChange={(event) =>
@@ -176,7 +178,7 @@ export function AdminDictionariesPageContent() {
                                 />
                               </label>
                               <label>
-                                <span>Порядок</span>
+                                <span>{t("fields.order")}</span>
                                 <input
                                   type="number"
                                   value={draft.sortOrder}
@@ -188,7 +190,7 @@ export function AdminDictionariesPageContent() {
                                 />
                               </label>
                               <label className="checkbox-field">
-                                <span>Активен</span>
+                                <span>{t("admin.active")}</span>
                                 <input
                                   type="checkbox"
                                   checked={draft.isActive}
@@ -206,8 +208,8 @@ export function AdminDictionariesPageContent() {
                                   disabled={savingDictionaryItemId === item.id}
                                 >
                                   {savingDictionaryItemId === item.id
-                                    ? "Сохраняю..."
-                                    : "Сохранить"}
+                                    ? t("fields.saving")
+                                    : t("fields.save")}
                                 </button>
                                 <button
                                   type="button"
@@ -216,14 +218,14 @@ export function AdminDictionariesPageContent() {
                                     savingDictionaryItemId === item.id || !item.isActive
                                   }
                                 >
-                                  Отключить
+                                  {t("admin.disable")}
                                 </button>
                               </div>
                             </div>
                           );
                         })}
                         {filteredDictionaryItems.length === 0 && (
-                          <div className="empty-state">В выбранном справочнике пока нет записей.</div>
+                          <div className="empty-state">{t("admin.dictionaries.empty")}</div>
                         )}
                       </div>
 	                    </article>

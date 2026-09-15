@@ -1,3 +1,7 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { intlLocale } from "../i18n/locale";
+import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
+import type { Locale } from "../i18n/types";
 import { Settings2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -34,6 +38,7 @@ function ResourcePageShell({
   subtitle?: string;
   title?: string;
 }) {
+  const { t: uiText } = useInterfaceTranslation();
   return (
     <article className="panel project-card project-module-page resource-management-page">
       <div className="panel-title resource-profile-title">
@@ -42,10 +47,10 @@ function ResourcePageShell({
           {subtitle && <p>{subtitle}</p>}
         </div>
         <div className="resource-profile-actions">
-          <button type="button">Открыть календарь</button>
-          <button type="button">История</button>
+          <button type="button">{uiText("ui.resources.resourceOpenCalendarAction")}</button>
+          <button type="button">{uiText("ui.resources.historyAction")}</button>
           <button type="button" className="primary">
-            Запросить замену
+            {uiText("ui.resources.resourceRequestReplacementAction")}
           </button>
         </div>
       </div>
@@ -63,11 +68,11 @@ function avatarLetters(name: string) {
     .join("") || "Р";
 }
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null, uiLocale: Locale) {
   if (!value) return "не задано";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "не задано";
-  return date.toLocaleDateString("ru-RU", {
+  return date.toLocaleDateString(intlLocale(uiLocale), {
     day: "2-digit",
     month: "2-digit",
   });
@@ -102,6 +107,8 @@ function AssignmentStatus({ utilization }: { utilization: number }) {
 }
 
 export function ResourceOverviewPage() {
+  const { t: uiText } = useInterfaceTranslation();
+  const { locale: uiLocale } = useLocaleTranslation();
   const { resourceDashboard } = useResourceDashboard();
   const rows = resourceDashboard.rows;
   const [selectedOwner, setSelectedOwner] = useState(rows[0]?.owner ?? "");
@@ -127,7 +134,7 @@ export function ResourceOverviewPage() {
   if (!row) {
     return (
       <ResourcePageShell subtitle="Доступность, навыки, ставки, назначения и фактические часы по проектам.">
-        <div className="empty-state">Нет ресурсов для отображения.</div>
+        <div className="empty-state">{uiText("ui.resources.resourcesNoneToDisplay")}</div>
       </ResourcePageShell>
     );
   }
@@ -138,7 +145,7 @@ export function ResourceOverviewPage() {
         <section className="resource-profile-card">
           <div className="resource-avatar">{avatarLetters(row.owner)}</div>
           <label className="resource-profile-select">
-            <span>Ресурс</span>
+            <span>{uiText("ui.resources.resourceColumnLabel")}</span>
             <select
               value={row.owner}
               onChange={(event) => setSelectedOwner(event.target.value)}
@@ -166,24 +173,24 @@ export function ResourceOverviewPage() {
           </div>
           <dl className="resource-profile-facts">
             <div>
-              <dt>Менеджер</dt>
-              <dd>{row.profile.kind === "coordinator" ? row.owner : "не задан"}</dd>
+              <dt>{uiText("ui.resources.resourceManagerColumnLabel")}</dt>
+              <dd>{row.profile.kind === "coordinator" ? row.owner : uiText("ui.admin.notSetMasculine")}</dd>
             </div>
             <div>
-              <dt>Календарь</dt>
-              <dd>{row.calendarCode ?? "не задан"} / {row.capacityHoursPerWeek} ч</dd>
+              <dt>{uiText("ui.projects.calendarLabel")}</dt>
+              <dd>{row.calendarCode ?? uiText("ui.admin.notSetMasculine")} / {row.capacityHoursPerWeek} {uiText("ui.resources.hoursShortUnit")}</dd>
             </div>
             <div>
-              <dt>Плановая ставка</dt>
-              <dd>не задана</dd>
+              <dt>{uiText("ui.resources.resourcePlannedRateLabel")}</dt>
+              <dd>{uiText("ui.resources.resourceRateNotSetValue")}</dd>
             </div>
             <div>
-              <dt>Доступность</dt>
-              <dd>{row.capacityHoursPerWeek} ч/нед</dd>
+              <dt>{uiText("ui.resources.resourceAvailabilityLabel")}</dt>
+              <dd>{row.capacityHoursPerWeek} {uiText("ui.resources.hoursPerWeekShortUnit")}</dd>
             </div>
             <div>
-              <dt>Резерв</dt>
-              <dd>{Math.max(0, row.capacityHoursPerWeek - (selectedCell?.demandHours ?? 0))} ч/нед</dd>
+              <dt>{uiText("ui.resources.resourceReserveLabel")}</dt>
+              <dd>{Math.max(0, row.capacityHoursPerWeek - (selectedCell?.demandHours ?? 0))} {uiText("ui.resources.hoursPerWeekShortUnit")}</dd>
             </div>
           </dl>
         </section>
@@ -215,38 +222,38 @@ export function ResourceOverviewPage() {
           <div className="resource-profile-grid">
             <section className="resource-profile-panel">
               <div className="resource-panel-head">
-                <h3>Назначения</h3>
-                <span>июнь-июль</span>
+                <h3>{uiText("ui.resources.resourceAssignmentsTitle")}</h3>
+                <span>{uiText("ui.resources.resourcePeriodJuneJuly")}</span>
               </div>
               <div className="resource-assignment-table">
                 <div className="resource-assignment-head">
-                  <span>Работа</span>
-                  <span>Период</span>
-                  <span>План</span>
-                  <span>Факт</span>
-                  <span>Статус</span>
+                  <span>{uiText("ui.automation.workItem")}</span>
+                  <span>{uiText("ui.automation.period")}</span>
+                  <span>{uiText("ui.resources.planColumnLabel")}</span>
+                  <span>{uiText("ui.resources.actualColumnLabel")}</span>
+                  <span>{uiText("ui.admin.status")}</span>
                 </div>
                 {assignments.map((item) => (
                   <div className="resource-assignment-row" key={item.id}>
                     <b>
                       {item.code} {item.title}
                     </b>
-                    <span>{formatDate(item.startDate)}-{formatDate(item.dueDate)}</span>
-                    <span>{item.plannedHours} ч</span>
-                    <span>{Math.max(0, item.plannedHours - item.remainingHours)} ч</span>
+                    <span>{formatDate(item.startDate, uiLocale)}-{formatDate(item.dueDate, uiLocale)}</span>
+                    <span>{item.plannedHours} {uiText("ui.resources.hoursShortUnit")}</span>
+                    <span>{Math.max(0, item.plannedHours - item.remainingHours)} {uiText("ui.resources.hoursShortUnit")}</span>
                     <AssignmentStatus utilization={peakCell?.utilization ?? 0} />
                   </div>
                 ))}
                 {assignments.length === 0 && (
-                  <div className="resource-profile-empty">Активных назначений нет.</div>
+                  <div className="resource-profile-empty">{uiText("ui.resources.resourceNoActiveAssignments")}</div>
                 )}
               </div>
             </section>
 
             <section className="resource-profile-panel">
               <div className="resource-panel-head">
-                <h3>Загрузка по неделям</h3>
-                <span>capacity {row.capacityHoursPerWeek} ч</span>
+                <h3>{uiText("ui.resources.resourceWeeklyWorkloadTitle")}</h3>
+                <span>capacity {row.capacityHoursPerWeek} {uiText("ui.resources.hoursShortUnit")}</span>
               </div>
               <div className="resource-week-list">
                 {weeklyCells.map((cell) => (
@@ -267,8 +274,8 @@ export function ResourceOverviewPage() {
 
           <section className="resource-profile-panel">
             <div className="resource-panel-head">
-              <h3>Навыки и ограничения</h3>
-              <span>используется при подборе кандидатов</span>
+              <h3>{uiText("ui.resources.resourceSkillsAndConstraintsTitle")}</h3>
+              <span>{uiText("ui.resources.resourceSkillsUsedForMatchingHint")}</span>
             </div>
             <div className="resource-tag-row">
               {skillTags.map((tag, index) => (
@@ -288,33 +295,34 @@ export function ResourceOverviewPage() {
 }
 
 export function ResourceCapacityPage() {
+  const { t: uiText } = useInterfaceTranslation();
   const { resourceDashboard, updateResourceProfile } = useResourceDashboard();
   const visibleRows = resourceDashboard.rows.slice(0, 20);
 
   return (
     <ResourcePageShell
-      title="Параметры"
+      title={uiText("ui.resources.resourceSettingsTabLabel")}
       subtitle="Норма часов, FTE, доля проектной работы и операционка."
     >
       <section className="resource-panel">
         <div className="resource-panel-head">
           <div>
-            <h3>Параметры расчета загрузки</h3>
-            <p>Доступность = норма × FTE × проектная доля × доля этого контура.</p>
+            <h3>{uiText("ui.resources.resourceWorkloadSettingsTitle")}</h3>
+            <p>{uiText("ui.resources.resourceAvailabilityFormulaHint")}</p>
           </div>
           <Settings2 size={18} />
         </div>
         <div className="resource-capacity-table">
           <div className="resource-capacity-row resource-capacity-head">
-            <span>Ресурс</span>
-            <span>Тип</span>
-            <span>Роль</span>
-            <span>Норма</span>
+            <span>{uiText("ui.resources.resourceColumnLabel")}</span>
+            <span>{uiText("ui.admin.type")}</span>
+            <span>{uiText("ui.resources.resourceRoleColumnLabel")}</span>
+            <span>{uiText("ui.resources.resourceStandardHoursColumnLabel")}</span>
             <span>FTE</span>
-            <span>Проекты</span>
-            <span>Этот контур</span>
-            <span>Операционка</span>
-            <span>Доступно</span>
+            <span>{uiText("ui.admin.projects")}</span>
+            <span>{uiText("ui.resources.resourceThisUnitColumnLabel")}</span>
+            <span>{uiText("ui.resources.resourceOperationsColumnLabel")}</span>
+            <span>{uiText("ui.resources.resourceAvailableColumnLabel")}</span>
           </div>
           {visibleRows.map((row) => (
             <div className="resource-capacity-row" key={row.owner}>
@@ -410,12 +418,12 @@ export function ResourceCapacityPage() {
                   }
                 />
               </label>
-              <strong>{row.capacityHoursPerWeek} ч/нед</strong>
+              <strong>{row.capacityHoursPerWeek} {uiText("ui.resources.hoursPerWeekShortUnit")}</strong>
             </div>
           ))}
           {visibleRows.length === 0 && (
             <div className="resource-muted-card">
-              Нет ресурсов для настройки.
+              {uiText("ui.resources.resourcesNoneToConfigure")}
             </div>
           )}
         </div>

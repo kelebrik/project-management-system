@@ -1,6 +1,8 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
 export function AdminModulesPageContent() {
+  const { t, labels } = useI18n();
   const ctx = usePageContext();
   const {
     normalizedProjectModules,
@@ -14,18 +16,17 @@ export function AdminModulesPageContent() {
                   <div className="panel-title">
                     <div>
                       <p>
-                        Включение и скрытие страниц раздела Проекты для всех
-                        пользователей.
+                        {t("admin.modules.description")}
                       </p>
                     </div>
                   </div>
                   <div className="project-module-admin">
                     <div className="project-module-table">
                       <div className="project-module-head">
-                        <span>Страница</span>
-                        <span>Адрес</span>
-                        <span>Назначение</span>
-                        <span>Показывать</span>
+                        <span>{t("admin.modules.page")}</span>
+                        <span>{t("admin.modules.address")}</span>
+                        <span>{t("admin.modules.purpose")}</span>
+                        <span>{t("admin.modules.show")}</span>
                       </div>
                       {normalizedProjectModules.map((module) => {
                         const enabled =
@@ -33,11 +34,11 @@ export function AdminModulesPageContent() {
                         return (
                           <div className="project-module-row" key={module.key}>
                             <div>
-                              <b>{module.label}</b>
+                              <b>{labels.moduleLabel(module.key)}</b>
                               <small>{module.key}</small>
                             </div>
                             <code>/{module.route}</code>
-                            <span>{module.description}</span>
+                            <span>{labels.moduleDescription(module.key)}</span>
                             <label className="module-switch">
                               <input
                                 type="checkbox"
@@ -50,14 +51,14 @@ export function AdminModulesPageContent() {
                                   )
                                 }
                               />
-                              <span>{enabled ? "Включена" : "Скрыта"}</span>
+                              <span>{enabled ? t("admin.modules.enabled") : t("admin.modules.hidden")}</span>
                             </label>
                           </div>
                         );
                       })}
                     </div>
                     {savingProjectModules && (
-                      <p className="module-save-state">Сохраняю настройки...</p>
+                      <p className="module-save-state">{t("admin.modules.saving")}</p>
                     )}
                   </div>
                 </article>

@@ -1,3 +1,7 @@
+import { createTranslator } from "../i18n/translate";
+import { createFormatters } from "../i18n/formatters";
+import { createDomainLabels } from "../i18n/domainLabels";
+import type { Locale } from "../i18n/types";
 import {
   labels,
   type IssueSeverity,
@@ -184,22 +188,23 @@ export function projectHealthLabel(rag: RagStatus) {
 export function projectScheduleHealth(
   rag: RagStatus,
   scheduleVarianceDays: number,
+  locale: Locale = "ru",
 ) {
   if (scheduleVarianceDays > 10) {
     return {
       tone: "red" as const,
-      label: `Отставание +${scheduleVarianceDays} дн.`,
+      label: createTranslator(locale)("topbar.delay", { days: createFormatters(locale).signedDaysLabel(scheduleVarianceDays) }),
     };
   }
   if (scheduleVarianceDays > 0) {
     return {
       tone: "amber" as const,
-      label: `Отставание +${scheduleVarianceDays} дн.`,
+      label: createTranslator(locale)("topbar.delay", { days: createFormatters(locale).signedDaysLabel(scheduleVarianceDays) }),
     };
   }
   return {
     tone: rag.toLowerCase() as Lowercase<RagStatus>,
-    label: projectHealthLabel(rag),
+    label: createDomainLabels(locale).projectHealthLabel(rag),
   };
 }
 

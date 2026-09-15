@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { auditFieldLabel } from "../app/labels";
 import { usePageContext } from "./PageContext";
 
@@ -16,6 +17,7 @@ function canRestoreTombstone(event: { wbsTombstone?: { restoredAt: string | null
 }
 
 export function AdminAuditPageContent() {
+  const { t: uiText } = useInterfaceTranslation();
   const ctx = usePageContext();
   const {
     auditActionLabel,
@@ -30,18 +32,18 @@ export function AdminAuditPageContent() {
                   <article className="panel project-card">
                     <div className="panel-title">
                       <div>
-                        <p>Последние системные события и изменения данных</p>
+                        <p>{uiText("ui.admin.recentSystemEvents")}</p>
                       </div>
                       <button type="button" onClick={() => void reloadAuditEvents()}>
-                        Обновить
+                        {uiText("ui.admin.refresh")}
                       </button>
                     </div>
                     <div className="audit-table">
                       <div className="audit-head">
-                        <span>Время</span>
-                        <span>Действие</span>
-                        <span>Пользователь</span>
-                        <span>Объект</span>
+                        <span>{uiText("ui.admin.time")}</span>
+                        <span>{uiText("ui.admin.action")}</span>
+                        <span>{uiText("ui.admin.user")}</span>
+                        <span>{uiText("ui.admin.object")}</span>
                         <span>IP</span>
                       </div>
                       {auditEvents.map((event) => (
@@ -50,13 +52,13 @@ export function AdminAuditPageContent() {
                             <span>{dateTime(event.createdAt)}</span>
                             <strong>{auditActionLabel(event.action)}</strong>
                             <span>
-                              {event.actorName || event.actorEmail || "Система"}
+                              {event.actorName || event.actorEmail || uiText("ui.admin.system")}
                             </span>
                             <span>
                               {auditObjectLabel(event)}
                               {event.objectId ? `: ${event.objectId}` : ""}
                             </span>
-                            <span>{event.ipAddress || "не задано"}</span>
+                            <span>{event.ipAddress || uiText("ui.admin.notSetNeuter")}</span>
                           </div>
                           {event.changes && event.changes.length > 0 && (
                             <div className="audit-changes">
@@ -82,7 +84,7 @@ export function AdminAuditPageContent() {
                                   type="button"
                                   onClick={() => void restoreWbsTombstone(event.wbsTombstone!.id)}
                                 >
-                                  Восстановить
+                                  {uiText("ui.admin.restore")}
                                 </button>
                               )}
                             </div>
@@ -91,7 +93,7 @@ export function AdminAuditPageContent() {
                       ))}
                       {auditEvents.length === 0 && (
                         <div className="empty-state">
-                          События аудита пока не записаны.
+                          {uiText("ui.admin.noAuditEvents")}
                         </div>
                       )}
                     </div>

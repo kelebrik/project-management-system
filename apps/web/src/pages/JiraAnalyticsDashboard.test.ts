@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { JiraSemanticAggregatePublic, JiraSemanticWidget } from "@pms/shared";
 
 import { JiraWidgetFilters } from "../components/JiraWidgetFilters";
+import { I18nProvider } from "../i18n/I18nProvider";
 
 Object.assign(globalThis, { React });
 
@@ -49,11 +50,11 @@ function renderEditor(filterLogic: JiraSemanticWidget["filterLogic"]) {
     width: "half",
   } satisfies JiraSemanticWidget;
 
-  return renderToStaticMarkup(React.createElement(JiraWidgetFilters, {
+  return renderToStaticMarkup(React.createElement(I18nProvider, { initialLocale: "ru" }, React.createElement(JiraWidgetFilters, {
     widget,
     fields: ["issueKey", "status", "labels"],
     onChange: () => undefined,
-  }));
+  })));
 }
 
 test("widget editor renders one accessible logic connector between every condition", () => {

@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/I18nProvider";
 import type { SavedView } from "../app/domainTypes";
 
 type SavedViewControlsProps = {
@@ -21,10 +22,11 @@ export function SavedViewControls({
   savedViewName,
   savedViews,
 }: SavedViewControlsProps) {
+  const { t } = useI18n();
   return (
-    <div className="saved-view-controls" aria-label="Сохраненные представления">
+    <div className="saved-view-controls" aria-label={t("views.saved")}>
       <label>
-        Представление
+        {t("views.view")}
         <select
           value=""
           onChange={(event) => {
@@ -34,22 +36,22 @@ export function SavedViewControls({
           }}
         >
           <option value="">
-            {savedViews.length > 0 ? "Выбрать сохраненное" : "Нет сохраненных"}
+            {savedViews.length > 0 ? t("views.select") : t("views.empty")}
           </option>
           {savedViews.map((view) => (
             <option key={view.id} value={view.id}>
               {view.name}
-              {view.isShared ? " / общее" : ""}
+              {view.isShared ? ` / ${t("views.shared")}` : ""}
             </option>
           ))}
         </select>
       </label>
       <label>
-        Новое представление
+        {t("views.new")}
         <input
           value={savedViewName}
           onChange={(event) => onNameChange(event.target.value)}
-          placeholder="Название вида"
+          placeholder={t("views.name")}
           disabled={!isAuthenticated}
         />
       </label>
@@ -59,11 +61,11 @@ export function SavedViewControls({
         disabled={saving || disabled || !isAuthenticated}
         title={
           isAuthenticated
-            ? "Сохранить текущие фильтры и настройки колонок"
-            : "Для сохранения нужно войти"
+            ? t("views.saveHint")
+            : t("views.loginRequired")
         }
       >
-        {saving ? "Сохраняю..." : "Сохранить вид"}
+        {saving ? t("common.saving") : t("views.save")}
       </button>
     </div>
   );

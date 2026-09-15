@@ -1,8 +1,10 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { useEffect, useRef } from "react";
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
 
 export function ProjectPassportPage() {
+  const { t } = useI18n();
   const ctx = usePageContext();
   const confirm = useConfirm();
   const initialPassportRef = useRef<string | null>(null);
@@ -50,24 +52,24 @@ export function ProjectPassportPage() {
                   <article className="panel project-card">
                     <div className="panel-title">
                       <div>
-                        <h2>Паспорт проекта</h2>
-                        <p>Редактируемый набор полей паспорта проекта</p>
+                        <h2>{t("charter.title")}</h2>
+                        <p>{t("charter.description")}</p>
                       </div>
                       <button
                       type="button"
                       onClick={() => addPassportRow(passportRows.length - 1)}
                     >
-                      + Добавить поле
+                      {t("charter.add")}
                     </button>
                   </div>
                   <div className="passport-table">
                     <div className="passport-head">
-                      <span>Поле</span>
-                      <span>Описание</span>
+                      <span>{t("fields.field")}</span>
+                      <span>{t("fields.description")}</span>
                       <span />
                     </div>
                     <div className="passport-row passport-row-readonly">
-                      <span>Цель на старте проекта</span>
+                      <span>{t("charter.initialTarget")}</span>
                       <span>
                         {date(
                           projectTargetSummary?.initialTargetDate ??
@@ -78,7 +80,7 @@ export function ProjectPassportPage() {
                       <span aria-hidden="true" />
                     </div>
                     <div className="passport-row passport-row-readonly">
-                      <span>Текущая актуальная цель</span>
+                      <span>{t("charter.currentTarget")}</span>
                       <span>
                         {date(
                           projectTargetSummary?.currentTargetDate ??
@@ -97,7 +99,7 @@ export function ProjectPassportPage() {
                               field: event.target.value,
                             })
                           }
-                          placeholder="Наименование поля"
+                          placeholder={t("charter.fieldName")}
                         />
                         <textarea
                           value={row.description}
@@ -107,15 +109,15 @@ export function ProjectPassportPage() {
                             })
                           }
                           rows={1}
-                          placeholder="Описание или значение"
+                          placeholder={t("charter.value")}
                         />
                         <div className="passport-row-controls">
                           <button
                             type="button"
                             className="wbs-inline-insert-button"
                             onClick={() => addPassportRow(index)}
-                            aria-label="Добавить поле ниже"
-                            title="Добавить поле ниже"
+                            aria-label={t("charter.addBelow")}
+                            title={t("charter.addBelow")}
                           >
                             +
                           </button>
@@ -125,15 +127,15 @@ export function ProjectPassportPage() {
                             onClick={async () => {
                               if (
                                 await confirm({
-                                  title: "Удалить поле паспорта?",
-                                  confirmLabel: "Удалить",
+                                  title: t("charter.deleteConfirm"),
+                                  confirmLabel: t("fields.delete"),
                                 })
                               ) {
                                 void deletePassportRow(row.id);
                               }
                             }}
-                            aria-label="Удалить поле"
-                            title="Удалить поле"
+                            aria-label={t("charter.delete")}
+                            title={t("charter.delete")}
                           >
                             x
                           </button>
@@ -147,18 +149,18 @@ export function ProjectPassportPage() {
                       onClick={() => void savePassportRows()}
                       disabled={savingPassportRows}
                     >
-                      {savingPassportRows ? "Сохраняю..." : "Сохранить паспорт"}
+                      {savingPassportRows ? t("fields.saving") : t("charter.save")}
                     </button>
                   </div>
                   <section className="passport-target-approval">
                     <div className="passport-targets-head">
                       <div>
-                        <h3>Утвердить новую цель</h3>
+                        <h3>{t("charter.approve")}</h3>
                       </div>
                     </div>
                     <div className="passport-target-edit">
                       <label>
-                        Новая дата цели
+                        {t("charter.newDate")}
                         <input
                           type="date"
                           value={projectTargetDateDraft}
@@ -168,23 +170,23 @@ export function ProjectPassportPage() {
                         />
                       </label>
                       <label>
-                        Причина изменения
+                        {t("charter.changeReason")}
                         <input
                           value={projectTargetChangeReason}
                           onChange={(event) =>
                             setProjectTargetChangeReason(event.target.value)
                           }
-                          placeholder="Например: согласованный перенос запуска"
+                          placeholder={t("charter.reasonExample")}
                         />
                       </label>
                       <label>
-                        Согласовано
+                        {t("fields.approvedBy")}
                         <input
                           value={projectTargetApprovedBy}
                           onChange={(event) =>
                             setProjectTargetApprovedBy(event.target.value)
                           }
-                          placeholder="ФИО или орган согласования"
+                          placeholder={t("charter.approverExample")}
                         />
                       </label>
                       <button
@@ -192,17 +194,17 @@ export function ProjectPassportPage() {
                         onClick={() => void saveProjectTargetDate()}
                         disabled={savingProjectTargetDate}
                       >
-                        {savingProjectTargetDate ? "Сохраняю..." : "Сохранить цель"}
+                        {savingProjectTargetDate ? t("fields.saving") : t("charter.saveTarget")}
                       </button>
                     </div>
                     <div className="passport-target-history">
                       <div className="passport-target-history-head">
-                        <span>Дата</span>
-                        <span>Было</span>
-                        <span>Стало</span>
-                        <span>Изменение</span>
-                        <span>Причина</span>
-                        <span>Согласовано</span>
+                        <span>{t("fields.date")}</span>
+                        <span>{t("fields.before")}</span>
+                        <span>{t("fields.after")}</span>
+                        <span>{t("fields.change")}</span>
+                        <span>{t("fields.reason")}</span>
+                        <span>{t("fields.approvedBy")}</span>
                       </div>
                       {project?.targetDateChanges?.length ? (
                         project.targetDateChanges.map((change) => (
@@ -219,12 +221,12 @@ export function ProjectPassportPage() {
                               )}
                             </span>
                             <span>{change.reason}</span>
-                            <span>{change.approvedBy || "не указано"}</span>
+                            <span>{change.approvedBy || t("fields.notSpecified")}</span>
                           </div>
                         ))
                       ) : (
                         <div className="passport-target-history-empty">
-                          Истории изменения цели пока нет.
+                          {t("charter.emptyHistory")}
                         </div>
                       )}
                     </div>

@@ -1,7 +1,7 @@
 import type { AppView } from "../app/routes";
 import type { ProjectDetails } from "../app/domainTypes";
-import { date } from "../app/dateUtils";
-import { projectHealthLabel, projectStatusLabel } from "../app/labels";
+import { useI18n } from "../i18n/I18nProvider";
+
 
 type ScheduleHealth = {
   tone: string;
@@ -41,6 +41,7 @@ export function AppTopbar({
   signedDaysLabel,
   viewTitle,
 }: AppTopbarProps) {
+  const { t, tCount, formatters: { date }, labels: { projectHealthLabel, projectStatusLabel } } = useI18n();
   if (activeView === "reports") return null;
   const showProjectTitle = project && isProjectView && activeView !== "project-create";
   const showProjectBadges = Boolean(project && showProjectTitle);
@@ -50,7 +51,7 @@ export function AppTopbar({
   const currentTargetDate =
     projectTargetSummary?.currentTargetDate ?? project?.targetDate ?? null;
   const activeGoal = projectTargetSummary?.activeGoal ?? null;
-  const activeGoalTitle = activeGoal?.title ?? "ближайшая цель";
+  const activeGoalTitle = activeGoal?.title ?? t("topbar.nearest");
   const effectiveDelayDays = projectTargetSummary?.effectiveDelayDays ?? null;
   const hasActiveGoalTargetPair = Boolean(
     activeGoal?.baselineTargetDate && activeGoal.currentTargetDate,
@@ -69,10 +70,10 @@ export function AppTopbar({
         : "green";
   const delayLabel =
     effectiveDelayDays === null
-      ? scheduleHealth?.label ?? (project ? projectHealthLabel(project.rag) : "Отставание не рассчитано")
+      ? scheduleHealth?.label ?? (project ? projectHealthLabel(project.rag) : t("topbar.notCalculated"))
       : effectiveDelayDays < 0
-        ? `Опережение ${Math.abs(effectiveDelayDays)} дн.`
-        : `Отставание ${signedDaysLabel(effectiveDelayDays)}`;
+        ? t("topbar.ahead", { days: tCount("time.days", Math.abs(effectiveDelayDays)) })
+        : t("topbar.delay", { days: signedDaysLabel(effectiveDelayDays) });
 
   return (
     <header
@@ -87,12 +88,12 @@ export function AppTopbar({
       </div>
       {showProjectBadges && (
         <div className="topbar-project topbar-project-compact">
-          <span>Статус: {projectStatusLabel(project.status)}</span>
-          <span>РП: {project.projectManager}</span>
-          <span>Цель: {date(displayedTargetDate)}</span>
+          <span>{t("topbar.status")} {projectStatusLabel(project.status)}</span>
+          <span>{t("topbar.pm")} {project.projectManager}</span>
+          <span>{t("topbar.target")} {date(displayedTargetDate)}</span>
           <b className={`rag ${delayTone}`}>{delayLabel}</b>
           <span className="topbar-project-forecast">
-            Прогноз "{activeGoalTitle}": {date(projectTargetSummary?.forecastFinishDate ?? null)}
+            {t("topbar.forecast", { goal: activeGoalTitle, date: date(projectTargetSummary?.forecastFinishDate ?? null) })}
           </span>
         </div>
       )}

@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useI18n } from "../i18n/I18nProvider";
+import type { Translator } from "../i18n/types";
 import type { FocusEventHandler, KeyboardEventHandler } from "react";
 import type { AuthMode } from "../app/adminTypes";
 import type { Toast } from "../hooks/useAppFeedbackState";
@@ -32,6 +35,7 @@ import {
   issueStatusLabel,
   projectOptionLabel,
   projectStatusLabel,
+  projectScheduleHealth,
   ragOptionLabel,
   raidStatusLabel,
   raidTypeLabel,
@@ -123,51 +127,51 @@ type AppPresentationProps = {
   topbarScheduleHealth: any;
 };
 
-function createViewTitle(project: any): Record<AppView, string> {
+function createViewTitle(project: any, t: Translator): Record<AppView, string> {
   return {
-    portfolio: "Портфель",
-    "portfolio-v2": "Портфель v2",
-    "decision-queue": "Очередь решений",
-    "jira-reconciliation": "Сверка Jira и WBS",
-    projects: "Проекты",
-    reports: "Отчёты",
-    wiki: "FAQ",
-    resources: "Управление ресурсами",
-    "resources-capacity": "Управление ресурсами",
-    "project-create": "Создать новый проект",
-    "project-overview": project?.name ?? "Состояние проекта",
-    "project-schedule": project?.name ?? "График проекта",
-    "project-passport": project?.name ?? "Паспорт проекта",
-    "project-business-requirements": project?.name ?? "Бизнес требования",
-    "project-current-work": project?.name ?? "Текучка",
-    "project-pm-workspace": project?.name ?? "Рабочий стол PM",
-    "project-structure": project?.name ?? "Структура",
-    "project-gantt": project?.name ?? "Гантт",
-    "project-jira-work": project?.name ?? "Работы в Jira",
-    "project-issues": project?.name ?? "Открытые вопросы",
-    "project-raid": project?.name ?? "Риски и проблемы",
-    "project-changes": project?.name ?? "Управление изменениями",
-    "project-budget": project?.name ?? "Управление бюджетом",
-    "project-calendars": project?.name ?? "Календари",
-    "project-artifacts": project?.name ?? "Артефакты проекта",
-    "closed-projects": "Закрытые проекты",
-    admin: "Администрирование",
-    "admin-users": "Администрирование: пользователи",
-    "admin-roles": "Администрирование: роли и права",
-    "admin-dictionaries": "Администрирование: справочники",
-    "admin-templates": "Администрирование: шаблоны Структуры",
-    "admin-rag": "Администрирование: формулы RAG",
-    "admin-workflows": "Администрирование: workflow",
-    "admin-integrations": "Администрирование: интеграции и API",
-    "admin-health": "Администрирование: system health",
-    "admin-backups": "Администрирование: backup/restore",
-    "admin-config": "Администрирование: import/export",
-    "admin-projects": "Администрирование: реестр проектов",
-    "admin-business-units": "Администрирование: бизнес-юниты",
-    "admin-modules": "Администрирование: управление модулями",
-    "admin-project-access": "Администрирование: доступы",
-    "admin-audit": "Администрирование: журнал аудита",
-    "admin-analytics": "Администрирование: посещаемость",
+    portfolio: t("view.portfolio"),
+    "portfolio-v2": t("view.portfolio-v2"),
+    "decision-queue": t("view.decision-queue"),
+    "jira-reconciliation": t("view.jira-reconciliation"),
+    projects: t("view.projects"),
+    reports: t("view.reports"),
+    wiki: t("view.wiki"),
+    resources: t("view.resources"),
+    "resources-capacity": t("view.resources-capacity"),
+    "project-create": t("view.project-create"),
+    "project-overview": project?.name ?? t("view.project-overview"),
+    "project-schedule": project?.name ?? t("view.project-schedule"),
+    "project-passport": project?.name ?? t("view.project-passport"),
+    "project-business-requirements": project?.name ?? t("view.project-business-requirements"),
+    "project-current-work": project?.name ?? t("view.project-current-work"),
+    "project-pm-workspace": project?.name ?? t("view.project-pm-workspace"),
+    "project-structure": project?.name ?? t("view.project-structure"),
+    "project-gantt": project?.name ?? t("view.project-gantt"),
+    "project-jira-work": project?.name ?? t("view.project-jira-work"),
+    "project-issues": project?.name ?? t("view.project-issues"),
+    "project-raid": project?.name ?? t("view.project-raid"),
+    "project-changes": project?.name ?? t("view.project-changes"),
+    "project-budget": project?.name ?? t("view.project-budget"),
+    "project-calendars": project?.name ?? t("view.project-calendars"),
+    "project-artifacts": project?.name ?? t("view.project-artifacts"),
+    "closed-projects": t("view.closed-projects"),
+    admin: t("view.admin"),
+    "admin-users": t("view.admin-users"),
+    "admin-roles": t("view.admin-roles"),
+    "admin-dictionaries": t("view.admin-dictionaries"),
+    "admin-templates": t("view.admin-templates"),
+    "admin-rag": t("view.admin-rag"),
+    "admin-workflows": t("view.admin-workflows"),
+    "admin-integrations": t("view.admin-integrations"),
+    "admin-health": t("view.admin-health"),
+    "admin-backups": t("view.admin-backups"),
+    "admin-config": t("view.admin-config"),
+    "admin-projects": t("view.admin-projects"),
+    "admin-business-units": t("view.admin-business-units"),
+    "admin-modules": t("view.admin-modules"),
+    "admin-project-access": t("view.admin-project-access"),
+    "admin-audit": t("view.admin-audit"),
+    "admin-analytics": t("view.admin-analytics"),
   };
 }
 
@@ -216,7 +220,6 @@ export function AppPresentation({
   setSavedViewName,
   setShowProjectPicker,
   showProjectPicker,
-  topbarScheduleHealth,
 }: AppPresentationProps) {
   const activeView = context.activeView as AppView;
   const isProjectSectionView = isProjectSectionViewName(activeView);
@@ -242,7 +245,8 @@ export function AppPresentation({
   const shouldShowDevelopmentMenu = Boolean(
     isAdminUser && isDevelopmentSectionView,
   );
-  const viewTitle = createViewTitle(project);
+  const { t, locale, labels: localizedLabels, formatters } = useI18n();
+  const viewTitle = useMemo(() => createViewTitle(project, t), [project, t]);
   const renderGlobalSearch = (className = "") => (
     <GlobalSearch
       className={className}
@@ -274,7 +278,7 @@ export function AppPresentation({
   if (loading) {
     return (
       <main className="app-loading" aria-busy="true">
-        <PageSkeleton label="Загрузка системы управления проектами" />
+        <PageSkeleton label={t("common.loadingApp")} />
       </main>
     );
   }
@@ -345,6 +349,8 @@ export function AppPresentation({
     WEEKDAY_LABELS,
     wbsDisplayLevel,
     wbsStatusLabel,
+    ...localizedLabels,
+    ...formatters,
   };
 
   return (
@@ -378,7 +384,7 @@ export function AppPresentation({
       projectSearch={projectSearch}
       recentProjects={recentProjects}
       renderGlobalSearch={renderGlobalSearch}
-      scheduleHealth={topbarScheduleHealth}
+      scheduleHealth={project ? projectScheduleHealth(project.rag, context.overviewDashboard.scheduleVarianceFromStructure, locale) : null}
       selectProject={selectProject}
       selectedProjectId={selectedProjectId}
       selectedProjectListItem={selectedProjectListItem}
@@ -388,7 +394,7 @@ export function AppPresentation({
       shouldShowDevelopmentMenu={shouldShowDevelopmentMenu}
       shouldShowProjectMenu={shouldShowProjectMenu}
       showProjectPicker={showProjectPicker}
-      signedDaysLabel={signedDaysLabel}
+      signedDaysLabel={formatters.signedDaysLabel}
       viewTitle={viewTitle}
     />
   );

@@ -1,3 +1,4 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { useMemo } from "react";
 import type { ScenarioResult } from "@pms/shared";
 import { createScenarioGantt } from "../app/scenarioGanttModel";
@@ -5,6 +6,7 @@ import { usePageContext } from "./PageContext";
 import type { GanttCssProperties } from "../app/uiStyleTypes";
 
 export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResult | null }) {
+  const { t: uiText } = useInterfaceTranslation();
   const {
     activeGanttLinkIds,
     activeWbsItemId,
@@ -76,12 +78,12 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                           >
                           <div className="gantt-panel-scroll">
                       <div className="gantt-head">
-                          <span>Структура</span>
+                          <span>{uiText("ui.projects.structureTabLabel")}</span>
                       <button
                         type="button"
                         className="gantt-resizer"
                         onPointerDown={startGanttResize}
-                        aria-label="Изменить ширину колонки Структуры"
+                        aria-label={uiText("ui.projects.structureColumnResizeHandle")}
                       />
                       <div className="gantt-scale">
                         {primaryPeriods.length > 0 ? (
@@ -98,14 +100,14 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                             </span>
                           ))
                         ) : (
-                          <span>Шкала времени</span>
+                          <span>{uiText("ui.projects.ganttTimeScaleLabel")}</span>
                         )}
                       </div>
                     </div>
                     <div className="gantt-body">
                       {wbsGantt.items.length === 0 && (
                         <div className="empty-state">
-                          Для Гантта нужны start и due даты элементов Структуры.
+                          {uiText("ui.projects.ganttRequiresStartAndDueDates")}
                         </div>
                       )}
                       {wbsGantt.items.length > 0 && (
@@ -144,8 +146,8 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                       onClick={() => toggleWbsCollapse(item.id)}
                                       aria-label={
                                         collapsedWbsIds.has(item.id)
-                                          ? "Раскрыть элемент Структуры"
-                                          : "Схлопнуть элемент Структуры"
+                                          ? uiText("ui.projects.structureItemExpand")
+                                          : uiText("ui.projects.structureItemCollapse")
                                       }
                                     >
                                       {collapsedWbsIds.has(item.id) ? "+" : "-"}
@@ -166,7 +168,7 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                             type="button"
                             className="gantt-resizer body"
                             onPointerDown={startGanttResize}
-                            aria-label="Изменить ширину колонки Структуры"
+                            aria-label={uiText("ui.projects.structureColumnResizeHandle")}
                           />
                           <div
                             className="gantt-timeline"
@@ -283,7 +285,7 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                         })}
                                         key={line.id}
                                         data-dependency-type={line.type}
-                                        aria-label="Связь Гантта"
+                                        aria-label={uiText("ui.projects.ganttDependencyLabel")}
                                       />
                                     );
                                   })}
@@ -420,7 +422,7 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                         )
                                       }
                                       aria-label={`Начало связи ${item.code}`}
-                                      title="Начало связи"
+                                      title={uiText("ui.projects.ganttDependencyStart")}
                                     />
                                     <button
                                       type="button"
@@ -439,7 +441,7 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                         )
                                       }
                                       aria-label={`Конец связи ${item.code}`}
-                                      title="Конец связи"
+                                      title={uiText("ui.projects.ganttDependencyEnd")}
                                     />
                                   </i>
                                   {item.jiraTicketUrl && (
@@ -465,13 +467,12 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                       )}
                       {project.wbsItems.length > visibleWbsTree.length && (
                         <div className="gantt-note">
-                          Часть иерархии схлопнута. Раскройте нужные фазы,
-                          чтобы увидеть дочерние задачи и связи.
+                          {uiText("ui.projects.ganttCollapsedHierarchyHint")}
                         </div>
                       )}
                           </div>
                           {wbsGantt.items.length > 0 && (
-                            <div className="gantt-minimap" aria-label="Обзор диапазона Гантта">
+                            <div className="gantt-minimap" aria-label={uiText("ui.projects.ganttRangeOverviewLabel")}>
                               {wbsGantt.items.slice(0, 80).map(({ item, offset, width, milestone }) => (
                                 <i
                                   key={item.id}
@@ -487,8 +488,8 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                         onPointerDown={(event) =>
                           startGanttPanelResize(event, "width")
                         }
-                        aria-label="Изменить ширину поля Гантта"
-                        title="Изменить ширину поля Гантта"
+                        aria-label={uiText("ui.projects.ganttResizeWidthHandle")}
+                        title={uiText("ui.projects.ganttResizeWidthHandle")}
                       />
                       <button
                         type="button"
@@ -496,8 +497,8 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                         onPointerDown={(event) =>
                           startGanttPanelResize(event, "height")
                         }
-                        aria-label="Изменить высоту поля Гантта"
-                        title="Изменить высоту поля Гантта"
+                        aria-label={uiText("ui.projects.ganttResizeHeightHandle")}
+                        title={uiText("ui.projects.ganttResizeHeightHandle")}
                       />
                       <button
                         type="button"
@@ -505,8 +506,8 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                         onPointerDown={(event) =>
                           startGanttPanelResize(event, "both")
                         }
-                        aria-label="Изменить размер поля Гантта"
-                        title="Изменить размер поля Гантта"
+                        aria-label={uiText("ui.projects.ganttResizeHandle")}
+                        title={uiText("ui.projects.ganttResizeHandle")}
                       />
                           </div>
                           </div>;

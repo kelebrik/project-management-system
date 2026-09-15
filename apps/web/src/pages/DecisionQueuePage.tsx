@@ -1,3 +1,6 @@
+import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { intlLocale } from "../i18n/locale";
+import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
 import { useMemo, useState } from "react";
 import { signedDaysUntil } from "../app/dateUtils";
 import type { Issue } from "../app/domainTypes";
@@ -15,6 +18,8 @@ function isOpenDecision(issue: Issue) {
 }
 
 export function DecisionQueuePage() {
+  const { t: uiText } = useInterfaceTranslation();
+  const { locale: uiLocale } = useLocaleTranslation();
   const { openView, project, setExpandedIssueId } = usePageContext();
   const [filter, setFilter] = useState<DecisionFilter>("all");
   const rows = useMemo(
@@ -44,8 +49,8 @@ export function DecisionQueuePage() {
     <section className="v2-page decision-queue-page">
       <div className="v2-compact-header">
         <div>
-          <h2>Очередь решений</h2>
-          <span>Вопросы, по которым требуется управленческое решение</span>
+          <h2>{uiText("ui.projects.decisionQueue")}</h2>
+          <span>{uiText("ui.projects.decisionQueueDescription")}</span>
         </div>
         <SegmentedFilter<DecisionFilter>
           ariaLabel="Фильтр очереди решений"
@@ -60,7 +65,7 @@ export function DecisionQueuePage() {
       </div>
       <div className="decision-queue-table">
         <div className="decision-queue-head">
-          <span>Проект</span><span>Вопрос</span><span>Ответственный</span><span>Срок</span>
+          <span>{uiText("ui.admin.project")}</span><span>{uiText("ui.projects.issue")}</span><span>{uiText("ui.automation.owner")}</span><span>{uiText("ui.automation.dueDate")}</span>
         </div>
         {rows.map((issue) => (
           <button
@@ -74,11 +79,11 @@ export function DecisionQueuePage() {
           >
             <b>{issue.projectName}</b>
             <span>{issue.title}</span>
-            <span>{issue.owner || "не назначен"}</span>
-            <span>{issue.dueDate ? new Date(issue.dueDate).toLocaleDateString("ru-RU") : "не задан"}</span>
+            <span>{issue.owner || uiText("ui.projects.notAssignedLowercase")}</span>
+            <span>{issue.dueDate ? new Date(issue.dueDate).toLocaleDateString(intlLocale(uiLocale)) : uiText("ui.admin.notSetMasculine")}</span>
           </button>
         ))}
-        {rows.length === 0 && <div className="v2-empty">Вопросов по выбранному фильтру нет.</div>}
+        {rows.length === 0 && <div className="v2-empty">{uiText("ui.projects.noIssuesForFilter")}</div>}
       </div>
     </section>
   );

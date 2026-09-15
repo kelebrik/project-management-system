@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { useEffect } from "react";
 import { Archive, KeyRound, X } from "lucide-react";
 import type { Toast } from "../hooks/useAppFeedbackState";
@@ -22,6 +23,7 @@ function ToastItem({
   toast: Toast;
   onDismiss: (id: number) => void;
 }) {
+  const { t } = useI18n();
   useEffect(() => {
     const timeoutId = window.setTimeout(
       () => onDismiss(toast.id),
@@ -34,12 +36,12 @@ function ToastItem({
     <div className={`toast ${toast.tone}`} role="status">
       <button
         type="button"
-        aria-label="Закрыть уведомление"
+        aria-label={t("feedback.dismiss")}
         onClick={() => onDismiss(toast.id)}
       >
         <X size={14} />
       </button>
-      <strong>{toast.tone === "error" ? "Ошибка" : "Готово"}</strong>
+      <strong>{toast.tone === "error" ? t("feedback.error") : t("feedback.done")}</strong>
       <p>{toast.message}</p>
     </div>
   );
@@ -52,6 +54,7 @@ export function SystemBanners({
   onDismissToast,
   onLogin,
 }: SystemBannersProps) {
+  const { t } = useI18n();
   return (
     <>
       <div
@@ -67,9 +70,9 @@ export function SystemBanners({
       {!isAuthenticated && (
         <div className="readonly-banner main-readonly-banner">
           <KeyRound size={16} />
-          <span>Только просмотр. Войдите, чтобы редактировать данные.</span>
+          <span>{t("feedback.readonly")}</span>
           <button type="button" onClick={onLogin}>
-            Войти
+            {t("auth.login")}
           </button>
         </div>
       )}
@@ -77,8 +80,7 @@ export function SystemBanners({
         <div className="readonly-banner closed-project-banner">
           <Archive size={16} />
           <span>
-            Проект закрыт. Данные доступны только для чтения, редактирование
-            заблокировано для всех ролей.
+            {t("feedback.closed")}
           </span>
         </div>
       )}

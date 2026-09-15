@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/I18nProvider";
 import { useEffect, useState, type FormEvent } from "react";
 import { usePageContext } from "./PageContext";
 import { FieldError } from "../components/FieldError";
@@ -12,6 +13,7 @@ import type { ProjectStructureCopyOption } from "../app/projectStructureCopy";
 import { ProjectStructureCopyField } from "../components/ProjectStructureCopyField";
 
 export function ProjectCreatePage() {
+  const { t } = useI18n();
   const ctx = usePageContext();
   const {
     activeProjectTree,
@@ -38,7 +40,7 @@ export function ProjectCreatePage() {
     void apiClient
       .get<BusinessUnitOption[]>(
         "/api/business-units",
-        "Не удалось загрузить бизнес-юниты",
+        t("create.unitsError"),
       )
       .then((units) => {
         if (cancelled) return;
@@ -59,7 +61,7 @@ export function ProjectCreatePage() {
       .catch((error: unknown) => {
         if (!cancelled) {
           setError(
-            error instanceof Error ? error.message : "Не удалось загрузить бизнес-юниты",
+            error instanceof Error ? error.message : t("create.unitsError"),
           );
         }
       });
@@ -67,7 +69,7 @@ export function ProjectCreatePage() {
     void apiClient
       .get<ProjectStructureCopyOption[]>(
         "/api/projects/structure-copy-options",
-        "Не удалось загрузить текущие Структуры проектов",
+        t("create.structureError"),
       )
       .then((structures) => {
         if (cancelled) return;
@@ -77,7 +79,7 @@ export function ProjectCreatePage() {
       .catch(() => {
         if (!cancelled) {
           setCopyOptionsError(
-            "Не удалось загрузить варианты копирования. Проект можно создать без копирования Структуры.",
+            t("create.copyError"),
           );
         }
       })
@@ -87,15 +89,15 @@ export function ProjectCreatePage() {
     return () => {
       cancelled = true;
     };
-  }, [setError, setNewProjectForm]);
+  }, [setError, setNewProjectForm, t]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     const nextErrors: { businessUnitId?: string; code?: string; name?: string } = {};
-    if (!newProjectForm.code.trim()) nextErrors.code = "Укажите код проекта";
+    if (!newProjectForm.code.trim()) nextErrors.code = t("create.codeRequired");
     if (!newProjectForm.name.trim())
-      nextErrors.name = "Укажите наименование проекта";
+      nextErrors.name = t("create.nameRequired");
     if (!newProjectForm.businessUnitId)
-      nextErrors.businessUnitId = "Выберите бизнес-юнит";
+      nextErrors.businessUnitId = t("create.unitRequired");
     if (nextErrors.code || nextErrors.name || nextErrors.businessUnitId) {
       event.preventDefault();
       setFormErrors(nextErrors);
@@ -109,8 +111,8 @@ export function ProjectCreatePage() {
                 <article className="panel project-card">
                   <div className="panel-title">
                     <div>
-                      <h2>Создать проект</h2>
-                      <p>Быстрый ввод нового проекта с базовыми полями проектного офиса</p>
+                      <h2>{t("create.title")}</h2>
+                      <p>{t("create.description")}</p>
                     </div>
                   </div>
                     <form
@@ -118,9 +120,9 @@ export function ProjectCreatePage() {
                       onSubmit={handleSubmit}
                       noValidate
                     >
-                      <div className="form-section-title span-2">Основное</div>
+                      <div className="form-section-title span-2">{t("create.basics")}</div>
                       <label>
-                        Код
+                        {t("fields.code")}
                       <input
                         className={formErrors.code ? "field-invalid" : ""}
                         aria-invalid={formErrors.code ? true : undefined}
@@ -147,7 +149,7 @@ export function ProjectCreatePage() {
                       />
                     </label>
                     <label>
-                      Наименование
+                      {t("fields.name")}
                       <input
                         className={formErrors.name ? "field-invalid" : ""}
                         aria-invalid={formErrors.name ? true : undefined}
@@ -166,16 +168,16 @@ export function ProjectCreatePage() {
                             name: event.target.value,
                           });
                         }}
-                        placeholder="Миграция CRM"
+                        placeholder={t("create.namePlaceholder")}
                       />
                       <FieldError
                         id="new-project-name-error"
                         message={formErrors.name}
                       />
                     </label>
-                    <div className="form-section-title span-2">Структура</div>
+                    <div className="form-section-title span-2">{t("fields.structure")}</div>
                     <div className="form-field span-2">
-                      <span className="form-field-label">Скопировать из проекта</span>
+                      <span className="form-field-label">{t("create.copy")}</span>
                       <ProjectStructureCopyField
                         error={copyOptionsError}
                         isLoading={isLoadingOptions}
@@ -189,12 +191,11 @@ export function ProjectCreatePage() {
                         }
                       />
                       <span className="form-note">
-                        Можно выбрать несколько проектов или отдельных фаз. Будут
-                        скопированы текущая Структура, даты и внутренние связи.
+                        {t("create.copyHelp")}
                       </span>
                     </div>
                     <label>
-                      Родительский проект
+                      {t("fields.parentProject")}
                       <select
                         value={newProjectForm.parentId}
                         onChange={(event) =>
@@ -204,7 +205,7 @@ export function ProjectCreatePage() {
                           })
                         }
                       >
-                        <option value="">Корень</option>
+                        <option value="">{t("fields.root")}</option>
                         {activeProjectTree
                           .filter(
                             (item) => item.businessUnitId === newProjectForm.businessUnitId,
@@ -218,7 +219,7 @@ export function ProjectCreatePage() {
                       </select>
                     </label>
                     <label>
-                      Порядок
+                      {t("fields.order")}
                       <input
                         type="number"
                         value={newProjectForm.sortOrder}
@@ -230,9 +231,9 @@ export function ProjectCreatePage() {
                         }
                           />
                         </label>
-                      <div className="form-section-title span-2">Команда и статус</div>
+                      <div className="form-section-title span-2">{t("create.team")}</div>
                     <label className="project-create-business-unit">
-                      Портфель
+                      {t("fields.portfolio")}
                       <select
                         value={newProjectForm.businessUnitId}
                         aria-invalid={formErrors.businessUnitId ? true : undefined}
@@ -256,7 +257,7 @@ export function ProjectCreatePage() {
                           }
                         }
                       >
-                        <option value="">Выберите БЮ</option>
+                        <option value="">{t("create.chooseUnit")}</option>
                         {businessUnits.map((unit) => (
                           <option value={unit.id} key={unit.id}>
                             {unit.name}
@@ -269,7 +270,7 @@ export function ProjectCreatePage() {
                       />
                     </label>
                     <label>
-                      РП
+                      {t("fields.pm")}
                       <input
                         value={newProjectForm.projectManager}
                         onChange={(event) =>
@@ -278,11 +279,11 @@ export function ProjectCreatePage() {
                             projectManager: event.target.value,
                           })
                         }
-                        placeholder="Руководитель проекта"
+                        placeholder={t("fields.manager")}
                       />
                     </label>
                     <label>
-                      Спонсор
+                      {t("fields.sponsor")}
                       <input
                         value={newProjectForm.sponsor}
                         onChange={(event) =>
@@ -291,11 +292,11 @@ export function ProjectCreatePage() {
                             sponsor: event.target.value,
                           })
                         }
-                        placeholder="Финансовый директор / ИТ-директор"
+                        placeholder={t("create.sponsorPlaceholder")}
                       />
                     </label>
                     <label>
-                      Индикатор
+                      {t("fields.rag")}
                       <select
                         value={newProjectForm.rag}
                         onChange={(event) =>
@@ -310,9 +311,9 @@ export function ProjectCreatePage() {
                           <option value="RED">{ragOptionLabel("RED")}</option>
                         </select>
                       </label>
-                      <div className="form-section-title span-2">Сроки</div>
+                      <div className="form-section-title span-2">{t("create.dates")}</div>
                       <label>
-                        Старт
+                        {t("fields.start")}
                       <input
                         type="date"
                         value={newProjectForm.startDate}
@@ -325,7 +326,7 @@ export function ProjectCreatePage() {
                       />
                     </label>
                     <label>
-                      Целевая дата
+                      {t("fields.targetDate")}
                       <input
                         type="date"
                         value={newProjectForm.targetDate}
@@ -338,7 +339,7 @@ export function ProjectCreatePage() {
                       />
                     </label>
                     <label>
-                      Прогресс
+                      {t("fields.progress")}
                       <input
                         type="number"
                         min="0"
@@ -353,7 +354,7 @@ export function ProjectCreatePage() {
                       />
                     </label>
                     <label>
-                      Отклонение сроков
+                      {t("create.variance")}
                       <input
                         type="number"
                         value={newProjectForm.scheduleVariance}
@@ -365,9 +366,9 @@ export function ProjectCreatePage() {
                         }
                           />
                         </label>
-                      <div className="form-section-title span-2">Управленческая сводка</div>
+                      <div className="form-section-title span-2">{t("create.managementSummary")}</div>
                       <label className="span-2">
-                        Сводка
+                        {t("fields.summary")}
                       <textarea
                         value={newProjectForm.summary}
                         onChange={(event) =>
@@ -380,7 +381,7 @@ export function ProjectCreatePage() {
                       />
                     </label>
                     <div className="form-actions span-2">
-                      <button type="submit">Создать проект</button>
+                      <button type="submit">{t("create.title")}</button>
                     </div>
                   </form>
                 </article>
