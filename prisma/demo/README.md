@@ -1,12 +1,27 @@
 # Cloud demo population
 
+## Base seed sections
+
+`npm run prisma:seed` always runs `fillProjectSections`
+(`apps/api/src/demo/sections.ts`) for every seeded project, plus the migration
+created `TEST-001`. It guarantees at least four records in every project menu
+section — Jira work (integration settings, four work sections, six synthetic
+snapshots), project charter, business requirements, open issues, RAID, change
+requests, overview/budget evidence, milestones, artifacts, calendar overrides
+and baseline items. Deterministic IDs and upserts make repeated seeding
+idempotent, existing rows are never replaced, and the Jira rows are local
+database fixtures only: no Jira request is made.
+
+## Additive cloud fixture
+
 The additive fixture fills **every existing project**, including partly populated
 projects such as DEMO-005. It creates no business units and no projects.
 
 - Adds 4 phases, 4 goals, 12 WBS milestones and 12 corresponding milestone-register
   records, 4 work packages, 20 tasks/deliverables and dependencies.
 - Adds 6 RAID items, 8 questions/problems with status history, requirements,
-  documents, actions, change requests, calendar exceptions and a generated report.
+  4 documents, 4 actions, 4 change requests, calendar exceptions and a generated
+  report with at least four entries in every overview list.
 - Adds 16 synthetic Jira snapshots with local history and development events,
   plus 5 synthetic GitLab commits for each published branch scope. These are
   database fixtures; no Jira or GitLab network requests are made.

@@ -1,4 +1,5 @@
 import { completeDemoData } from '../apps/api/src/demo/complete.js';
+import { fillProjectSections } from '../apps/api/src/demo/sections.js';
 import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -345,9 +346,14 @@ async function main() {
     { unit: additionalUnits[1], code: 'BU3-OPS', name: 'Operational analytics', sponsor: 'COO', manager: 'Olga Lebedeva', status: 'DRAFT' as const, rag: 'GREEN' as const, start: '2026-10-01', target: '2027-03-31', progress: 5, variance: 0, budget: '19000000.00', forecast: '19000000.00', summary: 'Preparation of the operating model and the metric set.' },
   ].map((item) => prisma.project.upsert({ where: { code: item.code }, update: { businessUnitId: item.unit.id, portfolio: item.unit.name, sponsor: item.sponsor, projectManager: item.manager, status: item.status, rag: item.rag, startDate: new Date(item.start), initialTargetDate: new Date(item.target), targetDate: new Date(item.target), progress: item.progress, scheduleVariance: item.variance, budgetPlanned: item.budget, budgetForecast: item.forecast, summary: item.summary, parentId: null }, create: { businessUnitId: item.unit.id, code: item.code, name: item.name, portfolio: item.unit.name, sponsor: item.sponsor, projectManager: item.manager, status: item.status, rag: item.rag, startDate: new Date(item.start), initialTargetDate: new Date(item.target), targetDate: new Date(item.target), progress: item.progress, scheduleVariance: item.variance, budgetPlanned: item.budget, budgetForecast: item.forecast, summary: item.summary } })));
 
+  // TEST-001 is created by the project hierarchy migration rather than by this
+  // seed, but it belongs to the same demo fixture and needs the same sections.
+  const migrationProject = await prisma.project.findUnique({ where: { code: 'TEST-001' } });
+  const seededProjects = [...extraTestProjects, project, ...additionalProjects, ...(migrationProject ? [migrationProject] : [])];
+
   // Rich deterministic fixture for public review: all WBS statuses, dates,
   // dependencies, milestones/goals, RAID variants and issue states.
-  for (const demoProject of [...extraTestProjects, project, ...additionalProjects]) {
+  for (const demoProject of seededProjects) {
     const existingWbsCount = await prisma.wbsItem.count({ where: { projectId: demoProject.id } });
     if (existingWbsCount > 0) continue;
     const phase = await prisma.wbsItem.create({ data: { projectId: demoProject.id, code: '1', title: 'Demo delivery phase', type: 'PHASE', status: 'IN_PROGRESS', owner: demoProject.projectManager, startDate: new Date('2026-08-03'), dueDate: new Date('2026-11-30'), wbsLevel: 1, sortOrder: 1 } });
@@ -378,11 +384,15 @@ async function main() {
     for (const [source, title, severity, status, dueDate] of [['INTERNAL', 'Critical schedule issue', 'CRITICAL', 'Open', '2026-09-12'], ['JIRA', 'Integration issue', 'HIGH', 'In Progress', '2026-09-25'], ['INTERNAL', 'Issue owner needs to be confirmed', 'MEDIUM', 'Resolved', '2026-08-20'], ['JIRA', 'Closed pilot issue', 'LOW', 'Closed', '2026-08-31']] as const) await prisma.issue.create({ data: { projectId: demoProject.id, source, title, severity, status, owner: demoProject.projectManager, impact: 'Impact on the demo dataset', decisionRequired: severity === 'CRITICAL', dueDate: new Date(dueDate) } });
   }
 
+  // Every project menu section gets demo content. Idempotent: deterministic IDs,
+  // upserts only, and existing rows are preserved. No Jira request is made here.
+  for (const demoProject of seededProjects) {
+    await fillProjectSections(prisma, await prisma.project.findUniqueOrThrow({ where: { id: demoProject.id } }));
+  }
+
   if (process.env.SEED_DEMO_DATA === 'true') await completeDemoData(prisma);
 
-  console.log(
-    `Seeded projects ${[...extraTestProjects.map((item) => item.code), project.code, ...additionalProjects.map((item) => item.code)].join(', ')}`,
-  );
+  console.log(`Seeded projects ${seededProjects.map((item) => item.code).join(', ')}`);
 }
 
 main()

@@ -163,15 +163,15 @@ export async function fillProject(tx: Prisma.TransactionClient, project: Project
   const combined = [...filled, ...additions.filter((row) => !known.has(row.id))];
   await tx.projectBusinessRequirements.upsert({ where: { projectId: project.id }, update: { rows: combined },
     create: { projectId: project.id, columns, rows: combined } });
-  for (let a = 0; a < 3; a++) {
+  for (let a = 0; a < 4; a++) {
     await tx.projectArtifact.upsert({ where: { id: id(`artifact-${a}`) }, update: {}, create: {
-      id: id(`artifact-${a}`), projectId: project.id, title: ['Project charter', 'Architecture board minutes', 'Acceptance test plan'][a],
-      type: 'Document', owner: owners[a], status: ['Approved', 'In Review', 'Draft'][a],
+      id: id(`artifact-${a}`), projectId: project.id, title: ['Project charter', 'Architecture board minutes', 'Acceptance test plan', 'Operations handover runbook'][a],
+      type: ['Document', 'Minutes', 'Plan', 'Runbook'][a], owner: owners[a], status: ['Approved', 'In Review', 'Draft', 'Draft'][a],
       description: 'Demo document: goals, acceptance criteria and area of responsibility agreed by the team.', sortOrder: a,
     } });
     await tx.task.upsert({ where: { id: id(`action-${a}`) }, update: {}, create: {
-      id: id(`action-${a}`), projectId: project.id, title: ['Prepare a decision on the supply risk', 'Approve the pilot criteria', 'Agree the launch window'][a],
-      owner: owners[a], status: ['Open', 'In Progress', 'Done'][a], priority: ['High', 'Medium', 'Low'][a], dueDate: dateAt(a * 5 - 2, base),
+      id: id(`action-${a}`), projectId: project.id, title: ['Prepare a decision on the supply risk', 'Approve the pilot criteria', 'Agree the launch window', 'Publish the weekly status report'][a],
+      owner: owners[a], status: ['Open', 'In Progress', 'Done', 'In Progress'][a], priority: ['High', 'Medium', 'Low', 'Medium'][a], dueDate: dateAt(a * 5 - 2, base),
     } });
   }
 }
