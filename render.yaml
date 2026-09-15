@@ -37,12 +37,6 @@ services:
         fromDatabase:
           name: project-management-system-db
           property: connectionString
-      - key: JIRA_BASE_URL
-        sync: false
-      - key: JIRA_EMAIL
-        sync: false
-      - key: JIRA_API_TOKEN
-        sync: false
       - key: JIRA_SPRINT_FIELD_ID
         value: customfield_10004
 

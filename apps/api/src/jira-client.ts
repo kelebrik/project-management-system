@@ -25,6 +25,10 @@ export function resolveJiraConfig(
   env: NodeJS.ProcessEnv = process.env,
   options: import("./jira-model.js").JiraConfigOptions = {},
 ): JiraConfig {
+  // The public cloud demo must remain fully synthetic and must never contact Jira.
+  if (env.PUBLIC_DEMO_MODE === "true") {
+    return { enabled: false, baseUrl: "", email: "", token: "", maxResults: 100 };
+  }
   const overrideBaseUrl = nonEmpty(options.baseUrl);
   const envBaseUrl = nonEmpty(env.JIRA_BASE_URL);
   const envEmail = nonEmpty(env.JIRA_EMAIL);
