@@ -1,6 +1,10 @@
 import type { Locale } from "./types";
 export const LANGUAGE_STORAGE_KEY = "pms-language";
-export const DEFAULT_LOCALE: Locale = "en";
+const configuredDefault = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_DEFAULT_LOCALE;
+/** Build-time deployment default; an individual saved choice always wins. */
+export const DEFAULT_LOCALE: Locale = isLocale(configuredDefault)
+  ? configuredDefault
+  : (typeof window !== "undefined" && window.location.hostname.endsWith("sberdevices.ru") ? "ru" : "en");
 export const intlLocale = (locale: Locale) => locale === "ru" ? "ru-RU" : "en-GB";
 export function isLocale(value: unknown): value is Locale { return value === "en" || value === "ru"; }
 export function readLocale(storage?: Pick<Storage, "getItem">, fallback: Locale = DEFAULT_LOCALE): Locale {
