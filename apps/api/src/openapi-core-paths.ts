@@ -292,6 +292,17 @@ export const openApiCorePaths = {
         projectIdParam,
       ]),
     },
+    "/api/projects/{projectId}/artifact-table": {
+      get: securedOperation(["Projects"], "Read dated artifact table", [projectIdParam]),
+      put: { ...securedOperation(["Projects"], "Save artifact table with optimistic revision", [projectIdParam]), responses: { "200": { description: "Saved table and revision" }, "400": { description: "Invalid table or foreign attachment" }, "409": { description: "Revision conflict; current table returned" }, "413": { description: "Table exceeds 4 MiB" } } },
+    },
+    "/api/projects/{projectId}/artifact-table/files": {
+      post: { ...securedOperation(["Projects"], "Upload artifact file (3 MiB/file, 30 MiB/project)", [projectIdParam]), requestBody: { required: true, content: { "multipart/form-data": { schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } } } } }, responses: { "201": { description: "File ID and name" }, "400": { description: "Invalid file" }, "413": { description: "File or project storage limit exceeded" } } },
+    },
+    "/api/projects/{projectId}/artifact-table/files/{fileId}": {
+      get: { ...securedOperation(["Projects"], "Download artifact file", [projectIdParam, pathParam("fileId")]), responses: { "200": { description: "Attachment download", content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } }, "404": { description: "File not found in this project" } } },
+      delete: deleteOperation(["Projects"], "Delete an unreferenced artifact file", [projectIdParam, pathParam("fileId")]),
+    },
     "/api/projects/{projectId}/artifacts": {
       post: createOperation(["Projects"], "Create project artifact", [projectIdParam]),
     },

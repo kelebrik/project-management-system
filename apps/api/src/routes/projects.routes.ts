@@ -1,3 +1,5 @@
+import { registerArtifactFileRoutes } from './projects/artifact-files.routes.js';
+import { registerArtifactTableRoutes } from './projects/artifact-table.routes.js';
 import { Router } from 'express';
 import { registerProjectAutomationRoutes } from './projects/automation.routes.js';
 import { registerProjectArtifactsRoutes } from './projects/artifacts.routes.js';
@@ -16,6 +18,8 @@ export function createProjectsRouter(context: ProjectsRoutesContext) {
   registerProjectOverviewRoutes(router, context);
   registerProjectCalendarRoutes(router, context);
   registerProjectArtifactsRoutes(router, context);
+  registerArtifactTableRoutes(router, context);
+  registerArtifactFileRoutes(router, context);
   registerProjectBusinessRequirementsRoutes(router, context);
   registerProjectMilestonesRoutes(router);
 

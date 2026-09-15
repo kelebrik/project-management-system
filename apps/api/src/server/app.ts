@@ -48,6 +48,7 @@ export function createApp() {
     app.set('trust proxy', 1);
   }
 
+  app.use('/api/projects/:projectId/artifact-table', express.json({ limit: '4mb' }));
   app.use(express.json({ limit: '5mb' }));
   app.use(
     cors({
@@ -153,6 +154,10 @@ export function createApp() {
     }
     if (res.headersSent) {
       next(error);
+      return;
+    }
+    if (error && typeof error === 'object' && 'status' in error && error.status === 413) {
+      res.status(413).json({ error: 'Request body too large' });
       return;
     }
     logEvent('error', 'api.error', {

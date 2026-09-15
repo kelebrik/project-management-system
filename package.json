@@ -37,7 +37,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:seed:complete-demo": "tsx prisma/demo/run.ts",
-    "render-build": "npm ci --include=dev && npm run prisma:generate && npm run build && npm run prisma:deploy && if [ \"$SEED_DEMO_DATA\" = \"true\" ]; then npm run prisma:seed; fi"
+    "render-build": "npm ci --include=dev && npm run prisma:generate && npm run build && npm run prisma:deploy && if [ \"$SEED_DEMO_DATA\" = \"true\" ]; then npm run prisma:seed; fi",
+    "test:artifacts:postgres": "scripts/test-artifacts-postgres.sh"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

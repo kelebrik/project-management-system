@@ -1,3 +1,4 @@
+import { artifactRows } from './artifact-table.js';
 import { labels } from '@pms/shared';
 import { prisma } from '../db.js';
 
@@ -69,6 +70,7 @@ export async function getProjectForOverviewGeneration(projectId: string) {
           successor: { select: { id: true, code: true, title: true } },
         },
       },
+      artifactTable: { select: { rows: true } },
       artifacts: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
       raidItems: {
         orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }],
@@ -116,6 +118,7 @@ export function generateExecutiveSummary(project: ProjectForOverviewGeneration) 
   const staleJiraIssues = project.jiraSnapshots.filter(
     (issue) => daysSince(issue.updatedAt) !== null && Number(daysSince(issue.updatedAt)) > 7,
   );
+  const tableArtifactCount = project.artifactTable ? artifactRows(project.artifactTable.rows).filter(row => Object.values(row.cells).some(value => value.trim()) || Object.values(row.files).some(files => files.length)).length : null;
   const artifactBaselineCount = project.artifacts.filter((artifact) =>
     ['Approved', 'Baseline'].includes(artifact.status),
   ).length;
@@ -217,9 +220,9 @@ export function generateExecutiveSummary(project: ProjectForOverviewGeneration) 
       source: 'Открытые вопросы + Структура',
     },
     {
-      name: 'Управленческие подтверждения',
-      status: artifactBaselineCount > 0 ? 'OK' : 'WARN',
-      detail: `${artifactBaselineCount} одобренных артефактов или базовых планов в реестре проекта`,
+      name: tableArtifactCount !== null ? 'Реестр артефактов заполнен' : 'Управленческие подтверждения',
+      status: (tableArtifactCount ?? artifactBaselineCount) > 0 ? 'OK' : 'WARN',
+      detail: tableArtifactCount !== null ? `${tableArtifactCount} записей в реестре артефактов` : `${artifactBaselineCount} одобренных артефактов или базовых планов в реестре проекта`,
       source: 'Реестр артефактов',
     },
     {
@@ -329,7 +332,7 @@ export function generateExecutiveSummary(project: ProjectForOverviewGeneration) 
     },
     {
       metric: 'Артефакты',
-      source: `${project.artifacts.length} артефактов проекта / ${artifactBaselineCount} одобрено или зафиксировано как базовый план`,
+      source: tableArtifactCount !== null ? `${tableArtifactCount} записей в реестре артефактов` : `${project.artifacts.length} артефактов проекта / ${artifactBaselineCount} одобрено или зафиксировано как базовый план`,
     },
     {
       metric: 'Риски',

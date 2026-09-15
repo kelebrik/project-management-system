@@ -706,12 +706,12 @@ export const englishWikiGroups: WikiGroup[] = [
           {
             "heading": "Artifacts",
             "points": [
-              "An artifact stores title, type, owner, status, url, description and sortOrder.",
-              "The statuses are: Draft, In Review, Approved, Baseline, Archived.",
-              "An empty owner is normalized to Unassigned. The URL, if provided, must be a valid URL.",
-              "Artifacts can be added, edited, deleted and moved up/down. Reorder stores sortOrder according to the supplied orderedIds.",
-              "All write operations go through ensureProjectWritable or ensureEntityProjectWritable and emit the webhook events artifact.created/updated/deleted.",
-              "Global search indexes the artifact's title, type, owner, status, url and description."
+              "Artifacts use an editable table like Business requirements. A new table starts with four columns and one row; the first column contains a date picker instead of a row number.",
+              "Edit the two-line column headings directly, or add columns. The date column can be renamed but cannot be deleted.",
+              "Add row inserts a blank row directly below the header. Save persists dates, headings, text and attachment references for the project.",
+              "HTTP and HTTPS URLs in cells appear as clickable links. Attach file uploads a file into a cell; click its filename to download it. Limits are 3 MB per file and 30 MB per project.",
+              "Removing a saved attachment, row or column and saving removes its unreferenced files. Unsaved uploads expire after 24 hours and are cleaned up on subsequent uploads.",
+              "If another user saves first, your edits remain on screen and a conflict message appears. Reload saved table asks before discarding your edits. Existing catalog entries remain visible until converted by saving the table."
             ]
           }
         ]

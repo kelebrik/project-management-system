@@ -199,10 +199,29 @@ export function createSearchRouter() {
     }
 
     if (types.has('artifact')) {
+      // Filter in PostgreSQL and return only bounded search snippets, never whole table JSON.
+      const readable = await prisma.project.findMany({ where: { AND: [projectScope, ...(projectId ? [{ id: projectId }] : [])] }, select: { id: true } });
+      if (readable.length) {
+        const matches = await prisma.$queryRaw<Array<{ id: string; projectId: string; code: string; name: string; title: string; date: string; updatedAt: Date }>>`
+          SELECT r.value->>'id' AS id, t."projectId", p.code, p.name,
+            left(coalesce(nullif(c.text, ''), r.value->>'date', 'Artifact'), 200) AS title,
+            r.value->>'date' AS date, t."updatedAt"
+          FROM "ProjectArtifactTable" t JOIN "Project" p ON p.id = t."projectId"
+          CROSS JOIN LATERAL jsonb_array_elements(t.rows) r(value)
+          CROSS JOIN LATERAL (SELECT string_agg(value, ' ') AS text FROM jsonb_each_text(r.value->'cells')) c
+          CROSS JOIN LATERAL (SELECT string_agg(f.value->>'name', ' ') AS text FROM jsonb_each(r.value->'files') e CROSS JOIN LATERAL jsonb_array_elements(e.value) f(value)) a
+          WHERE t."projectId" IN (${Prisma.join(readable.map(project => project.id))})
+            AND position(lower(${q}) IN lower(concat(r.value->>'date', ' ', c.text, ' ', a.text))) > 0
+          ORDER BY t."updatedAt" DESC, r.value->>'id' LIMIT ${limit}
+        `;
+        results.push(...matches.map(match => ({ type: 'artifact', id: match.id, projectId: match.projectId,
+          projectCode: match.code, projectName: match.name, title: match.title, subtitle: match.date,
+          url: projectUrl(match.code, 'artifacts'), updatedAt: match.updatedAt })));
+      }
       const artifacts = await prisma.projectArtifact.findMany({
         where: {
           ...(projectId ? { projectId } : {}),
-          project: projectScope,
+          project: { ...projectScope, artifactTable: { is: null } },
           OR: [
             { title: contains(q) },
             { type: contains(q) },

@@ -56,7 +56,7 @@ async function request<T>(
     ...options,
     credentials: "include",
     headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...businessUnitHeaders(),
       ...options.headers,
     },
@@ -95,7 +95,7 @@ async function downloadRequest(path: string, options: RequestInit, fallback: str
     ...options,
     credentials: "include",
     headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...businessUnitHeaders(),
       ...options.headers,
     },
@@ -123,6 +123,11 @@ async function downloadRequest(path: string, options: RequestInit, fallback: str
 }
 
 export const apiClient = {
+  upload<T>(path: string, file: File, fallback?: string) {
+    const body = new FormData();
+    body.append("file", file);
+    return request<T>(path, { method: "POST", body }, fallback);
+  },
   get<T>(path: string, fallback?: string) {
     return request<T>(path, {}, fallback);
   },
