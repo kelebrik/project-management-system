@@ -182,16 +182,16 @@ const projectNavItems: ProjectNavItem[] = [
     icon: <BarChart3 size={17} />,
   },
   {
-    key: "calendars",
-    view: "project-calendars",
-    label: "view.project-calendars",
-    icon: <CalendarDays size={17} />,
-  },
-  {
     key: "artifacts",
     view: "project-artifacts",
     label: "view.project-artifacts",
     icon: <FileArchive size={17} />,
+  },
+  {
+    key: "calendars",
+    view: "project-calendars",
+    label: "view.project-calendars",
+    icon: <CalendarDays size={17} />,
   },
 ];
 

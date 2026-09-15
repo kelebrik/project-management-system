@@ -293,7 +293,7 @@
   align-items: center;
   display: grid;
   gap: 10px;
-  grid-template-columns: 150px minmax(220px, 1fr) 150px 160px 130px 140px 28px;
+  grid-template-columns: 150px repeat(4, minmax(150px, 1fr)) 140px 28px;
 }
 
 .artifact-head {
@@ -304,6 +304,28 @@
   padding: 9px 12px;
   text-transform: uppercase;
 }
+
+.artifact-head input {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  font: inherit;
+  min-width: 0;
+  padding: 4px;
+  text-align: center;
+  width: 100%;
+}
+
+.artifact-date-field {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  gap: 4px;
+}
+
+.artifact-date-field input { max-width: 130px; }
 
 .artifact-row {
   background: var(--surface);

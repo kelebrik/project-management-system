@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import type { ArtifactStatus } from "../app/domainTypes";
@@ -22,6 +23,7 @@ export function ProjectArtifactsPage() {
     updateArtifactDraft,
   } = ctx;
   const [query, setQuery] = usePersistedViewState(`pms:artifacts:${project.id}:query`, "");
+  const [columns, setColumns] = useState([t("artifacts.artifact"), t("fields.type"), t("fields.owner"), t("fields.status")]);
   const normalizedQuery = query.trim().toLowerCase();
   const artifacts = project.artifacts.filter((artifact) => !normalizedQuery || [artifact.title, artifact.owner, artifact.type, artifact.status].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
   const confirmArtifactDeletion = async (artifactId: string) => {
@@ -56,11 +58,8 @@ export function ProjectArtifactsPage() {
                   <div className="artifact-list">
                     <div className="artifact-head">
                       <span />
-                      <span>{t("artifacts.artifact")}</span>
-                      <span>{t("fields.type")}</span>
-                      <span>{t("fields.owner")}</span>
-                      <span>{t("fields.status")}</span>
-                      <span>URL</span>
+                      {columns.map((column, index) => <input key={index} value={column} aria-label={`Artifact column ${index + 1}`} onChange={(event) => setColumns((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} />)}
+                      <button type="button" onClick={() => setColumns((current) => [...current, `Column ${current.length + 1}`])}>+</button>
                       <span />
                     </div>
                     {artifacts.map((artifact) => { const index = project.artifacts.findIndex((item) => item.id === artifact.id); return (
@@ -87,6 +86,7 @@ export function ProjectArtifactsPage() {
                           }}
                         >
                           <span className="artifact-row-controls">
+                            <label className="artifact-date-field">Date<input type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
                             <button
                               type="button"
                               className="wbs-inline-insert-button"
