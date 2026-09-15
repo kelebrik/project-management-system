@@ -495,8 +495,10 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
                               style={{
                                 "--portfolio-roadmap-segment-row": segment.row,
                                 backgroundColor: segment.color,
-                                left: `${segment.offset}%`,
-                                width: `max(24px, calc(${segment.width}% - 3px))`,
+                                // Keep a constant visual gutter around every package,
+                                // including adjacent packages and month boundaries.
+                                left: `calc(${segment.offset}% + 2px)`,
+                                width: `max(24px, calc(${segment.width}% - 4px))`,
                               } as CSSProperties}
                               title={`${segment.code} · ${segment.label}`}
                               type="button"
