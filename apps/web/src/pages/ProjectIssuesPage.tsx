@@ -3,7 +3,6 @@ import { useState } from "react";
 import { usePageContext } from "./PageContext";
 import { ProjectClosedIssuesSection } from "./ProjectClosedIssuesSection";
 import { ProjectOpenIssuesSection } from "./ProjectOpenIssuesSection";
-import { MeetingNotesPanel } from '../components/automation/MeetingNotesPanel';
 
 export function ProjectIssuesPage() {
   const { t: uiText } = useInterfaceTranslation();
@@ -20,7 +19,6 @@ export function ProjectIssuesPage() {
 
   return (
                   <article className="panel overview-panel">
-                    <MeetingNotesPanel projectId={project.id} />
                     <div className="panel-title">
                       <div>
                         <h2>{uiText("ui.projects.openQuestionsRegisterTitle")}</h2>

@@ -369,7 +369,7 @@ export function ProjectStructureSection() {
                         <>
                           <div className="gantt-controls wbs-structure-controls" aria-label={uiText("ui.projects.structureToolbarLabel")}>
                           <div className="gantt-controls-row">
-                            <button
+                            {uiLocale === "ru" && <button
                               type="button"
                               className="workspace-fullscreen-button"
                               onClick={() =>
@@ -394,7 +394,7 @@ export function ProjectStructureSection() {
                               {fullscreenWorkspaceView === "project-structure"
                                 ? uiText("ui.common.normalMode")
                                 : uiText("ui.common.fullScreen")}
-                            </button>
+                            </button>}
                             {!isReadOnly && (
                               <>
                                 <button
@@ -474,7 +474,7 @@ export function ProjectStructureSection() {
                                 </div>
                               )}
                             </div>
-                            <button
+                            {uiLocale === "ru" && <button
                               type="button"
                               className="wbs-pdf-button"
                               onClick={() =>
@@ -488,7 +488,7 @@ export function ProjectStructureSection() {
                             >
                               <FileDown size={15} />
                               PDF
-                            </button>
+                            </button>}
                             <button
                               type="button"
                               className="wbs-pdf-button"
@@ -504,7 +504,7 @@ export function ProjectStructureSection() {
                               <FileDown size={15} />
                               PDF EN
                             </button>
-                            <div className="column-menu wbs-en-menu">
+                            {uiLocale === "ru" && <div className="column-menu wbs-en-menu">
                               <button
                                 type="button"
                                 className="wbs-pdf-button"
@@ -542,7 +542,7 @@ export function ProjectStructureSection() {
                                 className="wbs-translation-import-input"
                                 onChange={handleEnglishImportInputChange}
                               />
-                            </div>
+                            </div>}
                             <div
                               className="segmented-control hierarchy-control"
                               aria-label={uiText("ui.projects.structureHierarchyDepthLabel")}
