@@ -14,7 +14,6 @@ export function ProjectIssuesPage() {
     emptyIssueForm,
     setIssueDrawerMode,
     setIssueForm,
-    project,
   } = ctx;
 
   return (

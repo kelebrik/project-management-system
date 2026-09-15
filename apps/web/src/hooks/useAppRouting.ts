@@ -17,6 +17,7 @@ import {
   type AppView,
 } from "../app/routes";
 import { projectModuleKeyByView } from "../app/projectModules";
+import { useI18n } from "../i18n/I18nProvider";
 
 type AppRoutingDeps = Record<string, any>;
 
@@ -46,6 +47,7 @@ export function useAppRouting({
   setProjects,
   setSelectedProjectId,
 }: AppRoutingDeps) {
+  const { t: uiText } = useI18n();
   const initialProjectCodeRef = useRef<string | null>(initialRouteProjectCode());
   const pendingDefaultProjectRef = useRef(false);
   const selectDefaultProject = useCallback(() => {
@@ -101,7 +103,7 @@ export function useAppRouting({
       try {
         const data = await apiClient.get<ProjectListItem[]>(
           "/api/projects",
-          "Не удалось загрузить список проектов",
+          uiText("ui.common.routeProjectsLoadFailed"),
         );
         if (cancelled) return;
         const firstProject =
@@ -125,7 +127,7 @@ export function useAppRouting({
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Не удалось загрузить список проектов",
+            : uiText("ui.common.routeProjectsLoadFailed"),
         );
       } finally {
         if (!cancelled) setLoading(false);
@@ -142,6 +144,7 @@ export function useAppRouting({
     setProjectRegistryDrafts,
     setProjects,
     setSelectedProjectId,
+    uiText,
   ]);
 
   const openView = useCallback(
@@ -153,14 +156,14 @@ export function useAppRouting({
       setNotice(null);
       if (!isAuthenticated && writeProtectedViews.has(nextView)) {
         setAuthMode("login");
-        setError("Для редактирования нужно войти в систему");
+        setError(uiText("ui.common.routeSignInToEdit"));
         return;
       }
       if (
         typeof window !== "undefined" &&
         ((window as Window & { __pmsUnsaved?: boolean }).__pmsUnsaved ||
           (dirtyWbsItemIds?.size ?? 0) > 0) &&
-        !window.confirm("Есть несохранённые изменения. Уйти без сохранения?")
+        !window.confirm(uiText("ui.common.routeUnsavedChangesConfirm"))
       ) {
         return;
       }
@@ -168,18 +171,18 @@ export function useAppRouting({
         isAdminSectionViewName(nextView) &&
         !canAccessAdminView(nextView, isAdminUser, isBusinessUnitAdmin)
       ) {
-        setError("Раздел администрирования доступен только администратору");
+        setError(uiText("ui.common.routeAdminSectionForbidden"));
         return;
       }
       if (isDevelopmentSectionViewName(nextView) && !isAdminUser) {
-        setError("Раздел разработки доступен только администратору");
+        setError(uiText("ui.common.routeDevelopmentSectionForbidden"));
         return;
       }
       if (
         isProjectSectionViewName(nextView) &&
         !isProjectModuleEnabled(projectModuleKeyByView[nextView])
       ) {
-        setError("Страница проекта отключена администратором");
+        setError(uiText("ui.common.routeProjectPageDisabled"));
         return;
       }
       pendingDefaultProjectRef.current = false;
@@ -217,6 +220,7 @@ export function useAppRouting({
       setAuthMode,
       setError,
       setNotice,
+      uiText,
     ],
   );
 
@@ -229,13 +233,13 @@ export function useAppRouting({
         normalizeProjectRouteCode(routeProjectCode),
     );
     if (!routeProject) {
-      setError(`Проект ${routeProjectCode} не найден`);
+      setError(uiText("ui.common.routeProjectNotFound", { code: routeProjectCode }));
       initialProjectCodeRef.current = null;
       return;
     }
     setSelectedProjectId(routeProject.id);
     initialProjectCodeRef.current = null;
-  }, [projects, setError, setSelectedProjectId]);
+  }, [projects, setError, setSelectedProjectId, uiText]);
 
   // Resolve after the initial deep link so a later portfolio transition takes precedence.
   useEffect(() => {

@@ -1,6 +1,13 @@
 import { businessUnitHeaders } from "../app/businessUnitContext";
+import { readLocale } from "../i18n/locale";
+import { createTranslator } from "../i18n/translate";
 
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+
+/** The client is not a React tree, so it reads the persisted choice the provider writes. */
+function clientText() {
+  return createTranslator(readLocale(typeof window === "undefined" ? undefined : window.localStorage));
+}
 
 export class ApiError extends Error {
   status: number;
@@ -43,7 +50,7 @@ function errorMessage(result: unknown, fallback: string) {
 async function request<T>(
   path: string,
   options: RequestInit = {},
-  fallback = "Запрос не выполнен",
+  fallback = clientText()("ui.common.apiRequestFailed"),
 ): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
     ...options,
@@ -60,7 +67,11 @@ async function request<T>(
     try {
       result = JSON.parse(text);
     } catch {
-      throw new ApiError(`${fallback}: сервер вернул не JSON`, response.status, text);
+      throw new ApiError(
+        clientText()("ui.common.apiResponseNotJson", { fallback }),
+        response.status,
+        text,
+      );
     }
   }
   if (!response.ok) {
@@ -75,7 +86,7 @@ async function request<T>(
   return result as T;
 }
 
-async function download(path: string, fallback = "Не удалось скачать файл") {
+async function download(path: string, fallback = clientText()("ui.common.apiDownloadFailed")) {
   return downloadRequest(path, {}, fallback);
 }
 
@@ -150,7 +161,7 @@ export const apiClient = {
     return request<T>(path, { method: "DELETE" }, fallback);
   },
   download,
-  downloadPost(path: string, body: unknown, fallback = "Не удалось скачать файл") {
+  downloadPost(path: string, body: unknown, fallback = clientText()("ui.common.apiDownloadFailed")) {
     return downloadRequest(path, { method: "POST", body: JSON.stringify(body) }, fallback);
   },
 };

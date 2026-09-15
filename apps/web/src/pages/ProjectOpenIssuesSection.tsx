@@ -36,10 +36,10 @@ type EditableIssueField = keyof Pick<
 
 const nullableFields = new Set<EditableIssueField>(["phaseId", "riskId", "dueDate"]);
 
-const readinessLabels = {
-  RED: "Красная",
-  AMBER: "Жёлтая",
-  GREEN: "Зелёная",
+const readinessLabelKeys = {
+  RED: "ui.projects.issueReadinessRed",
+  AMBER: "ui.projects.issueReadinessAmber",
+  GREEN: "ui.projects.issueReadinessGreen",
 } as const;
 
 function sortedStatusUpdates(issue: Issue) {
@@ -151,11 +151,11 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
       const overdue = Boolean(issue.dueDate && new Date(issue.dueDate) < new Date());
       const matchesFilter = issueFilter === "all" || (issueFilter === "high" && ["HIGH", "CRITICAL"].includes(issue.severity)) || (issueFilter === "overdue" && overdue);
       if (!matchesQuery || !matchesFilter) continue;
-      const category = issue.category.trim() || "Без раздела";
+      const category = issue.category.trim() || uiText("ui.projects.issueNoSection");
       result.set(category, [...(result.get(category) ?? []), issue]);
     }
     return [...result.entries()].map(([category, issues]) => [category, [...issues].sort((left, right) => (left.dueDate ?? "9999").localeCompare(right.dueDate ?? "9999") * (issueSortDesc ? -1 : 1))] as [string, Issue[]]);
-  }, [issueFilter, issueSearch, issueSortDesc, project.issues]);
+  }, [issueFilter, issueSearch, issueSortDesc, project.issues, uiText]);
   const categoryOptions = groups.map(([category]) => category);
   const tableWidth = openIssueTableWidth(columnWidths);
 
@@ -184,7 +184,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
       window.removeEventListener("pointerup", onPointerUp);
       if (isReadOnly) return;
       void saveProjectUiState({ openIssueColumnWidths: latestWidths }).catch((error: unknown) =>
-        setError(error instanceof Error ? error.message : "Не удалось сохранить ширину колонок"),
+        setError(error instanceof Error ? error.message : uiText("ui.projects.issueColumnWidthSaveFailed")),
       );
     };
     window.addEventListener("pointermove", onPointerMove);
@@ -285,7 +285,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
     const currentPhaseId = issue.phaseId ?? "";
     if (phaseId === currentPhaseId) return;
     if (currentUser?.role !== "ADMIN") {
-      const message = "Недостаточно прав для выбора фазы и создания пакета работ";
+      const message = uiText("ui.projects.issuePhaseSelectionForbidden");
       setFieldErrors((current) => ({ ...current, [`${issue.id}:phaseId`]: message }));
       setError(message);
       return;
@@ -298,12 +298,17 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
     const phase = phases.find((candidate: { id: string }) => candidate.id === phaseId);
     if (!phase) return;
     const moving = Boolean(issue.workPackageId);
+    const phaseLabel = `${phase.code} · ${phase.title}`;
     const approved = await confirm({
-      title: moving ? "Переместить пакет работ?" : "Создать пакет работ?",
+      title: uiText(moving
+        ? "ui.projects.issueMoveWorkPackageTitle"
+        : "ui.projects.issueCreateWorkPackageTitle"),
       message: moving
-        ? `Пакет работ вопроса будет перемещён в фазу «${phase.code} · ${phase.title}» перед последней вехой или целью этой фазы. Продолжить?`
-        : `Для вопроса будет создан пакет работ в фазе «${phase.code} · ${phase.title}» перед последней вехой или целью этой фазы. Продолжить?`,
-      confirmLabel: moving ? "Переместить" : "Создать",
+        ? uiText("ui.projects.issueMoveWorkPackageMessage", { phase: phaseLabel })
+        : uiText("ui.projects.issueCreateWorkPackageMessage", { phase: phaseLabel }),
+      confirmLabel: uiText(moving
+        ? "ui.projects.issueMoveWorkPackageConfirmLabel"
+        : "ui.projects.issueCreateWorkPackageConfirmLabel"),
     });
     if (!approved) return;
     patchDraft(issue, { phaseId });
@@ -311,8 +316,8 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
     if (saved) {
       setNotice(
         moving
-          ? `Пакет работ перемещён в фазу «${phase.code} · ${phase.title}»`
-          : `Пакет работ создан в фазе «${phase.code} · ${phase.title}»`,
+          ? uiText("ui.projects.issueWorkPackageMoved", { phase: phaseLabel })
+          : uiText("ui.projects.issueWorkPackageCreated", { phase: phaseLabel }),
       );
     }
   };
@@ -423,11 +428,13 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
             <tr>
               {OPEN_ISSUE_COLUMNS.map((column) => (
                 <th scope="col" key={column.key}>
-                  <span>{column.label}</span>
+                  <span>{uiText(column.labelKey)}</span>
                   <button
                     type="button"
                     className="issue-column-resizer"
-                    aria-label={`Изменить ширину колонки ${column.label}`}
+                    aria-label={uiText("ui.projects.issueResizeColumnAction", {
+                      column: uiText(column.labelKey),
+                    })}
                     onPointerDown={(event) => startColumnResize(column.key, event)}
                   />
                 </th>
@@ -631,7 +638,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                               <input
                                 autoFocus
                                 value={ticketKeyDrafts[link.id] ?? link.jiraKey}
-                                aria-label={`Ключ тикета ${link.jiraKey}`}
+                                aria-label={uiText("ui.projects.issueTicketKeyLabel", { key: link.jiraKey })}
                                 onChange={(event) => setTicketKeyDrafts((current) => ({
                                   ...current,
                                   [link.id]: event.target.value,
@@ -663,7 +670,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                               <button
                                 type="button"
                                 className="icon-button issue-thread-edit"
-                                aria-label={`Изменить ключ ${link.jiraKey}`}
+                                aria-label={uiText("ui.projects.issueEditTicketKeyAction", { key: link.jiraKey })}
                                 onClick={() => {
                                   setTicketKeyDrafts((current) => ({
                                     ...current,
@@ -679,7 +686,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                               <button
                                 type="button"
                                 className="icon-button"
-                                aria-label={`Удалить ссылку ${link.jiraKey}`}
+                                aria-label={uiText("ui.projects.issueRemoveTicketLinkAction", { key: link.jiraKey })}
                                 onClick={() => void removeIssueJiraLink(issue.id, link.id)}
                               >
                                 <X size={13} />
@@ -825,7 +832,9 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                         value={draft.readiness}
                         disabled={isReadOnly}
                         aria-busy={isSaving("readiness")}
-                        title={`Готовность: ${readinessLabels[draft.readiness]}`}
+                        title={uiText("ui.projects.issueReadinessTooltip", {
+                          readiness: uiText(readinessLabelKeys[draft.readiness]),
+                        })}
                         onChange={(event) => {
                           const readiness = event.target.value as Issue["readiness"];
                           patchDraft(issue, { readiness });
@@ -833,8 +842,8 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                         }}
                         aria-label={uiText("ui.projects.readiness")}
                       >
-                        {Object.entries(readinessLabels).map(([value, label]) => (
-                          <option value={value} key={value}>{label}</option>
+                        {Object.entries(readinessLabelKeys).map(([value, labelKey]) => (
+                          <option value={value} key={value}>{uiText(labelKey)}</option>
                         ))}
                       </select>
                       {fieldError("readiness")}

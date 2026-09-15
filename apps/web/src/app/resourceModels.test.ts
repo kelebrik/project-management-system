@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { WbsItem } from "./domainTypes";
+import { createTranslator } from "../i18n/translate";
 import { createResourceDashboard } from "./resourceModels";
+
+const ru = createTranslator("ru");
+const en = createTranslator("en");
 
 function wbsTask(overrides: Partial<WbsItem>): WbsItem {
   return {
@@ -77,6 +81,8 @@ test("resource dashboard does not treat WBS duration as full-time demand", () =>
     ],
     new Date("2026-06-15T12:00:00.000Z"),
     ["api"],
+    [],
+    ru,
   );
 
   const alex = dashboard.rows.find((row) => row.owner === "Alex Dev");
@@ -113,6 +119,9 @@ test("resource dashboard uses WBS effort percent as capacity share", () => {
       }),
     ],
     new Date("2026-06-15T12:00:00.000Z"),
+    [],
+    [],
+    ru,
   );
 
   const alex = dashboard.rows.find((row) => row.owner === "Alex Dev");
@@ -140,6 +149,9 @@ test("resource dashboard prorates effort for tasks shorter than one week", () =>
       }),
     ],
     new Date("2026-06-15T12:00:00.000Z"),
+    [],
+    [],
+    ru,
   );
 
   const alex = dashboard.rows.find((row) => row.owner === "Alex Dev");
@@ -171,6 +183,8 @@ test("resource dashboard detects overload when overlapping effort exceeds capaci
     ],
     new Date("2026-06-15T12:00:00.000Z"),
     ["api"],
+    [],
+    ru,
   );
 
   const alex = dashboard.rows.find((row) => row.owner === "Alex Dev");
@@ -211,6 +225,9 @@ test("resource dashboard excludes done and cancelled work from demand", () => {
       }),
     ],
     new Date("2026-06-15T12:00:00.000Z"),
+    [],
+    [],
+    ru,
   );
 
   const qa = dashboard.rows.find((row) => row.owner === "QA");
@@ -237,6 +254,9 @@ test("resource dashboard moves unfinished past work into the current week", () =
       }),
     ],
     new Date("2026-06-15T12:00:00.000Z"),
+    [],
+    [],
+    ru,
   );
 
   const pm = dashboard.rows.find((row) => row.owner === "PM");
@@ -274,6 +294,9 @@ test("resource dashboard treats CVTE as contractor team capacity", () => {
       }),
     ],
     new Date("2026-06-15T12:00:00.000Z"),
+    [],
+    [],
+    ru,
   );
 
   const cvte = dashboard.rows.find((row) => row.owner === "CVTE");
@@ -301,6 +324,9 @@ test("resource dashboard keeps coordinator capacity separate from WBS effort", (
       }),
     ],
     new Date("2026-06-15T12:00:00.000Z"),
+    [],
+    [],
+    ru,
   );
 
   const pm = dashboard.rows.find((row) => row.owner === "Гладков");
@@ -312,4 +338,42 @@ test("resource dashboard keeps coordinator capacity separate from WBS effort", (
   assert.equal(pm.cells[0]?.demandHours, 4);
   assert.equal(pm.cells[1]?.demandHours, 4);
   assert.equal(dashboard.summary.overloadedCount, 0);
+});
+
+test("resource dashboard text follows the interface locale", () => {
+  const items = [
+    wbsTask({
+      id: "overloaded",
+      code: "6.1",
+      title: "Frontend build",
+      owner: "Alex Dev",
+      effortPercent: 100,
+      workDays: 5,
+      startDate: "2026-06-15T00:00:00.000Z",
+      dueDate: "2026-06-19T00:00:00.000Z",
+    }),
+    wbsTask({
+      id: "unowned",
+      code: "6.2",
+      title: "Integration testing",
+      owner: "",
+      effortPercent: 50,
+      workDays: 3,
+    }),
+  ];
+  const now = new Date("2026-06-15T12:00:00.000Z");
+  const english = createResourceDashboard(items, now, [], [], en);
+  const russian = createResourceDashboard(items, now, [], [], ru);
+
+  assert.equal(english.unassignedRow?.owner, "Unassigned");
+  assert.equal(russian.unassignedRow?.owner, "Не назначен");
+  assert.equal(english.rows[0]?.profile.role, "Development");
+  assert.equal(russian.rows[0]?.profile.role, "Разработка");
+  assert.ok(english.conflicts.every((conflict) => !/[А-Яа-яЁё]/u.test(`${conflict.title}${conflict.detail}`)));
+  assert.ok(english.requests.every((request) => !/[А-Яа-яЁё]/u.test(`${request.role}${request.dueLabel}${request.reason}`)));
+  assert.ok(english.recommendations.every((item) => !/[А-Яа-яЁё]/u.test(`${item.title}${item.detail}`)));
+  assert.deepEqual(
+    english.rows.map((row) => row.capacityHoursPerWeek),
+    russian.rows.map((row) => row.capacityHoursPerWeek),
+  );
 });

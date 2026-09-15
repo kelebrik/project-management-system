@@ -1,7 +1,9 @@
 import { isoDate, isDefaultWorkingDay, startOfDay } from "./dateUtils";
 import type { ProjectListItem, WbsItem } from "./domainTypes";
+import type { Translator } from "../i18n/types";
 
-const UNASSIGNED_OWNER = "Не назначен";
+/** Owner sentinel for work with no assignee; it is displayed, so it follows the interface locale. */
+const unassignedOwner = (text: Translator) => text("ui.resources.resourceOwnerUnassigned");
 const WORK_HOURS_PER_DAY = 8;
 const DASHBOARD_WEEK_COUNT = 8;
 
@@ -161,53 +163,54 @@ type ResourceWorkSourceItem = {
 
 export function createDefaultResourceProfile(
   owner: string,
-  item?: Pick<WbsItem, "title">,
+  item: Pick<WbsItem, "title"> | undefined,
+  text: Translator,
 ): ResourceAllocationProfile {
-  const normalized = owner.trim() || UNASSIGNED_OWNER;
-  if (normalized === UNASSIGNED_OWNER) {
+  const normalized = owner.trim() || unassignedOwner(text);
+  if (normalized === unassignedOwner(text)) {
     return {
       owner: normalized,
       kind: "person",
-      role: "Роль не назначена",
+      role: text("ui.resources.resourceRoleUnassigned"),
       baseHoursPerWeek: 40,
       fte: 0,
       projectAllocationPercent: 0,
       currentProjectAllocationPercent: 0,
       operationalAllocationPercent: 0,
       executionFactorPercent: 10,
-      note: "Работа не закреплена за ресурсом.",
+      note: text("ui.resources.resourceProfileNoteUnassigned"),
     };
   }
   if (normalized.toLowerCase() === "cvte") {
     return {
       owner: normalized,
       kind: "contractor-team",
-      role: "Подрядчик: РП + 5 инженеров",
+      role: text("ui.resources.resourceRoleContractorTeam"),
       baseHoursPerWeek: 40,
       fte: 5,
       projectAllocationPercent: 100,
       currentProjectAllocationPercent: 100,
       operationalAllocationPercent: 0,
       executionFactorPercent: 2,
-      note: "CVTE считается как выделенная рабочая группа: РП и 5 инженеров.",
+      note: text("ui.resources.resourceProfileNoteContractorTeam"),
     };
   }
   if (normalized.toLowerCase().includes("гладков")) {
     return {
       owner: normalized,
       kind: "coordinator",
-      role: "РП / агрегатор задач",
+      role: text("ui.resources.resourceRoleCoordinator"),
       baseHoursPerWeek: 40,
       fte: 1,
       projectAllocationPercent: 40,
       currentProjectAllocationPercent: 100,
       operationalAllocationPercent: 60,
       executionFactorPercent: 1,
-      note: "РП отвечает за координацию; трудоемкость WBS задается отдельно.",
+      note: text("ui.resources.resourceProfileNoteCoordinator"),
     };
   }
-  const role = inferResourceRole(item ?? { title: "" }, normalized);
-  const isSharedRole = role === "PMO" || role === "Бизнес-аналитик";
+  const role = inferResourceRole(item ?? { title: "" }, normalized, text);
+  const isSharedRole = role === "PMO" || role === text("ui.resources.resourceRoleBusinessAnalyst");
   return {
     owner: normalized,
     kind: "person",
@@ -218,15 +221,15 @@ export function createDefaultResourceProfile(
     currentProjectAllocationPercent: 100,
     operationalAllocationPercent: isSharedRole ? 20 : 0,
     executionFactorPercent: isSharedRole ? 1 : 2,
-    note: "Профиль создан автоматически; загрузка считается от трудоемкости WBS.",
+    note: text("ui.resources.resourceProfileNoteGenerated"),
   };
 }
 
-export function createResourceSummaryRows(wbsItems: WbsItem[], now: Date) {
+export function createResourceSummaryRows(wbsItems: WbsItem[], now: Date, text: Translator) {
   const byOwner = new Map<string, ResourceSummaryRow>();
   for (const item of wbsItems) {
     if (!isResourceWorkItem(item)) continue;
-    const owner = normalizedOwner(item);
+    const owner = normalizedOwner(item, text);
     const row =
       byOwner.get(owner) ??
       { owner, total: 0, done: 0, inProgress: 0, overdue: 0 };
@@ -244,26 +247,27 @@ export function createResourceSummaryRows(wbsItems: WbsItem[], now: Date) {
 export function createResourceDashboard(
   source: WbsItem[] | ProjectListItem[],
   now: Date,
-  criticalItemIds: string[] = [],
-  profileOverrides: ResourceAllocationProfile[] = [],
+  criticalItemIds: string[],
+  profileOverrides: ResourceAllocationProfile[],
+  text: Translator,
 ): ResourceDashboard {
   const today = startOfDay(now);
   const weeks = createWeekBuckets(today, DASHBOARD_WEEK_COUNT);
   const criticalIds = new Set(criticalItemIds);
   const workItems = normalizeResourceWorkSource(source);
-  const profileOverrideMap = createProfileOverrideMap(profileOverrides);
+  const profileOverrideMap = createProfileOverrideMap(profileOverrides, text);
   const byOwner = new Map<string, ResourceBucket>();
   let activeWorkCount = 0;
 
   for (const { item, project } of workItems) {
     if (!isResourceWorkItem(item)) continue;
-    const owner = normalizedOwner(item);
-    const profile = resolveResourceProfile(owner, item, profileOverrideMap);
-    const plannedHours = estimatePlannedHours(item, profile);
+    const owner = normalizedOwner(item, text);
+    const profile = resolveResourceProfile(owner, item, profileOverrideMap, text);
+    const plannedHours = estimatePlannedHours(item, profile, text);
     const remainingHours = isOverdue(item, now)
       ? 0
       : estimateRemainingHours(item, plannedHours);
-    const bucket = ensureResourceBucket(byOwner, owner, profile);
+    const bucket = ensureResourceBucket(byOwner, owner, profile, text);
 
     bucket.total += 1;
     bucket.plannedHours += plannedHours;
@@ -309,23 +313,24 @@ export function createResourceDashboard(
   }
 
   const allRows = [...byOwner.values()].map((bucket) =>
-    createDashboardRow(bucket, weeks),
+    createDashboardRow(bucket, weeks, text),
   );
   const unassignedRow =
-    allRows.find((row) => row.owner === UNASSIGNED_OWNER) ?? null;
+    allRows.find((row) => row.owner === unassignedOwner(text)) ?? null;
   const rows = allRows
-    .filter((row) => row.owner !== UNASSIGNED_OWNER)
+    .filter((row) => row.owner !== unassignedOwner(text))
     .sort(sortResourceRows);
 
-  const conflicts = createResourceConflicts(rows, unassignedRow);
+  const conflicts = createResourceConflicts(rows, unassignedRow, text);
   const roleGapHours = Math.round(
     createRoleGapHours(rows) + (unassignedRow?.remainingHours ?? 0),
   );
-  const requests = createResourceRequests(rows, unassignedRow, weeks);
+  const requests = createResourceRequests(rows, unassignedRow, weeks, text);
   const recommendations = createResourceRecommendations(
     conflicts,
     requests,
     roleGapHours,
+    text,
   );
   const overloadedCount = rows.filter((row) =>
     row.cells.some((cell) => cell.tone === "bad"),
@@ -362,8 +367,8 @@ function isResourceWorkItem(item: WbsItem) {
   );
 }
 
-function normalizedOwner(item: Pick<WbsItem, "owner">) {
-  return item.owner?.trim() || UNASSIGNED_OWNER;
+function normalizedOwner(item: Pick<WbsItem, "owner">, text: Translator) {
+  return item.owner?.trim() || unassignedOwner(text);
 }
 
 function normalizeOwnerName(owner: string) {
@@ -381,9 +386,9 @@ function positiveCapacityNumber(value: number, fallback: number) {
     : fallback;
 }
 
-function normalizeResourceProfile(profile: ResourceAllocationProfile) {
-  const owner = profile.owner.trim() || UNASSIGNED_OWNER;
-  const defaults = createDefaultResourceProfile(owner);
+function normalizeResourceProfile(profile: ResourceAllocationProfile, text: Translator) {
+  const owner = profile.owner.trim() || unassignedOwner(text);
+  const defaults = createDefaultResourceProfile(owner, undefined, text);
   const baseHoursPerWeek = positiveCapacityNumber(
     profile.baseHoursPerWeek,
     defaults.baseHoursPerWeek,
@@ -408,10 +413,10 @@ function normalizeResourceProfile(profile: ResourceAllocationProfile) {
   };
 }
 
-function createProfileOverrideMap(profiles: ResourceAllocationProfile[]) {
+function createProfileOverrideMap(profiles: ResourceAllocationProfile[], text: Translator) {
   return new Map(
     profiles
-      .map(normalizeResourceProfile)
+      .map((profile) => normalizeResourceProfile(profile, text))
       .map((profile) => [normalizeOwnerName(profile.owner), profile]),
   );
 }
@@ -420,10 +425,11 @@ function resolveResourceProfile(
   owner: string,
   item: Pick<WbsItem, "title">,
   profileOverrides: Map<string, ResourceAllocationProfile>,
+  text: Translator,
 ) {
   return (
     profileOverrides.get(normalizeOwnerName(owner)) ??
-    createDefaultResourceProfile(owner, item)
+    createDefaultResourceProfile(owner, item, text)
   );
 }
 
@@ -493,6 +499,7 @@ function normalizeProgress(progress: number | null | undefined) {
 function estimatePlannedHours(
   item: WbsItem,
   profile: ResourceAllocationProfile,
+  text: Translator,
 ) {
   const effortPercent = normalizeEffortPercent(item.effortPercent);
   if (effortPercent > 0) {
@@ -501,7 +508,7 @@ function estimatePlannedHours(
       positiveNumber(item.planWorkDays) ??
       estimateWorkDaysFromDates(item);
     const weeks = Math.max(0.2, durationDays / 5);
-    const demandBaseHours = calculateResourceDemandBaseHours(profile);
+    const demandBaseHours = calculateResourceDemandBaseHours(profile, text);
     return Math.max(
       1,
       Math.round(demandBaseHours * weeks * (effortPercent / 100)),
@@ -510,8 +517,8 @@ function estimatePlannedHours(
   return 0;
 }
 
-function calculateResourceDemandBaseHours(profile: ResourceAllocationProfile) {
-  const defaults = createDefaultResourceProfile(profile.owner);
+function calculateResourceDemandBaseHours(profile: ResourceAllocationProfile, text: Translator) {
+  const defaults = createDefaultResourceProfile(profile.owner, undefined, text);
   const baseHours =
     profile.baseHoursPerWeek > 0
       ? profile.baseHoursPerWeek
@@ -630,38 +637,44 @@ function createWeekBuckets(today: Date, weekCount: number): ResourceWeekBucket[]
   });
 }
 
-function inferResourceRole(item: Pick<WbsItem, "title">, owner: string) {
-  if (owner === UNASSIGNED_OWNER) return "Роль не назначена";
-  const text = `${owner} ${item.title}`.toLowerCase();
-  if (text.includes("devops") || text.includes("infra")) return "DevOps";
-  if (text.includes("qa") || text.includes("test") || text.includes("тест")) {
+function inferResourceRole(item: Pick<WbsItem, "title">, owner: string, text: Translator) {
+  if (owner === unassignedOwner(text)) return text("ui.resources.resourceRoleUnassigned");
+  const haystack = `${owner} ${item.title}`.toLowerCase();
+  if (haystack.includes("devops") || haystack.includes("infra")) return "DevOps";
+  if (haystack.includes("qa") || haystack.includes("test") || haystack.includes("тест")) {
     return "QA";
   }
-  if (text.includes("аналит") || text.includes("ba")) return "Бизнес-аналитик";
-  if (text.includes("дизайн") || text.includes("ux")) return "Дизайн";
-  if (text.includes("pmo") || text.includes("pm") || text.includes("пм")) {
+  if (haystack.includes("аналит") || haystack.includes("ba")) {
+    return text("ui.resources.resourceRoleBusinessAnalyst");
+  }
+  if (haystack.includes("дизайн") || haystack.includes("ux")) {
+    return text("ui.resources.resourceRoleDesign");
+  }
+  if (haystack.includes("pmo") || haystack.includes("pm") || haystack.includes("пм")) {
     return "PMO";
   }
   if (
-    text.includes("dev") ||
-    text.includes("front") ||
-    text.includes("back") ||
-    text.includes("api") ||
-    text.includes("разраб")
+    haystack.includes("dev") ||
+    haystack.includes("front") ||
+    haystack.includes("back") ||
+    haystack.includes("api") ||
+    haystack.includes("разраб")
   ) {
-    return "Разработка";
+    return text("ui.resources.resourceRoleDevelopment");
   }
-  return "Специалист";
+  return text("ui.resources.resourceRoleSpecialist");
 }
 
 function ensureResourceBucket(
   byOwner: Map<string, ResourceBucket>,
   owner: string,
   profile: ResourceAllocationProfile,
+  text: Translator,
 ) {
+  const specialistRole = text("ui.resources.resourceRoleSpecialist");
   const current = byOwner.get(owner);
   if (current) {
-    if (current.role === "Специалист" && profile.role !== "Специалист") {
+    if (current.role === specialistRole && profile.role !== specialistRole) {
       current.role = profile.role;
       current.profile = profile;
     }
@@ -747,6 +760,7 @@ function findClosestWeek(weeks: ResourceWeekBucket[], target: Date) {
 function createDashboardRow(
   bucket: ResourceBucket,
   weeks: ResourceWeekBucket[],
+  text: Translator,
 ): ResourceDashboardRow {
   const { availableHours, blockedHours } = calculateResourceCapacity(bucket.profile);
   const capacityHoursPerWeek = availableHours;
@@ -770,7 +784,7 @@ function createDashboardRow(
         capacityHoursPerWeek > 0
           ? `${Math.min(utilization, 999)}%`
           : demandHours > 0
-            ? "нет роли"
+            ? text("ui.resources.resourceLoadNoRole")
             : "0%",
     };
   });
@@ -825,6 +839,7 @@ function sortResourceRows(left: ResourceDashboardRow, right: ResourceDashboardRo
 function createResourceConflicts(
   rows: ResourceDashboardRow[],
   unassignedRow: ResourceDashboardRow | null,
+  text: Translator,
 ) {
   const conflicts: ResourceConflict[] = [];
 
@@ -834,8 +849,14 @@ function createResourceConflicts(
       conflicts.push({
         id: `overload-${row.owner}-${overloadedCell.weekKey}`,
         severity: "critical",
-        title: `${row.owner}: перегруз ${overloadedCell.label}`,
-        detail: `${overloadedCell.demandHours} ч спроса при доступности ${overloadedCell.capacityHours} ч в неделю.`,
+        title: text("ui.resources.resourceConflictOverloadTitle", {
+          owner: row.owner,
+          load: overloadedCell.label,
+        }),
+        detail: text("ui.resources.resourceConflictOverloadDetail", {
+          demandHours: overloadedCell.demandHours,
+          capacityHours: overloadedCell.capacityHours,
+        }),
         owner: row.owner,
         weekLabel: overloadedCell.weekLabel,
         tone: "bad",
@@ -847,8 +868,12 @@ function createResourceConflicts(
       conflicts.push({
         id: `critical-${row.owner}-${criticalItem.id}`,
         severity: "critical",
-        title: "Критический путь зависит от перегруженного ресурса",
-        detail: `${criticalItem.code} ${criticalItem.title} находится на критическом пути и конкурирует за время ${row.owner}.`,
+        title: text("ui.resources.resourceConflictCriticalPathTitle"),
+        detail: text("ui.resources.resourceConflictCriticalPathDetail", {
+          code: criticalItem.code,
+          title: criticalItem.title,
+          owner: row.owner,
+        }),
         owner: row.owner,
         weekLabel: overloadedCell.weekLabel,
         tone: "bad",
@@ -859,8 +884,8 @@ function createResourceConflicts(
       conflicts.push({
         id: `overdue-${row.owner}`,
         severity: "warning",
-        title: `${row.owner}: есть просроченные работы`,
-        detail: `${row.overdue} работ не закрыты после плановой даты.`,
+        title: text("ui.resources.resourceConflictOverdueTitle", { owner: row.owner }),
+        detail: text("ui.resources.resourceConflictOverdueDetail", { count: row.overdue }),
         owner: row.owner,
         weekLabel: null,
         tone: "warn",
@@ -872,9 +897,11 @@ function createResourceConflicts(
     conflicts.unshift({
       id: "unassigned-work",
       severity: "critical",
-      title: "Есть работы без исполнителя",
-      detail: `${unassignedRow.remainingHours} ч остаточного спроса не закреплены за ресурсами.`,
-      owner: UNASSIGNED_OWNER,
+      title: text("ui.resources.resourceConflictUnassignedTitle"),
+      detail: text("ui.resources.resourceConflictUnassignedDetail", {
+        hours: unassignedRow.remainingHours,
+      }),
+      owner: unassignedOwner(text),
       weekLabel: null,
       tone: "bad",
     });
@@ -897,6 +924,7 @@ function createResourceRequests(
   rows: ResourceDashboardRow[],
   unassignedRow: ResourceDashboardRow | null,
   weeks: ResourceWeekBucket[],
+  text: Translator,
 ) {
   const requests: ResourceRequestPreview[] = [];
 
@@ -909,10 +937,12 @@ function createResourceRequests(
       ) ?? weeks[0];
     requests.push({
       id: "request-unassigned",
-      role: "Исполнитель для неназначенных работ",
+      role: text("ui.resources.resourceRequestUnassignedRole"),
       hours: unassignedRow.remainingHours,
-      dueLabel: firstDemandWeek ? `с недели ${firstDemandWeek.label}` : "сейчас",
-      reason: "Закрыть работы без владельца до входа в активный план.",
+      dueLabel: firstDemandWeek
+        ? text("ui.resources.resourceRequestFromWeek", { week: firstDemandWeek.label })
+        : text("ui.resources.resourceRequestNow"),
+      reason: text("ui.resources.resourceRequestUnassignedReason"),
       status: "ready",
     });
   }
@@ -933,9 +963,9 @@ function createResourceRequests(
       role: row.role,
       hours: Math.round(overloadHours),
       dueLabel: firstOverloadWeek
-        ? `с недели ${firstOverloadWeek.label}`
-        : "в ближайшем спринте",
-      reason: `Снять перегрузку с ${row.owner} без сдвига критичных работ.`,
+        ? text("ui.resources.resourceRequestFromWeek", { week: firstOverloadWeek.label })
+        : text("ui.resources.resourceRequestNextSprint"),
+      reason: text("ui.resources.resourceRequestOverloadReason", { owner: row.owner }),
       status: "draft",
     });
   }
@@ -949,6 +979,7 @@ function createResourceRecommendations(
   conflicts: ResourceConflict[],
   requests: ResourceRequestPreview[],
   roleGapHours: number,
+  text: Translator,
 ) {
   const recommendations: ResourceRecommendation[] = [];
   const criticalConflict = conflicts.find(
@@ -958,8 +989,10 @@ function createResourceRecommendations(
   if (criticalConflict) {
     recommendations.push({
       id: "fix-critical-conflict",
-      title: "Разобрать критичный конфликт",
-      detail: `${criticalConflict.title}. Сначала переназначить или зафиксировать приоритет этой работы.`,
+      title: text("ui.resources.resourceRecommendationCriticalConflictTitle"),
+      detail: text("ui.resources.resourceRecommendationCriticalConflictDetail", {
+        conflict: criticalConflict.title,
+      }),
       tone: "bad",
     });
   }
@@ -967,11 +1000,11 @@ function createResourceRecommendations(
   if (requests.length > 0) {
     recommendations.push({
       id: "approve-resource-requests",
-      title: "Оформить ресурсные заявки",
-      detail: `${requests.length} заявок на ${requests.reduce(
-        (sum, request) => sum + request.hours,
-        0,
-      )} ч покрывают текущий дефицит.`,
+      title: text("ui.resources.resourceRecommendationRequestsTitle"),
+      detail: text("ui.resources.resourceRecommendationRequestsDetail", {
+        count: requests.length,
+        hours: requests.reduce((sum, request) => sum + request.hours, 0),
+      }),
       tone: "warn",
     });
   }
@@ -979,8 +1012,8 @@ function createResourceRecommendations(
   if (roleGapHours === 0 && conflicts.length === 0) {
     recommendations.push({
       id: "keep-plan",
-      title: "Поддерживать текущий план",
-      detail: "Перегрузок и незакрепленных работ на горизонте восьми недель нет.",
+      title: text("ui.resources.resourceRecommendationKeepPlanTitle"),
+      detail: text("ui.resources.resourceRecommendationKeepPlanDetail"),
       tone: "ok",
     });
   }

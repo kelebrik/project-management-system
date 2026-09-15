@@ -1010,5 +1010,205 @@ export const projectsMessages = {
   "ui.projects.ganttTabDescription": {
     "en": "Project timeline, dependencies, and baseline",
     "ru": "Временная шкала проекта, связи и базовый план"
+  },
+  "ui.projects.raidCreateFailed": {
+    "en": "Could not create the risk entry",
+    "ru": "Не удалось создать запись о риске"
+  },
+  "ui.projects.raidCreated": {
+    "en": "Risk entry created",
+    "ru": "Запись о риске создана"
+  },
+  "ui.projects.raidSaveFailed": {
+    "en": "Could not save the risk entry",
+    "ru": "Не удалось сохранить запись о риске"
+  },
+  "ui.projects.raidSaved": {
+    "en": "Risk entry updated",
+    "ru": "Запись о риске обновлена"
+  },
+  "ui.projects.raidConvertToProblemTitle": {
+    "en": "Convert the risk into a problem?",
+    "ru": "Перевести риск в проблему?"
+  },
+  "ui.projects.raidConvertToProblemMessage": {
+    "en": "The entry type changes, and the risk will be tracked as a problem.",
+    "ru": "Тип записи изменится, и риск будет учитываться как проблема."
+  },
+  "ui.projects.raidConvertConfirmLabel": {
+    "en": "Convert",
+    "ru": "Перевести"
+  },
+  "ui.projects.raidConvertedToProblem": {
+    "en": "Risk converted into a problem",
+    "ru": "Риск переведен в проблему"
+  },
+  "ui.projects.raidConvertToProblemFailed": {
+    "en": "Could not convert the risk into a problem",
+    "ru": "Не удалось перевести риск в проблему"
+  },
+  "ui.projects.raidConvertToAssumptionTitle": {
+    "en": "Convert the risk into an assumption?",
+    "ru": "Перевести риск в допущение?"
+  },
+  "ui.projects.raidConvertToAssumptionMessage": {
+    "en": "The entry type changes to an assumption, and the link to the source risk is cleared.",
+    "ru": "Тип записи изменится на допущение, связь с исходным риском будет очищена."
+  },
+  "ui.projects.raidConvertedToAssumption": {
+    "en": "Risk converted into an assumption",
+    "ru": "Риск переведен в допущение"
+  },
+  "ui.projects.raidConvertToAssumptionFailed": {
+    "en": "Could not convert the risk into an assumption",
+    "ru": "Не удалось перевести риск в допущение"
+  },
+  "ui.projects.raidCloseEntryTitle": {
+    "en": "Close the RAID entry?",
+    "ru": "Закрыть запись RAID?"
+  },
+  "ui.projects.raidCloseEntryMessage": {
+    "en": "The entry is removed from the active register without deleting its history.",
+    "ru": "Запись будет исключена из активного реестра без удаления истории."
+  },
+  "ui.projects.raidCloseEntryConfirmLabel": {
+    "en": "Close",
+    "ru": "Закрыть"
+  },
+  "ui.projects.raidEntryClosed": {
+    "en": "Entry closed",
+    "ru": "Запись закрыта"
+  },
+  "ui.projects.raidCloseEntryFailed": {
+    "en": "Could not close the entry",
+    "ru": "Не удалось закрыть запись"
+  },
+  "ui.projects.raidStatusTextRequired": {
+    "en": "Fill in the status text",
+    "ru": "Заполните текст статуса"
+  },
+  "ui.projects.raidStatusAddFailed": {
+    "en": "Could not add the status",
+    "ru": "Не удалось добавить статус"
+  },
+  "ui.projects.raidStatusAdded": {
+    "en": "Status added",
+    "ru": "Статус добавлен"
+  },
+  "ui.projects.raidDeleteFailed": {
+    "en": "Could not delete the risk entry",
+    "ru": "Не удалось удалить запись о риске"
+  },
+  "ui.projects.raidEntryDeleted": {
+    "en": "Entry deleted",
+    "ru": "Запись удалена"
+  },
+  "ui.projects.issueReadinessRed": {
+    "en": "Red",
+    "ru": "Красная"
+  },
+  "ui.projects.issueReadinessAmber": {
+    "en": "Amber",
+    "ru": "Жёлтая"
+  },
+  "ui.projects.issueReadinessGreen": {
+    "en": "Green",
+    "ru": "Зелёная"
+  },
+  "ui.projects.issueReadinessTooltip": {
+    "en": "Readiness: {readiness}",
+    "ru": "Готовность: {readiness}"
+  },
+  "ui.projects.issueNoSection": {
+    "en": "No section",
+    "ru": "Без раздела"
+  },
+  "ui.projects.issueColumnWidthSaveFailed": {
+    "en": "Could not save the column widths",
+    "ru": "Не удалось сохранить ширину колонок"
+  },
+  "ui.projects.issuePhaseSelectionForbidden": {
+    "en": "You do not have permission to select a phase and create a work package",
+    "ru": "Недостаточно прав для выбора фазы и создания пакета работ"
+  },
+  "ui.projects.issueMoveWorkPackageTitle": {
+    "en": "Move the work package?",
+    "ru": "Переместить пакет работ?"
+  },
+  "ui.projects.issueCreateWorkPackageTitle": {
+    "en": "Create a work package?",
+    "ru": "Создать пакет работ?"
+  },
+  "ui.projects.issueMoveWorkPackageMessage": {
+    "en": "The work package for this issue will move to phase «{phase}», before the last milestone or goal of that phase. Continue?",
+    "ru": "Пакет работ вопроса будет перемещён в фазу «{phase}» перед последней вехой или целью этой фазы. Продолжить?"
+  },
+  "ui.projects.issueCreateWorkPackageMessage": {
+    "en": "A work package for this issue will be created in phase «{phase}», before the last milestone or goal of that phase. Continue?",
+    "ru": "Для вопроса будет создан пакет работ в фазе «{phase}» перед последней вехой или целью этой фазы. Продолжить?"
+  },
+  "ui.projects.issueMoveWorkPackageConfirmLabel": {
+    "en": "Move",
+    "ru": "Переместить"
+  },
+  "ui.projects.issueCreateWorkPackageConfirmLabel": {
+    "en": "Create",
+    "ru": "Создать"
+  },
+  "ui.projects.issueWorkPackageMoved": {
+    "en": "Work package moved to phase «{phase}»",
+    "ru": "Пакет работ перемещён в фазу «{phase}»"
+  },
+  "ui.projects.issueWorkPackageCreated": {
+    "en": "Work package created in phase «{phase}»",
+    "ru": "Пакет работ создан в фазе «{phase}»"
+  },
+  "ui.projects.issueResizeColumnAction": {
+    "en": "Resize column {column}",
+    "ru": "Изменить ширину колонки {column}"
+  },
+  "ui.projects.issueTicketKeyLabel": {
+    "en": "Ticket key {key}",
+    "ru": "Ключ тикета {key}"
+  },
+  "ui.projects.issueEditTicketKeyAction": {
+    "en": "Edit key {key}",
+    "ru": "Изменить ключ {key}"
+  },
+  "ui.projects.issueRemoveTicketLinkAction": {
+    "en": "Remove link {key}",
+    "ru": "Удалить ссылку {key}"
+  },
+  "ui.projects.issueColumnNumber": {
+    "en": "No.",
+    "ru": "№"
+  },
+  "ui.projects.issueColumnTask": {
+    "en": "Task",
+    "ru": "Задача"
+  },
+  "ui.projects.issueColumnLink": {
+    "en": "Link",
+    "ru": "Ссылка"
+  },
+  "ui.projects.issueColumnStatus": {
+    "en": "Status",
+    "ru": "Статус"
+  },
+  "ui.projects.issueColumnOwner": {
+    "en": "Owner",
+    "ru": "Отв."
+  },
+  "ui.projects.issueColumnRisk": {
+    "en": "Risks",
+    "ru": "Риски"
+  },
+  "ui.projects.issueColumnReadiness": {
+    "en": "Readiness",
+    "ru": "Готовность"
+  },
+  "ui.projects.issueColumnParameters": {
+    "en": "Parameters",
+    "ru": "Параметры"
   }
 } as const;

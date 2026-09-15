@@ -1,7 +1,7 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
-import type { Locale } from "../i18n/types";
+import type { Locale, SimpleTranslationKey, Translator } from "../i18n/types";
 import { Settings2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -23,27 +23,28 @@ function useResourceDashboard() {
   };
 }
 
-const resourceKindLabels: Record<ResourceProfileKind, string> = {
-  person: "Сотрудник",
-  "contractor-team": "Команда подрядчика",
-  coordinator: "Координатор",
+const resourceKindLabelKeys: Record<ResourceProfileKind, SimpleTranslationKey> = {
+  person: "ui.resources.resourceKindPerson",
+  "contractor-team": "ui.resources.resourceKindContractorTeam",
+  coordinator: "ui.resources.resourceKindCoordinator",
 };
 
 function ResourcePageShell({
   children,
   subtitle,
-  title = "Профиль ресурса",
+  title,
 }: {
   children: React.ReactNode;
   subtitle?: string;
   title?: string;
 }) {
   const { t: uiText } = useInterfaceTranslation();
+  const heading = title ?? uiText("ui.resources.resourceProfileTitle");
   return (
     <article className="panel project-card project-module-page resource-management-page">
       <div className="panel-title resource-profile-title">
         <div>
-          <h2>{title}</h2>
+          <h2>{heading}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
         <div className="resource-profile-actions">
@@ -59,19 +60,19 @@ function ResourcePageShell({
   );
 }
 
-function avatarLetters(name: string) {
+function avatarLetters(name: string, fallback: string) {
   return name
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
-    .join("") || "Р";
+    .join("") || fallback;
 }
 
-function formatDate(value: string | null, uiLocale: Locale) {
-  if (!value) return "не задано";
+function formatDate(value: string | null, uiLocale: Locale, uiText: Translator) {
+  if (!value) return uiText("common.notSet");
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "не задано";
+  if (Number.isNaN(date.getTime())) return uiText("common.notSet");
   return date.toLocaleDateString(intlLocale(uiLocale), {
     day: "2-digit",
     month: "2-digit",
@@ -124,26 +125,30 @@ export function ResourceOverviewPage() {
     if (!row) return [];
     return [
       row.role,
-      resourceKindLabels[row.profile.kind],
+      uiText(resourceKindLabelKeys[row.profile.kind]),
       row.calendarCode ? `${row.calendarCode} calendar` : "calendar TBD",
       row.profile.projectAllocationPercent >= 100 ? "full project pool" : "shared allocation",
-      row.overdue > 0 ? "есть просроченные" : "без просрочек",
+      uiText(row.overdue > 0
+        ? "ui.resources.resourceHasOverdueWork"
+        : "ui.resources.resourceNoOverdueWork"),
     ];
-  }, [row]);
+  }, [row, uiText]);
 
   if (!row) {
     return (
-      <ResourcePageShell subtitle="Доступность, навыки, ставки, назначения и фактические часы по проектам.">
+      <ResourcePageShell subtitle={uiText("ui.resources.resourceProfileSubtitle")}>
         <div className="empty-state">{uiText("ui.resources.resourcesNoneToDisplay")}</div>
       </ResourcePageShell>
     );
   }
 
   return (
-    <ResourcePageShell subtitle="Доступность, навыки, ставки, назначения и фактические часы по проектам.">
+    <ResourcePageShell subtitle={uiText("ui.resources.resourceProfileSubtitle")}>
       <div className="resource-profile-layout">
         <section className="resource-profile-card">
-          <div className="resource-avatar">{avatarLetters(row.owner)}</div>
+          <div className="resource-avatar">
+            {avatarLetters(row.owner, uiText("ui.resources.resourceAvatarFallbackLetter"))}
+          </div>
           <label className="resource-profile-select">
             <span>{uiText("ui.resources.resourceColumnLabel")}</span>
             <select
@@ -158,7 +163,7 @@ export function ResourceOverviewPage() {
             </select>
           </label>
           <p>
-            {row.role}, {resourceKindLabels[row.profile.kind]},{" "}
+            {row.role}, {uiText(resourceKindLabelKeys[row.profile.kind])},{" "}
             {row.profile.fte || 0} FTE
           </p>
           <div className="resource-tag-row">
@@ -199,23 +204,23 @@ export function ResourceOverviewPage() {
           <div className="resource-profile-metrics">
             <ResourceMetricCard
               label="Capacity"
-              value={`${row.capacityHoursPerWeek} ч`}
-              note={`в неделю с учетом ${row.profile.fte || 0} FTE`}
+              value={`${row.capacityHoursPerWeek} ${uiText("ui.resources.hoursShortUnit")}`}
+              note={uiText("ui.resources.resourceCapacityMetricNote", { fte: row.profile.fte || 0 })}
             />
             <ResourceMetricCard
               label="Utilization"
               value={`${peakCell?.utilization ?? 0}%`}
-              note={`пик на неделе ${peakCell?.weekLabel ?? "-"}`}
+              note={uiText("ui.resources.resourceUtilizationMetricNote", { week: peakCell?.weekLabel ?? "-" })}
             />
             <ResourceMetricCard
               label="Overtime risk"
-              value={`+${Math.max(0, (peakCell?.demandHours ?? 0) - row.capacityHoursPerWeek)} ч`}
-              note="без backup-ресурса"
+              value={`+${Math.max(0, (peakCell?.demandHours ?? 0) - row.capacityHoursPerWeek)} ${uiText("ui.resources.hoursShortUnit")}`}
+              note={uiText("ui.resources.resourceOvertimeMetricNote")}
             />
             <ResourceMetricCard
               label="Cost forecast"
-              value="не задан"
-              note="нет ставки ресурса"
+              value={uiText("ui.admin.notSetMasculine")}
+              note={uiText("ui.resources.resourceCostForecastNote")}
             />
           </div>
 
@@ -238,7 +243,7 @@ export function ResourceOverviewPage() {
                     <b>
                       {item.code} {item.title}
                     </b>
-                    <span>{formatDate(item.startDate, uiLocale)}-{formatDate(item.dueDate, uiLocale)}</span>
+                    <span>{formatDate(item.startDate, uiLocale, uiText)}-{formatDate(item.dueDate, uiLocale, uiText)}</span>
                     <span>{item.plannedHours} {uiText("ui.resources.hoursShortUnit")}</span>
                     <span>{Math.max(0, item.plannedHours - item.remainingHours)} {uiText("ui.resources.hoursShortUnit")}</span>
                     <AssignmentStatus utilization={peakCell?.utilization ?? 0} />
@@ -302,7 +307,7 @@ export function ResourceCapacityPage() {
   return (
     <ResourcePageShell
       title={uiText("ui.resources.resourceSettingsTabLabel")}
-      subtitle="Норма часов, FTE, доля проектной работы и операционка."
+      subtitle={uiText("ui.resources.resourceCapacitySubtitle")}
     >
       <section className="resource-panel">
         <div className="resource-panel-head">
@@ -339,9 +344,9 @@ export function ResourceCapacityPage() {
                     })
                   }
                 >
-                  {Object.entries(resourceKindLabels).map(([value, label]) => (
+                  {Object.entries(resourceKindLabelKeys).map(([value, labelKey]) => (
                     <option key={value} value={value}>
-                      {label}
+                      {uiText(labelKey)}
                     </option>
                   ))}
                 </select>

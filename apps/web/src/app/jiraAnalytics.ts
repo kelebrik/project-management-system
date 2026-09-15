@@ -32,16 +32,6 @@ export type {
 };
 
 export type JiraAnalyticsSection = JiraAnalyticsScope;
-export const JIRA_ANALYTICS_AGGREGATE_TYPE_LABELS: Record<JiraAnalyticsSource, string> = {
-  issues: "Тикеты",
-  goalIssues: "Тикеты целей",
-  transitions: "Переходы статусов",
-  development: "Активность разработки",
-  criticalBugs: "SLA Critical/Blocker",
-  statusIntervals: "Интервалы статусов",
-  gitlabCommits: "Коммиты GitLab",
-};
-
 export const JIRA_ANALYTICS_LIST_RESULT = "list" as const;
 export type JiraAnalyticsWidgetResultMode = JiraAnalyticsMetric | typeof JIRA_ANALYTICS_LIST_RESULT;
 
@@ -92,107 +82,12 @@ export function jiraAnalyticsPinnedRevisionUpdate(
     : null;
 }
 
-export const JIRA_ANALYTICS_METRIC_LABELS: Record<JiraAnalyticsMetric, string> = {
-  count: "Количество",
-  averageDuration: "Средняя длительность",
-  p50Duration: "Медиана времени",
-  p85Duration: "85-й перцентиль времени",
-  p95Duration: "95-й перцентиль времени",
-  commits: "Коммиты",
-  mergeRequests: "Merge requests",
-};
-
-export const JIRA_ANALYTICS_GROUP_LABELS: Record<JiraAnalyticsGroupBy, string> = {
-  none: "Без группировки",
-  goal: "Цель",
-  project: "Проект Jira",
-  status: "Текущий статус",
-  assignee: "Исполнитель",
-  reporter: "Автор",
-  priority: "Приоритет",
-  sprint: "Sprint",
-  issueType: "Тип тикета",
-  resolution: "Решение",
-  fromStatus: "Исходный статус",
-  toStatus: "Новый статус",
-  week: "Неделя",
-};
-
-export const JIRA_ANALYTICS_FILTER_LABELS: Record<JiraAnalyticsFilterField, string> = {
-  goalId: "ID цели",
-  goalName: "Цель",
-  goalStatus: "Статус цели",
-  goalDate: "Дата цели",
-  goalLabels: "Лейблы цели",
-  matchedLabels: "Совпавшие лейблы",
-  issueKey: "Ключ тикета",
-  project: "Проект Jira",
-  summary: "Название",
-  status: "Текущий статус",
-  assignee: "Исполнитель",
-  reporter: "Автор",
-  priority: "Приоритет",
-  sprint: "Sprint",
-  sprintCount: "Количество записей Sprint",
-  labels: "Метки",
-  issueType: "Тип тикета",
-  resolution: "Решение",
-  fromStatus: "Исходный статус",
-  toStatus: "Новый статус",
-  durationHours: "Длительность, часы",
-  commitCount: "Коммиты",
-  mergeRequestCount: "Merge requests",
-  hasDevelopment: "Есть активность разработки",
-  issueCreatedAt: "Дата создания",
-  criticalPriorityAt: "Начало SLA",
-  resolutionAt: "Дата Resolution",
-  updatedAt: "Последнее изменение",
-  eventAt: "Дата события",
-  intervalStartAt: "Начало интервала",
-  intervalEndAt: "Конец интервала",
-  gitlabProjectPath: "Проект GitLab",
-  gitlabTargetBranch: "Ветка GitLab",
-  commitSha: "SHA коммита",
-  commitShortSha: "Короткий SHA",
-  commitTitle: "Сообщение коммита",
-  commitAuthor: "Автор коммита",
-  commitAuthorEmail: "Email автора",
-  committedAt: "Дата коммита",
-  commitUrl: "Ссылка на коммит",
-  sourceBranch: "Исходная ветка MR",
-  mergeRequestIid: "MR",
-  mergeRequestTitle: "Название MR",
-  mergeRequestUrl: "Ссылка на MR",
-  jiraKeys: "Упомянутые Jira-тикеты",
-  jiraLinkState: "Связь с Jira",
-};
-
-export const JIRA_ANALYTICS_OPERATOR_LABELS: Record<JiraAnalyticsFilterOperator, string> = {
-  equals: "равно",
-  notEquals: "не равно",
-  oneOf: "одно из",
-  noneOf: "ни одно из",
-  contains: "содержит",
-  empty: "пусто",
-  notEmpty: "не пусто",
-  greaterThan: "больше",
-  atLeast: "не меньше",
-  lessThan: "меньше",
-  atMost: "не больше",
-  before: "раньше",
-  after: "позже",
-};
-
 export function jiraAnalyticsOperatorsFor(field: JiraAnalyticsFilterField) {
   return sharedOperatorsFor(field);
 }
 
 export function jiraAnalyticsFieldIsNumeric(field: JiraAnalyticsFilterField) {
   return jiraAnalyticsFieldKind(field) === "number";
-}
-
-export function jiraAnalyticsFilterLogicLabel(logic: "and" | "or") {
-  return logic === "and" ? "И" : "ИЛИ";
 }
 
 function uid(prefix: string) {
@@ -208,13 +103,3 @@ export function createJiraAnalyticsFilter(
 }
 
 export const JIRA_CRITICAL_BUG_SLA_HOURS = jiraCriticalBugSlaHours;
-
-export function formatJiraAnalyticsMetric(metric: JiraAnalyticsMetric, value: number) {
-  if (metric.endsWith("Duration")) {
-    if (value >= 24) {
-      return `${(value / 24).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} дн.`;
-    }
-    return `${value.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} ч`;
-  }
-  return Math.round(value).toLocaleString("ru-RU");
-}

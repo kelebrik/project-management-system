@@ -9,7 +9,6 @@ import {
 import {
   JIRA_ANALYTICS_LIST_RESULT,
   createJiraAnalyticsFilter,
-  formatJiraAnalyticsMetric,
   jiraAnalyticsEffectiveVisualization,
   jiraAnalyticsFieldIsNumeric,
   jiraAnalyticsOperatorsFor,
@@ -44,11 +43,6 @@ test("numeric fields expose only numeric operators", () => {
     "greaterThan", "atLeast", "lessThan", "atMost", "equals",
   ]);
   assert.equal(jiraAnalyticsFieldIsNumeric("status"), false);
-});
-
-test("duration formatting uses hours below one day and days above it", () => {
-  assert.equal(formatJiraAnalyticsMetric("p85Duration", 12), "12 ч");
-  assert.equal(formatJiraAnalyticsMetric("p85Duration", 48), "2 дн.");
 });
 
 test("ticket list is an explicit result mode backed by count and table", () => {

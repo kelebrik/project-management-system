@@ -130,5 +130,45 @@ export const commonMessages = {
   "ui.common.add": {
     "en": "Add",
     "ru": "Добавить"
+  },
+  "ui.common.apiRequestFailed": {
+    "en": "The request failed",
+    "ru": "Запрос не выполнен"
+  },
+  "ui.common.apiResponseNotJson": {
+    "en": "{fallback}: the server returned a non-JSON response",
+    "ru": "{fallback}: сервер вернул не JSON"
+  },
+  "ui.common.apiDownloadFailed": {
+    "en": "Could not download the file",
+    "ru": "Не удалось скачать файл"
+  },
+  "ui.common.routeProjectsLoadFailed": {
+    "en": "Could not load the project list",
+    "ru": "Не удалось загрузить список проектов"
+  },
+  "ui.common.routeSignInToEdit": {
+    "en": "Sign in to make changes",
+    "ru": "Для редактирования нужно войти в систему"
+  },
+  "ui.common.routeUnsavedChangesConfirm": {
+    "en": "There are unsaved changes. Leave without saving?",
+    "ru": "Есть несохранённые изменения. Уйти без сохранения?"
+  },
+  "ui.common.routeAdminSectionForbidden": {
+    "en": "The administration section is available to administrators only",
+    "ru": "Раздел администрирования доступен только администратору"
+  },
+  "ui.common.routeDevelopmentSectionForbidden": {
+    "en": "The development section is available to administrators only",
+    "ru": "Раздел разработки доступен только администратору"
+  },
+  "ui.common.routeProjectPageDisabled": {
+    "en": "The project page is disabled by an administrator",
+    "ru": "Страница проекта отключена администратором"
+  },
+  "ui.common.routeProjectNotFound": {
+    "en": "Project {code} was not found",
+    "ru": "Проект {code} не найден"
   }
 } as const;

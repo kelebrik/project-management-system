@@ -11,6 +11,7 @@ import {
 } from "../app/formState";
 import { apiBase, authenticatedFetch } from "../app/http";
 import { isoDate } from "../app/dateUtils";
+import { useI18n } from "../i18n/I18nProvider";
 import { useConfirm } from "./useConfirm";
 
 type RaidStatusDraft = { statusAt: string; text: string };
@@ -42,6 +43,7 @@ export function useRaidController({
   setError,
   setNotice,
 }: UseRaidControllerOptions) {
+  const { t: uiText } = useI18n();
   const confirm = useConfirm();
   const updateRaidDraft = useCallback(
     (itemId: string, patch: Partial<RaidFormState>) => {
@@ -87,18 +89,18 @@ export function useRaidController({
           throw new Error(
             result.error?.formErrors?.join(", ") ||
               result.error ||
-              "Не удалось создать запись о риске",
+              uiText("ui.projects.raidCreateFailed"),
           );
         }
         setRaidForm({ ...emptyRaidForm, type: raidForm.type });
         await refreshProject(projectId);
         setExpandedRaidId(result.id);
-        setNotice("Запись о риске создана");
+        setNotice(uiText("ui.projects.raidCreated"));
       } catch (createError) {
         setError(
           createError instanceof Error
             ? createError.message
-            : "Не удалось создать запись о риске",
+            : uiText("ui.projects.raidCreateFailed"),
         );
       }
     },
@@ -110,6 +112,7 @@ export function useRaidController({
       setExpandedRaidId,
       setNotice,
       setRaidForm,
+      uiText,
     ],
   );
 
@@ -130,20 +133,20 @@ export function useRaidController({
           throw new Error(
             result.error?.formErrors?.join(", ") ||
               result.error ||
-              "Не удалось сохранить запись о риске",
+              uiText("ui.projects.raidSaveFailed"),
           );
         }
         await refreshProject();
-        setNotice("Запись о риске обновлена");
+        setNotice(uiText("ui.projects.raidSaved"));
       } catch (saveError) {
         setError(
           saveError instanceof Error
             ? saveError.message
-            : "Не удалось сохранить запись о риске",
+            : uiText("ui.projects.raidSaveFailed"),
         );
       }
     },
-    [raidDrafts, refreshProject, setError, setNotice],
+    [raidDrafts, refreshProject, setError, setNotice, uiText],
   );
 
   const patchRaidItem = useCallback(
@@ -180,61 +183,61 @@ export function useRaidController({
     async (itemId: string) => {
       if (
         !(await confirm({
-          title: "Перевести риск в проблему?",
-          message: "Тип записи изменится, и риск будет учитываться как проблема.",
-          confirmLabel: "Перевести",
+          title: uiText("ui.projects.raidConvertToProblemTitle"),
+          message: uiText("ui.projects.raidConvertToProblemMessage"),
+          confirmLabel: uiText("ui.projects.raidConvertConfirmLabel"),
           tone: "default",
         }))
       ) return;
       await patchRaidItem(
         itemId,
         { type: "DEPENDENCY" },
-        "Риск переведен в проблему",
-        "Не удалось перевести риск в проблему",
+        uiText("ui.projects.raidConvertedToProblem"),
+        uiText("ui.projects.raidConvertToProblemFailed"),
       );
     },
-    [confirm, patchRaidItem],
+    [confirm, patchRaidItem, uiText],
   );
 
   const convertRiskToAssumption = useCallback(
     async (itemId: string) => {
       if (
         !(await confirm({
-          title: "Перевести риск в допущение?",
+          title: uiText("ui.projects.raidConvertToAssumptionTitle"),
           message:
-            "Тип записи изменится на допущение, связь с исходным риском будет очищена.",
-          confirmLabel: "Перевести",
+            uiText("ui.projects.raidConvertToAssumptionMessage"),
+          confirmLabel: uiText("ui.projects.raidConvertConfirmLabel"),
           tone: "default",
         }))
       ) return;
       await patchRaidItem(
         itemId,
         { type: "ASSUMPTION", linkedRiskId: null },
-        "Риск переведен в допущение",
-        "Не удалось перевести риск в допущение",
+        uiText("ui.projects.raidConvertedToAssumption"),
+        uiText("ui.projects.raidConvertToAssumptionFailed"),
       );
     },
-    [confirm, patchRaidItem],
+    [confirm, patchRaidItem, uiText],
   );
 
   const closeRaidItem = useCallback(
     async (itemId: string) => {
       if (
         !(await confirm({
-          title: "Закрыть запись RAID?",
-          message: "Запись будет исключена из активного реестра без удаления истории.",
-          confirmLabel: "Закрыть",
+          title: uiText("ui.projects.raidCloseEntryTitle"),
+          message: uiText("ui.projects.raidCloseEntryMessage"),
+          confirmLabel: uiText("ui.projects.raidCloseEntryConfirmLabel"),
           tone: "default",
         }))
       ) return;
       await patchRaidItem(
         itemId,
         { status: "CLOSED" },
-        "Запись закрыта",
-        "Не удалось закрыть запись",
+        uiText("ui.projects.raidEntryClosed"),
+        uiText("ui.projects.raidCloseEntryFailed"),
       );
     },
-    [confirm, patchRaidItem],
+    [confirm, patchRaidItem, uiText],
   );
 
   const addRaidStatusUpdate = useCallback(
@@ -242,7 +245,7 @@ export function useRaidController({
       const draft =
         raidStatusDrafts[itemId] ?? { statusAt: isoDate(new Date()), text: "" };
       if (!draft.text.trim()) {
-        setError("Заполните текст статуса");
+        setError(uiText("ui.projects.raidStatusTextRequired"));
         return;
       }
       setError(null);
@@ -264,7 +267,7 @@ export function useRaidController({
           throw new Error(
             result.error?.formErrors?.join(", ") ||
               result.error ||
-              "Не удалось добавить статус",
+              uiText("ui.projects.raidStatusAddFailed"),
           );
         }
         setRaidStatusDrafts({
@@ -272,16 +275,16 @@ export function useRaidController({
           [itemId]: { statusAt: isoDate(new Date()), text: "" },
         });
         await refreshProject();
-        setNotice("Статус добавлен");
+        setNotice(uiText("ui.projects.raidStatusAdded"));
       } catch (statusError) {
         setError(
           statusError instanceof Error
             ? statusError.message
-            : "Не удалось добавить статус",
+            : uiText("ui.projects.raidStatusAddFailed"),
         );
       }
     },
-    [raidStatusDrafts, refreshProject, setError, setNotice, setRaidStatusDrafts],
+    [raidStatusDrafts, refreshProject, setError, setNotice, setRaidStatusDrafts, uiText],
   );
 
   const deleteRaidItem = useCallback(
@@ -294,19 +297,19 @@ export function useRaidController({
         });
         if (!response.ok) {
           const result = await response.json();
-          throw new Error(result.error ?? "Не удалось удалить запись о риске");
+          throw new Error(result.error ?? uiText("ui.projects.raidDeleteFailed"));
         }
         await refreshProject();
-        setNotice("Запись удалена");
+        setNotice(uiText("ui.projects.raidEntryDeleted"));
       } catch (deleteError) {
         setError(
           deleteError instanceof Error
             ? deleteError.message
-            : "Не удалось удалить запись о риске",
+            : uiText("ui.projects.raidDeleteFailed"),
         );
       }
     },
-    [refreshProject, setError, setNotice],
+    [refreshProject, setError, setNotice, uiText],
   );
 
   return {

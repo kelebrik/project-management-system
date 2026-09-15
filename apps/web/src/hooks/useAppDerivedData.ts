@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useI18n } from "../i18n/I18nProvider";
 import type { ProjectCalendarOverride } from "../app/domainTypes";
 import { wbsToForm } from "../app/formState";
 import { projectScheduleHealth } from "../app/labels";
@@ -69,6 +70,7 @@ import { useWorkspaceFullscreen } from "./useWorkspaceFullscreen";
 type AppDerivedDataDeps = Record<string, any>;
 
 export function useAppDerivedData(deps: AppDerivedDataDeps) {
+  const { t: uiText } = useI18n();
   const {
     activeView,
     activeWbsItemId,
@@ -199,8 +201,9 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
           ? activeResourceProjects.flatMap((item: any) => item.wbsItems ?? [])
           : project?.wbsItems ?? [],
         new Date(),
+        uiText,
       ),
-    [activeResourceProjects, project?.wbsItems],
+    [activeResourceProjects, project?.wbsItems, uiText],
   );
   const resourceDashboard = useMemo(
     () =>
@@ -209,11 +212,13 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
         new Date(),
         project?.criticalPath?.criticalItemIds ?? [],
         resourceProfileOverrides,
+        uiText,
       ),
     [
       project?.criticalPath?.criticalItemIds,
       resourceProfileOverrides,
       resourceSource,
+      uiText,
     ],
   );
   const updateResourceProfile = useCallback(

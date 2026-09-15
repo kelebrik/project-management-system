@@ -8,6 +8,7 @@ import { readLocale, writeLocale, LANGUAGE_STORAGE_KEY } from "./locale";
 import { createTranslator } from "./translate";
 import { createPluralTranslator, pluralMessages } from "./plurals";
 import { createFormatters } from "./formatters";
+import { createJiraMetadata } from "./jiraMetadata";
 import { reportMessages } from "./reportMessages";
 import { work } from "./work";
 import { catalogue } from "./messages";
@@ -74,6 +75,16 @@ test("formatting is explicit, does not leak between locales and keeps Monday fir
   assert.equal(en.date(null), "Not set");
   assert.equal(ru.date(null), "не задано");
   assert.equal(en.date("invalid"), "—");
+});
+
+test("Jira duration metrics use hours below one day and days above it in both locales", () => {
+  const en = createJiraMetadata("en"), ru = createJiraMetadata("ru");
+  assert.equal(en.formatJiraAnalyticsMetric("p85Duration", 12), "12 h");
+  assert.equal(en.formatJiraAnalyticsMetric("p85Duration", 48), "2 d");
+  assert.equal(ru.formatJiraAnalyticsMetric("p85Duration", 12), "12 ч");
+  assert.equal(ru.formatJiraAnalyticsMetric("p85Duration", 48), "2 дн.");
+  assert.equal(en.jiraAnalyticsFilterLogicLabel("and"), "AND");
+  assert.equal(ru.jiraAnalyticsFilterLogicLabel("or"), "ИЛИ");
 });
 
 test("login renders both locales without translating error or user data", () => {
