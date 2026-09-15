@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n/I18nProvider";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type {
   ProjectDetails,
@@ -49,6 +50,7 @@ export function useWbsSnapshotActions({
   wbsUndoStackRef,
 }: WbsSnapshotActionDeps) {
   const confirm = useConfirm();
+  const { t } = useI18n();
   function applyWbsSnapshotResult(
     nextItems: WbsItem[],
     nextDependencies?: WbsDependency[],
@@ -184,13 +186,13 @@ export function useWbsSnapshotActions({
       !(await confirm({
         title:
           selectedCount > 0
-            ? "Обновить базовый план?"
-            : "Зафиксировать базовый план?",
+            ? t("baseline.confirmSelectedTitle")
+            : t("baseline.confirmAllTitle"),
         message:
           selectedCount > 0
-            ? `Текущие даты старта и финиша выбранных работ (${selectedCount}) заменят их базовые даты.`
-            : "Текущие даты всей Структуры станут датами базового плана.",
-        confirmLabel: selectedCount > 0 ? "Обновить" : "Зафиксировать",
+            ? t("baseline.confirmSelectedMessage", { count: selectedCount })
+            : t("baseline.confirmAllMessage"),
+        confirmLabel: selectedCount > 0 ? t("baseline.updateAction") : t("baseline.setAction"),
         tone: "default",
       }))
     ) {
@@ -209,7 +211,7 @@ export function useWbsSnapshotActions({
       );
       const result = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(result?.error ?? "Не удалось сохранить базовый план");
+        throw new Error(result?.error ?? t("baseline.saveError"));
       }
       if (result?.wbsItems) {
         applyWbsSnapshotResult(
@@ -222,14 +224,14 @@ export function useWbsSnapshotActions({
       }
       setNotice(
         selectedCount > 0
-          ? `Базовый план обновлен для выбранных работ: ${selectedCount}`
-          : "Базовый план Структуры сохранен",
+          ? t("baseline.savedSelected", { count: selectedCount })
+          : t("baseline.savedAll"),
       );
     } catch (baselineError) {
       setError(
         baselineError instanceof Error
           ? baselineError.message
-          : "Не удалось сохранить базовый план",
+          : t("baseline.saveError"),
       );
     } finally {
       setSavingBaseline(false);

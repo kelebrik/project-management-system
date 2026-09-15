@@ -10,23 +10,28 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-navigation-access",
         "title": "Navigation, access and read-only modes",
         "summary": "How a user reaches each section, why some actions are blocked, and how global navigation differs from project navigation.",
-        "keywords": [
-          "navigation",
-          "access",
-          "permissions",
-          "read only",
-          "header",
-          "search",
-          "saved views"
-        ],
+        "keywords": ["navigation", "access", "permissions", "read only", "header", "search", "saved views", "language", "title"],
         "sections": [
           {
             "heading": "Top navigation",
             "points": [
               "The top header always exposes the global sections: Portfolio, Projects, Reports, Archive and FAQ.",
-              "Once a project is selected, a separate row of its sections appears below the header: Registry, Status, Schedule, Gantt, Current Work, WBS, Jira Work, Charter, Requirements, Issues, Risks, Changes, Budget, Calendars, Artifacts and Create.",
+              "Once a project is selected, a separate row appears below the header: the project picker on the left, then Registry, the sections of the enabled modules and the Create button.",
+              "The order of the project sections is: Status, Schedule, Gantt, Current Work, WBS, Jira Work, Charter, Business requirements, Open issues, Risks and problems, Changes, Budget, Calendars, Artifacts. A disabled module removes its sections from the row.",
               "Administration is available to the system administrator and to the administrator of the selected BU; the set of tabs depends on the role. The Development section is available only to the system administrator.",
+              "The interface language switch RU/EN sits on the right-hand side of the header. The choice is stored in the browser and takes precedence over the default language.",
+              "The default language comes from the build-time variable VITE_DEFAULT_LOCALE. If it is not set, sberdevices.ru hosts default to Russian and every other host defaults to English.",
               "On the FAQ page there is a horizontal table of contents with anchors above the articles, and the search box filters articles by title, keywords and body text."
+            ]
+          },
+          {
+            "heading": "Page title and section title",
+            "points": [
+              "The page header renders a single H1. On any project section except the Create project page, that H1 is the name of the selected project, not the name of the section.",
+              "The section name reaches the H1 only on non-project pages: Portfolio, Projects, Archive, FAQ, Administration and Development.",
+              "Next to the project name a compact project strip is shown: status, project manager, target date, RAG or delay, and the forecast for the active goal. Non-project pages have no strip.",
+              "On the Reports page the header with the title is not rendered at all.",
+              "The section name is additionally shown as an H2 inside the workspace: WBS and Gantt, for example, render their own heading and a short description above the toolbar."
             ]
           },
           {
@@ -51,8 +56,8 @@ export const englishWikiGroups: WikiGroup[] = [
             "heading": "Saved views",
             "points": [
               "Saved views exist for WBS, Gantt and RAID.",
-              "For WBS the saved settings are column order, widths and hiding, sorting, expansion level and the critical-path filter.",
-              "For Gantt the saved settings are zoom level, visibility of dependencies, critical path, baseline/forecast and panel sizes.",
+              "For WBS the saved settings are column order, widths and hiding, sorting, hierarchy level and the critical-path filter.",
+              "For Gantt the saved settings are the zoom level, the visible window in days, the hierarchy level, the visibility of dependencies, critical path, baseline and forecast, plus the width of the WBS column and the height and width of the panel.",
               "For RAID the saved settings are the filters for type, decisions, overdue items and high risk.",
               "ADMIN saves a shared view, other users save personal views. Applying a view updates lastUsedAt."
             ]
@@ -63,15 +68,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-portfolio-projects",
         "title": "Portfolio, projects and archive",
         "summary": "How project lists, portfolio risks, blockers, goals and closed projects are built.",
-        "keywords": [
-          "portfolio",
-          "projects",
-          "closed projects",
-          "goals",
-          "risks",
-          "blockers",
-          "archive"
-        ],
+        "keywords": ["portfolio", "projects", "closed projects", "goals", "risks", "blockers", "archive"],
         "sections": [
           {
             "heading": "Active and closed projects",
@@ -123,14 +120,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-project-create-passport",
         "title": "Project creation, charter and target date",
         "summary": "What happens when a project is created, how the charter is built and how the management goal changes.",
-        "keywords": [
-          "project creation",
-          "charter",
-          "target date",
-          "baseline",
-          "copying",
-          "closure"
-        ],
+        "keywords": ["project creation", "charter", "target date", "baseline", "copying", "closure"],
         "sections": [
           {
             "heading": "Project creation",
@@ -178,14 +168,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-project-overview",
         "title": "Project status and executive overview",
         "summary": "How the project summary, red zone, tickets at risk, schedule variance and the versioned executive overview are calculated.",
-        "keywords": [
-          "project status",
-          "overview",
-          "executive overview",
-          "red zone",
-          "tickets",
-          "schedule variance"
-        ],
+        "keywords": ["project status", "overview", "executive overview", "red zone", "tickets", "schedule variance"],
         "sections": [
           {
             "heading": "Data on the Project status page",
@@ -240,13 +223,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-business-requirements",
         "title": "Business requirements",
         "summary": "An editable tabular requirements model with no XLSX dependency and no file import.",
-        "keywords": [
-          "business requirements",
-          "requirements",
-          "table",
-          "excel",
-          "clipboard"
-        ],
+        "keywords": ["business requirements", "requirements", "table", "excel", "clipboard"],
         "sections": [
           {
             "heading": "Data model",
@@ -287,16 +264,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-current-work",
         "title": "Current Work: the operational work list",
         "summary": "Which tasks appear in Current Work, what can be edited and how to jump to the corresponding WBS row.",
-        "keywords": [
-          "current work",
-          "tasks",
-          "deliverables",
-          "work",
-          "next Monday",
-          "Jira",
-          "MM",
-          "comment"
-        ],
+        "keywords": ["current work", "tasks", "deliverables", "work", "next Monday", "Jira", "MM", "comment"],
         "sections": [
           {
             "heading": "Which tasks are shown",
@@ -330,17 +298,21 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-wbs-model",
         "title": "WBS: row model and editing",
         "summary": "Which row types exist, which fields are editable and how the table behaves before saving.",
-        "keywords": [
-          "structure",
-          "WBS",
-          "row types",
-          "columns",
-          "editing",
-          "level",
-          "work package",
-          "phase"
-        ],
+        "keywords": ["structure", "WBS", "row types", "columns", "editing", "level", "work package", "phase", "PDF", "PDF EN", "full screen"],
         "sections": [
+          {
+            "heading": "The WBS toolbar",
+            "points": [
+              "The full-screen button is available in both locales and expands the WBS workspace to the whole screen. A hint about the full-screen mode is shown once while the page is scrolled.",
+              "The PDF button is available in both locales and prints the current WBS table. The title of the printed document is the project name plus the section name, for example \"Project - WBS\"; if the project has no name, the word Project is substituted.",
+              "The PDF EN and EN buttons are shown only in the Russian locale. In the English locale the toolbar keeps the ordinary PDF button.",
+              "PDF EN prints a separate English WBS block with its own title of the form \"English project name - Structure\", with English column, type and status labels.",
+              "The EN menu contains Import and Export of translations. Export produces an HTML file with Russian title / English translation pairs, and import accepts the same HTML back.",
+              "The English title of a row is chosen by priority: the manual translation from the import, the built-in glossary, the local translation cache, and then the original Russian title. Manual translations and the cache live in the browser, not on the server.",
+              "Undo, Redo, Save changes and Capture the baseline plan are shown only when the user has edit permission; in read-only mode they are absent.",
+              "The toolbar also always has the Columns menu, the hierarchy level switch 1..5 and a state indicator: the number of unsaved rows, the saving state or the time of the last save."
+            ]
+          },
           {
             "heading": "WBS row types",
             "points": [
@@ -399,15 +371,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-wbs-algorithms",
         "title": "WBS: schedule, dependencies, statuses and baseline",
         "summary": "The actual backend algorithms that run after WBS changes.",
-        "keywords": [
-          "schedule",
-          "dependencies",
-          "statuses",
-          "baseline",
-          "critical path",
-          "renumber",
-          "predecessor"
-        ],
+        "keywords": ["schedule", "dependencies", "statuses", "baseline", "critical path", "renumber", "predecessor"],
         "sections": [
           {
             "heading": "Renumbering",
@@ -469,7 +433,12 @@ export const englishWikiGroups: WikiGroup[] = [
               "Deleting a single row means lifting its direct children up to the parent of the deleted row, decreasing the levels of the descendants and deleting the dependencies where the row was a predecessor or a successor.",
               "Bulk deletion lifts the rows from deleted branches upward, decreasing the level by the number of deleted ancestors, and deletes the related dependencies.",
               "Undo/redo works on WBS snapshots: wbsItems and wbsDependencies are restored through the snapshot route.",
-              "Capturing the baseline plan means writing baselineStartDate/baselineDueDate from the current start/due for all rows and creating a versioned WbsBaseline with items.",
+              "A full baseline capture is the Capture the baseline plan button in the WBS toolbar. It writes baselineStartDate/baselineDueDate from the current start/due across every row of the project and creates a new WbsBaseline version with a snapshot of all rows: version = the maximum one + 1, status ACTIVE.",
+              "Empty forecastStartDate/forecastDueDate values are filled with the current start/due at the same time. A forecast that is already filled in is not overwritten.",
+              "A selective baseline update is a separate button; it appears in the toolbar of the selected rows and is available only to the system administrator. It carries the current dates into the baseline for the selected rows only and does not create a new WbsBaseline version.",
+              "The selective update button is disabled while the selected rows still have unsaved changes: the dates have to be saved first.",
+              "If at least one of the supplied ids is not found in the project, the backend returns 400 with a missingItemIds list and updates no rows at all.",
+              "Both actions require a confirmation dialog and record a WBS command of type BASELINE with a snapshot of the result.",
               "Copying a baseline into a new project creates the WBS rows, restores the parent by parentCode, creates FS dependencies from the predecessor fields and copies the calendar overrides."
             ]
           }
@@ -479,15 +448,22 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-gantt-critical-path",
         "title": "Gantt and critical path",
         "summary": "How the Gantt chart, dependencies, baseline/forecast and the critical/near-critical highlighting are built.",
-        "keywords": [
-          "gantt",
-          "critical path",
-          "critical path",
-          "baseline",
-          "forecast",
-          "dependencies"
-        ],
+        "keywords": ["gantt", "critical path", "baseline", "forecast", "dependencies", "zoom", "scenario"],
         "sections": [
+          {
+            "heading": "Gantt section settings",
+            "points": [
+              "The Gantt toolbar contains the full-screen mode, the Undo and Redo buttons, the zoom, the visible window, a jump to today, the View settings menu and the hierarchy level switch 1..5.",
+              "The zoom switches between Weeks, Months and Quarters. Months are selected by default.",
+              "The visible window is 30, 90, 180 days or All. The default is 90 days.",
+              "The Today button scrolls the timeline horizontally to the marker of the current date.",
+              "The View settings menu contains five toggles: dependencies, critical path, baseline, forecast and reset panel size. There is no separate near-critical toggle; near-critical rows are highlighted together with the critical path.",
+              "The width of the WBS column and the panel sizes are changed by dragging; resetting the size restores the defaults.",
+              "Below the toolbar a legend of statuses and row types is rendered, including the critical path and a float of up to five working days, together with the warnings from the critical-path calculation.",
+              "Above the toolbar there is a scenario block: up to 20 changes of dates or durations, a calculation through a read-only endpoint and a comparison with the working plan. A scenario stores nothing in the project, and Undo and Redo are blocked while the preview is active; the button that returns to the working plan exits it.",
+              "Scenario drafts are stored in the user's browser and are bound to the user-project pair."
+            ]
+          },
           {
             "heading": "Gantt model",
             "points": [
@@ -525,7 +501,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "The baseline overlay is built from baselineStartDate/baselineDueDate.",
               "The forecast overlay is built from forecastStartDate/forecastDueDate.",
               "The variance on a Gantt row is computed as the difference between baselineEnd and forecastEnd.",
-              "The Gantt saved view stores the week/month/quarter zoom level, the visibility of dependencies, critical path, baseline and forecast, and the panel sizes."
+              "The Gantt saved view stores the week/month/quarter zoom level, the 30/90/180-day window or All, the hierarchy level, the visibility of dependencies, critical path, baseline and forecast, the width of the WBS column and the panel sizes."
             ]
           }
         ]
@@ -534,14 +510,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-milestones-calendar",
         "title": "Project schedule, milestones and calendars",
         "summary": "How the Project schedule section builds milestones by phase and the serpentine scale, and how it stores user label offsets.",
-        "keywords": [
-          "project schedule",
-          "milestones",
-          "goals",
-          "calendar",
-          "dragging",
-          "serpentine"
-        ],
+        "keywords": ["project schedule", "milestones", "goals", "calendar", "dragging", "serpentine"],
         "sections": [
           {
             "heading": "Source of milestones",
@@ -614,15 +583,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-jira-issues",
         "title": "Jira work and open issues",
         "summary": "How a project stores Jira settings, synchronizes work sections and keeps internal issues.",
-        "keywords": [
-          "jira",
-          "open issues",
-          "issues",
-          "decisions",
-          "sync",
-          "JQL",
-          "filter"
-        ],
+        "keywords": ["jira", "open issues", "issues", "decisions", "sync", "JQL", "filter", "read-only", "demo"],
         "sections": [
           {
             "heading": "Jira credentials",
@@ -631,6 +592,27 @@ export const englishWikiGroups: WikiGroup[] = [
               "If the env fields are not set, sync returns Jira is not configured.",
               "The request uses Basic auth against /rest/api/2/search, and if that endpoint is unavailable, falls back to /rest/api/3/search/jql.",
               "The fields requested from Jira are summary, status, priority, assignee, reporter, issuetype, resolution and updated."
+            ]
+          },
+          {
+            "heading": "Jira is read-only",
+            "points": [
+              "Every request to Jira goes through a fail-closed guard. Only GET requests to /rest/api/2|3/filter/{id}, /myself and /issue/{key} with the optional changelog, comment, worklog and remotelink suffixes are allowed.",
+              "Among POST requests only rest/api/2/search, rest/api/3/search/jql, rest/auth/1/session and login.jsp are allowed: these are search and authentication operations, not writes of Jira business data.",
+              "Any other path, and any PUT, PATCH or DELETE, is blocked with a JiraReadOnlyRequestError before the network is touched. An invalid URL is blocked as well.",
+              "Synchronization only reads Jira and writes snapshots into the application's own database. The application never creates or modifies Jira issues, comments, worklogs, links or fields.",
+              "A metric is recorded for each call to Jira: the method, the route template, the status class of the response and the duration."
+            ]
+          },
+          {
+            "heading": "The public cloud demo",
+            "points": [
+              "The public cloud demo has no Jira access at all. Under PUBLIC_DEMO_MODE the Jira configuration is returned as disabled and with empty credentials, so the application makes no network request to Jira whatsoever.",
+              "All Jira-like data in the demo is synthetic: the tickets, the history and the aggregates are produced by a fixture and live only in the demo database.",
+              "The demo data is populated in English: the phases Design, Development, Testing and pilot, Go-live, plus English names for work items, milestones and owners.",
+              "Populating a specific project with demo data is done by a dedicated administrative endpoint. Outside the demo runtime it answers 403, so the fixture cannot be run in a corporate installation.",
+              "In the demo runtime requests are made on behalf of the built-in public-demo-user without signing in. Reading is open and writing is allowed outside the administration and user sections.",
+              "A corporate installation works differently: there Jira is connected, but strictly read-only under the rules of the Jira is read-only section."
             ]
           },
           {
@@ -669,14 +651,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-raid",
         "title": "Risks, problems and assumptions",
         "summary": "The RAID register, filters, risk matrix, status history and portfolio impact.",
-        "keywords": [
-          "RAID",
-          "risks",
-          "problems",
-          "assumptions",
-          "riskScore",
-          "matrix"
-        ],
+        "keywords": ["RAID", "risks", "problems", "assumptions", "riskScore", "matrix"],
         "sections": [
           {
             "heading": "Types and fields",
@@ -712,28 +687,20 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-changes-budget-artifacts",
         "title": "Changes, budget and artifacts",
         "summary": "What is currently implemented in the change/budget area and how the artifact catalog works.",
-        "keywords": [
-          "changes",
-          "budget",
-          "artifacts",
-          "change requests",
-          "documents"
-        ],
+        "keywords": ["changes", "budget", "artifacts", "change requests", "documents"],
         "sections": [
           {
             "heading": "Change management",
             "points": [
-              "The section is wired in as a separate project module and takes part in module visibility management.",
-              "The screen uses the data of open decisions and baseline variances in order to link management decisions to changes in schedule/scope.",
-              "The ChangeRequest model supports the types SCOPE, BUDGET, SCHEDULE, RESOURCE and the statuses DRAFT, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, IMPLEMENTED."
+              "For now the section only displays data: three counters (change requests, open decisions, rows with a baseline variance), a search box and a table of the shifted work items with the size of the shift and the owner.",
+              "Change requests cannot be created, approved or driven through the interface. The ChangeRequest model with the types SCOPE, BUDGET, SCHEDULE, RESOURCE and the statuses DRAFT, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, IMPLEMENTED exists in the database, but there is no screen for working with it."
             ]
           },
           {
             "heading": "Budget",
             "points": [
-              "The project model has budgetPlanned and budgetForecast.",
-              "The Budget management section is enabled as a separate module for a future plan-fact-forecast.",
-              "For now the main budget signal is stored at the level of the project charter and is used as a project attribute."
+              "The Budget management section is a placeholder: the page renders a heading, a description and an informational block; it has no plan-fact-forecast calculations or tables.",
+              "The project budget values are stored in the budgetPlanned and budgetForecast fields and are entered when the project is created, not in this section."
             ]
           },
           {
@@ -753,13 +720,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-resources",
         "title": "Resource management",
         "summary": "How load is calculated from the WBS, plus resource profiles, overloads, requests and recommendations.",
-        "keywords": [
-          "resources",
-          "capacity",
-          "load",
-          "assignees",
-          "8 weeks"
-        ],
+        "keywords": ["resources", "capacity", "load", "assignees", "8 weeks"],
         "sections": [
           {
             "heading": "Data source",
@@ -814,23 +775,14 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-admin",
         "title": "Back office: users, roles, dictionaries and modules",
         "summary": "Which administrative settings exist and which guard rules protect the system.",
-        "keywords": [
-          "admin panel",
-          "users",
-          "roles",
-          "dictionaries",
-          "modules",
-          "project access"
-        ],
+        "keywords": ["admin panel", "users", "roles", "dictionaries", "modules", "project access"],
         "sections": [
           {
             "heading": "Users",
             "points": [
-              "The administrator creates users with email, name, role, isActive and a password of at least 8 characters.",
+              "The administrator creates users with email, name, role and isActive. This form does not set a password; available sign-in methods depend on the installation settings.",
               "The email is normalized to lower case; a duplicate returns 409.",
-              "When the password is changed, all userSession records of that user are deleted.",
-              "The last active ADMIN cannot be disabled or demoted.",
-              "Users are created by name and email; the password is not set in the application and is not stored for sign-in."
+              "The last active ADMIN cannot be disabled or demoted."
             ]
           },
           {
@@ -899,15 +851,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-integrations-api",
         "title": "Integrations, API tokens, webhooks and OpenAPI",
         "summary": "How external integrations, tokens, webhook delivery and API documentation are arranged.",
-        "keywords": [
-          "integrations",
-          "API token",
-          "webhook",
-          "OpenAPI",
-          "GitLab",
-          "GitHub",
-          "BI"
-        ],
+        "keywords": ["integrations", "API token", "webhook", "OpenAPI", "GitLab", "GitHub", "BI"],
         "sections": [
           {
             "heading": "Integration settings",
@@ -954,17 +898,7 @@ export const englishWikiGroups: WikiGroup[] = [
         "id": "wiki-security-ops",
         "title": "Authentication, audit and operations",
         "summary": "Sessions, Keycloak/OIDC, the audit trail, health, backup/restore and the deployment pipeline.",
-        "keywords": [
-          "auth",
-          "keycloak",
-          "OIDC",
-          "audit",
-          "health",
-          "backup",
-          "restore",
-          "deploy",
-          "prisma"
-        ],
+        "keywords": ["auth", "keycloak", "OIDC", "audit", "health", "backup", "restore", "deploy", "prisma"],
         "sections": [
           {
             "heading": "Application session",
@@ -972,14 +906,15 @@ export const englishWikiGroups: WikiGroup[] = [
               "The session is stored in UserSession as a SHA-256 hash of the cookie token.",
               "The cookie is HttpOnly, SameSite=Lax, with Max-Age from AUTH_SESSION_DAYS. Secure is enabled in production unless AUTH_COOKIE_SECURE is false.",
               "If a session has expired, it is deleted. If the user is disabled, the session is not attached to the request.",
-              "Without an active session the interface and all application APIs are unavailable."
+              "Without an active session the interface and all application APIs are unavailable.",
+              "The public cloud demo is the exception: under PUBLIC_DEMO_MODE a request without a session is executed on behalf of the built-in demo user. In a corporate installation that mode is off."
             ]
           },
           {
             "heading": "Keycloak/OIDC",
             "points": [
               "The frontend supports the Keycloak login flow, while the backend works with the resulting application user session.",
-              "Keycloak is the only way to authenticate users; local sign-in with email and password is disabled.",
+              "Alongside configured Keycloak authentication, local email and password sign-in is supported. The initial account is configured through LOCAL_AUTH_EMAIL and LOCAL_AUTH_BOOTSTRAP_PASSWORD; passwords are stored as hashes.",
               "OIDC does not pass the user's password to the application, so Jira cannot be accessed with the user's own login and password.",
               "Access to Jira is implemented through a service account via JIRA_EMAIL/JIRA_API_TOKEN in the container env."
             ]

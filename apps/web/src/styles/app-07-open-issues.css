@@ -244,10 +244,11 @@
   align-items: center;
   display: grid;
   gap: 4px;
-  grid-template-columns: minmax(0, 1fr) 32px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .issue-risk-control .icon-button {
+  justify-self: end;
   height: 32px;
   min-height: 32px;
   padding: 0;
@@ -255,7 +256,8 @@
 }
 
 .issue-risk-link {
-  align-items: center;
+  width: 100%;
+  align-items: start;
   color: var(--brand);
   display: inline-flex;
   font-size: var(--issue-font);

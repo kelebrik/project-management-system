@@ -369,7 +369,7 @@ export function ProjectStructureSection() {
                         <>
                           <div className="gantt-controls wbs-structure-controls" aria-label={uiText("ui.projects.structureToolbarLabel")}>
                           <div className="gantt-controls-row">
-                            {uiLocale === "ru" && <button
+                            <button
                               type="button"
                               className="workspace-fullscreen-button"
                               onClick={() =>
@@ -394,7 +394,7 @@ export function ProjectStructureSection() {
                               {fullscreenWorkspaceView === "project-structure"
                                 ? uiText("ui.common.normalMode")
                                 : uiText("ui.common.fullScreen")}
-                            </button>}
+                            </button>
                             {!isReadOnly && (
                               <>
                                 <button
@@ -474,7 +474,7 @@ export function ProjectStructureSection() {
                                 </div>
                               )}
                             </div>
-                            {uiLocale === "ru" && <button
+                            <button
                               type="button"
                               className="wbs-pdf-button"
                               onClick={() =>
@@ -488,8 +488,8 @@ export function ProjectStructureSection() {
                             >
                               <FileDown size={15} />
                               PDF
-                            </button>}
-                            <button
+                            </button>
+                            {uiLocale === "ru" && <button
                               type="button"
                               className="wbs-pdf-button"
                               onClick={() =>
@@ -503,7 +503,7 @@ export function ProjectStructureSection() {
                             >
                               <FileDown size={15} />
                               PDF EN
-                            </button>
+                            </button>}
                             {uiLocale === "ru" && <div className="column-menu wbs-en-menu">
                               <button
                                 type="button"
@@ -640,6 +640,7 @@ export function ProjectStructureSection() {
                               });
                               event.currentTarget.value = "";
                             }}
+                            className="wbs-bulk-calendar"
                             aria-label={uiText("ui.projects.structureBulkChangeCalendarAction")}
                           >
                             <option value="">{uiText("ui.projects.calendarLabel")}</option>

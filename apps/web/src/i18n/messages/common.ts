@@ -1,4 +1,41 @@
 export const commonMessages = {
+  "baseline.confirmAllTitle": {
+    "en": "Set the baseline?",
+    "ru": "Зафиксировать базовый план?"
+  },
+  "baseline.confirmSelectedTitle": {
+    "en": "Update the baseline?",
+    "ru": "Обновить базовый план?"
+  },
+  "baseline.confirmAllMessage": {
+    "en": "The current dates of all WBS items will become their baseline dates.",
+    "ru": "Текущие даты всей Структуры станут датами базового плана."
+  },
+  "baseline.confirmSelectedMessage": {
+    "en": "The current start and finish dates of the selected work items ({count}) will replace their baseline dates.",
+    "ru": "Текущие даты старта и финиша выбранных работ ({count}) заменят их базовые даты."
+  },
+  "baseline.setAction": {
+    "en": "Set baseline",
+    "ru": "Зафиксировать"
+  },
+  "baseline.updateAction": {
+    "en": "Update",
+    "ru": "Обновить"
+  },
+  "baseline.saveError": {
+    "en": "Could not save the baseline",
+    "ru": "Не удалось сохранить базовый план"
+  },
+  "baseline.savedAll": {
+    "en": "WBS baseline saved",
+    "ru": "Базовый план Структуры сохранен"
+  },
+  "baseline.savedSelected": {
+    "en": "Baseline updated for {count} selected work items",
+    "ru": "Базовый план обновлен для выбранных работ: {count}"
+  },
+
   "ui.common.statusLabel": {
     "en": "Status:",
     "ru": "Статус:"

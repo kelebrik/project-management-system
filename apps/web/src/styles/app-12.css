@@ -974,3 +974,9 @@
   left: 0;
   z-index: 3;
 }
+
+.wbs-bulk-toolbar select.wbs-bulk-calendar {
+  min-width: 140px;
+  width: 140px;
+  padding-right: 32px;
+}
