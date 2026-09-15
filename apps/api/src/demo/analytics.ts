@@ -24,7 +24,7 @@ export async function fillAnalytics(client: PrismaClient, project: Project, base
       const data = {
         projectId: project.id, jiraId: id(`jira-remote-${n}`), issueKey: key,
         issueUrl: `https://jira.example/browse/${key}`,
-        summary: `${['Ошибка обновления прошивки', 'Подготовить OTA-пакет', 'Исправить загрузку устройства', 'Реализовать контроль целостности', 'Согласовать интерфейс', 'Устранить блокировку пилота'][n % 6]} (демо)`,
+        summary: `${['Firmware update failure', 'Prepare the OTA package', 'Fix device boot', 'Implement integrity checks', 'Agree the interface', 'Remove the pilot blocker'][n % 6]} (demo)`,
         issueType, priority, status, assignee: owners[n % owners.length], reporter: project.projectManager,
         labels: ['demo-fixture', 'cvte968', 'MP', 'ota', 'pilot', 'sla'],
         resolution: resolved ? 'Done' : null, resolutionAt, issueCreatedAt: created,
@@ -79,7 +79,7 @@ export async function fillAnalytics(client: PrismaClient, project: Project, base
       });
       const section = await tx.jiraWorkSection.upsert({
         where: { projectId_sortOrder: { projectId: project.id, sortOrder: n % 3 } }, update: {},
-        create: { projectId: project.id, sortOrder: n % 3, title: ['Разработка', 'Тестирование', 'Релиз'][n % 3], jql: '' },
+        create: { projectId: project.id, sortOrder: n % 3, title: ['Development', 'Testing', 'Release'][n % 3], jql: '' },
       });
       await tx.jiraWorkSectionIssue.upsert({
         where: { sectionId_snapshotId: { sectionId: section.id, snapshotId: snapshot.id } }, update: {},
@@ -111,8 +111,8 @@ export async function fillAnalytics(client: PrismaClient, project: Project, base
         await tx.gitlabBranchCommit.upsert({ where: { projectId_scopeKey_commitSha: { projectId: project.id, scopeKey, commitSha: sha } }, update: { committedAt: dateAt(-c - 1, now), observedAt: now }, create: {
           projectId: project.id, syncRunId: run.id, scopeKey, projectPath: config.projectPath,
           targetBranch: config.targetBranch, commitSha: sha, shortSha: sha.slice(0, 8),
-          title: `Демо: ${['обновить экран входа', 'исправить таймаут', 'добавить метрики', 'ускорить сборку', 'обновить документацию'][c]}`,
-          message: 'Синтетический пример коммита без ссылки на задачу.', authorName: owners[c],
+          title: `Demo: ${['update the sign-in screen', 'fix the timeout', 'add metrics', 'speed up the build', 'update the documentation'][c]}`,
+          message: 'Synthetic sample commit without an issue link.', authorName: owners[c],
           committedAt: dateAt(-c - 1, now), observedAt: now,
           webUrl: `https://gitlab.example/demo/commits/${sha}`, jiraLinkState: 'unlinked',
         } });

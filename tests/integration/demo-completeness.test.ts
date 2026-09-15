@@ -17,17 +17,17 @@ test('existing partly populated demo projects receive all sections and non-empty
   try {
     const unit = await client.businessUnit.create({ data: { code: `test-${Date.now()}`, name: 'BU_1' } });
     const project = await client.project.create({ data: {
-      businessUnitId: unit.id, code: `DEMO-005-${Date.now()}`, name: 'Пульс', portfolio: unit.name,
-      sponsor: 'Sponsor', projectManager: 'Мария Новикова', startDate: new Date('2026-07-01'),
+      businessUnitId: unit.id, code: `DEMO-005-${Date.now()}`, name: 'Pulse', portfolio: unit.name,
+      sponsor: 'Sponsor', projectManager: 'Maria Novikova', startDate: new Date('2026-07-01'),
       targetDate: new Date('2026-12-31'), budgetPlanned: 1000000, budgetForecast: 1100000, summary: 'Existing demo',
-      uiState: { customFlag: true, passportRows: [{ id: 'existing', field: 'Заказчик', description: 'Существующий заказчик' }] },
+      uiState: { customFlag: true, passportRows: [{ id: 'existing', field: 'Customer', description: 'Existing customer' }] },
     } });
     const existingWbs = await client.wbsItem.create({ data: {
-      projectId: project.id, code: '1', type: 'TASK', title: 'Существующая задача', owner: 'Пользователь',
+      projectId: project.id, code: '1', type: 'TASK', title: 'Existing task', owner: 'User',
     } });
     await client.projectBusinessRequirements.create({ data: {
-      projectId: project.id, columns: [{ id: 'custom', title: 'Требование' }, { id: 'extra', title: 'Комментарий' }],
-      rows: [{ id: 'keep', cells: { custom: 'Существующее требование', extra: 'Не менять' } }, { id: 'empty', cells: { custom: '', extra: '' } }],
+      projectId: project.id, columns: [{ id: 'custom', title: 'Requirement' }, { id: 'extra', title: 'Comment' }],
+      rows: [{ id: 'keep', cells: { custom: 'Existing requirement', extra: 'Do not change' } }, { id: 'empty', cells: { custom: '', extra: '' } }],
     } });
     await completeDemoData(client);
     const counts = async () => ({
@@ -53,15 +53,15 @@ test('existing partly populated demo projects receive all sections and non-empty
     const ui = updated.uiState as { customFlag: boolean; passportRows: Array<{ field: string; description: string }> };
     assert.equal(ui.customFlag, true);
     assert.equal(ui.passportRows.length, 9);
-    assert.equal(ui.passportRows.find(row => row.field === 'Заказчик')?.description, 'Существующий заказчик');
+    assert.equal(ui.passportRows.find(row => row.field === 'Customer')?.description, 'Existing customer');
     assert.equal(Number(updated.budgetPlanned), 1000000);
-    assert.equal((await client.wbsItem.findUniqueOrThrow({ where: { id: existingWbs.id } })).title, 'Существующая задача');
+    assert.equal((await client.wbsItem.findUniqueOrThrow({ where: { id: existingWbs.id } })).title, 'Existing task');
     const requirements = await client.projectBusinessRequirements.findUniqueOrThrow({ where: { projectId: project.id } });
     const rows = requirements.rows as Array<{ id: string; cells: Record<string, string> }>;
-    assert.equal(rows.find((row) => row.id === 'keep')?.cells.custom, 'Существующее требование');
+    assert.equal(rows.find((row) => row.id === 'keep')?.cells.custom, 'Existing requirement');
     assert.ok(rows.length >= 6);
-    assert.ok(rows.some((row) => row.cells.custom === 'Вход через единую учётную запись'));
-    assert.ok(rows.some((row) => row.cells.extra?.includes('Критерий приёмки')));
+    assert.ok(rows.some((row) => row.cells.custom === 'Single sign-on access'));
+    assert.ok(rows.some((row) => row.cells.extra?.includes('Acceptance criteria')));
     assert.equal(rows.filter((row) => !Object.values(row.cells).some(Boolean)).length, 0);
     for (const p of await client.project.findMany()) {
       const settings = await client.jiraAnalyticsSettings.findUniqueOrThrow({ where: { projectId: p.id } });
