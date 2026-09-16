@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import type { UserRole } from '@prisma/client';
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import { prisma } from '../db.js';
 
 export const PUBLIC_DEMO_MODE =
@@ -10,7 +11,7 @@ export const PUBLIC_DEMO_MODE =
   process.env.RENDER_EXTERNAL_URL?.includes('project-management-system-lorj.onrender.com') === true;
 
 const publicDemoUser: CurrentUser = {
-  id: 'public-demo-user',
+  id: PUBLIC_DEMO_USER_ID,
   email: 'public-demo@local.invalid',
   name: 'Публичная демонстрация',
   role: 'PROJECT_MANAGER',
@@ -293,7 +294,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = currentUser(req);
   const apiToken = currentApiToken(req);
-  if (PUBLIC_DEMO_MODE && user?.id === 'public-demo-user' && ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+  if (PUBLIC_DEMO_MODE && user?.id === PUBLIC_DEMO_USER_ID && ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     next();
     return;
   }

@@ -86,7 +86,7 @@ export async function fillAnalytics(client: PrismaClient, project: Project, base
         create: { sectionId: section.id, snapshotId: snapshot.id },
       });
     }
-  }, { timeout: 60_000 });
+  }, { timeout: 300_000 });
   await ensureJiraSystemSemanticAggregates(client, project.id);
   // Populate the exact published GitLab scope used by the dashboard, without network I/O.
   const aggregates = await client.jiraAggregateDefinition.findMany({ where: { projectId: project.id, publishedVersion: { not: null } } });

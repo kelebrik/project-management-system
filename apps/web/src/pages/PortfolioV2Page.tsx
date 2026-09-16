@@ -68,11 +68,7 @@ type SelectedSegment = {
   segment: PortfolioRoadmapSegment;
 };
 
-type PortfolioRoadmapV2Props = {
-  onContentReady?: () => void;
-};
-
-export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) {
+export function PortfolioRoadmapV2() {
   const { t: uiText } = useInterfaceTranslation();
   const { locale: uiLocale } = useLocaleTranslation();
   const {
@@ -81,7 +77,7 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
     selectProject,
     toggleWorkspaceFullscreen,
   } = usePageContext();
-  const isFullscreen = fullscreenWorkspaceView === "portfolio";
+  const isFullscreen = fullscreenWorkspaceView === "portfolio-v2";
   const [range, setRange] = useState<PortfolioRoadmapRange>(initialRange);
   const [query, setQuery] = useState("");
   const [portfolioFilter, setPortfolioFilter] = useState("ALL");
@@ -117,11 +113,6 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
       cancelled = true;
     };
   }, [reloadToken]);
-
-  useEffect(() => {
-    if (projectItems === null && !loadError) return;
-    onContentReady?.();
-  }, [loadError, onContentReady, projectItems]);
 
   const preparedProjects = useMemo(
     () => preparePortfolioRoadmapProjects(projectItems ?? []),
@@ -224,8 +215,12 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
 
   return (
     <section
+      aria-labelledby="portfolio-roadmap-v2-title"
       className={`portfolio-roadmap-page ${isFullscreen ? "portfolio-roadmap-page-fullscreen" : ""}`}
     >
+      <header className="portfolio-roadmap-page-heading">
+        <h1 id="portfolio-roadmap-v2-title">{uiText("ui.portfolio.roadmapV2Title")}</h1>
+      </header>
       <div className="portfolio-roadmap-toolbar">
         <label className="portfolio-roadmap-search">
           <Search aria-hidden="true" size={15} />
@@ -279,7 +274,7 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
                 : uiText("ui.portfolio.roadmapV2EnterFullScreen")
             }
             className="workspace-fullscreen-button"
-            onClick={() => toggleWorkspaceFullscreen("portfolio")}
+            onClick={() => toggleWorkspaceFullscreen("portfolio-v2")}
             title={isFullscreen ? uiText("ui.common.exitFullscreen") : uiText("ui.common.fullScreen")}
             type="button"
           >
@@ -497,8 +492,10 @@ export function PortfolioRoadmapV2({ onContentReady }: PortfolioRoadmapV2Props) 
                                 backgroundColor: segment.color,
                                 // Keep a constant visual gutter around every package,
                                 // including adjacent packages and month boundaries.
-                                left: `calc(${segment.offset}% + 2px)`,
-                                width: `max(24px, calc(${segment.width}% - 4px))`,
+                                // Half of the 3px row gutter on each side makes the
+                                // horizontal spacing match the vertical one exactly.
+                                left: `calc(${segment.offset}% + 1.5px)`,
+                                width: `max(24px, calc(${segment.width}% - 3px))`,
                               } as CSSProperties}
                               title={`${segment.code} · ${segment.label}`}
                               type="button"

@@ -47,8 +47,11 @@ import {
   signedDateDeltaDays,
   signedDaysLabel,
 } from "../app/projectTargetModel";
-import type { AppView } from "../app/routes";
+import type { AppView, SectionAccess } from "../app/routes";
 import {
+  adminSectionViews,
+  canViewAppView,
+  developmentSectionViews,
   isDevelopmentSectionViewName,
   isAdminSectionViewName,
   isProjectSectionViewName,
@@ -90,8 +93,8 @@ type AppPresentationProps = {
   handleEditableFocus: FocusEventHandler<HTMLDivElement>;
   handleEditableKeyDown: KeyboardEventHandler<HTMLDivElement>;
   isAdminUser: boolean;
-  isBusinessUnitAdmin: boolean;
   isAuthenticated: boolean;
+  sectionAccess: SectionAccess;
   isClosedProject: boolean;
   isProjectModuleEnabled: (key: any) => boolean;
   isReadOnly: boolean;
@@ -188,8 +191,8 @@ export function AppPresentation({
   handleEditableFocus,
   handleEditableKeyDown,
   isAdminUser,
-  isBusinessUnitAdmin,
   isAuthenticated,
+  sectionAccess,
   isClosedProject,
   isProjectModuleEnabled,
   isReadOnly,
@@ -239,11 +242,15 @@ export function AppPresentation({
       activeView === "project-create" ||
       (selectedProjectListItem && isProjectSectionView),
   );
-  const shouldShowAdminMenu = Boolean(
-    (isAdminUser || isBusinessUnitAdmin) && isAdminSectionView,
+  const canViewAdminSections = adminSectionViews.some((view) =>
+    canViewAppView(view, sectionAccess),
   );
+  const canViewDevelopmentSections = developmentSectionViews.some((view) =>
+    canViewAppView(view, sectionAccess),
+  );
+  const shouldShowAdminMenu = Boolean(canViewAdminSections && isAdminSectionView);
   const shouldShowDevelopmentMenu = Boolean(
-    isAdminUser && isDevelopmentSectionView,
+    canViewDevelopmentSections && isDevelopmentSectionView,
   );
   const { t, locale, labels: localizedLabels, formatters } = useI18n();
   const viewTitle = useMemo(() => createViewTitle(project, t), [project, t]);
@@ -322,6 +329,7 @@ export function AppPresentation({
     isAdminSectionView,
     isAdminUser,
     isDevelopmentSectionView,
+    sectionAccess,
     isDefaultWorkingDay,
     isResourceSectionView,
     issuePrimaryJiraLink,
@@ -364,8 +372,9 @@ export function AppPresentation({
       handleEditableFocus={handleEditableFocus}
       handleEditableKeyDown={handleEditableKeyDown}
       isAdminSectionView={isAdminSectionView}
-      isAdminUser={isAdminUser}
-      isBusinessUnitAdmin={isBusinessUnitAdmin}
+      canViewAdminSections={canViewAdminSections}
+      canViewDevelopmentSections={canViewDevelopmentSections}
+      sectionAccess={sectionAccess}
       isAuthenticated={isAuthenticated}
       isClosedProject={shouldShowClosedProjectBanner}
       isDevelopmentSectionView={isDevelopmentSectionView}

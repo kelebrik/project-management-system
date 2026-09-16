@@ -342,5 +342,59 @@ export const automationMessages = {
   "ui.automation.whenWho": {
     "en": "When / who",
     "ru": "Когда / кто"
-  }
+  },
+  "ui.automation.copyError": { en: "Could not copy. Use PDF or select the report text.", ru: "Не удалось скопировать. Используйте PDF или выделите текст отчета." },
+
+  "ui.automation.briefWarning.recordedHistoryOnly": {
+    en: "The summary reflects recorded history. Older automatic recalculations and changes without history entries may be missing.",
+    ru: "Сводка отражает записанную историю. Старые автоматические пересчеты и изменения без записей истории могут отсутствовать.",
+  },
+  "ui.automation.briefWarning.noAccessibleProjects": {
+    en: "No projects with assigned access in the selected scope. A historical summary requires project access.",
+    ru: "Нет проектов с назначенным доступом в выбранной области. Историческая сводка требует доступа к проекту.",
+  },
+  "ui.automation.briefWarning.tooManyChanges": {
+    en: "Too many changes: only part is shown. Shorten the period or pick a single project.",
+    ru: "Слишком много изменений: показана часть. Сократите период или выберите один проект.",
+  },
+
+  "ui.automation.briefActor.automaticRecalculation": { en: "Automatic recalculation", ru: "Автоматический пересчет" },
+  "ui.automation.briefActor.unknown": { en: "Not specified", ru: "Не указан" },
+  "ui.automation.briefActor.unknownOrAutomatic": { en: "Not specified / automatic calculation", ru: "Не указан / автоматический расчет" },
+
+  "ui.automation.briefValue.empty": { en: "—", ru: "—" },
+  "ui.automation.briefValue.changed": { en: "Changed", ru: "Изменено" },
+  "ui.automation.briefValue.existed": { en: "Existed", ru: "Существовала" },
+  "ui.automation.briefValue.created": { en: "Created", ru: "Создана" },
+  "ui.automation.briefValue.deleted": { en: "Deleted", ru: "Удалена" },
+  "ui.automation.briefValue.deletedIssue": { en: "Deleted issue", ru: "Удаленный вопрос" },
+  "ui.automation.briefValue.deletedRisk": { en: "Deleted risk / problem", ru: "Удаленный риск / проблема" },
+
+  "ui.automation.briefField.WbsItem.existence": { en: "Work item", ru: "Работа" },
+  "ui.automation.briefField.WbsItem.title": { en: "Name", ru: "Название" },
+  "ui.automation.briefField.WbsItem.status": { en: "Status", ru: "Статус" },
+  "ui.automation.briefField.WbsItem.owner": { en: "Owner", ru: "Ответственный" },
+  "ui.automation.briefField.WbsItem.startDate": { en: "Start", ru: "Начало" },
+  "ui.automation.briefField.WbsItem.dueDate": { en: "Finish", ru: "Окончание" },
+  "ui.automation.briefField.WbsItem.forecastDueDate": { en: "Forecast finish", ru: "Прогноз окончания" },
+  "ui.automation.briefField.WbsItem.baselineDueDate": { en: "Baseline finish", ru: "Базовое окончание" },
+  "ui.automation.briefField.WbsItem.progress": { en: "Progress", ru: "Прогресс" },
+  "ui.automation.briefField.Issue.title": { en: "Issue", ru: "Вопрос" },
+  "ui.automation.briefField.Issue.status": { en: "Status", ru: "Статус" },
+  "ui.automation.briefField.Issue.owner": { en: "Owner", ru: "Ответственный" },
+  "ui.automation.briefField.Issue.dueDate": { en: "Response due", ru: "Срок ответа" },
+  "ui.automation.briefField.Issue.decisionRequired": { en: "Decision required", ru: "Требуется решение" },
+  "ui.automation.briefField.Issue.severity": { en: "Severity", ru: "Важность" },
+  "ui.automation.briefField.RaidItem.title": { en: "Risk / problem", ru: "Риск / проблема" },
+  "ui.automation.briefField.RaidItem.status": { en: "Status", ru: "Статус" },
+  "ui.automation.briefField.RaidItem.owner": { en: "Owner", ru: "Ответственный" },
+  "ui.automation.briefField.RaidItem.dueDate": { en: "Due date", ru: "Срок" },
+  "ui.automation.briefField.RaidItem.probability": { en: "Probability", ru: "Вероятность" },
+  "ui.automation.briefField.RaidItem.impact": { en: "Impact", ru: "Влияние" },
+  "ui.automation.briefField.RaidItem.riskScore": { en: "Risk score", ru: "Оценка риска" },
+  "ui.automation.briefField.Project.name": { en: "Project name", ru: "Название проекта" },
+  "ui.automation.briefField.Project.status": { en: "Project status", ru: "Статус проекта" },
+  "ui.automation.briefField.Project.targetDate": { en: "Target date", ru: "Целевая дата" },
+  "ui.automation.briefField.Project.rag": { en: "Indicator", ru: "Индикатор" },
+  "ui.automation.briefField.Project.projectManager": { en: "Project manager", ru: "Руководитель проекта" },
 } as const;

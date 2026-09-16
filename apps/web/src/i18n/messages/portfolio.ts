@@ -99,10 +99,6 @@ export const portfolioMessages = {
     "en": "Roadmap v2",
     "ru": "Дорожная карта v2"
   },
-  "ui.portfolio.roadmapLoadingRegion": {
-    "en": "Loading roadmap",
-    "ru": "Загрузка дорожной карты"
-  },
   "ui.portfolio.portfolioV2ProjectSearchLabel": {
     "en": "Project search",
     "ru": "Поиск проекта"

@@ -135,7 +135,7 @@ test("system administrator sees weekly visits and aggregated visitors", async ({
   await page.goto("/admin/analytics");
 
   await expect(
-    page.getByRole("heading", { name: "Администрирование: посещаемость" }),
+    page.getByRole("heading", { name: "Посещаемость", level: 1 }),
   ).toBeVisible();
   await expect(page.getByText("Всего просмотров")).toBeVisible();
   await expect(page.getByText("31", { exact: true })).toBeVisible();

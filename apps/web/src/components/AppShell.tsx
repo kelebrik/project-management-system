@@ -35,10 +35,11 @@ import type { CurrentUser } from "../app/adminTypes";
 import type { ProjectDetails, ProjectListItem } from "../app/domainTypes";
 import type { ProjectModuleKey } from "../app/projectModules";
 import {
-  canAccessAdminView,
+  canViewAppView,
   isAdminSectionViewName,
   type AppView,
   type ProjectSectionView,
+  type SectionAccess,
 } from "../app/routes";
 import { getWikiGroups } from "../i18n/wiki";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
@@ -74,8 +75,9 @@ type AppShellProps = {
   handleEditableFocus: FocusEventHandler<HTMLDivElement>;
   handleEditableKeyDown: KeyboardEventHandler<HTMLDivElement>;
   isAdminSectionView: boolean;
-  isAdminUser: boolean;
-  isBusinessUnitAdmin: boolean;
+  canViewAdminSections: boolean;
+  canViewDevelopmentSections: boolean;
+  sectionAccess: SectionAccess;
   isAuthenticated: boolean;
   isClosedProject: boolean;
   isDevelopmentSectionView: boolean;
@@ -285,6 +287,7 @@ const adminNavItems: AdminNavItem[] = [
 ];
 
 const developmentNavItems: AdminNavItem[] = [
+  { view: "portfolio-v2", label: "view.portfolio-v2", icon: <BriefcaseBusiness size={15} /> },
   { view: "jira-reconciliation", label: "view.jira-reconciliation", icon: <CircleHelp size={15} /> },
   {
     view: "project-pm-workspace",
@@ -335,8 +338,9 @@ export function AppShell({
   handleEditableFocus,
   handleEditableKeyDown,
   isAdminSectionView,
-  isAdminUser,
-  isBusinessUnitAdmin,
+  canViewAdminSections,
+  canViewDevelopmentSections,
+  sectionAccess,
   isAuthenticated,
   isClosedProject,
   isDevelopmentSectionView,
@@ -437,7 +441,7 @@ export function AppShell({
           >
             <Archive size={15} /> {t("nav.archive")}
           </button>
-          {(isAdminUser || isBusinessUnitAdmin) && (
+          {canViewAdminSections && (
             <button
               type="button"
               className={isAdminSectionView ? "active" : ""}
@@ -446,7 +450,7 @@ export function AppShell({
               <Settings size={15} /> {t("nav.administration")}
             </button>
           )}
-          {isAdminUser && (
+          {canViewDevelopmentSections && (
             <button
               type="button"
               className={isDevelopmentSectionView ? "active" : ""}
@@ -510,10 +514,7 @@ export function AppShell({
       {shouldShowAdminMenu && (
         <nav className="section-navigation section-tabs" aria-label={t("nav.administration")}>
           {adminNavItems
-            .filter((item) =>
-              !isAdminSectionViewName(item.view) ||
-              canAccessAdminView(item.view, isAdminUser, isBusinessUnitAdmin),
-            )
+            .filter((item) => canViewAppView(item.view, sectionAccess))
             .map((item) => (
             <button
               type="button"
@@ -533,7 +534,9 @@ export function AppShell({
             <div className="section-project-picker">{projectPicker("project-pm-workspace")}</div>
           )}
           <nav className="section-tabs" aria-label={t("nav.development")}>
-            {developmentNavItems.map((item) => (
+            {developmentNavItems
+              .filter((item) => canViewAppView(item.view, sectionAccess))
+              .map((item) => (
               <button
                 type="button"
                 key={item.view}

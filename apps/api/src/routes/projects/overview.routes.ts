@@ -11,6 +11,7 @@ import {
 } from '../../services/executive-overview.js';
 import { ensureDefaultJiraWorkSections } from '../../services/jira-work-sections.js';
 import { userProjectAccessLevel } from '../../server/project-access.js';
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import { PUBLIC_DEMO_MODE } from '../../server/auth.js';
 import { calculateProjectCriticalPath } from '../../services/wbs-critical-path.js';
 import { closedIssuesInclude, projectDetailsInclude } from './includes.js';
@@ -47,7 +48,7 @@ export function registerProjectOverviewRoutes(
     const currentUserAccessLevel =
       user?.role === 'ADMIN'
         ? 'ADMIN'
-        : PUBLIC_DEMO_MODE && user?.id === 'public-demo-user'
+        : PUBLIC_DEMO_MODE && user?.id === PUBLIC_DEMO_USER_ID
           ? 'EDIT'
         : user
           ? await userProjectAccessLevel(user.id, project.id)

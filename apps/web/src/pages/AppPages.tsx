@@ -16,6 +16,7 @@ import { AdminUsersPageContent } from "./AdminUsersPageContent";
 import { BusinessUnitsPageContent } from "./BusinessUnitsPageContent";
 import { ClosedProjectsPage } from "./ClosedProjectsPage";
 import { PortfolioPage } from "./PortfolioPage";
+import { PortfolioRoadmapV2 } from "./PortfolioV2Page";
 import { ProjectsPage } from "./ProjectsPage";
 import { ReportsPage } from "./ReportsPage";
 import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
@@ -37,7 +38,7 @@ import {
 } from "./ResourcePages";
 import { usePageContext } from "./PageContext";
 import { WikiPage } from "./WikiPage";
-import { isDevelopmentSectionViewName } from "../app/routes";
+import { canViewAppView, isDevelopmentSectionViewName } from "../app/routes";
 
 const ProjectPmWorkspacePage = lazy(() =>
   import("./ProjectPmWorkspacePage").then((module) => ({
@@ -60,25 +61,32 @@ function DevelopmentPageFallback() {
 }
 
 export function AppPages() {
-  const { activeView, isAdminSectionView, isAdminUser, project } =
+  const { activeView, isAdminSectionView, sectionAccess, project } =
     usePageContext();
   const isDevelopmentSectionView = isDevelopmentSectionViewName(activeView);
 
-  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || (isAdminUser && isDevelopmentSectionView))) {
+  // Single gate for the whole page tree: routing and the auth controller use the
+  // same rule, so a section is never navigable while its content stays blank.
+  if (!canViewAppView(activeView, sectionAccess)) {
+    return null;
+  }
+
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || isDevelopmentSectionView)) {
     return null;
   }
 
   return (
     <>
       {activeView === "portfolio" && <PortfolioPage />}
-      {isAdminUser && activeView === "decision-queue" && (
+      {activeView === "portfolio-v2" && <PortfolioRoadmapV2 />}
+      {activeView === "decision-queue" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <DecisionQueuePage />
         </Suspense>
       )}
       {activeView === "projects" && <ProjectsPage />}
       {activeView === "reports" && <ReportsPage />}
-      {isAdminUser && activeView === "jira-reconciliation" && <JiraReconciliationPage />}
+      {activeView === "jira-reconciliation" && <JiraReconciliationPage />}
       {activeView === "wiki" && <WikiPage />}
       {project && activeView === "project-overview" && (
         <ProjectOverviewSummaryPage key={project.id} />
@@ -99,19 +107,19 @@ export function AppPages() {
         {activeView === "admin-backups" && <AdminBackupsPageContent />}
         {activeView === "admin-config" && <AdminConfigPageContent />}
         {activeView === "admin-projects" && <AdminProjectsPageContent />}
-        {isAdminUser && activeView === "admin-business-units" && <BusinessUnitsPageContent />}
+        {activeView === "admin-business-units" && <BusinessUnitsPageContent />}
         {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
-        {isAdminUser && activeView === "admin-analytics" && <AdminAnalyticsPageContent />}
-        {isAdminUser && activeView === "resources" && <ResourceOverviewPage />}
-        {isAdminUser && activeView === "resources-capacity" && <ResourceCapacityPage />}
+        {activeView === "admin-analytics" && <AdminAnalyticsPageContent />}
+        {activeView === "resources" && <ResourceOverviewPage />}
+        {activeView === "resources-capacity" && <ResourceCapacityPage />}
         {project && activeView === "project-schedule" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-business-requirements" && <ProjectBusinessRequirementsPage />}
         {project && activeView === "project-current-work" && <ProjectCurrentWorkPage key={project.id} />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && activeView === "project-budget" && <ProjectBudgetPage />}
-        {isAdminUser && project && activeView === "project-pm-workspace" && (
+        {project && activeView === "project-pm-workspace" && (
           <Suspense fallback={<DevelopmentPageFallback />}>
             <ProjectPmWorkspacePage />
           </Suspense>

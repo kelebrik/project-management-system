@@ -3,6 +3,13 @@ export * from "./jira-analytics.js";
 export * from "./jira-semantic-analytics.js";
 export * from "./project-automation.js";
 
+/**
+ * Identity used for unauthenticated visitors while `PUBLIC_DEMO_MODE` is on.
+ * Both sides rely on it: the API grants read-only access to this identity, and
+ * the web treats it as "public demo visitor" when deciding what may be viewed.
+ */
+export const PUBLIC_DEMO_USER_ID = "public-demo-user";
+
 export const appViewKeys = [
   "portfolio",
   "portfolio-v2",

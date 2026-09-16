@@ -935,22 +935,6 @@ export const projectsMessages = {
     "en": "No critical path tasks for the current filter.",
     "ru": "Нет задач критического пути для текущего фильтра."
   },
-  "ui.projects.structureViewModeTipLabel": {
-    "en": "View mode tip",
-    "ru": "Подсказка по режиму просмотра"
-  },
-  "ui.projects.closeTipAction": {
-    "en": "Close tip",
-    "ru": "Закрыть подсказку"
-  },
-  "ui.projects.structureFullScreenTipTitle": {
-    "en": "Want an easier way to work with the structure?",
-    "ru": "Удобнее работать со структурой?"
-  },
-  "ui.projects.structureFullScreenTipBody": {
-    "en": "Expand it to full screen — the header and toolbar stay available at all times.",
-    "ru": "Разверните её на весь экран — шапка и панель управления всегда будут доступны."
-  },
   "ui.projects.startColumnLabel": {
     "en": "Start",
     "ru": "Старт"

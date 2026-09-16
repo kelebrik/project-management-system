@@ -8,11 +8,10 @@ import {
 import { ApiError, apiBase, apiClient } from "../api/client";
 import type { AuthMode, CurrentUser } from "../app/adminTypes";
 import {
-  canAccessAdminView,
-  isAdminSectionViewName,
-  isDevelopmentSectionViewName,
+  canViewAppView,
   writeProtectedViews,
   type AppView,
+  type SectionAccess,
 } from "../app/routes";
 import {
   normalizeProjectModulesForUi,
@@ -36,10 +35,7 @@ type UseAuthControllerOptions = {
   selectedProjectId: string | null;
   projectCode: string | null;
   projectModules: ProjectModule[];
-  isAuthenticated: boolean;
-  isAdminUser: boolean;
-  isDemoUser?: boolean;
-  isBusinessUnitAdmin: boolean;
+  sectionAccess: SectionAccess;
   isBusinessUnitAdminResolved: boolean;
   openView: (view: AppView, options?: OpenViewOptions) => void;
   resetAdminState: () => void;
@@ -62,14 +58,12 @@ export function useAuthController({
   selectedProjectId,
   projectCode,
   projectModules,
-  isAuthenticated,
-  isAdminUser,
-  isDemoUser = false,
-  isBusinessUnitAdmin,
+  sectionAccess,
   isBusinessUnitAdminResolved,
   openView,
   resetAdminState,
 }: UseAuthControllerOptions) {
+  const { isAuthenticated } = sectionAccess;
   const [keycloakStatus, setKeycloakStatus] = useState<KeycloakAuthStatus>({
     enabled: false,
     hostname: null,
@@ -169,15 +163,13 @@ export function useAuthController({
 
   useEffect(() => {
     if (authMode !== "ready") return;
+    // Business unit admin status arrives asynchronously; redirecting before it
+    // resolves would bounce a legitimate admin out of their own sections.
     const shouldRedirect =
       (!isAuthenticated && writeProtectedViews.has(activeView)) ||
       (isAuthenticated &&
         isBusinessUnitAdminResolved &&
-        (
-          (isAdminSectionViewName(activeView) &&
-            !canAccessAdminView(activeView, isAdminUser, isBusinessUnitAdmin) && !isDemoUser) ||
-          (isDevelopmentSectionViewName(activeView) && !isAdminUser && !isDemoUser)
-        ));
+        !canViewAppView(activeView, sectionAccess));
     if (!shouldRedirect) return;
 
     const fallbackProjectModule = normalizeProjectModulesForUi(projectModules).find(
@@ -196,9 +188,7 @@ export function useAuthController({
   }, [
     activeView,
     authMode,
-    isAdminUser,
-    isDemoUser,
-    isBusinessUnitAdmin,
+    sectionAccess,
     isBusinessUnitAdminResolved,
     isAuthenticated,
     openView,

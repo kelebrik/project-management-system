@@ -1,9 +1,10 @@
-.portfolio-roadmap-section {
-  scroll-margin-top: 88px;
+.portfolio-roadmap-page-heading h1 {
+  margin: 0;
+  font-size: 20px;
 }
 
-.portfolio-roadmap-panel {
-  min-width: 0;
+.portfolio-roadmap-page-fullscreen .portfolio-roadmap-page-heading {
+  display: none;
 }
 
 .portfolio-roadmap-page {

@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import {
   apiTokenHasPermission,
   currentApiToken,
@@ -194,7 +195,7 @@ export async function writePermissionMiddleware(req: Request, res: Response, nex
   }
   if (
     PUBLIC_DEMO_MODE &&
-    currentUser(req)?.id === 'public-demo-user' &&
+    currentUser(req)?.id === PUBLIC_DEMO_USER_ID &&
     !req.path.startsWith('/admin') &&
     !req.path.startsWith('/users')
   ) {

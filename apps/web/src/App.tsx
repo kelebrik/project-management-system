@@ -1,7 +1,9 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
 } from "react";
+import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
 import { buildAppPresentationContext } from "./app/appPresentationContext";
 import type {
   RaidItemType,
@@ -13,6 +15,7 @@ import {
   isResourceSectionViewName,
   projectPathViews,
   type AppView,
+  type SectionAccess,
 } from "./app/routes";
 import { projectModuleKeyByView } from "./app/projectModules";
 import { isDefaultWorkingDay } from "./app/dateUtils";
@@ -307,6 +310,14 @@ function AppController() {
     currentUser,
     authMode === "ready",
   );
+  // Under PUBLIC_DEMO_MODE the API answers unauthenticated requests as this
+  // built-in identity, which is what opens Administration and Development for
+  // reading without a login.
+  const isPublicDemoVisitor = currentUser?.id === PUBLIC_DEMO_USER_ID;
+  const sectionAccess = useMemo<SectionAccess>(
+    () => ({ isAuthenticated, isAdminUser, isBusinessUnitAdmin, isPublicDemoVisitor }),
+    [isAuthenticated, isAdminUser, isBusinessUnitAdmin, isPublicDemoVisitor],
+  );
   const isClosedProject = project?.status === "CLOSED";
   const globalSearch = useGlobalSearch();
   const {
@@ -363,8 +374,7 @@ function AppController() {
     activeView,
     authMode,
     firstEnabledProjectView,
-    isAdminUser,
-    isBusinessUnitAdmin,
+    sectionAccess,
     isAuthenticated,
     isProjectModuleEnabled,
     dirtyWbsItemIds,
@@ -407,9 +417,7 @@ function AppController() {
     selectedProjectId,
     projectCode: project?.code ?? null,
     projectModules,
-    isAuthenticated,
-    isAdminUser,
-    isBusinessUnitAdmin,
+    sectionAccess,
     isBusinessUnitAdminResolved,
     openView,
     resetAdminState,
@@ -946,8 +954,8 @@ function AppController() {
       handleEditableFocus={handleEditableFocus}
       handleEditableKeyDown={handleEditableKeyDown}
       isAdminUser={isAdminUser}
-      isBusinessUnitAdmin={isBusinessUnitAdmin}
       isAuthenticated={isAuthenticated}
+      sectionAccess={sectionAccess}
       isClosedProject={isClosedProject}
       isProjectModuleEnabled={isProjectModuleEnabled}
       isReadOnly={isReadOnly}

@@ -6,11 +6,11 @@ import { projectsToRegistryDrafts } from "../app/formState";
 import {
   appPathForView,
   appRouteFromPath,
-  canAccessAdminView,
+  canViewAppView,
   initialRouteProjectCode,
   isAdminSectionViewName,
-  isDevelopmentSectionViewName,
   isProjectSectionViewName,
+  isDevelopmentSectionViewName,
   normalizeAppPath,
   normalizeProjectRouteCode,
   writeProtectedViews,
@@ -21,17 +21,11 @@ import { useI18n } from "../i18n/I18nProvider";
 
 type AppRoutingDeps = Record<string, any>;
 
-const LEGACY_PORTFOLIO_ROADMAP_PATHS = new Set([
-  "/portfolio-v2",
-  "/development/portfolio-v2",
-]);
-
 export function useAppRouting({
   activeView,
   authMode,
   firstEnabledProjectView,
-  isAdminUser,
-  isBusinessUnitAdmin,
+  sectionAccess,
   isAuthenticated,
   isProjectModuleEnabled,
   dirtyWbsItemIds,
@@ -82,18 +76,6 @@ export function useAppRouting({
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [activeView, projects, selectDefaultProject, setActiveView, setError, setNotice, setSelectedProjectId]);
-
-  useEffect(() => {
-    if (activeView !== "portfolio") return;
-    if (!LEGACY_PORTFOLIO_ROADMAP_PATHS.has(normalizeAppPath(window.location.pathname))) {
-      return;
-    }
-    window.history.replaceState(
-      null,
-      "",
-      `/portfolio${window.location.search}#roadmap-v2`,
-    );
-  }, [activeView]);
 
   useEffect(() => {
     if (authMode !== "ready") return;
@@ -167,15 +149,14 @@ export function useAppRouting({
       ) {
         return;
       }
-      if (
-        isAdminSectionViewName(nextView) &&
-        !canAccessAdminView(nextView, isAdminUser, isBusinessUnitAdmin)
-      ) {
-        setError(uiText("ui.common.routeAdminSectionForbidden"));
-        return;
-      }
-      if (isDevelopmentSectionViewName(nextView) && !isAdminUser) {
-        setError(uiText("ui.common.routeDevelopmentSectionForbidden"));
+      if (!canViewAppView(nextView, sectionAccess)) {
+        setError(
+          uiText(
+            isAdminSectionViewName(nextView)
+              ? "ui.common.routeAdminSectionForbidden"
+              : "ui.common.routeDevelopmentSectionForbidden",
+          ),
+        );
         return;
       }
       if (
@@ -208,8 +189,7 @@ export function useAppRouting({
     },
     [
       activeView,
-      isAdminUser,
-      isBusinessUnitAdmin,
+      sectionAccess,
       isAuthenticated,
       isProjectModuleEnabled,
       dirtyWbsItemIds,

@@ -70,10 +70,21 @@ test('scenario rejects cycles and checkpoint overrides', () => {
 });
 
 test('brief extracts allowlisted WBS deltas and never returns configuration fields', () => {
-  const changes = commandChanges({ id: 'c', projectId: 'p', type: 'UPDATE', createdAt: now, payload: {}, beforeSnapshot: { id: 'w', title: 'Плата', dueDate: '2026-09-10', password: 'old-secret' }, afterSnapshot: { id: 'w', title: 'Плата', dueDate: '2026-09-15', password: 'new-secret' } }, 'TV', 'Анна');
-  assert.equal(changes.length, 1); assert.equal(changes[0].field, 'Окончание');
+  const changes = commandChanges({ id: 'c', projectId: 'p', type: 'UPDATE', createdAt: now, payload: {}, beforeSnapshot: { id: 'w', title: 'Плата', dueDate: '2026-09-10', password: 'old-secret' }, afterSnapshot: { id: 'w', title: 'Плата', dueDate: '2026-09-15', password: 'new-secret' } }, 'TV', { name: 'Анна' });
+  assert.equal(changes.length, 1); assert.equal(changes[0].fieldKey, 'WbsItem.dueDate');
+  assert.deepEqual(changes[0].after, { text: '2026-09-15' });
   assert.doesNotMatch(JSON.stringify(changes), /secret/);
-  assert.equal(journalChange({ id: 'e', projectId: 'p', objectId: 'w', objectType: 'Project', field: 'password', oldText: 'secret', newText: 'new-secret', createdAt: now }, 'TV', 'Анна', 'Проект'), null);
+  assert.equal(journalChange({ id: 'e', projectId: 'p', objectId: 'w', objectType: 'Project', field: 'password', oldText: 'secret', newText: 'new-secret', createdAt: now }, 'TV', { name: 'Анна' }, { text: 'Проект' }), null);
+});
+
+test('brief reports identifiers instead of display text so the web can localize it', () => {
+  const change = journalChange({ id: 'e', projectId: 'p', objectId: 'i', objectType: 'Issue', field: 'status', oldText: 'Open', newText: null, createdAt: now }, 'TV', { token: 'unknown' }, { token: 'deletedIssue' });
+  assert.ok(change);
+  assert.equal(change.fieldKey, 'Issue.status');
+  assert.deepEqual(change.before, { text: 'Open' });
+  assert.deepEqual(change.after, { token: 'empty' });
+  assert.deepEqual(change.actor, { token: 'unknown' });
+  assert.deepEqual(change.title, { token: 'deletedIssue' });
 });
 
 test('meeting parser keeps missing fields blank, validates dates, preserves evidence and caps rows', () => {
@@ -89,12 +100,12 @@ test('meeting parser keeps missing fields blank, validates dates, preserves evid
 test('brief distinguishes creation/deletion from one-sided whole-plan snapshots', () => {
   const base = { id: 'c', projectId: 'p', createdAt: now, beforeSnapshot: null, afterSnapshot: null, payload: {} };
   const a = { id: 'a', title: 'Existing' }; const b = { id: 'b', title: 'New' };
-  assert.equal(commandChanges({ ...base, type: 'CREATE', payload: { item: b, itemId: 'b' } }, 'TV', 'A')[0].title, 'New');
-  assert.equal(commandChanges({ ...base, type: 'CREATE', payload: { insertedItemId: 'b' }, afterSnapshot: { wbsItems: [a, b] } }, 'TV', 'A').length, 1);
-  const deleted = commandChanges({ ...base, type: 'DELETE', beforeSnapshot: [b], afterSnapshot: { wbsItems: [a] } }, 'TV', 'A');
-  assert.equal(deleted.length, 1); assert.equal(deleted[0].after, 'Удалена');
+  assert.deepEqual(commandChanges({ ...base, type: 'CREATE', payload: { item: b, itemId: 'b' } }, 'TV', { name: 'A' })[0].title, { text: 'New' });
+  assert.equal(commandChanges({ ...base, type: 'CREATE', payload: { insertedItemId: 'b' }, afterSnapshot: { wbsItems: [a, b] } }, 'TV', { name: 'A' }).length, 1);
+  const deleted = commandChanges({ ...base, type: 'DELETE', beforeSnapshot: [b], afterSnapshot: { wbsItems: [a] } }, 'TV', { name: 'A' });
+  assert.equal(deleted.length, 1); assert.deepEqual(deleted[0].after, { token: 'deleted' });
   for (const type of ['MOVE', 'BASELINE', 'BULK_UPDATE', 'RESTORE', 'UPDATE']) {
-    assert.deepEqual(commandChanges({ ...base, type, afterSnapshot: { wbsItems: [a, b] } }, 'TV', 'A'), []);
+    assert.deepEqual(commandChanges({ ...base, type, afterSnapshot: { wbsItems: [a, b] } }, 'TV', { name: 'A' }), []);
   }
 });
 
@@ -120,5 +131,5 @@ test('scenario warns on unresolved references and fingerprints only scheduling d
 
 test('dependency records never masquerade as WBS existence changes', () => {
   const command = { id: 'c', projectId: 'p', createdAt: now, type: 'UPDATE', payload: { action: 'move-dependency' }, beforeSnapshot: { id: 'dependency', predecessorId: 'a', successorId: 'b' }, afterSnapshot: { wbsItems: [{ id: 'a', title: 'Work' }] } };
-  assert.deepEqual(commandChanges(command, 'TV', 'A'), []);
+  assert.deepEqual(commandChanges(command, 'TV', { name: 'A' }), []);
 });

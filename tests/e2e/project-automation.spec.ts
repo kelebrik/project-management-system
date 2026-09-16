@@ -14,14 +14,18 @@ test.afterEach(async ({ page }, info) => {
 
 test('weekly brief groups both history sources and switches project scope', async ({ page }) => {
   await mockAdminProject(page);
-  await page.route('**/api/reports/weekly-brief?*', (route) => route.fulfill({ json: { from: '2026-09-01', to: '2026-09-08', projectCount: 1, warnings: ['История может быть неполной'], changes: [
-    { id: 'c', projectId: 'project-1', projectCode: 'TV-OVERVIEW', title: 'Проверить образцы', field: 'Окончание', before: '2026-09-10', after: '2026-09-15', at: '2026-09-08', actor: 'Анна', href: '/TV-OVERVIEW/wbs?focusWbs=wbs-1', source: 'wbs' },
-    { id: 'e', projectId: 'project-1', projectCode: 'TV-OVERVIEW', title: 'Поставка', field: 'Статус', before: 'Open', after: 'Closed', at: '2026-09-08', actor: 'Иван', href: '/TV-OVERVIEW/issues', source: 'journal' },
+  await page.route('**/api/reports/weekly-brief?*', (route) => route.fulfill({ json: { from: '2026-09-01', to: '2026-09-08', projectCount: 1, warnings: ['recordedHistoryOnly'], changes: [
+    { id: 'c', projectId: 'project-1', projectCode: 'TV-OVERVIEW', title: { text: 'Проверить образцы' }, fieldKey: 'WbsItem.dueDate', before: { text: '2026-09-10' }, after: { text: '2026-09-15' }, at: '2026-09-08', actor: { name: 'Анна' }, href: '/TV-OVERVIEW/wbs?focusWbs=wbs-1', source: 'wbs' },
+    { id: 'e', projectId: 'project-1', projectCode: 'TV-OVERVIEW', title: { text: 'Поставка' }, fieldKey: 'Issue.status', before: { text: 'Open' }, after: { token: 'empty' }, at: '2026-09-08', actor: { token: 'automaticRecalculation' }, href: '/TV-OVERVIEW/issues', source: 'journal' },
   ] } }));
   await page.goto('/reports?reportView=weekly');
   await expect(page.getByRole('heading', { name: 'Что изменилось за неделю', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Проверить образцы' })).toHaveAttribute('href', /focusWbs=wbs-1/);
   await expect(page.getByRole('heading', { name: /Вопросы, риски и проект — журнал/ })).toBeVisible();
+  // Identifiers from the API are resolved through i18n, never shown verbatim.
+  await expect(page.getByText('Сводка отражает записанную историю', { exact: false })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Окончание', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Автоматический пересчет', exact: false })).toBeVisible();
   const request = page.waitForRequest((req) => req.url().includes('/reports/weekly-brief?') && !req.url().includes('projectId='));
   await page.getByLabel('Область отчета').selectOption(''); await request;
 });

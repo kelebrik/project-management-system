@@ -115,21 +115,31 @@ function projectFixture() {
   };
 }
 
+type Viewer = "ADMIN" | "PROJECT_MANAGER" | "PUBLIC_DEMO";
+
+const viewerUsers: Record<Viewer, { id: string; name: string; role: string }> = {
+  ADMIN: { id: "pm-1", name: "Администратор", role: "ADMIN" },
+  PROJECT_MANAGER: { id: "pm-1", name: "Портфельный управляющий", role: "PROJECT_MANAGER" },
+  // The API answers unauthenticated requests as this identity under PUBLIC_DEMO_MODE.
+  PUBLIC_DEMO: { id: "public-demo-user", name: "Публичная демонстрация", role: "PROJECT_MANAGER" },
+};
+
 async function mockPortfolio(
   page: Page,
-  role: "ADMIN" | "PROJECT_MANAGER" = "ADMIN",
+  viewer: Viewer = "ADMIN",
   project = projectFixture(),
 ) {
   const respond = (route: Route) => {
     const { pathname } = new URL(route.request().url());
     if (pathname === "/api/auth/me") {
+      const user = viewerUsers[viewer];
       return route.fulfill({
         json: {
           user: {
-            id: "pm-1",
+            id: user.id,
             email: "pm@example.test",
-            name: role === "ADMIN" ? "Администратор" : "Портфельный управляющий",
-            role,
+            name: user.name,
+            role: user.role,
             isActive: true,
             lastLoginAt: null,
             businessUnitAdminIds: [],
@@ -163,19 +173,17 @@ async function mockPortfolio(
   await page.route(/^https?:\/\/[^/]+\/api\//, respond);
 }
 
-test("portfolio exposes the HW, SW and G2M roadmap as its last section", async ({
+test("development section exposes the HW, SW and G2M roadmap", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.clock.setFixedTime(new Date("2026-09-03T12:00:00"));
   await mockPortfolio(page);
-  await page.goto("/portfolio");
+  await page.goto("/development/portfolio-v2");
 
-  await expect(page.getByRole("heading", { name: "Портфель", exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Дорожная карта v2", exact: true }),
   ).toBeVisible();
-  await expect(page.locator("main h2").last()).toHaveText("Дорожная карта v2");
   const roadmap = page.getByTestId("portfolio-v2-roadmap");
   await expect(roadmap).toBeVisible();
   await expect(roadmap.getByText("Новое устройство", { exact: true })).toBeVisible();
@@ -234,13 +242,13 @@ test("portfolio exposes the HW, SW and G2M roadmap as its last section", async (
     name: "Основные разделы",
   });
   await expect(
-    globalNavigation.getByRole("button", { name: "Портфель", exact: true }),
+    globalNavigation.getByRole("button", { name: "Разработка", exact: true }),
   ).toHaveClass(/active/);
   await expect(
     page
       .getByRole("navigation", { name: "Разработка" })
       .getByRole("button", { name: "Портфель v2" }),
-  ).toHaveCount(0);
+  ).toHaveClass(/active/);
 
   const portfolioPage = page.locator(".portfolio-roadmap-page");
   const enterFullscreen = page.getByRole("button", {
@@ -397,7 +405,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       )),
     ];
     await mockPortfolio(page, "ADMIN", project);
-    await page.goto("/portfolio#roadmap-v2");
+    await page.goto("/development/portfolio-v2");
     const roadmap = page.getByTestId("portfolio-v2-roadmap");
     await expect(roadmap).toBeVisible();
     for (const months of [6, 12, 24]) {
@@ -421,26 +429,19 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
   });
 }
 
-test("portfolio keeps the wide roadmap inside its mobile scroller", async ({
+test("roadmap stays inside its mobile scroller", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.setFixedTime(new Date("2026-09-03T12:00:00"));
   await mockPortfolio(page);
-  await page.goto("/portfolio");
+  await page.goto("/development/portfolio-v2");
 
-  const roadmapHeading = page.getByRole("heading", {
-    name: "Дорожная карта v2",
-    exact: true,
-  });
-  await expect(roadmapHeading).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Дорожная карта v2", exact: true }),
+  ).toBeVisible();
   const roadmap = page.getByTestId("portfolio-v2-roadmap");
-  await expect
-    .poll(async () => {
-      await page.evaluate(() => document.getElementById("roadmap-v2")?.scrollIntoView());
-      return roadmap.isVisible();
-    })
-    .toBe(true);
+  await expect(roadmap).toBeVisible();
   const sizes = await roadmap.evaluate((element) => ({
     clientWidth: element.clientWidth,
     scrollWidth: element.scrollWidth,
@@ -461,30 +462,43 @@ test("portfolio keeps the wide roadmap inside its mobile scroller", async ({
   }
 });
 
-test("legacy portfolio v2 URL opens the roadmap section for a non-admin", async ({ page }) => {
-  await mockPortfolio(page, "PROJECT_MANAGER");
+test("legacy portfolio v2 URL resolves to the development roadmap", async ({ page }) => {
+  await mockPortfolio(page);
+  await page.goto("/portfolio-v2");
+
+  await expect(
+    page.getByRole("heading", { name: "Дорожная карта v2", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("portfolio-v2-roadmap").getByText("Новое устройство", { exact: true }),
+  ).toBeVisible();
+});
+
+test("public demo visitor reads the development roadmap without signing in", async ({ page }) => {
+  await mockPortfolio(page, "PUBLIC_DEMO");
   await page.goto("/development/portfolio-v2");
 
-  await expect(page).toHaveURL(/\/portfolio#roadmap-v2$/);
-  const roadmapHeading = page.getByRole("heading", {
-    name: "Дорожная карта v2",
-    exact: true,
-  });
-  await expect(roadmapHeading).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-  const roadmap = page.getByTestId("portfolio-v2-roadmap");
-  await expect(roadmap.getByText("Новое устройство", { exact: true })).toBeVisible();
-  await expect
-    .poll(async () => {
-      const headingBox = await roadmapHeading.boundingBox();
-      return Boolean(
-        headingBox && headingBox.y >= 0 && headingBox.y < page.viewportSize()!.height,
-      );
-    })
-    .toBe(true);
+  await expect(
+    page.getByRole("heading", { name: "Дорожная карта v2", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("portfolio-v2-roadmap").getByText("Новое устройство", { exact: true }),
+  ).toBeVisible();
   await expect(
     page
       .getByRole("navigation", { name: "Основные разделы" })
-      .getByRole("button", { name: "Разработка" }),
+      .getByRole("button", { name: "Разработка", exact: true }),
+  ).toBeVisible();
+});
+
+test("a signed-in non-admin outside the demo gets no development section", async ({ page }) => {
+  await mockPortfolio(page, "PROJECT_MANAGER");
+  await page.goto("/development/portfolio-v2");
+
+  await expect(page.getByTestId("portfolio-v2-roadmap")).toHaveCount(0);
+  await expect(
+    page
+      .getByRole("navigation", { name: "Основные разделы" })
+      .getByRole("button", { name: "Разработка", exact: true }),
   ).toHaveCount(0);
 });

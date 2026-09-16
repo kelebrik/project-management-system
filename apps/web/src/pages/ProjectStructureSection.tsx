@@ -1,9 +1,8 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
-import { FileDown, Languages, Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
+import { FileDown, Languages, Maximize2, Minimize2, RefreshCw } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
@@ -138,8 +137,6 @@ export function ProjectStructureSection() {
   const englishPrintTitle = `${englishProjectName} - Structure`;
   const [showEnglishMenu, setShowEnglishMenu] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  const [showFullscreenHint, setShowFullscreenHint] = useState(false);
-  const fullscreenHintShownRef = useRef(false);
   const previousDirtyCountRef = useRef(dirtyWbsItemIds.size);
   const translationImportInputRef = useRef<HTMLInputElement | null>(null);
   const [manualEnglishTranslations, setManualEnglishTranslations] = useState(
@@ -148,22 +145,6 @@ export function ProjectStructureSection() {
   const [cachedEnglishTranslations] = useState(
     () => loadWbsEnglishTranslationCache(),
   );
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (
-        fullscreenWorkspaceView === "project-structure" ||
-        fullscreenHintShownRef.current ||
-        window.scrollY < 180
-      ) {
-        return;
-      }
-      fullscreenHintShownRef.current = true;
-      setShowFullscreenHint(true);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [fullscreenWorkspaceView]);
 
   useLayoutEffect(() => {
     if (
@@ -948,36 +929,6 @@ export function ProjectStructureSection() {
                           );
                         })}
                       </div>
-                      {showFullscreenHint && fullscreenWorkspaceView !== "project-structure" && createPortal(
-                        <aside className="structure-fullscreen-hint" aria-label={uiText("ui.projects.structureViewModeTipLabel")}>
-                          <svg className="structure-fullscreen-hint-arrow" viewBox="0 0 120 90" aria-hidden="true">
-                            <path d="M12 82 C12 38 34 14 82 14" />
-                            <path d="M70 7 L84 14 L72 24" />
-                          </svg>
-                          <button
-                            type="button"
-                            className="structure-fullscreen-hint-close"
-                            onClick={() => setShowFullscreenHint(false)}
-                            aria-label={uiText("ui.projects.closeTipAction")}
-                          >
-                            <X size={16} />
-                          </button>
-                          <strong>{uiText("ui.projects.structureFullScreenTipTitle")}</strong>
-                          <span>{uiText("ui.projects.structureFullScreenTipBody")}</span>
-                          <button
-                            type="button"
-                            className="structure-fullscreen-hint-action"
-                            onClick={() => {
-                              setShowFullscreenHint(false);
-                              toggleWorkspaceFullscreen("project-structure");
-                            }}
-                          >
-                            <Maximize2 size={15} />
-                            {uiText("ui.common.fullScreen")}
-                          </button>
-                        </aside>,
-                        document.body,
-                      )}
                     </div>
                       </>
                       );

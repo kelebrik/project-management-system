@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import type { ProjectAccessLevel } from '@prisma/client';
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import { prisma } from '../db.js';
 import { currentUser, PUBLIC_DEMO_MODE } from './auth.js';
 
@@ -64,7 +65,7 @@ export async function userProjectAccessLevelMap(userId: string, projectIds?: str
 
 export async function ensureProjectWriteAccess(projectId: string, req: Request, res: Response) {
   const user = currentUser(req);
-  if (PUBLIC_DEMO_MODE && user?.id === 'public-demo-user') return true;
+  if (PUBLIC_DEMO_MODE && user?.id === PUBLIC_DEMO_USER_ID) return true;
   if (!user) {
     res.status(401).json({ error: 'Требуется вход в систему' });
     return false;

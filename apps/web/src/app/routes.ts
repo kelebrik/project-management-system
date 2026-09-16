@@ -49,6 +49,7 @@ export type ResourceSectionView = Extract<
 
 export type DevelopmentSectionView = Extract<
   AppView,
+  | "portfolio-v2"
   | "jira-reconciliation"
   | "decision-queue"
   | "project-pm-workspace"
@@ -57,7 +58,7 @@ export type DevelopmentSectionView = Extract<
 
 export type FullscreenWorkspaceView = Extract<
   AppView,
-  "portfolio" | "project-structure" | "project-gantt"
+  "portfolio-v2" | "project-structure" | "project-gantt"
 > | "overview-milestones-by-phase" | "overview-milestones-all";
 
 export const adminSectionViews: AdminSectionView[] = [
@@ -99,6 +100,7 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "project-pm-workspace",
   "resources",
   "resources-capacity",
+  "portfolio-v2",
 ];
 
 export const writeProtectedViews = new Set<AppView>([
@@ -106,6 +108,54 @@ export const writeProtectedViews = new Set<AppView>([
   ...adminSectionViews,
   ...developmentSectionViews,
 ]);
+
+/**
+ * Who is asking. `isPublicDemoVisitor` is true only for the built-in demo
+ * identity the API hands out under PUBLIC_DEMO_MODE, so corporate installations
+ * never widen access by accident.
+ */
+export type SectionAccess = {
+  isAuthenticated: boolean;
+  isAdminUser: boolean;
+  isBusinessUnitAdmin: boolean;
+  isPublicDemoVisitor: boolean;
+};
+
+export const noSectionAccess: SectionAccess = {
+  isAuthenticated: false,
+  isAdminUser: false,
+  isBusinessUnitAdmin: false,
+  isPublicDemoVisitor: false,
+};
+
+/**
+ * Administration and Development are split into view and edit rights. A public
+ * demo visitor may read every section so the whole product is demonstrable,
+ * but editing stays with the roles that own it — the API enforces the same
+ * split, this model only keeps the interface consistent with it.
+ */
+export function canViewAppView(view: AppView, access: SectionAccess) {
+  if (isAdminSectionViewName(view)) {
+    return (
+      access.isPublicDemoVisitor ||
+      canAccessAdminView(view, access.isAdminUser, access.isBusinessUnitAdmin)
+    );
+  }
+  if (isDevelopmentSectionViewName(view)) {
+    return access.isPublicDemoVisitor || access.isAdminUser;
+  }
+  if (writeProtectedViews.has(view)) return access.isAuthenticated;
+  return true;
+}
+
+export function canEditAppView(view: AppView, access: SectionAccess) {
+  if (access.isPublicDemoVisitor) return false;
+  if (isAdminSectionViewName(view)) {
+    return canAccessAdminView(view, access.isAdminUser, access.isBusinessUnitAdmin);
+  }
+  if (isDevelopmentSectionViewName(view)) return access.isAdminUser;
+  return access.isAuthenticated;
+}
 
 export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-overview": "overview",
@@ -126,7 +176,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
-  "portfolio-v2": "/portfolio",
+  "portfolio-v2": "/development/portfolio-v2",
   "decision-queue": "/development/decision-queue",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
@@ -199,7 +249,7 @@ export const projectPathViews: Record<string, ProjectSectionView | DevelopmentSe
 export const appPathViews: Record<string, AppView> = {
   "/": "portfolio",
   "/portfolio": "portfolio",
-  "/portfolio-v2": "portfolio",
+  "/portfolio-v2": "portfolio-v2",
   "/projects": "projects",
   "/reports": "reports",
   "/faq": "wiki",
@@ -215,7 +265,7 @@ export const appPathViews: Record<string, AppView> = {
   "/resources/capacity": "resources-capacity",
   "/resources/settings": "resources-capacity",
   "/development": "resources",
-  "/development/portfolio-v2": "portfolio",
+  "/development/portfolio-v2": "portfolio-v2",
   "/development/decision-queue": "decision-queue",
   "/development/jira-reconciliation": "jira-reconciliation",
   "/development/pm-workspace": "project-pm-workspace",

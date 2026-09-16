@@ -22,7 +22,7 @@ export async function completeDemoProject(client: PrismaClient, project: Project
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`demo:${project.id}`}))::text`;
     await fillProject(tx, project, projectBase);
     await fillDocuments(tx, project, projectBase);
-  }, { timeout: 60_000 });
+  }, { timeout: 300_000 });
   await fillAnalytics(client, project, new Date());
   console.log(`Demo completed: ${project.code}`);
 }

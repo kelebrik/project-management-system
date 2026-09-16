@@ -1,6 +1,6 @@
 import type { Request, Router } from 'express';
 import { z } from 'zod';
-import type { WeeklyBrief } from '@pms/shared';
+import type { WeeklyBrief, WeeklyBriefWarning } from '@pms/shared';
 import { prisma } from '../../db.js';
 import { currentUser } from '../../server/auth.js';
 import { readableProjectWhere } from '../../server/business-units.js';
@@ -80,9 +80,11 @@ export function registerProjectAutomationRoutes(router: Router) {
     const modules = await projectModulesConfig();
     const enabled = (key: string) => modules.some((module) => module.key === key && module.enabled);
     const journalTypes = Object.entries(briefFields).filter(([type]) => type === 'Issue' ? enabled('issues') : type === 'RaidItem' ? enabled('raid') : type === 'Project' && enabled('overview'));
+    const deletedObjectTitle = (objectType: string) =>
+      objectType === 'Issue' ? { token: 'deletedIssue' as const } : { token: 'deletedRisk' as const };
     const limit = 2000;
     const [journal, commands] = await Promise.all([
-      prisma.auditEventChange.findMany({ where: { projectId: { in: ids }, createdAt: { gte: from, lte: to }, OR: journalTypes.map(([objectType, fields]) => ({ objectType, field: { in: Object.keys(fields) } })) },
+      prisma.auditEventChange.findMany({ where: { projectId: { in: ids }, createdAt: { gte: from, lte: to }, OR: journalTypes.map(([objectType, fields]) => ({ objectType, field: { in: [...fields] } })) },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: limit + 1,
         select: { id: true, projectId: true, objectType: true, objectId: true, field: true, oldText: true, newText: true, createdAt: true, actor: { select: { name: true } } } }),
       prisma.wbsCommand.findMany({ where: { projectId: { in: enabled('structure') ? ids : [] }, createdAt: { gte: from, lte: to } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: limit + 1,
@@ -96,14 +98,22 @@ export function registerProjectAutomationRoutes(router: Router) {
     const changes = [
       ...journal.slice(0, limit).flatMap((row) => {
         const project = byId.get(row.projectId!);
-        const change = project ? journalChange(row, project.code, row.actor?.name ?? 'Не указан', row.objectType === 'Project' ? project.name : titles.get(row.objectId ?? '') ?? (row.objectType === 'Issue' ? 'Удаленный вопрос' : 'Удаленный риск / проблема')) : null;
+        if (!project) return [];
+        const knownTitle = row.objectType === 'Project' ? project.name : titles.get(row.objectId ?? '');
+        const change = journalChange(
+          row,
+          project.code,
+          row.actor?.name ? { name: row.actor.name } : { token: 'unknown' },
+          knownTitle ? { text: knownTitle } : deletedObjectTitle(row.objectType),
+        );
         return change ? [change] : [];
       }),
-      ...commands.slice(0, limit).flatMap((command) => commandChanges(command, byId.get(command.projectId)!.code, command.user?.name ?? 'Не указан / автоматический расчет')),
+      ...commands.slice(0, limit).flatMap((command) => commandChanges(command, byId.get(command.projectId)!.code,
+        command.user?.name ? { name: command.user.name } : { token: 'unknownOrAutomatic' })),
     ];
-    const warnings = ['Сводка отражает записанную историю. Старые автоматические пересчеты и изменения без записей истории могут отсутствовать.'];
-    if (!projects.length) warnings.push('Нет проектов с назначенным доступом в выбранной области. Историческая сводка требует доступа к проекту.');
-    if (journal.length > limit || commands.length > limit || changes.length > 5000) warnings.push('Слишком много изменений: показана часть. Сократите период или выберите один проект.');
+    const warnings: WeeklyBriefWarning[] = ['recordedHistoryOnly'];
+    if (!projects.length) warnings.push('noAccessibleProjects');
+    if (journal.length > limit || commands.length > limit || changes.length > 5000) warnings.push('tooManyChanges');
     res.json({ from: from.toISOString(), to: to.toISOString(), projectCount: projects.length, changes: changes.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 5000), warnings } satisfies WeeklyBrief);
   });
 }

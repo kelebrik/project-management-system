@@ -24,16 +24,38 @@ export type AutomationInsight = {
   readiness: MilestoneReadiness[];
   reconciliation: ReconciliationRow[];
 };
+/**
+ * The weekly brief is rendered in the user's language, so the API never sends
+ * display text of its own: it sends stable identifiers and the web resolves
+ * them through i18n. Only values that originate from project data — titles,
+ * names, dates, numbers — travel as plain text.
+ */
+export type WeeklyBriefWarning =
+  | "recordedHistoryOnly"
+  | "noAccessibleProjects"
+  | "tooManyChanges";
+
+/** `<ObjectType>.<field>`, plus the synthetic `WbsItem.existence` row. */
+export type WeeklyChangeFieldKey = string;
+
+export type WeeklyValue =
+  | { token: "empty" | "changed" | "existed" | "created" | "deleted" | "deletedIssue" | "deletedRisk" }
+  | { text: string };
+
+export type WeeklyActor =
+  | { token: "automaticRecalculation" | "unknown" | "unknownOrAutomatic" }
+  | { name: string };
+
 export type WeeklyChange = {
   id: string;
   projectId: string;
   projectCode: string;
-  title: string;
-  field: string;
-  before: string;
-  after: string;
+  title: WeeklyValue;
+  fieldKey: WeeklyChangeFieldKey;
+  before: WeeklyValue;
+  after: WeeklyValue;
   at: string;
-  actor: string;
+  actor: WeeklyActor;
   href: string;
   source: "journal" | "wbs";
 };
@@ -42,7 +64,7 @@ export type WeeklyBrief = {
   to: string;
   projectCount: number;
   changes: WeeklyChange[];
-  warnings: string[];
+  warnings: WeeklyBriefWarning[];
 };
 export type ScenarioPatch = { id: string; startDate?: string; dueDate?: string; workDays?: number };
 export type ScenarioSchedule = {
