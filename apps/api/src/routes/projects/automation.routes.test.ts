@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PrismaClient } from '@prisma/client';
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import type { Request, Router } from 'express';
 import { prismaClientProvider } from '../../db.js';
 import { automationProjects, registerProjectAutomationRoutes, scenarioPatchesSchema } from './automation.routes.js';
 
-const request = (role = 'USER') => ({ currentUser: { id: 'u', role }, query: { businessUnitId: 'unit' }, params: { projectId: 'p' }, headers: {}, header: () => 'unit' }) as unknown as Request;
+const request = (role = 'USER', id = 'u') => ({ currentUser: { id, role }, query: { businessUnitId: 'unit' }, params: { projectId: 'p' }, headers: {}, header: () => 'unit' }) as unknown as Request;
 
 test('automation filters historical data by project grants and business unit, admins bypass grants', async (t) => {
   const p = { id: 'p', code: 'TV', name: 'TV' };
@@ -20,6 +21,7 @@ test('automation filters historical data by project grants and business unit, ad
   assert.deepEqual((await automationProjects(request())).map((row) => row.id), ['p']);
   assert.ok(where.some((filter) => (filter as { businessUnitId?: string }).businessUnitId === 'unit'));
   assert.equal((await automationProjects(request('ADMIN'))).length, 2);
+  assert.equal((await automationProjects(request('PROJECT_MANAGER', PUBLIC_DEMO_USER_ID), undefined, true)).length, 2);
   assert.deepEqual(await automationProjects({} as Request), []);
 });
 

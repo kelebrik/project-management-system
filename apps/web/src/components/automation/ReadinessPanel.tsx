@@ -3,9 +3,14 @@ import { displayDay, useAutomationData } from './useAutomationData';
 import type { AutomationInsight } from '@pms/shared';
 import { AutomationPanel, AutomationError } from './AutomationPanel';
 
-const states = { complete: 'Завершена', ready: 'Предшественники выполнены', blocked: 'Есть незавершенные условия', unknown: 'Недостаточно связей' };
 function ReadinessContent({ projectId }: { projectId: string }) {
   const { t: uiText } = useInterfaceTranslation();
+  const states = {
+    complete: uiText('ui.automation.readinessComplete'),
+    ready: uiText('ui.automation.readinessReady'),
+    blocked: uiText('ui.automation.readinessBlocked'),
+    unknown: uiText('ui.automation.readinessUnknown'),
+  };
   const { data, error } = useAutomationData<AutomationInsight>(`/api/projects/${encodeURIComponent(projectId)}/automation/insights`);
   return <><p>{uiText("ui.automation.readinessCheckDescription")}</p>
     <AutomationError error={error} />{!data && !error && <p role="status">{uiText("ui.automation.checkingMilestones")}</p>}

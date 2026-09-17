@@ -16,7 +16,7 @@ function ScenarioContent({ projectId, userId, items, sourceKey, result, onResult
   const [rows, setRows] = useState<EditorRow[]>([]);
   const setResult = onResult;
   const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
-  const [name, setName] = useState('Вариант 1');
+  const [name, setName] = useState(() => uiText('ui.automation.defaultVariantName'));
   const [saved, setSaved] = useState<SavedScenario[]>(() => {
     try { const data: unknown = JSON.parse(localStorage.getItem(key) ?? '[]'); return Array.isArray(data) ? data.filter((value): value is SavedScenario => value?.version === 1 && typeof value.name === 'string' && typeof value.fingerprint === 'string' && Array.isArray(value.rows) && value.rows.length <= 20 && value.rows.every((row: EditorRow) => typeof row.id === 'string' && typeof row.startDate === 'string' && typeof row.dueDate === 'string' && typeof row.workDays === 'string')) : []; } catch { return []; }
   });
@@ -36,15 +36,15 @@ function ScenarioContent({ projectId, userId, items, sourceKey, result, onResult
     setSaving(true); setError(''); setNotice(''); setResult(null);
     const patches: ScenarioPatch[] = rows.map((row) => ({ id: row.id, ...(row.startDate ? { startDate: row.startDate } : {}), ...(row.dueDate ? { dueDate: row.dueDate } : {}), ...(row.workDays ? { workDays: Number(row.workDays) } : {}) }));
     try {
-      const data = await apiClient.get<ScenarioResult>(`/api/projects/${encodeURIComponent(projectId)}/automation/scenario?patches=${encodeURIComponent(JSON.stringify(patches))}`, 'Не удалось рассчитать сценарий');
+      const data = await apiClient.get<ScenarioResult>(`/api/projects/${encodeURIComponent(projectId)}/automation/scenario?patches=${encodeURIComponent(JSON.stringify(patches))}`, uiText('ui.automation.scenarioCalculationFailed'));
       if (version !== requestVersion.current) return;
-      if (!data.schedule) throw new Error('Обновите страницу после обновления сервера: полный расчёт сценария пока недоступен');
+      if (!data.schedule) throw new Error(uiText('ui.automation.scenarioServerOutdated'));
       setResult(data);
-      if (savedFingerprint && savedFingerprint !== data.fingerprint) setNotice('Рабочий план изменился после сохранения варианта. Сценарий пересчитан относительно текущего плана.');
-    } catch (error) { setError(error instanceof Error ? error.message : 'Ошибка расчета'); }
+      if (savedFingerprint && savedFingerprint !== data.fingerprint) setNotice(uiText('ui.automation.scenarioPlanChanged'));
+    } catch { setError(uiText('ui.automation.scenarioCalculationFailed')); }
     finally { setSaving(false); }
   };
-  const store = (next: SavedScenario[]) => { try { localStorage.setItem(key, JSON.stringify(next)); setSaved(next); return true; } catch { setError('Не удалось сохранить сценарий в этом браузере'); return false; } };
+  const store = (next: SavedScenario[]) => { try { localStorage.setItem(key, JSON.stringify(next)); setSaved(next); return true; } catch { setError(uiText('ui.automation.scenarioStoreFailed')); return false; } };
   return <><p>{uiText("ui.automation.scenarioPanelDescription")}</p>
     <p>{uiText("ui.automation.scenarioPanelHint")}</p>
     <div className="automation-actions"><button disabled={saving || rows.length >= 20 || rows.length >= eligible.length} onClick={() => { const item = eligible.find((candidate) => !rows.some((row) => row.id === candidate.id)); if (item) { setRows((value) => [...value, { id: item.id, startDate: '', dueDate: '', workDays: '' }]); setResult(null); } }}>{uiText("ui.automation.addChange")}</button><button disabled={saving} onClick={() => void calculate()}>{saving ? uiText("ui.automation.calculating") : uiText("ui.automation.compareWithWorkingPlan")}</button></div>
@@ -58,9 +58,9 @@ function ScenarioContent({ projectId, userId, items, sourceKey, result, onResult
     <AutomationError error={error} />{notice && <p role="status">{notice}</p>}
     {result && <><p><strong>{uiText("ui.automation.scheduleFinishLabel")}</strong> {displayDay(result.beforeFinish)} → {displayDay(result.afterFinish)}{uiText("ui.automation.criticalWorkItemsCount")} {result.beforeCriticalIds.length} → {result.afterCriticalIds.length}.</p>
       {result.changes.length === 0 ? <p>{uiText("ui.automation.datesUnchanged")}</p> : <div className="automation-table-wrap"><table className="automation-table"><thead><tr><th>{uiText("ui.automation.workItemOrMilestone")}</th><th>{uiText("ui.automation.startBeforeAfter")}</th><th>{uiText("ui.automation.finishBeforeAfter")}</th><th>{uiText("ui.automation.criticalPath")}</th></tr></thead><tbody>{result.changes.map((row) => <tr key={row.id}><td><a href={row.href}>{row.code} {row.title}</a>{row.checkpoint && <strong> {uiText("ui.automation.milestoneInline")}</strong>}</td><td>{displayDay(row.beforeStart)} → {displayDay(row.afterStart)}</td><td>{displayDay(row.beforeFinish)} → {displayDay(row.afterFinish)}</td><td>{result.beforeCriticalIds.includes(row.id) ? uiText("ui.automation.yes") : uiText("ui.automation.no")} → {result.afterCriticalIds.includes(row.id) ? uiText("ui.automation.yes") : uiText("ui.automation.no")}</td></tr>)}</tbody></table></div>}
-      <div className="automation-actions"><label>{uiText("ui.automation.variantName")}<input maxLength={80} value={name} onChange={(event) => setName(event.target.value)} /></label><button disabled={!name.trim()} onClick={() => { if (store([{ version: 1 as const, name: name.trim(), fingerprint: result.fingerprint, rows }, ...saved.filter((value) => value.name !== name.trim())].slice(0, 10))) setNotice('Вариант сохранен в этом браузере'); }}>{uiText("ui.automation.saveVariant")}</button></div>
+      <div className="automation-actions"><label>{uiText("ui.automation.variantName")}<input maxLength={80} value={name} onChange={(event) => setName(event.target.value)} /></label><button disabled={!name.trim()} onClick={() => { if (store([{ version: 1 as const, name: name.trim(), fingerprint: result.fingerprint, rows }, ...saved.filter((value) => value.name !== name.trim())].slice(0, 10))) setNotice(uiText('ui.automation.scenarioVariantStored')); }}>{uiText("ui.automation.saveVariant")}</button></div>
     </>}
-    {saved.length > 0 && <><h4>{uiText("ui.automation.savedVariantsInBrowser")}</h4>{saved.map((variant) => <div className="automation-row" key={variant.name}><span>{variant.name}</span><button disabled={saving} onClick={() => { setRows(variant.rows); setName(variant.name); setSavedFingerprint(variant.fingerprint); setResult(null); setNotice('Нажмите «Сравнить», чтобы пересчитать вариант'); }}>{uiText("ui.automation.load")}</button><button onClick={() => store(saved.filter((value) => value.name !== variant.name))}>{uiText("ui.automation.deleteVariant")}</button></div>)}</>}
+    {saved.length > 0 && <><h4>{uiText("ui.automation.savedVariantsInBrowser")}</h4>{saved.map((variant) => <div className="automation-row" key={variant.name}><span>{variant.name}</span><button disabled={saving} onClick={() => { setRows(variant.rows); setName(variant.name); setSavedFingerprint(variant.fingerprint); setResult(null); setNotice(uiText('ui.automation.scenarioPressCompare')); }}>{uiText("ui.automation.load")}</button><button onClick={() => store(saved.filter((value) => value.name !== variant.name))}>{uiText("ui.automation.deleteVariant")}</button></div>)}</>}
   </>;
 }
 export function ScenarioPanel(props: ScenarioPanelProps) {

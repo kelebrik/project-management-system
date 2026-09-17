@@ -27,10 +27,10 @@ export function ReconciliationContent({ projectId, readOnly, refresh }: { projec
     if (!items.length) return;
     setSaving(true); setSaveError(''); setMessage('');
     try {
-      await apiClient.patch(`/api/projects/${encodeURIComponent(projectId)}/wbs-items/bulk`, { items }, 'Не удалось применить сверку');
-      setSelected({}); setMessage(`Обновлено работ: ${items.length}`); setRevision((value) => value + 1);
-      await refresh?.().catch(() => setMessage('Изменения сохранены. Обновите страницу проекта для загрузки актуальной Структуры.'));
-    } catch (error) { setSaveError(error instanceof Error ? error.message : 'Не удалось применить сверку'); setSelected({}); setRevision((value) => value + 1); }
+      await apiClient.patch(`/api/projects/${encodeURIComponent(projectId)}/wbs-items/bulk`, { items }, uiText('ui.automation.reconciliationApplyFailed'));
+      setSelected({}); setMessage(uiText('ui.automation.reconciliationUpdated', { count: items.length })); setRevision((value) => value + 1);
+      await refresh?.().catch(() => setMessage(uiText('ui.automation.reconciliationSavedRefresh')));
+    } catch { setSaveError(uiText('ui.automation.reconciliationApplyFailed')); setSelected({}); setRevision((value) => value + 1); }
     finally { setSaving(false); }
   };
   return <><p>{uiText("ui.automation.reconciliationDescription")}</p>

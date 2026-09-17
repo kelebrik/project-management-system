@@ -255,6 +255,66 @@ export const automationMessages = {
     "en": "“What if…” scenarios",
     "ru": "Сценарии «Что будет, если…»"
   },
+  "ui.automation.dataLoadFailed": {
+    "en": "Could not load data",
+    "ru": "Не удалось загрузить данные"
+  },
+  "ui.automation.readinessComplete": {
+    "en": "Complete",
+    "ru": "Завершена"
+  },
+  "ui.automation.readinessReady": {
+    "en": "Predecessors complete",
+    "ru": "Предшественники выполнены"
+  },
+  "ui.automation.readinessBlocked": {
+    "en": "Has incomplete conditions",
+    "ru": "Есть незавершенные условия"
+  },
+  "ui.automation.readinessUnknown": {
+    "en": "Insufficient links",
+    "ru": "Недостаточно связей"
+  },
+  "ui.automation.reconciliationApplyFailed": {
+    "en": "Could not apply reconciliation",
+    "ru": "Не удалось применить сверку"
+  },
+  "ui.automation.reconciliationUpdated": {
+    "en": "Work items updated: {count}",
+    "ru": "Обновлено работ: {count}"
+  },
+  "ui.automation.reconciliationSavedRefresh": {
+    "en": "Changes were saved. Refresh the project page to load the current WBS.",
+    "ru": "Изменения сохранены. Обновите страницу проекта для загрузки актуальной Структуры."
+  },
+  "ui.automation.defaultVariantName": {
+    "en": "Variant 1",
+    "ru": "Вариант 1"
+  },
+  "ui.automation.scenarioCalculationFailed": {
+    "en": "Could not calculate the scenario",
+    "ru": "Не удалось рассчитать сценарий"
+  },
+  "ui.automation.scenarioServerOutdated": {
+    "en": "Refresh the page after the server update: full scenario calculation is not available yet.",
+    "ru": "Обновите страницу после обновления сервера: полный расчёт сценария пока недоступен."
+  },
+  "ui.automation.scenarioPlanChanged": {
+    "en": "The working plan changed after this variant was saved. The scenario was recalculated against the current plan.",
+    "ru": "Рабочий план изменился после сохранения варианта. Сценарий пересчитан относительно текущего плана."
+  },
+  "ui.automation.scenarioStoreFailed": {
+    "en": "Could not save the scenario in this browser",
+    "ru": "Не удалось сохранить сценарий в этом браузере"
+  },
+  "ui.automation.scenarioVariantStored": {
+    "en": "The variant was saved in this browser",
+    "ru": "Вариант сохранен в этом браузере"
+  },
+  "ui.automation.scenarioPressCompare": {
+    "en": "Select Compare to recalculate the variant",
+    "ru": "Нажмите «Сравнить», чтобы пересчитать вариант"
+  },
   "ui.automation.whatChangedThisWeek": {
     "en": "What changed this week",
     "ru": "Что изменилось за неделю"

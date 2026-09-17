@@ -1,8 +1,8 @@
 import type { Request, Router } from 'express';
 import { z } from 'zod';
-import type { WeeklyBrief, WeeklyBriefWarning } from '@pms/shared';
+import { PUBLIC_DEMO_USER_ID, type WeeklyBrief, type WeeklyBriefWarning } from '@pms/shared';
 import { prisma } from '../../db.js';
-import { currentUser } from '../../server/auth.js';
+import { currentUser, PUBLIC_DEMO_MODE } from '../../server/auth.js';
 import { readableProjectWhere } from '../../server/business-units.js';
 import { userProjectAccessLevelMap } from '../../server/project-access.js';
 import { projectModulesConfig } from '../admin/project-modules.js';
@@ -17,11 +17,11 @@ export const scenarioPatchesSchema = z.array(z.object({
   .refine((item) => !item.startDate || !item.dueDate || item.startDate <= item.dueDate, 'Окончание раньше начала'))
   .max(20).refine((items) => new Set(items.map((item) => item.id)).size === items.length, 'Работы не должны повторяться');
 
-export async function automationProjects(req: Request, projectId?: string) {
+export async function automationProjects(req: Request, projectId?: string, publicDemoMode = PUBLIC_DEMO_MODE) {
   const user = currentUser(req);
   if (!user) return [];
   const projects = await prisma.project.findMany({ where: { ...(await readableProjectWhere(req)), ...(projectId ? { id: projectId } : {}) }, select: { id: true, code: true, name: true } });
-  if (user.role === 'ADMIN') return projects;
+  if (user.role === 'ADMIN' || (publicDemoMode && user.id === PUBLIC_DEMO_USER_ID)) return projects;
   // Business reports expose historical data: deliberately stricter than legacy project reads.
   const access = await userProjectAccessLevelMap(user.id, projects.map((project) => project.id));
   return projects.filter((project) => access.has(project.id));
