@@ -91,6 +91,10 @@ export const controls = {
     "en": "Read only",
     "ru": "Только просмотр"
   },
+  "identity.publicDemo": {
+    "en": "Public demo",
+    "ru": "Публичная демонстрация"
+  },
   "identity.loginRequired": {
     "en": "Sign in to edit",
     "ru": "Войти для редактирования"

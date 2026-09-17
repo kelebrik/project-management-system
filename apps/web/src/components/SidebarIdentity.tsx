@@ -1,4 +1,5 @@
 import { useI18n } from "../i18n/I18nProvider";
+import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
 import { ClipboardCheck, KeyRound, LogOut, Users } from "lucide-react";
 
 
@@ -16,6 +17,9 @@ export function SidebarIdentity({
   onLogout,
 }: SidebarIdentityProps) {
   const { t } = useI18n();
+  const userName = currentUser?.id === PUBLIC_DEMO_USER_ID
+    ? t("identity.publicDemo")
+    : currentUser?.name ?? t("identity.readonly");
   return (
     <>
       <div className="brand">
@@ -31,7 +35,7 @@ export function SidebarIdentity({
           <Users size={16} />
         </span>
         <span className="sidebar-user-text">
-          <b>{currentUser?.name ?? t("identity.readonly")}</b>
+          <b>{userName}</b>
           <small>
             {currentUser
               ? t(currentUser.role === "ADMIN" ? "identity.admin" : "identity.user")
