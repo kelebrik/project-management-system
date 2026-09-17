@@ -17,7 +17,7 @@ export function registerDemoDataRoutes(router: Router, { requireAdmin, currentUs
     await completeDemoProject(prisma, project);
     await recordAuditEvent({ req, actor: currentUser(req), action: 'project.demo.populate',
       objectType: 'Project', objectId: projectId, projectId,
-      metadata: { fixtureVersion: 3, synthetic: true } });
+      metadata: { fixtureVersion: 4, synthetic: true } });
     const [phases, goals, milestones, risks, questions, tickets] = await Promise.all([
       prisma.wbsItem.count({ where: { projectId, type: 'PHASE' } }),
       prisma.wbsItem.count({ where: { projectId, type: 'GOAL' } }),

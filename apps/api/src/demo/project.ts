@@ -19,14 +19,15 @@ export async function fillProject(tx: Prisma.TransactionClient, project: Project
   const phases = ['Design', 'Development', 'Testing and pilot', 'Go-live'];
   const goals = ['Factory firmware released', 'First OTA ready', 'Pilot accepted by the customer', 'Target SLA achieved'];
   const goalLabels = ['MP', 'ota', 'pilot', 'sla'];
-  const taskNames = ['Agree the requirements', 'Implement the integration', 'Run load testing', 'Close review findings', 'Prepare operations'];
-  const statuses = ['IN_PROGRESS', 'IN_REVIEW', 'AT_RISK', 'BLOCKED', 'CANCELLED'] as const;
-  const currentDateShifts = [-4, 3, -2, 6, 1];
-  const forecastDateShifts = [2, -3, 5, 9, -5];
+  const taskNames = ['Agree the requirements', 'Prepare the solution', 'Implement the integration', 'Run functional testing',
+    'Run load testing', 'Close review findings', 'Prepare operations', 'Complete acceptance', 'Handover the result'];
+  const statuses = ['IN_PROGRESS', 'IN_REVIEW', 'AT_RISK', 'BLOCKED', 'IN_PROGRESS', 'IN_REVIEW', 'AT_RISK', 'BLOCKED', 'CANCELLED'] as const;
+  const currentDateShifts = [-4, 3, -2, 6, 1, -3, 4, -1, 5];
+  const forecastDateShifts = [2, -3, 5, 9, -5, 4, -2, 7, -4];
   for (let phaseIndex = 0; phaseIndex < 4; phaseIndex++) {
     const root = existing.find((row) => row.id === id(`phase-${phaseIndex}`))?.code ?? nextRoot();
-    const start = dateAt(-70 + phaseIndex * 30, base);
-    const due = dateAt(28, start);
+    const start = dateAt(-70 + phaseIndex * 60, base);
+    const due = dateAt(58, start);
     const phaseStatus = phaseIndex === 0 ? 'DONE' : phaseIndex === 1 ? 'IN_PROGRESS' : 'NOT_STARTED';
     const phase = await tx.wbsItem.upsert({
       where: { id: id(`phase-${phaseIndex}`) },
@@ -98,11 +99,11 @@ export async function fillProject(tx: Prisma.TransactionClient, project: Project
           progress: phaseIndex === 0 ? 100 : 0, wbsLevel: 2, sortOrder: phase.sortOrder + m + 2 },
       });
     }
-    for (let t = 0; t < 5; t++) {
+    for (let t = 0; t < taskNames.length; t++) {
       const status: Prisma.WbsItemUncheckedCreateInput['status'] =
         phaseIndex === 0 ? 'DONE' : phaseIndex === 1 ? statuses[t] ?? 'NOT_STARTED' : 'NOT_STARTED';
       const taskType: Prisma.WbsItemUncheckedCreateInput['type'] = t === 4 ? 'DELIVERABLE' : 'TASK';
-      const baselineFrom = dateAt(t * 5, start), baselineTo = dateAt(t * 5 + 4, start);
+      const baselineFrom = dateAt(t * 7, start), baselineTo = dateAt(t * 7 + 6, start);
       const currentFrom = dateAt(currentDateShifts[t], baselineFrom), currentTo = dateAt(currentDateShifts[t], baselineTo);
       const forecastFrom = dateAt(forecastDateShifts[t], baselineFrom), forecastTo = dateAt(forecastDateShifts[t], baselineTo);
       const taskData = {
@@ -125,12 +126,18 @@ export async function fillProject(tx: Prisma.TransactionClient, project: Project
         update: { lagDays: 0 }, create: { projectId: project.id, predecessorId: id(`task-${phaseIndex}-${t - 1}`), successorId: id(`task-${phaseIndex}-${t}`), type: 'FS', lagDays: 0 },
       });
     }
-    if (phaseIndex > 0) await tx.wbsDependency.upsert({
-      where: { projectId_predecessorId_successorId_type: { projectId: project.id,
-        predecessorId: id(`task-${phaseIndex - 1}-4`), successorId: id(`task-${phaseIndex}-0`), type: 'FS' } },
-      update: { lagDays: 0 }, create: { projectId: project.id,
-        predecessorId: id(`task-${phaseIndex - 1}-4`), successorId: id(`task-${phaseIndex}-0`), type: 'FS', lagDays: 0 },
-    });
+    if (phaseIndex > 0) {
+      // Fixture v3 linked the fifth task between phases. Remove that owned
+      // shortcut now that every phase has a longer critical chain.
+      await tx.wbsDependency.deleteMany({ where: { projectId: project.id,
+        predecessorId: id(`task-${phaseIndex - 1}-4`), successorId: id(`task-${phaseIndex}-0`), type: 'FS' } });
+      await tx.wbsDependency.upsert({
+        where: { projectId_predecessorId_successorId_type: { projectId: project.id,
+          predecessorId: id(`task-${phaseIndex - 1}-${taskNames.length - 1}`), successorId: id(`task-${phaseIndex}-0`), type: 'FS' } },
+        update: { lagDays: 0 }, create: { projectId: project.id,
+          predecessorId: id(`task-${phaseIndex - 1}-${taskNames.length - 1}`), successorId: id(`task-${phaseIndex}-0`), type: 'FS', lagDays: 0 },
+      });
+    }
   }
   // Connect each goal to its implementation so the overview can trace delay causes.
   for (let phaseIndex = 0; phaseIndex < 4; phaseIndex++) {

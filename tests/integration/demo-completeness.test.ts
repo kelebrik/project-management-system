@@ -33,7 +33,7 @@ test('existing partly populated demo projects receive all sections and non-empty
     } });
     await completeDemoData(client);
     const fixtureTaskIds = Array.from({ length: 4 }, (_, phase) =>
-      Array.from({ length: 5 }, (_, task) => demoId(project.id, `task-${phase}-${task}`))).flat();
+      Array.from({ length: 9 }, (_, task) => demoId(project.id, `task-${phase}-${task}`))).flat();
     const counts = async () => ({
       phases: await client.wbsItem.count({ where: { projectId: project.id, type: 'PHASE' } }),
       goals: await client.wbsItem.count({ where: { projectId: project.id, type: 'GOAL' } }),
@@ -54,7 +54,7 @@ test('existing partly populated demo projects receive all sections and non-empty
       assert.equal(await client.wbsItem.count({ where: { projectId: project.id, parentId: phaseId, type: 'GOAL' } }), 1);
     }
     const fixtureTasks = await client.wbsItem.findMany({ where: { id: { in: fixtureTaskIds } } });
-    assert.equal(fixtureTasks.length, 20);
+    assert.equal(fixtureTasks.length, 36);
     assert.ok(fixtureTasks.some((row) => row.startDate!.getTime() < row.baselineStartDate!.getTime()));
     assert.ok(fixtureTasks.some((row) => row.startDate!.getTime() > row.baselineStartDate!.getTime()));
     assert.ok(fixtureTasks.some((row) => row.forecastStartDate!.getTime() < row.baselineStartDate!.getTime()));
@@ -75,7 +75,7 @@ test('existing partly populated demo projects receive all sections and non-empty
       baselineStartDate: null, baselineDueDate: null, forecastStartDate: null, forecastDueDate: null,
     } });
     await client.wbsDependency.deleteMany({ where: { projectId: project.id,
-      predecessorId: demoId(project.id, 'task-0-4'), successorId: demoId(project.id, 'task-1-0'), type: 'FS' } });
+      predecessorId: demoId(project.id, 'task-0-8'), successorId: demoId(project.id, 'task-1-0'), type: 'FS' } });
     await completeDemoData(client);
     assert.deepEqual(await counts(), before);
     const updated = await client.project.findUniqueOrThrow({ where: { id: project.id } });

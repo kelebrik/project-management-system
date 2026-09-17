@@ -18,7 +18,7 @@ The additive fixture fills **every existing project**, including partly populate
 projects such as DEMO-005. It creates no business units and no projects.
 
 - Adds 4 phases with one goal and 4 milestones in each phase, 16 corresponding
-  milestone-register records, 4 work packages and 20 tasks/deliverables.
+  milestone-register records, 4 work packages and 36 tasks/deliverables.
 - Gives every fixture task baseline, current and forecast date pairs. Current
   dates move both ahead of and behind the baseline; forecasts differ from both.
   A cross-phase dependency chain keeps at least half of the project tasks on the
