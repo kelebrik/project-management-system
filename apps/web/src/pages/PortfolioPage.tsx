@@ -19,6 +19,7 @@ import {
 import { usePageContext } from "./PageContext";
 import { ProjectsOverview } from "./ProjectsOverview";
 import { goalScheduleHealth } from "../app/goalScheduleHealth";
+import type { Translator } from "../i18n/types";
 
 
 function dueDateTone(dueDate: string | null) {
@@ -29,12 +30,12 @@ function dueDateTone(dueDate: string | null) {
   return "normal";
 }
 
-function dueDateLabel(dueDate: string | null) {
+function dueDateLabel(dueDate: string | null, uiText: Translator) {
   const days = signedDaysUntil(dueDate);
   if (days === null) return null;
-  if (days < 0) return `просрочено ${Math.abs(days)} дн.`;
-  if (days === 0) return "сегодня";
-  return `через ${days} дн.`;
+  if (days < 0) return uiText("ui.portfolio.overdueDays", { days: Math.abs(days) });
+  if (days === 0) return uiText("ui.portfolio.todayLowercase");
+  return uiText("ui.portfolio.dueInDays", { days });
 }
 
 export function PortfolioPage() {
@@ -89,10 +90,10 @@ export function PortfolioPage() {
   };
 
   const projectFilterStatus = projectCount === 0
-    ? "Нет проектов"
+    ? uiText("ui.portfolio.noProjects")
     : isProjectFilterActive
-      ? `${selectedProjectCount} из ${projectCount}`
-      : `Все ${projectCount}`;
+      ? uiText("ui.portfolio.selectedProjectsCount", { selected: selectedProjectCount, total: projectCount })
+      : uiText("ui.portfolio.allProjectsCount", { total: projectCount });
 
   const openRaidItem = (item: PortfolioRedRaidItem) => {
     openRaidItemFromOverview(item.id, item.type, item.projectId);
@@ -120,7 +121,7 @@ export function PortfolioPage() {
             <div className="portfolio-raid-list">
               {project.items.map((item) => {
                 const dueTone = dueDateTone(item.dueDate);
-                const relativeDueDate = dueDateLabel(item.dueDate);
+                const relativeDueDate = dueDateLabel(item.dueDate, uiText);
                 return (
                   <button
                     type="button"
@@ -135,7 +136,7 @@ export function PortfolioPage() {
                       <b>{item.title}</b>
                       <small>
                         {item.owner || uiText("ui.projects.notAssignedLowercase")}
-                        {item.dueDate ? ` · срок ${date(item.dueDate)}` : ""}
+                        {item.dueDate ? uiText("ui.portfolio.dueDateInline", { date: date(item.dueDate) }) : ""}
                         {item.jiraTicketKey ? ` · ${item.jiraTicketKey}` : ""}
                       </small>
                     </span>
@@ -173,7 +174,7 @@ export function PortfolioPage() {
               data-testid="portfolio-project-filter"
             >
               <summary
-                aria-label={`Проекты для отображения: показано ${selectedProjectCount} из ${projectCount}`}
+                aria-label={uiText("ui.portfolio.projectsToDisplayStatus", { selected: selectedProjectCount, total: projectCount })}
               >
                 {isProjectFilterActive && (
                   <AlertTriangle aria-hidden="true" size={15} />
@@ -269,7 +270,7 @@ export function PortfolioPage() {
                     </button>
                     <div
                       className="portfolio-project-timeline-track"
-                      aria-label={`Цели проекта ${row.projectName}`}
+                      aria-label={uiText("ui.portfolio.projectGoalsLabel", { project: row.projectName })}
                     >
                       <span className="portfolio-goal-axis-line" />
                       {portfolioGoalTimeline.monthTicks.map((tick, index) => (

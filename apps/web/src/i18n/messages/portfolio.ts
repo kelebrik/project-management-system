@@ -7,6 +7,42 @@ export const portfolioMessages = {
     "en": "d.",
     "ru": "дн."
   },
+  "ui.portfolio.overdueDays": {
+    "en": "overdue by {days} d.",
+    "ru": "просрочено {days} дн."
+  },
+  "ui.portfolio.todayLowercase": {
+    "en": "today",
+    "ru": "сегодня"
+  },
+  "ui.portfolio.dueInDays": {
+    "en": "in {days} d.",
+    "ru": "через {days} дн."
+  },
+  "ui.portfolio.noProjects": {
+    "en": "No projects",
+    "ru": "Нет проектов"
+  },
+  "ui.portfolio.selectedProjectsCount": {
+    "en": "{selected} of {total}",
+    "ru": "{selected} из {total}"
+  },
+  "ui.portfolio.allProjectsCount": {
+    "en": "All {total}",
+    "ru": "Все {total}"
+  },
+  "ui.portfolio.dueDateInline": {
+    "en": " · due {date}",
+    "ru": " · срок {date}"
+  },
+  "ui.portfolio.projectsToDisplayStatus": {
+    "en": "Projects to display: showing {selected} of {total}",
+    "ru": "Проекты для отображения: показано {selected} из {total}"
+  },
+  "ui.portfolio.projectGoalsLabel": {
+    "en": "Goals for {project}",
+    "ru": "Цели проекта {project}"
+  },
   "ui.portfolio.projectGoals": {
     "en": "Project goals",
     "ru": "Цели проектов"
