@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PrismaClient } from '@prisma/client';
 import { completeDemoData } from '../../apps/api/src/demo/complete.js';
+import { demoId } from '../../apps/api/src/demo/project.js';
 import { jiraSemanticAggregateDefinitionSchema, jiraSemanticDashboardSchema } from '@pms/shared';
 import { jiraSemanticExecutableDefinition } from '../../apps/api/src/services/jira-semantic-aggregates.js';
 import { evaluateJiraAggregateFromDatabase } from '../../apps/api/src/services/jira-aggregates-core.js';
 import { evaluateGitlabBranchCommitAggregateFromDatabase } from '../../apps/api/src/services/gitlab-branch-analytics.js';
+import { calculateWbsCriticalPath } from '../../apps/api/src/services/wbs-critical-path/calculate.js';
 
 const url = process.env.DEMO_TEST_DATABASE_URL;
 test('existing partly populated demo projects receive all sections and non-empty widgets without duplicates', { skip: !url }, async () => {
@@ -30,6 +32,8 @@ test('existing partly populated demo projects receive all sections and non-empty
       rows: [{ id: 'keep', cells: { custom: 'Existing requirement', extra: 'Do not change' } }, { id: 'empty', cells: { custom: '', extra: '' } }],
     } });
     await completeDemoData(client);
+    const fixtureTaskIds = Array.from({ length: 4 }, (_, phase) =>
+      Array.from({ length: 5 }, (_, task) => demoId(project.id, `task-${phase}-${task}`))).flat();
     const counts = async () => ({
       phases: await client.wbsItem.count({ where: { projectId: project.id, type: 'PHASE' } }),
       goals: await client.wbsItem.count({ where: { projectId: project.id, type: 'GOAL' } }),
@@ -42,11 +46,36 @@ test('existing partly populated demo projects receive all sections and non-empty
       overviews: await client.executiveOverview.count({ where: { projectId: project.id } }),
     });
     const before = await counts();
-    assert.ok(before.phases >= 4 && before.goals >= 4 && before.milestones >= 10);
+    assert.ok(before.phases >= 4 && before.goals >= 4 && before.milestones >= 16);
     assert.ok(before.risks >= 6 && before.issues >= 8 && before.snapshots >= 16);
+    for (let phase = 0; phase < 4; phase++) {
+      const phaseId = demoId(project.id, `phase-${phase}`);
+      assert.equal(await client.wbsItem.count({ where: { projectId: project.id, parentId: phaseId, type: 'MILESTONE' } }), 4);
+      assert.equal(await client.wbsItem.count({ where: { projectId: project.id, parentId: phaseId, type: 'GOAL' } }), 1);
+    }
+    const fixtureTasks = await client.wbsItem.findMany({ where: { id: { in: fixtureTaskIds } } });
+    assert.equal(fixtureTasks.length, 20);
+    assert.ok(fixtureTasks.some((row) => row.startDate!.getTime() < row.baselineStartDate!.getTime()));
+    assert.ok(fixtureTasks.some((row) => row.startDate!.getTime() > row.baselineStartDate!.getTime()));
+    assert.ok(fixtureTasks.some((row) => row.forecastStartDate!.getTime() < row.baselineStartDate!.getTime()));
+    assert.ok(fixtureTasks.some((row) => row.forecastStartDate!.getTime() > row.baselineStartDate!.getTime()));
+    for (const row of fixtureTasks) {
+      assert.ok(row.startDate && row.dueDate && row.baselineStartDate && row.baselineDueDate && row.forecastStartDate && row.forecastDueDate);
+      assert.notEqual(row.startDate.getTime(), row.baselineStartDate.getTime());
+      assert.notEqual(row.dueDate.getTime(), row.baselineDueDate.getTime());
+      assert.notEqual(row.forecastStartDate.getTime(), row.baselineStartDate.getTime());
+      assert.notEqual(row.forecastDueDate.getTime(), row.baselineDueDate.getTime());
+      assert.notEqual(row.forecastStartDate.getTime(), row.startDate.getTime());
+      assert.notEqual(row.forecastDueDate.getTime(), row.dueDate.getTime());
+    }
     // A previous demo run has aged: refresh must repair time-sensitive widgets.
     await client.gitlabBranchSyncRun.updateMany({ data: { finishedAt: new Date('2020-01-01') } });
     await client.jiraIssueSnapshot.updateMany({ data: { issueCreatedAt: new Date('2020-01-01'), resolutionAt: null } });
+    await client.wbsItem.update({ where: { id: fixtureTaskIds[0] }, data: {
+      baselineStartDate: null, baselineDueDate: null, forecastStartDate: null, forecastDueDate: null,
+    } });
+    await client.wbsDependency.deleteMany({ where: { projectId: project.id,
+      predecessorId: demoId(project.id, 'task-0-4'), successorId: demoId(project.id, 'task-1-0'), type: 'FS' } });
     await completeDemoData(client);
     assert.deepEqual(await counts(), before);
     const updated = await client.project.findUniqueOrThrow({ where: { id: project.id } });
@@ -63,6 +92,24 @@ test('existing partly populated demo projects receive all sections and non-empty
     assert.ok(rows.some((row) => row.cells.custom === 'Single sign-on access'));
     assert.ok(rows.some((row) => row.cells.extra?.includes('Acceptance criteria')));
     assert.equal(rows.filter((row) => !Object.values(row.cells).some(Boolean)).length, 0);
+    const planItems = await client.wbsItem.findMany({ where: { projectId: project.id },
+      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }], select: {
+        id: true, code: true, title: true, type: true, status: true, startDate: true, dueDate: true,
+        workDays: true, calendarCode: true, sortOrder: true, predecessor1: true, predecessor2: true,
+        predecessor3: true, predecessor4: true, predecessor5: true, predecessor6: true, leadLagDays: true,
+      } });
+    const dependencies = await client.wbsDependency.findMany({ where: { projectId: project.id }, select: {
+      id: true, predecessorId: true, successorId: true, type: true, lagDays: true,
+    } });
+    const calendarOverrides = await client.projectCalendarOverride.findMany({ where: { projectId: project.id }, select: {
+      calendarCode: true, date: true, isWorkingDay: true,
+    } });
+    const criticalPath = calculateWbsCriticalPath(planItems, dependencies, calendarOverrides);
+    const projectTasks = planItems.filter((row) => row.type === 'TASK' || row.type === 'DELIVERABLE');
+    const criticalIds = new Set(criticalPath.criticalItemIds);
+    const criticalTaskCount = projectTasks.filter((row) => criticalIds.has(row.id)).length;
+    assert.ok(criticalTaskCount >= Math.ceil(projectTasks.length / 2),
+      `Only ${criticalTaskCount}/${projectTasks.length} tasks are on the critical path`);
     for (const p of await client.project.findMany()) {
       const settings = await client.jiraAnalyticsSettings.findUniqueOrThrow({ where: { projectId: p.id } });
       const dashboard = jiraSemanticDashboardSchema.parse(settings.dashboardConfig);
