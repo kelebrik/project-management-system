@@ -35,11 +35,9 @@ test("questions prototype exposes editable fields and expanded actions", async (
 
   const row = page.locator(".open-issues-prototype-row").first();
   await expect(row.getByLabel("Issue title")).toBeEditable();
-  await expect(row.getByLabel("New status text")).toBeEditable();
+  await expect(row.getByLabel("New status text")).toHaveCount(0);
   await expect(row.getByLabel("Current status")).toHaveAttribute("aria-readonly", "true");
-  await row.getByLabel("New status text").fill("Status update from prototype");
-  await row.getByRole("button", { name: "Add status with the current date", exact: true }).click();
-  await expect.poll(() => statusPayload).toEqual({ text: "Status update from prototype" });
+  await expect(row.getByLabel("Current status")).toContainText("Решение вынесено на комитет");
   await expect(row.getByLabel("Owner")).toBeEditable();
   await expect(row.getByLabel("Readiness")).toBeEditable();
   await expect(row.getByLabel("Issue section")).toHaveCount(0);
@@ -47,15 +45,17 @@ test("questions prototype exposes editable fields and expanded actions", async (
   expect((await row.boundingBox())!.height).toBeLessThan(90);
   const statusResizer = page.getByRole("button", { name: "Resize column Status", exact: true });
   await expect(statusResizer).toBeVisible();
+  const currentStatusWidth = (await row.getByLabel("Current status").boundingBox())!.width;
   const resizerBox = await statusResizer.boundingBox();
   expect(resizerBox).not.toBeNull();
   await page.mouse.move(resizerBox!.x + 4, resizerBox!.y + 8);
   await page.mouse.down();
-  await page.mouse.move(resizerBox!.x + 34, resizerBox!.y + 8);
+  await page.mouse.move(resizerBox!.x + 254, resizerBox!.y + 8);
   await page.mouse.up();
-  await expect.poll(() => uiStatePatch).toMatchObject({
-    uiState: { openIssuesPrototypeColumnWidths: { status: expect.any(Number) } },
-  });
+  await expect.poll(() => (
+    uiStatePatch as { uiState?: { openIssuesPrototypeColumnWidths?: { status?: number } } } | null
+  )?.uiState?.openIssuesPrototypeColumnWidths?.status ?? 0).toBeGreaterThan(500);
+  expect((await row.getByLabel("Current status").boundingBox())!.width).toBe(currentStatusWidth);
 
   const readinessCell = row.locator(".open-issues-prototype-readiness-cell");
   const readinessControl = row.getByLabel("Readiness");
@@ -67,10 +67,18 @@ test("questions prototype exposes editable fields and expanded actions", async (
   expect(await readinessCell.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
 
   await row.getByRole("button", { name: "Expand", exact: true }).click();
+  await expect(row.getByRole("button", { name: "Collapse", exact: true })).toHaveText("");
   const actionRow = page.locator(".open-issues-prototype-actions-row").first();
-  for (const action of ["Section", "Due date", "Phase", "Link risk", "To problem", "Close", "History"]) {
+  for (const action of ["Status", "Section", "Due date", "Phase", "Link risk", "To problem", "Close", "History"]) {
     await expect(actionRow.getByRole("button", { name: new RegExp(`^${action}`) })).toBeVisible();
   }
+  const actionsHeader = page.locator(".open-issues-prototype-table thead th").last();
+  await expect(actionsHeader).toHaveText("");
+  expect((await actionsHeader.boundingBox())!.width).toBeLessThan(100);
+  await actionRow.getByRole("button", { name: "Status", exact: true }).click();
+  await actionRow.getByLabel("New status text").fill("Status update from prototype");
+  await actionRow.getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(() => statusPayload).toEqual({ text: "Status update from prototype" });
   await actionRow.getByRole("button", { name: "Section", exact: true }).click();
   await expect(actionRow.getByLabel("Section")).toBeEditable();
   await actionRow.getByRole("button", { name: "Due date", exact: true }).click();

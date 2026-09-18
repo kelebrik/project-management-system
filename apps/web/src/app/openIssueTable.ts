@@ -37,10 +37,10 @@ export function openIssueTableWidth(widths: OpenIssueColumnWidths) {
 export const OPEN_ISSUES_PROTOTYPE_COLUMNS = [
   { key: "number", labelKey: "ui.projects.issueColumnNumber", width: 54, min: 44, max: 72 },
   { key: "task", labelKey: "ui.projects.issueColumnTask", width: 360, min: 240, max: 640 },
-  { key: "status", labelKey: "ui.projects.issueColumnStatus", width: 300, min: 230, max: 560 },
+  { key: "status", labelKey: "ui.projects.issueColumnStatus", width: 300, min: 230, max: Number.MAX_SAFE_INTEGER },
   { key: "owner", labelKey: "ui.projects.issueColumnOwner", width: 170, min: 120, max: 320 },
   { key: "readiness", labelKey: "ui.projects.issueColumnReadiness", width: 120, min: 96, max: 180 },
-  { key: "actions", labelKey: "ui.projects.openIssuesPrototypeActions", width: 150, min: 128, max: 240 },
+  { key: "actions", labelKey: "ui.projects.openIssuesPrototypeActions", width: 64, min: 56, max: 96 },
 ] as const satisfies readonly {
   key: string;
   labelKey: SimpleTranslationKey;

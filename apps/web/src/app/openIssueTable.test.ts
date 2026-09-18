@@ -3,7 +3,9 @@ import test from "node:test";
 
 import {
   normalizeOpenIssueColumnWidths,
+  normalizeOpenIssuesPrototypeColumnWidths,
   openIssueTableWidth,
+  openIssuesPrototypeTableWidth,
 } from "./openIssueTable";
 
 test("open issue column widths preserve values and clamp unsafe sizes", () => {
@@ -19,4 +21,14 @@ test("open issue column widths preserve values and clamp unsafe sizes", () => {
   assert.equal(widths.owner, 128);
   assert.equal("phase" in widths, false);
   assert.ok(openIssueTableWidth(widths) > 0);
+});
+
+test("questions prototype keeps the status width unrestricted", () => {
+  const widths = normalizeOpenIssuesPrototypeColumnWidths({
+    status: 5_000,
+    actions: 500,
+  });
+  assert.equal(widths.status, 5_000);
+  assert.equal(widths.actions, 96);
+  assert.ok(openIssuesPrototypeTableWidth(widths) > 5_000);
 });

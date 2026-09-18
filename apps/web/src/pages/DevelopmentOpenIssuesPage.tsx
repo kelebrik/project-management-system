@@ -1,4 +1,4 @@
-import { CalendarDays, Check, ChevronDown, ChevronUp, CircleAlert, Clock3, ExternalLink, History, Link2, Save, ShieldAlert, Tag, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, Clock3, ExternalLink, History, Link2, MessageSquarePlus, Save, ShieldAlert, Tag, X } from "lucide-react";
 import { Fragment, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
@@ -11,7 +11,7 @@ import {
 import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
-type ActionKey = "section" | "due" | "phase" | "risk" | "history";
+type ActionKey = "status" | "section" | "due" | "phase" | "risk" | "history";
 type InlineField = "title" | "owner" | "readiness";
 
 const readinessLabelKeys = {
@@ -211,6 +211,36 @@ export function DevelopmentOpenIssuesPage() {
         </div>
       );
     }
+    if (action === "status") {
+      const statusDraft = issueStatusDrafts[issue.id] ?? { text: "" };
+      const saving = savingFields.has(`${issue.id}:statusUpdate`);
+      return (
+        <div className="open-issues-prototype-editor">
+          <label>{t("ui.projects.newStatusTextLabel")}
+            <input
+              autoFocus
+              value={statusDraft.text}
+              placeholder={t("ui.projects.addNewStatusAction")}
+              disabled={isReadOnly || saving}
+              onChange={(event) => updateIssueStatusDraft(issue.id, { text: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void saveStatusUpdate(issue);
+                }
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void saveStatusUpdate(issue)}
+            disabled={isReadOnly || saving || !statusDraft.text.trim()}
+          >
+            <Save size={15} />{t("ui.projects.openIssuesPrototypeSave")}
+          </button>
+        </div>
+      );
+    }
     if (action === "section") {
       return (
         <div className="open-issues-prototype-editor">
@@ -302,8 +332,12 @@ export function DevelopmentOpenIssuesPage() {
             <thead>
               <tr>
                 {OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => (
-                  <th scope="col" key={column.key}>
-                    <span>{t(column.labelKey)}</span>
+                  <th
+                    scope="col"
+                    key={column.key}
+                    aria-label={column.key === "actions" ? t(column.labelKey) : undefined}
+                  >
+                    {column.key === "actions" ? null : <span>{t(column.labelKey)}</span>}
                     <button
                       type="button"
                       className="open-issues-prototype-column-resizer"
@@ -322,7 +356,6 @@ export function DevelopmentOpenIssuesPage() {
                 const linkedRisk = risks.find((item: { id: string }) => item.id === issue.riskId);
                 const draft = getDraft(issue);
                 const latestStatus = sortedStatusUpdates(issue)[0];
-                const statusDraft = issueStatusDrafts[issue.id] ?? { text: "" };
                 const statusDate = latestStatus?.statusAt ?? issue.updatedAt ?? issue.createdAt ?? null;
                 const isSaving = (field: InlineField) => savingFields.has(`${issue.id}:${field}`);
                 return (
@@ -351,33 +384,9 @@ export function DevelopmentOpenIssuesPage() {
                           <time dateTime={statusDate ?? undefined}>
                             {statusDate ? date(statusDate) : t("ui.projects.openIssuesPrototypeNoStatusDate")}
                           </time>
-                          <strong>{labels.issueStatusLabel(issue.status)}</strong>
-                        </div>
-                        <div className="open-issues-prototype-status-entry">
-                          <input
-                            className="open-issues-prototype-inline-input"
-                            value={statusDraft.text}
-                            placeholder={t("ui.projects.addNewStatusAction")}
-                            disabled={isReadOnly}
-                            aria-busy={savingFields.has(`${issue.id}:statusUpdate`)}
-                            onChange={(event) => updateIssueStatusDraft(issue.id, { text: event.target.value })}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                void saveStatusUpdate(issue);
-                              }
-                            }}
-                            aria-label={t("ui.projects.newStatusTextLabel")}
-                          />
-                          <button
-                            type="button"
-                            className="open-issues-prototype-status-save"
-                            aria-label={t("ui.projects.addStatusWithCurrentDateAction")}
-                            disabled={isReadOnly || !statusDraft.text.trim() || savingFields.has(`${issue.id}:statusUpdate`)}
-                            onClick={() => void saveStatusUpdate(issue)}
-                          >
-                            <Check size={15} />
-                          </button>
+                          <strong title={latestStatus?.text ?? labels.issueStatusLabel(issue.status)}>
+                            {latestStatus?.text ?? labels.issueStatusLabel(issue.status)}
+                          </strong>
                         </div>
                       </td>
                       <td>
@@ -412,13 +421,21 @@ export function DevelopmentOpenIssuesPage() {
                         </select>
                       </td>
                       <td className="open-issues-prototype-expand-cell">
-                        <button type="button" className="open-issues-prototype-expand" onClick={() => toggleExpanded(issue.id)} aria-expanded={expanded}>
-                          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}{expanded ? t("ui.projects.openIssuesPrototypeCollapse") : t("ui.projects.openIssuesPrototypeExpand")}
+                        <button
+                          type="button"
+                          className="open-issues-prototype-expand"
+                          onClick={() => toggleExpanded(issue.id)}
+                          aria-expanded={expanded}
+                          aria-label={expanded ? t("ui.projects.openIssuesPrototypeCollapse") : t("ui.projects.openIssuesPrototypeExpand")}
+                          title={expanded ? t("ui.projects.openIssuesPrototypeCollapse") : t("ui.projects.openIssuesPrototypeExpand")}
+                        >
+                          {expanded ? <ChevronUp size={22} /> : <ChevronDown size={22} />}
                         </button>
                       </td>
                     </tr>
                     {expanded && <tr className="open-issues-prototype-actions-row" key={`${issue.id}-actions`}><td colSpan={6}>
                       <div className="open-issues-prototype-action-bar">
+                        <button type="button" className={action === "status" ? "active" : ""} onClick={() => toggleAction(issue, "status")}><MessageSquarePlus size={15} />{t("ui.projects.issueColumnStatus")}</button>
                         <button type="button" className={action === "section" ? "active" : ""} onClick={() => toggleAction(issue, "section")}><Tag size={15} />{t("ui.projects.openIssuesPrototypeSection")}</button>
                         <button type="button" className={action === "due" ? "active" : ""} onClick={() => toggleAction(issue, "due")}><CalendarDays size={15} />{t("ui.automation.dueDate")}</button>
                         <button type="button" className={action === "phase" ? "active" : ""} onClick={() => toggleAction(issue, "phase")}><CircleAlert size={15} />{t("ui.projects.openIssuesPrototypePhase")}{phase ? ` · ${phase.code}` : ""}</button>
