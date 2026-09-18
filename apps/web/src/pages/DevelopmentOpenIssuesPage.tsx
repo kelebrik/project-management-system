@@ -1,12 +1,12 @@
-import { ChevronDown, ChevronUp, CircleAlert, Clock3, ExternalLink, History, Link2, Save, ShieldAlert, Tag, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, Clock3, ExternalLink, History, Link2, Save, ShieldAlert, Tag, X } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
 import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
-type ActionKey = "section" | "phase" | "risk" | "history";
-type InlineField = "title" | "category" | "status" | "owner" | "readiness" | "dueDate";
+type ActionKey = "section" | "due" | "phase" | "risk" | "history";
+type InlineField = "title" | "status" | "owner" | "readiness";
 
 const issueStatusOptions = ["Open", "In Progress", "Blocked", "Resolved", "Closed"] as const;
 const readinessLabelKeys = {
@@ -73,14 +73,10 @@ export function DevelopmentOpenIssuesPage() {
     field: InlineField,
     value: IssueEditDraft[InlineField],
   ) => {
-    const currentValue = field === "dueDate"
-      ? (issue.dueDate?.slice(0, 10) ?? "")
-      : issue[field as keyof Issue];
-    const normalizedValue = field === "dueDate" && typeof value === "string"
-      ? value.slice(0, 10)
-      : value;
+    const currentValue = issue[field as keyof Issue];
+    const normalizedValue = value;
     if (normalizedValue === currentValue) return;
-    if ((field === "title" || field === "category") && !String(normalizedValue).trim()) {
+    if (field === "title" && !String(normalizedValue).trim()) {
       updateDraft(issue, { [field]: String(currentValue ?? "") });
       return;
     }
@@ -88,8 +84,7 @@ export function DevelopmentOpenIssuesPage() {
     updateDraft(issue, { [field]: normalizedValue } as Partial<IssueEditDraft>);
     setSavingFields((current) => new Set(current).add(key));
     try {
-      const payloadValue = field === "dueDate" && normalizedValue === "" ? null : normalizedValue;
-      const result = await saveOpenIssueWithPayload(issue.id, { [field]: payloadValue }, { quiet: true, refresh: false });
+      const result = await saveOpenIssueWithPayload(issue.id, { [field]: normalizedValue }, { quiet: true, refresh: false });
       if (!result.ok) setError(result.error);
       else setNotice(t("ui.projects.openIssuesPrototypeSaved"));
     } finally {
@@ -110,23 +105,27 @@ export function DevelopmentOpenIssuesPage() {
     setExpandedIssueId(issue.id);
     setActiveAction((current) => current?.issueId === issue.id && current.action === action ? null : { issueId: issue.id, action });
     if (action === "section") setDraftValues((current) => ({ ...current, [`${issue.id}:section`]: getDraft(issue).category }));
+    if (action === "due") setDraftValues((current) => ({ ...current, [`${issue.id}:due`]: getDraft(issue).dueDate }));
     if (action === "phase") setDraftValues((current) => ({ ...current, [`${issue.id}:phase`]: issue.phaseId ?? "" }));
     if (action === "risk") setDraftValues((current) => ({ ...current, [`${issue.id}:risk`]: issue.riskId ?? "" }));
   };
 
-  const saveAction = async (issue: Issue, action: "section" | "phase" | "risk") => {
+  const saveAction = async (issue: Issue, action: "section" | "due" | "phase" | "risk") => {
     const value = draftValues[`${issue.id}:${action}`] ?? "";
     const payload = action === "section"
       ? { category: value }
-      : action === "phase"
-        ? { phaseId: value || null }
-        : { riskId: value || null };
+      : action === "due"
+        ? { dueDate: value || null }
+        : action === "phase"
+          ? { phaseId: value || null }
+          : { riskId: value || null };
     const result = await saveOpenIssueWithPayload(issue.id, payload, { quiet: true, refresh: action === "phase" });
     if (!result.ok) {
       setError(result.error);
       return;
     }
     if (action === "section") updateDraft(issue, { category: value });
+    if (action === "due") updateDraft(issue, { dueDate: value });
     if (action === "phase") updateDraft(issue, { phaseId: value });
     if (action === "risk") updateDraft(issue, { riskId: value });
     setActiveAction(null);
@@ -157,6 +156,22 @@ export function DevelopmentOpenIssuesPage() {
               value={draftValues[`${issue.id}:section`] ?? getDraft(issue).category}
               disabled={isReadOnly}
               onChange={(event) => setDraftValues((current) => ({ ...current, [`${issue.id}:section`]: event.target.value }))}
+            />
+          </label>
+          <button type="button" onClick={() => void saveAction(issue, action)} disabled={isReadOnly}><Save size={15} />{t("ui.projects.openIssuesPrototypeSave")}</button>
+        </div>
+      );
+    }
+    if (action === "due") {
+      return (
+        <div className="open-issues-prototype-editor">
+          <label>{t("ui.automation.dueDate")}
+            <input
+              autoFocus
+              type="date"
+              value={draftValues[`${issue.id}:due`] ?? getDraft(issue).dueDate}
+              disabled={isReadOnly}
+              onChange={(event) => setDraftValues((current) => ({ ...current, [`${issue.id}:due`]: event.target.value }))}
             />
           </label>
           <button type="button" onClick={() => void saveAction(issue, action)} disabled={isReadOnly}><Save size={15} />{t("ui.projects.openIssuesPrototypeSave")}</button>
@@ -243,19 +258,6 @@ export function DevelopmentOpenIssuesPage() {
                           onBlur={() => void persistInlineField(issue, "title", getDraft(issue).title)}
                           aria-label={t("ui.projects.questionTitleColumn")}
                         />
-                        <label className="open-issues-prototype-subfield">
-                          <span>{t("ui.projects.section")}</span>
-                          <input
-                            className="open-issues-prototype-inline-input"
-                            list="open-issues-prototype-categories"
-                            value={draft.category}
-                            disabled={isReadOnly}
-                            aria-busy={isSaving("category")}
-                            onChange={(event) => updateDraft(issue, { category: event.target.value })}
-                            onBlur={() => void persistInlineField(issue, "category", getDraft(issue).category)}
-                            aria-label={t("ui.projects.questionSectionColumn")}
-                          />
-                        </label>
                         {issue.referenceLabel && <a href={issue.referenceUrl ?? "#"} className="open-issues-prototype-reference"><ExternalLink size={13} />{issue.referenceLabel}</a>}
                       </td>
                       <td>
@@ -273,19 +275,6 @@ export function DevelopmentOpenIssuesPage() {
                         >
                           {issueStatusOptions.map((status) => <option value={status} key={status}>{labels.issueStatusLabel(status)}</option>)}
                         </select>
-                        <label className="open-issues-prototype-subfield">
-                          <span>{t("ui.automation.dueDate")}</span>
-                          <input
-                            className="open-issues-prototype-inline-input"
-                            type="date"
-                            value={draft.dueDate}
-                            disabled={isReadOnly}
-                            aria-busy={isSaving("dueDate")}
-                            onChange={(event) => updateDraft(issue, { dueDate: event.target.value })}
-                            onBlur={() => void persistInlineField(issue, "dueDate", getDraft(issue).dueDate)}
-                            aria-label={t("ui.automation.dueDate")}
-                          />
-                        </label>
                       </td>
                       <td>
                         <input
@@ -327,6 +316,7 @@ export function DevelopmentOpenIssuesPage() {
                     {expanded && <tr className="open-issues-prototype-actions-row" key={`${issue.id}-actions`}><td colSpan={6}>
                       <div className="open-issues-prototype-action-bar">
                         <button type="button" className={action === "section" ? "active" : ""} onClick={() => toggleAction(issue, "section")}><Tag size={15} />{t("ui.projects.openIssuesPrototypeSection")}</button>
+                        <button type="button" className={action === "due" ? "active" : ""} onClick={() => toggleAction(issue, "due")}><CalendarDays size={15} />{t("ui.automation.dueDate")}</button>
                         <button type="button" className={action === "phase" ? "active" : ""} onClick={() => toggleAction(issue, "phase")}><CircleAlert size={15} />{t("ui.projects.openIssuesPrototypePhase")}{phase ? ` · ${phase.code}` : ""}</button>
                         <button type="button" className={action === "risk" ? "active" : ""} onClick={() => toggleAction(issue, "risk")}><Link2 size={15} />{t("ui.projects.openIssuesPrototypeRisk")}{linkedRisk ? ` · ${linkedRisk.title}` : ""}</button>
                         <button type="button" onClick={() => void convertIssueToProblem(issue.id)} disabled={isReadOnly}><ShieldAlert size={15} />{t("ui.projects.openIssuesPrototypeConvert")}</button>

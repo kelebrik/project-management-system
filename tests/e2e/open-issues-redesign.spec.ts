@@ -17,7 +17,9 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await expect(row.getByLabel("Status")).toBeEditable();
   await expect(row.getByLabel("Owner")).toBeEditable();
   await expect(row.getByLabel("Readiness")).toBeEditable();
-  await expect(row.getByLabel("Issue section")).toBeEditable();
+  await expect(row.getByLabel("Issue section")).toHaveCount(0);
+  await expect(row.getByLabel("Due date")).toHaveCount(0);
+  expect((await row.boundingBox())!.height).toBeLessThan(90);
 
   const readinessCell = row.locator(".open-issues-prototype-readiness-cell");
   const readinessControl = row.getByLabel("Readiness");
@@ -30,7 +32,11 @@ test("questions prototype exposes editable fields and expanded actions", async (
 
   await row.getByRole("button", { name: "Expand", exact: true }).click();
   const actionRow = page.locator(".open-issues-prototype-actions-row").first();
-  for (const action of ["Section", "Phase", "Link risk", "To problem", "Close", "History"]) {
+  for (const action of ["Section", "Due date", "Phase", "Link risk", "To problem", "Close", "History"]) {
     await expect(actionRow.getByRole("button", { name: new RegExp(`^${action}`) })).toBeVisible();
   }
+  await actionRow.getByRole("button", { name: "Section", exact: true }).click();
+  await expect(actionRow.getByLabel("Section")).toBeEditable();
+  await actionRow.getByRole("button", { name: "Due date", exact: true }).click();
+  await expect(actionRow.getByLabel("Due date")).toBeEditable();
 });
