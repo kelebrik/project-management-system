@@ -487,6 +487,10 @@ export const projectsMessages = {
     "en": "Current status",
     "ru": "Текущий статус"
   },
+  "ui.projects.issueStatusDateLabel": {
+    "en": "Status date",
+    "ru": "Дата статуса"
+  },
   "ui.projects.openIssuesPrototypeNoStatusDate": {
     "en": "No date",
     "ru": "Нет даты"

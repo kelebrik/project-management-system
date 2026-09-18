@@ -375,18 +375,23 @@ export function DevelopmentOpenIssuesPage() {
                         {issue.referenceLabel && <a href={issue.referenceUrl ?? "#"} className="open-issues-prototype-reference"><ExternalLink size={13} />{issue.referenceLabel}</a>}
                       </td>
                       <td className="open-issues-prototype-status-cell">
-                        <div
-                          className="open-issues-prototype-status-readonly"
-                          role="textbox"
-                          aria-readonly="true"
-                          aria-label={t("ui.projects.currentIssueStatusLabel")}
-                        >
-                          <time dateTime={statusDate ?? undefined}>
+                        <div className="open-issues-prototype-status-fields">
+                          <time
+                            className="open-issues-prototype-status-date"
+                            dateTime={statusDate ?? undefined}
+                            aria-label={t("ui.projects.issueStatusDateLabel")}
+                          >
                             {statusDate ? date(statusDate) : t("ui.projects.openIssuesPrototypeNoStatusDate")}
                           </time>
-                          <strong title={latestStatus?.text ?? labels.issueStatusLabel(issue.status)}>
+                          <div
+                            className="open-issues-prototype-status-text"
+                            role="textbox"
+                            aria-readonly="true"
+                            aria-label={t("ui.projects.currentIssueStatusLabel")}
+                            title={latestStatus?.text ?? labels.issueStatusLabel(issue.status)}
+                          >
                             {latestStatus?.text ?? labels.issueStatusLabel(issue.status)}
-                          </strong>
+                          </div>
                         </div>
                       </td>
                       <td>

@@ -146,30 +146,38 @@
   vertical-align: middle !important;
 }
 
-.open-issues-prototype-status-readonly {
+.open-issues-prototype-status-fields {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 108px minmax(0, 1fr);
+  min-width: 0;
+  width: 100%;
+}
+
+.open-issues-prototype-status-date,
+.open-issues-prototype-status-text {
   align-items: center;
   background: var(--surface-2);
   border: 1px solid var(--border-3);
   border-radius: 5px;
-  display: grid;
-  gap: 2px;
+  display: flex;
   min-height: 32px;
   min-width: 0;
   padding: 5px 7px;
-  width: 180px;
 }
 
-.open-issues-prototype-status-readonly time {
+.open-issues-prototype-status-date {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.15;
   white-space: nowrap;
 }
 
-.open-issues-prototype-status-readonly strong {
+.open-issues-prototype-status-text {
   color: var(--text-heading);
   font-size: 12px;
+  font-weight: 800;
   line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -229,9 +237,28 @@
   vertical-align: stretch !important;
 }
 
-.open-issues-prototype-readiness-cell.red { background: var(--danger-soft); color: var(--danger-700); }
-.open-issues-prototype-readiness-cell.amber { background: var(--warning-bg); color: var(--warning-700); }
-.open-issues-prototype-readiness-cell.green { background: var(--success-bg); color: var(--success-700); }
+.open-issues-prototype-readiness-cell.red,
+.open-issues-prototype-readiness-cell.red .open-issues-prototype-readiness {
+  background: #bd4334;
+  color: #fff;
+}
+
+.open-issues-prototype-readiness-cell.amber,
+.open-issues-prototype-readiness-cell.amber .open-issues-prototype-readiness {
+  background: #e2b935;
+  color: #17212b;
+}
+
+.open-issues-prototype-readiness-cell.green,
+.open-issues-prototype-readiness-cell.green .open-issues-prototype-readiness {
+  background: #3f855e;
+  color: #fff;
+}
+
+.open-issues-prototype-readiness option {
+  background: var(--surface);
+  color: var(--text);
+}
 
 .open-issues-prototype-readiness:disabled {
   cursor: not-allowed;
