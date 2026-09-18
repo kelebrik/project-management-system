@@ -34,7 +34,7 @@ test("questions prototype exposes editable fields and expanded actions", async (
     });
   });
 
-  await page.goto("/development/open-issues-redesign");
+  await page.goto("/issues");
   await page.getByTestId("language-toggle").click();
   await expect(page.getByRole("heading", { name: "Questions", exact: true })).toBeVisible();
   await expect(page.getByRole("rowgroup", { name: "Организационные задачи" })).toBeVisible();
