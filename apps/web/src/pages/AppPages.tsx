@@ -25,6 +25,7 @@ import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
 import { ProjectCreatePage } from "./ProjectCreatePage";
 import { ProjectCurrentWorkPage } from "./ProjectCurrentWorkPage";
 import { ProjectIssuesPage } from "./ProjectIssuesPage";
+import { DevelopmentOpenIssuesPage } from "./DevelopmentOpenIssuesPage";
 import { ProjectJiraWorkPage } from "./ProjectJiraWorkPage";
 import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
 import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
@@ -84,6 +85,7 @@ export function AppPages() {
           <DecisionQueuePage />
         </Suspense>
       )}
+      {activeView === "open-issues-redesign" && project && <DevelopmentOpenIssuesPage />}
       {activeView === "projects" && <ProjectsPage />}
       {activeView === "reports" && <ReportsPage />}
       {activeView === "jira-reconciliation" && <JiraReconciliationPage />}

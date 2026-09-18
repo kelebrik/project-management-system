@@ -53,6 +53,7 @@ export type DevelopmentSectionView = Extract<
   | "jira-reconciliation"
   | "decision-queue"
   | "project-pm-workspace"
+  | "open-issues-redesign"
   | ResourceSectionView
 >;
 
@@ -98,6 +99,7 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "jira-reconciliation",
   "decision-queue",
   "project-pm-workspace",
+  "open-issues-redesign",
   "resources",
   "resources-capacity",
   "portfolio-v2",
@@ -191,6 +193,7 @@ export const appViewPaths: Record<AppView, string> = {
   "project-business-requirements": "/business-requirements",
   "project-current-work": "/current-work",
   "project-pm-workspace": "/development/pm-workspace",
+  "open-issues-redesign": "/development/open-issues-redesign",
   "project-structure": "/wbs",
   "project-gantt": "/gantt",
   "project-jira-work": "/jira-work",
@@ -270,6 +273,7 @@ export const appPathViews: Record<string, AppView> = {
   "/development/jira-reconciliation": "jira-reconciliation",
   "/development/pm-workspace": "project-pm-workspace",
   "/development/workspace": "project-pm-workspace",
+  "/development/open-issues-redesign": "open-issues-redesign",
   "/development/resources": "resources",
   "/development/resources/overview": "resources",
   "/development/resources/workload": "resources",

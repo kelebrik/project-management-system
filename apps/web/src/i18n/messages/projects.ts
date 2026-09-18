@@ -415,6 +415,74 @@ export const projectsMessages = {
     "en": "Project open issues with inline field editing",
     "ru": "Открытые вопросы проекта с редактированием полей в таблице"
   },
+  "ui.projects.openIssuesPrototypeTitle": {
+    "en": "Open issues",
+    "ru": "Открытые вопросы"
+  },
+  "ui.projects.openIssuesPrototypeDescription": {
+    "en": "A compact issue register with row actions and history",
+    "ru": "Компактный реестр вопросов с действиями и историей"
+  },
+  "ui.projects.openIssuesPrototypeActions": {
+    "en": "Issue actions",
+    "ru": "Действия с вопросом"
+  },
+  "ui.projects.openIssuesPrototypeExpand": {
+    "en": "Expand",
+    "ru": "Развернуть"
+  },
+  "ui.projects.openIssuesPrototypeCollapse": {
+    "en": "Collapse",
+    "ru": "Свернуть"
+  },
+  "ui.projects.openIssuesPrototypeSection": {
+    "en": "Section",
+    "ru": "Раздел"
+  },
+  "ui.projects.openIssuesPrototypePhase": {
+    "en": "Phase",
+    "ru": "Фаза"
+  },
+  "ui.projects.openIssuesPrototypeRisk": {
+    "en": "Link risk",
+    "ru": "Ссылка на риск"
+  },
+  "ui.projects.openIssuesPrototypeConvert": {
+    "en": "To problem",
+    "ru": "В проблему"
+  },
+  "ui.projects.openIssuesPrototypeClose": {
+    "en": "Close",
+    "ru": "Закрыть"
+  },
+  "ui.projects.openIssuesPrototypeHistory": {
+    "en": "History",
+    "ru": "История"
+  },
+  "ui.projects.openIssuesPrototypeActionHint": {
+    "en": "Choose an action for this issue.",
+    "ru": "Выберите действие для этого вопроса."
+  },
+  "ui.projects.openIssuesPrototypeSave": {
+    "en": "Save",
+    "ru": "Сохранить"
+  },
+  "ui.projects.openIssuesPrototypeSaved": {
+    "en": "Issue updated",
+    "ru": "Вопрос обновлён"
+  },
+  "ui.projects.openIssuesPrototypeNoHistory": {
+    "en": "No status history yet.",
+    "ru": "Истории статусов пока нет."
+  },
+  "ui.projects.openIssuesPrototypeDue": {
+    "en": "Due",
+    "ru": "Срок"
+  },
+  "ui.projects.openIssuesPrototypeNoDueDate": {
+    "en": "No due date",
+    "ru": "Срок не задан"
+  },
   "ui.projects.questionTitleColumn": {
     "en": "Issue title",
     "ru": "Название вопроса"

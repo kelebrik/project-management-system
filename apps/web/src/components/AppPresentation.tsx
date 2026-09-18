@@ -148,6 +148,7 @@ function createViewTitle(project: any, t: Translator): Record<AppView, string> {
     "project-business-requirements": project?.name ?? t("view.project-business-requirements"),
     "project-current-work": project?.name ?? t("view.project-current-work"),
     "project-pm-workspace": project?.name ?? t("view.project-pm-workspace"),
+    "open-issues-redesign": project?.name ?? t("view.open-issues-redesign"),
     "project-structure": project?.name ?? t("view.project-structure"),
     "project-gantt": project?.name ?? t("view.project-gantt"),
     "project-jira-work": project?.name ?? t("view.project-jira-work"),

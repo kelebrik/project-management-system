@@ -44,6 +44,15 @@ test("roadmap v2 is a development section with its own route", () => {
   assert.equal(appViewFromPath("/portfolio"), "portfolio");
 });
 
+test("open issues redesign is isolated in Development", () => {
+  assert.equal(isDevelopmentSectionViewName("open-issues-redesign"), true);
+  assert.equal(writeProtectedViews.has("open-issues-redesign"), true);
+  assert.equal(appPathForView("open-issues-redesign"), "/development/open-issues-redesign");
+  assert.equal(appViewFromPath("/development/open-issues-redesign"), "open-issues-redesign");
+  assert.equal(canViewAppView("open-issues-redesign", demoVisitor), true);
+  assert.equal(canEditAppView("open-issues-redesign", demoVisitor), false);
+});
+
 test("public demo visitor may read administration and development but never edit them", () => {
   for (const view of ["admin-users", "admin-config", "resources", "portfolio-v2"] as const) {
     assert.equal(canViewAppView(view, demoVisitor), true, `view ${view}`);
