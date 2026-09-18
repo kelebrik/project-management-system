@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, Clock3, ExternalLink, History, Link2, MessageSquarePlus, Save, ShieldAlert, Tag, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, History, Link2, Save, ShieldAlert, Tag, X } from "lucide-react";
 import { Fragment, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
@@ -11,7 +11,7 @@ import {
 import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
-type ActionKey = "status" | "section" | "due" | "phase" | "risk" | "history";
+type ActionKey = "section" | "due" | "phase" | "risk" | "history";
 type InlineField = "title" | "owner" | "readiness";
 
 const readinessLabelKeys = {
@@ -211,36 +211,6 @@ export function DevelopmentOpenIssuesPage() {
         </div>
       );
     }
-    if (action === "status") {
-      const statusDraft = issueStatusDrafts[issue.id] ?? { text: "" };
-      const saving = savingFields.has(`${issue.id}:statusUpdate`);
-      return (
-        <div className="open-issues-prototype-editor">
-          <label>{t("ui.projects.newStatusTextLabel")}
-            <input
-              autoFocus
-              value={statusDraft.text}
-              placeholder={t("ui.projects.addNewStatusAction")}
-              disabled={isReadOnly || saving}
-              onChange={(event) => updateIssueStatusDraft(issue.id, { text: event.target.value })}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void saveStatusUpdate(issue);
-                }
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => void saveStatusUpdate(issue)}
-            disabled={isReadOnly || saving || !statusDraft.text.trim()}
-          >
-            <Save size={15} />{t("ui.projects.openIssuesPrototypeSave")}
-          </button>
-        </div>
-      );
-    }
     if (action === "section") {
       return (
         <div className="open-issues-prototype-editor">
@@ -357,6 +327,8 @@ export function DevelopmentOpenIssuesPage() {
                 const draft = getDraft(issue);
                 const latestStatus = sortedStatusUpdates(issue)[0];
                 const statusDate = latestStatus?.statusAt ?? issue.updatedAt ?? issue.createdAt ?? null;
+                const statusDraft = issueStatusDrafts[issue.id] ?? { text: "" };
+                const statusSaving = savingFields.has(`${issue.id}:statusUpdate`);
                 const isSaving = (field: InlineField) => savingFields.has(`${issue.id}:${field}`);
                 return (
                   <Fragment key={issue.id}>
@@ -440,7 +412,6 @@ export function DevelopmentOpenIssuesPage() {
                     </tr>
                     {expanded && <tr className="open-issues-prototype-actions-row" key={`${issue.id}-actions`}><td colSpan={6}>
                       <div className="open-issues-prototype-action-bar">
-                        <button type="button" className={action === "status" ? "active" : ""} onClick={() => toggleAction(issue, "status")}><MessageSquarePlus size={15} />{t("ui.projects.issueColumnStatus")}</button>
                         <button type="button" className={action === "section" ? "active" : ""} onClick={() => toggleAction(issue, "section")}><Tag size={15} />{t("ui.projects.openIssuesPrototypeSection")}</button>
                         <button type="button" className={action === "due" ? "active" : ""} onClick={() => toggleAction(issue, "due")}><CalendarDays size={15} />{t("ui.automation.dueDate")}</button>
                         <button type="button" className={action === "phase" ? "active" : ""} onClick={() => toggleAction(issue, "phase")}><CircleAlert size={15} />{t("ui.projects.openIssuesPrototypePhase")}{phase ? ` · ${phase.code}` : ""}</button>
@@ -448,8 +419,30 @@ export function DevelopmentOpenIssuesPage() {
                         <button type="button" onClick={() => void convertIssueToProblem(issue.id)} disabled={isReadOnly}><ShieldAlert size={15} />{t("ui.projects.openIssuesPrototypeConvert")}</button>
                         <button type="button" onClick={() => void closeOpenIssue(issue.id)} disabled={isReadOnly}><X size={15} />{t("ui.projects.openIssuesPrototypeClose")}</button>
                         <button type="button" className={action === "history" ? "active" : ""} onClick={() => toggleAction(issue, "history")}><History size={15} />{t("ui.projects.openIssuesPrototypeHistory")}</button>
+                        <div className="open-issues-prototype-status-editor">
+                          <input
+                            value={statusDraft.text}
+                            placeholder={t("ui.projects.addNewStatusAction")}
+                            aria-label={t("ui.projects.newStatusTextLabel")}
+                            disabled={isReadOnly || statusSaving}
+                            onChange={(event) => updateIssueStatusDraft(issue.id, { text: event.target.value })}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void saveStatusUpdate(issue);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void saveStatusUpdate(issue)}
+                            disabled={isReadOnly || statusSaving || !statusDraft.text.trim()}
+                          >
+                            <Save size={15} />{t("ui.projects.openIssuesPrototypeSave")}
+                          </button>
+                        </div>
                       </div>
-                      {action ? renderEditor(issue, action) : <span className="open-issues-prototype-action-hint"><Clock3 size={15} />{t("ui.projects.openIssuesPrototypeActionHint")}</span>}
+                      {action ? renderEditor(issue, action) : null}
                     </td></tr>}
                   </Fragment>
                 );

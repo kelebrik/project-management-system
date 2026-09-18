@@ -340,14 +340,32 @@
   gap: 7px;
 }
 
-.open-issues-prototype-action-hint {
+.open-issues-prototype-status-editor {
   align-items: center;
-  color: var(--text-muted);
-  display: inline-flex;
+  display: flex;
+  flex: 1 1 360px;
+  gap: 7px;
+  margin-left: auto;
+  min-width: min(360px, 100%);
+}
+
+.open-issues-prototype-status-editor input {
+  background: var(--surface);
+  border: 1px solid var(--border-3);
+  border-radius: 5px;
+  color: var(--text);
+  flex: 1 1 240px;
+  font: inherit;
   font-size: 12px;
-  font-weight: 700;
-  gap: 6px;
-  margin-top: 10px;
+  min-height: 32px;
+  min-width: 160px;
+  padding: 5px 8px;
+}
+
+.open-issues-prototype-status-editor input:hover,
+.open-issues-prototype-status-editor input:focus {
+  border-color: var(--brand);
+  outline: none;
 }
 
 .open-issues-prototype-editor {

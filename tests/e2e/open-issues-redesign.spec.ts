@@ -74,13 +74,16 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await row.getByRole("button", { name: "Expand", exact: true }).click();
   await expect(row.getByRole("button", { name: "Collapse", exact: true })).toHaveText("");
   const actionRow = page.locator(".open-issues-prototype-actions-row").first();
-  for (const action of ["Status", "Section", "Due date", "Phase", "Link risk", "To problem", "Close", "History"]) {
+  for (const action of ["Section", "Due date", "Phase", "Link risk", "To problem", "Close", "History"]) {
     await expect(actionRow.getByRole("button", { name: new RegExp(`^${action}`) })).toBeVisible();
   }
+  await expect(actionRow.getByRole("button", { name: "Status", exact: true })).toHaveCount(0);
+  const actionBar = actionRow.locator(".open-issues-prototype-action-bar");
+  await expect(actionBar.locator(":scope > .open-issues-prototype-status-editor")).toBeVisible();
+  expect(await actionBar.evaluate((element) => element.lastElementChild?.classList.contains("open-issues-prototype-status-editor"))).toBe(true);
   const actionsHeader = page.locator(".open-issues-prototype-table thead th").last();
   await expect(actionsHeader).toHaveText("");
   expect((await actionsHeader.boundingBox())!.width).toBeLessThan(100);
-  await actionRow.getByRole("button", { name: "Status", exact: true }).click();
   await actionRow.getByLabel("New status text").fill("Status update from prototype");
   await actionRow.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => statusPayload).toEqual({ text: "Status update from prototype" });
