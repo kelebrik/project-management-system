@@ -33,3 +33,34 @@ export function normalizeOpenIssueColumnWidths(
 export function openIssueTableWidth(widths: OpenIssueColumnWidths) {
   return OPEN_ISSUE_COLUMNS.reduce((total, column) => total + widths[column.key], 0);
 }
+
+export const OPEN_ISSUES_PROTOTYPE_COLUMNS = [
+  { key: "number", labelKey: "ui.projects.issueColumnNumber", width: 54, min: 44, max: 72 },
+  { key: "task", labelKey: "ui.projects.issueColumnTask", width: 360, min: 240, max: 640 },
+  { key: "status", labelKey: "ui.projects.issueColumnStatus", width: 300, min: 230, max: 560 },
+  { key: "owner", labelKey: "ui.projects.issueColumnOwner", width: 170, min: 120, max: 320 },
+  { key: "readiness", labelKey: "ui.projects.issueColumnReadiness", width: 120, min: 96, max: 180 },
+  { key: "actions", labelKey: "ui.projects.openIssuesPrototypeActions", width: 150, min: 128, max: 240 },
+] as const satisfies readonly {
+  key: string;
+  labelKey: SimpleTranslationKey;
+  width: number;
+  min: number;
+  max: number;
+}[];
+
+export type OpenIssuesPrototypeColumnKey = (typeof OPEN_ISSUES_PROTOTYPE_COLUMNS)[number]["key"];
+export type OpenIssuesPrototypeColumnWidths = Record<OpenIssuesPrototypeColumnKey, number>;
+
+export function normalizeOpenIssuesPrototypeColumnWidths(
+  value?: Partial<Record<OpenIssuesPrototypeColumnKey, number>>,
+): OpenIssuesPrototypeColumnWidths {
+  return Object.fromEntries(OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => [
+    column.key,
+    Math.min(column.max, Math.max(column.min, Number(value?.[column.key]) || column.width)),
+  ])) as OpenIssuesPrototypeColumnWidths;
+}
+
+export function openIssuesPrototypeTableWidth(widths: OpenIssuesPrototypeColumnWidths) {
+  return OPEN_ISSUES_PROTOTYPE_COLUMNS.reduce((total, column) => total + widths[column.key], 0);
+}

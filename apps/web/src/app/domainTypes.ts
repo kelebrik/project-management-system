@@ -12,7 +12,7 @@ import type {
   WbsTableColumnKey,
 } from "./wbsTable";
 import type { CurrentWorkColumnKey } from "./currentWorkTable";
-import type { OpenIssueColumnKey } from "./openIssueTable";
+import type { OpenIssueColumnKey, OpenIssuesPrototypeColumnKey } from "./openIssueTable";
 
 export type {
   IssueSeverity,
@@ -168,6 +168,7 @@ export type ProjectUiState = {
   wbsSort?: WbsSortState | null;
   currentWorkColumnWidths?: Partial<Record<CurrentWorkColumnKey, number>>;
   openIssueColumnWidths?: Partial<Record<OpenIssueColumnKey, number>>;
+  openIssuesPrototypeColumnWidths?: Partial<Record<OpenIssuesPrototypeColumnKey, number>>;
   ganttPanelHeight?: number;
   ganttPanelWidth?: number;
   ganttWbsWidth?: number;

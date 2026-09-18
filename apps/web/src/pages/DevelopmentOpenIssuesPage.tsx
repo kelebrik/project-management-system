@@ -1,14 +1,19 @@
-import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, Clock3, ExternalLink, History, Link2, Save, ShieldAlert, Tag, X } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { CalendarDays, Check, ChevronDown, ChevronUp, CircleAlert, Clock3, ExternalLink, History, Link2, Save, ShieldAlert, Tag, X } from "lucide-react";
+import { Fragment, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
+import {
+  OPEN_ISSUES_PROTOTYPE_COLUMNS,
+  normalizeOpenIssuesPrototypeColumnWidths,
+  openIssuesPrototypeTableWidth,
+  type OpenIssuesPrototypeColumnKey,
+} from "../app/openIssueTable";
 import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
 type ActionKey = "section" | "due" | "phase" | "risk" | "history";
-type InlineField = "title" | "status" | "owner" | "readiness";
+type InlineField = "title" | "owner" | "readiness";
 
-const issueStatusOptions = ["Open", "In Progress", "Blocked", "Resolved", "Closed"] as const;
 const readinessLabelKeys = {
   RED: "ui.projects.issueReadinessRed",
   AMBER: "ui.projects.issueReadinessAmber",
@@ -26,19 +31,26 @@ export function DevelopmentOpenIssuesPage() {
   const {
     closeOpenIssue,
     convertIssueToProblem,
+    addIssueStatusUpdate,
     date,
     isReadOnly,
+    issueStatusDrafts,
     project,
+    saveProjectUiState,
     saveOpenIssueWithPayload,
     setError,
     setNotice,
     issueEditDrafts,
     updateIssueDraft,
+    updateIssueStatusDraft,
   } = usePageContext();
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<{ issueId: string; action: ActionKey } | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [savingFields, setSavingFields] = useState<Set<string>>(() => new Set());
+  const [columnWidthOverrides, setColumnWidthOverrides] = useState<
+    Record<string, ReturnType<typeof normalizeOpenIssuesPrototypeColumnWidths>>
+  >({});
 
   const issues = useMemo(
     () => [...(project.issues as Issue[])].sort((left, right) => (
@@ -60,6 +72,41 @@ export function DevelopmentOpenIssuesPage() {
     () => [...new Set((project.issues as Issue[]).map((issue) => issue.category.trim()).filter(Boolean))],
     [project.issues],
   );
+  const storedColumnWidths = useMemo(
+    () => normalizeOpenIssuesPrototypeColumnWidths(project.uiState?.openIssuesPrototypeColumnWidths),
+    [project.uiState?.openIssuesPrototypeColumnWidths],
+  );
+  const columnWidths = columnWidthOverrides[project.id] ?? storedColumnWidths;
+  const tableWidth = openIssuesPrototypeTableWidth(columnWidths);
+
+  const startColumnResize = (
+    columnKey: OpenIssuesPrototypeColumnKey,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    const column = OPEN_ISSUES_PROTOTYPE_COLUMNS.find((candidate) => candidate.key === columnKey)!;
+    const startX = event.clientX;
+    const startWidth = columnWidths[columnKey];
+    let latestWidths = columnWidths;
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const nextWidth = Math.min(
+        column.max,
+        Math.max(column.min, startWidth + moveEvent.clientX - startX),
+      );
+      latestWidths = { ...latestWidths, [columnKey]: nextWidth };
+      setColumnWidthOverrides((current) => ({ ...current, [project.id]: latestWidths }));
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      if (isReadOnly) return;
+      void saveProjectUiState({ openIssuesPrototypeColumnWidths: latestWidths }).catch((error: unknown) =>
+        setError(error instanceof Error ? error.message : t("ui.projects.issueColumnWidthSaveFailed")),
+      );
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  };
 
   const getDraft = (issue: Issue): IssueEditDraft =>
     (issueEditDrafts[issue.id] as IssueEditDraft | undefined) ?? issueToDraft(issue);
@@ -85,6 +132,24 @@ export function DevelopmentOpenIssuesPage() {
     setSavingFields((current) => new Set(current).add(key));
     try {
       const result = await saveOpenIssueWithPayload(issue.id, { [field]: normalizedValue }, { quiet: true, refresh: false });
+      if (!result.ok) setError(result.error);
+      else setNotice(t("ui.projects.openIssuesPrototypeSaved"));
+    } finally {
+      setSavingFields((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  const saveStatusUpdate = async (issue: Issue) => {
+    const key = `${issue.id}:statusUpdate`;
+    const draft = issueStatusDrafts[issue.id] ?? { text: "" };
+    if (!draft.text.trim()) return;
+    setSavingFields((current) => new Set(current).add(key));
+    try {
+      const result = await addIssueStatusUpdate(issue.id, { quiet: true, refresh: false });
       if (!result.ok) setError(result.error);
       else setNotice(t("ui.projects.openIssuesPrototypeSaved"));
     } finally {
@@ -225,15 +290,28 @@ export function DevelopmentOpenIssuesPage() {
       </div>
       {issues.length === 0 ? <div className="empty-state">{t("ui.projects.noOpenQuestions")}</div> : (
         <div className="open-issues-prototype-table-shell">
-          <table className="open-issues-prototype-table">
+          <table
+            className="open-issues-prototype-table"
+            style={{ width: tableWidth, minWidth: tableWidth } as CSSProperties}
+          >
+            <colgroup>
+              {OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => (
+                <col style={{ width: columnWidths[column.key] }} key={column.key} />
+              ))}
+            </colgroup>
             <thead>
               <tr>
-                <th scope="col">{t("ui.projects.issueColumnNumber")}</th>
-                <th scope="col">{t("ui.projects.issueColumnTask")}</th>
-                <th scope="col">{t("ui.projects.issueColumnStatus")}</th>
-                <th scope="col">{t("ui.projects.issueColumnOwner")}</th>
-                <th scope="col">{t("ui.projects.issueColumnReadiness")}</th>
-                <th scope="col" aria-label={t("ui.projects.openIssuesPrototypeActions")} />
+                {OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => (
+                  <th scope="col" key={column.key}>
+                    <span>{t(column.labelKey)}</span>
+                    <button
+                      type="button"
+                      className="open-issues-prototype-column-resizer"
+                      aria-label={t("ui.projects.issueResizeColumnAction", { column: t(column.labelKey) })}
+                      onPointerDown={(event) => startColumnResize(column.key, event)}
+                    />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -243,6 +321,9 @@ export function DevelopmentOpenIssuesPage() {
                 const phase = phases.find((item: { id: string }) => item.id === issue.phaseId);
                 const linkedRisk = risks.find((item: { id: string }) => item.id === issue.riskId);
                 const draft = getDraft(issue);
+                const latestStatus = sortedStatusUpdates(issue)[0];
+                const statusDraft = issueStatusDrafts[issue.id] ?? { text: "" };
+                const statusDate = latestStatus?.statusAt ?? issue.updatedAt ?? issue.createdAt ?? null;
                 const isSaving = (field: InlineField) => savingFields.has(`${issue.id}:${field}`);
                 return (
                   <Fragment key={issue.id}>
@@ -260,21 +341,44 @@ export function DevelopmentOpenIssuesPage() {
                         />
                         {issue.referenceLabel && <a href={issue.referenceUrl ?? "#"} className="open-issues-prototype-reference"><ExternalLink size={13} />{issue.referenceLabel}</a>}
                       </td>
-                      <td>
-                        <select
-                          className="open-issues-prototype-inline-select"
-                          value={draft.status}
-                          disabled={isReadOnly}
-                          aria-busy={isSaving("status")}
-                          onChange={(event) => {
-                            const status = event.target.value;
-                            updateDraft(issue, { status });
-                            void persistInlineField(issue, "status", status);
-                          }}
-                          aria-label={t("ui.projects.issueColumnStatus")}
+                      <td className="open-issues-prototype-status-cell">
+                        <div
+                          className="open-issues-prototype-status-readonly"
+                          role="textbox"
+                          aria-readonly="true"
+                          aria-label={t("ui.projects.currentIssueStatusLabel")}
                         >
-                          {issueStatusOptions.map((status) => <option value={status} key={status}>{labels.issueStatusLabel(status)}</option>)}
-                        </select>
+                          <time dateTime={statusDate ?? undefined}>
+                            {statusDate ? date(statusDate) : t("ui.projects.openIssuesPrototypeNoStatusDate")}
+                          </time>
+                          <strong>{labels.issueStatusLabel(issue.status)}</strong>
+                        </div>
+                        <div className="open-issues-prototype-status-entry">
+                          <input
+                            className="open-issues-prototype-inline-input"
+                            value={statusDraft.text}
+                            placeholder={t("ui.projects.addNewStatusAction")}
+                            disabled={isReadOnly}
+                            aria-busy={savingFields.has(`${issue.id}:statusUpdate`)}
+                            onChange={(event) => updateIssueStatusDraft(issue.id, { text: event.target.value })}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void saveStatusUpdate(issue);
+                              }
+                            }}
+                            aria-label={t("ui.projects.newStatusTextLabel")}
+                          />
+                          <button
+                            type="button"
+                            className="open-issues-prototype-status-save"
+                            aria-label={t("ui.projects.addStatusWithCurrentDateAction")}
+                            disabled={isReadOnly || !statusDraft.text.trim() || savingFields.has(`${issue.id}:statusUpdate`)}
+                            onClick={() => void saveStatusUpdate(issue)}
+                          >
+                            <Check size={15} />
+                          </button>
+                        </div>
                       </td>
                       <td>
                         <input

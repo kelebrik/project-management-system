@@ -483,6 +483,14 @@ export const projectsMessages = {
     "en": "No due date",
     "ru": "Срок не задан"
   },
+  "ui.projects.currentIssueStatusLabel": {
+    "en": "Current status",
+    "ru": "Текущий статус"
+  },
+  "ui.projects.openIssuesPrototypeNoStatusDate": {
+    "en": "No date",
+    "ru": "Нет даты"
+  },
   "ui.projects.questionTitleColumn": {
     "en": "Issue title",
     "ru": "Название вопроса"
