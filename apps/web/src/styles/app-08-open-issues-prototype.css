@@ -87,6 +87,18 @@
   background: var(--surface);
 }
 
+.open-issues-prototype-group-heading > th {
+  background: var(--surface-3);
+  border-bottom-color: var(--border-strong);
+  border-right: 0;
+  color: var(--text-heading);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  padding: 8px 12px;
+  text-align: center;
+}
+
 .open-issues-prototype-row.is-expanded td {
   border-bottom-color: transparent;
 }

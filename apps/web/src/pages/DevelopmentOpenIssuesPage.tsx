@@ -58,6 +58,14 @@ export function DevelopmentOpenIssuesPage() {
     )),
     [project.issues],
   );
+  const issueGroups = useMemo(() => {
+    const groups = new Map<string, Issue[]>();
+    for (const issue of issues) {
+      const category = issue.category.trim() || t("ui.projects.issueNoSection");
+      groups.set(category, [...(groups.get(category) ?? []), issue]);
+    }
+    return [...groups.entries()];
+  }, [issues, t]);
   const phases = useMemo(
     () => project.wbsItems.filter((item: { type: string }) => item.type === "PHASE"),
     [project.wbsItems],
@@ -328,8 +336,12 @@ export function DevelopmentOpenIssuesPage() {
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {issues.map((issue, index) => {
+            {issueGroups.map(([category, groupIssues]) => (
+              <tbody className="open-issues-prototype-group" key={category} aria-label={category}>
+                <tr className="open-issues-prototype-group-heading">
+                  <th colSpan={OPEN_ISSUES_PROTOTYPE_COLUMNS.length} scope="rowgroup">{category}</th>
+                </tr>
+              {groupIssues.map((issue, index) => {
                 const expanded = expandedIssueId === issue.id;
                 const action = activeAction?.issueId === issue.id ? activeAction.action : null;
                 const phase = phases.find((item: { id: string }) => item.id === issue.phaseId);
@@ -457,7 +469,8 @@ export function DevelopmentOpenIssuesPage() {
                   </Fragment>
                 );
               })}
-            </tbody>
+              </tbody>
+            ))}
           </table>
         </div>
       )}

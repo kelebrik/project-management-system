@@ -37,6 +37,7 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await page.goto("/development/open-issues-redesign");
   await page.getByTestId("language-toggle").click();
   await expect(page.getByRole("heading", { name: "Questions", exact: true })).toBeVisible();
+  await expect(page.getByRole("rowgroup", { name: "Организационные задачи" })).toBeVisible();
 
   const row = page.locator(".open-issues-prototype-row").first();
   await expect(row.getByLabel("Issue title")).toBeEditable();
@@ -97,6 +98,8 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await sectionInput.fill("Раздел после редактирования");
   await sectionInput.press("Tab");
   await expect.poll(() => issuePatch).toEqual({ category: "Раздел после редактирования" });
+  await expect(page.getByRole("rowgroup", { name: "Раздел после редактирования" })).toBeVisible();
+  await expect(page.getByRole("rowgroup", { name: "Организационные задачи" })).toHaveCount(0);
   await actionRow.getByRole("button", { name: "Due date", exact: true }).click();
   await expect(actionRow.getByLabel("Due date")).toBeEditable();
 });
