@@ -160,8 +160,8 @@ export const navigation = {
     "ru": "Рабочий стол PM"
   },
   "view.open-issues-redesign": {
-    "en": "Open issues — new design",
-    "ru": "Открытые вопросы — новый дизайн"
+    "en": "Questions",
+    "ru": "Вопросы"
   },
   "view.decision-queue": {
     "en": "Decision queue",

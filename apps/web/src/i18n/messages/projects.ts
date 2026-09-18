@@ -416,8 +416,8 @@ export const projectsMessages = {
     "ru": "Открытые вопросы проекта с редактированием полей в таблице"
   },
   "ui.projects.openIssuesPrototypeTitle": {
-    "en": "Open issues",
-    "ru": "Открытые вопросы"
+    "en": "Questions",
+    "ru": "Вопросы"
   },
   "ui.projects.openIssuesPrototypeDescription": {
     "en": "A compact issue register with row actions and history",
