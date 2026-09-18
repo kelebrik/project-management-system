@@ -184,6 +184,14 @@
   white-space: nowrap;
 }
 
+.open-issues-prototype-row.is-expanded .open-issues-prototype-status-text {
+  align-items: flex-start;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .open-issues-prototype-inline-input,
 .open-issues-prototype-inline-select {
   background: var(--surface);

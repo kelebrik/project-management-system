@@ -221,6 +221,16 @@ export function DevelopmentOpenIssuesPage() {
               value={draftValues[`${issue.id}:section`] ?? getDraft(issue).category}
               disabled={isReadOnly}
               onChange={(event) => setDraftValues((current) => ({ ...current, [`${issue.id}:section`]: event.target.value }))}
+              onBlur={() => {
+                const value = draftValues[`${issue.id}:section`] ?? getDraft(issue).category;
+                if (value.trim() && value !== getDraft(issue).category) void saveAction(issue, "section");
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void saveAction(issue, "section");
+                }
+              }}
             />
           </label>
           <button type="button" onClick={() => void saveAction(issue, action)} disabled={isReadOnly}><Save size={15} />{t("ui.projects.openIssuesPrototypeSave")}</button>

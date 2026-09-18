@@ -4,8 +4,10 @@ import { mockAdminProject } from "./overview-and-baseline.support";
 test("questions prototype exposes editable fields and expanded actions", async ({ page }) => {
   const project = await mockAdminProject(page, (fixture) => {
     fixture.issues[0].readiness = "GREEN";
+    fixture.issues[0].statusUpdates[0].text = `Решение вынесено на комитет ${"длинный текст статуса ".repeat(24)}`;
   });
   let uiStatePatch: Record<string, unknown> | null = null;
+  let issuePatch: Record<string, unknown> | null = null;
   let statusPayload: Record<string, unknown> | null = null;
   await page.route("**/api/projects/project-1", async (route) => {
     if (route.request().method() === "PATCH") {
@@ -15,6 +17,7 @@ test("questions prototype exposes editable fields and expanded actions", async (
   });
   await page.route("**/api/open-issues/issue-1", async (route) => {
     const patch = route.request().postDataJSON() as Record<string, unknown>;
+    issuePatch = patch;
     await route.fulfill({ json: { ...project.issues[0], ...patch } });
   });
   await page.route("**/api/open-issues/issue-1/status-updates", async (route) => {
@@ -73,6 +76,7 @@ test("questions prototype exposes editable fields and expanded actions", async (
 
   await row.getByRole("button", { name: "Expand", exact: true }).click();
   await expect(row.getByRole("button", { name: "Collapse", exact: true })).toHaveText("");
+  expect((await row.getByLabel("Current status").boundingBox())!.height).toBeGreaterThan(32);
   const actionRow = page.locator(".open-issues-prototype-actions-row").first();
   for (const action of ["Section", "Due date", "Phase", "Link risk", "To problem", "Close", "History"]) {
     await expect(actionRow.getByRole("button", { name: new RegExp(`^${action}`) })).toBeVisible();
@@ -88,7 +92,11 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await actionRow.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => statusPayload).toEqual({ text: "Status update from prototype" });
   await actionRow.getByRole("button", { name: "Section", exact: true }).click();
-  await expect(actionRow.getByLabel("Section")).toBeEditable();
+  const sectionInput = actionRow.getByLabel("Section");
+  await expect(sectionInput).toBeEditable();
+  await sectionInput.fill("Раздел после редактирования");
+  await sectionInput.press("Tab");
+  await expect.poll(() => issuePatch).toEqual({ category: "Раздел после редактирования" });
   await actionRow.getByRole("button", { name: "Due date", exact: true }).click();
   await expect(actionRow.getByLabel("Due date")).toBeEditable();
 });
