@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: migrate
-          image: registry.example.corp/project-management-system:latest
+          image: project-management-system:latest
           imagePullPolicy: IfNotPresent
           command: ["node", "/app/node_modules/prisma/build/index.js", "migrate", "deploy"]
           envFrom:

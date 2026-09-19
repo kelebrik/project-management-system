@@ -1,6 +1,6 @@
 # Project Management System
 
-Corporate project management system with PM web UI, admin back office scope, Jira issue synchronization, open issues list, and executive overview generation for top management.
+Project management system with a PM web UI, administration, Jira issue synchronization, open issues, WBS/Gantt planning, and executive reporting.
 
 ## Open Source and License
 
@@ -21,7 +21,8 @@ The public repository contains application code and deployment templates only. C
 - WBS/Gantt planning: hierarchy, milestones, dependency links, month scale, today marker, collapse/expand tree, and critical path highlighting.
 - Executive Overview deterministic generation, evidence list, versioning, and publish action.
 - Render blueprint in `render.yaml`.
-- Docker image and `docker-compose.yml` for corporate deployment.
+- Portable Docker image and `docker-compose.yml` for self-hosting.
+- Kubernetes manifests with secure defaults.
 - Detailed technical specification in `docs/TZ.md`.
 
 ## Local Development
@@ -84,7 +85,7 @@ Jira remains the operational Kanban/Scrum system. This application does not dupl
 
 ## Docker Deployment
 
-Corporate container deployment is described in `docs/docker-deployment.md`.
+Container deployment is described in `docs/docker-deployment.md`.
 
 Short local compose command:
 

@@ -102,11 +102,9 @@ npx playwright install chromium
 Файлы:
 
 - `Dockerfile` - один контейнер приложения: API + собранный Web UI;
-- `docker-compose.yml` - приложение + PostgreSQL + отдельный `migrate` job + ops-профили backup/restore;
-- `.gitlab-ci.yml` - CI для GitLab/Sber Git.
-- `deploy/k8s/project-management-system.yaml` - restricted Kubernetes manifest для корпоративного контура.
+- `docker-compose.yml` - приложение + PostgreSQL + ops-профили backup/restore;
+- `deploy/k8s/project-management-system.yaml` - Kubernetes manifest с безопасными настройками контейнера;
 - `deploy/k8s/project-management-system-migrate-job.yaml` - one-shot Job для `prisma migrate deploy` перед rollout приложения.
-- `docs/sber-k8s-deployment.md` - checklist для DevOps по Sber Git/Kubernetes policies.
 
 Локальный запуск:
 
@@ -243,13 +241,12 @@ npm run migration:dry-run
 docker build -t project-management-system:release .
 ```
 
-Для корпоративного registry:
+Для публикации образа в registry:
 
 ```bash
 docker build \
-  --build-arg NODE_IMAGE=<approved-registry>/platform/node-pms-ci:24 \
-  --build-arg NPM_VERSION=11.18.0 \
-  -t <approved-registry>/project-management-system/app:release \
+  --build-arg NODE_IMAGE=node:24-bookworm-slim \
+  -t ghcr.io/<owner>/project-management-system:release \
   .
 ```
 
@@ -265,5 +262,5 @@ docker build \
 - настроить Jira через переменные окружения контейнера;
 - выпустить API token для интеграций, если нужен machine-to-machine доступ;
 - настроить webhook endpoints для корпоративных потребителей событий;
-- выполнить migration job отдельно от старта приложения: `node /app/node_modules/prisma/build/index.js migrate deploy`, compose `migrate` service или Kubernetes Job;
+- применить миграции через container entrypoint или отдельный Kubernetes Job до переключения production-трафика;
 - выполнить `npm run smoke:security` и `npm run smoke:performance` после деплоя.

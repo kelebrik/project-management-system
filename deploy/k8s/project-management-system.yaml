@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: app
-          image: registry.example.corp/project-management-system:latest
+          image: project-management-system:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

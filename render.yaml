@@ -14,11 +14,11 @@ services:
       - key: NPM_CONFIG_PRODUCTION
         value: "false"
       - key: WEB_ORIGIN
-        value: "https://project-management-system-lorj.onrender.com"
+        sync: false
       - key: PUBLIC_DEMO_MODE
-        value: "true"
+        value: "false"
       - key: LOCAL_AUTH_EMAIL
-        value: "kelebrik@gmail.com"
+        sync: false
       - key: LOCAL_AUTH_BOOTSTRAP_PASSWORD
         sync: false
       - key: PAGE_VISIT_RETENTION_DAYS

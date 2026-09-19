@@ -1,6 +1,6 @@
 # Docker Deployment
 
-Контейнер приложения содержит backend и собранный web frontend. PostgreSQL можно поднять отдельным контейнером через `docker-compose.yml` или подключить внешнюю корпоративную БД через `DATABASE_URL`.
+Контейнер приложения содержит backend и собранный web frontend. PostgreSQL можно поднять отдельным контейнером через `docker-compose.yml` или подключить внешнюю БД через `DATABASE_URL`.
 
 ## Вариант 1. Приложение + PostgreSQL в compose
 
@@ -8,7 +8,8 @@
 docker compose up -d --build
 ```
 
-Приложение будет доступно на `http://localhost:3000`. В compose миграции выполняет отдельный one-shot сервис `migrate`; API-контейнер стартует только после успешного `prisma migrate deploy`.
+Приложение будет доступно на `http://localhost:3000`. Перед запуском API
+entrypoint контейнера автоматически выполняет `prisma migrate deploy`.
 
 ## Вариант 2. Только контейнер приложения, БД снаружи
 
@@ -31,18 +32,52 @@ docker run -d \
 
 Для HTTPS за reverse proxy рекомендуется выставить `AUTH_COOKIE_SECURE=true`.
 
-В корпоративном Kubernetes вместо публичного Docker Hub образа можно подставить разрешенный базовый образ:
+При необходимости базовый Node.js image можно заменить через build argument:
 
 ```bash
 docker build \
-  --build-arg NODE_IMAGE=<approved-registry>/platform/node-pms-ci:24 \
-  --build-arg NPM_VERSION=11.18.0 \
-  -t <approved-registry>/project-management-system/app:latest \
+  --build-arg NODE_IMAGE=node:24-bookworm-slim \
+  -t ghcr.io/<owner>/project-management-system:latest \
   .
 ```
 
-Манифест для restricted Kubernetes лежит в `deploy/k8s/project-management-system.yaml`.
-Подробности для Sber Git/Kubernetes: `docs/sber-k8s-deployment.md`.
+Универсальные Kubernetes-манифесты лежат в `deploy/k8s`. Перед применением
+замените `image: project-management-system:latest` на адрес образа в вашем
+registry и создайте secret `project-management-system-secrets`.
+
+## Kubernetes
+
+Соберите и опубликуйте образ в доступном вашему кластеру registry, затем укажите
+этот адрес в обоих файлах из `deploy/k8s`.
+
+Создайте secret с обязательными настройками:
+
+```bash
+kubectl create secret generic project-management-system-secrets \
+  --from-literal=DATABASE_URL='postgresql://user:password@host:5432/db?schema=public' \
+  --from-literal=WEB_ORIGIN='https://pms.example.com' \
+  --from-literal=AUTH_COOKIE_SECURE='true' \
+  --from-literal=METRICS_TOKEN='<random-secret>'
+```
+
+Для первого запуска примените основной manifest. Контейнер выполнит
+`prisma migrate deploy` через entrypoint перед стартом API:
+
+```bash
+kubectl apply -f deploy/k8s/project-management-system.yaml
+kubectl rollout status deployment/project-management-system
+```
+
+Для обновлений можно заранее выполнить миграции отдельным Job, а затем обновить
+Deployment. ServiceAccount из основного manifest к этому моменту уже должен
+существовать:
+
+```bash
+kubectl delete job project-management-system-migrate --ignore-not-found
+kubectl apply -f deploy/k8s/project-management-system-migrate-job.yaml
+kubectl wait --for=condition=complete job/project-management-system-migrate --timeout=300s
+kubectl apply -f deploy/k8s/project-management-system.yaml
+```
 
 Финальный runtime-образ не содержит глобальный npm. Миграции и API запускаются
 напрямую через Node.js; npm используется только на стадиях установки и сборки.

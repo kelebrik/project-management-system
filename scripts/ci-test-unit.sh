@@ -4,9 +4,9 @@ set -eu
 REPORTS_DIR="${REPORTS_DIR:-reports}"
 mkdir -p "$REPORTS_DIR/coverage"
 
-scripts/ci-npm.sh run build --workspace @pms/shared
+npm run build --workspace @pms/shared
 
-scripts/ci-npm.sh exec -- c8 \
+npx --no-install c8 \
   --reporter=cobertura \
   --reporter=text-summary \
   --report-dir="$REPORTS_DIR/coverage" \

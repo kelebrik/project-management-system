@@ -4,17 +4,18 @@ Recommended path: use Render Blueprint with `render.yaml`.
 
 ## Blueprint
 
-1. Push this repository to GitHub.
+1. Fork or copy this repository to your GitHub account.
 2. In Render, choose **New > Blueprint**.
-3. Connect `kelebrik/project-management-system`.
+3. Connect your copy of the repository.
 4. Confirm the web service and PostgreSQL database from `render.yaml`.
-5. Add Jira secrets after creation if needed.
+5. Set `WEB_ORIGIN`, `LOCAL_AUTH_EMAIL`, and `LOCAL_AUTH_BOOTSTRAP_PASSWORD`.
+6. Add Jira secrets after creation if needed.
 
 ## Manual Web Service Settings
 
 - Service type: Web Service
 - Runtime: Node
-- Repository: `https://github.com/kelebrik/project-management-system`
+- Repository: your fork or copy of this repository
 - Branch: `main`
 - Root directory: empty
 - Build command: `npm run render-build`

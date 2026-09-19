@@ -2,8 +2,6 @@ services:
   app:
     build:
       context: .
-      args:
-        CI_JOB_TOKEN: ${CI_JOB_TOKEN:-}
     image: project-management-system:local
     env_file:
       - .env
