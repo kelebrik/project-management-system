@@ -39,6 +39,7 @@ export const OPEN_ISSUES_PROTOTYPE_COLUMNS = [
   { key: "task", labelKey: "ui.projects.issueColumnTask", width: 360, min: 240, max: 640 },
   { key: "status", labelKey: "ui.projects.issueColumnStatus", width: 300, min: 230, max: Number.MAX_SAFE_INTEGER },
   { key: "owner", labelKey: "ui.projects.issueColumnOwner", width: 170, min: 120, max: 320 },
+  { key: "priority", labelKey: "ui.projects.issueColumnPriority", width: 130, min: 100, max: 260 },
   { key: "readiness", labelKey: "ui.projects.issueColumnReadiness", width: 120, min: 96, max: 180 },
   { key: "actions", labelKey: "ui.projects.openIssuesPrototypeActions", width: 64, min: 56, max: 96 },
 ] as const satisfies readonly {

@@ -4,11 +4,28 @@ import { mockAdminProject } from "./overview-and-baseline.support";
 test("questions prototype exposes editable fields and expanded actions", async ({ page }) => {
   const project = await mockAdminProject(page, (fixture) => {
     fixture.issues[0].readiness = "GREEN";
+    fixture.issues[0].jiraTicketKey = "TV-123";
+    fixture.issues[0].jiraTicketUrl = "https://jira.example.test/browse/TV-123";
     fixture.issues[0].statusUpdates[0].text = `Решение вынесено на комитет ${"длинный текст статуса ".repeat(24)}`;
+    fixture.closedIssues = [{
+      ...fixture.issues[0],
+      id: "closed-issue-1",
+      title: "Closed issue",
+      status: "Resolved",
+      statusUpdates: [{
+        id: "closed-status-1",
+        issueId: "closed-issue-1",
+        statusAt: "2026-09-18T10:00:00.000Z",
+        text: "Issue resolved",
+        createdAt: "2026-09-18T10:00:00.000Z",
+        updatedAt: "2026-09-18T10:00:00.000Z",
+      }],
+    }];
   });
   let uiStatePatch: Record<string, unknown> | null = null;
   let issuePatch: Record<string, unknown> | null = null;
   let statusPayload: Record<string, unknown> | null = null;
+  let threadPayload: Record<string, unknown> | null = null;
   await page.route("**/api/projects/project-1", async (route) => {
     if (route.request().method() === "PATCH") {
       uiStatePatch = route.request().postDataJSON() as Record<string, unknown>;
@@ -33,11 +50,27 @@ test("questions prototype exposes editable fields and expanded actions", async (
       },
     });
   });
+  await page.route("**/api/open-issues/issue-1/thread-links", async (route) => {
+    threadPayload = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 201,
+      json: {
+        id: "thread-link-new",
+        issueId: "issue-1",
+        threadUrl: threadPayload.threadUrl,
+        createdAt: new Date().toISOString(),
+      },
+    });
+  });
 
   await page.goto("/issues");
   await page.getByTestId("language-toggle").click();
   await expect(page.getByRole("heading", { name: "Questions", exact: true })).toBeVisible();
-  await expect(page.getByRole("rowgroup", { name: "Организационные задачи" })).toBeVisible();
+  const openTable = page.locator(".open-issues-prototype-table").first();
+  await expect(openTable.getByRole("rowgroup", { name: "Организационные задачи" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Previously closed issues", exact: true })).toBeVisible();
+  const closedRow = page.locator("#closed-issue-item-closed-issue-1");
+  await expect(closedRow).toContainText("Closed issue");
 
   const row = page.locator(".open-issues-prototype-row").first();
   await expect(row.getByLabel("Issue title")).toBeEditable();
@@ -46,6 +79,7 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await expect(row.getByLabel("Current status")).toHaveAttribute("aria-readonly", "true");
   await expect(row.getByLabel("Current status")).toContainText("Решение вынесено на комитет");
   await expect(row.getByLabel("Owner")).toBeEditable();
+  await expect(row.getByLabel("Priority")).toHaveValue("HIGH");
   await expect(row.getByLabel("Readiness")).toBeEditable();
   await expect(row.getByLabel("Issue section")).toHaveCount(0);
   await expect(row.getByLabel("Due date")).toHaveCount(0);
@@ -79,7 +113,7 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await expect(row.getByRole("button", { name: "Collapse", exact: true })).toHaveText("");
   expect((await row.getByLabel("Current status").boundingBox())!.height).toBeGreaterThan(32);
   const actionRow = page.locator(".open-issues-prototype-actions-row").first();
-  for (const action of ["Section", "Due date", "Phase", "Link risk", "To problem", "Close", "History"]) {
+  for (const action of ["Section", "Due date", "Phase", "Jira", "MM", "To problem", "Close", "History"]) {
     await expect(actionRow.getByRole("button", { name: new RegExp(`^${action}`) })).toBeVisible();
   }
   await expect(actionRow.getByRole("button", { name: "Status", exact: true })).toHaveCount(0);
@@ -89,6 +123,15 @@ test("questions prototype exposes editable fields and expanded actions", async (
   const actionsHeader = page.locator(".open-issues-prototype-table thead th").last();
   await expect(actionsHeader).toHaveText("");
   expect((await actionsHeader.boundingBox())!.width).toBeLessThan(100);
+  await actionRow.getByRole("button", { name: "Jira", exact: true }).click();
+  await expect(actionRow.getByLabel("Jira link")).toHaveValue("https://jira.example.test/browse/TV-123");
+  await actionRow.getByLabel("Jira link").fill("https://jira.example.test/browse/TV-456");
+  await actionRow.locator(".open-issues-prototype-editor").getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(() => issuePatch).toEqual({ jiraTicketKey: "TV-456" });
+  await actionRow.getByRole("button", { name: "MM", exact: true }).click();
+  await actionRow.getByLabel("MM link").fill("https://mm.sberdevices.ru/team/pl/abc/threads/def");
+  await actionRow.locator(".open-issues-prototype-editor").getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(() => threadPayload).toEqual({ threadUrl: "https://mm.sberdevices.ru/team/pl/abc/threads/def" });
   await actionRow.getByLabel("New status text").fill("Status update from prototype");
   await actionRow.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => statusPayload).toEqual({ text: "Status update from prototype" });
@@ -98,8 +141,23 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await sectionInput.fill("Раздел после редактирования");
   await sectionInput.press("Tab");
   await expect.poll(() => issuePatch).toEqual({ category: "Раздел после редактирования" });
-  await expect(page.getByRole("rowgroup", { name: "Раздел после редактирования" })).toBeVisible();
-  await expect(page.getByRole("rowgroup", { name: "Организационные задачи" })).toHaveCount(0);
+  await expect(openTable.getByRole("rowgroup", { name: "Раздел после редактирования" })).toBeVisible();
+  await expect(openTable.getByRole("rowgroup", { name: "Организационные задачи" })).toHaveCount(0);
   await actionRow.getByRole("button", { name: "Due date", exact: true }).click();
   await expect(actionRow.getByLabel("Due date")).toBeEditable();
+  await closedRow.getByRole("button", { name: "Expand", exact: true }).click();
+  await expect(page.locator(".open-issues-prototype-closed-detail-content")).toContainText("Resolved");
+});
+
+test("questions omit the default section heading when every issue is unsectioned", async ({ page }) => {
+  await mockAdminProject(page, (fixture) => {
+    fixture.issues.forEach((issue) => {
+      issue.category = "Без раздела";
+    });
+  });
+
+  await page.goto("/issues");
+  await page.getByTestId("language-toggle").click();
+  await expect(page.locator(".open-issues-prototype-table").first().locator(".open-issues-prototype-group-heading")).toHaveCount(0);
+  await expect(page.locator(".open-issues-prototype-row").first()).toBeVisible();
 });

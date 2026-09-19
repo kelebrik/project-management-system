@@ -447,6 +447,34 @@ export const projectsMessages = {
     "en": "Link risk",
     "ru": "Ссылка на риск"
   },
+  "ui.projects.openIssuesPrototypeJiraLink": {
+    "en": "Jira link",
+    "ru": "Ссылка на Jira"
+  },
+  "ui.projects.openIssuesPrototypeJiraPlaceholder": {
+    "en": "TV-123 or https://jira/...",
+    "ru": "TV-123 или https://jira/..."
+  },
+  "ui.projects.openIssuesPrototypeMattermostLink": {
+    "en": "MM link",
+    "ru": "Ссылка на MM"
+  },
+  "ui.projects.openIssuesPrototypeInvalidJiraLink": {
+    "en": "Enter a Jira key or Jira issue link",
+    "ru": "Укажите ключ Jira или ссылку на Jira тикет"
+  },
+  "ui.projects.openIssuesPrototypeLinkSaved": {
+    "en": "Link updated",
+    "ru": "Ссылка обновлена"
+  },
+  "ui.projects.closedQuestionsTableLabel": {
+    "en": "Closed issues table, horizontal scrolling available",
+    "ru": "Таблица закрытых вопросов, доступна горизонтальная прокрутка"
+  },
+  "ui.projects.closedAtLabel": {
+    "en": "Closed",
+    "ru": "Закрыт"
+  },
   "ui.projects.openIssuesPrototypeConvert": {
     "en": "To problem",
     "ru": "В проблему"
@@ -1262,6 +1290,10 @@ export const projectsMessages = {
   "ui.projects.issueColumnOwner": {
     "en": "Owner",
     "ru": "Отв."
+  },
+  "ui.projects.issueColumnPriority": {
+    "en": "Priority",
+    "ru": "Приоритет"
   },
   "ui.projects.issueColumnRisk": {
     "en": "Risks",

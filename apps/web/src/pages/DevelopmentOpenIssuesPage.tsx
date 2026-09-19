@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, History, Link2, Save, ShieldAlert, Tag, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, History, MessageSquare, Save, ShieldAlert, Tag, X } from "lucide-react";
 import { Fragment, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
@@ -11,8 +11,8 @@ import {
 import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
-type ActionKey = "section" | "due" | "phase" | "risk" | "history";
-type InlineField = "title" | "owner" | "readiness";
+type ActionKey = "section" | "due" | "phase" | "jira" | "mattermost" | "history";
+type InlineField = "title" | "owner" | "severity" | "readiness";
 
 const readinessLabelKeys = {
   RED: "ui.projects.issueReadinessRed",
@@ -32,7 +32,9 @@ export function DevelopmentOpenIssuesPage() {
     closeOpenIssue,
     convertIssueToProblem,
     addIssueStatusUpdate,
+    addIssueThreadLink,
     date,
+    emptyIssueForm,
     isReadOnly,
     issueStatusDrafts,
     project,
@@ -40,11 +42,14 @@ export function DevelopmentOpenIssuesPage() {
     saveOpenIssueWithPayload,
     setError,
     setNotice,
+    setIssueDrawerMode,
+    setIssueForm,
     issueEditDrafts,
     updateIssueDraft,
     updateIssueStatusDraft,
   } = usePageContext();
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
+  const [expandedClosedIssueId, setExpandedClosedIssueId] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<{ issueId: string; action: ActionKey } | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [savingFields, setSavingFields] = useState<Set<string>>(() => new Set());
@@ -58,23 +63,48 @@ export function DevelopmentOpenIssuesPage() {
     )),
     [project.issues],
   );
+  const noSectionLabel = t("ui.projects.issueNoSection");
   const issueGroups = useMemo(() => {
     const groups = new Map<string, Issue[]>();
     for (const issue of issues) {
-      const category = issue.category.trim() || t("ui.projects.issueNoSection");
+      const rawCategory = issue.category.trim();
+      const category = rawCategory && rawCategory !== "Без раздела" ? rawCategory : noSectionLabel;
       groups.set(category, [...(groups.get(category) ?? []), issue]);
     }
     return [...groups.entries()];
-  }, [issues, t]);
+  }, [issues, noSectionLabel]);
+  const hasNamedSection = useMemo(
+    () => issues.some((issue) => {
+      const category = issue.category.trim();
+      return category.length > 0 && category !== noSectionLabel && category !== "Без раздела";
+    }),
+    [issues, noSectionLabel],
+  );
+  const closedIssues = useMemo(
+    () => [...(project.closedIssues ?? [])].sort((left, right) => (
+      (right.updatedAt ?? right.dueDate ?? "").localeCompare(left.updatedAt ?? left.dueDate ?? "")
+    )),
+    [project.closedIssues],
+  );
+  const closedIssueGroups = useMemo(() => {
+    const groups = new Map<string, Issue[]>();
+    for (const issue of closedIssues) {
+      const rawCategory = issue.category.trim();
+      const category = rawCategory && rawCategory !== "Без раздела" ? rawCategory : noSectionLabel;
+      groups.set(category, [...(groups.get(category) ?? []), issue]);
+    }
+    return [...groups.entries()];
+  }, [closedIssues, noSectionLabel]);
+  const hasNamedClosedSection = useMemo(
+    () => closedIssues.some((issue) => {
+      const category = issue.category.trim();
+      return category.length > 0 && category !== noSectionLabel && category !== "Без раздела";
+    }),
+    [closedIssues, noSectionLabel],
+  );
   const phases = useMemo(
     () => project.wbsItems.filter((item: { type: string }) => item.type === "PHASE"),
     [project.wbsItems],
-  );
-  const risks = useMemo(
-    () => project.raidItems.filter((item: { type: string; status: string }) => (
-      item.type === "RISK" && !["CLOSED", "VALIDATED"].includes(item.status)
-    )),
-    [project.raidItems],
   );
   const categoryOptions = useMemo(
     () => [...new Set((project.issues as Issue[]).map((issue) => issue.category.trim()).filter(Boolean))],
@@ -180,18 +210,17 @@ export function DevelopmentOpenIssuesPage() {
     if (action === "section") setDraftValues((current) => ({ ...current, [`${issue.id}:section`]: getDraft(issue).category }));
     if (action === "due") setDraftValues((current) => ({ ...current, [`${issue.id}:due`]: getDraft(issue).dueDate }));
     if (action === "phase") setDraftValues((current) => ({ ...current, [`${issue.id}:phase`]: issue.phaseId ?? "" }));
-    if (action === "risk") setDraftValues((current) => ({ ...current, [`${issue.id}:risk`]: issue.riskId ?? "" }));
+    if (action === "jira") setDraftValues((current) => ({ ...current, [`${issue.id}:jira`]: issue.jiraTicketUrl ?? issue.jiraLinks[0]?.jiraUrl ?? issue.jiraTicketKey ?? issue.jiraLinks[0]?.jiraKey ?? "" }));
+    if (action === "mattermost") setDraftValues((current) => ({ ...current, [`${issue.id}:mattermost`]: issue.threadLinks[0]?.threadUrl ?? "" }));
   };
 
-  const saveAction = async (issue: Issue, action: "section" | "due" | "phase" | "risk") => {
+  const saveAction = async (issue: Issue, action: "section" | "due" | "phase") => {
     const value = draftValues[`${issue.id}:${action}`] ?? "";
     const payload = action === "section"
       ? { category: value }
       : action === "due"
         ? { dueDate: value || null }
-        : action === "phase"
-          ? { phaseId: value || null }
-          : { riskId: value || null };
+        : { phaseId: value || null };
     const result = await saveOpenIssueWithPayload(issue.id, payload, { quiet: true, refresh: action === "phase" });
     if (!result.ok) {
       setError(result.error);
@@ -200,9 +229,33 @@ export function DevelopmentOpenIssuesPage() {
     if (action === "section") updateDraft(issue, { category: value });
     if (action === "due") updateDraft(issue, { dueDate: value });
     if (action === "phase") updateDraft(issue, { phaseId: value });
-    if (action === "risk") updateDraft(issue, { riskId: value });
     setActiveAction(null);
     setNotice(t("ui.projects.openIssuesPrototypeSaved"));
+  };
+
+  const saveLink = async (issue: Issue, action: "jira" | "mattermost") => {
+    const value = (draftValues[`${issue.id}:${action}`] ?? "").trim();
+    if (!value) return;
+    if (action === "jira") {
+      const jiraKey = value.match(/\b[A-Z][A-Z0-9_]*-\d+\b/i)?.[0]?.toUpperCase();
+      if (!jiraKey) {
+        setError(t("ui.projects.openIssuesPrototypeInvalidJiraLink"));
+        return;
+      }
+      const result = await saveOpenIssueWithPayload(issue.id, { jiraTicketKey: jiraKey }, { quiet: true, refresh: true });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+    } else {
+      const result = await addIssueThreadLink(issue.id, value);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+    }
+    setActiveAction(null);
+    setNotice(t("ui.projects.openIssuesPrototypeLinkSaved"));
   };
 
   const renderEditor = (issue: Issue, action: ActionKey) => {
@@ -279,22 +332,53 @@ export function DevelopmentOpenIssuesPage() {
         </div>
       );
     }
-    return (
-      <div className="open-issues-prototype-editor">
-        <label>{t("ui.projects.linkedRiskLabel")}
-          <select
-            autoFocus
-            value={draftValues[`${issue.id}:risk`] ?? ""}
-            disabled={isReadOnly}
-            onChange={(event) => setDraftValues((current) => ({ ...current, [`${issue.id}:risk`]: event.target.value }))}
-          >
-            <option value="">{t("ui.projects.noLinkedRiskValue")}</option>
-            {risks.map((risk: { id: string; title: string }) => <option value={risk.id} key={risk.id}>{risk.title}</option>)}
-          </select>
-        </label>
-        <button type="button" onClick={() => void saveAction(issue, action)} disabled={isReadOnly}><Save size={15} />{t("ui.projects.openIssuesPrototypeSave")}</button>
-      </div>
-    );
+    if (action === "jira") {
+      return (
+        <div className="open-issues-prototype-editor">
+          <label>{t("ui.projects.openIssuesPrototypeJiraLink")}
+            <input
+              autoFocus
+              type="url"
+              value={draftValues[`${issue.id}:jira`] ?? ""}
+              placeholder={t("ui.projects.openIssuesPrototypeJiraPlaceholder")}
+              disabled={isReadOnly}
+              onChange={(event) => setDraftValues((current) => ({ ...current, [`${issue.id}:jira`]: event.target.value }))}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void saveLink(issue, "jira");
+                }
+              }}
+            />
+          </label>
+          <button type="button" onClick={() => void saveLink(issue, "jira")} disabled={isReadOnly || !(draftValues[`${issue.id}:jira`] ?? "").trim()}><Save size={15} />{t("ui.projects.openIssuesPrototypeSave")}</button>
+        </div>
+      );
+    }
+    if (action === "mattermost") {
+      return (
+        <div className="open-issues-prototype-editor">
+          <label>{t("ui.projects.openIssuesPrototypeMattermostLink")}
+            <input
+              autoFocus
+              type="url"
+              value={draftValues[`${issue.id}:mattermost`] ?? ""}
+              placeholder="https://mm.sberdevices.ru/..."
+              disabled={isReadOnly}
+              onChange={(event) => setDraftValues((current) => ({ ...current, [`${issue.id}:mattermost`]: event.target.value }))}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void saveLink(issue, "mattermost");
+                }
+              }}
+            />
+          </label>
+          <button type="button" onClick={() => void saveLink(issue, "mattermost")} disabled={isReadOnly || !(draftValues[`${issue.id}:mattermost`] ?? "").trim()}><Save size={15} />{t("ui.projects.openIssuesPrototypeSave")}</button>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -304,7 +388,7 @@ export function DevelopmentOpenIssuesPage() {
           <h2>{t("ui.projects.openIssuesPrototypeTitle")}</h2>
           <p>{t("ui.projects.openIssuesPrototypeDescription")}</p>
         </div>
-        <span className="open-issues-prototype-count">{issues.length}</span>
+        <div className="open-issues-prototype-heading-actions"><span className="open-issues-prototype-count">{issues.length}</span><button type="button" onClick={() => { setIssueForm(emptyIssueForm); setIssueDrawerMode("create"); }}>{t("ui.projects.createIssue")}</button></div>
       </div>
       {issues.length === 0 ? <div className="empty-state">{t("ui.projects.noOpenQuestions")}</div> : (
         <div className="open-issues-prototype-table-shell">
@@ -336,16 +420,16 @@ export function DevelopmentOpenIssuesPage() {
                 ))}
               </tr>
             </thead>
-            {issueGroups.map(([category, groupIssues]) => (
-              <tbody className="open-issues-prototype-group" key={category} aria-label={category}>
-                <tr className="open-issues-prototype-group-heading">
+            {issueGroups.map(([category, groupIssues]) => {
+              const showGroupHeading = hasNamedSection || category !== noSectionLabel;
+              return <tbody className="open-issues-prototype-group" key={category} aria-label={showGroupHeading ? category : undefined}>
+                {showGroupHeading ? <tr className="open-issues-prototype-group-heading">
                   <th colSpan={OPEN_ISSUES_PROTOTYPE_COLUMNS.length} scope="rowgroup">{category}</th>
-                </tr>
+                </tr> : null}
               {groupIssues.map((issue, index) => {
                 const expanded = expandedIssueId === issue.id;
                 const action = activeAction?.issueId === issue.id ? activeAction.action : null;
                 const phase = phases.find((item: { id: string }) => item.id === issue.phaseId);
-                const linkedRisk = risks.find((item: { id: string }) => item.id === issue.riskId);
                 const draft = getDraft(issue);
                 const latestStatus = sortedStatusUpdates(issue)[0];
                 const statusDate = latestStatus?.statusAt ?? issue.updatedAt ?? issue.createdAt ?? null;
@@ -400,6 +484,25 @@ export function DevelopmentOpenIssuesPage() {
                           aria-label={t("ui.automation.owner")}
                         />
                       </td>
+                      <td className={`open-issues-prototype-priority-cell ${draft.severity.toLowerCase()}`}>
+                        <select
+                          className="open-issues-prototype-priority"
+                          value={draft.severity}
+                          disabled={isReadOnly}
+                          aria-busy={isSaving("severity")}
+                          onChange={(event) => {
+                            const severity = event.target.value as Issue["severity"];
+                            updateDraft(issue, { severity });
+                            void persistInlineField(issue, "severity", severity);
+                          }}
+                          aria-label={t("ui.projects.issueColumnPriority")}
+                        >
+                          <option value="LOW">{labels.issueSeverityLabel("LOW")}</option>
+                          <option value="MEDIUM">{labels.issueSeverityLabel("MEDIUM")}</option>
+                          <option value="HIGH">{labels.issueSeverityLabel("HIGH")}</option>
+                          <option value="CRITICAL">{labels.issueSeverityLabel("CRITICAL")}</option>
+                        </select>
+                      </td>
                       <td className={`open-issues-prototype-readiness-cell ${draft.readiness.toLowerCase()}`}>
                         <select
                           className="open-issues-prototype-readiness"
@@ -432,12 +535,13 @@ export function DevelopmentOpenIssuesPage() {
                         </button>
                       </td>
                     </tr>
-                    {expanded && <tr className="open-issues-prototype-actions-row" key={`${issue.id}-actions`}><td colSpan={6}>
+                    {expanded && <tr className="open-issues-prototype-actions-row" key={`${issue.id}-actions`}><td colSpan={OPEN_ISSUES_PROTOTYPE_COLUMNS.length}>
                       <div className="open-issues-prototype-action-bar">
                         <button type="button" className={action === "section" ? "active" : ""} onClick={() => toggleAction(issue, "section")}><Tag size={15} />{t("ui.projects.openIssuesPrototypeSection")}</button>
                         <button type="button" className={action === "due" ? "active" : ""} onClick={() => toggleAction(issue, "due")}><CalendarDays size={15} />{t("ui.automation.dueDate")}</button>
                         <button type="button" className={action === "phase" ? "active" : ""} onClick={() => toggleAction(issue, "phase")}><CircleAlert size={15} />{t("ui.projects.openIssuesPrototypePhase")}{phase ? ` · ${phase.code}` : ""}</button>
-                        <button type="button" className={action === "risk" ? "active" : ""} onClick={() => toggleAction(issue, "risk")}><Link2 size={15} />{t("ui.projects.openIssuesPrototypeRisk")}{linkedRisk ? ` · ${linkedRisk.title}` : ""}</button>
+                        <button type="button" className={action === "jira" ? "active" : ""} onClick={() => toggleAction(issue, "jira")}><ExternalLink size={15} />Jira</button>
+                        <button type="button" className={action === "mattermost" ? "active" : ""} onClick={() => toggleAction(issue, "mattermost")}><MessageSquare size={15} />MM</button>
                         <button type="button" onClick={() => void convertIssueToProblem(issue.id)} disabled={isReadOnly}><ShieldAlert size={15} />{t("ui.projects.openIssuesPrototypeConvert")}</button>
                         <button type="button" onClick={() => void closeOpenIssue(issue.id)} disabled={isReadOnly}><X size={15} />{t("ui.projects.openIssuesPrototypeClose")}</button>
                         <button type="button" className={action === "history" ? "active" : ""} onClick={() => toggleAction(issue, "history")}><History size={15} />{t("ui.projects.openIssuesPrototypeHistory")}</button>
@@ -469,11 +573,50 @@ export function DevelopmentOpenIssuesPage() {
                   </Fragment>
                 );
               })}
-              </tbody>
-            ))}
+              </tbody>;
+            })}
           </table>
         </div>
       )}
+      <section className="open-issues-prototype-closed" aria-labelledby="open-issues-prototype-closed-title">
+        <div className="open-issues-prototype-closed-heading">
+          <div><h3 id="open-issues-prototype-closed-title">{t("ui.projects.closedQuestionsSectionTitle")}</h3><p>{t("ui.projects.closedQuestionsSectionSubtitle")}</p></div>
+          <span className="open-issues-prototype-count">{closedIssues.length}</span>
+        </div>
+        {closedIssues.length === 0 ? <div className="empty-state">{t("ui.projects.noClosedQuestionsYet")}</div> : (
+          <div className="open-issues-prototype-table-shell" role="region" aria-label={t("ui.projects.closedQuestionsTableLabel")}>
+            <table className="open-issues-prototype-table open-issues-prototype-closed-table" style={{ width: tableWidth, minWidth: tableWidth } as CSSProperties}>
+              <colgroup>{OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => <col style={{ width: columnWidths[column.key] }} key={column.key} />)}</colgroup>
+              <thead><tr>{OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => <th scope="col" key={column.key} aria-label={column.key === "actions" ? t("ui.projects.openIssuesPrototypeActions") : undefined}>{column.key === "actions" ? null : <span>{t(column.labelKey)}</span>}</th>)}</tr></thead>
+              {closedIssueGroups.map(([category, groupIssues]) => {
+                const showGroupHeading = hasNamedClosedSection || category !== noSectionLabel;
+                return <tbody className="open-issues-prototype-group" key={category} aria-label={showGroupHeading ? category : undefined}>
+                  {showGroupHeading ? <tr className="open-issues-prototype-group-heading"><th colSpan={OPEN_ISSUES_PROTOTYPE_COLUMNS.length} scope="rowgroup">{category}</th></tr> : null}
+                  {groupIssues.map((issue, index) => {
+                    const expanded = expandedClosedIssueId === issue.id;
+                    const latestStatus = sortedStatusUpdates(issue)[0];
+                    const statusDate = latestStatus?.statusAt ?? issue.updatedAt ?? issue.createdAt ?? null;
+                    const jiraUrl = issue.jiraTicketUrl ?? issue.jiraLinks[0]?.jiraUrl;
+                    const threadUrl = issue.threadLinks[0]?.threadUrl;
+                    return <Fragment key={issue.id}>
+                      <tr className={`open-issues-prototype-row open-issues-prototype-closed-row ${expanded ? "is-expanded" : ""}`} id={`closed-issue-item-${issue.id}`}>
+                        <td className="open-issues-prototype-number">{index + 1}</td>
+                        <td><strong>{issue.title}</strong>{issue.referenceLabel ? <small>{issue.referenceLabel}</small> : null}</td>
+                        <td className="open-issues-prototype-status-cell"><div className="open-issues-prototype-status-fields"><time className="open-issues-prototype-status-date" dateTime={statusDate ?? undefined}>{statusDate ? date(statusDate) : t("ui.projects.openIssuesPrototypeNoStatusDate")}</time><div className="open-issues-prototype-status-text" title={latestStatus?.text ?? labels.issueStatusLabel(issue.status)}>{latestStatus?.text ?? labels.issueStatusLabel(issue.status)}</div></div></td>
+                        <td><span className="open-issues-prototype-closed-value">{issue.owner || t("ui.projects.notAssignedLowercase")}</span></td>
+                        <td className={`open-issues-prototype-priority-cell ${issue.severity.toLowerCase()}`}><span className="open-issues-prototype-priority-value">{labels.issueSeverityLabel(issue.severity)}</span></td>
+                        <td className={`open-issues-prototype-readiness-cell ${issue.readiness.toLowerCase()}`}><span className="open-issues-prototype-readiness-value">{t(readinessLabelKeys[issue.readiness])}</span></td>
+                        <td className="open-issues-prototype-expand-cell"><button type="button" className="open-issues-prototype-expand" aria-expanded={expanded} aria-label={expanded ? t("ui.projects.openIssuesPrototypeCollapse") : t("ui.projects.openIssuesPrototypeExpand")} title={expanded ? t("ui.projects.openIssuesPrototypeCollapse") : t("ui.projects.openIssuesPrototypeExpand")} onClick={() => setExpandedClosedIssueId((current) => current === issue.id ? null : issue.id)}>{expanded ? <ChevronUp size={22} /> : <ChevronDown size={22} />}</button></td>
+                      </tr>
+                      {expanded ? <tr className="open-issues-prototype-actions-row open-issues-prototype-closed-details"><td colSpan={OPEN_ISSUES_PROTOTYPE_COLUMNS.length}><div className="open-issues-prototype-closed-detail-content"><span>{t("ui.projects.issueColumnStatus")}: {labels.issueStatusLabel(issue.status)}</span>{jiraUrl ? <a href={jiraUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} />Jira</a> : null}{threadUrl ? <a href={threadUrl} target="_blank" rel="noreferrer"><MessageSquare size={14} />MM</a> : null}<span>{t("ui.automation.owner")}: {issue.owner || t("ui.projects.notAssignedLowercase")}</span><span>{t("ui.projects.closedAtLabel")}: {statusDate ? date(statusDate) : t("ui.projects.openIssuesPrototypeNoStatusDate")}</span></div>{issue.statusUpdates.length > 0 ? <div className="open-issues-prototype-history">{sortedStatusUpdates(issue).map((status) => <div key={status.id}><time dateTime={status.statusAt}>{date(status.statusAt)}</time><span>{status.text}</span></div>)}</div> : null}</td></tr> : null}
+                    </Fragment>;
+                  })}
+                </tbody>;
+              })}
+            </table>
+          </div>
+        )}
+      </section>
       <datalist id="open-issues-prototype-categories">
         {categoryOptions.map((category) => <option value={category} key={category} />)}
       </datalist>
