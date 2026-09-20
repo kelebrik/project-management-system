@@ -1,6 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 
+import { isJiraAccessAllowed } from "./server/deployment-profile.js";
+
 import {
   jiraCurrentUserResponseSchema,
   jiraFilterResponseSchema,
@@ -26,7 +28,7 @@ export function resolveJiraConfig(
   options: import("./jira-model.js").JiraConfigOptions = {},
 ): JiraConfig {
   // The public cloud demo must remain fully synthetic and must never contact Jira.
-  if (env.PUBLIC_DEMO_MODE === "true") {
+  if (!isJiraAccessAllowed(env)) {
     return { enabled: false, baseUrl: "", email: "", token: "", maxResults: 100 };
   }
   const overrideBaseUrl = nonEmpty(options.baseUrl);

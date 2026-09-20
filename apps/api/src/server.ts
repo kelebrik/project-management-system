@@ -6,6 +6,13 @@ import { createApp } from './server/app.js';
 import { logEvent } from './server/logger.js';
 import { recalculateProjectWbsSchedule } from './services/wbs-schedule.js';
 import { createJiraSyncRunner } from './services/jira-sync-runner.js';
+import { assertDeploymentProfileConfigured } from './server/deployment-profile.js';
+
+// Fail fast on a misconfigured deployment: every cloud-only capability is gated
+// on this profile, so a missing value must stop the process rather than quietly
+// degrade behaviour.
+const deploymentProfile = assertDeploymentProfileConfigured();
+logEvent('info', 'api.deployment_profile', { profile: deploymentProfile });
 
 const port = Number(process.env.PORT ?? 3000);
 const app = createApp();

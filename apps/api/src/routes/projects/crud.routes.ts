@@ -20,7 +20,7 @@ import {
   userCanReadProject,
 } from '../../server/business-units.js';
 import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
-import { PUBLIC_DEMO_MODE } from '../../server/auth.js';
+import { isPublicDemoMode } from '../../server/auth.js';
 import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
 import { createDefaultProjectStructure } from './default-structure.js';
@@ -74,7 +74,7 @@ export function registerProjectCrudRoutes(
       res.json(projects.map((project) => ({ ...project, currentUserAccessLevel: 'ADMIN' })));
       return;
     }
-    if (PUBLIC_DEMO_MODE && user.id === PUBLIC_DEMO_USER_ID) {
+    if (isPublicDemoMode() && user.id === PUBLIC_DEMO_USER_ID) {
       res.json(projects.map((project) => ({ ...project, currentUserAccessLevel: 'EDIT' })));
       return;
     }

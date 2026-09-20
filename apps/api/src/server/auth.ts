@@ -4,11 +4,9 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import { prisma } from '../db.js';
+import { isPublicDemoMode } from './deployment-profile.js';
 
-export const PUBLIC_DEMO_MODE =
-  process.env.PUBLIC_DEMO_MODE === 'true' ||
-  process.env.WEB_ORIGIN?.includes('project-management-system-lorj.onrender.com') === true ||
-  process.env.RENDER_EXTERNAL_URL?.includes('project-management-system-lorj.onrender.com') === true;
+export { isPublicDemoMode };
 
 const publicDemoUser: CurrentUser = {
   id: PUBLIC_DEMO_USER_ID,
@@ -224,7 +222,7 @@ export async function attachAuth(req: Request, _res: Response, next: NextFunctio
 
     const token = readCookie(req, authCookieName);
     if (!token) {
-      if (PUBLIC_DEMO_MODE) (req as AuthRequest).currentUser = publicDemoUser;
+      if (isPublicDemoMode()) (req as AuthRequest).currentUser = publicDemoUser;
       next();
       return;
     }
@@ -244,20 +242,20 @@ export async function attachAuth(req: Request, _res: Response, next: NextFunctio
     });
 
     if (!session) {
-      if (PUBLIC_DEMO_MODE) (req as AuthRequest).currentUser = publicDemoUser;
+      if (isPublicDemoMode()) (req as AuthRequest).currentUser = publicDemoUser;
       next();
       return;
     }
 
     if (session.expiresAt.getTime() <= Date.now()) {
       await prisma.userSession.delete({ where: { id: session.id } }).catch(() => undefined);
-      if (PUBLIC_DEMO_MODE) (req as AuthRequest).currentUser = publicDemoUser;
+      if (isPublicDemoMode()) (req as AuthRequest).currentUser = publicDemoUser;
       next();
       return;
     }
 
     if (!session.user.isActive) {
-      if (PUBLIC_DEMO_MODE) (req as AuthRequest).currentUser = publicDemoUser;
+      if (isPublicDemoMode()) (req as AuthRequest).currentUser = publicDemoUser;
       next();
       return;
     }
@@ -294,7 +292,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = currentUser(req);
   const apiToken = currentApiToken(req);
-  if (PUBLIC_DEMO_MODE && user?.id === PUBLIC_DEMO_USER_ID && ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+  if (isPublicDemoMode() && user?.id === PUBLIC_DEMO_USER_ID && ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     next();
     return;
   }

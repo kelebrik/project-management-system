@@ -1,11 +1,11 @@
 import type { PrismaClient, Project } from '@prisma/client';
 import { fillDocuments } from './documents.js';
 import { demoId, fillProject } from './project.js';
-import { PUBLIC_DEMO_MODE } from '../server/auth.js';
+import { isPublicDemoMode } from '../server/auth.js';
 import { fillAnalytics } from './analytics.js';
 
 export async function completeDemoData(client: PrismaClient) {
-  if (!PUBLIC_DEMO_MODE) throw new Error('Demo runtime is required for demo population');
+  if (!isPublicDemoMode()) throw new Error('Demo runtime is required for demo population');
   if (process.env.SEED_DEMO_DATA !== 'true') throw new Error('SEED_DEMO_DATA=true is required for demo population');
   // The explicit demo flag scopes this to the demo database. Existing DEMO-005
   // and other user-created demo projects must be included, not just seed codes.
@@ -15,7 +15,7 @@ export async function completeDemoData(client: PrismaClient) {
 
 // The caller must authorize demo-only writes (the seed flag or admin + cloud demo).
 export async function completeDemoProject(client: PrismaClient, project: Project) {
-  if (!PUBLIC_DEMO_MODE) throw new Error('Demo runtime is required for demo population');
+  if (!isPublicDemoMode()) throw new Error('Demo runtime is required for demo population');
   const anchor = await client.wbsItem.findUnique({ where: { id: demoId(project.id, 'phase-0') }, select: { createdAt: true } });
   const projectBase = new Date(anchor?.createdAt ?? new Date()); projectBase.setUTCHours(0, 0, 0, 0);
   await client.$transaction(async (tx) => {

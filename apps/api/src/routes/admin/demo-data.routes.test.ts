@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Router } from 'express';
 import { registerDemoDataRoutes } from './demo-data.routes.js';
-import { currentUser, requireAdmin, PUBLIC_DEMO_MODE } from '../../server/auth.js';
+import { currentUser, requireAdmin, isPublicDemoMode } from '../../server/auth.js';
 import type { AdminRoutesContext } from './types.js';
 
 function route() {
@@ -21,7 +21,7 @@ test('demo population rejects anonymous, public demo and non-admin users before 
     assert.ok(res.statusCode === 401 || res.statusCode === 403);
   }
 });
-test('demo population is unavailable outside demo runtime even to an admin', { skip: PUBLIC_DEMO_MODE }, async () => {
+test('demo population is unavailable outside demo runtime even to an admin', { skip: isPublicDemoMode() }, async () => {
   const res = response();
   await route().stack[1].handle({ method: 'POST', currentUser: { id: 'admin', role: 'ADMIN' } }, res);
   assert.equal(res.statusCode, 403);

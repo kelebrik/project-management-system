@@ -13,6 +13,10 @@ test('artifact table and binary attachments round-trip with permissions, conflic
   const user = await prisma.user.create({ data: { email: `art-${suffix}@example.test`, name: 'Artifacts tester', role: 'ADMIN', passwordHash: await hashPassword('test-artifacts-only') } });
   const project = await prisma.project.create({ data: { code: `ART-${suffix}`, name: 'Artifact test', businessUnitId: unit.id, portfolio: 'TEST', sponsor: 'Test', projectManager: 'Test', startDate: new Date(), targetDate: new Date(), budgetPlanned: 0, budgetForecast: 0, summary: '' } });
   const other = await prisma.project.create({ data: { code: `OTHER-${suffix}`, name: 'Other test', businessUnitId: unit.id, portfolio: 'TEST', sponsor: 'Test', projectManager: 'Test', startDate: new Date(), targetDate: new Date(), budgetPlanned: 0, budgetForecast: 0, summary: '' } });
+  // The artifact table itself is profile independent, but this test signs in with a
+  // password to obtain a session, and that route only exists on the cloud profile.
+  const previousProfile = process.env.DEPLOYMENT_PROFILE;
+  process.env.DEPLOYMENT_PROFILE = 'cloud';
   const server = createApp().listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', resolve));
   const address = server.address();
@@ -66,6 +70,8 @@ test('artifact table and binary attachments round-trip with permissions, conflic
     assert.equal((await upload('denied')).status, 403);
     assert.equal((await put(current)).status, 403);
   } finally {
+    if (previousProfile === undefined) delete process.env.DEPLOYMENT_PROFILE;
+    else process.env.DEPLOYMENT_PROFILE = previousProfile;
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await prisma.project.deleteMany({ where: { id: { in: [project.id, other.id] } } });
     await prisma.user.delete({ where: { id: user.id } });

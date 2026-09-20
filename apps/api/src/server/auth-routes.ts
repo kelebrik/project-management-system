@@ -4,6 +4,7 @@ import { loginSchema } from '@pms/shared';
 import { prisma } from '../db.js';
 import { recordAuditEvent } from '../services/audit.js';
 import { logEvent } from './logger.js';
+import { deploymentProfile, isCloudProfile } from './deployment-profile.js';
 import {
   clearSessionCookie,
   createSession,
@@ -61,7 +62,24 @@ function matchesBootstrapPassword(email: string, password: string) {
 }
 
 export function registerAuthRoutes(app: Express) {
+  // Local password sign-in exists only on the cloud deployment. The corporate
+  // installation authenticates through Keycloak, so the route is never registered
+  // there: the request falls through to the authenticated `/api` surface and no
+  // password is ever verified.
+  if (!isCloudProfile()) {
+    logEvent('info', 'auth.local_login_disabled', { profile: deploymentProfile() });
+    registerSessionRoutes(app);
+    return;
+  }
+
   app.post('/api/auth/login', async (req, res) => {
+    // Defence in depth: a refactor that registers this route unconditionally
+    // must still not expose password sign-in outside the cloud profile.
+    if (!isCloudProfile()) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
@@ -135,6 +153,11 @@ export function registerAuthRoutes(app: Express) {
     res.json({ user: safeUser({ ...user, lastLoginAt }) });
   });
 
+  registerSessionRoutes(app);
+}
+
+/** Session inspection and sign-out work the same way on every deployment profile. */
+function registerSessionRoutes(app: Express) {
   app.get('/api/auth/me', requireAuth, (req, res) => {
     res.json({ user: currentUser(req) });
   });

@@ -13,10 +13,12 @@ services:
         value: production
       - key: NPM_CONFIG_PRODUCTION
         value: "false"
+      - key: DEPLOYMENT_PROFILE
+        value: cloud
       - key: WEB_ORIGIN
         sync: false
       - key: PUBLIC_DEMO_MODE
-        value: "false"
+        value: "true"
       - key: LOCAL_AUTH_EMAIL
         sync: false
       - key: LOCAL_AUTH_BOOTSTRAP_PASSWORD

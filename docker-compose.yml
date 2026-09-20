@@ -8,6 +8,7 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-3000}
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:?Set DEPLOYMENT_PROFILE to cloud or corporate}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
