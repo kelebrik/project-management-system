@@ -68,16 +68,14 @@ Render service settings if creating manually:
   - `SEED_DEMO_DATA=false`
   - `METRICS_TOKEN=<random secret>`
   - `DATABASE_URL=<Render PostgreSQL internal connection string>`
-  - `LOCAL_AUTH_EMAIL=<cloud owner email>`
-  - `LOCAL_AUTH_BOOTSTRAP_PASSWORD=<one-time cloud owner password>`
   - `JIRA_BASE_URL=<your Jira base URL>`
   - `JIRA_EMAIL=<integration user email>`
   - `JIRA_API_TOKEN=<Jira API token or service account password>`
   - `JIRA_MAX_RESULTS=100`
 
-`LOCAL_AUTH_BOOTSTRAP_PASSWORD` is used only when the matching active user has no
-stored password hash. The first successful login stores a salted `scrypt` hash in
-PostgreSQL; remove the bootstrap secret from Render after that login.
+Password sign-in checks the salted `scrypt` hash stored in PostgreSQL. There is no
+bootstrap secret: the first administrator of a fresh installation has to be created
+directly in the database, or through Keycloak where it is configured.
 
 ## Jira Strategy
 

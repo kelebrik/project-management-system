@@ -914,7 +914,7 @@ export const englishWikiGroups: WikiGroup[] = [
             "heading": "Keycloak/OIDC",
             "points": [
               "The frontend supports the Keycloak login flow, while the backend works with the resulting application user session.",
-              "Alongside configured Keycloak authentication, local email and password sign-in is supported. The initial account is configured through LOCAL_AUTH_EMAIL and LOCAL_AUTH_BOOTSTRAP_PASSWORD; passwords are stored as hashes.",
+              "Alongside configured Keycloak authentication, local email and password sign-in is supported. Passwords are only ever stored as individually salted scrypt hashes; there is no environment-variable bootstrap path.",
               "OIDC does not pass the user's password to the application, so Jira cannot be accessed with the user's own login and password.",
               "Access to Jira is implemented through a service account via JIRA_EMAIL/JIRA_API_TOKEN in the container env."
             ]

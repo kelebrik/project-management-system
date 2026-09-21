@@ -1,5 +1,4 @@
 import type { Express } from 'express';
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { loginSchema } from '@pms/shared';
 import { prisma } from '../db.js';
 import { recordAuditEvent } from '../services/audit.js';
@@ -10,7 +9,6 @@ import {
   createSession,
   currentSessionId,
   currentUser,
-  hashPassword,
   requireAuth,
   safeUser,
   verifyPassword,
@@ -50,15 +48,6 @@ function loginRetryAfterSeconds(ipAddress: string, email: string) {
     consumeLoginAttempt(`ip:${ipAddress}`, loginIpLimit, now),
     consumeLoginAttempt(`account:${email}`, loginAccountLimit, now),
   );
-}
-
-function matchesBootstrapPassword(email: string, password: string) {
-  const configuredEmail = process.env.LOCAL_AUTH_EMAIL?.trim().toLowerCase();
-  const configuredPassword = process.env.LOCAL_AUTH_BOOTSTRAP_PASSWORD;
-  if (!configuredEmail || !configuredPassword || email !== configuredEmail) return false;
-  const actual = createHash('sha256').update(password).digest();
-  const expected = createHash('sha256').update(configuredPassword).digest();
-  return timingSafeEqual(actual, expected);
 }
 
 export function registerAuthRoutes(app: Express) {
@@ -106,15 +95,14 @@ export function registerAuthRoutes(app: Express) {
       },
     });
 
+    // The dummy hash keeps the cost of an unknown account indistinguishable from
+    // a known one, so a wrong email cannot be told apart by response time.
     const databasePasswordValid = await verifyPassword(
       parsed.data.password,
       user?.passwordHash ?? dummyPasswordHash,
     );
-    const bootstrapPasswordValid =
-      Boolean(user && !user.passwordHash) &&
-      matchesBootstrapPassword(parsed.data.email, parsed.data.password);
 
-    if (!user || !user.isActive || (!databasePasswordValid && !bootstrapPasswordValid)) {
+    if (!user || !user.isActive || !databasePasswordValid) {
       logEvent('warn', 'auth.login_failed', {
         email: parsed.data.email,
         ipAddress,
@@ -134,12 +122,9 @@ export function registerAuthRoutes(app: Express) {
     }
 
     const lastLoginAt = new Date();
-    const passwordHash = bootstrapPasswordValid
-      ? await hashPassword(parsed.data.password)
-      : undefined;
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt, passwordHash },
+      data: { lastLoginAt },
     });
     await createSession(user.id, req, res);
     await recordAuditEvent({

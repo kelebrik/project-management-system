@@ -8,7 +8,7 @@ Recommended path: use Render Blueprint with `render.yaml`.
 2. In Render, choose **New > Blueprint**.
 3. Connect your copy of the repository.
 4. Confirm the web service and PostgreSQL database from `render.yaml`.
-5. Set `WEB_ORIGIN`, `LOCAL_AUTH_EMAIL`, and `LOCAL_AUTH_BOOTSTRAP_PASSWORD`.
+5. Set `WEB_ORIGIN`.
 6. Add Jira secrets after creation if needed.
 
 ## Manual Web Service Settings
@@ -34,14 +34,10 @@ WEB_ORIGIN=https://<your-render-service>.onrender.com
 SEED_DEMO_DATA=false
 METRICS_TOKEN=<random secret>
 DATABASE_URL=<Render PostgreSQL internal connection string>
-LOCAL_AUTH_EMAIL=<cloud owner email>
-LOCAL_AUTH_BOOTSTRAP_PASSWORD=<one-time cloud owner password>
 ```
 
 The bootstrap password is never committed to the repository. It is accepted only
-for the configured active user while that user has no database password hash. The
-first successful login replaces it with a salted `scrypt` hash; remove
-`LOCAL_AUTH_BOOTSTRAP_PASSWORD` from Render afterwards.
+Password sign-in verifies the salted `scrypt` hash stored in PostgreSQL.
 
 Optional for Jira sync:
 
