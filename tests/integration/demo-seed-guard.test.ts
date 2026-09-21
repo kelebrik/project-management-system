@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 import test from 'node:test';
 
 const run = promisify(execFile);
+// Resolve the installed tsx rather than going through npx: the corporate CI
+// wraps npm with its own registry, and npx there may reach for the network.
+const tsxCli = createRequire(import.meta.url).resolve('tsx/cli');
 
 // The demo seed upserts fixed project codes (ERP, BU2-*, BU3-*, TEST-*) over any
 // row that already uses them, so it must never run against a corporate database.
@@ -26,7 +30,7 @@ for (const configuration of unsafeConfigurations) {
       if (!(key in configuration)) delete env[key];
     }
 
-    const failure = await run('npx', ['tsx', 'prisma/seed.ts'], { env }).then(
+    const failure = await run(process.execPath, [tsxCli, 'prisma/seed.ts'], { env }).then(
       () => null,
       (error: { stderr?: string }) => error,
     );

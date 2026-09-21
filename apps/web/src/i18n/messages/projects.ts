@@ -1,4 +1,7 @@
-export const projectsMessages = {
+import { projectsIssuesMessages } from "./projectsIssues";
+import { projectsRaidMessages } from "./projectsRaid";
+
+export const projectsCoreMessages = {
   "ui.projects.loadingPage": {
     "en": "Loading page",
     "ru": "Загрузка страницы"
@@ -10,10 +13,6 @@ export const projectsMessages = {
   "ui.projects.decisionQueueDescription": {
     "en": "Issues that require a management decision",
     "ru": "Вопросы, по которым требуется управленческое решение"
-  },
-  "ui.projects.issue": {
-    "en": "Issue",
-    "ru": "Вопрос"
   },
   "ui.projects.notAssignedLowercase": {
     "en": "not assigned",
@@ -27,29 +26,13 @@ export const projectsMessages = {
     "en": "Create open issue",
     "ru": "Создать открытый вопрос"
   },
-  "ui.projects.issueDrawerSubtitle": {
-    "en": "Due date, owner, impact, and Jira link",
-    "ru": "Срок, ответственный, влияние и связь с Jira"
-  },
   "ui.projects.closePanel": {
     "en": "Close panel",
     "ru": "Закрыть панель"
   },
-  "ui.projects.issueTitle": {
-    "en": "Title",
-    "ru": "Заголовок"
-  },
-  "ui.projects.issueTitlePlaceholder": {
-    "en": "For example: the vendor has not confirmed the SLA",
-    "ru": "Например: поставщик не подтвердил SLA"
-  },
   "ui.projects.section": {
     "en": "Section",
     "ru": "Раздел"
-  },
-  "ui.projects.issueSectionPlaceholder": {
-    "en": "For example: Organizational tasks",
-    "ru": "Например: Организационные задачи"
   },
   "ui.projects.phase": {
     "en": "Phase",
@@ -87,10 +70,6 @@ export const projectsMessages = {
     "en": "PM / vendor / IT operations",
     "ru": "РП / поставщик / ИТ-эксплуатация"
   },
-  "ui.projects.threadLink": {
-    "en": "Thread link",
-    "ru": "Ссылка на трэд"
-  },
   "ui.projects.impact": {
     "en": "Impact",
     "ru": "Влияние"
@@ -102,10 +81,6 @@ export const projectsMessages = {
   "ui.projects.requiresDecision": {
     "en": "Requires a decision",
     "ru": "Требует решения"
-  },
-  "ui.projects.ticketLink": {
-    "en": "Ticket link",
-    "ru": "Ссылка на тикет"
   },
   "ui.projects.primaryTicketKey": {
     "en": "Primary ticket key",
@@ -122,14 +97,6 @@ export const projectsMessages = {
   "ui.projects.createIssue": {
     "en": "Create issue",
     "ru": "Создать вопрос"
-  },
-  "ui.projects.closedQuestionsSectionTitle": {
-    "en": "Previously closed issues",
-    "ru": "Закрытые ранее вопросы"
-  },
-  "ui.projects.closedQuestionsSectionSubtitle": {
-    "en": "Issues with the Resolved or Closed status",
-    "ru": "Вопросы со статусом Решено или Закрыто"
   },
   "ui.projects.jiraKeyLabel": {
     "en": "Jira key",
@@ -379,22 +346,6 @@ export const projectsMessages = {
     "en": "Float up to 5 days",
     "ru": "Резерв до 5 дн."
   },
-  "ui.projects.openQuestionsRegisterTitle": {
-    "en": "Open issues register",
-    "ru": "Реестр открытых вопросов"
-  },
-  "ui.projects.openQuestionsRegisterSubtitle": {
-    "en": "A single list of open Jira issues and internal management issues",
-    "ru": "Единый список открытых проблем из Jira и внутренних управленческих вопросов"
-  },
-  "ui.projects.openQuestionsSearchLabel": {
-    "en": "Search open issues",
-    "ru": "Поиск открытых вопросов"
-  },
-  "ui.projects.questionsSearchPlaceholder": {
-    "en": "Search issues",
-    "ru": "Поиск вопросов"
-  },
   "ui.projects.filterHighCriticality": {
     "en": "High criticality",
     "ru": "Высокая критичность"
@@ -407,129 +358,9 @@ export const projectsMessages = {
     "en": "No open issues.",
     "ru": "Открытых вопросов нет."
   },
-  "ui.projects.openQuestionsTableScrollHint": {
-    "en": "Open issues table, horizontal scrolling available",
-    "ru": "Таблица открытых вопросов, доступна горизонтальная прокрутка"
-  },
-  "ui.projects.openQuestionsTableCaption": {
-    "en": "Project open issues with inline field editing",
-    "ru": "Открытые вопросы проекта с редактированием полей в таблице"
-  },
-  "ui.projects.openIssuesPrototypeTitle": {
-    "en": "Questions",
-    "ru": "Вопросы"
-  },
-  "ui.projects.openIssuesPrototypeDescription": {
-    "en": "A compact issue register with row actions and history",
-    "ru": "Компактный реестр вопросов с действиями и историей"
-  },
-  "ui.projects.openIssuesPrototypeActions": {
-    "en": "Issue actions",
-    "ru": "Действия с вопросом"
-  },
-  "ui.projects.openIssuesPrototypeExpand": {
-    "en": "Expand",
-    "ru": "Развернуть"
-  },
-  "ui.projects.openIssuesPrototypeCollapse": {
-    "en": "Collapse",
-    "ru": "Свернуть"
-  },
-  "ui.projects.openIssuesPrototypeSection": {
-    "en": "Section",
-    "ru": "Раздел"
-  },
-  "ui.projects.openIssuesPrototypePhase": {
-    "en": "Phase",
-    "ru": "Фаза"
-  },
-  "ui.projects.openIssuesPrototypeRisk": {
-    "en": "Link risk",
-    "ru": "Ссылка на риск"
-  },
-  "ui.projects.openIssuesPrototypeJiraLink": {
-    "en": "Jira link",
-    "ru": "Ссылка на Jira"
-  },
-  "ui.projects.openIssuesPrototypeJiraPlaceholder": {
-    "en": "TV-123 or https://jira/...",
-    "ru": "TV-123 или https://jira/..."
-  },
-  "ui.projects.openIssuesPrototypeMattermostLink": {
-    "en": "MM link",
-    "ru": "Ссылка на MM"
-  },
-  "ui.projects.openIssuesPrototypeInvalidJiraLink": {
-    "en": "Enter a Jira key or Jira issue link",
-    "ru": "Укажите ключ Jira или ссылку на Jira тикет"
-  },
-  "ui.projects.openIssuesPrototypeLinkSaved": {
-    "en": "Link updated",
-    "ru": "Ссылка обновлена"
-  },
-  "ui.projects.closedQuestionsTableLabel": {
-    "en": "Closed issues table, horizontal scrolling available",
-    "ru": "Таблица закрытых вопросов, доступна горизонтальная прокрутка"
-  },
-  "ui.projects.closedAtLabel": {
-    "en": "Closed",
-    "ru": "Закрыт"
-  },
-  "ui.projects.openIssuesPrototypeConvert": {
-    "en": "To problem",
-    "ru": "В проблему"
-  },
-  "ui.projects.openIssuesPrototypeClose": {
-    "en": "Close",
-    "ru": "Закрыть"
-  },
-  "ui.projects.openIssuesPrototypeHistory": {
-    "en": "History",
-    "ru": "История"
-  },
-  "ui.projects.openIssuesPrototypeActionHint": {
-    "en": "Choose an action for this issue.",
-    "ru": "Выберите действие для этого вопроса."
-  },
-  "ui.projects.openIssuesPrototypeSave": {
-    "en": "Save",
-    "ru": "Сохранить"
-  },
-  "ui.projects.openIssuesPrototypeSaved": {
-    "en": "Issue updated",
-    "ru": "Вопрос обновлён"
-  },
-  "ui.projects.openIssuesPrototypeNoHistory": {
-    "en": "No status history yet.",
-    "ru": "Истории статусов пока нет."
-  },
-  "ui.projects.openIssuesPrototypeDue": {
-    "en": "Due",
-    "ru": "Срок"
-  },
-  "ui.projects.openIssuesPrototypeNoDueDate": {
-    "en": "No due date",
-    "ru": "Срок не задан"
-  },
   "ui.projects.currentIssueStatusLabel": {
     "en": "Current status",
     "ru": "Текущий статус"
-  },
-  "ui.projects.issueStatusDateLabel": {
-    "en": "Status date",
-    "ru": "Дата статуса"
-  },
-  "ui.projects.openIssuesPrototypeNoStatusDate": {
-    "en": "No date",
-    "ru": "Нет даты"
-  },
-  "ui.projects.questionTitleColumn": {
-    "en": "Issue title",
-    "ru": "Название вопроса"
-  },
-  "ui.projects.questionSectionColumn": {
-    "en": "Issue section",
-    "ru": "Раздел вопроса"
   },
   "ui.projects.projectPhaseColumn": {
     "en": "Project phase",
@@ -538,18 +369,6 @@ export const projectsMessages = {
   "ui.projects.workPackageColumn": {
     "en": "Package",
     "ru": "Пакет"
-  },
-  "ui.projects.threadLinksLabel": {
-    "en": "Thread links",
-    "ru": "Ссылки на трэды"
-  },
-  "ui.projects.threadUrlLabel": {
-    "en": "Thread URL",
-    "ru": "URL трэда"
-  },
-  "ui.projects.threadLabel": {
-    "en": "Thread",
-    "ru": "Трэд"
   },
   "ui.projects.editThreadLink": {
     "en": "Edit thread link",
@@ -567,10 +386,6 @@ export const projectsMessages = {
     "en": "Add thread",
     "ru": "Добавить трэд"
   },
-  "ui.projects.ticketLinksLabel": {
-    "en": "Ticket links",
-    "ru": "Ссылки на тикеты"
-  },
   "ui.projects.additionalTicketKeyLabel": {
     "en": "Additional ticket key",
     "ru": "Ключ дополнительного тикета"
@@ -578,10 +393,6 @@ export const projectsMessages = {
   "ui.projects.saveTicketLinkAction": {
     "en": "Save ticket link",
     "ru": "Сохранить ссылку на тикет"
-  },
-  "ui.projects.questionStatusNotAddedYet": {
-    "en": "No status added yet",
-    "ru": "Статус ещё не добавлен"
   },
   "ui.projects.historyPrefixLabel": {
     "en": "History ·",
@@ -643,10 +454,6 @@ export const projectsMessages = {
     "en": "Milestones",
     "ru": "Вехи"
   },
-  "ui.projects.openJiraBoardAction": {
-    "en": "Open Jira board",
-    "ru": "Открыть доску Jira"
-  },
   "ui.projects.noStatusesAddedYet": {
     "en": "No statuses added yet.",
     "ru": "Статусы пока не добавлены."
@@ -671,29 +478,13 @@ export const projectsMessages = {
     "en": "No open issues require a decision.",
     "ru": "Открытых вопросов, требующих решения, нет."
   },
-  "ui.projects.ticketsAtRiskTitle": {
-    "en": "Tickets at risk",
-    "ru": "Тикеты под риском"
-  },
-  "ui.projects.ticketsAtRiskAnchorLabel": {
-    "en": "Link to the Tickets at risk section",
-    "ru": "Ссылка на раздел Тикеты под риском"
-  },
   "ui.projects.sectionAnchorLabel": {
     "en": "Link to section",
     "ru": "Ссылка на раздел"
   },
-  "ui.projects.openJiraAction": {
-    "en": "Open Jira",
-    "ru": "Открыть Jira"
-  },
   "ui.projects.aggregateLoadingMessage": {
     "en": "Loading aggregate...",
     "ru": "Загрузка агрегата..."
-  },
-  "ui.projects.ticketsAtRiskAggregateNotPublished": {
-    "en": "The “Tickets at risk” aggregate has not been published yet.",
-    "ru": "Агрегат «Тикеты под риском» пока не опубликован."
   },
   "ui.projects.noTicketsAtRisk": {
     "en": "No tickets at risk.",
@@ -702,10 +493,6 @@ export const projectsMessages = {
   "ui.projects.showingFirstPrefix": {
     "en": "Showing the first",
     "ru": "Показаны первые"
-  },
-  "ui.projects.ticketsCountSuffix": {
-    "en": "tickets.",
-    "ru": "тикетов."
   },
   "ui.projects.scheduleVarianceTitle": {
     "en": "Schedule variance",
@@ -779,161 +566,21 @@ export const projectsMessages = {
     "en": "Risk matrix",
     "ru": "Матрица рисков"
   },
-  "ui.projects.raidPageTitle": {
-    "en": "Risks and problems",
-    "ru": "Риски и проблемы"
-  },
-  "ui.projects.raidPageSubtitle": {
-    "en": "Risks, problems, and assumptions with schedule impact and an executive overview",
-    "ru": "Риски, проблемы и допущения с влиянием на сроки и обзор для руководства"
-  },
   "ui.projects.newEntryAction": {
     "en": "New entry",
     "ru": "Новая запись"
-  },
-  "ui.projects.raidCreateEntryDialogLabel": {
-    "en": "Create a RAID entry",
-    "ru": "Создание записи RAID"
-  },
-  "ui.projects.raidNewEntryTitle": {
-    "en": "New RAID entry",
-    "ru": "Новая запись RAID"
-  },
-  "ui.projects.raidActiveEntriesTitle": {
-    "en": "Active entries",
-    "ru": "Активные записи"
-  },
-  "ui.projects.raidActiveEntriesHint": {
-    "en": "open / in progress / breached",
-    "ru": "открыто / в работе / нарушено"
-  },
-  "ui.projects.raidHighRisksTitle": {
-    "en": "High risks",
-    "ru": "Высокие риски"
-  },
-  "ui.projects.raidScore15PlusHint": {
-    "en": "score 15+",
-    "ru": "оценка 15+"
-  },
-  "ui.projects.raidIssuesTitle": {
-    "en": "Problems",
-    "ru": "Проблемы"
-  },
-  "ui.projects.raidActiveEntriesHintLowercase": {
-    "en": "active entries",
-    "ru": "активные записи"
-  },
-  "ui.projects.raidAssumptionsTitle": {
-    "en": "Assumptions",
-    "ru": "Допущения"
-  },
-  "ui.projects.raidRegisterTitle": {
-    "en": "Risk and problem register",
-    "ru": "Реестр рисков и проблем"
-  },
-  "ui.projects.raidRegisterSearchLabel": {
-    "en": "Search risks and problems",
-    "ru": "Поиск рисков и проблем"
   },
   "ui.projects.filtersLabel": {
     "en": "Filters",
     "ru": "Фильтры"
   },
-  "ui.projects.raidFilterNeedsDecision": {
-    "en": "Need a decision",
-    "ru": "Требуют решения"
-  },
-  "ui.projects.raidFilterOverdue": {
-    "en": "Overdue",
-    "ru": "Просрочены"
-  },
-  "ui.projects.raidFilterHighRisk": {
-    "en": "High risk",
-    "ru": "Высокий риск"
-  },
-  "ui.projects.raidEntryColumn": {
-    "en": "Entry",
-    "ru": "Запись"
-  },
-  "ui.projects.raidScoreColumn": {
-    "en": "Score",
-    "ru": "Оценка"
-  },
-  "ui.projects.raidNoOwnerAssigned": {
-    "en": "no owner assigned",
-    "ru": "ответственный не задан"
-  },
-  "ui.projects.raidCloseEditorAction": {
-    "en": "Close the editor",
-    "ru": "Закрыть редактирование"
-  },
-  "ui.projects.raidStatusNotAddedYet": {
-    "en": "No status added yet.",
-    "ru": "Статус пока не добавлен."
-  },
-  "ui.projects.raidNewStatusPlaceholder": {
-    "en": "New status: what changed, what's needed, next step",
-    "ru": "Новый статус: что изменилось, что требуется, следующий шаг"
-  },
   "ui.projects.addStatusAction": {
     "en": "Add status",
     "ru": "Добавить статус"
   },
-  "ui.projects.raidResidualRiskLabel": {
-    "en": "Residual risk:",
-    "ru": "Остаточный риск:"
-  },
-  "ui.projects.raidDatesLabel": {
-    "en": "Dates:",
-    "ru": "Сроки:"
-  },
-  "ui.projects.raidProbabilityLabel": {
-    "en": "Probability",
-    "ru": "Вероятность"
-  },
-  "ui.projects.raidActionPlanLabel": {
-    "en": "Action plan",
-    "ru": "План действий"
-  },
-  "ui.projects.raidContingencyPlanLabel": {
-    "en": "Contingency plan",
-    "ru": "Резервный план"
-  },
-  "ui.projects.raidSaveEntryAction": {
-    "en": "Save entry",
-    "ru": "Сохранить запись"
-  },
   "ui.projects.convertToAssumptionAction": {
     "en": "Convert to assumption",
     "ru": "В допущение"
-  },
-  "ui.projects.raidNoEntriesYet": {
-    "en": "No entries yet.",
-    "ru": "Записей пока нет."
-  },
-  "ui.projects.raidNoEntriesFound": {
-    "en": "No entries found",
-    "ru": "Записи не найдены"
-  },
-  "ui.projects.raidClosedEntriesTitle": {
-    "en": "Closed risks and problems",
-    "ru": "Закрытые риски и проблемы"
-  },
-  "ui.projects.raidNoClosedEntriesYet": {
-    "en": "No closed risks or problems yet.",
-    "ru": "Закрытых рисков и проблем пока нет."
-  },
-  "ui.projects.raidPanelGeneralTab": {
-    "en": "General",
-    "ru": "Основное"
-  },
-  "ui.projects.raidPanelTitlePlaceholderExample": {
-    "en": "The supplier may not confirm the SLA",
-    "ru": "Поставщик может не подтвердить SLA"
-  },
-  "ui.projects.raidPanelScoreAndImpactTab": {
-    "en": "Score and impact",
-    "ru": "Оценка и влияние"
   },
   "ui.projects.structureToolbarLabel": {
     "en": "WBS toolbar",
@@ -1118,209 +765,11 @@ export const projectsMessages = {
   "ui.projects.ganttTabDescription": {
     "en": "Project timeline, dependencies, and baseline",
     "ru": "Временная шкала проекта, связи и базовый план"
-  },
-  "ui.projects.raidCreateFailed": {
-    "en": "Could not create the risk entry",
-    "ru": "Не удалось создать запись о риске"
-  },
-  "ui.projects.raidCreated": {
-    "en": "Risk entry created",
-    "ru": "Запись о риске создана"
-  },
-  "ui.projects.raidSaveFailed": {
-    "en": "Could not save the risk entry",
-    "ru": "Не удалось сохранить запись о риске"
-  },
-  "ui.projects.raidSaved": {
-    "en": "Risk entry updated",
-    "ru": "Запись о риске обновлена"
-  },
-  "ui.projects.raidConvertToProblemTitle": {
-    "en": "Convert the risk into a problem?",
-    "ru": "Перевести риск в проблему?"
-  },
-  "ui.projects.raidConvertToProblemMessage": {
-    "en": "The entry type changes, and the risk will be tracked as a problem.",
-    "ru": "Тип записи изменится, и риск будет учитываться как проблема."
-  },
-  "ui.projects.raidConvertConfirmLabel": {
-    "en": "Convert",
-    "ru": "Перевести"
-  },
-  "ui.projects.raidConvertedToProblem": {
-    "en": "Risk converted into a problem",
-    "ru": "Риск переведен в проблему"
-  },
-  "ui.projects.raidConvertToProblemFailed": {
-    "en": "Could not convert the risk into a problem",
-    "ru": "Не удалось перевести риск в проблему"
-  },
-  "ui.projects.raidConvertToAssumptionTitle": {
-    "en": "Convert the risk into an assumption?",
-    "ru": "Перевести риск в допущение?"
-  },
-  "ui.projects.raidConvertToAssumptionMessage": {
-    "en": "The entry type changes to an assumption, and the link to the source risk is cleared.",
-    "ru": "Тип записи изменится на допущение, связь с исходным риском будет очищена."
-  },
-  "ui.projects.raidConvertedToAssumption": {
-    "en": "Risk converted into an assumption",
-    "ru": "Риск переведен в допущение"
-  },
-  "ui.projects.raidConvertToAssumptionFailed": {
-    "en": "Could not convert the risk into an assumption",
-    "ru": "Не удалось перевести риск в допущение"
-  },
-  "ui.projects.raidCloseEntryTitle": {
-    "en": "Close the RAID entry?",
-    "ru": "Закрыть запись RAID?"
-  },
-  "ui.projects.raidCloseEntryMessage": {
-    "en": "The entry is removed from the active register without deleting its history.",
-    "ru": "Запись будет исключена из активного реестра без удаления истории."
-  },
-  "ui.projects.raidCloseEntryConfirmLabel": {
-    "en": "Close",
-    "ru": "Закрыть"
-  },
-  "ui.projects.raidEntryClosed": {
-    "en": "Entry closed",
-    "ru": "Запись закрыта"
-  },
-  "ui.projects.raidCloseEntryFailed": {
-    "en": "Could not close the entry",
-    "ru": "Не удалось закрыть запись"
-  },
-  "ui.projects.raidStatusTextRequired": {
-    "en": "Fill in the status text",
-    "ru": "Заполните текст статуса"
-  },
-  "ui.projects.raidStatusAddFailed": {
-    "en": "Could not add the status",
-    "ru": "Не удалось добавить статус"
-  },
-  "ui.projects.raidStatusAdded": {
-    "en": "Status added",
-    "ru": "Статус добавлен"
-  },
-  "ui.projects.raidDeleteFailed": {
-    "en": "Could not delete the risk entry",
-    "ru": "Не удалось удалить запись о риске"
-  },
-  "ui.projects.raidEntryDeleted": {
-    "en": "Entry deleted",
-    "ru": "Запись удалена"
-  },
-  "ui.projects.issueReadinessRed": {
-    "en": "Red",
-    "ru": "Красная"
-  },
-  "ui.projects.issueReadinessAmber": {
-    "en": "Amber",
-    "ru": "Жёлтая"
-  },
-  "ui.projects.issueReadinessGreen": {
-    "en": "Green",
-    "ru": "Зелёная"
-  },
-  "ui.projects.issueReadinessTooltip": {
-    "en": "Readiness: {readiness}",
-    "ru": "Готовность: {readiness}"
-  },
-  "ui.projects.issueNoSection": {
-    "en": "No section",
-    "ru": "Без раздела"
-  },
-  "ui.projects.issueColumnWidthSaveFailed": {
-    "en": "Could not save the column widths",
-    "ru": "Не удалось сохранить ширину колонок"
-  },
-  "ui.projects.issuePhaseSelectionForbidden": {
-    "en": "You do not have permission to select a phase and create a work package",
-    "ru": "Недостаточно прав для выбора фазы и создания пакета работ"
-  },
-  "ui.projects.issueMoveWorkPackageTitle": {
-    "en": "Move the work package?",
-    "ru": "Переместить пакет работ?"
-  },
-  "ui.projects.issueCreateWorkPackageTitle": {
-    "en": "Create a work package?",
-    "ru": "Создать пакет работ?"
-  },
-  "ui.projects.issueMoveWorkPackageMessage": {
-    "en": "The work package for this issue will move to phase «{phase}», before the last milestone or goal of that phase. Continue?",
-    "ru": "Пакет работ вопроса будет перемещён в фазу «{phase}» перед последней вехой или целью этой фазы. Продолжить?"
-  },
-  "ui.projects.issueCreateWorkPackageMessage": {
-    "en": "A work package for this issue will be created in phase «{phase}», before the last milestone or goal of that phase. Continue?",
-    "ru": "Для вопроса будет создан пакет работ в фазе «{phase}» перед последней вехой или целью этой фазы. Продолжить?"
-  },
-  "ui.projects.issueMoveWorkPackageConfirmLabel": {
-    "en": "Move",
-    "ru": "Переместить"
-  },
-  "ui.projects.issueCreateWorkPackageConfirmLabel": {
-    "en": "Create",
-    "ru": "Создать"
-  },
-  "ui.projects.issueWorkPackageMoved": {
-    "en": "Work package moved to phase «{phase}»",
-    "ru": "Пакет работ перемещён в фазу «{phase}»"
-  },
-  "ui.projects.issueWorkPackageCreated": {
-    "en": "Work package created in phase «{phase}»",
-    "ru": "Пакет работ создан в фазе «{phase}»"
-  },
-  "ui.projects.issueResizeColumnAction": {
-    "en": "Resize column {column}",
-    "ru": "Изменить ширину колонки {column}"
-  },
-  "ui.projects.issueTicketKeyLabel": {
-    "en": "Ticket key {key}",
-    "ru": "Ключ тикета {key}"
-  },
-  "ui.projects.issueEditTicketKeyAction": {
-    "en": "Edit key {key}",
-    "ru": "Изменить ключ {key}"
-  },
-  "ui.projects.issueRemoveTicketLinkAction": {
-    "en": "Remove link {key}",
-    "ru": "Удалить ссылку {key}"
-  },
-  "ui.projects.issueColumnNumber": {
-    "en": "No.",
-    "ru": "№"
-  },
-  "ui.projects.issueColumnTask": {
-    "en": "Task",
-    "ru": "Задача"
-  },
-  "ui.projects.issueColumnLink": {
-    "en": "Link",
-    "ru": "Ссылка"
-  },
-  "ui.projects.issueColumnStatus": {
-    "en": "Status",
-    "ru": "Статус"
-  },
-  "ui.projects.issueColumnOwner": {
-    "en": "Owner",
-    "ru": "Отв."
-  },
-  "ui.projects.issueColumnPriority": {
-    "en": "Priority",
-    "ru": "Приоритет"
-  },
-  "ui.projects.issueColumnRisk": {
-    "en": "Risks",
-    "ru": "Риски"
-  },
-  "ui.projects.issueColumnReadiness": {
-    "en": "Readiness",
-    "ru": "Готовность"
-  },
-  "ui.projects.issueColumnParameters": {
-    "en": "Parameters",
-    "ru": "Параметры"
   }
+} as const;
+
+export const projectsMessages = {
+  ...projectsCoreMessages,
+  ...projectsIssuesMessages,
+  ...projectsRaidMessages,
 } as const;
