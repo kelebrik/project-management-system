@@ -1,6 +1,25 @@
 import { completeDemoData } from '../apps/api/src/demo/complete.js';
 import { fillProjectSections } from '../apps/api/src/demo/sections.js';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { isPublicDemoMode } from '../apps/api/src/server/deployment-profile.js';
+
+// This seed upserts fixed project codes (ERP, BU2-*, BU3-*, TEST-*) with a
+// populated update block, so running it against an installation that happens to
+// use one of those codes would overwrite real rows. Refuse anywhere but the
+// cloud demo: seeding a corporate database is never the intended outcome.
+//
+// The check matches what `completeDemoData` demands further down, so an
+// incomplete configuration fails here instead of part way through the upserts.
+// To seed locally:
+//   DEPLOYMENT_PROFILE=cloud PUBLIC_DEMO_MODE=true SEED_DEMO_DATA=true npm run prisma:seed
+if (!isPublicDemoMode() || process.env.SEED_DEMO_DATA !== 'true') {
+  throw new Error(
+    'Demo seed requires DEPLOYMENT_PROFILE=cloud, PUBLIC_DEMO_MODE=true and SEED_DEMO_DATA=true. ' +
+      `Received DEPLOYMENT_PROFILE=${process.env.DEPLOYMENT_PROFILE ?? '<unset>'}, ` +
+      `PUBLIC_DEMO_MODE=${process.env.PUBLIC_DEMO_MODE ?? '<unset>'}, ` +
+      `SEED_DEMO_DATA=${process.env.SEED_DEMO_DATA ?? '<unset>'}.`,
+  );
+}
 
 const prisma = new PrismaClient();
 
