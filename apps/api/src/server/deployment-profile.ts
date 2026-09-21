@@ -38,6 +38,35 @@ export function isJiraAccessAllowed(env: NodeJS.ProcessEnv = process.env) {
   return env.PUBLIC_DEMO_MODE !== 'true';
 }
 
+/**
+ * How many proxies sit in front of the application, which is what Express needs
+ * to work out the real caller address. Getting this wrong is silent and costly:
+ * too low and `req.ip` resolves to a rotating proxy address, so per-address rate
+ * limiting counts every request under a different key and never triggers; too
+ * high and a caller can forge the chain and pick their own key.
+ *
+ * On Render the chain is client → Cloudflare → Render proxy, so the value is 2.
+ * A Kubernetes ingress usually adds one hop. Because it depends on where the
+ * application is deployed, there is no safe default outside local development.
+ */
+export function trustProxyHops(env: NodeJS.ProcessEnv = process.env): number | null {
+  const raw = env.TRUST_PROXY_HOPS?.trim();
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  return Number(raw);
+}
+
+export function assertTrustProxyConfigured(env: NodeJS.ProcessEnv = process.env) {
+  const hops = trustProxyHops(env);
+  if (hops === null) {
+    const raw = env.TRUST_PROXY_HOPS?.trim();
+    throw new Error(
+      'TRUST_PROXY_HOPS must be a non-negative whole number of proxies in front of the application' +
+        `${raw ? `, received "${raw}"` : ' but is missing'}. Use 0 when nothing proxies the application.`,
+    );
+  }
+  return hops;
+}
+
 export function assertDeploymentProfileConfigured(env: NodeJS.ProcessEnv = process.env) {
   const profile = deploymentProfile(env);
   if (!profile) {

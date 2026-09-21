@@ -15,6 +15,9 @@ services:
         value: "false"
       - key: DEPLOYMENT_PROFILE
         value: cloud
+      # client -> Cloudflare -> Render proxy
+      - key: TRUST_PROXY_HOPS
+        value: "2"
       - key: WEB_ORIGIN
         sync: false
       - key: PUBLIC_DEMO_MODE

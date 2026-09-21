@@ -3,10 +3,12 @@ import test from 'node:test';
 
 import {
   assertDeploymentProfileConfigured,
+  assertTrustProxyConfigured,
   deploymentProfile,
   isCloudProfile,
   isJiraAccessAllowed,
   isPublicDemoMode,
+  trustProxyHops,
 } from './deployment-profile.js';
 
 const cloud = { DEPLOYMENT_PROFILE: 'cloud' } as NodeJS.ProcessEnv;
@@ -76,6 +78,26 @@ test('startup rejects a missing or unknown profile', () => {
   );
   assert.equal(assertDeploymentProfileConfigured(cloud), 'cloud');
   assert.equal(assertDeploymentProfileConfigured(corporate), 'corporate');
+});
+
+test('the proxy depth is only accepted as a whole number of hops', () => {
+  assert.equal(trustProxyHops({ TRUST_PROXY_HOPS: '0' }), 0);
+  assert.equal(trustProxyHops({ TRUST_PROXY_HOPS: '2' }), 2);
+  assert.equal(trustProxyHops({ TRUST_PROXY_HOPS: ' 2 ' }), 2);
+  for (const raw of ['', 'true', '-1', '1.5', 'two']) {
+    assert.equal(trustProxyHops({ TRUST_PROXY_HOPS: raw }), null, raw);
+  }
+  assert.equal(trustProxyHops({}), null);
+});
+
+test('startup rejects a proxy depth it cannot use', () => {
+  assert.throws(() => assertTrustProxyConfigured({}), /but is missing/);
+  // `true` would tell Express to trust the whole forwarded chain, which lets a
+  // caller choose their own rate limiting key.
+  assert.throws(() => assertTrustProxyConfigured({ TRUST_PROXY_HOPS: 'true' }), /received "true"/);
+  assert.throws(() => assertTrustProxyConfigured({ TRUST_PROXY_HOPS: '-1' }), /received "-1"/);
+  assert.equal(assertTrustProxyConfigured({ TRUST_PROXY_HOPS: '2' }), 2);
+  assert.equal(assertTrustProxyConfigured({ TRUST_PROXY_HOPS: '0' }), 0);
 });
 
 test('startup rejects the public demo on the corporate profile', () => {
