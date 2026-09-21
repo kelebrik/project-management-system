@@ -1,4 +1,5 @@
-import type { Express } from 'express';
+import type { Express, Request, Response } from 'express';
+import { ipKeyGenerator, rateLimit, type AugmentedRequest } from 'express-rate-limit';
 import { loginSchema } from '@pms/shared';
 import { prisma } from '../db.js';
 import { recordAuditEvent } from '../services/audit.js';
@@ -17,38 +18,52 @@ import {
 const loginWindowMs = 60_000;
 const loginIpLimit = 10;
 const loginAccountLimit = 30;
-const loginAttempts = new Map<string, { count: number; windowStartedAt: number }>();
 const dummyPasswordHash =
   'scrypt:pms-login-dummy-v1:eN16oT7WN10c1Y7cQG3XNAgIU0xdvhtnZLpfpu5Xy7XBqzDlEGXIV4fKnUQBLoQrEtYyCYwrkX0FP-kSAzfBOA';
 
-function consumeLoginAttempt(key: string, limit: number, now: number) {
-  const attempt = loginAttempts.get(key);
-  if (!attempt || now - attempt.windowStartedAt >= loginWindowMs) {
-    loginAttempts.set(key, { count: 1, windowStartedAt: now });
-    return 0;
-  }
-  attempt.count += 1;
-  if (attempt.count <= limit) return 0;
-  return Math.max(1, Math.ceil((loginWindowMs - (now - attempt.windowStartedAt)) / 1000));
+function clientAddress(req: Request) {
+  return req.ip ?? req.socket.remoteAddress ?? 'unknown';
 }
 
-function loginRetryAfterSeconds(ipAddress: string, email: string) {
-  const now = Date.now();
-  if (loginAttempts.size > 10_000) {
-    for (const [key, attempt] of loginAttempts) {
-      if (now - attempt.windowStartedAt >= loginWindowMs) loginAttempts.delete(key);
-    }
-    while (loginAttempts.size > 10_000) {
-      const oldestKey = loginAttempts.keys().next().value;
-      if (typeof oldestKey !== 'string') break;
-      loginAttempts.delete(oldestKey);
-    }
-  }
-  return Math.max(
-    consumeLoginAttempt(`ip:${ipAddress}`, loginIpLimit, now),
-    consumeLoginAttempt(`account:${email}`, loginAccountLimit, now),
-  );
+/**
+ * A request that cannot be a sign-in attempt must not consume the login budget:
+ * the general `/api` limiter already covers malformed traffic, and letting it
+ * count here would let noise lock a legitimate account out.
+ */
+function isMalformedLogin(req: Request) {
+  return !loginSchema.safeParse(req.body).success;
 }
+
+/**
+ * Every spelling of one address shares a budget, so casing or padding cannot buy
+ * extra attempts. A body without a usable address falls back to the caller so the
+ * unusable ones do not pile into a single shared bucket.
+ */
+export function loginAccountKey(body: unknown, fallbackAddress: string) {
+  const parsed = loginSchema.safeParse(body);
+  return parsed.success
+    ? `account:${parsed.data.email.trim().toLowerCase()}`
+    : `anonymous:${ipKeyGenerator(fallbackAddress)}`;
+}
+
+function rejectRateLimitedLogin(req: Request, res: Response) {
+  // Since v8 the package no longer augments the Express request type, so the
+  // limiter state is read through its own exported shape.
+  const resetTime = (req as AugmentedRequest).rateLimit?.resetTime;
+  const remainingMs = resetTime ? resetTime.getTime() - Date.now() : loginWindowMs;
+  res.setHeader('Retry-After', String(Math.max(1, Math.ceil(remainingMs / 1000))));
+  res.status(429).json({ error: 'Слишком много попыток входа. Повторите позже.' });
+}
+
+const loginRateLimitDefaults = {
+  windowMs: loginWindowMs,
+  skip: isMalformedLogin,
+  handler: rejectRateLimitedLogin,
+  // The response shape is part of the existing API contract, so the advisory
+  // RateLimit headers stay off and Retry-After is set by the handler.
+  standardHeaders: false,
+  legacyHeaders: false,
+} as const;
 
 export function registerAuthRoutes(app: Express) {
   // Local password sign-in exists only on the cloud deployment. The corporate
@@ -61,7 +76,16 @@ export function registerAuthRoutes(app: Express) {
     return;
   }
 
-  app.post('/api/auth/login', async (req, res) => {
+  // Built per registration so that separate apps — in particular separate test
+  // apps — never share one another's attempt counters.
+  const loginIpRateLimit = rateLimit({ ...loginRateLimitDefaults, limit: loginIpLimit });
+  const loginAccountRateLimit = rateLimit({
+    ...loginRateLimitDefaults,
+    limit: loginAccountLimit,
+    keyGenerator: (req) => loginAccountKey(req.body, clientAddress(req)),
+  });
+
+  app.post('/api/auth/login', loginIpRateLimit, loginAccountRateLimit, async (req, res) => {
     // Defence in depth: a refactor that registers this route unconditionally
     // must still not expose password sign-in outside the cloud profile.
     if (!isCloudProfile()) {
@@ -75,14 +99,7 @@ export function registerAuthRoutes(app: Express) {
       return;
     }
 
-    const ipAddress = req.ip ?? req.socket.remoteAddress ?? 'unknown';
-    const retryAfterSeconds = loginRetryAfterSeconds(ipAddress, parsed.data.email);
-    if (retryAfterSeconds > 0) {
-      res.setHeader('Retry-After', String(retryAfterSeconds));
-      res.status(429).json({ error: 'Слишком много попыток входа. Повторите позже.' });
-      return;
-    }
-
+    const ipAddress = clientAddress(req);
     const user = await prisma.user.findFirst({
       where: {
         email: { equals: parsed.data.email, mode: 'insensitive' },
