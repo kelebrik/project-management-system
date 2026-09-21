@@ -11,11 +11,22 @@ export function isProjectAnalyticsRead(req: Pick<Request, 'method' | 'path'>) {
   return req.method === 'POST' && /^\/jira\/semantic-aggregates\/(?:query-batch|[^/]+\/query)\/?$/.test(req.path);
 }
 
-export async function ensureProjectWritable(projectId: string, res: Response) {
-  const project = await prisma.project.findUnique({
+/** Narrow view of a project: only what the closed-project guards need to decide. */
+type GuardedProject = { id: string; status: string };
+type ProjectLookup = (projectId: string) => Promise<GuardedProject | null>;
+
+const findProjectById: ProjectLookup = (projectId) =>
+  prisma.project.findUnique({
     where: { id: projectId },
     select: { id: true, status: true },
   });
+
+export async function ensureProjectWritable(
+  projectId: string,
+  res: Response,
+  findProject: ProjectLookup = findProjectById,
+) {
+  const project = await findProject(projectId);
   if (!project) {
     res.status(404).json({ error: 'Проект не найден' });
     return null;
@@ -82,13 +93,20 @@ function registerEntityWriteGuard(
   });
 }
 
-export function registerClosedProjectWriteGuards(app: Express) {
+/**
+ * `findProject` is injectable so a test can exercise the routing decisions without
+ * reaching for the database; production always uses the Prisma lookup.
+ */
+export function registerClosedProjectWriteGuards(
+  app: Express,
+  { findProject = findProjectById }: { findProject?: ProjectLookup } = {},
+) {
   app.use('/api/projects/:projectId', async (req, res, next) => {
     if (isReadRequest(req) || isProjectAnalyticsRead(req)) {
       next();
       return;
     }
-    const project = await ensureProjectWritable(req.params.projectId, res);
+    const project = await ensureProjectWritable(req.params.projectId, res, findProject);
     if (!project) return;
     if (!(await ensureProjectWriteAccess(project.id, req, res))) return;
     next();

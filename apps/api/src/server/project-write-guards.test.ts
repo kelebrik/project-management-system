@@ -12,20 +12,21 @@ test('closed project exception permits only analytical reads, never mutations', 
   }
 });
 
+// The project lookup is injected rather than patched onto the Prisma client: writing
+// to that proxy starts the query engine, which then fails asynchronously on runners
+// whose engine target does not match the generated one.
 test('registered middleware blocks writes to closed projects and forwards only analytics reads', async () => {
   const { registerClosedProjectWriteGuards } = await import('./project-write-guards.js');
-  const { prisma } = await import('../db.js');
   const routes = new Map<string, Function>();
-  registerClosedProjectWriteGuards({ use(path: string, handler: Function) { routes.set(path, handler); } } as any);
-  const original = prisma.project.findUnique;
-  prisma.project.findUnique = (async () => ({ id: 'closed', status: 'CLOSED' })) as any;
-  try {
-    for (const [path, allowed] of [['/wbs-items', false], ['/jira/semantic-aggregates/a/publish', false], ['/jira/semantic-aggregates/query-batch', true], ['/jira/semantic-aggregates/a/query', true]] as const) {
-      let forwarded = false;
-      const res = { code: 200, status(code: number) { this.code = code; return this; }, json() {} };
-      await routes.get('/api/projects/:projectId')!({ method: 'POST', path, params: { projectId: 'closed' } }, res, () => { forwarded = true; });
-      assert.equal(forwarded, allowed, path);
-      assert.equal(res.code, allowed ? 200 : 423);
-    }
-  } finally { prisma.project.findUnique = original; }
+  registerClosedProjectWriteGuards(
+    { use(path: string, handler: Function) { routes.set(path, handler); } } as any,
+    { findProject: async () => ({ id: 'closed', status: 'CLOSED' }) },
+  );
+  for (const [path, allowed] of [['/wbs-items', false], ['/jira/semantic-aggregates/a/publish', false], ['/jira/semantic-aggregates/query-batch', true], ['/jira/semantic-aggregates/a/query', true]] as const) {
+    let forwarded = false;
+    const res = { code: 200, status(code: number) { this.code = code; return this; }, json() {} };
+    await routes.get('/api/projects/:projectId')!({ method: 'POST', path, params: { projectId: 'closed' } }, res, () => { forwarded = true; });
+    assert.equal(forwarded, allowed, path);
+    assert.equal(res.code, allowed ? 200 : 423);
+  }
 });
