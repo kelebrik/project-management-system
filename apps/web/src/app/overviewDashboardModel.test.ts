@@ -661,3 +661,59 @@ test("overview schedule delay impact includes active goal branch work before the
     [["1.2", 12]],
   );
 });
+
+function decisionIssue(
+  overrides: Partial<ProjectDetails["issues"][number]>,
+): ProjectDetails["issues"][number] {
+  return {
+    id: "issue",
+    title: "Вопрос",
+    status: "Open",
+    severity: "HIGH",
+    readiness: "AMBER",
+    dueDate: null,
+    ...overrides,
+  } as unknown as ProjectDetails["issues"][number];
+}
+
+test("overview decisions follow high priority and a readiness that is not green", () => {
+  const project = baseProject({
+    issues: [
+      decisionIssue({ id: "high-amber" }),
+      decisionIssue({ id: "high-red", readiness: "RED" }),
+      decisionIssue({ id: "high-green", readiness: "GREEN" }),
+      decisionIssue({ id: "critical-red", severity: "CRITICAL", readiness: "RED" }),
+      decisionIssue({ id: "medium-red", severity: "MEDIUM", readiness: "RED" }),
+      decisionIssue({ id: "low-amber", severity: "LOW" }),
+      decisionIssue({ id: "high-amber-closed", status: "Closed" }),
+      decisionIssue({ id: "high-amber-resolved", status: "Resolved" }),
+    ],
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.deepEqual(
+    dashboard.openDecisionItems.map((item) => item.id),
+    ["high-amber", "high-red"],
+  );
+});
+
+test("overview decisions are ordered by due date and capped at five", () => {
+  const project = baseProject({
+    issues: [
+      decisionIssue({ id: "third", dueDate: "2026-03-01" }),
+      decisionIssue({ id: "first", dueDate: "2026-01-01" }),
+      decisionIssue({ id: "second", dueDate: "2026-02-01" }),
+      decisionIssue({ id: "fourth", dueDate: "2026-04-01" }),
+      decisionIssue({ id: "fifth", dueDate: "2026-05-01" }),
+      decisionIssue({ id: "sixth", dueDate: "2026-06-01" }),
+    ],
+  });
+
+  const dashboard = createOverviewDashboard(project, []);
+
+  assert.deepEqual(
+    dashboard.openDecisionItems.map((item) => item.id),
+    ["first", "second", "third", "fourth", "fifth"],
+  );
+});

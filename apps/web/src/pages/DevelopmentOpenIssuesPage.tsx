@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, History, MessageSquare, Save, ShieldAlert, Tag, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, History, MessageSquare, Pencil, Save, ShieldAlert, Tag, X } from "lucide-react";
 import { Fragment, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
@@ -53,6 +53,9 @@ export function DevelopmentOpenIssuesPage() {
   const [activeAction, setActiveAction] = useState<{ issueId: string; action: ActionKey } | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [savingFields, setSavingFields] = useState<Set<string>>(() => new Set());
+  // Link editors that the pencil has opened; a saved link is otherwise shown
+  // as a link rather than as an input.
+  const [editingLinks, setEditingLinks] = useState<Set<string>>(() => new Set());
   const [columnWidthOverrides, setColumnWidthOverrides] = useState<
     Record<string, ReturnType<typeof normalizeOpenIssuesPrototypeColumnWidths>>
   >({});
@@ -206,6 +209,12 @@ export function DevelopmentOpenIssuesPage() {
 
   const toggleAction = (issue: Issue, action: ActionKey) => {
     setExpandedIssueId(issue.id);
+    setEditingLinks((current) => {
+      const next = new Set(current);
+      next.delete(`${issue.id}:jira`);
+      next.delete(`${issue.id}:mattermost`);
+      return next;
+    });
     setActiveAction((current) => current?.issueId === issue.id && current.action === action ? null : { issueId: issue.id, action });
     if (action === "section") setDraftValues((current) => ({ ...current, [`${issue.id}:section`]: getDraft(issue).category }));
     if (action === "due") setDraftValues((current) => ({ ...current, [`${issue.id}:due`]: getDraft(issue).dueDate }));
@@ -215,7 +224,10 @@ export function DevelopmentOpenIssuesPage() {
   };
 
   const saveAction = async (issue: Issue, action: "section" | "due" | "phase") => {
-    const value = draftValues[`${issue.id}:${action}`] ?? "";
+    const raw = draftValues[`${issue.id}:${action}`] ?? "";
+    // The schema trims the section, so store the trimmed value locally too and
+    // keep the draft in step with what the server actually recorded.
+    const value = action === "section" ? raw.trim() : raw;
     const payload = action === "section"
       ? { category: value }
       : action === "due"
@@ -283,8 +295,10 @@ export function DevelopmentOpenIssuesPage() {
               disabled={isReadOnly}
               onChange={(event) => setDraftValues((current) => ({ ...current, [`${issue.id}:section`]: event.target.value }))}
               onBlur={() => {
+                // A question may legitimately belong to no section; the register
+                // already groups those together, so only skip an unchanged value.
                 const value = draftValues[`${issue.id}:section`] ?? getDraft(issue).category;
-                if (value.trim() && value !== getDraft(issue).category) void saveAction(issue, "section");
+                if (value.trim() !== getDraft(issue).category.trim()) void saveAction(issue, "section");
               }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
@@ -333,6 +347,30 @@ export function DevelopmentOpenIssuesPage() {
       );
     }
     if (action === "jira") {
+      const currentUrl = issue.jiraTicketUrl ?? issue.jiraLinks[0]?.jiraUrl ?? null;
+      const currentLabel = issue.jiraTicketKey ?? issue.jiraLinks[0]?.jiraKey ?? currentUrl;
+      // A saved link is worth following, not just re-typing, so it stays a link
+      // until the pencil is used.
+      if (currentUrl && !editingLinks.has(`${issue.id}:jira`)) {
+        return (
+          <div className="open-issues-prototype-editor open-issues-prototype-link-editor">
+            <span className="open-issues-prototype-link-label">{t("ui.projects.openIssuesPrototypeJiraLink")}</span>
+            <a className="open-issues-prototype-link-value" href={currentUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink size={14} />{currentLabel}
+            </a>
+            <button
+              type="button"
+              className="icon-button"
+              disabled={isReadOnly}
+              title={t("ui.projects.openIssuesPrototypeEditLink")}
+              aria-label={t("ui.projects.openIssuesPrototypeEditLink")}
+              onClick={() => setEditingLinks((current) => new Set(current).add(`${issue.id}:jira`))}
+            >
+              <Pencil size={15} />
+            </button>
+          </div>
+        );
+      }
       return (
         <div className="open-issues-prototype-editor">
           <label>{t("ui.projects.openIssuesPrototypeJiraLink")}
@@ -356,6 +394,27 @@ export function DevelopmentOpenIssuesPage() {
       );
     }
     if (action === "mattermost") {
+      const threadUrl = issue.threadLinks[0]?.threadUrl ?? null;
+      if (threadUrl && !editingLinks.has(`${issue.id}:mattermost`)) {
+        return (
+          <div className="open-issues-prototype-editor open-issues-prototype-link-editor">
+            <span className="open-issues-prototype-link-label">{t("ui.projects.openIssuesPrototypeMattermostLink")}</span>
+            <a className="open-issues-prototype-link-value" href={threadUrl} target="_blank" rel="noopener noreferrer">
+              <MessageSquare size={14} />{threadUrl}
+            </a>
+            <button
+              type="button"
+              className="icon-button"
+              disabled={isReadOnly}
+              title={t("ui.projects.openIssuesPrototypeEditLink")}
+              aria-label={t("ui.projects.openIssuesPrototypeEditLink")}
+              onClick={() => setEditingLinks((current) => new Set(current).add(`${issue.id}:mattermost`))}
+            >
+              <Pencil size={15} />
+            </button>
+          </div>
+        );
+      }
       return (
         <div className="open-issues-prototype-editor">
           <label>{t("ui.projects.openIssuesPrototypeMattermostLink")}
@@ -441,15 +500,30 @@ export function DevelopmentOpenIssuesPage() {
                     <tr className={`open-issues-prototype-row ${expanded ? "is-expanded" : ""}`}>
                       <td className="open-issues-prototype-number">{index + 1}</td>
                       <td>
-                        <input
-                          className="open-issues-prototype-inline-input open-issues-prototype-title-input"
-                          value={draft.title}
-                          disabled={isReadOnly}
-                          aria-busy={isSaving("title")}
-                          onChange={(event) => updateDraft(issue, { title: event.target.value })}
-                          onBlur={() => void persistInlineField(issue, "title", getDraft(issue).title)}
-                          aria-label={t("ui.projects.questionTitleColumn")}
-                        />
+                        {/* An input cannot wrap, so an expanded row swaps in a textarea
+                            and shows the whole question, the way the status does. */}
+                        {expanded ? (
+                          <textarea
+                            className="open-issues-prototype-inline-input open-issues-prototype-title-input open-issues-prototype-title-area"
+                            rows={Math.min(6, Math.max(2, Math.ceil(draft.title.length / 40)))}
+                            value={draft.title}
+                            disabled={isReadOnly}
+                            aria-busy={isSaving("title")}
+                            onChange={(event) => updateDraft(issue, { title: event.target.value })}
+                            onBlur={() => void persistInlineField(issue, "title", getDraft(issue).title)}
+                            aria-label={t("ui.projects.questionTitleColumn")}
+                          />
+                        ) : (
+                          <input
+                            className="open-issues-prototype-inline-input open-issues-prototype-title-input"
+                            value={draft.title}
+                            disabled={isReadOnly}
+                            aria-busy={isSaving("title")}
+                            onChange={(event) => updateDraft(issue, { title: event.target.value })}
+                            onBlur={() => void persistInlineField(issue, "title", getDraft(issue).title)}
+                            aria-label={t("ui.projects.questionTitleColumn")}
+                          />
+                        )}
                         {issue.referenceLabel && <a href={issue.referenceUrl ?? "#"} className="open-issues-prototype-reference"><ExternalLink size={13} />{issue.referenceLabel}</a>}
                       </td>
                       <td className="open-issues-prototype-status-cell">

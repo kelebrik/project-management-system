@@ -249,6 +249,15 @@
   font-weight: 800;
 }
 
+/* The expanded row shows the whole question instead of clipping it, matching
+   what the status column already does. */
+.open-issues-prototype-title-area {
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  resize: vertical;
+  white-space: normal;
+}
+
 .open-issues-prototype-owner-input {
   min-width: 0;
 }
@@ -276,9 +285,11 @@
   width: 100%;
 }
 
-.open-issues-prototype-priority-cell.critical { background: #f4d7d3; color: #8c2f25; }
-.open-issues-prototype-priority-cell.high { background: #fae5cf; color: #8d4b18; }
-.open-issues-prototype-priority-cell.medium { background: #f6efcf; color: #665614; }
+/* Priority carries the emphasis, readiness stays quiet: the two columns sit side
+   by side, and having both shout made neither readable at a glance. */
+.open-issues-prototype-priority-cell.critical { background: #a8352a; color: #fff; }
+.open-issues-prototype-priority-cell.high { background: #c4611f; color: #fff; }
+.open-issues-prototype-priority-cell.medium { background: #e2b935; color: #17212b; }
 .open-issues-prototype-priority-cell.low { background: var(--surface-2); color: var(--text-muted); }
 .open-issues-prototype-priority option { background: var(--surface); color: var(--text); }
 
@@ -315,22 +326,24 @@
   vertical-align: stretch !important;
 }
 
+/* Muted counterparts of the priority palette: the hue still reads as red, amber
+   or green, but the colour no longer competes with the priority cell. */
 .open-issues-prototype-readiness-cell.red,
 .open-issues-prototype-readiness-cell.red .open-issues-prototype-readiness {
-  background: #bd4334;
-  color: #fff;
+  background: #f4d7d3;
+  color: #8c2f25;
 }
 
 .open-issues-prototype-readiness-cell.amber,
 .open-issues-prototype-readiness-cell.amber .open-issues-prototype-readiness {
-  background: #e2b935;
-  color: #17212b;
+  background: #f6efcf;
+  color: #665614;
 }
 
 .open-issues-prototype-readiness-cell.green,
 .open-issues-prototype-readiness-cell.green .open-issues-prototype-readiness {
-  background: #3f855e;
-  color: #fff;
+  background: #dcebe1;
+  color: #2c6446;
 }
 
 .open-issues-prototype-readiness option {
@@ -565,4 +578,28 @@
   .open-issues-prototype-table {
     min-width: 860px;
   }
+}
+
+/* A stored Jira or Mattermost link is shown as a link with a pencil beside it,
+   so it can be followed without first being turned back into an input. */
+.open-issues-prototype-link-editor {
+  align-items: center;
+  gap: 10px;
+}
+
+.open-issues-prototype-link-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.open-issues-prototype-link-value {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

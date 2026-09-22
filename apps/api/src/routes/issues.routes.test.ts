@@ -104,7 +104,10 @@ test('open issue contracts support the inline register fields and narrow updates
     readiness: 'AMBER',
   });
   assert.equal(updateIssueSchema.safeParse({ readiness: 'BLUE' }).success, false);
-  assert.equal(updateIssueSchema.safeParse({ category: '' }).success, false);
+  // A question may belong to no section at all; the register groups those together.
+  assert.deepEqual(updateIssueSchema.parse({ category: '' }), { category: '' });
+  assert.deepEqual(updateIssueSchema.parse({ category: '   ' }), { category: '' });
+  assert.equal(updateIssueSchema.safeParse({ category: 'x'.repeat(121) }).success, false);
   assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'javascript:alert(1)' }).success, false);
   assert.equal(updateIssueSchema.safeParse({ referenceUrl: 'https://example.test/thread/2' }).success, true);
   assert.deepEqual(updateIssueSchema.parse({ phaseId: 'phase-1' }), { phaseId: 'phase-1' });

@@ -91,6 +91,10 @@ export const projectsIssuesMessages = {
     "en": "Link risk",
     "ru": "Ссылка на риск"
   },
+  "ui.projects.openIssuesPrototypeEditLink": {
+    "en": "Edit link",
+    "ru": "Изменить ссылку"
+  },
   "ui.projects.openIssuesPrototypeJiraLink": {
     "en": "Jira link",
     "ru": "Ссылка на Jira"

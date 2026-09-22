@@ -41,7 +41,14 @@ export function createOverviewDashboard(
           item.type === "DEPENDENCY" ||
           item.type === "ASSUMPTION"),
     ) ?? [];
-  const decisionItems = openIssues.filter((issue) => issue.decisionRequired);
+  // A question earns a place on the overview by what the register already says
+  // about it — high priority and a readiness that is not yet green — rather than
+  // by a separate flag somebody had to remember to tick.
+  const decisionItems = openIssues.filter(
+    (issue) =>
+      issue.severity === "HIGH" &&
+      (issue.readiness === "AMBER" || issue.readiness === "RED"),
+  );
   const nextMilestone = structureMilestones.find(
     (entry) =>
       entry.milestone.dueDate &&

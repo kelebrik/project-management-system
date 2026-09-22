@@ -54,7 +54,7 @@ export async function getProjectForOverviewGeneration(projectId: string) {
       jiraIntegration: true,
       issues: {
         where: { status: { notIn: ['Done', 'Closed', 'Resolved'] } },
-        orderBy: [{ decisionRequired: 'desc' }, { severity: 'desc' }, { updatedAt: 'desc' }],
+        orderBy: [{ severity: 'desc' }, { readiness: 'desc' }, { updatedAt: 'desc' }],
         include: { jiraLinks: { orderBy: { createdAt: 'asc' } } },
       },
       jiraSnapshots: {
@@ -88,7 +88,11 @@ type ProjectForOverviewGeneration = NonNullable<Awaited<ReturnType<typeof getPro
 
 export function generateExecutiveSummary(project: ProjectForOverviewGeneration) {
   const criticalIssues = project.issues.filter((issue) => issue.severity === 'CRITICAL');
-  const decisionIssues = project.issues.filter((issue) => issue.decisionRequired);
+  // Matches the overview dashboard: high priority with a readiness that is not
+  // yet green, rather than a separate flag kept in step by hand.
+  const decisionIssues = project.issues.filter(
+    (issue) => issue.severity === 'HIGH' && (issue.readiness === 'AMBER' || issue.readiness === 'RED'),
+  );
   const activeRaidItems = project.raidItems.filter((item) => !['CLOSED', 'VALIDATED'].includes(item.status));
   const highRaidItems = activeRaidItems.filter((item) => item.type === 'RISK' && item.riskScore >= 15);
   const activeProblems = activeRaidItems.filter((item) => item.type === 'DEPENDENCY');
