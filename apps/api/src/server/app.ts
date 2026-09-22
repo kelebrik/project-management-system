@@ -22,7 +22,7 @@ import { logEvent } from './logger.js';
 import { writePermissionMiddleware } from './permissions.js';
 import { ensureEntityProjectWritable, ensureProjectWritable, registerClosedProjectWriteGuards } from './project-write-guards.js';
 import { httpMetricsMiddleware, metricsHandler, rateLimitMiddleware } from './telemetry.js';
-import { trustProxyHops } from './deployment-profile.js';
+import { LEGACY_TRUST_PROXY_HOPS, trustProxyHops } from './deployment-profile.js';
 
 const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 const isProduction = process.env.NODE_ENV === 'production';
@@ -47,7 +47,7 @@ export function createApp() {
 
   // Outside production nothing proxies the application, so the socket address is
   // already the caller. In production the value has to match the deployment.
-  app.set('trust proxy', isProduction ? (trustProxyHops() ?? 0) : 0);
+  app.set('trust proxy', isProduction ? (trustProxyHops() ?? LEGACY_TRUST_PROXY_HOPS) : 0);
 
   app.use('/api/projects/:projectId/artifact-table', express.json({ limit: '4mb' }));
   app.use(express.json({ limit: '5mb' }));

@@ -3,7 +3,8 @@ import test from 'node:test';
 
 import {
   assertDeploymentProfileConfigured,
-  assertTrustProxyConfigured,
+  LEGACY_TRUST_PROXY_HOPS,
+  resolveTrustProxyHops,
   deploymentProfile,
   isCloudProfile,
   isJiraAccessAllowed,
@@ -90,14 +91,24 @@ test('the proxy depth is only accepted as a whole number of hops', () => {
   assert.equal(trustProxyHops({}), null);
 });
 
-test('startup rejects a proxy depth it cannot use', () => {
-  assert.throws(() => assertTrustProxyConfigured({}), /but is missing/);
+test('an absent proxy depth keeps the historical behaviour rather than refusing to start', () => {
+  // Not every deployment renders its environment from this repository, so a
+  // missing value must not turn a degraded rate limit into an outage.
+  assert.deepEqual(resolveTrustProxyHops({}), { hops: LEGACY_TRUST_PROXY_HOPS, configured: false });
+  assert.deepEqual(resolveTrustProxyHops({ TRUST_PROXY_HOPS: '   ' }), {
+    hops: LEGACY_TRUST_PROXY_HOPS,
+    configured: false,
+  });
+});
+
+test('startup rejects a proxy depth that is present but unusable', () => {
   // `true` would tell Express to trust the whole forwarded chain, which lets a
   // caller choose their own rate limiting key.
-  assert.throws(() => assertTrustProxyConfigured({ TRUST_PROXY_HOPS: 'true' }), /received "true"/);
-  assert.throws(() => assertTrustProxyConfigured({ TRUST_PROXY_HOPS: '-1' }), /received "-1"/);
-  assert.equal(assertTrustProxyConfigured({ TRUST_PROXY_HOPS: '2' }), 2);
-  assert.equal(assertTrustProxyConfigured({ TRUST_PROXY_HOPS: '0' }), 0);
+  assert.throws(() => resolveTrustProxyHops({ TRUST_PROXY_HOPS: 'true' }), /received "true"/);
+  assert.throws(() => resolveTrustProxyHops({ TRUST_PROXY_HOPS: '-1' }), /received "-1"/);
+  assert.throws(() => resolveTrustProxyHops({ TRUST_PROXY_HOPS: '1.5' }), /received "1.5"/);
+  assert.deepEqual(resolveTrustProxyHops({ TRUST_PROXY_HOPS: '2' }), { hops: 2, configured: true });
+  assert.deepEqual(resolveTrustProxyHops({ TRUST_PROXY_HOPS: '0' }), { hops: 0, configured: true });
 });
 
 test('startup rejects the public demo on the corporate profile', () => {

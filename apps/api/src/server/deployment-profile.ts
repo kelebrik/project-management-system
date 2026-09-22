@@ -55,16 +55,27 @@ export function trustProxyHops(env: NodeJS.ProcessEnv = process.env): number | n
   return Number(raw);
 }
 
-export function assertTrustProxyConfigured(env: NodeJS.ProcessEnv = process.env) {
+/** What the application assumed before the depth became configurable. */
+export const LEGACY_TRUST_PROXY_HOPS = 1;
+
+/**
+ * A value that is present but unusable is an operator mistake and stops the
+ * process. A value that is absent falls back to the historical one instead,
+ * because not every deployment renders its environment from this repository —
+ * refusing to start there would turn a degraded rate limit into an outage.
+ */
+export function resolveTrustProxyHops(env: NodeJS.ProcessEnv = process.env) {
+  const raw = env.TRUST_PROXY_HOPS?.trim();
+  if (!raw) return { hops: LEGACY_TRUST_PROXY_HOPS, configured: false };
+
   const hops = trustProxyHops(env);
   if (hops === null) {
-    const raw = env.TRUST_PROXY_HOPS?.trim();
     throw new Error(
-      'TRUST_PROXY_HOPS must be a non-negative whole number of proxies in front of the application' +
-        `${raw ? `, received "${raw}"` : ' but is missing'}. Use 0 when nothing proxies the application.`,
+      `TRUST_PROXY_HOPS must be a non-negative whole number of proxies in front of the application, received "${raw}". ` +
+        'Use 0 when nothing proxies the application.',
     );
   }
-  return hops;
+  return { hops, configured: true };
 }
 
 export function assertDeploymentProfileConfigured(env: NodeJS.ProcessEnv = process.env) {
