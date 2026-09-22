@@ -14,9 +14,27 @@ export type DeploymentProfile = 'cloud' | 'corporate';
 
 const PROFILES: readonly DeploymentProfile[] = ['cloud', 'corporate'];
 
+/**
+ * An absent profile resolves to `corporate`, which is the strict one: local
+ * password sign-in is not registered and the public demo identity is off. Not
+ * every deployment renders its environment from this repository, and refusing to
+ * start there would turn a missing discriminator into an outage — whereas
+ * falling back to the strict profile only ever removes capability.
+ *
+ * A value that is present but unrecognised still resolves to null, because that
+ * is an operator mistake and the startup check turns it into a hard failure.
+ */
+export const FALLBACK_DEPLOYMENT_PROFILE: DeploymentProfile = 'corporate';
+
 export function deploymentProfile(env: NodeJS.ProcessEnv = process.env): DeploymentProfile | null {
   const raw = env.DEPLOYMENT_PROFILE?.trim();
+  if (!raw) return FALLBACK_DEPLOYMENT_PROFILE;
   return PROFILES.find((profile) => profile === raw) ?? null;
+}
+
+/** Whether the profile was chosen by configuration rather than by the fallback. */
+export function isDeploymentProfileConfigured(env: NodeJS.ProcessEnv = process.env) {
+  return Boolean(env.DEPLOYMENT_PROFILE?.trim());
 }
 
 export function isCloudProfile(env: NodeJS.ProcessEnv = process.env) {
@@ -81,10 +99,9 @@ export function resolveTrustProxyHops(env: NodeJS.ProcessEnv = process.env) {
 export function assertDeploymentProfileConfigured(env: NodeJS.ProcessEnv = process.env) {
   const profile = deploymentProfile(env);
   if (!profile) {
-    const raw = env.DEPLOYMENT_PROFILE?.trim();
     throw new Error(
-      `DEPLOYMENT_PROFILE must be set to ${PROFILES.map((value) => `"${value}"`).join(' or ')}` +
-        `${raw ? `, received "${raw}"` : ' but is missing'}.`,
+      `DEPLOYMENT_PROFILE must be set to ${PROFILES.map((value) => `"${value}"`).join(' or ')}, ` +
+        `received "${env.DEPLOYMENT_PROFILE?.trim()}".`,
     );
   }
   if (profile === 'corporate' && env.PUBLIC_DEMO_MODE === 'true') {

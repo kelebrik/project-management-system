@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   assertDeploymentProfileConfigured,
+  FALLBACK_DEPLOYMENT_PROFILE,
+  isDeploymentProfileConfigured,
   LEGACY_TRUST_PROXY_HOPS,
   resolveTrustProxyHops,
   deploymentProfile,
@@ -19,9 +21,23 @@ test('only the exact profile names are recognised', () => {
   assert.equal(deploymentProfile(cloud), 'cloud');
   assert.equal(deploymentProfile(corporate), 'corporate');
   assert.equal(deploymentProfile({ DEPLOYMENT_PROFILE: ' cloud ' }), 'cloud');
-  assert.equal(deploymentProfile({}), null);
   assert.equal(deploymentProfile({ DEPLOYMENT_PROFILE: 'Cloud' }), null);
   assert.equal(deploymentProfile({ DEPLOYMENT_PROFILE: 'production' }), null);
+});
+
+test('an absent profile falls back to the strict one instead of refusing to start', () => {
+  // A deployment whose environment is rendered outside this repository must not
+  // be taken down by a discriminator it has never heard of.
+  assert.equal(deploymentProfile({}), FALLBACK_DEPLOYMENT_PROFILE);
+  assert.equal(deploymentProfile({ DEPLOYMENT_PROFILE: '  ' }), FALLBACK_DEPLOYMENT_PROFILE);
+  assert.equal(assertDeploymentProfileConfigured({}), 'corporate');
+
+  // The fallback only ever removes capability: no local sign-in, no demo identity.
+  assert.equal(isCloudProfile({}), false);
+  assert.equal(isPublicDemoMode({ PUBLIC_DEMO_MODE: 'true' }), false);
+
+  assert.equal(isDeploymentProfileConfigured({}), false);
+  assert.equal(isDeploymentProfileConfigured(cloud), true);
 });
 
 test('an unusable profile never counts as cloud', () => {
@@ -71,8 +87,7 @@ test('the demo opt-in is matched exactly and is not case-insensitive', () => {
   }
 });
 
-test('startup rejects a missing or unknown profile', () => {
-  assert.throws(() => assertDeploymentProfileConfigured({}), /must be set to .*but is missing/);
+test('startup rejects an unknown profile', () => {
   assert.throws(
     () => assertDeploymentProfileConfigured({ DEPLOYMENT_PROFILE: 'staging' }),
     /received "staging"/,

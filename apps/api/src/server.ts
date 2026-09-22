@@ -6,12 +6,21 @@ import { createApp } from './server/app.js';
 import { logEvent } from './server/logger.js';
 import { recalculateProjectWbsSchedule } from './services/wbs-schedule.js';
 import { createJiraSyncRunner } from './services/jira-sync-runner.js';
-import { assertDeploymentProfileConfigured, resolveTrustProxyHops } from './server/deployment-profile.js';
+import {
+  assertDeploymentProfileConfigured,
+  isDeploymentProfileConfigured,
+  resolveTrustProxyHops,
+} from './server/deployment-profile.js';
 
-// Fail fast on a misconfigured deployment: every cloud-only capability is gated
-// on this profile, so a missing value must stop the process rather than quietly
-// degrade behaviour.
+// An unrecognised profile is an operator mistake and stops the process; an absent
+// one falls back to the strict profile, which only removes capability.
 const deploymentProfile = assertDeploymentProfileConfigured();
+if (!isDeploymentProfileConfigured()) {
+  logEvent('warn', 'api.deployment_profile_unconfigured', {
+    usedProfile: deploymentProfile,
+    message: 'DEPLOYMENT_PROFILE is not set; falling back to the strict profile. Set it explicitly.',
+  });
+}
 const isProduction = process.env.NODE_ENV === 'production';
 const trustProxy = isProduction ? resolveTrustProxyHops() : { hops: 0, configured: true };
 logEvent('info', 'api.deployment_profile', { profile: deploymentProfile, trustProxyHops: trustProxy.hops });
