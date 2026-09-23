@@ -1,4 +1,5 @@
 import { createAdminLabels } from "./adminMetadata";
+import { createAuditLabels } from "./auditLabels";
 import { labels } from "@pms/shared";
 import type { Locale } from "./types";
 
@@ -20,6 +21,7 @@ export function createDomainLabels(locale: Locale) {
   const label = (group: Record<string, string>) => (value: string) => group[value] ?? value;
   return {
     ...createAdminLabels(locale),
+    ...createAuditLabels(locale),
     projectStatusLabel: label(values.projectStatus),
     projectHealthLabel: label(values.rag),
     wbsTypeLabel: label(values.wbsType),

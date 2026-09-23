@@ -1,4 +1,6 @@
 import type { ProjectListItem, RaidItem, WbsItem } from "./domainTypes";
+import { intlLocale } from "../i18n/locale";
+import type { Locale } from "../i18n/types";
 import {
   addCalendarMonths,
   signedDaysBetween,
@@ -137,8 +139,8 @@ function validDay(value: string | null | undefined) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function monthTickLabel(value: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
+function monthTickLabel(value: Date, locale: Locale) {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     month: "short",
     year: "2-digit",
   }).format(value);
@@ -146,6 +148,7 @@ function monthTickLabel(value: Date) {
 
 export function createPortfolioGoalTimeline(
   projects: ProjectListItem[],
+  locale: Locale = "ru",
   today = new Date(),
 ) {
   const todayDate = startOfDay(today);
@@ -168,7 +171,7 @@ export function createPortfolioGoalTimeline(
   ) {
     monthTicks.push({
       key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
-      label: monthTickLabel(cursor),
+      label: monthTickLabel(cursor, locale),
       offset: offsetForDate(cursor),
     });
   }

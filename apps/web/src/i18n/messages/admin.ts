@@ -91,6 +91,22 @@ export const adminMessages = {
     "en": "Guest",
     "ru": "Гость"
   },
+  "ui.admin.guestVisitor": {
+    "en": "Guest {id}",
+    "ru": "Гость {id}"
+  },
+  "ui.admin.deletedUser": {
+    "en": "Deleted user",
+    "ru": "Удаленный пользователь"
+  },
+  "ui.admin.tombstoneRestored": {
+    "en": "Restored: {date}",
+    "ru": "Восстановлено: {date}"
+  },
+  "ui.admin.tombstoneDeleted": {
+    "en": "Items deleted: {count}; kept until {date}",
+    "ru": "Удалено элементов: {count}; хранится до {date}"
+  },
   "ui.admin.pageViewsLastSevenDaysDescription": {
     "en": "Page views for the last 7 days, excluding system administrators",
     "ru": "Просмотры страниц за последние 7 дней без системных администраторов"

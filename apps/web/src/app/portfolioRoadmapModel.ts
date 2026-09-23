@@ -1,4 +1,6 @@
 import type { ProjectListItem, WbsItem } from "./domainTypes";
+import { intlLocale } from "../i18n/locale";
+import type { Locale } from "../i18n/types";
 
 export type PortfolioRoadmapTrackId = "HW" | "SW" | "G2M";
 export type PortfolioRoadmapRange = 6 | 12 | 24;
@@ -774,10 +776,10 @@ export function createPortfolioRoadmap(
   };
 }
 
-export function portfolioRoadmapDateLabel(value: string) {
+export function portfolioRoadmapDateLabel(value: string, locale: Locale = "ru") {
   const parsed = validDate(value);
   return parsed
-    ? new Intl.DateTimeFormat("ru-RU", {
+    ? new Intl.DateTimeFormat(intlLocale(locale), {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",

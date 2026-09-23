@@ -1,8 +1,6 @@
 import {
   addMonths,
   daysBetween,
-  monthLabel,
-  shortDate,
   signedDaysBetween,
   startOfDay,
   startOfMonth,
@@ -13,6 +11,8 @@ import type {
   WbsDependencyType,
   WbsTreeItem,
 } from "./domainTypes";
+import { createFormatters } from "../i18n/formatters";
+import type { Locale } from "../i18n/types";
 import { summaryToneClass, wbsToneClass } from "./wbsTree";
 import {
   GANTT_ROW_HEIGHT,
@@ -72,6 +72,7 @@ type WbsGanttOptions = {
   }) | null | undefined;
   wbsDependencies: WbsDependency[];
   rangeDays?: 30 | 90 | 180 | null;
+  locale?: Locale;
 };
 
 function validDate(value: string | null) {
@@ -100,7 +101,9 @@ export function createWbsGantt({
   criticalPath,
   wbsDependencies,
   rangeDays = null,
+  locale = "ru",
 }: WbsGanttOptions) {
+  const { monthLabel, shortDate } = createFormatters(locale);
   const datedItems = visibleWbsTree
     .filter((item) => item.status !== "CANCELLED")
     .map((item) => {
@@ -200,7 +203,9 @@ export function createWbsGantt({
     const quarterEnd = addMonths(cursor, 3);
     const position = periodPosition(cursor, quarterEnd);
     quarters.push({
-      label: `${Math.floor(cursor.getMonth() / 3) + 1} кв. ${cursor.getFullYear()}`,
+      label: locale === "en"
+        ? `Q${Math.floor(cursor.getMonth() / 3) + 1} ${cursor.getFullYear()}`
+        : `${Math.floor(cursor.getMonth() / 3) + 1} кв. ${cursor.getFullYear()}`,
       offset: position.offset,
       showLabel: position.width >= 12,
       width: position.width,

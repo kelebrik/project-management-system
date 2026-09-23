@@ -6,7 +6,7 @@ import { usePageContext } from "./PageContext";
 import type { GanttCssProperties } from "../app/uiStyleTypes";
 
 export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResult | null }) {
-  const { t: uiText } = useInterfaceTranslation();
+  const { locale, t: uiText } = useInterfaceTranslation();
   const {
     activeGanttLinkIds,
     activeWbsItemId,
@@ -44,7 +44,7 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
     wbsGantt: workingGantt,
     ganttRangeDays,
   } = usePageContext();
-  const wbsGantt = useMemo(() => scenario ? createScenarioGantt(visibleWbsTree, project.wbsDependencies ?? [], ganttRangeDays, scenario) : workingGantt, [scenario, visibleWbsTree, project.wbsDependencies, ganttRangeDays, workingGantt]);
+  const wbsGantt = useMemo(() => scenario ? createScenarioGantt(visibleWbsTree, project.wbsDependencies ?? [], ganttRangeDays, scenario, locale) : workingGantt, [scenario, visibleWbsTree, project.wbsDependencies, ganttRangeDays, locale, workingGantt]);
   const primaryPeriods =
     ganttScale === "week"
       ? wbsGantt.weeks

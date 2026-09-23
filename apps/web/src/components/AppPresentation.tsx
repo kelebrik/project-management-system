@@ -28,8 +28,6 @@ import {
 } from "../app/dateUtils";
 import {
   artifactStatusLabel,
-  auditActionLabel,
-  auditObjectLabel,
   issuePrimaryJiraLink,
   issueSeverityLabel,
   issueStatusLabel,
@@ -309,8 +307,6 @@ export function AppPresentation({
     adminPermissionLabel,
     adminPermissionOrder,
     artifactStatusLabel,
-    auditActionLabel,
-    auditObjectLabel,
     calendarDelayDays,
     calendarMonthDays,
     clampNumber,

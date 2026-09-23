@@ -1,3 +1,4 @@
+import type { Locale } from "./types";
 export const navigation = {
   "view.portfolio": {
     "en": "Portfolio",
@@ -248,3 +249,14 @@ export const navigation = {
     "ru": "Создать проект"
   }
 } as const;
+
+type NavigationKey = keyof typeof navigation;
+
+function isNavigationKey(value: string): value is NavigationKey {
+  return Object.hasOwn(navigation, value);
+}
+
+export function viewLabel(pageKey: string, locale: Locale) {
+  const key = `view.${pageKey}`;
+  return isNavigationKey(key) ? navigation[key][locale] : null;
+}

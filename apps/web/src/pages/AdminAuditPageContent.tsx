@@ -1,9 +1,8 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
-import { auditFieldLabel } from "../app/labels";
 import { usePageContext } from "./PageContext";
 
-function auditChangeText(value: string | null | undefined) {
-  if (!value) return "не задано";
+function auditChangeText(value: string | null | undefined, notSet: string) {
+  if (!value) return notSet;
   return value.length > 120 ? `${value.slice(0, 117)}...` : value;
 }
 
@@ -17,12 +16,13 @@ function canRestoreTombstone(event: { wbsTombstone?: { restoredAt: string | null
 }
 
 export function AdminAuditPageContent() {
-  const { t: uiText } = useInterfaceTranslation();
+  const {
+    t: uiText,
+    labels: { auditActionLabel, auditFieldLabel, auditObjectLabel },
+  } = useInterfaceTranslation();
   const ctx = usePageContext();
   const {
-    auditActionLabel,
     auditEvents,
-    auditObjectLabel,
     dateTime,
     reloadAuditEvents,
     restoreWbsTombstone,
@@ -65,9 +65,9 @@ export function AdminAuditPageContent() {
                               {event.changes.map((change) => (
                                 <span className="audit-change" key={change.id}>
                                   <b>{auditFieldLabel(change.field)}</b>
-                                  <em>{auditChangeText(change.oldText)}</em>
+                                  <em>{auditChangeText(change.oldText, uiText("ui.admin.notSetNeuter"))}</em>
                                   <i aria-hidden="true">-&gt;</i>
-                                  <em>{auditChangeText(change.newText)}</em>
+                                  <em>{auditChangeText(change.newText, uiText("ui.admin.notSetNeuter"))}</em>
                                 </span>
                               ))}
                             </div>
@@ -76,8 +76,11 @@ export function AdminAuditPageContent() {
                             <div className="audit-tombstone">
                               <span>
                                 {event.wbsTombstone.restoredAt
-                                  ? `Восстановлено: ${dateTime(event.wbsTombstone.restoredAt)}`
-                                  : `Удалено элементов: ${event.wbsTombstone.itemCount}; хранится до ${dateTime(event.wbsTombstone.expiresAt)}`}
+                                  ? uiText("ui.admin.tombstoneRestored", { date: dateTime(event.wbsTombstone.restoredAt) })
+                                  : uiText("ui.admin.tombstoneDeleted", {
+                                      count: event.wbsTombstone.itemCount,
+                                      date: dateTime(event.wbsTombstone.expiresAt),
+                                    })}
                               </span>
                               {canRestoreTombstone(event) && (
                                 <button

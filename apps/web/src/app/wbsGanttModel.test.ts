@@ -127,3 +127,15 @@ test("createWbsGantt keeps historical work available in a selected range", () =>
   assert.ok(model.start && model.start <= new Date(old.startDate!));
   assert.ok(model.end && model.end >= new Date(far.dueDate!));
 });
+
+test("createWbsGantt timescale follows the interface language", () => {
+  const item = wbsTreeItem({});
+  const en = createWbsGantt({ visibleWbsTree: [item], criticalPath: null, wbsDependencies: [], locale: "en" });
+  const ru = createWbsGantt({ visibleWbsTree: [item], criticalPath: null, wbsDependencies: [] });
+
+  assert.equal(en.months[0]?.label, "Jul 2026");
+  assert.equal(en.quarters[0]?.label, "Q3 2026");
+  assert.doesNotMatch(en.weeks.map((week) => week.label).join(" "), /[А-Яа-яЁё]/);
+  assert.match(ru.months[0]?.label ?? "", /июль/);
+  assert.equal(ru.quarters[0]?.label, "3 кв. 2026");
+});

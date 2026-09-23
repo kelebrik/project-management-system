@@ -70,7 +70,7 @@ import { useWorkspaceFullscreen } from "./useWorkspaceFullscreen";
 type AppDerivedDataDeps = Record<string, any>;
 
 export function useAppDerivedData(deps: AppDerivedDataDeps) {
-  const { t: uiText } = useI18n();
+  const { locale, t: uiText } = useI18n();
   const {
     activeView,
     activeWbsItemId,
@@ -248,8 +248,8 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     [activeProjects, projectSearch],
   );
   const portfolioGoalTimeline = useMemo(
-    () => createPortfolioGoalTimeline(projects),
-    [projects],
+    () => createPortfolioGoalTimeline(projects, locale),
+    [locale, projects],
   );
   const portfolioBlockingProblemGroups = useMemo(
     () => createPortfolioBlockingProblemGroups(projects),
@@ -463,8 +463,9 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
         criticalPath: project?.criticalPath,
         wbsDependencies: project?.wbsDependencies ?? [],
         rangeDays: ganttRangeDays,
+        locale,
       }),
-    [ganttRangeDays, project?.criticalPath, project?.wbsDependencies, visibleWbsTree],
+    [ganttRangeDays, locale, project?.criticalPath, project?.wbsDependencies, visibleWbsTree],
   );
   const wbsColumnsByKey = useMemo(
     () =>

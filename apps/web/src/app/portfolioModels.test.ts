@@ -183,6 +183,7 @@ test("portfolio goal timeline uses active project goals only", () => {
         ],
       }),
     ],
+    "ru",
     new Date(2026, 5, 10),
   );
 
@@ -248,6 +249,7 @@ test("portfolio goal timeline keeps only projects with open goals", () => {
         wbsItems: [wbsGoal({ id: "closed-goal" })],
       }),
     ],
+    "ru",
     new Date(2026, 5, 10),
   );
 
@@ -373,7 +375,7 @@ test("portfolio summary and visible red zone projects ignore empty projects", ()
       raidItems: [raidProblem({ id: "closed-project-risk", type: "RISK", riskScore: 25 })],
     }),
   ];
-  const goalTimeline = createPortfolioGoalTimeline(projects, new Date(2026, 5, 10));
+  const goalTimeline = createPortfolioGoalTimeline(projects, "ru", new Date(2026, 5, 10));
   const problemProjects = visiblePortfolioBlockingProblemProjects(
     createPortfolioBlockingProblemGroups(projects),
   );
@@ -400,4 +402,10 @@ test("portfolio summary and visible red zone projects ignore empty projects", ()
     ["project-a"],
   );
   assert.deepEqual([...redZoneProjectIds], ["project-a"]);
+});
+
+test("portfolio goal timeline month ticks follow the interface language", () => {
+  const today = new Date(2026, 5, 10);
+  assert.equal(createPortfolioGoalTimeline([], "en", today).monthTicks[0]?.label, "Feb 26");
+  assert.match(createPortfolioGoalTimeline([], "ru", today).monthTicks[0]?.label ?? "", /февр/);
 });

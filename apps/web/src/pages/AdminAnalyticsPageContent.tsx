@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { RefreshCw } from "lucide-react";
-import { attendanceChartBars } from "../app/pageVisitAnalytics";
+import { attendanceChartBars, visitPageTitle, visitorDisplayName } from "../app/pageVisitAnalytics";
 import { usePageVisitAnalytics } from "../hooks/usePageVisitAnalytics";
 
 
@@ -158,7 +158,7 @@ const dateTime = new Intl.DateTimeFormat(intlLocale(locale), {
                   {report.visitors.map((visitor) => (
                     <tr key={visitor.visitorKey}>
                       <td><VisitorType kind={visitor.kind} /></td>
-                      <td><strong>{visitor.displayName}</strong></td>
+                      <td><strong>{visitorDisplayName(visitor, uiText)}</strong></td>
                       <td>{visitor.views}</td>
                       <td>{visitor.projectCount}</td>
                       <td>{dateTime.format(new Date(visitor.lastVisitedAt))}</td>
@@ -185,9 +185,9 @@ const dateTime = new Intl.DateTimeFormat(intlLocale(locale), {
                 <tbody>
                   {report.breakdown.map((item) => (
                     <tr key={`${item.visitorKey}:${item.projectId ?? "global"}:${item.pageKey}`}>
-                      <td><VisitorType kind={item.kind} /> <strong>{item.displayName}</strong></td>
+                      <td><VisitorType kind={item.kind} /> <strong>{visitorDisplayName(item, uiText)}</strong></td>
                       <td>{item.projectCode ? `${item.projectCode} · ${item.projectName}` : uiText("ui.admin.generalPages")}</td>
-                      <td>{item.pageTitle}</td>
+                      <td>{visitPageTitle(item, locale)}</td>
                       <td>{item.views}</td>
                       <td>{dateTime.format(new Date(item.lastVisitedAt))}</td>
                     </tr>

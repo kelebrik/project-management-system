@@ -361,8 +361,8 @@ export function PortfolioRoadmapV2() {
             </strong>
             <span id="portfolio-roadmap-selection-meta">
               {selectedSegment.projectName} · {selectedSegment.trackLabel} {uiText("ui.portfolio.roadmapWbsSeparatorLabel")} {selectedSegment.segment.code} ·{" "}
-              {portfolioRoadmapDateLabel(selectedSegment.segment.startDate)} -{" "}
-              {portfolioRoadmapDateLabel(selectedSegment.segment.endDate)} ·{" "}
+              {portfolioRoadmapDateLabel(selectedSegment.segment.startDate, uiLocale)} -{" "}
+              {portfolioRoadmapDateLabel(selectedSegment.segment.endDate, uiLocale)} ·{" "}
               {itemCountLabel(selectedSegment.segment.itemCount)} {uiText("ui.portfolio.roadmapReadinessSeparatorLabel")}{" "}
               {selectedSegment.segment.progress}%
             </span>
@@ -497,11 +497,11 @@ export function PortfolioRoadmapV2() {
                           )}
                           {track.milestones.map((milestone) => (
                             <span
-                              aria-label={`Веха: ${milestone.label}, ${portfolioRoadmapDateLabel(milestone.date)}`}
+                              aria-label={`Веха: ${milestone.label}, ${portfolioRoadmapDateLabel(milestone.date, uiLocale)}`}
                               className={`portfolio-roadmap-milestone ${milestone.isComplete ? "is-complete" : ""}`}
                               key={milestone.id}
                               style={{ left: `${milestone.offset}%` } as CSSProperties}
-                              title={`${milestone.code} · ${milestone.label} · ${portfolioRoadmapDateLabel(milestone.date)}`}
+                              title={`${milestone.code} · ${milestone.label} · ${portfolioRoadmapDateLabel(milestone.date, uiLocale)}`}
                             >
                               <i aria-hidden="true" />
                               {milestone.showLabel ? <b>{milestone.label}</b> : null}
@@ -509,7 +509,7 @@ export function PortfolioRoadmapV2() {
                           ))}
                           {track.segments.map((segment) => (
                             <button
-                              aria-label={`${segment.code}, ${segment.label}, ${project.projectName}, ${track.label}, легенда ${segment.legendLabel}, ${portfolioRoadmapDateLabel(segment.startDate)} - ${portfolioRoadmapDateLabel(segment.endDate)}, ${itemCountLabel(segment.itemCount)}, готовность ${segment.progress}%. ${segment.description}`}
+                              aria-label={`${segment.code}, ${segment.label}, ${project.projectName}, ${track.label}, легенда ${segment.legendLabel}, ${portfolioRoadmapDateLabel(segment.startDate, uiLocale)} - ${portfolioRoadmapDateLabel(segment.endDate, uiLocale)}, ${itemCountLabel(segment.itemCount)}, готовность ${segment.progress}%. ${segment.description}`}
                               className={`portfolio-roadmap-segment ${segment.isStructureFallback ? "is-structure-fallback" : ""}`}
                               key={segment.id}
                               onClick={() =>

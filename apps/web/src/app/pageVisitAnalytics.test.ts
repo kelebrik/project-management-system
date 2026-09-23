@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { attendanceChartBars } from "./pageVisitAnalytics";
+import { createTranslator } from "../i18n/translate";
+import { attendanceChartBars, visitPageTitle, visitorDisplayName } from "./pageVisitAnalytics";
 
 test("attendance chart scales both visitor groups against the weekly maximum", () => {
   const bars = attendanceChartBars(
@@ -23,4 +24,18 @@ test("attendance chart keeps an empty week finite", () => {
   ]);
   assert.equal(bar?.authenticatedHeight, 0);
   assert.equal(bar?.anonymousHeight, 0);
+});
+
+test("visitor names and page titles follow the interface language", () => {
+  const en = createTranslator("en");
+  const guest = { visitorKey: "anonymous:2c59d1ffee", kind: "ANONYMOUS" as const, displayName: "Гость 2C59D1" };
+  assert.equal(visitorDisplayName(guest, en), "Guest 2C59D1");
+  assert.equal(visitorDisplayName(guest, createTranslator("ru")), "Гость 2C59D1");
+  assert.equal(
+    visitorDisplayName({ visitorKey: "user:deleted:unknown", kind: "USER", displayName: "Удаленный пользователь" }, en),
+    "Deleted user",
+  );
+  assert.equal(visitorDisplayName({ visitorKey: "user:u-1", kind: "USER", displayName: "Иван" }, en), "Иван");
+  assert.equal(visitPageTitle({ pageKey: "admin-audit", pageTitle: "Журнал аудита" }, "en"), "Audit log");
+  assert.equal(visitPageTitle({ pageKey: "unknown-page", pageTitle: "unknown-page" }, "en"), "unknown-page");
 });
