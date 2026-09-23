@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { projectAppViewKeys } from "@pms/shared";
+import { projectAppViewKeys, PUBLIC_DEMO_USER_ID } from "@pms/shared";
 import { apiClient } from "../api/client";
 import type { CurrentUser } from "../app/adminTypes";
 import type { AppView } from "../app/routes";
@@ -56,8 +56,12 @@ export function usePageVisitTracking({
       return;
     }
     const projectId = isProjectPage ? loadedProjectId : null;
-    const anonymousId = currentUser ? null : anonymousVisitorId();
-    const actorKey = currentUser ? `user:${currentUser.id}` : `anonymous:${anonymousId}`;
+    // On the public demo the API answers unauthenticated requests as a synthetic
+    // identity. That is a guest as far as attendance is concerned, and it has no
+    // row in the users table to attribute a visit to.
+    const isGuest = !currentUser || currentUser.id === PUBLIC_DEMO_USER_ID;
+    const anonymousId = isGuest ? anonymousVisitorId() : null;
+    const actorKey = isGuest ? `anonymous:${anonymousId}` : `user:${currentUser.id}`;
     const trackedKey = `${actorKey}:${activeView}:${projectId ?? "global"}`;
     if (lastTrackedKeyRef.current === trackedKey) return;
     lastTrackedKeyRef.current = trackedKey;

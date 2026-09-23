@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Request } from 'express';
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import {
   anonymousVisitorHash,
   isTrustedPageVisitRequest,
+  pageVisitActor,
   shouldRecordPageVisit,
 } from './page-visits.routes.js';
 
@@ -126,4 +128,22 @@ test('anonymous visitor hashes are stable without exposing the browser identifie
   assert.equal(hash, anonymousVisitorHash(id));
   assert.notEqual(hash, id);
   assert.equal(hash.length, 64);
+});
+
+test('the public demo identity is counted as a guest, not as a user', () => {
+  // It has no row in the users table, so attributing a visit to it would break
+  // the foreign key and the visit would be lost instead of counted.
+  assert.equal(pageVisitActor({ id: PUBLIC_DEMO_USER_ID }), null);
+  assert.equal(pageVisitActor(null), null);
+
+  const realUser = { id: 'user-1' };
+  assert.equal(pageVisitActor(realUser), realUser);
+});
+
+test('two browsers without a session are two separate guests', () => {
+  const first = anonymousVisitorHash('11111111-1111-4111-8111-111111111111');
+  const second = anonymousVisitorHash('22222222-2222-4222-8222-222222222222');
+
+  assert.notEqual(first, second);
+  assert.equal(first, anonymousVisitorHash('11111111-1111-4111-8111-111111111111'));
 });

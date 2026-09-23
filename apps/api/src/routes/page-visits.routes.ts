@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { Prisma } from '@prisma/client';
-import { appViewKeys, projectAppViewKeys } from '@pms/shared';
+import { appViewKeys, projectAppViewKeys, PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -67,6 +67,16 @@ export function anonymousVisitorHash(anonymousId: string) {
     .digest('hex');
 }
 
+/**
+ * Who a visit is attributed to. The public demo hands every unauthenticated
+ * visitor one synthetic identity that has no row in the users table, so it
+ * counts as a guest — both because that is what it is, and because attributing
+ * a visit to it would break the foreign key and lose the visit entirely.
+ */
+export function pageVisitActor<T extends { id: string }>(user: T | null): T | null {
+  return user && user.id !== PUBLIC_DEMO_USER_ID ? user : null;
+}
+
 export function shouldRecordPageVisit(role: string | null, trustedRequest: boolean) {
   return role !== 'ADMIN' && trustedRequest;
 }
@@ -83,9 +93,10 @@ export function createPageVisitsRouter(context: PageVisitsRouterContext) {
   const router = Router();
 
   router.post('/page-visits', async (req, res) => {
-    const user = context.currentUser(req);
+    const currentUser = context.currentUser(req);
+    const user = pageVisitActor(currentUser);
     const trustedRequest = isTrustedPageVisitRequest(req);
-    if (!shouldRecordPageVisit(user?.role ?? null, trustedRequest)) {
+    if (!shouldRecordPageVisit(currentUser?.role ?? null, trustedRequest)) {
       if (!trustedRequest) {
         logEvent('info', 'page_visit.rejected', {
           reason: 'untrusted_source',
@@ -95,7 +106,7 @@ export function createPageVisitsRouter(context: PageVisitsRouterContext) {
           forwardedHost: req.get('x-forwarded-host') ?? null,
           forwardedProto: req.get('x-forwarded-proto') ?? null,
           fetchSite: req.get('sec-fetch-site') ?? null,
-          authenticated: Boolean(user),
+          authenticated: Boolean(currentUser),
         });
       }
       res.status(204).end();
@@ -144,8 +155,17 @@ export function createPageVisitsRouter(context: PageVisitsRouterContext) {
         },
       });
     } catch (error) {
+      // A repeated event id is the expected idempotency case and says nothing.
+      // Anything else means attendance is quietly not being recorded, which is
+      // exactly how a broken foreign key went unnoticed until someone counted
+      // the visitors and found none.
       if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
-        throw error;
+        logEvent('error', 'page_visit.not_recorded', {
+          pageKey: parsed.data.pageKey,
+          actorType: user ? 'USER' : 'ANONYMOUS',
+          code: error instanceof Prisma.PrismaClientKnownRequestError ? error.code : null,
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
     }
     res.status(204).end();
