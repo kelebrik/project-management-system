@@ -1,3 +1,4 @@
+import { isOverviewDecisionIssue } from "@pms/shared";
 import { signedDaysBetween, startOfDay } from "./dateUtils";
 import type { ProjectDetails, WbsItem } from "./domainTypes";
 import type { StructureMilestone } from "./milestoneTimeline";
@@ -42,13 +43,8 @@ export function createOverviewDashboard(
           item.type === "ASSUMPTION"),
     ) ?? [];
   // A question earns a place on the overview by what the register already says
-  // about it — high priority and a readiness that is not yet green — rather than
-  // by a separate flag somebody had to remember to tick.
-  const decisionItems = openIssues.filter(
-    (issue) =>
-      issue.severity === "HIGH" &&
-      (issue.readiness === "AMBER" || issue.readiness === "RED"),
-  );
+  // about it, rather than by a separate flag somebody had to remember to tick.
+  const decisionItems = openIssues.filter(isOverviewDecisionIssue);
   const nextMilestone = structureMilestones.find(
     (entry) =>
       entry.milestone.dueDate &&

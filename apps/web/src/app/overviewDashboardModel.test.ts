@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { ProjectDetails } from "./domainTypes";
+import { isOverviewDecisionIssue } from "@pms/shared";
 import { createOverviewDashboard } from "./overviewDashboardModel";
 
 function baseProject(overrides: Partial<ProjectDetails> = {}) {
@@ -676,17 +677,19 @@ function decisionIssue(
   } as unknown as ProjectDetails["issues"][number];
 }
 
-test("overview decisions follow high priority and a readiness that is not green", () => {
+test("overview decisions cover critical questions off green and high ones in red", () => {
   const project = baseProject({
     issues: [
-      decisionIssue({ id: "high-amber" }),
-      decisionIssue({ id: "high-red", readiness: "RED" }),
-      decisionIssue({ id: "high-green", readiness: "GREEN" }),
       decisionIssue({ id: "critical-red", severity: "CRITICAL", readiness: "RED" }),
+      decisionIssue({ id: "critical-amber", severity: "CRITICAL", readiness: "AMBER" }),
+      decisionIssue({ id: "critical-green", severity: "CRITICAL", readiness: "GREEN" }),
+      decisionIssue({ id: "high-red", severity: "HIGH", readiness: "RED" }),
+      decisionIssue({ id: "high-amber", severity: "HIGH", readiness: "AMBER" }),
+      decisionIssue({ id: "high-green", severity: "HIGH", readiness: "GREEN" }),
       decisionIssue({ id: "medium-red", severity: "MEDIUM", readiness: "RED" }),
-      decisionIssue({ id: "low-amber", severity: "LOW" }),
-      decisionIssue({ id: "high-amber-closed", status: "Closed" }),
-      decisionIssue({ id: "high-amber-resolved", status: "Resolved" }),
+      decisionIssue({ id: "low-red", severity: "LOW", readiness: "RED" }),
+      decisionIssue({ id: "critical-red-closed", severity: "CRITICAL", readiness: "RED", status: "Closed" }),
+      decisionIssue({ id: "critical-red-resolved", severity: "CRITICAL", readiness: "RED", status: "Resolved" }),
     ],
   });
 
@@ -694,19 +697,19 @@ test("overview decisions follow high priority and a readiness that is not green"
 
   assert.deepEqual(
     dashboard.openDecisionItems.map((item) => item.id),
-    ["high-amber", "high-red"],
+    ["critical-red", "critical-amber", "high-red"],
   );
 });
 
 test("overview decisions are ordered by due date and capped at five", () => {
   const project = baseProject({
     issues: [
-      decisionIssue({ id: "third", dueDate: "2026-03-01" }),
-      decisionIssue({ id: "first", dueDate: "2026-01-01" }),
-      decisionIssue({ id: "second", dueDate: "2026-02-01" }),
-      decisionIssue({ id: "fourth", dueDate: "2026-04-01" }),
-      decisionIssue({ id: "fifth", dueDate: "2026-05-01" }),
-      decisionIssue({ id: "sixth", dueDate: "2026-06-01" }),
+      decisionIssue({ id: "third", severity: "CRITICAL", readiness: "RED", dueDate: "2026-03-01" }),
+      decisionIssue({ id: "first", severity: "CRITICAL", readiness: "RED", dueDate: "2026-01-01" }),
+      decisionIssue({ id: "second", severity: "HIGH", readiness: "RED", dueDate: "2026-02-01" }),
+      decisionIssue({ id: "fourth", severity: "CRITICAL", readiness: "AMBER", dueDate: "2026-04-01" }),
+      decisionIssue({ id: "fifth", severity: "CRITICAL", readiness: "RED", dueDate: "2026-05-01" }),
+      decisionIssue({ id: "sixth", severity: "CRITICAL", readiness: "RED", dueDate: "2026-06-01" }),
     ],
   });
 
@@ -716,4 +719,22 @@ test("overview decisions are ordered by due date and capped at five", () => {
     dashboard.openDecisionItems.map((item) => item.id),
     ["first", "second", "third", "fourth", "fifth"],
   );
+});
+
+test("the overview decision rule is exhaustive over priority and readiness", () => {
+  const expected: Record<string, string[]> = {
+    CRITICAL: ["RED", "AMBER"],
+    HIGH: ["RED"],
+    MEDIUM: [],
+    LOW: [],
+  };
+  for (const severity of ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const) {
+    for (const readiness of ["RED", "AMBER", "GREEN"] as const) {
+      assert.equal(
+        isOverviewDecisionIssue({ severity, readiness }),
+        expected[severity].includes(readiness),
+        `${severity} + ${readiness}`,
+      );
+    }
+  }
 });

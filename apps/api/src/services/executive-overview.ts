@@ -1,5 +1,5 @@
 import { artifactRows } from './artifact-table.js';
-import { labels } from '@pms/shared';
+import { isOverviewDecisionIssue, labels } from '@pms/shared';
 import { prisma } from '../db.js';
 
 function isoDate(value: Date | null | undefined) {
@@ -88,11 +88,9 @@ type ProjectForOverviewGeneration = NonNullable<Awaited<ReturnType<typeof getPro
 
 export function generateExecutiveSummary(project: ProjectForOverviewGeneration) {
   const criticalIssues = project.issues.filter((issue) => issue.severity === 'CRITICAL');
-  // Matches the overview dashboard: high priority with a readiness that is not
-  // yet green, rather than a separate flag kept in step by hand.
-  const decisionIssues = project.issues.filter(
-    (issue) => issue.severity === 'HIGH' && (issue.readiness === 'AMBER' || issue.readiness === 'RED'),
-  );
+  // Shares the rule with the overview dashboard so the generated summary cannot
+  // disagree with what the project page shows.
+  const decisionIssues = project.issues.filter(isOverviewDecisionIssue);
   const activeRaidItems = project.raidItems.filter((item) => !['CLOSED', 'VALIDATED'].includes(item.status));
   const highRaidItems = activeRaidItems.filter((item) => item.type === 'RISK' && item.riskScore >= 15);
   const activeProblems = activeRaidItems.filter((item) => item.type === 'DEPENDENCY');

@@ -183,6 +183,22 @@ export type UserRole = (typeof userRoles)[number];
 export type IssueSeverity = (typeof issueSeverities)[number];
 export type OpenIssueStatus = (typeof openIssueStatuses)[number];
 
+/**
+ * Which open questions the project overview puts in front of management.
+ *
+ * A critical question counts as soon as its readiness leaves green; a high one
+ * has to actually be red. Kept here because the dashboard computes it in the
+ * browser while the generated executive summary computes it on the server, and
+ * the two must not drift apart.
+ */
+export function isOverviewDecisionIssue(issue: {
+  severity: IssueSeverity;
+  readiness: RagStatus;
+}) {
+  if (issue.severity === "CRITICAL") return issue.readiness === "RED" || issue.readiness === "AMBER";
+  return issue.severity === "HIGH" && issue.readiness === "RED";
+}
+
 export const labels = {
   projectStatus: {
     DRAFT: "Черновик",
