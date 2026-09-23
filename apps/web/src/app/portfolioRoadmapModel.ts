@@ -437,8 +437,9 @@ export function preparePortfolioRoadmapProjects(
         if (!schedule) continue;
         const path = pathsByItemId.get(item.id)!;
         if (path.some((pathItem) => pathItem.status === "CANCELLED")) continue;
-        const phase = path.find((pathItem) => pathItem.type === "PHASE");
-        if (phase && isLaunchPhaseTitle(phase.title)) {
+        // A launch may be named on the phase or on the work itself, and work
+        // outside any phase still counts.
+        if (path.some((pathItem) => isLaunchPhaseTitle(pathItem.title))) {
           launchWindows.push(schedule);
         }
       }

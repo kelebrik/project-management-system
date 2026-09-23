@@ -112,7 +112,7 @@ test("builds a quarter-aligned monthly horizon", () => {
   assert.equal(roadmap.months.filter((month) => month.isCurrent).length, 1);
 });
 
-test("classifies nested work packages into HW, SW and G2M tracks", () => {
+test("gives every phase of the project its own row of work packages", () => {
   const hardware = wbsItem({
     id: "hw",
     code: "1",
@@ -176,9 +176,15 @@ test("classifies nested work packages into HW, SW and G2M tracks", () => {
   );
   const tracks = roadmap.groups[0].projects[0].phases;
 
+  // Rows are the phases of the project itself, in their structure order.
+  assert.deepEqual(tracks.map((track) => track.label), [
+    "Аппаратная часть",
+    "Программная часть",
+    "Маркетинг и вывод на рынок",
+  ]);
   assert.deepEqual(
     tracks.map((track) => track.segments.map((segment) => segment.phaseId)),
-    [["hw-evt"], ["sw-rc"], ["g2m-launch"]],
+    [["hw"], ["sw"], ["g2m"]],
   );
   assert.deepEqual(
     tracks.map((track) => track.segments.map((segment) => segment.label)),
@@ -192,7 +198,7 @@ test("classifies nested work packages into HW, SW and G2M tracks", () => {
   assert.equal(roadmap.launchProjectCount, 1);
 });
 
-test("uses forecast dates and reports projects without recognizable tracks", () => {
+test("uses forecast dates and reports projects without dated work packages", () => {
   const roadmap = createPortfolioRoadmap(
     [
       project({
@@ -275,11 +281,13 @@ test("counts a launch milestone even though only work packages become bars", () 
   );
 
   assert.equal(roadmap.launchProjectCount, 1);
-  assert.equal(
-    roadmap.groups[0].projects[0].phases[2].segments.some(
-      (segment) => segment.phaseId === "g2m-launch",
-    ),
-    false,
+  // The milestone counts towards the launch metric but is drawn as a marker, not
+  // as a bar, so the phase row has no segments at all.
+  const phases = roadmap.groups[0].projects[0].phases;
+  assert.deepEqual(phases.map((phase) => phase.segments.length), [0]);
+  assert.deepEqual(
+    phases.flatMap((phase) => phase.milestones.map((milestone) => milestone.label)),
+    ["Market Launch & Start of Sales"],
   );
 });
 
@@ -315,8 +323,8 @@ test("keeps the next-year launch metric independent of the visible horizon", () 
     assert.equal(roadmap.launchProjectCount, 1);
   }
   assert.equal(
-    createPortfolioRoadmap(source, 12, today).groups[0].projects[0].phases[2]
-      .segments.length,
+    createPortfolioRoadmap(source, 12, today)
+      .groups[0].projects[0].phases.flatMap((phase) => phase.segments).length,
     2,
   );
 });
@@ -563,7 +571,7 @@ test("renders work packages while excluding their phase containers", () => {
   );
   assert.deepEqual(
     segments.map((segment) => segment.legendLabel),
-    ["EVT", "EVT"],
+    ["HW EVT", "HW EVT"],
   );
   assert.deepEqual(
     segments.map((segment) => segment.itemCount),
@@ -666,7 +674,9 @@ test("does not promote legacy TASK parents to work packages", () => {
     12,
     new Date(2026, 8, 3),
   );
-  const segments = roadmap.groups[0].projects[0].phases[0].segments;
+  const segments = roadmap.groups[0].projects[0].phases.flatMap(
+    (phase) => phase.segments,
+  );
 
   assert.equal(segments.length, 0);
 });
@@ -699,7 +709,9 @@ test("does not substitute a dated phase for an unscheduled work package", () => 
     12,
     new Date(2026, 8, 3),
   );
-  const segments = roadmap.groups[0].projects[0].phases[0].segments;
+  const segments = roadmap.groups[0].projects[0].phases.flatMap(
+    (phase) => phase.segments,
+  );
 
   assert.equal(segments.length, 0);
 });
@@ -857,8 +869,9 @@ test("rolls dates and progress up from children for a dateless work package", ()
 
   assert.equal(segment.code, "1.7");
   assert.equal(segment.label, "Корпус и механика");
-  assert.equal(segment.legendLabel, "Пакет работ из Структуры");
-  assert.equal(segment.phaseId, "hw-structure");
+  // The row is the phase the package actually sits under.
+  assert.equal(segment.legendLabel, "Аппаратная часть");
+  assert.equal(segment.phaseId, "hardware");
   assert.equal(segment.itemCount, 3);
   assert.equal(segment.progress, 50);
   assert.equal(segment.startDate, "2026-08-01");
