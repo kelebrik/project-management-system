@@ -177,20 +177,10 @@ export type PortfolioRoadmapModel = {
 
 
 
-const MONTH_LABELS = [
-  "Янв",
-  "Фев",
-  "Мар",
-  "Апр",
-  "Май",
-  "Июн",
-  "Июл",
-  "Авг",
-  "Сен",
-  "Окт",
-  "Ноя",
-  "Дек",
-];
+const MONTH_LABELS = {
+  ru: ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"],
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+} satisfies Record<Locale, string[]>;
 const MIN_SEGMENT_SLOT_PX = 27;
 const MIN_RESPONSIVE_MONTH_WIDTH_PX = 40;
 
@@ -199,7 +189,8 @@ const MIN_RESPONSIVE_MONTH_WIDTH_PX = 40;
 const MILESTONE_LABEL_GAP_PERCENT = 9;
 
 /** Row for work that sits outside any phase of the project structure. */
-const UNPHASED_ROW_LABEL = "Вне фаз";
+const UNPHASED_ROW_LABEL = { ru: "Вне фаз", en: "Outside phases" } satisfies Record<Locale, string>;
+const NO_PORTFOLIO_LABEL = { ru: "Без портфеля", en: "No portfolio" } satisfies Record<Locale, string>;
 
 const PHASE_COLORS = [
   "#2f6b8f",
@@ -392,12 +383,12 @@ function descendantCountForItem(
   return count;
 }
 
-function portfolioName(project: PortfolioRoadmapSourceProject) {
-  return project.portfolio.trim() || project.businessUnit?.name?.trim() || "Без портфеля";
+function portfolioName(project: PortfolioRoadmapSourceProject, locale: Locale) {
+  return project.portfolio.trim() || project.businessUnit?.name?.trim() || NO_PORTFOLIO_LABEL[locale];
 }
 
-export function portfolioRoadmapPortfolioName(project: PortfolioRoadmapSourceProject) {
-  return portfolioName(project);
+export function portfolioRoadmapPortfolioName(project: PortfolioRoadmapSourceProject, locale: Locale = "ru") {
+  return portfolioName(project, locale);
 }
 
 function calendarDayWeight(start: Date, end: Date) {
@@ -409,6 +400,7 @@ function calendarDayWeight(start: Date, end: Date) {
 
 export function preparePortfolioRoadmapProjects(
   projects: PortfolioRoadmapSourceProject[],
+  locale: Locale = "ru",
 ): PreparedPortfolioRoadmapProject[] {
   return projects
     .filter((project) => project.status !== "CLOSED")
@@ -456,8 +448,9 @@ export function preparePortfolioRoadmapProjects(
       const unphasedRow: PreparedPhase = {
         id: `${project.id}:unphased`,
         code: "",
-        label: UNPHASED_ROW_LABEL,
-        color: portfolioRoadmapPhaseColor(UNPHASED_ROW_LABEL),
+        label: UNPHASED_ROW_LABEL[locale],
+        // The colour stays keyed to the Russian label so it does not change with the language.
+        color: portfolioRoadmapPhaseColor(UNPHASED_ROW_LABEL.ru),
         sortOrder: Number.MAX_SAFE_INTEGER,
       };
       let usesUnphasedRow = false;
@@ -540,7 +533,7 @@ export function preparePortfolioRoadmapProjects(
       );
 
       return {
-        portfolio: portfolioName(project),
+        portfolio: portfolioName(project, locale),
         projectId: project.id,
         projectCode: project.code,
         projectName: project.name,
@@ -699,6 +692,7 @@ export function createPortfolioRoadmap(
   projects: PreparedPortfolioRoadmapProject[],
   range: PortfolioRoadmapRange = 12,
   today = new Date(),
+  locale: Locale = "ru",
 ): PortfolioRoadmapModel {
   const startDate = new Date(
     today.getFullYear(),
@@ -711,7 +705,7 @@ export function createPortfolioRoadmap(
     const month = addMonths(startDate, index);
     return {
       key: `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`,
-      label: `${MONTH_LABELS[month.getMonth()]}'${String(month.getFullYear()).slice(-2)}`,
+      label: `${MONTH_LABELS[locale][month.getMonth()]}'${String(month.getFullYear()).slice(-2)}`,
       isCurrent: month.getTime() === currentMonth,
     };
   });

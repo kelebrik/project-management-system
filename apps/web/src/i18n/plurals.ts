@@ -14,6 +14,10 @@ export const pluralMessages = {
     en: { one: "{count} day", few: "{count} days", many: "{count} days", other: "{count} days" },
     ru: { one: "{count} день", few: "{count} дня", many: "{count} дней", other: "{count} дня" },
   },
+  "wbs.items": {
+    en: { one: "{count} WBS item", few: "{count} WBS items", many: "{count} WBS items", other: "{count} WBS items" },
+    ru: { one: "{count} элемент ИСР", few: "{count} элемента ИСР", many: "{count} элементов ИСР", other: "{count} элемента ИСР" },
+  },
 } as const satisfies Record<string, Record<Locale, PluralForms>>;
 export type PluralKey = keyof typeof pluralMessages;
 export function createPluralTranslator(locale: Locale) {

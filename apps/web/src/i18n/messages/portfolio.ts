@@ -246,5 +246,21 @@ export const portfolioMessages = {
   "ui.portfolio.roadmapTrackSuffix": {
     "en": "-track",
     "ru": "-трек"
+  },
+  "ui.portfolio.roadmapRangeMonths": {
+    "en": "{count} mo",
+    "ru": "{count} мес."
+  },
+  "ui.portfolio.roadmapLoadFailed": {
+    "en": "Could not load the roadmap",
+    "ru": "Не удалось загрузить дорожную карту"
+  },
+  "ui.portfolio.roadmapMilestoneAriaLabel": {
+    "en": "Milestone: {label}, {date}",
+    "ru": "Веха: {label}, {date}"
+  },
+  "ui.portfolio.roadmapSegmentAriaLabel": {
+    "en": "{code}, {label}, {project}, {track}, legend {legend}, {start} - {end}, {items}, readiness {progress}%. {description}",
+    "ru": "{code}, {label}, {project}, {track}, легенда {legend}, {start} - {end}, {items}, готовность {progress}%. {description}"
   }
 } as const;

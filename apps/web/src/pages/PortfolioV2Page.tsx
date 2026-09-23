@@ -28,20 +28,7 @@ import {
 import { apiClient } from "../api/client";
 import { usePageContext } from "./PageContext";
 
-const RANGE_OPTIONS: Array<{ value: PortfolioRoadmapRange; label: string }> = [
-  { value: 6, label: "6 мес." },
-  { value: 12, label: "12 мес." },
-  { value: 24, label: "24 мес." },
-];
-
-function itemCountLabel(value: number) {
-  const mod100 = value % 100;
-  const mod10 = value % 10;
-  if (mod100 >= 11 && mod100 <= 14) return `${value} элементов ИСР`;
-  if (mod10 === 1) return `${value} элемент ИСР`;
-  if (mod10 >= 2 && mod10 <= 4) return `${value} элемента ИСР`;
-  return `${value} элементов ИСР`;
-}
+const RANGE_OPTIONS: PortfolioRoadmapRange[] = [6, 12, 24];
 
 function initialRange(): PortfolioRoadmapRange {
   try {
@@ -68,7 +55,7 @@ type SelectedSegment = {
 };
 
 export function PortfolioRoadmapV2() {
-  const { t: uiText } = useInterfaceTranslation();
+  const { t: uiText, tCount } = useInterfaceTranslation();
   const { locale: uiLocale } = useLocaleTranslation();
   const {
     firstEnabledProjectView,
@@ -82,7 +69,7 @@ export function PortfolioRoadmapV2() {
   const [portfolioFilter, setPortfolioFilter] = useState("ALL");
   const [legendOpen, setLegendOpen] = useState(false);
   const [projectItems, setProjectItems] = useState<PortfolioRoadmapSourceProject[] | null>(null);
-  const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [selectedSegment, setSelectedSegment] = useState<SelectedSegment | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -96,17 +83,13 @@ export function PortfolioRoadmapV2() {
     void apiClient
       .get<PortfolioRoadmapSourceProject[]>(
         "/api/projects/portfolio-roadmap",
-        "Не удалось загрузить дорожную карту",
       )
       .then((items) => {
         if (!cancelled) setProjectItems(items);
       })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setLoadError(
-            error instanceof Error ? error.message : "Не удалось загрузить дорожную карту",
-          );
-        }
+      .catch(() => {
+        // Stored as a flag so the message follows the interface language.
+        if (!cancelled) setLoadError(true);
       });
     return () => {
       cancelled = true;
@@ -114,8 +97,8 @@ export function PortfolioRoadmapV2() {
   }, [reloadToken]);
 
   const preparedProjects = useMemo(
-    () => preparePortfolioRoadmapProjects(projectItems ?? []),
-    [projectItems],
+    () => preparePortfolioRoadmapProjects(projectItems ?? [], uiLocale),
+    [projectItems, uiLocale],
   );
   const portfolioOptions = useMemo(
     () =>
@@ -146,8 +129,8 @@ export function PortfolioRoadmapV2() {
     });
   }, [effectivePortfolioFilter, preparedProjects, query, uiLocale]);
   const roadmap = useMemo(
-    () => createPortfolioRoadmap(visibleProjects, range),
-    [range, visibleProjects],
+    () => createPortfolioRoadmap(visibleProjects, range, undefined, uiLocale),
+    [range, uiLocale, visibleProjects],
   );
 
   // One entry per phase name on the board, with how many projects use it.
@@ -269,16 +252,16 @@ export function PortfolioRoadmapV2() {
         <div className="portfolio-roadmap-range" role="group" aria-label={uiText("ui.portfolio.planningHorizonLabel")}>
           {RANGE_OPTIONS.map((option) => (
             <button
-              aria-pressed={range === option.value}
-              className={range === option.value ? "active" : ""}
-              key={option.value}
+              aria-pressed={range === option}
+              className={range === option ? "active" : ""}
+              key={option}
               onClick={() => {
-                saveRange(option.value);
-                setRange(option.value);
+                saveRange(option);
+                setRange(option);
               }}
               type="button"
             >
-              {option.label}
+              {uiText("ui.portfolio.roadmapRangeMonths", { count: option })}
             </button>
           ))}
         </div>
@@ -363,7 +346,7 @@ export function PortfolioRoadmapV2() {
               {selectedSegment.projectName} · {selectedSegment.trackLabel} {uiText("ui.portfolio.roadmapWbsSeparatorLabel")} {selectedSegment.segment.code} ·{" "}
               {portfolioRoadmapDateLabel(selectedSegment.segment.startDate, uiLocale)} -{" "}
               {portfolioRoadmapDateLabel(selectedSegment.segment.endDate, uiLocale)} ·{" "}
-              {itemCountLabel(selectedSegment.segment.itemCount)} {uiText("ui.portfolio.roadmapReadinessSeparatorLabel")}{" "}
+              {tCount("wbs.items", selectedSegment.segment.itemCount)} {uiText("ui.portfolio.roadmapReadinessSeparatorLabel")}{" "}
               {selectedSegment.segment.progress}%
             </span>
             <small id="portfolio-roadmap-selection-description">
@@ -497,7 +480,7 @@ export function PortfolioRoadmapV2() {
                           )}
                           {track.milestones.map((milestone) => (
                             <span
-                              aria-label={`Веха: ${milestone.label}, ${portfolioRoadmapDateLabel(milestone.date, uiLocale)}`}
+                              aria-label={uiText("ui.portfolio.roadmapMilestoneAriaLabel", { label: milestone.label, date: portfolioRoadmapDateLabel(milestone.date, uiLocale) })}
                               className={`portfolio-roadmap-milestone ${milestone.isComplete ? "is-complete" : ""}`}
                               key={milestone.id}
                               style={{ left: `${milestone.offset}%` } as CSSProperties}
@@ -509,7 +492,18 @@ export function PortfolioRoadmapV2() {
                           ))}
                           {track.segments.map((segment) => (
                             <button
-                              aria-label={`${segment.code}, ${segment.label}, ${project.projectName}, ${track.label}, легенда ${segment.legendLabel}, ${portfolioRoadmapDateLabel(segment.startDate, uiLocale)} - ${portfolioRoadmapDateLabel(segment.endDate, uiLocale)}, ${itemCountLabel(segment.itemCount)}, готовность ${segment.progress}%. ${segment.description}`}
+                              aria-label={uiText("ui.portfolio.roadmapSegmentAriaLabel", {
+                                code: segment.code,
+                                label: segment.label,
+                                project: project.projectName,
+                                track: track.label,
+                                legend: segment.legendLabel,
+                                start: portfolioRoadmapDateLabel(segment.startDate, uiLocale),
+                                end: portfolioRoadmapDateLabel(segment.endDate, uiLocale),
+                                items: tCount("wbs.items", segment.itemCount),
+                                progress: segment.progress,
+                                description: segment.description,
+                              })}
                               className={`portfolio-roadmap-segment ${segment.isStructureFallback ? "is-structure-fallback" : ""}`}
                               key={segment.id}
                               onClick={() =>
@@ -558,11 +552,11 @@ export function PortfolioRoadmapV2() {
 
           {loadError && (
             <div className="portfolio-roadmap-no-results" role="alert">
-              <span>{loadError}</span>
+              <span>{uiText("ui.portfolio.roadmapLoadFailed")}</span>
               <button
                 onClick={() => {
                   setProjectItems(null);
-                  setLoadError("");
+                  setLoadError(false);
                   setReloadToken((value) => value + 1);
                 }}
                 type="button"

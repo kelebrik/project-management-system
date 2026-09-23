@@ -956,3 +956,25 @@ test("packs adjacent one-day work packages by their minimum visual slots", () =>
   );
   assert.ok(track.segments.every((segment) => segment.width >= (27 / (12 * 40)) * 100));
 });
+
+test("roadmap labels follow the interface language without changing row colours", () => {
+  const source = [
+    project({
+      portfolio: "",
+      businessUnit: { id: "unit", code: "UNIT", name: "" },
+      wbsItems: [
+        wbsItem({ id: "wp", code: "1", title: "Work", type: "WORK_PACKAGE", startDate: "2026-09-01", dueDate: "2026-10-15" }),
+      ],
+    }),
+  ];
+  const today = new Date(2026, 8, 3);
+  const en = createPreparedPortfolioRoadmap(preparePortfolioRoadmapProjects(source, "en"), 12, today, "en");
+  const ru = createPreparedPortfolioRoadmap(preparePortfolioRoadmapProjects(source, "ru"), 12, today, "ru");
+
+  assert.equal(en.months[0].label, "Jul'26");
+  assert.equal(en.groups[0].name, "No portfolio");
+  assert.equal(ru.groups[0].name, "Без портфеля");
+  assert.equal(en.groups[0].projects[0].phases[0].label, "Outside phases");
+  assert.equal(ru.groups[0].projects[0].phases[0].label, "Вне фаз");
+  assert.equal(en.groups[0].projects[0].phases[0].color, ru.groups[0].projects[0].phases[0].color);
+});
