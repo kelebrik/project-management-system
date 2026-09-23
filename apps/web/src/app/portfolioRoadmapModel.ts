@@ -38,18 +38,34 @@ export type PortfolioRoadmapSegment = {
   row: number;
 };
 
+/** A milestone drawn as a labelled marker on the time axis of its own phase. */
+export type PortfolioRoadmapMilestone = {
+  id: string;
+  code: string;
+  label: string;
+  date: string;
+  offset: number;
+  isComplete: boolean;
+  showLabel: boolean;
+};
+
+export type PortfolioRoadmapPhaseRow = {
+  id: string;
+  code: string;
+  label: string;
+  color: string;
+  segments: PortfolioRoadmapSegment[];
+  milestones: PortfolioRoadmapMilestone[];
+  laneCount: number;
+};
+
 export type PortfolioRoadmapProject = {
   projectId: string;
   projectCode: string;
   projectName: string;
   projectManager: string;
   rag: ProjectListItem["rag"];
-  tracks: Array<{
-    id: PortfolioRoadmapTrackId;
-    label: string;
-    segments: PortfolioRoadmapSegment[];
-    laneCount: number;
-  }>;
+  phases: PortfolioRoadmapPhaseRow[];
 };
 
 type PortfolioRoadmapWbsItem = Pick<
@@ -85,7 +101,6 @@ export type PortfolioRoadmapSourceProject = Pick<
 
 type PreparedSegment = {
   id: string;
-  trackId: PortfolioRoadmapTrackId;
   phaseId: string;
   code: string;
   label: string;
@@ -93,12 +108,29 @@ type PreparedSegment = {
   description: string;
   color: string;
   isStructureFallback: boolean;
-  phaseIndex: number;
+  phaseSortOrder: number;
   sortOrder: number;
   start: Date;
   end: Date;
   itemCount: number;
   progress: number;
+};
+
+type PreparedMilestone = {
+  id: string;
+  phaseId: string;
+  code: string;
+  label: string;
+  date: Date;
+  isComplete: boolean;
+};
+
+type PreparedPhase = {
+  id: string;
+  code: string;
+  label: string;
+  color: string;
+  sortOrder: number;
 };
 
 export type PreparedPortfolioRoadmapProject = {
@@ -109,7 +141,9 @@ export type PreparedPortfolioRoadmapProject = {
   projectManager: string;
   rag: ProjectListItem["rag"];
   sortOrder: number;
+  phases: PreparedPhase[];
   segments: PreparedSegment[];
+  milestones: PreparedMilestone[];
   launchWindows: Array<{ start: Date; end: Date }>;
 };
 
@@ -430,6 +464,35 @@ export const PORTFOLIO_ROADMAP_TRACKS: PortfolioRoadmapTrackDefinition[] =
     })),
   }));
 
+/** Below this horizontal gap two captions would overlap, so the later one is dropped. */
+const MILESTONE_LABEL_GAP_PERCENT = 9;
+
+/** Row for work that sits outside any phase of the project structure. */
+const UNPHASED_ROW_LABEL = "Вне фаз";
+
+const PHASE_COLORS = [
+  "#2f6b8f",
+  "#3f855e",
+  "#8d5b2f",
+  "#6a4b8c",
+  "#8c2f4a",
+  "#2f7d7d",
+  "#7a6b2a",
+  "#4a5b8c",
+] as const;
+
+/**
+ * Colour follows the phase name rather than its position, so adding a phase in
+ * the middle of a project does not repaint every row after it.
+ */
+export function portfolioRoadmapPhaseColor(label: string) {
+  let hash = 0;
+  for (const char of label.trim().toLocaleLowerCase("ru-RU")) {
+    hash = (hash * 31 + char.codePointAt(0)!) % 1_000_003;
+  }
+  return PHASE_COLORS[hash % PHASE_COLORS.length];
+}
+
 function normalize(value: string) {
   return value.toLocaleLowerCase("ru-RU").replaceAll("ё", "е");
 }
@@ -687,6 +750,34 @@ export function preparePortfolioRoadmapProjects(
           launchWindows.push(schedule);
         }
       }
+      // Rows come from the project itself: the phase a work package sits under,
+      // rather than a name pattern matched against a fixed list of tracks.
+      const owningPhase = (itemId: string) => {
+        const path = pathsByItemId.get(itemId);
+        return path?.find((pathItem) => pathItem.type === "PHASE") ?? null;
+      };
+      // Work outside any phase still belongs on the roadmap; it gets a row of its
+      // own rather than disappearing.
+      const unphasedRow: PreparedPhase = {
+        id: `${project.id}:unphased`,
+        code: "",
+        label: UNPHASED_ROW_LABEL,
+        color: portfolioRoadmapPhaseColor(UNPHASED_ROW_LABEL),
+        sortOrder: Number.MAX_SAFE_INTEGER,
+      };
+      let usesUnphasedRow = false;
+      const phaseById = new Map<string, PreparedPhase>();
+      const rememberPhase = (phase: PortfolioRoadmapWbsItem) => {
+        if (phaseById.has(phase.id)) return;
+        phaseById.set(phase.id, {
+          id: phase.id,
+          code: phase.code,
+          label: phase.title,
+          color: portfolioRoadmapPhaseColor(phase.title),
+          sortOrder: phase.sortOrder,
+        });
+      };
+
       const segments: PreparedSegment[] = [];
       for (const item of wbsItems) {
         if (item.status === "CANCELLED") continue;
@@ -698,23 +789,20 @@ export function preparePortfolioRoadmapProjects(
         }
         const schedule = scheduleForGroup(item, childrenByParentId, scheduleCache);
         if (!schedule) continue;
-        const trackContext = trackContextForPath(path);
-        if (!trackContext) continue;
-        const { trackId } = trackContext;
-        const phaseMatch = phaseForPath(trackId, path);
-        const fallbackPhase = STRUCTURE_FALLBACK_PHASES[trackId];
-        const displayedPhase = phaseMatch?.phase ?? fallbackPhase;
+        const phase = owningPhase(item.id);
+        if (phase) rememberPhase(phase);
+        else usesUnphasedRow = true;
+        const row = phase ? phaseById.get(phase.id)! : unphasedRow;
         segments.push({
           id: `${project.id}:${item.id}`,
-          trackId,
-          phaseId: displayedPhase.id,
+          phaseId: row.id,
           code: item.code,
           label: item.title,
-          legendLabel: displayedPhase.label,
-          description: displayedPhase.description,
-          color: displayedPhase.color,
-          isStructureFallback: displayedPhase.isStructureFallback === true,
-          phaseIndex: phaseMatch?.index ?? TRACK_PHASES[trackId].length,
+          legendLabel: row.label,
+          description: row.label,
+          color: row.color,
+          isStructureFallback: !phase,
+          phaseSortOrder: row.sortOrder,
           sortOrder: item.sortOrder,
           start: schedule.start,
           end: schedule.end,
@@ -726,6 +814,36 @@ export function preparePortfolioRoadmapProjects(
           progress: schedule.progress,
         });
       }
+
+      // A milestone is drawn on the axis of the phase that owns it, so the marker
+      // keeps its connection to the work it closes.
+      const milestones: PreparedMilestone[] = [];
+      for (const item of wbsItems) {
+        if (item.type !== "MILESTONE") continue;
+        if (item.status === "CANCELLED") continue;
+        const path = pathsByItemId.get(item.id)!;
+        if (path.some((pathItem) => pathItem.status === "CANCELLED")) continue;
+        const phase = owningPhase(item.id);
+        if (!phase) continue;
+        const schedule = scheduleForItem(item);
+        if (!schedule) continue;
+        rememberPhase(phase);
+        milestones.push({
+          id: `${project.id}:${item.id}`,
+          phaseId: phase.id,
+          code: item.code,
+          label: item.title,
+          date: schedule.start,
+          isComplete: item.status === "DONE",
+        });
+      }
+
+      if (usesUnphasedRow) phaseById.set(unphasedRow.id, unphasedRow);
+      const phases = [...phaseById.values()].sort(
+        (left, right) =>
+          left.sortOrder - right.sortOrder || left.code.localeCompare(right.code, "ru"),
+      );
+
       return {
         portfolio: portfolioName(project),
         projectId: project.id,
@@ -734,7 +852,9 @@ export function preparePortfolioRoadmapProjects(
         projectManager: project.projectManager,
         rag: project.rag,
         sortOrder: project.sortOrder,
+        phases,
         segments,
+        milestones,
         launchWindows,
       };
     })
@@ -773,19 +893,18 @@ function buildProject(
     projectName: project.projectName,
     projectManager: project.projectManager,
     rag: project.rag,
-    tracks: TRACK_IDS.map((trackId) => {
+    phases: project.phases.map((phase) => {
       const rowEnds: number[] = [];
       const segments = project.segments
         .filter(
           (segment) =>
-            segment.trackId === trackId &&
+            segment.phaseId === phase.id &&
             segment.end >= startDate &&
             segment.start < endDate,
         )
         .sort(
           (left, right) =>
             left.start.getTime() - right.start.getTime() ||
-            left.phaseIndex - right.phaseIndex ||
             left.sortOrder - right.sortOrder,
         )
         .map((segment) => {
@@ -822,11 +941,43 @@ function buildProject(
             row,
           };
         });
+      const milestones = project.milestones
+        .filter(
+          (milestone) =>
+            milestone.phaseId === phase.id &&
+            milestone.date >= startDate &&
+            milestone.date < endDate,
+        )
+        .sort((left, right) => left.date.getTime() - right.date.getTime())
+        .reduce<PortfolioRoadmapMilestone[]>((placed, milestone) => {
+          const offset = (monthPosition(milestone.date, startDate) / range) * 100;
+          const lastLabelled = [...placed].reverse().find((entry) => entry.showLabel);
+          placed.push({
+            id: milestone.id,
+            code: milestone.code,
+            label: milestone.label,
+            date: isoDay(milestone.date),
+            offset,
+            isComplete: milestone.isComplete,
+            showLabel:
+              !lastLabelled || offset - lastLabelled.offset >= MILESTONE_LABEL_GAP_PERCENT,
+          });
+          return placed;
+        }, []);
+      // Milestone captions need a strip of their own, otherwise they sit on top
+      // of the first row of packages.
+      const milestoneRows = milestones.length > 0 ? 1 : 0;
       return {
-        id: trackId,
-        label: TRACK_LABELS[trackId],
-        segments,
-        laneCount: Math.max(1, rowEnds.length),
+        id: phase.id,
+        code: phase.code,
+        label: phase.label,
+        color: phase.color,
+        segments: segments.map((segment) => ({
+          ...segment,
+          row: segment.row + milestoneRows,
+        })),
+        milestones,
+        laneCount: Math.max(1, rowEnds.length) + milestoneRows,
       };
     }),
   };

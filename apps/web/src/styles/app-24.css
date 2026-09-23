@@ -9,7 +9,7 @@
 
 .portfolio-roadmap-page {
   --portfolio-roadmap-project-width: 248px;
-  --portfolio-roadmap-track-width: 62px;
+  --portfolio-roadmap-track-width: 150px;
   --portfolio-roadmap-month-width: 86px;
   --portfolio-roadmap-scaled-month-min-width: 44px;
   display: grid;
@@ -913,4 +913,54 @@
     border-left: 0;
     border-top: 1px solid var(--border);
   }
+}
+
+/* Phase rows replace the fixed HW/SW/G2M tracks: the label carries the phase
+   colour so a row can be matched to its bars at a glance. */
+.portfolio-roadmap-track-label.is-phase {
+  border-left: 3px solid var(--portfolio-roadmap-phase-color, var(--border-strong));
+  overflow: hidden;
+  padding-left: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A milestone is a point in time, so it is drawn as a marker on the axis rather
+   than as a bar with a width. */
+.portfolio-roadmap-milestone {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.portfolio-roadmap-milestone > i {
+  background: var(--text-heading);
+  display: block;
+  height: 9px;
+  rotate: 45deg;
+  width: 9px;
+}
+
+.portfolio-roadmap-milestone.is-complete > i {
+  background: var(--surface);
+  border: 2px solid var(--text-heading);
+}
+
+.portfolio-roadmap-milestone > b {
+  background: var(--surface);
+  border: 1px solid var(--border-3);
+  border-radius: 4px;
+  color: var(--text-heading);
+  font-size: 10px;
+  font-weight: 800;
+  max-width: 130px;
+  overflow: hidden;
+  padding: 1px 5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

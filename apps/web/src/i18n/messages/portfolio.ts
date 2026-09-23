@@ -180,16 +180,16 @@ export const portfolioMessages = {
     "ru": "проектов показано"
   },
   "ui.portfolio.roadmapWithHwSwG2mPackages": {
-    "en": "with HW / SW / G2M work packages",
-    "ru": "с пакетами работ HW / SW / G2M"
+    "en": "with work packages in phases",
+    "ru": "с пакетами работ по фазам"
   },
   "ui.portfolio.roadmapProjectsLaunchingNext12Months": {
     "en": "projects launching in the next 12 months",
     "ru": "проектов с запуском в ближайшие 12 мес."
   },
   "ui.portfolio.roadmapWithoutHwSwG2mPackages": {
-    "en": "without HW / SW / G2M packages",
-    "ru": "без пакетов HW / SW / G2M"
+    "en": "without dated work packages",
+    "ru": "без пакетов работ с датами"
   },
   "ui.portfolio.roadmapWbsSeparatorLabel": {
     "en": "· WBS",
@@ -216,8 +216,8 @@ export const portfolioMessages = {
     "ru": "Календарная дорожная карта портфеля"
   },
   "ui.portfolio.roadmapTrackLabel": {
-    "en": "Track",
-    "ru": "Трек"
+    "en": "Phase",
+    "ru": "Фаза"
   },
   "ui.portfolio.roadmapNoWorkPackagesInHorizon": {
     "en": "No work packages in the selected horizon",

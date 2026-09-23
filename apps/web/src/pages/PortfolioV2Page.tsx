@@ -418,8 +418,8 @@ export function PortfolioRoadmapV2() {
                 </span>
               </div>
               {group.projects.map((project) => {
-                const hasSegments = project.tracks.some(
-                  (track) => track.segments.length > 0,
+                const hasSegments = project.phases.some(
+                  (phase) => phase.segments.length > 0,
                 );
                 return (
                   <div
@@ -442,7 +442,7 @@ export function PortfolioRoadmapV2() {
                       </span>
                     </button>
 
-                    {project.tracks.map((track, trackIndex) => (
+                    {project.phases.map((track, trackIndex) => (
                       <div
                         className="portfolio-roadmap-track"
                         key={track.id}
@@ -451,7 +451,11 @@ export function PortfolioRoadmapV2() {
                           gridRow: trackIndex + 1,
                         } as CSSProperties}
                       >
-                        <div className={`portfolio-roadmap-track-label track-${track.id.toLowerCase()}`}>
+                        <div
+                          className="portfolio-roadmap-track-label is-phase"
+                          style={{ "--portfolio-roadmap-phase-color": track.color } as CSSProperties}
+                          title={track.label}
+                        >
                           {track.label}
                         </div>
                         <div
@@ -474,6 +478,18 @@ export function PortfolioRoadmapV2() {
                               style={{ left: `${roadmap.todayOffset}%` }}
                             />
                           )}
+                          {track.milestones.map((milestone) => (
+                            <span
+                              aria-label={`Веха: ${milestone.label}, ${portfolioRoadmapDateLabel(milestone.date)}`}
+                              className={`portfolio-roadmap-milestone ${milestone.isComplete ? "is-complete" : ""}`}
+                              key={milestone.id}
+                              style={{ left: `${milestone.offset}%` } as CSSProperties}
+                              title={`${milestone.code} · ${milestone.label} · ${portfolioRoadmapDateLabel(milestone.date)}`}
+                            >
+                              <i aria-hidden="true" />
+                              {milestone.showLabel ? <b>{milestone.label}</b> : null}
+                            </span>
+                          ))}
                           {track.segments.map((segment) => (
                             <button
                               aria-label={`${segment.code}, ${segment.label}, ${project.projectName}, ${track.label}, легенда ${segment.legendLabel}, ${portfolioRoadmapDateLabel(segment.startDate)} - ${portfolioRoadmapDateLabel(segment.endDate)}, ${itemCountLabel(segment.itemCount)}, готовность ${segment.progress}%. ${segment.description}`}

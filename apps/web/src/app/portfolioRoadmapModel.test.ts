@@ -174,7 +174,7 @@ test("classifies nested work packages into HW, SW and G2M tracks", () => {
     12,
     new Date(2026, 8, 3),
   );
-  const tracks = roadmap.groups[0].projects[0].tracks;
+  const tracks = roadmap.groups[0].projects[0].phases;
 
   assert.deepEqual(
     tracks.map((track) => track.segments.map((segment) => segment.phaseId)),
@@ -215,7 +215,7 @@ test("uses forecast dates and reports projects without recognizable tracks", () 
   const segment = roadmap.groups
     .flatMap((group) => group.projects)
     .find((entry) => entry.projectId === "forecast")!
-    .tracks[0].segments[0];
+    .phases[0].segments[0];
 
   assert.equal(segment.startDate, "2026-09-01");
   assert.equal(segment.endDate, "2026-10-31");
@@ -276,7 +276,7 @@ test("counts a launch milestone even though only work packages become bars", () 
 
   assert.equal(roadmap.launchProjectCount, 1);
   assert.equal(
-    roadmap.groups[0].projects[0].tracks[2].segments.some(
+    roadmap.groups[0].projects[0].phases[2].segments.some(
       (segment) => segment.phaseId === "g2m-launch",
     ),
     false,
@@ -315,7 +315,7 @@ test("keeps the next-year launch metric independent of the visible horizon", () 
     assert.equal(roadmap.launchProjectCount, 1);
   }
   assert.equal(
-    createPortfolioRoadmap(source, 12, today).groups[0].projects[0].tracks[2]
+    createPortfolioRoadmap(source, 12, today).groups[0].projects[0].phases[2]
       .segments.length,
     2,
   );
@@ -337,7 +337,7 @@ test("aligns bars to equal-width calendar months", () => {
     12,
     new Date(2026, 8, 3),
   );
-  const segment = roadmap.groups[0].projects[0].tracks[0].segments[0];
+  const segment = roadmap.groups[0].projects[0].phases[0].segments[0];
 
   assert.equal(segment.offset, (7 / 12) * 100);
   assert.equal(segment.width, (1 / 12) * 100);
@@ -359,7 +359,7 @@ for (const range of [6, 12, 24] as const) {
       range,
       new Date(2026, 8, 3),
     );
-    const track = roadmap.groups[0].projects[0].tracks[0];
+    const track = roadmap.groups[0].projects[0].phases[0];
     assert.equal(track.segments.length, range);
     assert.equal(track.laneCount, 1);
     assert.deepEqual(track.segments.map((segment) => segment.row), Array(range).fill(0));
@@ -376,7 +376,7 @@ test("keeps packages touching inside a month in one row", () => {
       range,
       new Date(2026, 8, 3),
     );
-    const track = roadmap.groups[0].projects[0].tracks[0];
+    const track = roadmap.groups[0].projects[0].phases[0];
     assert.equal(track.laneCount, 1);
     assert.deepEqual(track.segments.map((segment) => segment.row), [0, 0]);
   }
@@ -411,7 +411,7 @@ test("preserves gaps and assigns overlapping work packages to separate rows", ()
     12,
     new Date(2026, 8, 3),
   );
-  const track = roadmap.groups[0].projects[0].tracks[0];
+  const track = roadmap.groups[0].projects[0].phases[0];
 
   assert.equal(track.segments.length, 3);
   assert.equal(track.laneCount, 2);
@@ -452,7 +452,7 @@ test("ignores cancelled work, repairs reversed dates and stops on hierarchy cycl
     12,
     new Date(2026, 8, 3),
   );
-  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+  const segments = roadmap.groups[0].projects[0].phases[0].segments;
 
   assert.equal(segments.length, 1);
   assert.equal(segments[0].startDate, "2026-10-01");
@@ -500,7 +500,7 @@ test("uses the dates and progress stored on a work package, not its phase", () =
     12,
     new Date(2026, 8, 3),
   );
-  const segment = roadmap.groups[0].projects[0].tracks[0].segments[0];
+  const segment = roadmap.groups[0].projects[0].phases[0].segments[0];
 
   assert.equal(segment.itemCount, 2);
   assert.equal(segment.label, "HW EVT");
@@ -555,7 +555,7 @@ test("renders work packages while excluding their phase containers", () => {
     12,
     new Date(2026, 8, 3),
   );
-  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+  const segments = roadmap.groups[0].projects[0].phases[0].segments;
 
   assert.deepEqual(
     segments.map((segment) => segment.label),
@@ -618,7 +618,7 @@ test("renders the outer work package once when work packages are nested", () => 
     12,
     new Date(2026, 8, 3),
   );
-  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+  const segments = roadmap.groups[0].projects[0].phases[0].segments;
 
   assert.equal(segments.length, 1);
   assert.equal(segments[0].label, "HW EVT");
@@ -666,7 +666,7 @@ test("does not promote legacy TASK parents to work packages", () => {
     12,
     new Date(2026, 8, 3),
   );
-  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+  const segments = roadmap.groups[0].projects[0].phases[0].segments;
 
   assert.equal(segments.length, 0);
 });
@@ -699,7 +699,7 @@ test("does not substitute a dated phase for an unscheduled work package", () => 
     12,
     new Date(2026, 8, 3),
   );
-  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+  const segments = roadmap.groups[0].projects[0].phases[0].segments;
 
   assert.equal(segments.length, 0);
 });
@@ -741,7 +741,7 @@ test("keeps work packages and ignores loose phase work", () => {
     12,
     new Date(2026, 8, 3),
   );
-  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+  const segments = roadmap.groups[0].projects[0].phases[0].segments;
 
   assert.equal(segments.length, 1);
   assert.equal(segments[0].label, "HW EVT");
@@ -786,7 +786,7 @@ test("keeps work-package bars when loose work is covered by their dates", () => 
     12,
     new Date(2026, 8, 3),
   );
-  const segments = roadmap.groups[0].projects[0].tracks[0].segments;
+  const segments = roadmap.groups[0].projects[0].phases[0].segments;
 
   assert.equal(segments.length, 1);
   assert.equal(segments[0].label, "HW EVT");
@@ -853,7 +853,7 @@ test("rolls dates and progress up from children for a dateless work package", ()
     12,
     new Date(2026, 8, 3),
   );
-  const segment = roadmap.groups[0].projects[0].tracks[0].segments[0];
+  const segment = roadmap.groups[0].projects[0].phases[0].segments[0];
 
   assert.equal(segment.code, "1.7");
   assert.equal(segment.label, "Корпус и механика");
@@ -883,7 +883,7 @@ test("uses forecast dates only as a complete pair", () => {
     12,
     new Date(2026, 8, 3),
   );
-  const segment = roadmap.groups[0].projects[0].tracks[0].segments[0];
+  const segment = roadmap.groups[0].projects[0].phases[0].segments[0];
 
   assert.equal(segment.startDate, "2026-08-01");
   assert.equal(segment.endDate, "2026-08-31");
@@ -905,7 +905,7 @@ test("keeps the minimum touch target inside the horizon", () => {
     12,
     new Date(2026, 8, 3),
   );
-  const segment = roadmap.groups[0].projects[0].tracks[0].segments[0];
+  const segment = roadmap.groups[0].projects[0].phases[0].segments[0];
 
   assert.ok(segment.width >= (27 / (12 * 40)) * 100);
   assert.ok(segment.offset + segment.width <= 100);
@@ -934,7 +934,7 @@ test("packs adjacent one-day work packages by their minimum visual slots", () =>
     12,
     new Date(2026, 8, 3),
   );
-  const track = roadmap.groups[0].projects[0].tracks[0];
+  const track = roadmap.groups[0].projects[0].phases[0];
 
   assert.equal(track.laneCount, 2);
   assert.deepEqual(
