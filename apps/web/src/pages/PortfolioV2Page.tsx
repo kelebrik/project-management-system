@@ -21,7 +21,6 @@ import {
   createPortfolioRoadmap,
   portfolioRoadmapDateLabel,
   preparePortfolioRoadmapProjects,
-  PORTFOLIO_ROADMAP_TRACKS,
   type PortfolioRoadmapSegment,
   type PortfolioRoadmapRange,
   type PortfolioRoadmapSourceProject,
@@ -150,6 +149,24 @@ export function PortfolioRoadmapV2() {
     () => createPortfolioRoadmap(visibleProjects, range),
     [range, visibleProjects],
   );
+
+  // One entry per phase name on the board, with how many projects use it.
+  const legendPhases = useMemo(() => {
+    const byLabel = new Map<string, { label: string; color: string; projectCount: number }>();
+    for (const group of roadmap.groups) {
+      for (const project of group.projects) {
+        for (const phase of project.phases) {
+          const entry = byLabel.get(phase.label);
+          if (entry) entry.projectCount += 1;
+          else byLabel.set(phase.label, { label: phase.label, color: phase.color, projectCount: 1 });
+        }
+      }
+    }
+    return [...byLabel.values()].sort(
+      (left, right) =>
+        right.projectCount - left.projectCount || left.label.localeCompare(right.label, "ru"),
+    );
+  }, [roadmap]);
 
   useEffect(() => {
     if (!legendOpen) return;
@@ -594,26 +611,26 @@ export function PortfolioRoadmapV2() {
               </button>
             </header>
             <div className="portfolio-roadmap-legend-content">
-              {PORTFOLIO_ROADMAP_TRACKS.map((track) => (
-                <section className="portfolio-roadmap-legend-track" key={track.id}>
-                  <h3>{track.label}{uiText("ui.portfolio.roadmapTrackSuffix")}</h3>
-                  <div>
-                    {track.phases.map((phase) => (
-                      <div className="portfolio-roadmap-legend-row" key={phase.id}>
-                        <span
-                          aria-hidden="true"
-                          className={`portfolio-roadmap-swatch ${phase.isStructureFallback ? "is-structure-fallback" : ""}`}
-                          style={{ backgroundColor: phase.color }}
-                        />
-                        <span>
-                          <b>{phase.label}</b>
-                          <small>{phase.description}</small>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
+              {/* The legend lists the phases actually on the board, since rows now
+                  come from each project rather than from a fixed catalogue. */}
+              <section className="portfolio-roadmap-legend-track">
+                <h3>{uiText("ui.portfolio.roadmapTrackLabel")}</h3>
+                <div>
+                  {legendPhases.map((phase) => (
+                    <div className="portfolio-roadmap-legend-row" key={phase.label}>
+                      <span
+                        aria-hidden="true"
+                        className="portfolio-roadmap-swatch"
+                        style={{ backgroundColor: phase.color }}
+                      />
+                      <span>
+                        <b>{phase.label}</b>
+                        <small>{phase.projectCount}</small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
           </section>
         </div>

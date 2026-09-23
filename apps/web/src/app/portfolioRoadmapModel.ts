@@ -173,266 +173,7 @@ export type PortfolioRoadmapModel = {
   launchProjectCount: number;
 };
 
-const TRACK_PHASES: Record<PortfolioRoadmapTrackId, PhaseDefinition[]> = {
-  HW: [
-    {
-      id: "hw-concept",
-      label: "Concept",
-      description: "Фиксация продуктовой и технической концепции.",
-      color: "#e0e0e0",
-      patterns: [/concept/i, /концепт/i, /концепц/i],
-    },
-    {
-      id: "hw-requirements",
-      label: "Req",
-      description: "Фиксация требований к аппаратной части.",
-      color: "#c6ddf7",
-      patterns: [/prod\.?\s*req/i, /requirement/i, /требован/i, /\bprd\b/i, /\brfq\b/i, /документац/i],
-    },
-    {
-      id: "hw-design",
-      label: "Design",
-      description: "Фиксация конструкции, промышленного дизайна и CMF.",
-      color: "#add8d1",
-      patterns: [/design/i, /дизайн/i, /\bcmf\b/i, /проектирован/i, /architecture/i, /архитект/i],
-    },
-    {
-      id: "hw-es",
-      label: "ES",
-      description: "Инженерный образец и фиксация архитектуры.",
-      color: "#fccc93",
-      patterns: [/engineering sample/i, /eng\.?\s*sample/i, /\bhw\s*es\d*\b/i, /\bes\d+\b/i, /образц/i, /prototype/i, /прототип/i],
-    },
-    {
-      id: "hw-evt",
-      label: "EVT",
-      description: "Engineering Validation Test.",
-      color: "#fccc93",
-      patterns: [/\bevt\d*\b/i, /eng\.?\s*valid/i],
-    },
-    {
-      id: "hw-dvt",
-      label: "DVT",
-      description: "Design Validation Test.",
-      color: "#f79e60",
-      patterns: [/\bdvt\d*\b/i, /des\.?\s*valid/i],
-    },
-    {
-      id: "hw-pvt",
-      label: "PVT",
-      description: "Production Validation Test.",
-      color: "#f9d866",
-      patterns: [/\bpvt\b/i, /prod\.?\s*valid/i],
-    },
-    {
-      id: "hw-mp",
-      label: "MP",
-      description: "Готовность к массовому производству.",
-      color: "#add8d1",
-      patterns: [/mass production/i, /массов.*производ/i, /серийн.*производ/i, /готов.*производ/i, /(^|[^a-z])mp([^a-z]|$)/i],
-    },
-    {
-      id: "hw-launch",
-      label: "Launch",
-      description: "Коммерческий запуск продукта.",
-      color: "#449e59",
-      patterns: [/mp\s*launch/i, /commercial launch/i, /launch/i, /старт продаж/i, /выход.*рын/i],
-    },
-    {
-      id: "hw-run-change",
-      label: "Run-Chg",
-      description: "Доработки существующего продукта по замечаниям рынка.",
-      color: "#ead1dc",
-      patterns: [/run[\s-]*ch/i, /доработ/i, /sustain/i],
-    },
-  ],
-  SW: [
-    {
-      id: "sw-feasibility",
-      label: "Feasibility",
-      description: "Оценка реализуемости.",
-      color: "#e0e0e0",
-      patterns: [/feasibility/i, /реализуемост/i, /технико.*эконом/i],
-    },
-    {
-      id: "sw-specification",
-      label: "Specification",
-      description: "Описание и фиксация требований.",
-      color: "#d8edfc",
-      patterns: [/specification/i, /\bspec\b/i, /prod\.?\s*req/i, /требован/i, /feature list/i],
-    },
-    {
-      id: "sw-architecture",
-      label: "Architecture",
-      description: "Архитектура программного решения.",
-      color: "#c6ccf2",
-      patterns: [/architecture/i, /\barchy\b/i, /\bsw[\s-]*arch/i, /архитект/i],
-    },
-    {
-      id: "sw-bring-up",
-      label: "Bring-up",
-      description: "Старт прошивки на образце и запуск базовой периферии.",
-      color: "#fccc93",
-      patterns: [/bring[\s-]*up/i, /ожив/i, /первая сборка/i, /старт.*(?:staros|homeos|прошив)/i],
-    },
-    {
-      id: "sw-alpha",
-      label: "Alpha",
-      description: "Неполный набор функций на EVT-образцах и внутренний догфудинг.",
-      color: "#fcddb2",
-      patterns: [/\balpha\b/i, /\bальфа\b/i],
-    },
-    {
-      id: "sw-beta",
-      label: "Beta",
-      description: "Feature-complete, бета на устройствах и подготовка релиза.",
-      color: "#cceac6",
-      patterns: [/\bbeta\b/i, /\bбета\b/i, /регрессион/i, /регресс/i],
-    },
-    {
-      id: "sw-rc",
-      label: "MP FW - RC",
-      description: "Кандидат MP-прошивки проверен на PVT-устройствах.",
-      color: "#fced9e",
-      patterns: [/release candidate/i, /\bfw[\s-]*rc\b/i, /\bsw\s*rc\b/i, /кандидат.*прошив/i, /подготовка.*\brc\b/i],
-    },
-    {
-      id: "sw-mp-ota",
-      label: "MP FW + 1st OTA",
-      description: "Заводская MP-прошивка и стабилизация первого OTA.",
-      color: "#cceac6",
-      patterns: [/mp\s*fw.*ota/i, /1st\s*ota/i, /перв.*ota/i, /релиз по/i, /релиз программ/i, /заводск.*(?:прошив|сборк)/i],
-    },
-    {
-      id: "sw-launch",
-      label: "Launch",
-      description: "Получение первого OTA пользователями и переход в поддержку.",
-      color: "#449e59",
-      patterns: [/launch/i, /получение.*ota/i, /переход.*поддерж/i],
-    },
-  ],
-  G2M: [
-    {
-      id: "g2m-vision",
-      label: "Product Vision, Positioning & Design Concept",
-      description: "Стратегия, целевая аудитория, нейминг и дизайн-концепция продукта и упаковки.",
-      color: "#d9ead3",
-      patterns: [/product vision/i, /positioning/i, /design concept/i, /позиционирован/i, /целевая аудит/i, /нейминг/i],
-    },
-    {
-      id: "g2m-plan",
-      label: "Integrated GTM Plan Development",
-      description: "Сводный план сроков и ресурсов на основании вех HW и SW.",
-      color: "#b6d7a8",
-      patterns: [/integrated.*(?:gtm|g2m).*plan/i, /gtm[\s-]*plan/i, /сводн.*план/i],
-    },
-    {
-      id: "g2m-strategy",
-      label: "Marketing & Commercial Strategy",
-      description: "План продвижения и дистрибуции, каналы, продажи и ценообразование.",
-      color: "#b7e0ad",
-      patterns: [/marketing.*commercial strategy/i, /маркетингов.*стратег/i, /план продвижен/i, /ценообразован/i],
-    },
-    {
-      id: "g2m-content",
-      label: "Content Creation & Approval",
-      description: "Состав и согласование инструкций, лендингов, рендеров, видео, POS-материалов и мерча.",
-      color: "#93c47d",
-      patterns: [/content creation/i, /контент/i, /артефакт/i, /pos[\s-]*материал/i],
-    },
-    {
-      id: "g2m-assets",
-      label: "Marketing & Support Asset Production",
-      description: "Производство рыночных и support-материалов, сертификация и маркировка.",
-      color: "#f7ccd8",
-      patterns: [/support asset/i, /asset production/i, /сертификац/i, /маркировк/i, /материал.*поддерж/i],
-    },
-    {
-      id: "g2m-training",
-      label: "Training and Demo Activities",
-      description: "Обучение полей и поддержки, туториалы и демонстрации.",
-      color: "#ea9999",
-      patterns: [/training/i, /demo activit/i, /обучен/i, /туториал/i, /демо/i],
-    },
-    {
-      id: "g2m-pre-launch",
-      label: "Pre-Launch Alignment & Announcement Planning",
-      description: "Финальная калибровка стратегии, дата анонса и чек-листы готовности.",
-      color: "#ed6b72",
-      patterns: [/pre[\s-]*launch/i, /announcement planning/i, /дата анонс/i, /чек[\s-]*лист.*готов/i, /sales[\s-]*rdy/i],
-    },
-    {
-      id: "g2m-launch",
-      label: "Market Launch & Start of Sales",
-      description: "Анонс, старт продаж, рекламной кампании и поддержки.",
-      color: "#34a853",
-      patterns: [/market launch/i, /start of sales/i, /go[\s-]*live/i, /mp\s*launch/i, /старт продаж/i, /запуск.*(?:продаж|реклам)/i],
-    },
-    {
-      id: "g2m-post-launch",
-      label: "Post-Launch Analysis, Retrospective & Handover",
-      description: "Продажи, PR и отзывы, ретроспектива и передача продукта в поддержку.",
-      color: "#fff2cc",
-      patterns: [/post[\s-]*launch/i, /retrospective/i, /handover/i, /ретроспектив/i, /передач.*поддерж/i, /lessons learned/i],
-    },
-  ],
-};
 
-const TRACK_LABELS: Record<PortfolioRoadmapTrackId, string> = {
-  HW: "HW",
-  SW: "SW",
-  G2M: "G2M",
-};
-
-const TRACK_IDS: PortfolioRoadmapTrackId[] = ["HW", "SW", "G2M"];
-
-const TRACK_PATTERNS: Record<PortfolioRoadmapTrackId, RegExp[]> = {
-  HW: [/аппарат/i, /hardware/i, /(^|[^a-z])hw([^a-z]|$)/i, /желез/i, /\bpcba\b/i],
-  SW: [/программ/i, /software/i, /(^|[^a-z])sw([^a-z]|$)/i, /firmware/i, /прошив/i, /\bota\b/i, /staros/i, /homeos/i],
-  G2M: [
-    /\bg2m\b/i,
-    /\bgtm\b/i,
-    /go[\s-]*to[\s-]*market/i,
-    /market launch/i,
-    /start of sales/i,
-    /pre[\s-]*launch/i,
-    /post[\s-]*launch/i,
-    /announcement planning/i,
-    /handover/i,
-    /старт продаж/i,
-    /вывод.*рын/i,
-    /маркет/i,
-    /коммерчес/i,
-    /дистрибуц/i,
-  ],
-};
-
-const STRUCTURE_FALLBACK_PHASES: Record<PortfolioRoadmapTrackId, PhaseDefinition> = {
-  HW: {
-    id: "hw-structure",
-    label: "Пакет работ из Структуры",
-    description: "Пакет работ HW без отдельного соответствия этапу легенды.",
-    color: "#f1f3f5",
-    patterns: [],
-    isStructureFallback: true,
-  },
-  SW: {
-    id: "sw-structure",
-    label: "Пакет работ из Структуры",
-    description: "Пакет работ SW без отдельного соответствия этапу легенды.",
-    color: "#f1f3f5",
-    patterns: [],
-    isStructureFallback: true,
-  },
-  G2M: {
-    id: "g2m-structure",
-    label: "Пакет работ из Структуры",
-    description: "Пакет работ G2M без отдельного соответствия этапу легенды.",
-    color: "#f1f3f5",
-    patterns: [],
-    isStructureFallback: true,
-  },
-};
 
 const MONTH_LABELS = [
   "Янв",
@@ -451,18 +192,6 @@ const MONTH_LABELS = [
 const MIN_SEGMENT_SLOT_PX = 27;
 const MIN_RESPONSIVE_MONTH_WIDTH_PX = 40;
 
-export const PORTFOLIO_ROADMAP_TRACKS: PortfolioRoadmapTrackDefinition[] =
-  TRACK_IDS.map((id) => ({
-    id,
-    label: TRACK_LABELS[id],
-    phases: [...TRACK_PHASES[id], STRUCTURE_FALLBACK_PHASES[id]].map((phase) => ({
-      id: phase.id,
-      label: phase.label,
-      description: phase.description,
-      color: phase.color,
-      isStructureFallback: phase.isStructureFallback,
-    })),
-  }));
 
 /** Below this horizontal gap two captions would overlap, so the later one is dropped. */
 const MILESTONE_LABEL_GAP_PERCENT = 9;
@@ -566,44 +295,9 @@ function resolvedParentIds(items: PortfolioRoadmapWbsItem[]) {
   );
 }
 
-function matchingTrack(title: string) {
-  const normalized = normalize(title);
-  return TRACK_IDS.find((trackId) =>
-    TRACK_PATTERNS[trackId].some((pattern) => pattern.test(normalized)),
-  ) ?? null;
-}
 
-function trackContextForPath(path: PortfolioRoadmapWbsItem[]) {
-  for (const item of path.slice(1)) {
-    const track = matchingTrack(item.title);
-    if (track) return { trackId: track, anchor: item };
-  }
-  const item = path[0];
-  const track = matchingTrack(item?.title ?? "");
-  return item && track ? { trackId: track, anchor: item } : null;
-}
 
-function phaseForTitle(trackId: PortfolioRoadmapTrackId, title: string) {
-  const phases = TRACK_PHASES[trackId];
-  const normalizedTitle = normalize(title);
-  for (let index = phases.length - 1; index >= 0; index -= 1) {
-    if (phases[index].patterns.some((pattern) => pattern.test(normalizedTitle))) {
-      return { phase: phases[index], index };
-    }
-  }
-  return null;
-}
 
-function phaseForPath(
-  trackId: PortfolioRoadmapTrackId,
-  path: PortfolioRoadmapWbsItem[],
-) {
-  for (const item of path) {
-    const phase = phaseForTitle(trackId, item.title);
-    if (phase) return phase;
-  }
-  return null;
-}
 
 function scheduleForItem(item: PortfolioRoadmapWbsItem) {
   const hasForecast = Boolean(item.forecastStartDate && item.forecastDueDate);
@@ -743,10 +437,8 @@ export function preparePortfolioRoadmapProjects(
         if (!schedule) continue;
         const path = pathsByItemId.get(item.id)!;
         if (path.some((pathItem) => pathItem.status === "CANCELLED")) continue;
-        const trackContext = trackContextForPath(path);
-        if (!trackContext) continue;
-        const phaseMatch = phaseForPath(trackContext.trackId, path);
-        if (phaseMatch && LAUNCH_PHASE_IDS.has(phaseMatch.phase.id)) {
+        const phase = path.find((pathItem) => pathItem.type === "PHASE");
+        if (phase && isLaunchPhaseTitle(phase.title)) {
           launchWindows.push(schedule);
         }
       }
@@ -983,7 +675,22 @@ function buildProject(
   };
 }
 
-const LAUNCH_PHASE_IDS = new Set(["hw-launch", "sw-launch", "g2m-launch"]);
+/** Phases that represent a launch, however the project happens to name them. */
+const LAUNCH_PHASE_PATTERNS = [
+  "запуск",
+  "go-live",
+  "golive",
+  "launch",
+  "release",
+  "вывод на рынок",
+  "передача",
+  "handover",
+];
+
+function isLaunchPhaseTitle(title: string) {
+  const normalized = normalize(title);
+  return LAUNCH_PHASE_PATTERNS.some((pattern) => normalized.includes(pattern));
+}
 
 export function createPortfolioRoadmap(
   projects: PreparedPortfolioRoadmapProject[],
