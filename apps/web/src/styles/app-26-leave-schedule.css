@@ -581,7 +581,7 @@
 .leave-inline-form {
   display: grid;
   gap: 8px;
-  grid-template-columns: auto 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr auto;
 }
 
 .leave-employee-form {

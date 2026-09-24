@@ -38,7 +38,7 @@ import {
 } from "./ResourcePages";
 import { usePageContext } from "./PageContext";
 import { WikiPage } from "./WikiPage";
-import { canViewAppView, isDevelopmentSectionViewName } from "../app/routes";
+import { canViewAppView, isDevelopmentSectionViewName, isOperationsSectionViewName } from "../app/routes";
 
 const ProjectPmWorkspacePage = lazy(() =>
   import("./ProjectPmWorkspacePage").then((module) => ({
@@ -69,6 +69,7 @@ export function AppPages() {
   const { activeView, isAdminSectionView, sectionAccess, project } =
     usePageContext();
   const isDevelopmentSectionView = isDevelopmentSectionViewName(activeView);
+  const isOperationsSectionView = isOperationsSectionViewName(activeView);
 
   // Single gate for the whole page tree: routing and the auth controller use the
   // same rule, so a section is never navigable while its content stays blank.
@@ -76,7 +77,7 @@ export function AppPages() {
     return null;
   }
 
-  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || isDevelopmentSectionView)) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || isDevelopmentSectionView || isOperationsSectionView)) {
     return null;
   }
 

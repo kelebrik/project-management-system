@@ -117,3 +117,45 @@ test('project access writes use route-level business unit authorization', () => 
     null,
   );
 });
+
+test('the public demo writes from Operations but only looks at Administration and Development', async () => {
+  const { PUBLIC_DEMO_USER_ID } = await import('@pms/shared');
+  const { writePermissionMiddleware } = await import('./permissions.js');
+  const previous = { profile: process.env.DEPLOYMENT_PROFILE, demo: process.env.PUBLIC_DEMO_MODE };
+  process.env.DEPLOYMENT_PROFILE = 'cloud';
+  process.env.PUBLIC_DEMO_MODE = 'true';
+  const demoRequest = (section: string | undefined) =>
+    ({
+      method: 'POST',
+      path: '/leave-schedule/leaves',
+      currentUser: { id: PUBLIC_DEMO_USER_ID, role: 'PROJECT_MANAGER' },
+      get: (name: string) => (name.toLowerCase() === 'x-pms-section' ? section : undefined),
+    }) as any;
+  const run = async (section: string | undefined) => {
+    let passed = false;
+    const res: any = {
+      statusCode: 200,
+      status(code: number) {
+        this.statusCode = code;
+        return this;
+      },
+      json() {
+        return this;
+      },
+    };
+    await writePermissionMiddleware(demoRequest(section), res, () => {
+      passed = true;
+    });
+    return { passed, status: res.statusCode };
+  };
+  try {
+    assert.deepEqual(await run(undefined), { passed: true, status: 200 });
+    assert.deepEqual(await run('development'), { passed: false, status: 403 });
+    assert.deepEqual(await run('admin'), { passed: false, status: 403 });
+  } finally {
+    process.env.DEPLOYMENT_PROFILE = previous.profile;
+    process.env.PUBLIC_DEMO_MODE = previous.demo;
+    if (previous.profile === undefined) delete process.env.DEPLOYMENT_PROFILE;
+    if (previous.demo === undefined) delete process.env.PUBLIC_DEMO_MODE;
+  }
+});

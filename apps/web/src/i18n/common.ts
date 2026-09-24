@@ -4,6 +4,7 @@ export const common = {
   "nav.archive": { en: "Archive", ru: "Архив" },
   "nav.administration": { en: "Administration", ru: "Администрирование" },
   "nav.development": { en: "Development", ru: "Разработка" },
+  "nav.operations": { en: "Operations", ru: "Операционка" },
   "nav.faq": { en: "FAQ", ru: "FAQ" },
   "nav.registry": { en: "Registry", ru: "Реестр" },
   "nav.projectSections": { en: "Project sections", ru: "Разделы проекта" },

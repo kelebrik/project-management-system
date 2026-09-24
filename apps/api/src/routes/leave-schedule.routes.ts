@@ -6,7 +6,7 @@ import { recordAuditEvent } from '../services/audit.js';
 
 type LeaveScheduleContext = {
   currentUser: (req: Request) => any;
-  requireAdmin: RequestHandler;
+  requireAuth: RequestHandler;
 };
 
 const isoDate = z
@@ -179,10 +179,10 @@ async function withEmployeeLock<T>(employeeIds: string[], action: (client: Prism
   });
 }
 
-export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveScheduleContext) {
+export function createLeaveScheduleRouter({ currentUser, requireAuth }: LeaveScheduleContext) {
   const router = Router();
 
-  router.get('/leave-schedule', requireAdmin, async (req, res) => {
+  router.get('/leave-schedule', requireAuth, async (req, res) => {
     const from = isoDate.safeParse(req.query.from);
     const to = isoDate.safeParse(req.query.to);
     if (!from.success || !to.success || from.data > to.data) {
@@ -226,7 +226,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     });
   });
 
-  router.post('/leave-schedule/employees', requireAdmin, async (req, res) => {
+  router.post('/leave-schedule/employees', requireAuth, async (req, res) => {
     const parsed = employeeSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
@@ -256,7 +256,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.status(201).json(employee);
   });
 
-  router.patch('/leave-schedule/employees/:employeeId', requireAdmin, async (req, res) => {
+  router.patch('/leave-schedule/employees/:employeeId', requireAuth, async (req, res) => {
     const parsed = employeeSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
@@ -302,7 +302,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.json(employee);
   });
 
-  router.delete('/leave-schedule/employees/:employeeId', requireAdmin, async (req, res) => {
+  router.delete('/leave-schedule/employees/:employeeId', requireAuth, async (req, res) => {
     const employeeId = param(req, 'employeeId');
     // Counting and deleting under the leave lock keeps a leave added at the same
     // moment from being removed by the cascade.
@@ -337,7 +337,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.json({ archived });
   });
 
-  router.post('/leave-schedule/types', requireAdmin, async (req, res) => {
+  router.post('/leave-schedule/types', requireAuth, async (req, res) => {
     const parsed = typeSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
@@ -355,7 +355,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.status(201).json(type);
   });
 
-  router.patch('/leave-schedule/types/:typeId', requireAdmin, async (req, res) => {
+  router.patch('/leave-schedule/types/:typeId', requireAuth, async (req, res) => {
     const parsed = typeSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
@@ -380,7 +380,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.json(type);
   });
 
-  router.post('/leave-schedule/leaves', requireAdmin, async (req, res) => {
+  router.post('/leave-schedule/leaves', requireAuth, async (req, res) => {
     const parsed = leaveSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
@@ -416,7 +416,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.status(201).json(leaveResponse(leave));
   });
 
-  router.patch('/leave-schedule/leaves/:leaveId', requireAdmin, async (req, res) => {
+  router.patch('/leave-schedule/leaves/:leaveId', requireAuth, async (req, res) => {
     const leaveId = param(req, 'leaveId');
     const existing = await prisma.leave.findUnique({ where: { id: leaveId } });
     if (!existing) {
@@ -465,7 +465,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.json(leaveResponse(leave));
   });
 
-  router.delete('/leave-schedule/leaves/:leaveId', requireAdmin, async (req, res) => {
+  router.delete('/leave-schedule/leaves/:leaveId', requireAuth, async (req, res) => {
     const leaveId = param(req, 'leaveId');
     const existing = await prisma.leave.findUnique({ where: { id: leaveId } });
     if (!existing) {
@@ -484,7 +484,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.status(204).end();
   });
 
-  router.post('/leave-schedule/leaves/bulk-delete', requireAdmin, async (req, res) => {
+  router.post('/leave-schedule/leaves/bulk-delete', requireAuth, async (req, res) => {
     const parsed = bulkDeleteSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
@@ -501,7 +501,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.json({ deleted: result.count });
   });
 
-  router.put('/leave-schedule/calendar-days/:date', requireAdmin, async (req, res) => {
+  router.put('/leave-schedule/calendar-days/:date', requireAuth, async (req, res) => {
     const date = isoDate.safeParse(param(req, 'date'));
     const parsed = calendarDaySchema.safeParse(req.body);
     if (!date.success || !parsed.success) {
@@ -524,7 +524,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     res.json({ date: dateText(day.date), isWorkingDay: day.isWorkingDay, description: day.description });
   });
 
-  router.delete('/leave-schedule/calendar-days/:date', requireAdmin, async (req, res) => {
+  router.delete('/leave-schedule/calendar-days/:date', requireAuth, async (req, res) => {
     const date = isoDate.safeParse(param(req, 'date'));
     if (!date.success) {
       res.status(400).json({ error: 'Некорректный день календаря' });

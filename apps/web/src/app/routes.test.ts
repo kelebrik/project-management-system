@@ -8,6 +8,7 @@ import {
   canEditAppView,
   canViewAppView,
   isDevelopmentSectionViewName,
+  isOperationsSectionViewName,
   noSectionAccess,
   writeProtectedViews,
   type SectionAccess,
@@ -53,12 +54,42 @@ test("open issues redesign is isolated in Development", () => {
   assert.equal(canEditAppView("open-issues-redesign", demoVisitor), false);
 });
 
-test("public demo visitor may read administration and development but never edit them", () => {
-  for (const view of ["admin-users", "admin-config", "resources", "portfolio-v2"] as const) {
+test("public demo visitor only reads administration and development and edits everything else", () => {
+  for (const view of ["admin-users", "admin-config", "resources", "portfolio-v2", "reports", "closed-projects"] as const) {
     assert.equal(canViewAppView(view, demoVisitor), true, `view ${view}`);
     assert.equal(canEditAppView(view, demoVisitor), false, `edit ${view}`);
   }
-  assert.equal(canEditAppView("project-create", demoVisitor), false);
+  for (const view of ["leave-schedule", "project-create", "project-structure", "portfolio"] as const) {
+    assert.equal(canEditAppView(view, demoVisitor), true, `edit ${view}`);
+  }
+});
+
+test("reports and the archive moved to Development, the leave schedule to Operations", () => {
+  assert.equal(isDevelopmentSectionViewName("reports"), true);
+  assert.equal(isDevelopmentSectionViewName("closed-projects"), true);
+  assert.equal(isDevelopmentSectionViewName("leave-schedule"), false);
+  assert.equal(isOperationsSectionViewName("leave-schedule"), true);
+  assert.equal(appPathForView("reports"), "/development/reports");
+  assert.equal(appPathForView("closed-projects"), "/development/archive");
+  assert.equal(appPathForView("leave-schedule"), "/operations/leave-schedule");
+  for (const [path, view] of [
+    ["/reports", "reports"],
+    ["/closed-projects", "closed-projects"],
+    ["/closed", "closed-projects"],
+    ["/development/leave-schedule", "leave-schedule"],
+    ["/operations", "leave-schedule"],
+  ] as const) {
+    assert.equal(appViewFromPath(path), view, path);
+  }
+});
+
+test("Operations is open to any signed-in user, Development only to administrators", () => {
+  assert.equal(canViewAppView("leave-schedule", guest), false);
+  assert.equal(canViewAppView("leave-schedule", projectManager), true);
+  assert.equal(canEditAppView("leave-schedule", projectManager), true);
+  assert.equal(canViewAppView("reports", projectManager), false);
+  assert.equal(canViewAppView("closed-projects", projectManager), false);
+  assert.equal(canViewAppView("reports", systemAdmin), true);
 });
 
 test("outside the demo the same sections stay behind their roles", () => {
@@ -79,7 +110,6 @@ test("outside the demo the same sections stay behind their roles", () => {
 
 test("public views stay open and project creation stays behind a session", () => {
   assert.equal(canViewAppView("portfolio", guest), true);
-  assert.equal(canViewAppView("reports", guest), true);
   assert.equal(canViewAppView("project-create", guest), false);
   assert.equal(canViewAppView("project-create", projectManager), true);
 });

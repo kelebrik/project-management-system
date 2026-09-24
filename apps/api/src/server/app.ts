@@ -129,7 +129,7 @@ export function createApp() {
     }),
   );
 
-  app.use('/api', createLeaveScheduleRouter({ requireAdmin, currentUser }));
+  app.use('/api', createLeaveScheduleRouter({ requireAuth, currentUser }));
 
   registerClosedProjectWriteGuards(app);
 

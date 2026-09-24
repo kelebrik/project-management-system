@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildAuditFieldChanges } from './audit.js';
+import type { PrismaClient } from '@prisma/client';
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
+import { prismaClientProvider } from '../db.js';
+import { buildAuditFieldChanges, recordAuditEvent } from './audit.js';
 
 test('buildAuditFieldChanges stores only changed normalized field values', () => {
   const changes = buildAuditFieldChanges(
@@ -36,4 +39,34 @@ test('buildAuditFieldChanges stores only changed normalized field values', () =>
       { field: 'owner', oldText: null, newText: 'PM' },
     ],
   );
+});
+
+test('the public demo identity is recorded by name without a user foreign key', async () => {
+  const previous = prismaClientProvider.get;
+  let data: any;
+  prismaClientProvider.get = () =>
+    ({
+      auditEvent: {
+        create: async (args: any) => {
+          data = args.data;
+          return {};
+        },
+      },
+    }) as unknown as PrismaClient;
+  try {
+    await recordAuditEvent({
+      actor: { id: PUBLIC_DEMO_USER_ID, email: 'public-demo@local.invalid', name: 'Публичная демонстрация' },
+      action: 'leave_schedule.leave.create',
+      objectType: 'Leave',
+      changes: [{ field: 'comment', oldValue: null, newValue: 'Море' }],
+    });
+    assert.equal(data.actorId, null);
+    assert.equal(data.actorName, 'Публичная демонстрация');
+    assert.equal(data.changes.create[0].actorId, null);
+
+    await recordAuditEvent({ actor: { id: 'user-1', email: 'a@b.c', name: 'A' }, action: 'x', objectType: 'Y' });
+    assert.equal(data.actorId, 'user-1');
+  } finally {
+    prismaClientProvider.get = previous;
+  }
 });

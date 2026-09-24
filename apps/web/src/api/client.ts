@@ -1,4 +1,5 @@
 import { businessUnitHeaders } from "../app/businessUnitContext";
+import { viewSectionHeaders } from "../app/sectionHeader";
 import { readLocale } from "../i18n/locale";
 import { createTranslator } from "../i18n/translate";
 
@@ -58,6 +59,7 @@ async function request<T>(
     headers: {
       ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...businessUnitHeaders(),
+      ...viewSectionHeaders(),
       ...options.headers,
     },
   });
@@ -97,6 +99,7 @@ async function downloadRequest(path: string, options: RequestInit, fallback: str
     headers: {
       ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...businessUnitHeaders(),
+      ...viewSectionHeaders(),
       ...options.headers,
     },
   });

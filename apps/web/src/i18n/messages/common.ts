@@ -196,6 +196,10 @@ export const commonMessages = {
     "en": "The administration section is available to administrators only",
     "ru": "Раздел администрирования доступен только администратору"
   },
+  "ui.common.routeOperationsSectionForbidden": {
+    "en": "Sign in to open Operations",
+    "ru": "Войдите, чтобы открыть раздел «Операционка»"
+  },
   "ui.common.routeDevelopmentSectionForbidden": {
     "en": "The development section is available to administrators only",
     "ru": "Раздел разработки доступен только администратору"

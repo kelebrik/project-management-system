@@ -39,7 +39,13 @@ import {
 } from "../app/resourceModels";
 import { buildProjectTree } from "../app/projectTree";
 import { createProjectTargetSummary } from "../app/projectTargetModel";
-import { isProjectSectionViewName, type ProjectSectionView } from "../app/routes";
+import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
+import {
+  isAdminSectionViewName,
+  isDevelopmentSectionViewName,
+  isProjectSectionViewName,
+  type ProjectSectionView,
+} from "../app/routes";
 import {
   normalizeProjectModulesForUi,
   projectModuleViewByKey,
@@ -164,8 +170,14 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     selectedProjectAccessLevel === "ADMIN";
   const isSelectedProjectSection =
     isProjectSectionViewName(activeView) && Boolean(selectedProjectId);
+  // The public demo may look around Administration and Development but edits
+  // only the other sections.
+  const isDemoLookOnlySection =
+    currentUser?.id === PUBLIC_DEMO_USER_ID &&
+    (isAdminSectionViewName(activeView) || isDevelopmentSectionViewName(activeView));
   const isReadOnly =
     !isAuthenticated ||
+    isDemoLookOnlySection ||
     Boolean(isSelectedProjectSection && (isClosedProject || !canWriteSelectedProject));
   const filteredDictionaryItems = useMemo(
     () =>

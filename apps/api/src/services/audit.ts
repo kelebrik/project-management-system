@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import type { Request } from "express";
+import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
 import { prisma } from "../db.js";
 
 type AuditActor = {
@@ -97,10 +98,13 @@ export async function recordAuditEvent(input: {
   metadata?: unknown;
   changes?: AuditFieldChangeInput[];
 }) {
+  // The public demo identity is not a row in User, so it cannot be the actor's
+  // foreign key; its name and e-mail still say who acted.
+  const actorId = input.actor && input.actor.id !== PUBLIC_DEMO_USER_ID ? input.actor.id : null;
   return prisma.auditEvent
     .create({
       data: {
-        actorId: input.actor?.id ?? null,
+        actorId,
         actorEmail: input.actor?.email ?? null,
         actorName: input.actor?.name ?? null,
         action: input.action,
@@ -118,7 +122,7 @@ export async function recordAuditEvent(input: {
           input.changes && input.changes.length > 0
             ? {
                 create: input.changes.map((change) => ({
-                  actorId: input.actor?.id ?? null,
+                  actorId,
                   projectId: input.projectId ?? null,
                   objectType: input.objectType,
                   objectId: input.objectId ?? null,

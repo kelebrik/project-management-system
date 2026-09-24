@@ -279,7 +279,8 @@ test("report builder creates and filters a project status report", async ({ page
           id: "user-1",
           email: "pm@example.test",
           name: "Руководитель проекта",
-          role: "PROJECT_MANAGER",
+          // Reports live in Development, which only administrators open.
+          role: "ADMIN",
           isActive: true,
           lastLoginAt: null,
         },
@@ -294,7 +295,7 @@ test("report builder creates and filters a project status report", async ({ page
     route.fulfill({ json: project }),
   );
 
-  await page.goto("/reports");
+  await page.goto("/development/reports");
 
   await expect(page.getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
   await expect(page.getByRole("heading", { name: "Что сделано" })).toBeVisible();
@@ -386,4 +387,55 @@ test("report builder creates and filters a project status report", async ({ page
   await expect(page.getByRole("button", { name: "Drag field Status", exact: true })).toBeVisible();
   await expect(page.locator("#project-status-report")).toContainText("Пакет интеграции");
 
+});
+
+test("reports sit in Development: the old address still leads there and a project manager is kept out", async ({ page }) => {
+  let role = "ADMIN";
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: { id: "user-1", email: "pm@example.test", name: "Пользователь", role, isActive: true, lastLoginAt: null },
+      },
+    }),
+  );
+  await page.route("**/api/auth/keycloak/status", (route) =>
+    route.fulfill({ json: { enabled: false, hostname: null } }),
+  );
+  await page.route("**/api/projects", (route) => route.fulfill({ json: [] }));
+
+  await page.goto("/reports");
+  await expect(page.getByRole("navigation", { name: "Разработка" }).getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
+  await expect(page.getByRole("navigation", { name: "Разработка" }).getByRole("button", { name: "Архив" })).toBeVisible();
+
+  role = "PROJECT_MANAGER";
+  await page.goto("/development/reports");
+  await expect(page.getByRole("heading", { name: "Что сделано" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Разработка" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Операционка" })).toBeVisible();
+});
+
+test("the archive opens for an administrator and the demo visitor but not for a project manager", async ({ page }) => {
+  let user = { id: "user-1", role: "ADMIN" };
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: { user: { ...user, email: "u@example.test", name: "Пользователь", isActive: true, lastLoginAt: null } },
+    }),
+  );
+  await page.route("**/api/auth/keycloak/status", (route) =>
+    route.fulfill({ json: { enabled: false, hostname: null } }),
+  );
+  await page.route("**/api/projects", (route) => route.fulfill({ json: [] }));
+  const archiveTab = () => page.getByRole("navigation", { name: "Разработка" }).getByRole("button", { name: "Архив" });
+
+  await page.goto("/development/archive");
+  await expect(archiveTab()).toHaveClass(/active/);
+
+  user = { id: "public-demo-user", role: "PROJECT_MANAGER" };
+  await page.goto("/development/archive");
+  await expect(archiveTab()).toHaveClass(/active/);
+
+  user = { id: "user-2", role: "PROJECT_MANAGER" };
+  await page.goto("/closed-projects");
+  await expect(archiveTab()).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Разработка" })).toHaveCount(0);
 });

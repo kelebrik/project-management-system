@@ -5,12 +5,12 @@ import type { PrismaClient } from '@prisma/client';
 import { prismaClientProvider } from '../db.js';
 import { createLeaveScheduleRouter } from './leave-schedule.routes.js';
 
-const requireAdmin: RequestHandler = (_req, res) => {
-  res.sendStatus(403);
+const requireAuth: RequestHandler = (_req, res) => {
+  res.sendStatus(401);
 };
 
 function route(method: 'get' | 'post' | 'patch' | 'delete' | 'put', path: string) {
-  const router = createLeaveScheduleRouter({ requireAdmin, currentUser: () => ({ id: 'admin-1' }) });
+  const router = createLeaveScheduleRouter({ requireAuth, currentUser: () => ({ id: 'admin-1' }) });
   const layer = (router.stack as any[]).find(
     (candidate) => candidate.route?.methods[method] && candidate.route.path === path,
   );
@@ -76,12 +76,12 @@ const knownPeopleAndTypes = {
   leaveType: { findUnique: async () => ({ id: 'leave-type-vacation', isActive: true }) },
 };
 
-test('every leave schedule route sits behind the administrator middleware', () => {
-  const router = createLeaveScheduleRouter({ requireAdmin, currentUser: () => null });
+test('every leave schedule route is open to any signed-in user', () => {
+  const router = createLeaveScheduleRouter({ requireAuth, currentUser: () => null });
   const routes = (router.stack as any[]).filter((layer) => layer.route);
   assert.ok(routes.length >= 11);
   for (const layer of routes) {
-    assert.equal(layer.route.stack[0].handle, requireAdmin, layer.route.path);
+    assert.equal(layer.route.stack[0].handle, requireAuth, layer.route.path);
   }
 });
 
@@ -429,4 +429,50 @@ test('editing a person onto a switched-off or taken user is refused', async () =
   assert.equal(taken.statusCode, 409);
   assert.match(String((taken.body as any).error), /Петров/);
   assert.deepEqual(excluded, { not: 'emp-1' });
+});
+
+test('the public demo records a leave; the audit keeps its name without a user key', async () => {
+  const previous = prismaClientProvider.get;
+  let created: any;
+  let audit: any;
+  const client: Record<string, unknown> = {
+    ...knownPeopleAndTypes,
+    $executeRaw: async () => 0,
+    auditEvent: {
+      create: async (args: any) => {
+        audit = args.data;
+        return {};
+      },
+    },
+    leave: {
+      findFirst: async () => null,
+      create: async (args: any) => {
+        created = args.data;
+        return { id: 'leave-9', ...args.data };
+      },
+    },
+  };
+  client.$transaction = async (action: (tx: unknown) => unknown) => action(client);
+  prismaClientProvider.get = () => client as unknown as PrismaClient;
+  try {
+    const demo = { id: 'public-demo-user', email: 'public-demo@local.invalid', name: 'Публичная демонстрация' };
+    const router = createLeaveScheduleRouter({ requireAuth, currentUser: () => demo });
+    const layer = (router.stack as any[]).find((l) => l.route?.methods.post && l.route.path === '/leave-schedule/leaves');
+    const res = response();
+    await layer.route.stack[1].handle(
+      {
+        params: {},
+        query: {},
+        body: { employeeId: 'emp-1', typeId: 'leave-type-vacation', startDate: '2026-08-03', endDate: '2026-08-07' },
+        get: () => undefined,
+      } as unknown as Request,
+      res as unknown as Response,
+    );
+    assert.equal(res.statusCode, 201);
+    assert.equal(created.createdById, 'public-demo-user');
+    assert.equal(audit.actorId, null);
+    assert.equal(audit.actorName, 'Публичная демонстрация');
+  } finally {
+    prismaClientProvider.get = previous;
+  }
 });

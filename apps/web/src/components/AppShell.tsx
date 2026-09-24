@@ -5,6 +5,7 @@ import {
   BookOpen,
   BriefcaseBusiness,
   CalendarDays,
+  ClipboardList,
   CircleHelp,
   FileArchive,
   FileSpreadsheet,
@@ -77,10 +78,12 @@ type AppShellProps = {
   isAdminSectionView: boolean;
   canViewAdminSections: boolean;
   canViewDevelopmentSections: boolean;
+  canViewOperationsSections: boolean;
   sectionAccess: SectionAccess;
   isAuthenticated: boolean;
   isClosedProject: boolean;
   isDevelopmentSectionView: boolean;
+  isOperationsSectionView: boolean;
   isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   isProjectSectionView: boolean;
   isProjectView: boolean;
@@ -116,6 +119,7 @@ type AppShellProps = {
   setShowProjectPicker: (value: boolean) => void;
   shouldShowAdminMenu: boolean;
   shouldShowDevelopmentMenu: boolean;
+  shouldShowOperationsMenu: boolean;
   shouldShowProjectMenu: boolean;
   showProjectPicker: boolean;
   signedDaysLabel: (value: number | null) => string;
@@ -287,8 +291,10 @@ const adminNavItems: AdminNavItem[] = [
 ];
 
 const developmentNavItems: AdminNavItem[] = [
+  // Same names as the former top-level buttons, so people find them again.
+  { view: "reports", label: "nav.reports", icon: <NotebookText size={15} /> },
+  { view: "closed-projects", label: "nav.archive", icon: <Archive size={15} /> },
   { view: "portfolio-v2", label: "view.portfolio-v2", icon: <BriefcaseBusiness size={15} /> },
-  { view: "leave-schedule", label: "view.leave-schedule", icon: <CalendarDays size={15} /> },
   { view: "jira-reconciliation", label: "view.jira-reconciliation", icon: <CircleHelp size={15} /> },
   {
     view: "project-pm-workspace",
@@ -315,6 +321,10 @@ const developmentNavItems: AdminNavItem[] = [
     label: "view.resources-capacity",
     icon: <Settings2 size={15} />,
   },
+];
+
+const operationsNavItems: AdminNavItem[] = [
+  { view: "leave-schedule", label: "view.leave-schedule", icon: <CalendarDays size={15} /> },
 ];
 
 const projectNavShortLabels: Partial<Record<ProjectSectionView, TranslationKey>> = {
@@ -346,10 +356,12 @@ export function AppShell({
   isAdminSectionView,
   canViewAdminSections,
   canViewDevelopmentSections,
+  canViewOperationsSections,
   sectionAccess,
   isAuthenticated,
   isClosedProject,
   isDevelopmentSectionView,
+  isOperationsSectionView,
   isProjectModuleEnabled,
   isProjectSectionView,
   isProjectView,
@@ -373,6 +385,7 @@ export function AppShell({
   setShowProjectPicker,
   shouldShowAdminMenu,
   shouldShowDevelopmentMenu,
+  shouldShowOperationsMenu,
   shouldShowProjectMenu,
   showProjectPicker,
   signedDaysLabel,
@@ -433,20 +446,15 @@ export function AppShell({
           >
             <FolderTree size={15} /> {t("nav.projects")}
           </button>
-          <button
-            type="button"
-            className={activeView === "reports" ? "active" : ""}
-            onClick={() => openView("reports")}
-          >
-            <NotebookText size={15} /> {t("nav.reports")}
-          </button>
-          <button
-            type="button"
-            className={activeView === "closed-projects" ? "active" : ""}
-            onClick={() => openView("closed-projects")}
-          >
-            <Archive size={15} /> {t("nav.archive")}
-          </button>
+          {canViewOperationsSections && (
+            <button
+              type="button"
+              className={isOperationsSectionView ? "active" : ""}
+              onClick={() => openView("leave-schedule")}
+            >
+              <ClipboardList size={15} /> {t("nav.operations")}
+            </button>
+          )}
           {canViewAdminSections && (
             <button
               type="button"
@@ -552,6 +560,25 @@ export function AppShell({
                 {item.icon} {t(item.label)}
               </button>
             ))}
+          </nav>
+        </div>
+      )}
+
+      {shouldShowOperationsMenu && (
+        <div className="section-navigation operations-section-navigation">
+          <nav className="section-tabs" aria-label={t("nav.operations")}>
+            {operationsNavItems
+              .filter((item) => canViewAppView(item.view, sectionAccess))
+              .map((item) => (
+                <button
+                  type="button"
+                  key={item.view}
+                  className={activeView === item.view ? "active" : ""}
+                  onClick={() => openView(item.view)}
+                >
+                  {item.icon} {t(item.label)}
+                </button>
+              ))}
           </nav>
         </div>
       )}

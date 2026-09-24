@@ -51,6 +51,8 @@ import {
   canViewAppView,
   developmentSectionViews,
   isDevelopmentSectionViewName,
+  isOperationsSectionViewName,
+  operationsSectionViews,
   isAdminSectionViewName,
   isProjectSectionViewName,
   isResourceSectionViewName,
@@ -228,6 +230,7 @@ export function AppPresentation({
   const isProjectSectionView = isProjectSectionViewName(activeView);
   const isResourceSectionView = isResourceSectionViewName(activeView);
   const isDevelopmentSectionView = isDevelopmentSectionViewName(activeView);
+  const isOperationsSectionView = isOperationsSectionViewName(activeView);
   const isProjectView =
     activeView === "project-create" ||
     activeView === "project-pm-workspace" ||
@@ -252,6 +255,10 @@ export function AppPresentation({
   const shouldShowDevelopmentMenu = Boolean(
     canViewDevelopmentSections && isDevelopmentSectionView,
   );
+  const canViewOperationsSections = operationsSectionViews.some((view) =>
+    canViewAppView(view, sectionAccess),
+  );
+  const shouldShowOperationsMenu = Boolean(canViewOperationsSections && isOperationsSectionView);
   const { t, locale, labels: localizedLabels, formatters } = useI18n();
   const viewTitle = useMemo(() => createViewTitle(project, t), [project, t]);
   const renderGlobalSearch = (className = "") => (
@@ -372,10 +379,12 @@ export function AppPresentation({
       isAdminSectionView={isAdminSectionView}
       canViewAdminSections={canViewAdminSections}
       canViewDevelopmentSections={canViewDevelopmentSections}
+      canViewOperationsSections={canViewOperationsSections}
       sectionAccess={sectionAccess}
       isAuthenticated={isAuthenticated}
       isClosedProject={shouldShowClosedProjectBanner}
       isDevelopmentSectionView={isDevelopmentSectionView}
+      isOperationsSectionView={isOperationsSectionView}
       isProjectModuleEnabled={isProjectModuleEnabled}
       isProjectSectionView={isProjectSectionView}
       isProjectView={isProjectView}
@@ -399,6 +408,7 @@ export function AppPresentation({
       setShowProjectPicker={setShowProjectPicker}
       shouldShowAdminMenu={shouldShowAdminMenu}
       shouldShowDevelopmentMenu={shouldShowDevelopmentMenu}
+      shouldShowOperationsMenu={shouldShowOperationsMenu}
       shouldShowProjectMenu={shouldShowProjectMenu}
       showProjectPicker={showProjectPicker}
       signedDaysLabel={formatters.signedDaysLabel}

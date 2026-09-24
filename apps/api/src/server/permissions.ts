@@ -188,9 +188,26 @@ export async function canProceedWithWrite(
   return { ok: true };
 }
 
+const LOOK_ONLY_SECTIONS = new Set(['admin', 'development']);
+
+/** The public demo may look around Administration and Development but not change anything from there. */
+export function isDemoLookOnlyWrite(req: Request) {
+  return (
+    isPublicDemoMode() &&
+    currentUser(req)?.id === PUBLIC_DEMO_USER_ID &&
+    LOOK_ONLY_SECTIONS.has(String(req.get('x-pms-section') ?? '').toLowerCase())
+  );
+}
+
 export async function writePermissionMiddleware(req: Request, res: Response, next: NextFunction) {
   if (isReadRequest(req)) {
     next();
+    return;
+  }
+  if (isDemoLookOnlyWrite(req)) {
+    res.status(403).json({
+      error: 'В демо-режиме «Администрирование» и «В разработке» открыты только для просмотра',
+    });
     return;
   }
   if (

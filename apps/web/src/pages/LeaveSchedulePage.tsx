@@ -27,6 +27,7 @@ import { LeaveEmployeesDialog } from "../components/leaveSchedule/LeaveEmployees
 import { LeaveListTab } from "../components/leaveSchedule/LeaveListTab";
 import { LeaveScheduleGrid } from "../components/leaveSchedule/LeaveScheduleGrid";
 import { LeaveTypesDialog } from "../components/leaveSchedule/LeaveTypesDialog";
+import { canEditAppView } from "../app/routes";
 import { useConfirm } from "../hooks/useConfirm";
 import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
@@ -47,8 +48,11 @@ function storedHorizon(): LeaveHorizon {
 export function LeaveSchedulePage() {
   const { t, locale } = useI18n();
   const confirm = useConfirm();
-  const { isAdminUser, setNotice } = usePageContext();
-  const canEdit = Boolean(isAdminUser);
+  const { isAdminUser, sectionAccess, setNotice } = usePageContext();
+  // Operations is open to every signed-in user, the public demo included.
+  const canEdit = canEditAppView("leave-schedule", sectionAccess);
+  // Only administrators (and the read-only demo) may list system users.
+  const canLinkUsers = Boolean(isAdminUser || sectionAccess?.isPublicDemoVisitor);
   const today = localDay();
   const [tab, setTab] = useState<LeaveTab>("schedule");
   const [anchor, setAnchor] = useState(today);
@@ -409,6 +413,7 @@ export function LeaveSchedulePage() {
       )}
       {dialog === "employees" && data && (
         <LeaveEmployeesDialog
+          canLinkUsers={canLinkUsers}
           departments={allDepartments}
           employees={data.employees}
           onClose={() => setDialog(null)}

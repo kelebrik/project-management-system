@@ -51,6 +51,7 @@ function EmployeeRow({
   employee,
   employees,
   users,
+  canLinkUsers,
   departmentsListId,
   onSave,
   onRemove,
@@ -58,6 +59,7 @@ function EmployeeRow({
   employee: LeaveEmployee;
   employees: LeaveEmployee[];
   users: SystemUser[];
+  canLinkUsers: boolean;
   departmentsListId: string;
   onSave: (patch: EmployeeDraft) => Promise<void>;
   onRemove: () => Promise<void>;
@@ -91,15 +93,17 @@ function EmployeeRow({
           onChange={(event) => setDraft({ ...draft, department: event.target.value })}
         />
       </td>
-      <td>
-        <UserSelect
-          employeeId={employee.id}
-          employees={employees}
-          onChange={(userId) => setDraft({ ...draft, userId })}
-          users={users}
-          value={draft.userId}
-        />
-      </td>
+      {canLinkUsers && (
+        <td>
+          <UserSelect
+            employeeId={employee.id}
+            employees={employees}
+            onChange={(userId) => setDraft({ ...draft, userId })}
+            users={users}
+            value={draft.userId}
+          />
+        </td>
+      )}
       <td className="leave-check-cell">
         <input
           aria-label={t("ui.leave.active")}
@@ -126,6 +130,7 @@ function EmployeeRow({
 }
 
 export function LeaveEmployeesDialog({
+  canLinkUsers,
   employees,
   departments,
   onCreate,
@@ -133,6 +138,7 @@ export function LeaveEmployeesDialog({
   onRemove,
   onClose,
 }: {
+  canLinkUsers: boolean;
   employees: LeaveEmployee[];
   departments: string[];
   onCreate: (draft: EmployeeDraft) => Promise<void>;
@@ -153,6 +159,7 @@ export function LeaveEmployeesDialog({
 
   // System users are loaded only here, so their e-mails never reach the schedule itself.
   useEffect(() => {
+    if (!canLinkUsers) return;
     let cancelled = false;
     apiClient
       .get<SystemUser[]>("/api/users")
@@ -165,7 +172,7 @@ export function LeaveEmployeesDialog({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canLinkUsers]);
 
   const guard = async (action: () => Promise<void>) => {
     setError(null);
@@ -184,7 +191,7 @@ export function LeaveEmployeesDialog({
         ))}
       </datalist>
       <form
-        className="leave-inline-form leave-employee-form"
+        className={`leave-inline-form ${canLinkUsers ? "leave-employee-form" : ""}`}
         onSubmit={(event) => {
           event.preventDefault();
           if (!name.trim()) return;
@@ -208,6 +215,7 @@ export function LeaveEmployeesDialog({
           value={department}
           onChange={(event) => setDepartment(event.target.value)}
         />
+        {canLinkUsers && (
         <UserSelect
           employeeId={null}
           employees={employees}
@@ -220,6 +228,7 @@ export function LeaveEmployeesDialog({
           users={users}
           value={userId}
         />
+        )}
         <button className="primary" disabled={!name.trim()} type="submit">
           {t("ui.leave.addEmployee")}
         </button>
@@ -234,7 +243,7 @@ export function LeaveEmployeesDialog({
           <tr>
             <th>{t("ui.leave.name")}</th>
             <th>{t("ui.leave.department")}</th>
-            <th>{t("ui.leave.systemUser")}</th>
+            {canLinkUsers && <th>{t("ui.leave.systemUser")}</th>}
             <th>{t("ui.leave.active")}</th>
             <th />
           </tr>
@@ -245,6 +254,7 @@ export function LeaveEmployeesDialog({
               departmentsListId={departmentsListId}
               employee={employee}
               employees={employees}
+              canLinkUsers={canLinkUsers}
               key={`${employee.id}:${employee.name}:${employee.department}:${employee.isActive}:${employee.userId ?? ""}`}
               onRemove={() =>
                 guard(async () => {

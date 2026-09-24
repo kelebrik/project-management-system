@@ -11,6 +11,7 @@ import {
   isAdminSectionViewName,
   isProjectSectionViewName,
   isDevelopmentSectionViewName,
+  isOperationsSectionViewName,
   normalizeAppPath,
   normalizeProjectRouteCode,
   writeProtectedViews,
@@ -156,7 +157,9 @@ export function useAppRouting({
           uiText(
             isAdminSectionViewName(nextView)
               ? "ui.common.routeAdminSectionForbidden"
-              : "ui.common.routeDevelopmentSectionForbidden",
+              : isOperationsSectionViewName(nextView)
+                ? "ui.common.routeOperationsSectionForbidden"
+                : "ui.common.routeDevelopmentSectionForbidden",
           ),
         );
         return;
@@ -175,7 +178,7 @@ export function useAppRouting({
       setActiveView(nextView);
       const routeProjectCode =
         options?.projectCode ??
-        (isDevelopmentSectionViewName(nextView)
+        (isDevelopmentSectionViewName(nextView) || isOperationsSectionViewName(nextView)
           ? null
           : selectedProjectListItem?.code ?? project?.code ?? null);
       const nextPath = appPathForView(nextView, routeProjectCode);

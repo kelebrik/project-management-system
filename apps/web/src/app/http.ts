@@ -1,4 +1,5 @@
 import { businessUnitHeaders } from "./businessUnitContext";
+import { viewSectionHeaders } from "./sectionHeader";
 
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -12,6 +13,7 @@ export async function authenticatedFetch(
     headers: {
       ...(init.body ? { "Content-Type": "application/json" } : {}),
       ...businessUnitHeaders(),
+      ...viewSectionHeaders(),
       ...init.headers,
     },
   });

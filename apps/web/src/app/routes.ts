@@ -50,13 +50,17 @@ export type ResourceSectionView = Extract<
 export type DevelopmentSectionView = Extract<
   AppView,
   | "portfolio-v2"
-  | "leave-schedule"
+  | "reports"
+  | "closed-projects"
   | "jira-reconciliation"
   | "decision-queue"
   | "project-pm-workspace"
   | "open-issues-redesign"
   | ResourceSectionView
 >;
+
+/** Day-to-day operational tools, open to every signed-in user. */
+export type OperationsSectionView = Extract<AppView, "leave-schedule">;
 
 export type FullscreenWorkspaceView = Extract<
   AppView,
@@ -97,6 +101,8 @@ export function canAccessAdminView(
 }
 
 export const developmentSectionViews: DevelopmentSectionView[] = [
+  "reports",
+  "closed-projects",
   "jira-reconciliation",
   "decision-queue",
   "project-pm-workspace",
@@ -104,13 +110,15 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "resources",
   "resources-capacity",
   "portfolio-v2",
-  "leave-schedule",
 ];
+
+export const operationsSectionViews: OperationsSectionView[] = ["leave-schedule"];
 
 export const writeProtectedViews = new Set<AppView>([
   "project-create",
   ...adminSectionViews,
   ...developmentSectionViews,
+  ...operationsSectionViews,
 ]);
 
 /**
@@ -134,9 +142,9 @@ export const noSectionAccess: SectionAccess = {
 
 /**
  * Administration and Development are split into view and edit rights. A public
- * demo visitor may read every section so the whole product is demonstrable,
- * but editing stays with the roles that own it — the API enforces the same
- * split, this model only keeps the interface consistent with it.
+ * demo visitor may read them so the whole product is demonstrable, but only
+ * reads them; every other section, Operations included, is theirs to edit
+ * like any signed-in user's.
  */
 export function canViewAppView(view: AppView, access: SectionAccess) {
   if (isAdminSectionViewName(view)) {
@@ -153,7 +161,9 @@ export function canViewAppView(view: AppView, access: SectionAccess) {
 }
 
 export function canEditAppView(view: AppView, access: SectionAccess) {
-  if (access.isPublicDemoVisitor) return false;
+  if (access.isPublicDemoVisitor) {
+    return !isAdminSectionViewName(view) && !isDevelopmentSectionViewName(view);
+  }
   if (isAdminSectionViewName(view)) {
     return canAccessAdminView(view, access.isAdminUser, access.isBusinessUnitAdmin);
   }
@@ -181,11 +191,11 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
   "portfolio-v2": "/development/portfolio-v2",
-  "leave-schedule": "/development/leave-schedule",
+  "leave-schedule": "/operations/leave-schedule",
   "decision-queue": "/development/decision-queue",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
-  reports: "/reports",
+  reports: "/development/reports",
   wiki: "/faq",
   resources: "/development/resources",
   "resources-capacity": "/development/resources/capacity",
@@ -206,7 +216,7 @@ export const appViewPaths: Record<AppView, string> = {
   "project-budget": "/budget",
   "project-calendars": "/calendars",
   "project-artifacts": "/artifacts",
-  "closed-projects": "/closed-projects",
+  "closed-projects": "/development/archive",
   admin: "/admin",
   "admin-users": "/admin/users",
   "admin-roles": "/admin/roles",
@@ -272,7 +282,12 @@ export const appPathViews: Record<string, AppView> = {
   "/resources/settings": "resources-capacity",
   "/development": "resources",
   "/development/portfolio-v2": "portfolio-v2",
+  // Earlier addresses keep working after the sections moved.
   "/development/leave-schedule": "leave-schedule",
+  "/operations": "leave-schedule",
+  "/operations/leave-schedule": "leave-schedule",
+  "/development/reports": "reports",
+  "/development/archive": "closed-projects",
   "/development/decision-queue": "decision-queue",
   "/development/jira-reconciliation": "jira-reconciliation",
   "/development/pm-workspace": "project-pm-workspace",
@@ -394,6 +409,10 @@ export function isDevelopmentSectionViewName(
   view: AppView,
 ): view is DevelopmentSectionView {
   return developmentSectionViews.includes(view as DevelopmentSectionView);
+}
+
+export function isOperationsSectionViewName(view: AppView): view is OperationsSectionView {
+  return operationsSectionViews.includes(view as OperationsSectionView);
 }
 
 export function appPathForView(view: AppView, projectCode?: string | null) {

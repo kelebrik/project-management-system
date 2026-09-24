@@ -15,8 +15,8 @@ test("read-only user can open core project pages without authentication", async 
   await expect(page.getByRole("button", { name: /Месяцы/ })).toBeVisible();
 });
 
-test("closed projects page is available in read-only mode", async ({ page }) => {
-  await page.goto("/closed-projects");
+test("the archive moved to Development and is not open without signing in", async ({ page }) => {
+  await page.goto("/development/archive");
 
-  await expect(page.getByText("Закрытые проекты").first()).toBeVisible();
+  await expect(page.getByText("Закрытые проекты")).toHaveCount(0);
 });

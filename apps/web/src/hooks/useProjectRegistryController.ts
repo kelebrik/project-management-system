@@ -532,7 +532,8 @@ export function useProjectRegistryController({
         );
         if (selectedProjectId === projectId) {
           setProject(null);
-          openView("closed-projects");
+          // The archive now lives in Development, which only administrators open.
+          openView(currentUser?.role === "ADMIN" ? "closed-projects" : "projects");
         }
         await reloadAuditEvents();
         setNotice(`Проект ${sourceProject.code} закрыт`);
@@ -548,6 +549,7 @@ export function useProjectRegistryController({
     },
     [
       confirm,
+      currentUser?.role,
       openView,
       projects,
       reloadAuditEvents,

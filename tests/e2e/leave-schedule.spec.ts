@@ -89,7 +89,7 @@ async function mockLeaveSchedule(page: Page) {
 
 test("the leave schedule shows people, leaves and who is away today", async ({ page }) => {
   await mockLeaveSchedule(page);
-  await page.goto("/development/leave-schedule");
+  await page.goto("/operations/leave-schedule");
 
   await expect(page.getByRole("heading", { name: "График отпусков" })).toBeVisible();
   await expect(page.getByRole("rowheader", { name: /Барбер Роберт/ })).toBeVisible();
@@ -107,7 +107,7 @@ test("the leave schedule shows people, leaves and who is away today", async ({ p
 
 test("dragging across days creates a leave and overlaps are blocked", async ({ page }) => {
   const state = await mockLeaveSchedule(page);
-  await page.goto("/development/leave-schedule");
+  await page.goto("/operations/leave-schedule");
 
   const row = page.getByRole("row", { name: /Альварес Даниэль/ });
   const cells = row.locator(".leave-day");
@@ -137,7 +137,7 @@ test("dragging across days creates a leave and overlaps are blocked", async ({ p
 
 test("the list tab exports the visible leaves to CSV", async ({ page }) => {
   await mockLeaveSchedule(page);
-  await page.goto("/development/leave-schedule");
+  await page.goto("/operations/leave-schedule");
   await page.getByRole("tab", { name: "Список" }).click();
   await expect(page.getByRole("cell", { name: "Простуда" })).toBeVisible();
 
@@ -149,7 +149,7 @@ test("the list tab exports the visible leaves to CSV", async ({ page }) => {
 
 test("clicking a production calendar day switches it and a second click resets it", async ({ page }) => {
   const state = await mockLeaveSchedule(page);
-  await page.goto("/development/leave-schedule");
+  await page.goto("/operations/leave-schedule");
   await page.getByRole("tab", { name: "Производственный календарь" }).click();
   const year = await page.locator(".leave-calendar-toolbar strong").innerText();
   // The first ordinary working day of March in the shown year.
@@ -167,7 +167,7 @@ test("clicking a production calendar day switches it and a second click resets i
 
 test("a person is linked to a free, active system user", async ({ page }) => {
   const state = await mockLeaveSchedule(page);
-  await page.goto("/development/leave-schedule");
+  await page.goto("/operations/leave-schedule");
   await page.getByRole("button", { name: "Сотрудники" }).click();
   const dialog = page.getByRole("dialog", { name: "Сотрудники" });
   const row = dialog.getByRole("row").filter({ has: page.locator('input[value="Барбер Роберт"]') });
@@ -184,4 +184,34 @@ test("a person is linked to a free, active system user", async ({ page }) => {
 
   await dialog.getByRole("button", { name: "Закрыть" }).click();
   await expect(page.getByRole("rowheader", { name: /Барбер Роберт/ }).getByRole("img", { name: "Связан с пользователем системы" })).toBeVisible();
+});
+
+test("Operations is open to a project manager, who edits leaves without listing system users", async ({ page }) => {
+  const state = await mockLeaveSchedule(page);
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: { id: "pm-1", email: "pm@example.test", name: "Руководитель", role: "PROJECT_MANAGER", isActive: true, lastLoginAt: null },
+      },
+    }),
+  );
+  let usersRequested = false;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/users") usersRequested = true;
+  });
+
+  // The old Development address still opens the page, now under Operations.
+  await page.goto("/development/leave-schedule");
+  await expect(page.getByRole("navigation", { name: "Операционка" }).getByRole("button", { name: "График отпусков" })).toHaveClass(/active/);
+
+  await page.getByRole("button", { name: "Добавить отсутствие" }).click();
+  const dialog = page.getByRole("dialog", { name: "Новое отсутствие" });
+  await dialog.getByLabel("Сотрудник").selectOption("e4");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect.poll(() => state.posts.length).toBe(1);
+
+  await page.getByRole("button", { name: "Сотрудники" }).click();
+  await expect(page.getByRole("dialog", { name: "Сотрудники" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Пользователь системы" })).toHaveCount(0);
+  expect(usersRequested).toBe(false);
 });
