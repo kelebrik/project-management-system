@@ -159,3 +159,22 @@ test('the public demo writes from Operations but only looks at Administration an
     if (previous.demo === undefined) delete process.env.PUBLIC_DEMO_MODE;
   }
 });
+
+test('integration tokens cannot change the leave schedule, signed-in users can', async () => {
+  const dependencies = {
+    projectIdForWritePath: async () => null,
+    userCanWriteProject: async () => false,
+    userHasPermission: async () => true,
+    apiTokenHasPermission: () => true,
+  };
+  for (const pathname of ['/leave-schedule/leaves', '/leave-schedule/employees/e1', '/leave-schedule/calendar-days/2026-06-12']) {
+    const byToken = await canProceedWithWrite(
+      { user: null, apiToken: { id: 'token-1' } as any, pathname, method: 'POST' },
+      dependencies,
+    );
+    assert.equal(byToken.ok, false, pathname);
+    assert.equal((byToken as any).status, 403, pathname);
+    const byUser = await canProceedWithWrite({ user: projectManager, apiToken: null, pathname, method: 'POST' }, dependencies);
+    assert.equal(byUser.ok, true, pathname);
+  }
+});

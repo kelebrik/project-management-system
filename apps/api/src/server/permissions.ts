@@ -160,6 +160,12 @@ export async function canProceedWithWrite(
     apiTokenHasPermission,
   },
 ): Promise<WritePermissionDecision> {
+  // The leave schedule is edited by people in a session, never by integration tokens.
+  if (context.pathname.startsWith('/leave-schedule') && !context.user) {
+    return context.apiToken
+      ? { ok: false, status: 403, error: 'График отпусков изменяется только из сессии пользователя' }
+      : { ok: false, status: 401, error: 'Требуется вход в систему' };
+  }
   const requiredPermission = writePermissionForPath(context.pathname, context.method);
   if (!requiredPermission) {
     return { ok: true };
