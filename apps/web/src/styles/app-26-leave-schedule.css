@@ -227,6 +227,7 @@
 }
 
 .leave-grid {
+  background: var(--surface);
   min-width: max-content;
   user-select: none;
 }
@@ -318,6 +319,8 @@
 }
 
 .leave-day {
+  /* Working days share the header's fill; .off below shades the rest. */
+  background: var(--surface);
   border-bottom: 1px solid var(--border-5);
   border-left: 1px solid var(--border-5);
   grid-row: 1;
