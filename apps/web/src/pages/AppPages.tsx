@@ -45,6 +45,11 @@ const ProjectPmWorkspacePage = lazy(() =>
     default: module.ProjectPmWorkspacePage,
   })),
 );
+const LeaveSchedulePage = lazy(() =>
+  import("./LeaveSchedulePage").then((module) => ({
+    default: module.LeaveSchedulePage,
+  })),
+);
 const DecisionQueuePage = lazy(() =>
   import("./DecisionQueuePage").then((module) => ({
     default: module.DecisionQueuePage,
@@ -79,6 +84,11 @@ export function AppPages() {
     <>
       {activeView === "portfolio" && <PortfolioPage />}
       {activeView === "portfolio-v2" && <PortfolioRoadmapV2 />}
+      {activeView === "leave-schedule" && (
+        <Suspense fallback={<DevelopmentPageFallback />}>
+          <LeaveSchedulePage />
+        </Suspense>
+      )}
       {activeView === "decision-queue" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <DecisionQueuePage />

@@ -3,6 +3,7 @@ import { openApiAdminPaths } from "./openapi-admin-paths.js";
 import { openApiComponents } from "./openapi-components.js";
 import { openApiCorePaths } from "./openapi-core-paths.js";
 import { openApiJiraPaths } from "./openapi-jira-paths.js";
+import { openApiLeavePaths } from "./openapi-leave-paths.js";
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -34,6 +35,7 @@ export const openApiDocument = {
     { name: "Admin" },
     { name: "Audit" },
     { name: "Analytics" },
+    { name: "LeaveSchedule" },
   ],
   components: openApiComponents,
   paths: {
@@ -41,5 +43,6 @@ export const openApiDocument = {
     ...openApiAutomationPaths,
     ...openApiJiraPaths,
     ...openApiAdminPaths,
+    ...openApiLeavePaths,
   },
 } as const;

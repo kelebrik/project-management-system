@@ -1,0 +1,804 @@
+/* Leave schedule (Development section). */
+.leave-page button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  padding: 7px 11px;
+}
+
+.leave-page button.primary,
+.leave-dialog button.primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+}
+
+.leave-danger-button {
+  border-color: var(--danger-border) !important;
+  color: var(--danger) !important;
+}
+
+.leave-icon-button {
+  justify-content: center;
+  padding: 6px !important;
+}
+
+.leave-page input[type="checkbox"],
+.leave-dialog input[type="checkbox"] {
+  width: auto;
+}
+
+.leave-page-header {
+  gap: 16px;
+}
+
+.leave-page-description {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.leave-header-actions,
+.leave-period-nav,
+.leave-filters,
+.leave-list-toolbar,
+.leave-calendar-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.leave-tabs-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  justify-content: space-between;
+}
+
+.leave-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.leave-tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-secondary);
+}
+
+.leave-tabs button.active {
+  border-bottom-color: var(--brand);
+  color: var(--text-strong);
+}
+
+.leave-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.leave-legend li {
+  align-items: center;
+  color: var(--text-secondary);
+  display: inline-flex;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.leave-legend i {
+  border-radius: 3px;
+  display: inline-block;
+  height: 14px;
+  width: 14px;
+}
+
+.leave-legend .leave-legend-working {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+}
+
+.leave-legend .leave-legend-off {
+  background: var(--leave-off, #e9eef3);
+  border: 1px solid var(--border-strong);
+}
+
+.leave-toolbar {
+  display: grid;
+  gap: 10px;
+}
+
+.leave-period-nav label {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.leave-period-nav label span {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.leave-period-nav input[type="date"] {
+  padding: 6px 8px;
+  width: auto;
+}
+
+.leave-horizon {
+  display: inline-flex;
+}
+
+.leave-horizon button {
+  border-radius: 0;
+}
+
+.leave-horizon button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.leave-horizon button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.leave-horizon button + button {
+  margin-left: -1px;
+}
+
+.leave-horizon button.active {
+  background: var(--brand-soft);
+  border-color: var(--brand-border-strong);
+  color: var(--text-strong);
+  position: relative;
+}
+
+.leave-search {
+  max-width: 260px;
+  padding: 7px 10px;
+}
+
+.leave-check {
+  align-items: center;
+  color: var(--text-secondary);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.leave-departments {
+  position: relative;
+}
+
+.leave-departments summary {
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 11px;
+}
+
+.leave-departments > div {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  min-width: 220px;
+  overflow: auto;
+  padding: 10px;
+  position: absolute;
+  z-index: 20;
+}
+
+.leave-departments label {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.leave-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* Day grid: two sticky columns followed by one column per day. */
+.leave-grid-shell {
+  --leave-name-width: 230px;
+  --leave-planned-width: 64px;
+  --leave-row-height: 34px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  max-height: calc(100vh - 290px);
+  min-height: 240px;
+  overflow: auto;
+}
+
+.leave-grid {
+  min-width: max-content;
+  user-select: none;
+}
+
+.leave-grid-row {
+  display: grid;
+  grid-template-columns:
+    var(--leave-name-width) var(--leave-planned-width)
+    repeat(var(--leave-days), var(--leave-day-width));
+}
+
+.leave-grid-head {
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.leave-name-cell,
+.leave-planned-cell {
+  background: var(--surface);
+  grid-row: 1;
+  position: sticky;
+  z-index: 2;
+}
+
+.leave-name-cell {
+  border-right: 1px solid var(--border-5);
+  left: 0;
+}
+
+.leave-planned-cell {
+  border-right: 1px solid var(--border-strong);
+  left: var(--leave-name-width);
+}
+
+.leave-head-corner {
+  align-items: center;
+  display: flex;
+  gap: 2px;
+  padding: 2px 6px;
+}
+
+.leave-sort-button {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--text-secondary) !important;
+  font-size: 12px !important;
+  gap: 3px !important;
+  padding: 4px 6px !important;
+}
+
+.leave-sort-button.active {
+  color: var(--text-strong) !important;
+  text-decoration: underline;
+}
+
+.leave-head-month,
+.leave-head-week {
+  border-bottom: 1px solid var(--border-5);
+  border-left: 1px solid var(--border-5);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  grid-row: 1;
+  overflow: hidden;
+  padding: 4px 6px;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.leave-head-month span {
+  left: calc(var(--leave-name-width) + var(--leave-planned-width) + 6px);
+  position: sticky;
+}
+
+.leave-head-week {
+  color: var(--text);
+  padding: 3px 4px;
+}
+
+.leave-head-days .leave-day {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 10px;
+  justify-content: center;
+  text-transform: uppercase;
+}
+
+.leave-day {
+  border-bottom: 1px solid var(--border-5);
+  border-left: 1px solid var(--border-5);
+  grid-row: 1;
+  min-height: 22px;
+}
+
+.leave-day.off {
+  background: var(--leave-off, #e9eef3);
+}
+
+.leave-day.week-start {
+  border-left-color: var(--border-strong);
+}
+
+.leave-head-days .leave-day.today {
+  background: var(--text-strong);
+  color: var(--surface);
+  font-weight: 800;
+}
+
+.leave-person-row .leave-day.today {
+  box-shadow: inset 1px 0 0 var(--danger), inset -1px 0 0 var(--danger);
+}
+
+.leave-person-row {
+  min-height: var(--leave-row-height);
+}
+
+.leave-person-row .leave-day {
+  cursor: crosshair;
+}
+
+.leave-person-row .leave-name-cell {
+  align-items: baseline;
+  border-bottom: 1px solid var(--border-5);
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.leave-person-row .leave-name-cell strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leave-person-row .leave-name-cell small,
+.leave-person-row .leave-name-cell em {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.leave-person-row .leave-planned-cell {
+  border-bottom: 1px solid var(--border-5);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  padding: 7px 8px;
+  text-align: right;
+}
+
+.leave-person-row.archived .leave-name-cell strong {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.leave-group-title {
+  background: var(--surface-tint, #f5f7fa);
+  border-bottom: 1px solid var(--border-5);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 10px 10px 4px;
+  position: sticky;
+  left: 0;
+  text-transform: uppercase;
+  width: calc(var(--leave-name-width) + var(--leave-planned-width));
+}
+
+.leave-bar {
+  align-self: center;
+  border: 0 !important;
+  border-radius: 4px !important;
+  cursor: pointer;
+  grid-row: 1;
+  height: 22px;
+  margin: 0 1px;
+  min-width: 0;
+  padding: 0 !important;
+  position: relative;
+  z-index: 1;
+}
+
+.leave-bar.cut-start {
+  border-bottom-left-radius: 0 !important;
+  border-top-left-radius: 0 !important;
+  margin-left: 0;
+}
+
+.leave-bar.cut-end {
+  border-bottom-right-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  margin-right: 0;
+}
+
+.leave-bar:hover,
+.leave-bar:focus-visible {
+  filter: brightness(0.92);
+  outline: 2px solid var(--text-strong);
+  outline-offset: 1px;
+}
+
+.leave-selection {
+  align-self: center;
+  background: var(--brand-soft);
+  border: 2px dashed var(--brand);
+  border-radius: 4px;
+  grid-row: 1;
+  height: 22px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.leave-tooltip {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  font-size: 13px;
+  gap: 4px;
+  max-width: 320px;
+  padding: 10px 12px;
+  pointer-events: none;
+  position: fixed;
+  z-index: 60;
+}
+
+.leave-tooltip-type {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.leave-tooltip-type i,
+.leave-type-chip i {
+  border-radius: 3px;
+  display: inline-block;
+  flex: none;
+  height: 12px;
+  width: 12px;
+}
+
+.leave-tooltip-comment {
+  color: var(--text-secondary);
+}
+
+/* Dialogs */
+.leave-dialog-backdrop {
+  align-items: flex-start;
+  background: rgba(15, 23, 42, 0.38);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: auto;
+  padding: 8vh 16px 24px;
+  position: fixed;
+  z-index: 80;
+}
+
+.leave-dialog {
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  max-width: 480px;
+  width: 100%;
+}
+
+.leave-dialog.wide {
+  max-width: 820px;
+}
+
+.leave-dialog header,
+.leave-dialog footer {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  padding: 14px 18px;
+}
+
+.leave-dialog header {
+  border-bottom: 1px solid var(--border-5);
+  justify-content: space-between;
+}
+
+.leave-dialog header h2 {
+  font-size: 17px;
+  margin: 0;
+}
+
+.leave-dialog footer {
+  border-top: 1px solid var(--border-5);
+}
+
+.leave-dialog-body {
+  display: grid;
+  gap: 12px;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 16px 18px;
+}
+
+.leave-dialog-spacer {
+  flex: 1;
+}
+
+.leave-form {
+  display: grid;
+  gap: 12px;
+}
+
+.leave-form label,
+.leave-calendar-editor label {
+  display: grid;
+  gap: 4px;
+}
+
+.leave-form label > span,
+.leave-calendar-editor label > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.leave-form-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.leave-form-duration {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.leave-form-error {
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
+  border-radius: 6px;
+  color: var(--danger);
+  font-size: 13px;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.leave-inline-form {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr 1fr auto;
+}
+
+.leave-inline-form:has(input[type="color"]) {
+  grid-template-columns: 52px 1fr 1fr auto;
+}
+
+.leave-dialog input[type="color"] {
+  height: 36px;
+  padding: 2px;
+  width: 44px;
+}
+
+.leave-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: 100%;
+}
+
+.leave-table th,
+.leave-table td {
+  border-bottom: 1px solid var(--border-5);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.leave-table th {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.leave-table input:not([type="checkbox"]):not([type="color"]) {
+  padding: 6px 8px;
+}
+
+.leave-table tr.archived td {
+  color: var(--text-muted);
+}
+
+.leave-check-cell {
+  text-align: center !important;
+  width: 44px;
+}
+
+.leave-row-actions {
+  white-space: nowrap;
+}
+
+.leave-row-actions button + button {
+  margin-left: 6px;
+}
+
+/* List tab */
+.leave-list {
+  display: grid;
+  gap: 10px;
+}
+
+.leave-list-toolbar > span:first-child {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.leave-list-toolbar select {
+  width: auto;
+}
+
+.leave-list-table .leave-comment-cell {
+  color: var(--text-secondary);
+  max-width: 360px;
+}
+
+.leave-type-chip {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.leave-link-button {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--brand) !important;
+  padding: 0 !important;
+  text-align: left;
+}
+
+/* Production calendar tab */
+.leave-calendar {
+  display: grid;
+  gap: 12px;
+}
+
+.leave-calendar-toolbar strong {
+  font-size: 18px;
+  min-width: 52px;
+  text-align: center;
+}
+
+.leave-calendar-toolbar span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-left: 8px;
+}
+
+.leave-calendar-note {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.leave-calendar-layout {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.leave-calendar-layout:has(.leave-calendar-editor) {
+  grid-template-columns: 1fr 260px;
+}
+
+.leave-calendar-months {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+
+.leave-calendar-month h3 {
+  font-size: 14px;
+  margin: 0 0 6px;
+  text-transform: capitalize;
+}
+
+.leave-calendar-grid {
+  display: grid;
+  gap: 3px;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.leave-calendar-weekday {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.leave-calendar-day {
+  height: 28px;
+  border: 1px solid transparent !important;
+  border-radius: 50% !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  justify-content: center;
+  padding: 0 !important;
+}
+
+.leave-page .leave-calendar-day {
+  display: flex;
+}
+
+.leave-calendar-day.off {
+  background: var(--leave-off, #e9eef3);
+  color: var(--danger);
+}
+
+.leave-calendar-day.changed {
+  border-color: var(--danger-border) !important;
+}
+
+.leave-calendar-day.today {
+  box-shadow: inset 0 0 0 2px var(--text-strong);
+}
+
+.leave-calendar-day.selected {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.leave-calendar-editor {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  position: sticky;
+  top: 12px;
+}
+
+.leave-calendar-editor h3 {
+  font-size: 14px;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.leave-calendar-editor p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.leave-calendar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@media (max-width: 900px) {
+  .leave-grid-shell {
+    --leave-name-width: 150px;
+  }
+
+  .leave-calendar-layout:has(.leave-calendar-editor) {
+    grid-template-columns: 1fr;
+  }
+
+  .leave-inline-form,
+  .leave-inline-form:has(input[type="color"]) {
+    grid-template-columns: 1fr;
+  }
+}

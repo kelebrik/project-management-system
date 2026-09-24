@@ -88,6 +88,18 @@ const actions: Record<string, LocalizedLabel> = {
   "jira.semantic_aggregates.bootstrap": { ru: "Первичное создание агрегатов Jira", en: "Jira aggregates bootstrapped" },
   "jira.semantic_aggregates.bootstrap_missing": { ru: "Создание недостающих агрегатов Jira", en: "Missing Jira aggregates created" },
   "jira.semantic_dashboard.update": { ru: "Изменение дашборда Jira", en: "Jira dashboard updated" },
+  "leave_schedule.employee.create": { ru: "Добавление сотрудника в график отпусков", en: "Person added to the leave schedule" },
+  "leave_schedule.employee.update": { ru: "Изменение сотрудника в графике отпусков", en: "Leave schedule person updated" },
+  "leave_schedule.employee.archive": { ru: "Архивирование сотрудника графика отпусков", en: "Leave schedule person archived" },
+  "leave_schedule.employee.delete": { ru: "Удаление сотрудника из графика отпусков", en: "Person removed from the leave schedule" },
+  "leave_schedule.type.create": { ru: "Создание типа отсутствия", en: "Leave type created" },
+  "leave_schedule.type.update": { ru: "Изменение типа отсутствия", en: "Leave type updated" },
+  "leave_schedule.leave.create": { ru: "Добавление отсутствия", en: "Leave added" },
+  "leave_schedule.leave.update": { ru: "Изменение отсутствия", en: "Leave updated" },
+  "leave_schedule.leave.delete": { ru: "Удаление отсутствия", en: "Leave deleted" },
+  "leave_schedule.leave.bulk_delete": { ru: "Массовое удаление отсутствий", en: "Leaves deleted in bulk" },
+  "leave_schedule.calendar_day.update": { ru: "Изменение дня производственного календаря", en: "Production calendar day changed" },
+  "leave_schedule.calendar_day.reset": { ru: "Сброс дня производственного календаря", en: "Production calendar day reset" },
 };
 
 const objects: Record<string, LocalizedLabel> = {
@@ -119,6 +131,10 @@ const objects: Record<string, LocalizedLabel> = {
   ProjectBusinessRequirements: { ru: "Бизнес-требования", en: "Business requirements" },
   SavedView: { ru: "Сохраненный вид", en: "Saved view" },
   WebhookEndpoint: { ru: "Вебхук", en: "Webhook" },
+  LeaveEmployee: { ru: "Сотрудник графика отпусков", en: "Leave schedule person" },
+  LeaveType: { ru: "Тип отсутствия", en: "Leave type" },
+  Leave: { ru: "Отсутствие", en: "Leave" },
+  LeaveCalendarDay: { ru: "День производственного календаря", en: "Production calendar day" },
 };
 
 const fields: Record<string, LocalizedLabel> = {

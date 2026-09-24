@@ -7,6 +7,7 @@ import { portfolioMessages } from "./portfolio";
 import { reportsMessages } from "./reports";
 import { resourcesMessages } from "./resources";
 import { wikiMessages } from "./wiki";
+import { leaveScheduleMessages } from "./leaveSchedule";
 export const catalogue = {
   ...commonMessages,
   ...adminMessages,
@@ -17,4 +18,5 @@ export const catalogue = {
   ...reportsMessages,
   ...resourcesMessages,
   ...wikiMessages,
+  ...leaveScheduleMessages,
 } as const;

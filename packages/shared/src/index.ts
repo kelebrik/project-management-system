@@ -13,6 +13,7 @@ export const PUBLIC_DEMO_USER_ID = "public-demo-user";
 export const appViewKeys = [
   "portfolio",
   "portfolio-v2",
+  "leave-schedule",
   "decision-queue",
   "jira-reconciliation",
   "projects",
@@ -80,6 +81,7 @@ export const projectAppViewKeys = [
 export const appViewLabels: Record<AppViewKey, string> = {
   portfolio: "Портфель",
   "portfolio-v2": "Портфель v2",
+  "leave-schedule": "График отпусков",
   "decision-queue": "Очередь решений",
   "jira-reconciliation": "Сверка Jira и WBS",
   projects: "Проекты",

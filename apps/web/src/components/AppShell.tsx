@@ -288,6 +288,7 @@ const adminNavItems: AdminNavItem[] = [
 
 const developmentNavItems: AdminNavItem[] = [
   { view: "portfolio-v2", label: "view.portfolio-v2", icon: <BriefcaseBusiness size={15} /> },
+  { view: "leave-schedule", label: "view.leave-schedule", icon: <CalendarDays size={15} /> },
   { view: "jira-reconciliation", label: "view.jira-reconciliation", icon: <CircleHelp size={15} /> },
   {
     view: "project-pm-workspace",
