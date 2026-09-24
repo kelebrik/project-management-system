@@ -15,9 +15,9 @@ async function mockLeaveSchedule(page: Page) {
   await mockAdminProject(page);
   const state = {
     employees: [
-      { id: "e1", name: "Барбер Роберт", department: "Разработка", userId: null, isActive: true, sortOrder: 0 },
+      { id: "e1", name: "Барбер Роберт", department: "Разработка", userId: null as string | null, isActive: true, sortOrder: 0 },
       { id: "e2", name: "Альварес Даниэль", department: "Разработка", userId: null, isActive: true, sortOrder: 0 },
-      { id: "e3", name: "Кляйн Анна", department: "Маркетинг", userId: null, isActive: true, sortOrder: 0 },
+      { id: "e3", name: "Кляйн Анна", department: "Маркетинг", userId: "u2" as string | null, isActive: true, sortOrder: 0 },
       { id: "e4", name: "Лонг Мишель", department: "Маркетинг", userId: null, isActive: true, sortOrder: 0 },
     ],
     types: [
@@ -32,6 +32,7 @@ async function mockLeaveSchedule(page: Page) {
     calendarDays: [] as Array<{ date: string; isWorkingDay: boolean; description: string }>,
     posts: [] as Array<Record<string, unknown>>,
     calendarRequests: [] as Array<Record<string, unknown>>,
+    employeePatches: [] as Array<Record<string, unknown>>,
   };
   await page.route(/\/api\/leave-schedule(\?.*)?$/, (route) => {
     // Like the API, return only the leaves that touch the requested period.
@@ -65,6 +66,23 @@ async function mockLeaveSchedule(page: Page) {
     }
     state.calendarRequests.push({ method: "DELETE", date });
     return route.fulfill({ status: 204, body: "" });
+  });
+  await page.route(/\/api\/users$/, (route) =>
+    route.fulfill({
+      json: [
+        { id: "u1", name: "Роберт Барбер", email: "barber@example.test", role: "EXECUTIVE_VIEWER", isActive: true },
+        { id: "u2", name: "Анна Кляйн", email: "klein@example.test", role: "EXECUTIVE_VIEWER", isActive: true },
+        { id: "u3", name: "Бывший сотрудник", email: "gone@example.test", role: "EXECUTIVE_VIEWER", isActive: false },
+      ],
+    }),
+  );
+  await page.route(/\/api\/leave-schedule\/employees\/e\d+$/, async (route) => {
+    const id = route.request().url().split("/").pop() ?? "";
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    state.employeePatches.push({ id, ...body });
+    const employee = state.employees.find((candidate) => candidate.id === id);
+    if (employee) Object.assign(employee, body);
+    await route.fulfill({ json: employee });
   });
   return state;
 }
@@ -145,4 +163,25 @@ test("clicking a production calendar day switches it and a second click resets i
   await toggled.click();
   await expect.poll(() => state.calendarRequests.length).toBe(2);
   expect(state.calendarRequests[1]).toMatchObject({ method: "DELETE" });
+});
+
+test("a person is linked to a free, active system user", async ({ page }) => {
+  const state = await mockLeaveSchedule(page);
+  await page.goto("/development/leave-schedule");
+  await page.getByRole("button", { name: "Сотрудники" }).click();
+  const dialog = page.getByRole("dialog", { name: "Сотрудники" });
+  const row = dialog.getByRole("row").filter({ has: page.locator('input[value="Барбер Роберт"]') });
+  const select = row.getByLabel("Пользователь системы");
+
+  // Anna is taken by her own row and the switched-off user is not offered.
+  await expect(select.locator('option[value="u2"]')).toBeDisabled();
+  await expect(select.locator('option[value="u3"]')).toHaveCount(0);
+
+  await select.selectOption("u1");
+  await row.getByRole("button", { name: "Сохранить" }).click();
+  await expect.poll(() => state.employeePatches.length).toBe(1);
+  expect(state.employeePatches[0]).toMatchObject({ id: "e1", userId: "u1" });
+
+  await dialog.getByRole("button", { name: "Закрыть" }).click();
+  await expect(page.getByRole("rowheader", { name: /Барбер Роберт/ }).getByRole("img", { name: "Связан с пользователем системы" })).toBeVisible();
 });

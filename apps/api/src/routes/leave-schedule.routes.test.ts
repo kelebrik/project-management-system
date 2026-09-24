@@ -302,3 +302,131 @@ test('the overlap check and the write run under a per-person lock', async () => 
   );
   assert.deepEqual(steps, ['lock', 'check', 'create']);
 });
+
+test('a person can be linked only to an existing, active and free user', async () => {
+  const body = { name: 'Иванов', userId: 'user-1' };
+  const missing = await call('post', '/leave-schedule/employees', { body }, { user: { findUnique: async () => null } });
+  assert.equal(missing.statusCode, 400);
+
+  const inactive = await call(
+    'post',
+    '/leave-schedule/employees',
+    { body },
+    { user: { findUnique: async () => ({ isActive: false }) } },
+  );
+  assert.equal(inactive.statusCode, 400);
+
+  const taken = await call(
+    'post',
+    '/leave-schedule/employees',
+    { body },
+    {
+      user: { findUnique: async () => ({ isActive: true }) },
+      leaveEmployee: { findFirst: async () => ({ name: 'Петров' }) },
+    },
+  );
+  assert.equal(taken.statusCode, 409);
+  assert.match(String((taken.body as any).error), /Петров/);
+});
+
+test('editing a person keeps a link to a user who was switched off later', async () => {
+  let lookedUpUser = false;
+  const res = await call(
+    'patch',
+    '/leave-schedule/employees/:employeeId',
+    { params: { employeeId: 'emp-1' }, body: { userId: 'user-1', department: 'Маркетинг' } },
+    {
+      user: {
+        findUnique: async () => {
+          lookedUpUser = true;
+          return { isActive: false };
+        },
+      },
+      leaveEmployee: {
+        findUnique: async () => ({ id: 'emp-1', userId: 'user-1' }),
+        update: async (args: any) => ({ id: 'emp-1', ...args.data }),
+      },
+    },
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(lookedUpUser, false);
+});
+
+function uniqueClash() {
+  return import('@prisma/client').then(
+    ({ Prisma }) =>
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', { code: 'P2002', clientVersion: 'test' }),
+  );
+}
+
+test('a user taken by a concurrent request is reported with the holder name', async () => {
+  const clash = await uniqueClash();
+  let lookups = 0;
+  const holderLookup = async () => (lookups++ === 0 ? null : { name: 'Петров' });
+  const created = await call(
+    'post',
+    '/leave-schedule/employees',
+    { body: { name: 'Иванов', userId: 'user-1' } },
+    {
+      user: { findUnique: async () => ({ isActive: true }) },
+      leaveEmployee: {
+        findFirst: holderLookup,
+        create: async () => {
+          throw clash;
+        },
+      },
+    },
+  );
+  assert.equal(created.statusCode, 409);
+  assert.match(String((created.body as any).error), /Петров/);
+
+  lookups = 0;
+  const edited = await call(
+    'patch',
+    '/leave-schedule/employees/:employeeId',
+    { params: { employeeId: 'emp-1' }, body: { userId: 'user-1' } },
+    {
+      user: { findUnique: async () => ({ isActive: true }) },
+      leaveEmployee: {
+        findUnique: async () => ({ id: 'emp-1', userId: null }),
+        findFirst: holderLookup,
+        update: async () => {
+          throw clash;
+        },
+      },
+    },
+  );
+  assert.equal(edited.statusCode, 409);
+  assert.match(String((edited.body as any).error), /Петров/);
+});
+
+test('editing a person onto a switched-off or taken user is refused', async () => {
+  const base = { findUnique: async () => ({ id: 'emp-1', userId: null }), update: async () => ({}) };
+  const inactive = await call(
+    'patch',
+    '/leave-schedule/employees/:employeeId',
+    { params: { employeeId: 'emp-1' }, body: { userId: 'user-2' } },
+    { user: { findUnique: async () => ({ isActive: false }) }, leaveEmployee: base },
+  );
+  assert.equal(inactive.statusCode, 400);
+
+  let excluded: unknown;
+  const taken = await call(
+    'patch',
+    '/leave-schedule/employees/:employeeId',
+    { params: { employeeId: 'emp-1' }, body: { userId: 'user-2' } },
+    {
+      user: { findUnique: async () => ({ isActive: true }) },
+      leaveEmployee: {
+        ...base,
+        findFirst: async (args: any) => {
+          excluded = args.where.id;
+          return { name: 'Петров' };
+        },
+      },
+    },
+  );
+  assert.equal(taken.statusCode, 409);
+  assert.match(String((taken.body as any).error), /Петров/);
+  assert.deepEqual(excluded, { not: 'emp-1' });
+});

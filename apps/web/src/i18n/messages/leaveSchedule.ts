@@ -338,5 +338,29 @@ export const leaveScheduleMessages = {
   "ui.leave.weekendWorking": {
     "en": "Working weekend",
     "ru": "Рабочий выходной"
+  },
+  "ui.leave.systemUser": {
+    "en": "System user",
+    "ru": "Пользователь системы"
+  },
+  "ui.leave.notLinked": {
+    "en": "\u2014 not linked \u2014",
+    "ru": "— не связан —"
+  },
+  "ui.leave.userDisabled": {
+    "en": "{name} (switched off)",
+    "ru": "{name} (отключён)"
+  },
+  "ui.leave.userTakenBy": {
+    "en": "{name} \u2014 linked to {employee}",
+    "ru": "{name} — связан с «{employee}»"
+  },
+  "ui.leave.linkedUser": {
+    "en": "Linked to a system user",
+    "ru": "Связан с пользователем системы"
+  },
+  "ui.leave.usersLoadFailed": {
+    "en": "Could not load system users",
+    "ru": "Не удалось загрузить пользователей системы"
   }
 } as const;

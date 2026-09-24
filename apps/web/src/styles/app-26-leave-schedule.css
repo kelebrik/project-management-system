@@ -584,6 +584,16 @@
   grid-template-columns: auto 1fr 1fr auto;
 }
 
+.leave-employee-form {
+  grid-template-columns: 1fr 1fr 1fr auto;
+}
+
+.leave-person-row .leave-linked-user {
+  align-self: center;
+  color: var(--brand);
+  flex: none;
+}
+
 .leave-inline-form:has(input[type="color"]) {
   grid-template-columns: 52px 1fr 1fr auto;
 }
@@ -798,6 +808,7 @@
   }
 
   .leave-inline-form,
+  .leave-employee-form,
   .leave-inline-form:has(input[type="color"]) {
     grid-template-columns: 1fr;
   }

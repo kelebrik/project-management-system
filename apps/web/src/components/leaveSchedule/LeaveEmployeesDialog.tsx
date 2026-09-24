@@ -1,18 +1,63 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiClient } from "../../api/client";
 import type { LeaveEmployee } from "../../app/leaveScheduleModel";
 import { useConfirm } from "../../hooks/useConfirm";
 import { useI18n } from "../../i18n/I18nProvider";
 import { LeaveDialog } from "./LeaveDialog";
 
-type EmployeeDraft = Pick<LeaveEmployee, "name" | "department" | "isActive">;
+type EmployeeDraft = Pick<LeaveEmployee, "name" | "department" | "isActive" | "userId">;
+type SystemUser = { id: string; name: string; email: string; isActive: boolean };
+
+function UserSelect({
+  value,
+  users,
+  employees,
+  employeeId,
+  onChange,
+}: {
+  value: string | null;
+  users: SystemUser[];
+  employees: LeaveEmployee[];
+  employeeId: string | null;
+  onChange: (userId: string | null) => void;
+}) {
+  const { t } = useI18n();
+  const holders = new Map(
+    employees.filter((employee) => employee.userId && employee.id !== employeeId).map((employee) => [employee.userId, employee.name]),
+  );
+  // Active users can be picked; a switched-off user stays listed only while this person is linked to them.
+  const options = users.filter((user) => user.isActive || user.id === value);
+  return (
+    <select aria-label={t("ui.leave.systemUser")} value={value ?? ""} onChange={(event) => onChange(event.target.value || null)}>
+      <option value="">{t("ui.leave.notLinked")}</option>
+      {options.map((user) => {
+        const label = `${user.name} · ${user.email}`;
+        const holder = holders.get(user.id);
+        return (
+          <option disabled={Boolean(holder)} key={user.id} value={user.id}>
+            {holder
+              ? t("ui.leave.userTakenBy", { name: label, employee: holder })
+              : user.isActive
+                ? label
+                : t("ui.leave.userDisabled", { name: label })}
+          </option>
+        );
+      })}
+    </select>
+  );
+}
 
 function EmployeeRow({
   employee,
+  employees,
+  users,
   departmentsListId,
   onSave,
   onRemove,
 }: {
   employee: LeaveEmployee;
+  employees: LeaveEmployee[];
+  users: SystemUser[];
   departmentsListId: string;
   onSave: (patch: EmployeeDraft) => Promise<void>;
   onRemove: () => Promise<void>;
@@ -22,11 +67,13 @@ function EmployeeRow({
     name: employee.name,
     department: employee.department,
     isActive: employee.isActive,
+    userId: employee.userId,
   });
   const changed =
     draft.name.trim() !== employee.name ||
     draft.department.trim() !== employee.department ||
-    draft.isActive !== employee.isActive;
+    draft.isActive !== employee.isActive ||
+    draft.userId !== employee.userId;
   return (
     <tr className={employee.isActive ? "" : "archived"}>
       <td>
@@ -42,6 +89,15 @@ function EmployeeRow({
           list={departmentsListId}
           value={draft.department}
           onChange={(event) => setDraft({ ...draft, department: event.target.value })}
+        />
+      </td>
+      <td>
+        <UserSelect
+          employeeId={employee.id}
+          employees={employees}
+          onChange={(userId) => setDraft({ ...draft, userId })}
+          users={users}
+          value={draft.userId}
         />
       </td>
       <td className="leave-check-cell">
@@ -88,8 +144,28 @@ export function LeaveEmployeesDialog({
   const confirm = useConfirm();
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [users, setUsers] = useState<SystemUser[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // A flag, so the message follows the language and the list is fetched once per opening.
+  const [usersFailed, setUsersFailed] = useState(false);
   const departmentsListId = "leave-departments";
+
+  // System users are loaded only here, so their e-mails never reach the schedule itself.
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .get<SystemUser[]>("/api/users")
+      .then((list) => {
+        if (!cancelled) setUsers(list);
+      })
+      .catch(() => {
+        if (!cancelled) setUsersFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const guard = async (action: () => Promise<void>) => {
     setError(null);
@@ -108,13 +184,14 @@ export function LeaveEmployeesDialog({
         ))}
       </datalist>
       <form
-        className="leave-inline-form"
+        className="leave-inline-form leave-employee-form"
         onSubmit={(event) => {
           event.preventDefault();
           if (!name.trim()) return;
           void guard(async () => {
-            await onCreate({ name: name.trim(), department: department.trim(), isActive: true });
+            await onCreate({ name: name.trim(), department: department.trim(), isActive: true, userId });
             setName("");
+            setUserId(null);
           });
         }}
       >
@@ -131,13 +208,25 @@ export function LeaveEmployeesDialog({
           value={department}
           onChange={(event) => setDepartment(event.target.value)}
         />
+        <UserSelect
+          employeeId={null}
+          employees={employees}
+          onChange={(nextUserId) => {
+            setUserId(nextUserId);
+            // Picking a user fills in the name when it has not been typed yet.
+            const user = users.find((candidate) => candidate.id === nextUserId);
+            if (user && !name.trim()) setName(user.name);
+          }}
+          users={users}
+          value={userId}
+        />
         <button className="primary" disabled={!name.trim()} type="submit">
           {t("ui.leave.addEmployee")}
         </button>
       </form>
-      {error && (
+      {(error || usersFailed) && (
         <p className="leave-form-error" role="alert">
-          {error}
+          {error ?? t("ui.leave.usersLoadFailed")}
         </p>
       )}
       <table className="leave-table">
@@ -145,6 +234,7 @@ export function LeaveEmployeesDialog({
           <tr>
             <th>{t("ui.leave.name")}</th>
             <th>{t("ui.leave.department")}</th>
+            <th>{t("ui.leave.systemUser")}</th>
             <th>{t("ui.leave.active")}</th>
             <th />
           </tr>
@@ -154,7 +244,8 @@ export function LeaveEmployeesDialog({
             <EmployeeRow
               departmentsListId={departmentsListId}
               employee={employee}
-              key={`${employee.id}:${employee.name}:${employee.department}:${employee.isActive}`}
+              employees={employees}
+              key={`${employee.id}:${employee.name}:${employee.department}:${employee.isActive}:${employee.userId ?? ""}`}
               onRemove={() =>
                 guard(async () => {
                   const confirmed = await confirm({
@@ -167,6 +258,7 @@ export function LeaveEmployeesDialog({
                 })
               }
               onSave={(patch) => guard(() => onUpdate(employee, patch))}
+              users={users}
             />
           ))}
         </tbody>

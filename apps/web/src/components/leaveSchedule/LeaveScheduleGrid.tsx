@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, UserCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   calendarDaysInRange,
@@ -207,6 +207,16 @@ export function LeaveScheduleGrid({
                   >
                     <div className="leave-name-cell" role="rowheader">
                       <strong>{employee.name}</strong>
+                      {employee.userId && (
+                        <UserCheck
+                          aria-label={t("ui.leave.linkedUser")}
+                          className="leave-linked-user"
+                          role="img"
+                          size={13}
+                        >
+                          <title>{t("ui.leave.linkedUser")}</title>
+                        </UserCheck>
+                      )}
                       {showDepartment && employee.department && <small>{employee.department}</small>}
                       {!employee.isActive && <em>{t("ui.leave.archived")}</em>}
                     </div>

@@ -23,7 +23,10 @@ const jsonBody = (properties: Record<string, unknown>, required: string[] = []) 
 const employeeProperties = {
   name: { type: "string", maxLength: 200 },
   department: { type: "string", maxLength: 200 },
-  userId: { type: ["string", "null"], description: "Optional link to a system user" },
+  userId: {
+    type: ["string", "null"],
+    description: "Optional link to an active system user; each user links to at most one person",
+  },
   isActive: { type: "boolean" },
   sortOrder: { type: "integer" },
 };
@@ -44,6 +47,10 @@ const leaveProperties = {
   comment: { type: "string", maxLength: 2000 },
 };
 
+const userLinkResponse = {
+  "409": { description: "The system user is already linked to another person" },
+};
+
 const overlapResponse = {
   "409": { description: "The leave overlaps another leave of the same person" },
 };
@@ -59,16 +66,24 @@ export const openApiLeavePaths = {
     },
   },
   "/api/leave-schedule/employees": {
-    post: {
-      ...createOperation(tags, "Add a person to the leave schedule"),
-      requestBody: jsonBody(employeeProperties, ["name"]),
-    },
+    post: (() => {
+      const operation = createOperation(tags, "Add a person to the leave schedule");
+      return {
+        ...operation,
+        requestBody: jsonBody(employeeProperties, ["name"]),
+        responses: { ...operation.responses, ...userLinkResponse },
+      };
+    })(),
   },
   "/api/leave-schedule/employees/{employeeId}": {
-    patch: {
-      ...apiSecuredOperation(tags, "Update a person on the leave schedule", [pathParam("employeeId")]),
-      requestBody: jsonBody(employeeProperties),
-    },
+    patch: (() => {
+      const operation = apiSecuredOperation(tags, "Update a person on the leave schedule", [pathParam("employeeId")]);
+      return {
+        ...operation,
+        requestBody: jsonBody(employeeProperties),
+        responses: { ...operation.responses, ...userLinkResponse },
+      };
+    })(),
     delete: apiSecuredOperation(tags, "Remove a person, or archive them if they have leaves", [
       pathParam("employeeId"),
     ]),

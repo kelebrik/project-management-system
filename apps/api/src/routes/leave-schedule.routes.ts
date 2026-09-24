@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { Router, type Request, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -129,6 +129,34 @@ async function leaveProblem(
   return null;
 }
 
+/** Why a person cannot be linked to this system user, if they cannot. */
+async function userLinkProblem(userId: string | null | undefined, employeeId: string | null, currentUserId: string | null) {
+  // Keeping an existing link is always fine, even if the user was switched off since.
+  if (!userId || userId === currentUserId) return null;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { isActive: true } });
+  if (!user) return { status: 400, error: 'Пользователь не найден' };
+  if (!user.isActive) return { status: 400, error: 'Пользователь отключён' };
+  return linkedElsewhere(userId, employeeId);
+}
+
+async function linkedElsewhere(userId: string, employeeId: string | null) {
+  const holder = await prisma.leaveEmployee.findFirst({
+    where: { userId, ...(employeeId ? { id: { not: employeeId } } : {}) },
+    select: { name: true },
+  });
+  return holder ? { status: 409, error: `Пользователь уже связан с сотрудником ${holder.name}` } : null;
+}
+
+/** The same answer as the pre-check when a concurrent request took the user first. */
+async function userLinkClashError(userId: string | null | undefined, employeeId: string | null) {
+  const problem = userId ? await linkedElsewhere(userId, employeeId) : null;
+  return problem?.error ?? 'Пользователь уже связан с другим сотрудником';
+}
+
+function isUserLinkClash(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
 class LeaveConflict extends Error {
   constructor(
     readonly status: number,
@@ -204,7 +232,19 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
       res.status(400).json({ error: parsed.error.flatten() });
       return;
     }
-    const employee = await prisma.leaveEmployee.create({ data: parsed.data });
+    const linkProblem = await userLinkProblem(parsed.data.userId, null, null);
+    if (linkProblem) {
+      res.status(linkProblem.status).json({ error: linkProblem.error });
+      return;
+    }
+    let employee;
+    try {
+      employee = await prisma.leaveEmployee.create({ data: parsed.data });
+    } catch (error) {
+      if (!isUserLinkClash(error)) throw error;
+      res.status(409).json({ error: await userLinkClashError(parsed.data.userId, null) });
+      return;
+    }
     await recordAuditEvent({
       req,
       actor: currentUser(req),
@@ -224,12 +264,27 @@ export function createLeaveScheduleRouter({ currentUser, requireAdmin }: LeaveSc
     }
     const employeeId = param(req, 'employeeId');
     // Archiving shares the leave lock, so it cannot interleave with a leave being added.
-    const outcome = await withEmployeeLock([employeeId], async (client) => {
-      const existing = await client.leaveEmployee.findUnique({ where: { id: employeeId } });
-      if (!existing) return null;
-      const employee = await client.leaveEmployee.update({ where: { id: employeeId }, data: parsed.data });
-      return { existing, employee };
-    });
+    let outcome;
+    try {
+      outcome = await withEmployeeLock([employeeId], async (client) => {
+        const existing = await client.leaveEmployee.findUnique({ where: { id: employeeId } });
+        if (!existing) return null;
+        if (parsed.data.userId !== undefined) {
+          const linkProblem = await userLinkProblem(parsed.data.userId, employeeId, existing.userId);
+          if (linkProblem) throw new LeaveConflict(linkProblem.status, linkProblem.error);
+        }
+        const employee = await client.leaveEmployee.update({ where: { id: employeeId }, data: parsed.data });
+        return { existing, employee };
+      });
+    } catch (error) {
+      if (error instanceof LeaveConflict) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      if (!isUserLinkClash(error)) throw error;
+      res.status(409).json({ error: await userLinkClashError(parsed.data.userId, employeeId) });
+      return;
+    }
     if (!outcome) {
       res.status(404).json({ error: 'Сотрудник не найден' });
       return;
