@@ -9,6 +9,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import type { WbsItemStatus, WbsItemType, WbsTreeItem } from "../app/domainTypes";
 import {
   type WbsFormState,
+  savedWbsForm,
   wbsToForm,
 } from "../app/formState";
 import { useConfirm } from "./useConfirm";
@@ -153,7 +154,7 @@ export function useWbsStructureTableController({
     item: WbsTreeItem,
     draft: WbsFormState,
   ) => {
-    const source = wbsToForm(item, wbsDependencies);
+    const source = savedWbsForm(item, wbsDependencies);
     if (columnKey === "structure") {
       return (
         draft.title !== source.title ||

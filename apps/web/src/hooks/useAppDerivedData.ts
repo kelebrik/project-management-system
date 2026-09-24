@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import type { ProjectCalendarOverride } from "../app/domainTypes";
-import { wbsToForm } from "../app/formState";
+import { savedWbsForm } from "../app/formState";
 import { projectScheduleHealth } from "../app/labels";
 import {
   createMilestoneLabelLayoutFingerprint,
@@ -497,7 +497,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     for (const item of project?.wbsItems ?? []) {
       const draft = wbsDrafts[item.id];
       if (!draft) continue;
-      const source = wbsToForm(item, project?.wbsDependencies ?? []);
+      const source = savedWbsForm(item, project?.wbsDependencies);
       const hasDirtyField = WBS_DIRTY_FIELDS.some(
         (field) => draft[field] !== source[field],
       );

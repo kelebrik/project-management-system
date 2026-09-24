@@ -33,6 +33,7 @@ type WbsRowActionsDeps = {
     nextItems: WbsItem[],
     nextDependencies?: WbsDependency[],
     nextCriticalPath?: WbsCriticalPath | null,
+    options?: { sentDrafts?: Record<string, WbsFormState> },
   ) => void;
   dirtyWbsItemIds: Set<string>;
   draftWbsCodes: Map<string, string>;
@@ -197,6 +198,8 @@ export function useWbsRowActions({
     if (!activeProject) return;
 
     const dirtyIds = [...dirtyWbsItemIds];
+    // The drafts as sent; typing that happens while the request runs is kept.
+    const sentDrafts: Record<string, WbsFormState> = {};
     let items: Array<{
       id: string;
       patch: ReturnType<typeof wbsItemPatchPayload>;
@@ -210,6 +213,7 @@ export function useWbsRowActions({
         if (!draft || !currentItem) {
           throw new Error("Не удалось подготовить изменения Структуры");
         }
+        sentDrafts[itemId] = draft;
         if (!isHttpsUrl(draft.jiraTicketUrl)) {
           throw new Error("Ссылка Jira должна начинаться с https://");
         }
@@ -274,6 +278,7 @@ export function useWbsRowActions({
       for (const item of items.filter((candidate) => candidate.predecessorsChanged)) {
         const predecessorResult = await saveWbsPredecessors(item.id, {
           remember: false,
+          draftOverride: sentDrafts[item.id],
         });
         if (predecessorResult?.wbsItems) snapshotResult = predecessorResult;
       }
@@ -283,6 +288,7 @@ export function useWbsRowActions({
         snapshotResult.wbsItems,
         snapshotResult.wbsDependencies,
         snapshotResult.criticalPath,
+        { sentDrafts },
       );
       setNotice("Изменения Структуры сохранены");
     } catch (saveError) {
@@ -533,7 +539,7 @@ export function useWbsRowActions({
         { "X-WBS-Project-ID": activeProject.id },
       );
       const predecessorResult = predecessorsChanged
-        ? await saveWbsPredecessors(itemId, { remember: false })
+        ? await saveWbsPredecessors(itemId, { remember: false, draftOverride: draft })
         : null;
 
       if (!isLatestWbsSave(itemId, saveSequence)) return;
@@ -550,6 +556,7 @@ export function useWbsRowActions({
             renumberResult.wbsItems,
             renumberResult.wbsDependencies,
             renumberResult.criticalPath,
+            { sentDrafts: { [itemId]: draft } },
           );
         } else {
           await refreshProject();
@@ -562,6 +569,7 @@ export function useWbsRowActions({
           snapshotResult.wbsItems,
           snapshotResult.wbsDependencies,
           snapshotResult.criticalPath,
+          { sentDrafts: { [itemId]: draft } },
         );
       }
       if (!options.silent) setNotice("Элемент Структуры обновлен");
@@ -712,11 +720,11 @@ export function useWbsRowActions({
 
   async function saveWbsPredecessors(
     itemId: string,
-    options: { remember?: boolean } = {},
+    options: { remember?: boolean; draftOverride?: WbsFormState } = {},
   ) {
     const activeProject = projectRef.current ?? project;
     if (!activeProject) return null;
-    const draft = wbsDraftsRef.current[itemId] ?? wbsDrafts[itemId];
+    const draft = options.draftOverride ?? wbsDraftsRef.current[itemId] ?? wbsDrafts[itemId];
     if (!draft) return null;
     const wbsByCode = new Map<string, WbsItem>();
     for (const item of activeProject.wbsItems) {

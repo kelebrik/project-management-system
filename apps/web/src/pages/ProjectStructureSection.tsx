@@ -137,6 +137,8 @@ export function ProjectStructureSection() {
   const englishProjectName = wbsEnglishProjectName(project.name);
   const englishPrintTitle = `${englishProjectName} - Structure`;
   const [showEnglishMenu, setShowEnglishMenu] = useState(false);
+  const [englishPrintRequested, setEnglishPrintRequested] = useState(false);
+  const englishRowsNeeded = showEnglishMenu || englishPrintRequested;
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [showFullscreenHint, setShowFullscreenHint] = useState(false);
   const fullscreenHintShownRef = useRef(false);
@@ -226,7 +228,7 @@ export function ProjectStructureSection() {
 
   const englishStructureRows = useMemo(
     () =>
-      visibleStructureWbsTree.map((item: WbsTreeItem) => {
+      !englishRowsNeeded ? [] : visibleStructureWbsTree.map((item: WbsTreeItem) => {
         const draft = wbsDrafts[item.id] ?? wbsToForm(item);
         const displayCode = draftWbsCodes.get(item.id) ?? draft.code;
         const translation = resolveWbsEnglishTitle({
@@ -248,12 +250,26 @@ export function ProjectStructureSection() {
     [
       cachedEnglishTranslations,
       draftWbsCodes,
+      englishRowsNeeded,
       manualEnglishTranslations,
       project.name,
       visibleStructureWbsTree,
       wbsDrafts,
     ],
   );
+  // The English print table is rendered on request; print once it is in the DOM.
+  useEffect(() => {
+    if (!englishPrintRequested) return;
+    const reset = () => setEnglishPrintRequested(false);
+    window.addEventListener("afterprint", reset, { once: true });
+    const fallbackTimer = window.setTimeout(reset, 30_000);
+    printSectionAsPdf("project-structure-print-en", englishPrintTitle);
+    return () => {
+      window.removeEventListener("afterprint", reset);
+      window.clearTimeout(fallbackTimer);
+    };
+  }, [englishPrintRequested, englishPrintTitle]);
+
   const editableEnglishRows = useMemo(() => {
     const seenTitles = new Set<string>();
     return englishStructureRows.filter((row) => {
@@ -492,12 +508,7 @@ export function ProjectStructureSection() {
                             {uiLocale === "ru" && <button
                               type="button"
                               className="wbs-pdf-button"
-                              onClick={() =>
-                                printSectionAsPdf(
-                                  "project-structure-print-en",
-                                  englishPrintTitle,
-                                )
-                              }
+                              onClick={() => setEnglishPrintRequested(true)}
                               disabled={project.wbsItems.length === 0}
                               title={uiText("structure.savePdfEnAction")}
                             >
@@ -865,89 +876,94 @@ export function ProjectStructureSection() {
                       id="project-structure-print-en"
                       aria-hidden="true"
                     >
-                      <div className="wbs-english-print-title">
-                        {englishPrintTitle}
-                      </div>
-                      <div
-                        className="wbs-english-print-table"
-                        style={
-                          {
-                            "--wbs-table-template": wbsTableTemplate,
-                          } as WbsTableCssProperties
-                        }
-                      >
-                        <div className="wbs-english-print-head">
-                          {orderedWbsColumns.map((column) => (
-                            <div
-                              key={`en-head-${column.key}`}
-                              className={`wbs-english-print-cell wbs-english-print-head-cell ${
-                                column.key === "level"
-                                  ? "level-column"
-                                  : column.key === "structure"
-                                  ? "structure-column"
-                                  : ""
-                              }`}
-                            >
-                              {WBS_COLUMN_EN_LABELS[column.key]}
-                            </div>
-                          ))}
-                        </div>
-                        {englishStructureRows.map((row) => {
-                          const {
-                            displayCode,
-                            displayLevel,
-                            draft,
-                            item,
-                            translation,
-                          } = row;
-                          const translatedTitle = translation.text;
-                          return (
-                            <div
-                              key={`en-row-${item.id}`}
-                              className={`wbs-english-print-row ${
-                                item.type === "MILESTONE" || item.type === "GOAL"
-                                  ? "milestone"
-                                  : ""
-                              }`}
-                            >
+                      {/* Built only for an English print, not on every keystroke. */}
+                      {englishPrintRequested && (
+                        <>
+                          <div className="wbs-english-print-title">
+                            {englishPrintTitle}
+                          </div>
+                          <div
+                            className="wbs-english-print-table"
+                            style={
+                              {
+                                "--wbs-table-template": wbsTableTemplate,
+                              } as WbsTableCssProperties
+                            }
+                          >
+                            <div className="wbs-english-print-head">
                               {orderedWbsColumns.map((column) => (
                                 <div
-                                  key={`en-cell-${item.id}-${column.key}`}
-                                  className={`wbs-english-print-cell ${
+                                  key={`en-head-${column.key}`}
+                                  className={`wbs-english-print-cell wbs-english-print-head-cell ${
                                     column.key === "level"
-                                      ? "wbs-english-print-level"
+                                      ? "level-column"
                                       : column.key === "structure"
-                                      ? "wbs-english-print-structure"
+                                      ? "structure-column"
                                       : ""
                                   }`}
                                 >
-                                  {column.key === "structure" ? (
-                                    <div
-                                      className="wbs-english-structure-cell"
-                                      style={{
-                                        paddingLeft: `${displayLevel * 12 + 4}px`,
-                                      }}
-                                    >
-                                      <span className="wbs-english-code">
-                                        {displayCode}
-                                      </span>
-                                      <span>{translatedTitle}</span>
-                                    </div>
-                                  ) : (
-                                    englishWbsCellValue(
-                                      column.key,
-                                      item,
-                                      draft,
-                                      displayCode,
-                                      translatedTitle,
-                                    )
-                                  )}
+                                  {WBS_COLUMN_EN_LABELS[column.key]}
                                 </div>
                               ))}
                             </div>
-                          );
-                        })}
-                      </div>
+                            {englishStructureRows.map((row) => {
+                              const {
+                                displayCode,
+                                displayLevel,
+                                draft,
+                                item,
+                                translation,
+                              } = row;
+                              const translatedTitle = translation.text;
+                              return (
+                                <div
+                                  key={`en-row-${item.id}`}
+                                  className={`wbs-english-print-row ${
+                                    item.type === "MILESTONE" || item.type === "GOAL"
+                                      ? "milestone"
+                                      : ""
+                                  }`}
+                                >
+                                  {orderedWbsColumns.map((column) => (
+                                    <div
+                                      key={`en-cell-${item.id}-${column.key}`}
+                                      className={`wbs-english-print-cell ${
+                                        column.key === "level"
+                                          ? "wbs-english-print-level"
+                                          : column.key === "structure"
+                                          ? "wbs-english-print-structure"
+                                          : ""
+                                      }`}
+                                    >
+                                      {column.key === "structure" ? (
+                                        <div
+                                          className="wbs-english-structure-cell"
+                                          style={{
+                                            paddingLeft: `${displayLevel * 12 + 4}px`,
+                                          }}
+                                        >
+                                          <span className="wbs-english-code">
+                                            {displayCode}
+                                          </span>
+                                          <span>{translatedTitle}</span>
+                                        </div>
+                                      ) : (
+                                        englishWbsCellValue(
+                                          column.key,
+                                          item,
+                                          draft,
+                                          displayCode,
+                                          translatedTitle,
+                                        )
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
                       {showFullscreenHint && fullscreenWorkspaceView !== "project-structure" && createPortal(
                         <aside
                           className="structure-fullscreen-hint"

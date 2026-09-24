@@ -413,18 +413,30 @@ export function issueToDraft(issue: Issue): IssueEditDraft {
   };
 }
 
+const dependencyTypeIndexes = new WeakMap<WbsDependency[], Map<string, WbsDependency["type"]>>();
+
+/** Dependency type by successor and predecessor code, built once per dependency list. */
+function dependencyTypeIndex(dependencies: WbsDependency[]) {
+  let index = dependencyTypeIndexes.get(dependencies);
+  if (!index) {
+    index = new Map();
+    for (const dependency of dependencies) {
+      const key = `${dependency.successorId}\u0000${dependency.predecessor.code}`;
+      if (!index.has(key)) index.set(key, dependency.type);
+    }
+    dependencyTypeIndexes.set(dependencies, index);
+  }
+  return index;
+}
+
 function predecessorTiming(
   item: WbsItem,
   predecessorCode: string | null,
   dependencies: WbsDependency[],
 ): WbsPredecessorTiming {
   if (!predecessorCode) return "FS";
-  const dependency = dependencies.find(
-    (candidate) =>
-      candidate.successorId === item.id &&
-      candidate.predecessor.code === predecessorCode,
-  );
-  return dependency?.type === "SS" ? "SS" : "FS";
+  const type = dependencyTypeIndex(dependencies).get(`${item.id}\u0000${predecessorCode}`);
+  return type === "SS" ? "SS" : "FS";
 }
 
 export function wbsToForm(
@@ -479,6 +491,30 @@ export function wbsToForm(
     comment: item.comment ?? "",
     sortOrder: String(item.sortOrder),
   };
+}
+
+const savedWbsForms = new WeakMap<WbsDependency[], WeakMap<WbsItem, WbsFormState>>();
+const NO_DEPENDENCIES: WbsDependency[] = [];
+
+/**
+ * The form of a saved item, cached per item and dependency list. For comparisons
+ * only: the result is shared, so it must never be used as an editable draft.
+ */
+export function savedWbsForm(
+  item: WbsItem,
+  dependencies: WbsDependency[] = NO_DEPENDENCIES,
+): Readonly<WbsFormState> {
+  let forms = savedWbsForms.get(dependencies);
+  if (!forms) {
+    forms = new WeakMap();
+    savedWbsForms.set(dependencies, forms);
+  }
+  let form = forms.get(item);
+  if (!form) {
+    form = wbsToForm(item, dependencies);
+    forms.set(item, form);
+  }
+  return form;
 }
 
 export function projectToRegistryDraft(project: ProjectListItem): ProjectRegistryDraft {

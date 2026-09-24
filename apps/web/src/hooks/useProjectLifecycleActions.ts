@@ -6,8 +6,8 @@ import {
   issueToDraft,
   normalizePassportRows,
   raidToForm,
-  wbsToForm,
 } from "../app/formState";
+import { mergeWbsDrafts } from "../app/wbsDraftMerge";
 import { apiBase, authenticatedFetch } from "../app/http";
 import { normalizeJiraWorkSectionDrafts } from "../app/jiraWorkSections";
 import { pollJiraSyncRun } from "../app/jiraSyncPolling";
@@ -288,13 +288,18 @@ async function persistJiraWorkSections(projectId: string) {
 
 const applyProject = useCallback(
   (nextProject: ProjectDetails) => {
+    const previousProject = projectRef.current;
     projectRef.current = nextProject;
-    const nextWbsDrafts = Object.fromEntries(
-      nextProject.wbsItems.map((item) => [
-        item.id,
-        wbsToForm(item, nextProject.wbsDependencies),
-      ]),
-    );
+    // A refresh of the same project keeps what the user is typing; opening a
+    // different project starts from its saved state.
+    const nextWbsDrafts = mergeWbsDrafts({
+      localDrafts: wbsDraftsRef.current,
+      previous:
+        previousProject?.id === nextProject.id
+          ? { items: previousProject.wbsItems, dependencies: previousProject.wbsDependencies }
+          : null,
+      next: { items: nextProject.wbsItems, dependencies: nextProject.wbsDependencies },
+    });
     wbsDraftsRef.current = nextWbsDrafts;
     setProject(nextProject);
     setProjectTargetDateDraft(

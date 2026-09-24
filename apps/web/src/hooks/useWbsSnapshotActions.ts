@@ -7,7 +7,8 @@ import type {
   WbsItem,
   WbsSnapshot,
 } from "../app/domainTypes";
-import { wbsToForm } from "../app/formState";
+import type { WbsFormState, wbsToForm } from "../app/formState";
+import { mergeWbsDrafts } from "../app/wbsDraftMerge";
 import { apiBase, authenticatedFetch } from "../app/http";
 import { wbsSnapshotsEqual } from "../app/wbsTree";
 import { useConfirm } from "./useConfirm";
@@ -55,6 +56,7 @@ export function useWbsSnapshotActions({
     nextItems: WbsItem[],
     nextDependencies?: WbsDependency[],
     nextCriticalPath?: WbsCriticalPath | null,
+    options: { sentDrafts?: Record<string, WbsFormState> } = {},
   ) {
     const currentProject = projectRef.current;
     const nextProject = currentProject
@@ -72,9 +74,16 @@ export function useWbsSnapshotActions({
     setProject(nextProject);
     const nextWbsDependencies =
       nextDependencies ?? currentProject?.wbsDependencies ?? [];
-    const nextWbsDrafts = Object.fromEntries(
-      nextItems.map((item) => [item.id, wbsToForm(item, nextWbsDependencies)]),
-    );
+    // Merge instead of replacing, so a save response never erases text the
+    // user is still typing in this or another row.
+    const nextWbsDrafts = mergeWbsDrafts({
+      localDrafts: wbsDraftsRef.current,
+      previous: currentProject
+        ? { items: currentProject.wbsItems, dependencies: currentProject.wbsDependencies }
+        : null,
+      next: { items: nextItems, dependencies: nextWbsDependencies },
+      sentDrafts: options.sentDrafts,
+    });
     wbsDraftsRef.current = nextWbsDrafts;
     setWbsDrafts(nextWbsDrafts);
     setCollapsedWbsIds(
