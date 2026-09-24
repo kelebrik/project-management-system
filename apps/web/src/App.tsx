@@ -50,6 +50,7 @@ import { useWbsColumnActions } from "./hooks/useWbsColumnActions";
 import { useWbsRowActions } from "./hooks/useWbsRowActions";
 import { useWbsSnapshotActions } from "./hooks/useWbsSnapshotActions";
 import { useWbsWorkspaceState } from "./hooks/useWbsWorkspaceState";
+import { hasPendingWbsBuffers } from "./components/WbsBufferedInput";
 import "./App.css";
 
 function AppController() {
@@ -392,7 +393,7 @@ function AppController() {
   });
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (dirtyWbsItemIds.size === 0) return;
+      if (dirtyWbsItemIds.size === 0 && !hasPendingWbsBuffers()) return;
       event.preventDefault();
       event.returnValue = "";
     };

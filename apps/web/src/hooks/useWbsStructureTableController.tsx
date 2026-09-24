@@ -13,6 +13,7 @@ import {
   wbsToForm,
 } from "../app/formState";
 import { useConfirm } from "./useConfirm";
+import { WbsBufferedInput } from "../components/WbsBufferedInput";
 import {
   editableKeyHandler,
   rememberEditableInitialValue,
@@ -480,11 +481,11 @@ export function useWbsStructureTableController({
               readOnly
               value={draftWbsCodes.get(item.id) ?? draft.code}
             />
-            <input
+            <WbsBufferedInput
               className="wbs-title-input"
               value={draft.title}
-              onChange={(event) =>
-                updateWbsDraft(item.id, { title: event.target.value })
+              onCommit={(value) =>
+                updateWbsDraft(item.id, { title: value })
               }
               onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
               onKeyDown={wbsEditKeyHandler(item.id)}
@@ -536,12 +537,12 @@ export function useWbsStructureTableController({
                 +
               </button>
             </div>
-            <input
+            <WbsBufferedInput
               type="number"
               className="wbs-level-input"
               value={draft.wbsLevel}
-              onChange={(event) =>
-                updateWbsDraft(item.id, { wbsLevel: event.target.value })
+              onCommit={(value) =>
+                updateWbsDraft(item.id, { wbsLevel: value })
               }
               onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
               onKeyDown={wbsEditKeyHandler(item.id)}
@@ -665,10 +666,10 @@ export function useWbsStructureTableController({
         );
       case "owner":
         return (
-          <input
+          <WbsBufferedInput
             value={draft.owner}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { owner: event.target.value })
+            onCommit={(value) =>
+              updateWbsDraft(item.id, { owner: value })
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
@@ -731,11 +732,11 @@ export function useWbsStructureTableController({
         );
       case "workDays":
         return (
-          <input
+          <WbsBufferedInput
             type="number"
             value={draft.workDays}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { workDays: event.target.value })
+            onCommit={(value) =>
+              updateWbsDraft(item.id, { workDays: value })
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id, "workDays")}
@@ -749,11 +750,11 @@ export function useWbsStructureTableController({
         );
       case "calendarDays":
         return (
-          <input
+          <WbsBufferedInput
             type="number"
             value={draft.calendarDays}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { calendarDays: event.target.value })
+            onCommit={(value) =>
+              updateWbsDraft(item.id, { calendarDays: value })
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
@@ -783,13 +784,13 @@ export function useWbsStructureTableController({
         );
       case "effortPercent":
         return (
-          <input
+          <WbsBufferedInput
             type="number"
             min="0"
             max="100"
             value={draft.effortPercent}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { effortPercent: event.target.value })
+            onCommit={(value) =>
+              updateWbsDraft(item.id, { effortPercent: value })
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
@@ -798,13 +799,13 @@ export function useWbsStructureTableController({
         );
       case "progress":
         return (
-          <input
+          <WbsBufferedInput
             type="number"
             min="0"
             max="100"
             value={draft.progress}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { progress: event.target.value })
+            onCommit={(value) =>
+              updateWbsDraft(item.id, { progress: value })
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
@@ -847,10 +848,10 @@ export function useWbsStructureTableController({
         );
       case "comment":
         return (
-          <input
+          <WbsBufferedInput
             value={draft.comment}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { comment: event.target.value })
+            onCommit={(value) =>
+              updateWbsDraft(item.id, { comment: value })
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}
@@ -874,11 +875,11 @@ export function useWbsStructureTableController({
         const hasPredecessor = predecessorCode.trim().length > 0;
         return (
           <div className="wbs-predecessor-editor">
-            <input
+            <WbsBufferedInput
               className="wbs-predecessor-input"
               value={predecessorCode}
-              onChange={(event) =>
-                updateWbsDraft(item.id, { [columnKey]: event.target.value })
+              onCommit={(value) =>
+                updateWbsDraft(item.id, { [columnKey]: value })
               }
               onFocus={(event) =>
                 rememberEditableInitialValue(event.currentTarget)
@@ -924,11 +925,11 @@ export function useWbsStructureTableController({
       }
       case "leadLag":
         return (
-          <input
+          <WbsBufferedInput
             type="number"
             value={draft.leadLagDays}
-            onChange={(event) =>
-              updateWbsDraft(item.id, { leadLagDays: event.target.value })
+            onCommit={(value) =>
+              updateWbsDraft(item.id, { leadLagDays: value })
             }
             onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
             onKeyDown={wbsEditKeyHandler(item.id)}

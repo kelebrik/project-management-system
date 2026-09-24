@@ -18,6 +18,7 @@ import {
 } from "../app/routes";
 import { projectModuleKeyByView } from "../app/projectModules";
 import { useI18n } from "../i18n/I18nProvider";
+import { hasPendingWbsBuffers } from "../components/WbsBufferedInput";
 
 type AppRoutingDeps = Record<string, any>;
 
@@ -144,7 +145,8 @@ export function useAppRouting({
       if (
         typeof window !== "undefined" &&
         ((window as Window & { __pmsUnsaved?: boolean }).__pmsUnsaved ||
-          (dirtyWbsItemIds?.size ?? 0) > 0) &&
+          (dirtyWbsItemIds?.size ?? 0) > 0 ||
+          hasPendingWbsBuffers()) &&
         !window.confirm(uiText("ui.common.routeUnsavedChangesConfirm"))
       ) {
         return;
