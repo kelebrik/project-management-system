@@ -1,14 +1,15 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Settings2, Users } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { CalendarDays, Plus, Settings2, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import {
-  addMonths,
   buildLeaveTimeline,
+  extendLeaveRange,
+  initialLeaveRange,
+  widenLeaveRange,
   calendarOverrides,
   filterLeaveEmployees,
   groupLeaveEmployees,
   leaveDepartments,
-  leavePeriod,
   leaveSegments,
   leaveTypeLabel,
   localDay,
@@ -16,6 +17,7 @@ import {
   sortLeaveEmployees,
   type LeaveEmployee,
   type LeaveHorizon,
+  type LeaveRange,
   type LeaveRecord,
   type LeaveScheduleData,
   type LeaveSortKey,
@@ -33,7 +35,7 @@ import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
 type LeaveTab = "schedule" | "list" | "calendar";
-const HORIZONS: LeaveHorizon[] = [1, 3, 6];
+const HORIZONS: LeaveHorizon[] = [3, 6, 12];
 const HORIZON_STORAGE_KEY = "pms-leave-schedule-horizon";
 
 function storedHorizon(): LeaveHorizon {
@@ -55,8 +57,11 @@ export function LeaveSchedulePage() {
   const canLinkUsers = Boolean(isAdminUser || sectionAccess?.isPublicDemoVisitor);
   const today = localDay();
   const [tab, setTab] = useState<LeaveTab>("schedule");
-  const [anchor, setAnchor] = useState(today);
   const [horizon, setHorizon] = useState<LeaveHorizon>(storedHorizon);
+  // The loaded stretch grows as the user scrolls; the window is what is on screen.
+  const [range, setRange] = useState<LeaveRange>(() => initialLeaveRange(today, storedHorizon()));
+  const [visibleWindow, setVisibleWindow] = useState<LeaveRange>({ from: today, to: today });
+  const [todayRequest, setTodayRequest] = useState(0);
   const [data, setData] = useState<LeaveScheduleData | null>(null);
   const [loadError, setLoadError] = useState(false);
   // Today may lie outside the visible period, so "away today" has its own small request.
@@ -71,25 +76,28 @@ export function LeaveSchedulePage() {
   const [editor, setEditor] = useState<LeaveDraft | null>(null);
   const [dialog, setDialog] = useState<"employees" | "types" | null>(null);
 
-  const period = useMemo(() => leavePeriod(anchor, horizon), [anchor, horizon]);
   const reload = useCallback(() => setReloadToken((value) => value + 1), []);
+  const extendRange = useCallback(
+    (side: "before" | "after") => setRange((current) => extendLeaveRange(current, side, horizon)),
+    [horizon],
+  );
 
+  // Only the latest request may replace the data: scrolling can grow the range
+  // again before an earlier answer arrives. The old data stays up meanwhile.
+  const rangeRequestRef = useRef(0);
   useEffect(() => {
-    let cancelled = false;
+    const request = ++rangeRequestRef.current;
     setLoadError(false);
     apiClient
-      .get<LeaveScheduleData>(`/api/leave-schedule?from=${period.from}&to=${period.to}`)
+      .get<LeaveScheduleData>(`/api/leave-schedule?from=${range.from}&to=${range.to}`)
       .then((next) => {
-        if (!cancelled) setData(next);
+        if (request === rangeRequestRef.current) setData(next);
       })
       .catch(() => {
         // Stored as a flag so the message follows the interface language.
-        if (!cancelled) setLoadError(true);
+        if (request === rangeRequestRef.current) setLoadError(true);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [period.from, period.to, reloadToken]);
+  }, [range.from, range.to, reloadToken]);
 
   useEffect(() => {
     if (!absentToday) return;
@@ -108,12 +116,12 @@ export function LeaveSchedulePage() {
   }, [absentToday, reloadToken, today]);
 
   const overrides = useMemo(() => calendarOverrides(data?.calendarDays ?? []), [data?.calendarDays]);
-  const timeline = useMemo(() => buildLeaveTimeline(period.from, period.to, overrides, today), [overrides, period, today]);
+  const timeline = useMemo(() => buildLeaveTimeline(range.from, range.to, overrides, today), [overrides, range, today]);
   const employeesById = useMemo(() => new Map((data?.employees ?? []).map((person) => [person.id, person])), [data?.employees]);
   const typesById = useMemo(() => new Map((data?.types ?? []).map((type) => [type.id, type])), [data?.types]);
   const planned = useMemo(
-    () => plannedWorkingDays(data?.leaves ?? [], period.from, period.to, overrides),
-    [data?.leaves, overrides, period],
+    () => plannedWorkingDays(data?.leaves ?? [], visibleWindow.from, visibleWindow.to, overrides),
+    [data?.leaves, overrides, visibleWindow],
   );
   const visibleEmployees = useMemo(() => {
     const filtered = filterLeaveEmployees(
@@ -134,7 +142,7 @@ export function LeaveSchedulePage() {
         : [{ department: null, employees: visibleEmployees }],
     [grouped, locale, planned, sort, visibleEmployees],
   );
-  const segments = useMemo(() => leaveSegments(data?.leaves ?? [], period.from, period.to), [data?.leaves, period]);
+  const segments = useMemo(() => leaveSegments(data?.leaves ?? [], range.from, range.to), [data?.leaves, range]);
   const allDepartments = useMemo(() => leaveDepartments(data?.employees ?? [], locale), [data?.employees, locale]);
   const activeTypes = (data?.types ?? []).filter((type) => type.isActive);
 
@@ -185,10 +193,11 @@ export function LeaveSchedulePage() {
   const toggleSort = (key: LeaveSortKey) =>
     setSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" }));
 
-  const shift = (direction: 1 | -1) => setAnchor(addMonths(period.from, direction * horizon));
 
   return (
     <section className="v2-page leave-page">
+      {/* The section tab names the page on screen; this keeps a heading for assistive tech. */}
+      <h1 className="sr-only">{t("ui.leave.title")}</h1>
       <div className="v2-compact-header leave-page-header">
         {/* The page title comes from the app header; this line explains the page. */}
         <p className="leave-page-description">{t("ui.leave.description")}</p>
@@ -251,22 +260,18 @@ export function LeaveSchedulePage() {
       </div>
 
       {tab === "calendar" ? (
-        <LeaveCalendarTab canEdit={canEdit} initialYear={Number(anchor.slice(0, 4))} onChanged={reload} today={today} />
+        <LeaveCalendarTab canEdit={canEdit} initialYear={Number(today.slice(0, 4))} onChanged={reload} today={today} />
       ) : (
         <>
           <div className="leave-toolbar">
             <div className="leave-period-nav">
-              <button aria-label={t("ui.leave.previous")} className="leave-icon-button" onClick={() => shift(-1)} type="button">
-                <ChevronLeft aria-hidden="true" size={18} />
-              </button>
-              <label>
-                <span>{t("ui.leave.from")}</span>
-                <input type="date" value={period.from} onChange={(event) => event.target.value && setAnchor(event.target.value)} />
-              </label>
-              <button aria-label={t("ui.leave.next")} className="leave-icon-button" onClick={() => shift(1)} type="button">
-                <ChevronRight aria-hidden="true" size={18} />
-              </button>
-              <button onClick={() => setAnchor(today)} type="button">
+              <button
+                onClick={() => {
+                  setTab("schedule");
+                  setTodayRequest((value) => value + 1);
+                }}
+                type="button"
+              >
                 <CalendarDays aria-hidden="true" size={15} />
                 {t("ui.leave.today")}
               </button>
@@ -278,6 +283,8 @@ export function LeaveSchedulePage() {
                     key={value}
                     onClick={() => {
                       setHorizon(value);
+                      // Load enough around the current left edge for the new scale.
+                      setRange((current) => widenLeaveRange(current, visibleWindow.from, value));
                       try {
                         window.localStorage.setItem(HORIZON_STORAGE_KEY, String(value));
                       } catch {
@@ -360,6 +367,11 @@ export function LeaveSchedulePage() {
                 <div className="empty-state">{t("ui.leave.noEmployeesForFilters")}</div>
               ) : (
                 <LeaveScheduleGrid
+                  onExtend={extendRange}
+                  onVisibleWindowChange={setVisibleWindow}
+                  range={range}
+                  today={today}
+                  todayRequest={todayRequest}
                   showDepartment={!grouped}
                   canEdit={canEdit && activeTypes.length > 0}
                   employeesById={employeesById}
@@ -390,7 +402,7 @@ export function LeaveSchedulePage() {
               }}
               onOpen={openEdit}
               overrides={overrides}
-              period={period}
+              period={visibleWindow}
               types={data.types}
               typesById={typesById}
               visibleEmployeeIds={new Set(visibleEmployees.map((person) => person.id))}

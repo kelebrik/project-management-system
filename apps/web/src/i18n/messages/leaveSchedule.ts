@@ -4,8 +4,8 @@ export const leaveScheduleMessages = {
     "ru": "График отпусков"
   },
   "ui.leave.description": {
-    "en": "Who is away and when: leaves on a day grid with the Russian production calendar",
-    "ru": "Кто и когда отсутствует: отпуска по дням с учётом производственного календаря РФ"
+    "en": "Who is away and when: leaves on a day grid with the production calendar",
+    "ru": "Кто и когда отсутствует: отпуска по дням с учётом производственного календаря"
   },
   "ui.leave.tabSchedule": {
     "en": "Schedule",
@@ -51,10 +51,7 @@ export const leaveScheduleMessages = {
     "en": "Today",
     "ru": "Сегодня"
   },
-  "ui.leave.from": {
-    "en": "From",
-    "ru": "С"
-  },
+
   "ui.leave.horizon": {
     "en": "Period",
     "ru": "Период"

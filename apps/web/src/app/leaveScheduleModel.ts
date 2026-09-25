@@ -41,7 +41,10 @@ export type LeaveScheduleData = {
   calendarDays: LeaveCalendarDay[];
 };
 
-export type LeaveHorizon = 1 | 3 | 6;
+/** How many months fit into the visible width of the grid. */
+export type LeaveHorizon = 3 | 6 | 12;
+export type LeaveRange = { from: string; to: string };
+export type LeaveScale = { mode: "day" | "week"; dayWidth: number };
 export type LeaveSortKey = "name" | "department" | "planned";
 
 const DAY_MS = 86_400_000;
@@ -112,11 +115,62 @@ export function calendarDaysInRange(start: string, end: string) {
   return Math.max(0, daysBetween(start, end) + 1);
 }
 
-/** The visible period: whole weeks from the Monday of `anchor`, `months` long. */
-export function leavePeriod(anchor: string, months: LeaveHorizon) {
-  const from = startOfWeek(anchor);
-  const lastDay = addDays(addMonths(from, months), -1);
-  return { from, to: addDays(startOfWeek(lastDay), 6) };
+export function endOfWeek(value: string) {
+  return addDays(startOfWeek(value), 6);
+}
+
+/** The first loaded stretch: two horizons back and three ahead, in whole weeks. */
+export function initialLeaveRange(today: string, horizon: LeaveHorizon): LeaveRange {
+  return {
+    from: startOfWeek(addMonths(today, -2 * horizon)),
+    to: endOfWeek(addMonths(today, 3 * horizon)),
+  };
+}
+
+/**
+ * Makes sure the stretch around `day` is loaded for a new horizon, so a wider
+ * scale can keep `day` at the left edge instead of running out of weeks.
+ */
+export function widenLeaveRange(range: LeaveRange, day: string, horizon: LeaveHorizon): LeaveRange {
+  const needed = initialLeaveRange(day, horizon);
+  return {
+    from: needed.from < range.from ? needed.from : range.from,
+    to: needed.to > range.to ? needed.to : range.to,
+  };
+}
+
+/** Grows the loaded stretch by one horizon on the side the user scrolls towards. */
+export function extendLeaveRange(range: LeaveRange, side: "before" | "after", horizon: LeaveHorizon): LeaveRange {
+  return side === "before"
+    ? { from: startOfWeek(addMonths(range.from, -horizon)), to: range.to }
+    : { from: range.from, to: endOfWeek(addMonths(range.to, horizon)) };
+}
+
+const DAYS_PER_MONTH = 365.25 / 12;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * Column widths that fit the horizon into the available width. Twelve months
+ * switch to week columns; the limits only mean more scrolling on small screens.
+ */
+export function leaveScale(horizon: LeaveHorizon, availableWidth: number): LeaveScale {
+  const width = Math.max(availableWidth, 200);
+  if (horizon === 12) {
+    const weekWidth = clamp(width / ((12 * DAYS_PER_MONTH) / 7), 14, 60);
+    return { mode: "week", dayWidth: weekWidth / 7 };
+  }
+  return { mode: "day", dayWidth: clamp(width / (horizon * DAYS_PER_MONTH), 6, 40) };
+}
+
+/** The days currently on screen, from the scroll position of the time area. */
+export function visibleLeaveWindow(range: LeaveRange, scrollLeft: number, viewportWidth: number, dayWidth: number): LeaveRange {
+  const lastIndex = daysBetween(range.from, range.to);
+  const first = clamp(Math.floor(scrollLeft / dayWidth), 0, lastIndex);
+  const last = clamp(Math.ceil((scrollLeft + viewportWidth) / dayWidth) - 1, first, lastIndex);
+  return { from: addDays(range.from, first), to: addDays(range.from, last) };
 }
 
 export type LeaveTimelineDay = {

@@ -100,8 +100,10 @@ test("the leave schedule shows people, leaves and who is away today", async ({ p
   await expect(page.getByRole("rowheader", { name: /Барбер Роберт/ })).toBeVisible();
   await expect(page.getByRole("rowheader", { name: /Кляйн Анна/ })).toHaveCount(0);
 
-  // Moving to a later period must not drop the people who are away today.
-  await page.getByRole("button", { name: "Вперёд" }).click();
+  // Scrolling far ahead must not drop the people who are away today.
+  await page.locator(".leave-grid-shell").evaluate((shell) => {
+    shell.scrollLeft = shell.scrollWidth;
+  });
   await expect(page.getByRole("rowheader", { name: /Барбер Роберт/ })).toBeVisible();
 });
 
@@ -109,14 +111,15 @@ test("dragging across days creates a leave and overlaps are blocked", async ({ p
   const state = await mockLeaveSchedule(page);
   await page.goto("/operations/leave-schedule");
 
-  const row = page.getByRole("row", { name: /Альварес Даниэль/ });
-  const cells = row.locator(".leave-day");
-  const first = await cells.nth(14).boundingBox();
-  const last = await cells.nth(18).boundingBox();
-  if (!first || !last) throw new Error("day cells are not visible");
-  await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+  const lane = page.locator('.leave-row-lane[data-employee-id="e2"]');
+  const shell = await page.locator(".leave-grid-shell").boundingBox();
+  const box = await lane.boundingBox();
+  if (!box || !shell) throw new Error("the time lane is not visible");
+  // Drag across a stretch of days in the visible part of the row.
+  const y = box.y + box.height / 2;
+  await page.mouse.move(shell.x + shell.width - 260, y);
   await page.mouse.down();
-  await page.mouse.move(last.x + last.width / 2, last.y + last.height / 2, { steps: 6 });
+  await page.mouse.move(shell.x + shell.width - 120, y, { steps: 6 });
   await page.mouse.up();
 
   const dialog = page.getByRole("dialog", { name: "Новое отсутствие" });
@@ -214,4 +217,48 @@ test("Operations is open to a project manager, who edits leaves without listing 
   await expect(page.getByRole("dialog", { name: "Сотрудники" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Пользователь системы" })).toHaveCount(0);
   expect(usersRequested).toBe(false);
+});
+
+test("the time scale scrolls freely, loads more as you go and switches to weeks for a year", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 800 });
+  await mockLeaveSchedule(page);
+  const requests: URLSearchParams[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/leave-schedule") requests.push(url.searchParams);
+  });
+  await page.goto("/operations/leave-schedule");
+  await expect(page.getByRole("button", { name: /Барбер Роберт: Больничный/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "3 мес." })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".leave-head-day").first()).toBeAttached();
+
+  const shell = page.locator(".leave-grid-shell");
+  const firstFrom = requests[0].get("from") ?? "";
+  await shell.evaluate((element) => {
+    element.scrollLeft = 0;
+  });
+  await expect.poll(() => requests.some((params) => (params.get("from") ?? "") < firstFrom)).toBe(true);
+  // Loading earlier weeks keeps the view where it was instead of jumping to the new start.
+  await expect.poll(() => shell.evaluate((element) => element.scrollLeft)).toBeGreaterThan(100);
+
+  await page.getByRole("button", { name: "Сегодня" }).click();
+  await expect(page.getByRole("button", { name: /Барбер Роберт: Больничный/ })).toBeInViewport();
+
+  // Zooming keeps the week at the left edge in place.
+  const leftWeek = () =>
+    page.evaluate(() => {
+      const shell = document.querySelector(".leave-grid-shell") as HTMLElement;
+      const lane = shell.querySelector(".leave-head-weeks .leave-time-lane") as HTMLElement;
+      // The first pixel of the time area that is not under the sticky columns.
+      const offset = lane.previousElementSibling!.getBoundingClientRect().right - lane.getBoundingClientRect().left + 1;
+      return ([...lane.querySelectorAll(".leave-head-week")] as HTMLElement[]).find(
+        (week) => week.offsetLeft <= offset && week.offsetLeft + week.offsetWidth > offset,
+      )?.textContent;
+    });
+  const before = await leftWeek();
+  await page.getByRole("button", { name: "12 мес." }).click();
+  await expect.poll(leftWeek).toBe(before);
+  await expect(page.locator(".leave-head-day")).toHaveCount(0);
+  await expect(page.locator(".leave-head-week.today")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /Барбер Роберт: Больничный/ })).toBeVisible();
 });

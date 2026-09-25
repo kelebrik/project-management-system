@@ -77,6 +77,8 @@ export function LeaveListTab({
   const rows = useMemo(() => {
     const collator = new Intl.Collator(locale, { sensitivity: "base", numeric: true });
     const list: ListRow[] = leaves
+      // The leaves that touch the days on screen in the schedule.
+      .filter((leave) => leave.startDate <= period.to && leave.endDate >= period.from)
       .filter((leave) => visibleEmployeeIds.has(leave.employeeId) && (!typeFilter || leave.typeId === typeFilter))
       .map((leave) => {
         const employee = employeesById.get(leave.employeeId);
@@ -100,7 +102,7 @@ export function LeaveListTab({
       const primary = typeof a === "number" && typeof b === "number" ? a - b : collator.compare(String(a), String(b));
       return sign * (primary || collator.compare(left.employee, right.employee));
     });
-  }, [employeesById, leaves, locale, overrides, sort, typeFilter, typesById, visibleEmployeeIds]);
+  }, [employeesById, leaves, locale, overrides, period.from, period.to, sort, typeFilter, typesById, visibleEmployeeIds]);
 
   const selectedVisible = rows.filter((row) => selected.has(row.leave.id)).map((row) => row.leave.id);
   const allSelected = rows.length > 0 && selectedVisible.length === rows.length;

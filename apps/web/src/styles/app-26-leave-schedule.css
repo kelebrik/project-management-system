@@ -214,54 +214,73 @@
   margin: 0;
 }
 
-/* Day grid: two sticky columns followed by one column per day. */
+/*
+ * Time grid: two sticky columns, then a time lane laid out in pixels. Weekends,
+ * day and week lines are painted once on a backdrop behind all rows, so rows
+ * carry only their leaves however many months are loaded.
+ */
 .leave-grid-shell {
-  --leave-name-width: 230px;
-  --leave-planned-width: 64px;
   --leave-row-height: 34px;
+  --leave-off: #e9eef3;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  max-height: calc(100vh - 290px);
+  max-height: calc(100vh - 260px);
   min-height: 240px;
   overflow: auto;
 }
 
 .leave-grid {
   background: var(--surface);
-  min-width: max-content;
   user-select: none;
 }
 
 .leave-grid-row {
-  display: grid;
-  grid-template-columns:
-    var(--leave-name-width) var(--leave-planned-width)
-    repeat(var(--leave-days), var(--leave-day-width));
+  display: flex;
 }
 
 .leave-grid-head {
   background: var(--surface);
+  border-bottom: 1px solid var(--border-strong);
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: 4;
 }
 
 .leave-name-cell,
 .leave-planned-cell {
   background: var(--surface);
-  grid-row: 1;
+  flex: none;
   position: sticky;
-  z-index: 2;
+  z-index: 3;
 }
 
 .leave-name-cell {
   border-right: 1px solid var(--border-5);
   left: 0;
+  width: var(--leave-name-width);
 }
 
 .leave-planned-cell {
   border-right: 1px solid var(--border-strong);
   left: var(--leave-name-width);
+  width: var(--leave-planned-width);
+}
+
+.leave-time-lane {
+  flex: none;
+  position: relative;
+}
+
+.leave-head-months .leave-time-lane {
+  height: 26px;
+}
+
+.leave-head-weeks .leave-time-lane {
+  height: 22px;
+}
+
+.leave-head-days .leave-time-lane {
+  height: 20px;
 }
 
 .leave-head-corner {
@@ -286,21 +305,32 @@
 }
 
 .leave-head-month,
+.leave-head-week,
+.leave-head-day {
+  border-left: 1px solid var(--border-5);
+  bottom: 0;
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+
+.leave-head-month,
 .leave-head-week {
   border-bottom: 1px solid var(--border-5);
-  border-left: 1px solid var(--border-5);
-  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
-  grid-row: 1;
-  overflow: hidden;
-  padding: 4px 6px;
+}
+
+.leave-head-month {
+  color: var(--text-secondary);
+  padding: 5px 0;
   text-transform: capitalize;
-  white-space: nowrap;
 }
 
 .leave-head-month span {
   left: calc(var(--leave-name-width) + var(--leave-planned-width) + 6px);
+  padding: 0 6px;
   position: sticky;
 }
 
@@ -309,7 +339,16 @@
   padding: 3px 4px;
 }
 
-.leave-head-days .leave-day {
+.leave-scale-day .leave-head-week {
+  border-left-color: var(--border-strong);
+}
+
+.leave-head-week.today {
+  background: var(--text-strong);
+  color: var(--surface);
+}
+
+.leave-head-day {
   align-items: center;
   color: var(--text-muted);
   display: flex;
@@ -318,39 +357,82 @@
   text-transform: uppercase;
 }
 
-.leave-day {
-  /* Working days share the header's fill; .off below shades the rest. */
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-5);
-  border-left: 1px solid var(--border-5);
-  grid-row: 1;
-  min-height: 22px;
+.leave-head-day.off {
+  background: var(--leave-off);
 }
 
-.leave-day.off {
-  background: var(--leave-off, #e9eef3);
-}
-
-.leave-day.week-start {
-  border-left-color: var(--border-strong);
-}
-
-.leave-head-days .leave-day.today {
+.leave-head-day.today {
   background: var(--text-strong);
   color: var(--surface);
   font-weight: 800;
 }
 
-.leave-person-row .leave-day.today {
-  box-shadow: inset 1px 0 0 var(--danger), inset -1px 0 0 var(--danger);
+.leave-grid-body {
+  position: relative;
+}
+
+.leave-backdrop {
+  background-image:
+    repeating-linear-gradient(90deg, var(--border-strong) 0 1px, transparent 1px var(--leave-week)),
+    repeating-linear-gradient(90deg, var(--border-5) 0 1px, transparent 1px var(--leave-day)),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 calc(var(--leave-day) * 5),
+      var(--leave-off) calc(var(--leave-day) * 5) calc(var(--leave-day) * 7)
+    );
+  bottom: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  z-index: 0;
+}
+
+/* Week columns are only a few pixels per day: no day lines at that scale. */
+.leave-scale-week .leave-backdrop {
+  background-image:
+    repeating-linear-gradient(90deg, var(--border-5) 0 1px, transparent 1px var(--leave-week)),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 calc(var(--leave-day) * 5),
+      var(--leave-off) calc(var(--leave-day) * 5) calc(var(--leave-day) * 7)
+    );
+}
+
+.leave-backdrop-day,
+.leave-backdrop-today {
+  bottom: 0;
+  position: absolute;
+  top: 0;
+}
+
+.leave-backdrop-day.off {
+  background: var(--leave-off);
+}
+
+.leave-backdrop-day.working {
+  background: var(--surface);
+}
+
+.leave-backdrop-today {
+  border-left: 1px solid var(--danger);
+  border-right: 1px solid var(--danger);
+  min-width: 2px;
+}
+
+.leave-group,
+.leave-person-row {
+  position: relative;
+  z-index: 1;
 }
 
 .leave-person-row {
   min-height: var(--leave-row-height);
 }
 
-.leave-person-row .leave-day {
+.leave-row-lane {
+  border-bottom: 1px solid var(--border-5);
   cursor: crosshair;
+  min-height: var(--leave-row-height);
 }
 
 .leave-person-row .leave-name-cell {
@@ -393,40 +475,49 @@
 .leave-group-title {
   background: var(--surface-tint, #f5f7fa);
   border-bottom: 1px solid var(--border-5);
+}
+
+.leave-group-title span {
   color: var(--text-secondary);
+  display: block;
   font-size: 12px;
   font-weight: 800;
+  left: 0;
   padding: 10px 10px 4px;
   position: sticky;
-  left: 0;
   text-transform: uppercase;
   width: calc(var(--leave-name-width) + var(--leave-planned-width));
 }
 
 .leave-bar {
-  align-self: center;
   border: 0 !important;
   border-radius: 4px !important;
   cursor: pointer;
-  grid-row: 1;
   height: 22px;
-  margin: 0 1px;
   min-width: 0;
   padding: 0 !important;
-  position: relative;
+  position: absolute !important;
+  top: 6px;
   z-index: 1;
+}
+
+.leave-bar.spaced {
+  transform: translateX(1px);
+}
+
+.leave-scale-week .leave-bar {
+  border-radius: 1px !important;
 }
 
 .leave-bar.cut-start {
   border-bottom-left-radius: 0 !important;
   border-top-left-radius: 0 !important;
-  margin-left: 0;
+  transform: none;
 }
 
 .leave-bar.cut-end {
   border-bottom-right-radius: 0 !important;
   border-top-right-radius: 0 !important;
-  margin-right: 0;
 }
 
 .leave-bar:hover,
@@ -437,13 +528,13 @@
 }
 
 .leave-selection {
-  align-self: center;
   background: var(--brand-soft);
   border: 2px dashed var(--brand);
   border-radius: 4px;
-  grid-row: 1;
   height: 22px;
   pointer-events: none;
+  position: absolute;
+  top: 6px;
   z-index: 1;
 }
 
@@ -802,10 +893,6 @@
 }
 
 @media (max-width: 900px) {
-  .leave-grid-shell {
-    --leave-name-width: 150px;
-  }
-
   .leave-calendar-layout:has(.leave-calendar-editor) {
     grid-template-columns: 1fr;
   }
