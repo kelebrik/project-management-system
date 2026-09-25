@@ -43,7 +43,7 @@ export function AppTopbar({
 }: AppTopbarProps) {
   const { t, tCount, formatters: { date }, labels: { projectHealthLabel, projectStatusLabel } } = useI18n();
   // These pages are named by their section tab; a second title only repeats it.
-  if (activeView === "reports" || activeView === "leave-schedule") return null;
+  if (activeView === "reports" || activeView === "leave-schedule" || activeView === "workload") return null;
   const showProjectTitle = project && isProjectView && activeView !== "project-create";
   const showProjectBadges = Boolean(project && showProjectTitle);
   const targetChangeDays = projectTargetSummary?.targetChangeDays ?? null;

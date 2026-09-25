@@ -4,6 +4,10 @@ export const navigation = {
     "en": "Portfolio",
     "ru": "Портфель"
   },
+  "view.workload": {
+    "en": "Workload",
+    "ru": "Загрузка"
+  },
   "view.leave-schedule": {
     "en": "Leave schedule",
     "ru": "График отпусков"

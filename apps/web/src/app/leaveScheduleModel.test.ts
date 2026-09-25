@@ -8,6 +8,8 @@ import {
   findOverlappingLeave,
   groupLeaveEmployees,
   leaveCsv,
+  addMonths,
+  endOfWeek,
   extendLeaveRange,
   widenLeaveRange,
   initialLeaveRange,
@@ -165,4 +167,17 @@ test("a wider scale loads enough around the day at the left edge", () => {
   assert.deepEqual(widenLeaveRange(range, "2026-09-14", 3), { from: "2026-03-09", to: "2027-06-27" });
   // Already loaded: nothing changes.
   assert.deepEqual(widenLeaveRange(range, "2026-09-23", 3), range);
+});
+
+test("the loaded stretch slides instead of growing past five years", () => {
+  let range = initialLeaveRange("2026-09-24", 12);
+  for (let step = 0; step < 6; step += 1) range = extendLeaveRange(range, "after", 12);
+  // At most five years plus the rounding to whole weeks.
+  assert.ok(range.to <= endOfWeek(addMonths(range.from, 60)));
+  assert.ok(range.to >= "2033-01-01");
+  for (let step = 0; step < 12; step += 1) range = extendLeaveRange(range, "before", 12);
+  assert.ok(range.to <= endOfWeek(addMonths(range.from, 60)));
+  assert.ok(range.from <= "2025-01-01");
+  // A zoom that would overflow loads the stretch around the day instead.
+  assert.deepEqual(widenLeaveRange(range, "2026-09-14", 12), initialLeaveRange("2026-09-14", 12));
 });

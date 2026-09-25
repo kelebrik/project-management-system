@@ -14,6 +14,7 @@ import {
 } from "../app/formState";
 import { useConfirm } from "./useConfirm";
 import { WbsBufferedInput } from "../components/WbsBufferedInput";
+import { EMPLOYEE_NAMES_LIST_ID } from "./useEmployeeDirectory";
 import {
   editableKeyHandler,
   rememberEditableInitialValue,
@@ -667,6 +668,7 @@ export function useWbsStructureTableController({
       case "owner":
         return (
           <WbsBufferedInput
+            list={EMPLOYEE_NAMES_LIST_ID}
             value={draft.owner}
             onCommit={(value) =>
               updateWbsDraft(item.id, { owner: value })

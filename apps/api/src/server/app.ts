@@ -12,6 +12,7 @@ import { createProjectsRouter } from '../routes/projects.routes.js';
 import { createRisksRouter } from '../routes/risks.routes.js';
 import { createSavedViewsRouter } from '../routes/saved-views.routes.js';
 import { createLeaveScheduleRouter } from '../routes/leave-schedule.routes.js';
+import { createWorkloadRouter } from '../routes/workload.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
 import { createWbsRouter } from '../routes/wbs.routes.js';
 import { attachAuth, currentUser, requireAdmin, requireAuth, userResponse, wouldRemoveLastAdmin } from './auth.js';
@@ -130,6 +131,7 @@ export function createApp() {
   );
 
   app.use('/api', createLeaveScheduleRouter({ requireAuth, currentUser }));
+  app.use('/api', createWorkloadRouter({ requireAuth }));
 
   registerClosedProjectWriteGuards(app);
 

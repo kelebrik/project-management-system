@@ -222,6 +222,7 @@
 .leave-grid-shell {
   --leave-row-height: 34px;
   --leave-off: #e9eef3;
+  background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   max-height: calc(100vh - 260px);

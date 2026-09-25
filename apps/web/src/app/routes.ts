@@ -60,7 +60,7 @@ export type DevelopmentSectionView = Extract<
 >;
 
 /** Day-to-day operational tools, open to every signed-in user. */
-export type OperationsSectionView = Extract<AppView, "leave-schedule">;
+export type OperationsSectionView = Extract<AppView, "leave-schedule" | "workload">;
 
 export type FullscreenWorkspaceView = Extract<
   AppView,
@@ -112,7 +112,7 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "portfolio-v2",
 ];
 
-export const operationsSectionViews: OperationsSectionView[] = ["leave-schedule"];
+export const operationsSectionViews: OperationsSectionView[] = ["leave-schedule", "workload"];
 
 export const writeProtectedViews = new Set<AppView>([
   "project-create",
@@ -192,6 +192,7 @@ export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
   "portfolio-v2": "/development/portfolio-v2",
   "leave-schedule": "/operations/leave-schedule",
+  workload: "/operations/workload",
   "decision-queue": "/development/decision-queue",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
@@ -286,6 +287,7 @@ export const appPathViews: Record<string, AppView> = {
   "/development/leave-schedule": "leave-schedule",
   "/operations": "leave-schedule",
   "/operations/leave-schedule": "leave-schedule",
+  "/operations/workload": "workload",
   "/development/reports": "reports",
   "/development/archive": "closed-projects",
   "/development/decision-queue": "decision-queue",

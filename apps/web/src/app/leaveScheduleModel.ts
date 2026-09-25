@@ -127,23 +127,39 @@ export function initialLeaveRange(today: string, horizon: LeaveHorizon): LeaveRa
   };
 }
 
+/** The loaded stretch never exceeds five years, however far the user scrolls. */
+export const MAX_LEAVE_RANGE_MONTHS = 60;
+
+function tooLong(range: LeaveRange) {
+  return range.to > endOfWeek(addMonths(range.from, MAX_LEAVE_RANGE_MONTHS));
+}
+
 /**
  * Makes sure the stretch around `day` is loaded for a new horizon, so a wider
  * scale can keep `day` at the left edge instead of running out of weeks.
  */
 export function widenLeaveRange(range: LeaveRange, day: string, horizon: LeaveHorizon): LeaveRange {
   const needed = initialLeaveRange(day, horizon);
-  return {
+  const union = {
     from: needed.from < range.from ? needed.from : range.from,
     to: needed.to > range.to ? needed.to : range.to,
   };
+  return tooLong(union) ? needed : union;
 }
 
-/** Grows the loaded stretch by one horizon on the side the user scrolls towards. */
+/**
+ * Grows the loaded stretch by one horizon on the side the user scrolls towards;
+ * past five years the far end is dropped, so the stretch slides along instead.
+ */
 export function extendLeaveRange(range: LeaveRange, side: "before" | "after", horizon: LeaveHorizon): LeaveRange {
-  return side === "before"
-    ? { from: startOfWeek(addMonths(range.from, -horizon)), to: range.to }
-    : { from: range.from, to: endOfWeek(addMonths(range.to, horizon)) };
+  if (side === "before") {
+    const from = startOfWeek(addMonths(range.from, -horizon));
+    const next = { from, to: range.to };
+    return tooLong(next) ? { from, to: endOfWeek(addMonths(from, MAX_LEAVE_RANGE_MONTHS)) } : next;
+  }
+  const to = endOfWeek(addMonths(range.to, horizon));
+  const next = { from: range.from, to };
+  return tooLong(next) ? { from: startOfWeek(addMonths(to, -MAX_LEAVE_RANGE_MONTHS)), to } : next;
 }
 
 const DAYS_PER_MONTH = 365.25 / 12;

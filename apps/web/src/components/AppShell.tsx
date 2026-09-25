@@ -325,6 +325,7 @@ const developmentNavItems: AdminNavItem[] = [
 
 const operationsNavItems: AdminNavItem[] = [
   { view: "leave-schedule", label: "view.leave-schedule", icon: <CalendarDays size={15} /> },
+  { view: "workload", label: "view.workload", icon: <BarChart3 size={15} /> },
 ];
 
 const projectNavShortLabels: Partial<Record<ProjectSectionView, TranslationKey>> = {

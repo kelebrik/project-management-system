@@ -2,6 +2,7 @@ import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import { ProjectGanttSection } from "./ProjectGanttSection";
 import { ProjectStructureSection } from "./ProjectStructureSection";
+import { EmployeeNamesList } from "../components/EmployeeNamesList";
 
 export function ProjectWorkspacePage() {
   const { t: uiText } = useInterfaceTranslation();
@@ -39,6 +40,7 @@ export function ProjectWorkspacePage() {
                     </div>
                         </div>
                       <div className="wbs-gantt-layout">
+                      {activeView === "project-structure" && !ctx.isReadOnly && <EmployeeNamesList />}
                       {activeView === "project-structure" && <ProjectStructureSection />}
                       {activeView === "project-gantt" && <ProjectGanttSection key={`${ctx.currentUser?.id}:${ctx.project.id}`} />}
                   </div>

@@ -1,14 +1,11 @@
 import { ArrowDown, ArrowUp, UserCheck } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type UIEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   addDays,
   calendarDaysInRange,
   dayToDate,
   daysBetween,
-  leaveScale,
   leaveTypeLabel,
-  visibleLeaveWindow,
-  weekdayIndex,
   workingDaysInRange,
   type LeaveCalendarDay,
   type LeaveEmployee,
@@ -22,6 +19,9 @@ import {
 } from "../../app/leaveScheduleModel";
 import { useI18n } from "../../i18n/I18nProvider";
 import { intlLocale } from "../../i18n/locale";
+import { TimelineBackdrop } from "../timeline/TimelineBackdrop";
+import { TimelineHeader } from "../timeline/TimelineHeader";
+import { useTimelineViewport } from "../timeline/useTimelineViewport";
 
 type Timeline = ReturnType<typeof buildLeaveTimeline>;
 type RowGroup = { department: string | null; employees: LeaveEmployee[] };
@@ -29,8 +29,6 @@ type Selection = { employeeId: string; left: number; anchor: number; current: nu
 type Tooltip = { leave: LeaveRecord; x: number; y: number };
 
 const PLANNED_WIDTH = 64;
-/** Days from the left edge to today when the grid opens or "Today" is pressed. */
-const TODAY_LEAD_DAYS = 7;
 
 export function LeaveScheduleGrid({
   range,
@@ -75,100 +73,24 @@ export function LeaveScheduleGrid({
   showDepartment: boolean;
 }) {
   const { t, locale } = useI18n();
-  const shellRef = useRef<HTMLDivElement>(null);
-  const [shellWidth, setShellWidth] = useState(0);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
   const selectionRef = useRef<Selection | null>(null);
-  const nameWidth = shellWidth > 0 && shellWidth < 900 ? 150 : 230;
-  const leftWidth = nameWidth + PLANNED_WIDTH;
-  const viewportWidth = Math.max(0, shellWidth - leftWidth);
-  const scale = leaveScale(horizon, viewportWidth);
-  const dayWidth = scale.dayWidth;
-  const totalDays = timeline.days.length;
-  const timelineWidth = totalDays * dayWidth;
+  const { shellRef, handleScroll, nameWidth, leftWidth, scale, dayWidth, totalDays, timelineWidth, px } =
+    useTimelineViewport({
+      range,
+      horizon,
+      today,
+      todayRequest,
+      secondColumnWidth: PLANNED_WIDTH,
+      onExtend,
+      onVisibleWindowChange,
+    });
   const tag = intlLocale(locale);
   const formats = useMemo(
-    () => ({
-      month: new Intl.DateTimeFormat(tag, { month: "long", year: "numeric", timeZone: "UTC" }),
-      shortMonth: new Intl.DateTimeFormat(tag, { month: "short", year: "numeric", timeZone: "UTC" }),
-      weekday: new Intl.DateTimeFormat(tag, { weekday: "narrow", timeZone: "UTC" }),
-      day: new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
-    }),
+    () => ({ day: new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) }),
     [tag],
   );
-
-  // Scroll bookkeeping: the date at the left edge survives zooming and loading
-  // more weeks before the current ones.
-  const leftDateRef = useRef<string | null>(null);
-  const layoutRef = useRef<{ from: string; dayWidth: number } | null>(null);
-  const extendingRef = useRef(false);
-  const windowKeyRef = useRef("");
-
-  useEffect(() => {
-    const shell = shellRef.current;
-    if (!shell) return;
-    const observer = new ResizeObserver(() => setShellWidth(shell.clientWidth));
-    observer.observe(shell);
-    setShellWidth(shell.clientWidth);
-    return () => observer.disconnect();
-  }, []);
-
-  const reportWindow = (shell: HTMLDivElement) => {
-    const visible = visibleLeaveWindow(range, shell.scrollLeft, viewportWidth, dayWidth);
-    const key = `${visible.from}:${visible.to}`;
-    if (key !== windowKeyRef.current) {
-      windowKeyRef.current = key;
-      onVisibleWindowChange(visible);
-    }
-    leftDateRef.current = addDays(range.from, Math.floor(shell.scrollLeft / dayWidth));
-  };
-
-  const scrollToDay = (shell: HTMLDivElement, day: string) => {
-    shell.scrollLeft = Math.max(0, daysBetween(range.from, day) * dayWidth);
-  };
-
-  // Keep the same date at the left edge when the range grows backwards or the scale changes.
-  useLayoutEffect(() => {
-    const shell = shellRef.current;
-    if (!shell || viewportWidth <= 0) return;
-    const previous = layoutRef.current;
-    layoutRef.current = { from: range.from, dayWidth };
-    if (!previous) {
-      scrollToDay(shell, addDays(today, -TODAY_LEAD_DAYS));
-    } else if ((previous.from !== range.from || previous.dayWidth !== dayWidth) && leftDateRef.current) {
-      scrollToDay(shell, leftDateRef.current);
-    }
-    extendingRef.current = false;
-    reportWindow(shell);
-    // reportWindow and scrollToDay read the current props; the keys below cover them.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range.from, range.to, dayWidth, viewportWidth]);
-
-  useEffect(() => {
-    const shell = shellRef.current;
-    if (!shell || todayRequest === 0) return;
-    scrollToDay(shell, addDays(today, -TODAY_LEAD_DAYS));
-    reportWindow(shell);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todayRequest]);
-
-  const frameRef = useRef(0);
-  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
-    const shell = event.currentTarget;
-    cancelAnimationFrame(frameRef.current);
-    frameRef.current = requestAnimationFrame(() => {
-      reportWindow(shell);
-      if (extendingRef.current) return;
-      if (shell.scrollLeft < viewportWidth) {
-        extendingRef.current = true;
-        onExtend("before");
-      } else if (shell.scrollLeft + shell.clientWidth > shell.scrollWidth - viewportWidth) {
-        extendingRef.current = true;
-        onExtend("after");
-      }
-    });
-  };
 
   // Finishing a drag anywhere on the page creates the leave for the selected days.
   useEffect(() => {
@@ -210,25 +132,7 @@ export function LeaveScheduleGrid({
     </button>
   );
 
-  const px = (days: number) => `${days * dayWidth}px`;
   const todayIndex = daysBetween(range.from, today);
-  const showWeekdays = scale.mode === "day" && dayWidth >= 11;
-  const weekWidth = dayWidth * 7;
-  // In week mode narrow weeks label every other week so numbers do not collide.
-  const weekLabelEvery = scale.mode === "week" && weekWidth < 20 ? 2 : 1;
-  const specialDays = useMemo(
-    () =>
-      [...overrides.values()]
-        .filter((day) => day.date >= range.from && day.date <= range.to)
-        .filter((day) => day.isWorkingDay !== weekdayIndex(day.date) < 5),
-    [overrides, range.from, range.to],
-  );
-  const backdropStyle = {
-    left: `${leftWidth}px`,
-    width: `${timelineWidth}px`,
-    "--leave-day": `${dayWidth}px`,
-    "--leave-week": `${weekWidth}px`,
-  } as CSSProperties;
 
   const tooltipLeave = tooltip?.leave;
   const tooltipType = tooltipLeave ? typesById.get(tooltipLeave.typeId) : undefined;
@@ -241,78 +145,29 @@ export function LeaveScheduleGrid({
       style={{ "--leave-name-width": `${nameWidth}px`, "--leave-planned-width": `${PLANNED_WIDTH}px` } as CSSProperties}
     >
       <div className="leave-grid" role="grid" style={{ width: `${leftWidth + timelineWidth}px` }}>
-        <div className="leave-grid-head" role="rowgroup">
-          <div className="leave-grid-row leave-head-months" role="row">
-            <div className="leave-name-cell leave-head-corner" role="columnheader">
+        <TimelineHeader
+          nameHeader={
+            <>
               {sortButton("name", t("ui.leave.sortEmployee"))}
               {sortButton("department", t("ui.leave.sortDepartment"))}
-            </div>
-            <div className="leave-planned-cell leave-head-corner" role="columnheader" title={t("ui.leave.plannedDays")}>
-              {sortButton("planned", t("ui.leave.plannedDaysShort"))}
-            </div>
-            <div className="leave-time-lane" style={{ width: `${timelineWidth}px` }}>
-              {timeline.months.map((month) => (
-                <div
-                  className="leave-head-month"
-                  key={month.key}
-                  role="columnheader"
-                  style={{ left: px(month.start), width: px(month.span) }}
-                >
-                  <span>{(scale.mode === "week" ? formats.shortMonth : formats.month).format(dayToDate(month.date))}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="leave-grid-row leave-head-weeks" role="row">
-            <div className="leave-name-cell" />
-            <div className="leave-planned-cell" />
-            <div className="leave-time-lane" style={{ width: `${timelineWidth}px` }}>
-              {timeline.weeks.map((week, index) => (
-                <div
-                  className={`leave-head-week ${
-                    scale.mode === "week" && week.start <= todayIndex && todayIndex < week.start + week.span ? "today" : ""
-                  }`}
-                  key={week.key}
-                  style={{ left: px(week.start), width: px(week.span) }}
-                >
-                  {index % weekLabelEvery === 0 ? Number(week.date.slice(8, 10)) : ""}
-                </div>
-              ))}
-            </div>
-          </div>
-          {showWeekdays && (
-            <div className="leave-grid-row leave-head-days" role="row">
-              <div className="leave-name-cell" />
-              <div className="leave-planned-cell" />
-              <div className="leave-time-lane" style={{ width: `${timelineWidth}px` }}>
-                {timeline.days.map((day, index) => (
-                  <div
-                    className={`leave-head-day ${day.isWorking ? "" : "off"} ${day.isToday ? "today" : ""}`}
-                    key={day.date}
-                    style={{ left: px(index), width: px(1) }}
-                    title={day.holiday || undefined}
-                  >
-                    {formats.weekday.format(dayToDate(day.date))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+            </>
+          }
+          scale={scale}
+          secondHeader={<span title={t("ui.leave.plannedDays")}>{sortButton("planned", t("ui.leave.plannedDaysShort"))}</span>}
+          timeline={timeline}
+          timelineWidth={timelineWidth}
+          todayIndex={todayIndex}
+        />
         <div className="leave-grid-body" role="rowgroup">
-          <div aria-hidden="true" className="leave-backdrop" style={backdropStyle}>
-            {specialDays.map((day) => (
-              <div
-                className={`leave-backdrop-day ${day.isWorkingDay ? "working" : "off"}`}
-                key={day.date}
-                style={{ left: px(daysBetween(range.from, day.date)), width: px(1) }}
-                title={day.description || undefined}
-              />
-            ))}
-            {todayIndex >= 0 && todayIndex < totalDays && (
-              <div className="leave-backdrop-today" style={{ left: px(todayIndex), width: px(1) }} />
-            )}
-          </div>
+          <TimelineBackdrop
+            dayWidth={dayWidth}
+            leftWidth={leftWidth}
+            overrides={overrides}
+            range={range}
+            timelineWidth={timelineWidth}
+            todayIndex={todayIndex}
+            totalDays={totalDays}
+          />
           {groups.map((group) => (
             <div className="leave-group" key={group.department ?? "all"}>
               {group.department !== null && (

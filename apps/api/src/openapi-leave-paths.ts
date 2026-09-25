@@ -65,6 +65,18 @@ export const openApiLeavePaths = {
       ],
     },
   },
+  "/api/employees": {
+    get: apiSecuredOperation(["LeaveSchedule"], "Active people from the leave schedule directory, for pickers in other modules"),
+  },
+  "/api/workload": {
+    get: {
+      ...apiSecuredOperation(
+        ["LeaveSchedule"],
+        "Leaf work with owners and dates across open projects, with people, leaves and calendar days, for a period of up to six years",
+      ),
+      parameters: [dateQuery("from", "First day of the period"), dateQuery("to", "Last day of the period, inclusive")],
+    },
+  },
   "/api/leave-schedule/employees": {
     post: (() => {
       const operation = createOperation(tags, "Add a person to the leave schedule");
