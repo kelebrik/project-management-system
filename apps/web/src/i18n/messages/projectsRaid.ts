@@ -230,5 +230,53 @@ export const projectsRaidMessages = {
   "ui.projects.raidEntryDeleted": {
     "en": "Entry deleted",
     "ru": "Запись удалена"
+  },
+  "ui.projects.raidFilterAll": {
+    "en": "All",
+    "ru": "Все"
+  },
+  "ui.projects.raidGroupRisks": {
+    "en": "Risks",
+    "ru": "Риски"
+  },
+  "ui.projects.raidGroupProblems": {
+    "en": "Problems",
+    "ru": "Проблемы"
+  },
+  "ui.projects.raidGroupAssumptions": {
+    "en": "Assumptions",
+    "ru": "Допущения"
+  },
+  "ui.projects.raidDeleteTitle": {
+    "en": "Delete this RAID entry?",
+    "ru": "Удалить запись RAID?"
+  },
+  "ui.projects.raidDeleteMessage": {
+    "en": "The entry will be deleted permanently.",
+    "ru": "Запись будет удалена безвозвратно."
+  },
+  "ui.projects.raidDeleteConfirm": {
+    "en": "Delete",
+    "ru": "Удалить"
+  },
+  "ui.projects.decisionQueueNoProject": {
+    "en": "No project selected",
+    "ru": "Проект не выбран"
+  },
+  "ui.projects.decisionQueueFilterLabel": {
+    "en": "Decision queue filter",
+    "ru": "Фильтр очереди решений"
+  },
+  "ui.projects.decisionQueueAll": {
+    "en": "All",
+    "ru": "Все"
+  },
+  "ui.projects.decisionQueueOverdue": {
+    "en": "Overdue",
+    "ru": "Просрочено"
+  },
+  "ui.projects.decisionQueueWeek": {
+    "en": "7 days",
+    "ru": "7 дней"
   }
 } as const;

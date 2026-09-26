@@ -115,7 +115,7 @@ export function ProjectRaidRegister() {
                         <div className="subhead">{uiText("ui.projects.filtersLabel")}</div>
                         <div className="raid-filter-bar">
                           {[
-                            ["ALL", "Все"],
+                            ["ALL", uiText("ui.projects.raidFilterAll")],
                             ["RISK", raidTypeLabel("RISK")],
                             ["DEPENDENCY", raidTypeLabel("DEPENDENCY")],
                             ["ASSUMPTION", raidTypeLabel("ASSUMPTION")],
@@ -164,15 +164,15 @@ export function ProjectRaidRegister() {
                         </div>
                       </section>
                       {([
-                        { key: "risks", title: "Риски", items: filterRaidSearch(groupedRaidItems.risks) },
+                        { key: "risks", title: uiText("ui.projects.raidGroupRisks"), items: filterRaidSearch(groupedRaidItems.risks) },
                         {
                           key: "problems",
-                          title: "Проблемы",
+                          title: uiText("ui.projects.raidGroupProblems"),
                           items: filterRaidSearch(groupedRaidItems.problems),
                         },
                         {
                           key: "assumptions",
-                          title: "Допущения",
+                          title: uiText("ui.projects.raidGroupAssumptions"),
                           items: filterRaidSearch(groupedRaidItems.assumptions),
                         },
                       ] as const).map(({ key, title, items }) => (
@@ -560,10 +560,10 @@ export function ProjectRaidRegister() {
                                       onClick={async () => {
                                         if (
                                           await confirm({
-                                            title: "Удалить запись RAID?",
+                                            title: uiText("ui.projects.raidDeleteTitle"),
                                             message:
-                                              "Запись будет удалена безвозвратно.",
-                                            confirmLabel: "Удалить",
+                                              uiText("ui.projects.raidDeleteMessage"),
+                                            confirmLabel: uiText("ui.projects.raidDeleteConfirm"),
                                           })
                                         ) {
                                           void deleteRaidItem(item.id);

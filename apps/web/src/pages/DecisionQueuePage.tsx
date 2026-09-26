@@ -28,7 +28,7 @@ export function DecisionQueuePage() {
         .filter(isOpenDecision)
         .map((issue: Issue) => ({
             ...issue,
-            projectName: project?.name ?? "Проект не выбран",
+            projectName: project?.name ?? uiText("ui.projects.decisionQueueNoProject"),
           }))
         .filter((issue) => {
           const days = signedDaysUntil(issue.dueDate);
@@ -42,7 +42,7 @@ export function DecisionQueuePage() {
               (signedDaysUntil(right.dueDate) ?? Number.POSITIVE_INFINITY) ||
             left.title.localeCompare(right.title, "ru"),
         ) as DecisionRow[],
-    [filter, project?.issues, project?.name],
+    [filter, project?.issues, project?.name, uiText],
   );
 
   return (
@@ -53,13 +53,13 @@ export function DecisionQueuePage() {
           <span>{uiText("ui.projects.decisionQueueDescription")}</span>
         </div>
         <SegmentedFilter<DecisionFilter>
-          ariaLabel="Фильтр очереди решений"
+          ariaLabel={uiText("ui.projects.decisionQueueFilterLabel")}
           value={filter}
           onChange={setFilter}
           options={[
-            { value: "all", label: "Все" },
-            { value: "overdue", label: "Просрочено" },
-            { value: "week", label: "7 дней" },
+            { value: "all", label: uiText("ui.projects.decisionQueueAll") },
+            { value: "overdue", label: uiText("ui.projects.decisionQueueOverdue") },
+            { value: "week", label: uiText("ui.projects.decisionQueueWeek") },
           ]}
         />
       </div>
