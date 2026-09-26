@@ -1,4 +1,4 @@
-# Milepost
+# Gantry
 
 **A lightweight portfolio and project management system — the essentials of tools like Asana, without the weight.**
 Portfolio and projects, WBS, Gantt, open issues and risks in one self-hosted tool, with read-only Jira sync.
@@ -7,9 +7,9 @@ Portfolio and projects, WBS, Gantt, open issues and risks in one self-hosted too
 
 ![Workload across projects](docs/screenshots/workload.png)
 
-## Why Milepost?
+## Why Gantry?
 
-Big work-management suites do a lot, and ask a lot in return: licences per seat, weeks of setup, and a new way of working for everyone. Milepost keeps what project and portfolio managers rely on every day and leaves the rest out:
+Big work-management suites do a lot, and ask a lot in return: licences per seat, weeks of setup, and a new way of working for everyone. Gantry keeps what project and portfolio managers rely on every day and leaves the rest out:
 
 - **Portfolio and projects.** Every active project with its goals, key risks and blocking problems on one page, and a full workspace for each project.
 - **WBS you can type into.** The work breakdown is edited like a spreadsheet: type in cells, paste rows, move with the keyboard, undo and redo.
