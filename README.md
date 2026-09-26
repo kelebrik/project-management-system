@@ -1,107 +1,73 @@
-# Project Management System
+# Milepost
 
-Project management system with a PM web UI, administration, Jira issue synchronization, open issues, WBS/Gantt planning, and executive reporting.
+**A lightweight portfolio and project management system — the essentials of tools like Asana, without the weight.**
+Portfolio and projects, WBS, Gantt, open issues and risks in one self-hosted tool, with read-only Jira sync.
 
-## Open Source and License
+**[▶ Open the live demo](https://project-management-system-lorj.onrender.com/)** — no sign-up needed · [Self-hosting](docs/docker-deployment.md) · [License](#license)
 
-This repository is source-available for personal, educational, research, and internal non-commercial use. Commercial use, monetization, paid hosting, resale, and licensing for payment are prohibited. Copies and derivative works must retain the license and clearly credit **kelebrik <kelebrik@gmail.com>**. See [LICENSE](LICENSE) for the full terms.
+![Workload across projects](docs/screenshots/workload.png)
 
-The public repository contains application code and deployment templates only. Configure database credentials, authentication bootstrap passwords, Jira tokens, and other secrets through environment variables; never commit them.
+## Why Milepost?
 
-## Current Scope
+Big work-management suites do a lot, and ask a lot in return: licences per seat, weeks of setup, and a new way of working for everyone. Milepost keeps what project and portfolio managers rely on every day and leaves the rest out:
 
-- React PM dashboard.
-- Express API.
-- Prisma/PostgreSQL data model.
-- Jira ticket links on tasks.
-- Jira issue snapshot endpoint and sync skeleton.
-- Open Issues List from Jira/internal sources, with multiple Jira tickets linked to one open issue.
-- Open Issue lifecycle editing: status, severity, owner, due date, impact, decision flag, and resolve action.
-- Project management core: create project, edit project passport, manage milestones, and feed milestones into Executive Overview.
-- WBS/Gantt planning: hierarchy, milestones, dependency links, month scale, today marker, collapse/expand tree, and critical path highlighting.
-- Executive Overview deterministic generation, evidence list, versioning, and publish action.
-- Render blueprint in `render.yaml`.
-- Portable Docker image and `docker-compose.yml` for self-hosting.
-- Kubernetes manifests with secure defaults.
-- Detailed technical specification in `docs/TZ.md`.
+- **Portfolio and projects.** Every active project with its goals, key risks and blocking problems on one page, and a full workspace for each project.
+- **WBS you can type into.** The work breakdown is edited like a spreadsheet: type in cells, paste rows, move with the keyboard, undo and redo.
+- **Gantt that plans.** Dependencies, lead and lag, critical path, baselines and "what if" scenarios.
+- **Issues and risks next to the plan.** Open issues with decisions and owners, a risk register with a matrix, all linked to the work they affect.
+- **Jira stays your tracker.** Jira is synchronised read-only: issues flow into the plan and reports, and nothing is ever written back.
+- **Yours to run.** Self-hosted with Docker and PostgreSQL, optional Keycloak single sign-on, English and Russian interface.
 
-## Local Development
+## Features
 
-```bash
-npm install
-cp .env.example .env
-npm run prisma:generate
-npm run prisma:migrate
-npm run prisma:seed
-npm run dev
-```
+**Planning**
+- Work breakdown structure (WBS) with phases, work packages, tasks, milestones and goals
+- Gantt chart with finish-to-start and start-to-start dependencies, lead and lag, critical path and float
+- Baselines and forecast dates, configurable production calendars with holidays and working weekends for working-day maths
+- "What if" scenarios on the Gantt, PDF export of the plan
 
-In a second terminal:
+**Control**
+- Project overview: red-zone risks, decisions on key open issues, tickets at risk, schedule variance
+- Risk, problem and assumption register with a risk matrix
+- Open issues with owners, due dates, decisions and linked Jira tickets
+- Goals and milestones timeline with baseline versus forecast
 
-```bash
-npm run dev:web
-```
+**Portfolio and people**
+- Portfolio: goal timelines for every active project, blocking problems and key risks
+- Workload: every owner's work across all projects on one timeline, with overlaps highlighted
+- Leave schedule: who is away and when, with leave types and a working-day count
 
-API: `http://localhost:3000/api/health`  
-Web UI: `http://localhost:5173`
+**Administration**
+- Business units, roles and permissions, per-project access
+- Dictionaries, WBS templates, audit log, API tokens and webhooks
+- Read-only Jira and GitLab integrations
 
-## Render Deployment
+## Screenshots
 
-Use the Blueprint flow and point Render to this repository. The included `render.yaml` creates:
+| | |
+|---|---|
+| ![Portfolio](docs/screenshots/portfolio.png) **Portfolio** — goal timelines across projects | ![Project overview](docs/screenshots/overview.png) **Project overview** — risks, decisions and schedule variance |
+| ![WBS](docs/screenshots/wbs.png) **WBS** — the plan, edited like a spreadsheet | ![Gantt](docs/screenshots/gantt.png) **Gantt** — dependencies, baseline and critical path |
+| ![Leave schedule](docs/screenshots/leave-schedule.png) **Leave schedule** — who is away and when | ![Workload](docs/screenshots/workload.png) **Workload** — where people's work overlaps |
 
-- one Node web service;
-- one PostgreSQL database;
-- environment variables for `DATABASE_URL`, `NODE_ENV`, `WEB_ORIGIN`, `SEED_DEMO_DATA`;
-- manual local-auth and Jira secret variables.
+## Try it
 
-Render service settings if creating manually:
+- **Live demo:** [project-management-system-lorj.onrender.com](https://project-management-system-lorj.onrender.com/). You enter as a demo user and can edit the sample projects; the data is shared with other visitors.
+- **Self-host:** the application ships as one Docker image (API and web UI) and needs PostgreSQL. See [docs/docker-deployment.md](docs/docker-deployment.md) (in Russian); Kubernetes manifests are in [`deploy/k8s`](deploy/k8s).
+- **Develop:** Node.js 22–25, npm 10+, PostgreSQL. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-- Runtime: `Node`
-- Branch: `main`
-- Build command: `npm run render-build`
-- Start command: `npm run start`
-- Health check path: `/api/health`
-- Environment:
-  - `NODE_ENV=production`
-  - `NPM_CONFIG_PRODUCTION=false`
-  - `WEB_ORIGIN=https://<your-render-service>.onrender.com`
-  - `SEED_DEMO_DATA=false`
-  - `METRICS_TOKEN=<random secret>`
-  - `DATABASE_URL=<Render PostgreSQL internal connection string>`
-  - `JIRA_BASE_URL=<your Jira base URL>`
-  - `JIRA_EMAIL=<integration user email>`
-  - `JIRA_API_TOKEN=<Jira API token or service account password>`
-  - `JIRA_MAX_RESULTS=100`
+Built with React, TypeScript, Express, Prisma and PostgreSQL.
 
-Password sign-in checks the salted `scrypt` hash stored in PostgreSQL. There is no
-bootstrap secret: the first administrator of a fresh installation has to be created
-directly in the database, or through Keycloak where it is configured.
+## Feedback
 
-## Jira Strategy
+Questions, ideas and bug reports are welcome in [GitHub Issues](https://github.com/kelebrik/project-management-system/issues).
 
-Jira remains the operational Kanban/Scrum system. This application does not duplicate Jira boards. It stores Jira board links, Jira ticket URLs on tasks, and synchronized issue snapshots for portfolio reporting, open issues, and executive overview evidence. Jira REST API access is configured only through backend container environment variables, not through Admin Back Office.
+## License
 
-## Docker Deployment
+Source-available under the [Project Management System Non-Commercial License](LICENSE):
 
-Container deployment is described in `docs/docker-deployment.md`.
+- free for personal, educational, research and internal company use;
+- you may not sell it, rent it out, offer it as a paid hosted service or otherwise make money from it;
+- copies and derivative works must keep the license and credit **kelebrik &lt;kelebrik@gmail.com&gt;**.
 
-Short local compose command:
-
-```bash
-docker compose up -d --build
-```
-
-## Production Readiness
-
-- Unit tests: `npm run test:unit`
-- Integration API smoke tests: `INTEGRATION_BASE_URL=http://localhost:3000 npm run test:integration`
-- E2E read-only UI smoke tests: `E2E_BASE_URL=http://localhost:3000 npm run test:e2e`
-- Full verification: `npm run typecheck && npm run test && npm run build`
-- OpenAPI: `/api/openapi.json`
-- Health/readiness: `/api/health`, `/api/ready`
-- Metrics: `/api/metrics`
-- Backup: `DATABASE_URL=... npm run backup`
-- Restore: `DATABASE_URL=... RESTORE_CONFIRM=yes npm run restore -- backups/pms-YYYYMMDDTHHMMSSZ.dump`
-
-Operational details are documented in `docs/production-readiness.md`.
-User guide: `docs/user-guide.md`. Admin guide: `docs/admin-guide.md`.
+This is not an OSI-approved open-source license. Configure credentials and tokens through environment variables and never commit them.
