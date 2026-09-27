@@ -31,15 +31,9 @@
 }
 
 .brand-mark {
-  align-items: center;
-  background: var(--brand);
-  border-radius: 8px;
-  color: #fff;
-  display: inline-flex;
-  font-size: 13px;
-  font-weight: 900;
+  display: block;
+  flex: 0 0 auto;
   height: 36px;
-  justify-content: center;
   width: 36px;
 }
 

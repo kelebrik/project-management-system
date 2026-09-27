@@ -29,11 +29,8 @@
 }
 
 .app-global-header .brand-mark {
-  background: #e5f4f1;
-  border-radius: 5px;
-  color: #134e4a;
   height: 30px;
-  width: 34px;
+  width: 30px;
 }
 
 .app-global-header .brand b {

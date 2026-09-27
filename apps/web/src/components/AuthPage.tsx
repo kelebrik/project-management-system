@@ -1,4 +1,5 @@
-import { ClipboardCheck, KeyRound } from "lucide-react";
+import { KeyRound } from "lucide-react";
+import gantryIcon from "../assets/gantry-icon.svg";
 import { useState, type FormEvent } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import { LanguageToggle } from "./LanguageToggle";
@@ -36,9 +37,7 @@ export function AuthPage({
       <div className="auth-language-toggle"><LanguageToggle sidebarCollapsed={false} /></div>
       <section className="auth-card">
         <div className="brand auth-brand">
-          <div className="logo" aria-hidden="true">
-            <ClipboardCheck size={22} />
-          </div>
+          <img alt="" className="logo" src={gantryIcon} />
           <div className="brand-text">
             <b>{t("auth.product")}</b>
           </div>

@@ -1,6 +1,7 @@
 import { useI18n } from "../i18n/I18nProvider";
 import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
-import { ClipboardCheck, KeyRound, LogOut, Users } from "lucide-react";
+import { KeyRound, LogOut, Users } from "lucide-react";
+import gantryIcon from "../assets/gantry-icon.svg";
 
 
 import type { CurrentUser } from "../app/adminTypes";
@@ -23,9 +24,7 @@ export function SidebarIdentity({
   return (
     <>
       <div className="brand">
-        <span className="brand-mark" aria-hidden="true">
-          <ClipboardCheck size={20} />
-        </span>
+        <img alt="" className="brand-mark" src={gantryIcon} />
         <span className="brand-text">
           <b>{t("auth.product")}</b>
         </span>
