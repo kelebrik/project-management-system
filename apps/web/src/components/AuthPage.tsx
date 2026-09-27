@@ -1,5 +1,5 @@
 import { KeyRound } from "lucide-react";
-import gantryIcon from "../assets/gantry-icon.svg";
+import { GantryIconLink } from "./GantryIconLink";
 import { useState, type FormEvent } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import { LanguageToggle } from "./LanguageToggle";
@@ -37,7 +37,7 @@ export function AuthPage({
       <div className="auth-language-toggle"><LanguageToggle sidebarCollapsed={false} /></div>
       <section className="auth-card">
         <div className="brand auth-brand">
-          <img alt="" className="logo" src={gantryIcon} />
+          <GantryIconLink className="logo" />
           <div className="brand-text">
             <b>{t("auth.product")}</b>
           </div>

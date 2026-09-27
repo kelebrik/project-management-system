@@ -9,6 +9,7 @@ export const common = {
   "nav.registry": { en: "Registry", ru: "Реестр" },
   "nav.projectSections": { en: "Project sections", ru: "Разделы проекта" },
   "auth.product": { en: "Project management", ru: "Управление проектами" },
+  "auth.productSite": { en: "Gantry on GitHub (opens in a new window)", ru: "Gantry на GitHub (откроется в новом окне)" },
   "auth.signIn": { en: "Sign in", ru: "Вход в систему" },
   "auth.subtitle": { en: "Enter your email and password", ru: "Введите email и пароль пользователя" },
   "auth.error": { en: "Error", ru: "Ошибка" },

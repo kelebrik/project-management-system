@@ -30,6 +30,12 @@
   position: relative;
 }
 
+.gantry-icon-link {
+  border-radius: 8px;
+  display: block;
+  flex: 0 0 auto;
+}
+
 .brand-mark {
   display: block;
   flex: 0 0 auto;
