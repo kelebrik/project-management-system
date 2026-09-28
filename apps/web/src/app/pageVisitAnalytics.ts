@@ -71,3 +71,25 @@ export function attendanceChartBars(
     anonymousHeight: (day.anonymousViews / maximum) * plotHeight,
   }));
 }
+
+function localDayOf(timestamp: string) {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Newest day of the last view first, then by visitor name (the guest code for
+ * guests), then by the latest view within the pair.
+ */
+export function sortVisitRows<T extends PageVisitVisitor & { lastVisitedAt: string }>(rows: T[], t: Translator, locale: Locale) {
+  const collator = new Intl.Collator(locale, { sensitivity: "base", numeric: true });
+  return rows
+    .map((row) => ({ row, day: localDayOf(row.lastVisitedAt), name: visitorDisplayName(row, t) }))
+    .sort(
+      (left, right) =>
+        right.day.localeCompare(left.day) ||
+        collator.compare(left.name, right.name) ||
+        right.row.lastVisitedAt.localeCompare(left.row.lastVisitedAt),
+    )
+    .map(({ row }) => row);
+}

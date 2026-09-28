@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTranslator } from "../i18n/translate";
-import { attendanceChartBars, visitPageTitle, visitorDisplayName } from "./pageVisitAnalytics";
+import { attendanceChartBars, sortVisitRows, visitPageTitle, visitorDisplayName } from "./pageVisitAnalytics";
 
 test("attendance chart scales both visitor groups against the weekly maximum", () => {
   const bars = attendanceChartBars(
@@ -38,4 +38,19 @@ test("visitor names and page titles follow the interface language", () => {
   assert.equal(visitorDisplayName({ visitorKey: "user:u-1", kind: "USER", displayName: "Иван" }, en), "Иван");
   assert.equal(visitPageTitle({ pageKey: "admin-audit", pageTitle: "Журнал аудита" }, "en"), "Audit log");
   assert.equal(visitPageTitle({ pageKey: "unknown-page", pageTitle: "unknown-page" }, "en"), "unknown-page");
+});
+
+test("visits are listed by the newest day, then by visitor", () => {
+  const t = createTranslator("ru");
+  const at = (day: string, hour: number) => new Date(`${day}T${String(hour).padStart(2, "0")}:00:00`).toISOString();
+  const rows = [
+    { visitorKey: "user:2", kind: "USER" as const, displayName: "Петров", lastVisitedAt: at("2026-09-27", 18) },
+    { visitorKey: "user:1", kind: "USER" as const, displayName: "Андреев", lastVisitedAt: at("2026-09-27", 9) },
+    { visitorKey: "anonymous:bbbbbb", kind: "ANONYMOUS" as const, displayName: "", lastVisitedAt: at("2026-09-28", 8) },
+    { visitorKey: "anonymous:aaaaaa", kind: "ANONYMOUS" as const, displayName: "", lastVisitedAt: at("2026-09-28", 7) },
+  ];
+  assert.deepEqual(
+    sortVisitRows(rows, t, "ru").map((row) => row.visitorKey),
+    ["anonymous:aaaaaa", "anonymous:bbbbbb", "user:1", "user:2"],
+  );
 });

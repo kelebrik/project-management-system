@@ -28,9 +28,10 @@
   padding: 0;
 }
 
+/* The product icon nearly fills the 52px header: 4px above and below. */
 .app-global-header .brand-mark {
-  height: 30px;
-  width: 30px;
+  height: 44px;
+  width: 44px;
 }
 
 .app-global-header .brand b {

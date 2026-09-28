@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { RefreshCw } from "lucide-react";
-import { attendanceChartBars, visitPageTitle, visitorDisplayName } from "../app/pageVisitAnalytics";
+import { attendanceChartBars, sortVisitRows, visitPageTitle, visitorDisplayName } from "../app/pageVisitAnalytics";
 import { usePageVisitAnalytics } from "../hooks/usePageVisitAnalytics";
 
 
@@ -38,6 +38,8 @@ const dateTime = new Intl.DateTimeFormat(intlLocale(locale), {
   }, [locale]);
   const { report, loading, error, reload } = usePageVisitAnalytics();
   const chart = attendanceChartBars(report?.daily ?? []);
+  const visitors = useMemo(() => sortVisitRows(report?.visitors ?? [], uiText, locale), [locale, report?.visitors, uiText]);
+  const breakdown = useMemo(() => sortVisitRows(report?.breakdown ?? [], uiText, locale), [locale, report?.breakdown, uiText]);
   const chartWidth = 840;
   const chartHeight = 245;
   const plotTop = 28;
@@ -155,7 +157,7 @@ const dateTime = new Intl.DateTimeFormat(intlLocale(locale), {
               <table className="attendance-table">
                 <thead><tr><th>{uiText("ui.admin.type")}</th><th>{uiText("ui.admin.visitor")}</th><th>{uiText("ui.admin.views")}</th><th>{uiText("ui.admin.projects")}</th><th>{uiText("ui.admin.lastView")}</th></tr></thead>
                 <tbody>
-                  {report.visitors.map((visitor) => (
+                  {visitors.map((visitor) => (
                     <tr key={visitor.visitorKey}>
                       <td><VisitorType kind={visitor.kind} /></td>
                       <td><strong>{visitorDisplayName(visitor, uiText)}</strong></td>
@@ -183,7 +185,7 @@ const dateTime = new Intl.DateTimeFormat(intlLocale(locale), {
               <table className="attendance-table attendance-breakdown-table">
                 <thead><tr><th>{uiText("ui.admin.visitor")}</th><th>{uiText("ui.admin.project")}</th><th>{uiText("ui.admin.page")}</th><th>{uiText("ui.admin.views")}</th><th>{uiText("ui.admin.lastView")}</th></tr></thead>
                 <tbody>
-                  {report.breakdown.map((item) => (
+                  {breakdown.map((item) => (
                     <tr key={`${item.visitorKey}:${item.projectId ?? "global"}:${item.pageKey}`}>
                       <td><VisitorType kind={item.kind} /> <strong>{visitorDisplayName(item, uiText)}</strong></td>
                       <td>{item.projectCode ? `${item.projectCode} · ${item.projectName}` : uiText("ui.admin.generalPages")}</td>
