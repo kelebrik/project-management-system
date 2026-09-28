@@ -30,6 +30,7 @@ import type { WorkloadDragPreview } from "../components/workload/useWorkloadDrag
 import { useI18n } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { usePageContext } from "./PageContext";
+import { useTimelineFullscreen } from "../components/timeline/TimelineFullscreen";
 
 const HORIZONS: LeaveHorizon[] = [1, 3, 6, 12];
 const HORIZON_STORAGE_KEY = "pms-workload-horizon";
@@ -51,6 +52,7 @@ const day = (value: string | null, fallback: string) => (value ? value.slice(0, 
 export function WorkloadPage() {
   const { t, locale } = useI18n();
   const { selectProject } = usePageContext();
+  const fullscreen = useTimelineFullscreen("workload");
   const today = localDay();
   const [horizon, setHorizon] = useState<LeaveHorizon>(storedHorizon);
   const [range, setRange] = useState<LeaveRange>(() => initialLeaveRange(today, storedHorizon()));
@@ -236,7 +238,7 @@ export function WorkloadPage() {
   };
 
   return (
-    <section className="v2-page leave-page workload-page">
+    <section className={`v2-page leave-page workload-page ${fullscreen.isFullscreen ? "timeline-page-fullscreen" : ""}`}>
       {/* The section tab names the page on screen; this keeps a heading for assistive tech. */}
       <h1 className="sr-only">{t("view.workload")}</h1>
       <div className="v2-compact-header leave-page-header">
@@ -289,6 +291,7 @@ export function WorkloadPage() {
               </button>
             ))}
           </div>
+          {fullscreen.button}
         </div>
         <div className="leave-filters">
           <input
@@ -417,6 +420,7 @@ export function WorkloadPage() {
           saving={saving}
         />
       )}
+      {fullscreen.hint}
     </section>
   );
 }

@@ -95,10 +95,35 @@
 }
 
 .global-header-search {
-  flex: 1 1 260px;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
   margin-left: auto;
-  max-width: 340px;
-  min-width: 180px;
+}
+
+/* Folded to its magnifier; opens to full width on hover, click or focus. */
+.app-global-header .global-search {
+  transition: width 0.2s ease;
+  width: min(340px, 30vw);
+}
+
+.app-global-header .global-search.collapsed {
+  width: 34px;
+}
+
+.app-global-header .global-search.collapsed label {
+  cursor: pointer;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding: 5px 0;
+}
+
+.app-global-header .global-search.collapsed input,
+.app-global-header .global-search.collapsed kbd {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 0;
 }
 
 .app-global-header .global-search {

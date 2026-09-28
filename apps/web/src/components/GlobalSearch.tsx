@@ -19,6 +19,13 @@ import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
 
 type SearchScope = "all" | SearchResult["type"];
 
+/**
+ * The search folds to its magnifier to leave the header to the sections. It
+ * opens on hover, click, Tab or Ctrl K and folds back after this long without
+ * use, unless the field has focus or the pointer is over it.
+ */
+export const SEARCH_IDLE_COLLAPSE_MS = 10_000;
+
 const searchScopes: Array<{ value: SearchScope; label: TranslationKey }> = [
   { value: "all", label: "search.all" },
   { value: "project", label: "nav.projects" },
@@ -41,6 +48,25 @@ export function GlobalSearch({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [scope, setScope] = useState<SearchScope>("all");
+  const [expanded, setExpanded] = useState(false);
+  const collapseTimerRef = useRef(0);
+  const hoverRef = useRef(false);
+
+  const stopCollapse = () => window.clearTimeout(collapseTimerRef.current);
+  /** Waits for a quiet spell before folding; any use of the field restarts the wait. */
+  const scheduleCollapse = () => {
+    stopCollapse();
+    collapseTimerRef.current = window.setTimeout(() => {
+      if (hoverRef.current || document.activeElement === inputRef.current) return;
+      setExpanded(false);
+      onOpenChange(false);
+    }, SEARCH_IDLE_COLLAPSE_MS);
+  };
+  const expand = () => {
+    setExpanded(true);
+    scheduleCollapse();
+  };
+  useEffect(() => () => window.clearTimeout(collapseTimerRef.current), []);
   const normalizedQuery = query.trim();
   const shouldShowPopover = open && normalizedQuery.length >= 2;
   const scopedResults = useMemo(
@@ -72,6 +98,7 @@ export function GlobalSearch({
         (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
       if (!isSearchShortcut) return;
       event.preventDefault();
+      setExpanded(true);
       inputRef.current?.focus();
       onOpenChange(normalizedQuery.length >= 2);
     };
@@ -85,17 +112,35 @@ export function GlobalSearch({
   };
 
   return (
-    <div className={`global-search ${className}`.trim()}>
-      <label>
+    <div
+      className={`global-search ${expanded ? "expanded" : "collapsed"} ${className}`.trim()}
+      onMouseEnter={() => {
+        hoverRef.current = true;
+        expand();
+      }}
+      onMouseLeave={() => {
+        hoverRef.current = false;
+        scheduleCollapse();
+      }}
+    >
+      {/* The label wraps the field, so a click on the magnifier focuses it and opens the search. */}
+      <label title={expanded ? undefined : t("search.placeholder")}>
         <Search size={16} />
         <input
+          aria-label={t("search.placeholder")}
           ref={inputRef}
           value={query}
+          onBlur={scheduleCollapse}
           onChange={(event) => {
             setActiveIndex(0);
             onQueryChange(event.target.value);
+            scheduleCollapse();
           }}
-          onFocus={() => onOpenChange(normalizedQuery.length >= 2)}
+          onFocus={() => {
+            setExpanded(true);
+            stopCollapse();
+            onOpenChange(normalizedQuery.length >= 2);
+          }}
           onKeyDown={(event) => {
             if (!shouldShowPopover || scopedResults.length === 0) return;
             if (event.key === "ArrowDown") {

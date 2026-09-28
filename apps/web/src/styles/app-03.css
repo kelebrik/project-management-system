@@ -15,7 +15,8 @@
   right: 20px;
   top: 20px;
   width: min(360px, calc(100vw - 40px));
-  z-index: 100;
+  /* Above full-screen workspaces (120), below confirmation dialogs (200). */
+  z-index: 130;
 }
 
 .toast {

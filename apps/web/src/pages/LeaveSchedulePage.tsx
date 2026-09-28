@@ -36,6 +36,7 @@ import { useConfirm } from "../hooks/useConfirm";
 import { useI18n } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { usePageContext } from "./PageContext";
+import { useTimelineFullscreen } from "../components/timeline/TimelineFullscreen";
 
 type LeaveTab = "schedule" | "list" | "calendar";
 const HORIZONS: LeaveHorizon[] = [3, 6, 12];
@@ -60,6 +61,7 @@ export function LeaveSchedulePage() {
   const { t, locale } = useI18n();
   const confirm = useConfirm();
   const { isAdminUser, sectionAccess, setNotice } = usePageContext();
+  const fullscreen = useTimelineFullscreen("leave-schedule");
   // Operations is open to every signed-in user, the public demo included.
   const canEdit = canEditAppView("leave-schedule", sectionAccess);
   // Only administrators (and the read-only demo) may list system users.
@@ -238,7 +240,7 @@ export function LeaveSchedulePage() {
 
 
   return (
-    <section className="v2-page leave-page">
+    <section className={`v2-page leave-page ${fullscreen.isFullscreen ? "timeline-page-fullscreen" : ""}`}>
       {/* The section tab names the page on screen; this keeps a heading for assistive tech. */}
       <h1 className="sr-only">{t("ui.leave.title")}</h1>
       <div className="v2-compact-header leave-page-header">
@@ -340,6 +342,7 @@ export function LeaveSchedulePage() {
                   </button>
                 ))}
               </div>
+              {fullscreen.button}
             </div>
             <div className="leave-filters">
               <input
@@ -519,6 +522,7 @@ export function LeaveSchedulePage() {
           types={data.types}
         />
       )}
+      {fullscreen.hint}
     </section>
   );
 }

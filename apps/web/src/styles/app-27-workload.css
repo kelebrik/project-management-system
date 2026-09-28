@@ -246,3 +246,60 @@
 .workload-feedback.note {
   border-left-color: var(--warning, #c77700);
 }
+
+/*
+ * Two count columns, "work" and "overlap": a line between them runs through the
+ * header and every row, and headers and numbers share the right edge of their half.
+ */
+.workload-grid-shell .leave-planned-cell {
+  background-image: linear-gradient(var(--border-5), var(--border-5));
+  background-position: 50% 0;
+  background-repeat: no-repeat;
+  background-size: 1px 100%;
+}
+
+.workload-grid-shell .leave-head-corner.leave-planned-cell {
+  align-items: end;
+  display: grid;
+  gap: 0;
+  grid-template-columns: 1fr 1fr;
+  padding: 2px 0;
+}
+
+.workload-grid-shell .leave-head-corner.leave-planned-cell > * {
+  justify-self: end;
+  margin-right: 4px;
+}
+
+.workload-grid-shell .leave-head-corner.leave-planned-cell .leave-sort-button {
+  padding-right: 6px !important;
+}
+
+.workload-counts {
+  padding: 7px 0 !important;
+}
+
+.workload-counts span {
+  padding-right: 10px;
+}
+
+/* Full screen for the leave schedule and the workload, like the structure's. */
+.timeline-page-fullscreen {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  inset: 0;
+  overflow: auto;
+  padding: 14px 18px;
+  position: fixed;
+  z-index: 120;
+}
+
+.timeline-page-fullscreen .leave-grid-shell {
+  flex: 1 1 auto;
+  max-height: none;
+}
+
+.leave-period-nav .workspace-fullscreen-button {
+  margin-left: 4px;
+}

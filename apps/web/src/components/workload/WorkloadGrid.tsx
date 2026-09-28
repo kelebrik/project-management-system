@@ -22,7 +22,7 @@ export type WorkloadSortKey = "name" | "tasks" | "overlap";
 type Tooltip = { item: WorkloadItem; owner: string; x: number; y: number };
 type RowGroup = { department: string | null; rows: WorkloadRow[] };
 
-const COUNTS_WIDTH = 156;
+const COUNTS_WIDTH = 176;
 const LANE_HEIGHT = 24;
 const BAR_HEIGHT = 18;
 const ROW_PADDING = 8;

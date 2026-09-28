@@ -64,7 +64,7 @@ export type OperationsSectionView = Extract<AppView, "leave-schedule" | "workloa
 
 export type FullscreenWorkspaceView = Extract<
   AppView,
-  "portfolio-v2" | "project-structure" | "project-gantt"
+  "portfolio-v2" | "project-structure" | "project-gantt" | "leave-schedule" | "workload"
 > | "overview-milestones-by-phase" | "overview-milestones-all";
 
 export const adminSectionViews: AdminSectionView[] = [

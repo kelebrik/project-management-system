@@ -51,6 +51,18 @@ export const scheduleLinksMessages = {
     "en": "The finish is held by several links, the latest of them wins: {links}.",
     "ru": "Окончание ограничивают несколько связей, дату даёт самая поздняя из них: {links}."
   },
+  "ui.timeline.workloadTipTitle": {
+    "en": "Want more room for the workload?",
+    "ru": "Удобнее смотреть загрузку?"
+  },
+  "ui.timeline.leaveTipTitle": {
+    "en": "Want more room for the leave schedule?",
+    "ru": "Удобнее работать с графиком отпусков?"
+  },
+  "ui.timeline.fullScreenTipBody": {
+    "en": "Expand it to full screen — the toolbar stays at hand, Esc returns to normal mode.",
+    "ru": "Разверните его на весь экран — панель управления останется под рукой, Esc вернёт обычный режим."
+  },
   "feedback.warning": {
     "en": "Note",
     "ru": "Обратите внимание"
