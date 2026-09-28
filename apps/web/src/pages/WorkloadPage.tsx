@@ -241,9 +241,11 @@ export function WorkloadPage() {
     <section className={`v2-page leave-page workload-page ${fullscreen.isFullscreen ? "timeline-page-fullscreen" : ""}`}>
       {/* The section tab names the page on screen; this keeps a heading for assistive tech. */}
       <h1 className="sr-only">{t("view.workload")}</h1>
-      <div className="v2-compact-header leave-page-header">
-        <p className="leave-page-description">{t("ui.workload.description")}</p>
-      </div>
+      {!fullscreen.isFullscreen && (
+        <div className="v2-compact-header leave-page-header">
+          <p className="leave-page-description">{t("ui.workload.description")}</p>
+        </div>
+      )}
 
       <div className="leave-tabs-row">
         <ul className="leave-legend" aria-label={t("view.workload")}>

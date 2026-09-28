@@ -960,3 +960,8 @@
   top: calc(100% + 4px);
   white-space: nowrap;
 }
+
+/* In the toolbar row the page actions take its right end. */
+.leave-toolbar-actions {
+  margin-left: auto;
+}

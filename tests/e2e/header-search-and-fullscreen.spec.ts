@@ -56,6 +56,7 @@ test("the workload opens full screen, suggests it on scrolling and leaves it on 
   await expect(tip).toContainText("Удобнее смотреть загрузку?");
   await tip.getByRole("button", { name: "На весь экран" }).click();
   await expect(section).toHaveClass(/timeline-page-fullscreen/);
+  await expect(page.locator(".leave-page-description")).toHaveCount(0);
   await expect(tip).toHaveCount(0);
 
   await page.keyboard.press("Escape");
@@ -79,8 +80,18 @@ test("the leave schedule has the same full screen", async ({ page }) => {
     }),
   );
   await page.goto("/operations/leave-schedule");
+  // People, leave types and a new leave share the row with Today, the scales and full screen.
+  const nav = page.locator(".leave-toolbar .leave-period-nav");
+  await expect(nav.getByRole("button", { name: "Добавить отсутствие" })).toBeVisible();
+  await expect(nav.getByRole("button", { name: "На весь экран" })).toBeVisible();
+  const description = page.locator(".leave-page-description");
+  await expect(description).toBeVisible();
+
   await page.getByRole("button", { name: "На весь экран" }).click();
   await expect(page.locator("section.leave-page")).toHaveClass(/timeline-page-fullscreen/);
+  // Full screen drops the explanation line and keeps the controls.
+  await expect(description).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "Добавить отсутствие" })).toBeVisible();
 });
 
 test("work and overlap counts line up under their headers", async ({ page }) => {

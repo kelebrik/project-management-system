@@ -239,35 +239,40 @@ export function LeaveSchedulePage() {
     setSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" }));
 
 
+  // People, leave types and a new leave sit at the right end of the toolbar row.
+  const headerActions = canEdit ? (
+    <div className="leave-header-actions leave-toolbar-actions">
+      <button onClick={() => setDialog("employees")} type="button">
+        <Users aria-hidden="true" size={15} />
+        {t("ui.leave.employees")}
+      </button>
+      <button onClick={() => setDialog("types")} type="button">
+        <Settings2 aria-hidden="true" size={15} />
+        {t("ui.leave.leaveTypes")}
+      </button>
+      <button
+        className="primary"
+        disabled={!data || activeTypes.length === 0}
+        onClick={() => openCreate("", today, today)}
+        type="button"
+      >
+        <Plus aria-hidden="true" size={15} />
+        {t("ui.leave.addLeave")}
+      </button>
+    </div>
+  ) : null;
+
   return (
     <section className={`v2-page leave-page ${fullscreen.isFullscreen ? "timeline-page-fullscreen" : ""}`}>
       {/* The section tab names the page on screen; this keeps a heading for assistive tech. */}
       <h1 className="sr-only">{t("ui.leave.title")}</h1>
-      <div className="v2-compact-header leave-page-header">
-        {/* The page title comes from the app header; this line explains the page. */}
-        <p className="leave-page-description">{t("ui.leave.description")}</p>
-        {canEdit && (
-          <div className="leave-header-actions">
-            <button onClick={() => setDialog("employees")} type="button">
-              <Users aria-hidden="true" size={15} />
-              {t("ui.leave.employees")}
-            </button>
-            <button onClick={() => setDialog("types")} type="button">
-              <Settings2 aria-hidden="true" size={15} />
-              {t("ui.leave.leaveTypes")}
-            </button>
-            <button
-              className="primary"
-              disabled={!data || activeTypes.length === 0}
-              onClick={() => openCreate("", today, today)}
-              type="button"
-            >
-              <Plus aria-hidden="true" size={15} />
-              {t("ui.leave.addLeave")}
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Full screen keeps the grid and its controls; the explanation line goes. */}
+      {!fullscreen.isFullscreen && (
+        <div className="v2-compact-header leave-page-header">
+          {/* The page title comes from the app header; this line explains the page. */}
+          <p className="leave-page-description">{t("ui.leave.description")}</p>
+        </div>
+      )}
 
       <div className="leave-tabs-row">
         <div className="leave-tabs" role="tablist" aria-label={t("ui.leave.title")}>
@@ -305,7 +310,10 @@ export function LeaveSchedulePage() {
       </div>
 
       {tab === "calendar" ? (
-        <LeaveCalendarTab canEdit={canEdit} initialYear={Number(today.slice(0, 4))} onChanged={reload} today={today} />
+        <>
+          {headerActions && <div className="leave-period-nav">{headerActions}</div>}
+          <LeaveCalendarTab canEdit={canEdit} initialYear={Number(today.slice(0, 4))} onChanged={reload} today={today} />
+        </>
       ) : (
         <>
           <div className="leave-toolbar">
@@ -343,6 +351,7 @@ export function LeaveSchedulePage() {
                 ))}
               </div>
               {fullscreen.button}
+              {headerActions}
             </div>
             <div className="leave-filters">
               <input
