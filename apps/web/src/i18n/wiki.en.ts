@@ -1,4 +1,6 @@
 import type { WikiGroup } from "../app/wikiContent";
+import { englishOperationsWikiGroup } from "./wiki.en.operations";
+import { englishPlatformWikiGroup } from "./wiki.en.platform";
 
 export const englishWikiGroups: WikiGroup[] = [
   {
@@ -15,22 +17,29 @@ export const englishWikiGroups: WikiGroup[] = [
           {
             "heading": "Top navigation",
             "points": [
-              "The top header always exposes the global sections: Portfolio, Projects, Reports, Archive and FAQ.",
+              "The top header holds the sections Portfolio, Projects, Operations, Administration, Development and FAQ. Operations, Administration and Development are shown only to users who have access to them.",
+              "Reports and Archive moved to tabs of the Development section. The old addresses /reports, /closed-projects and /closed still open these pages.",
               "Once a project is selected, a separate row appears below the header: the project picker on the left, then Registry, the sections of the enabled modules and the Create button.",
-              "The order of the project sections is: Status, Schedule, Gantt, Current Work, WBS, Jira Work, Charter, Business requirements, Open issues, Risks and problems, Changes, Budget, Calendars, Artifacts. A disabled module removes its sections from the row.",
-              "Administration is available to the system administrator and to the administrator of the selected BU; the set of tabs depends on the role. The Development section is available only to the system administrator.",
+              "The order of the project sections is: Overview, Schedule, Gantt, Current Work, WBS, Jira Work, Charter, Requirements, Issues, Risks, Artifacts, Calendars. A disabled module removes its sections from the row: Schedule goes with the Project status module, Current Work with the WBS module.",
+              "Administration is available to the system administrator and to the administrator of the selected BU. A BU administrator sees only the Project registry and Access tabs.",
+              "The Development section is available only to the system administrator. The Development button opens the Resource management tab.",
+              "In the public demo (a cloud installation with PUBLIC_DEMO_MODE) a visitor can open Administration and Development read-only and can change every other section, Operations included; closed projects stay read-only for the visitor too.",
               "The interface language switch RU/EN sits on the right-hand side of the header. The choice is stored in the browser and takes precedence over the default language.",
               "The default language comes from the build-time variable VITE_DEFAULT_LOCALE. If it is not set, sberdevices.ru hosts default to Russian and every other host defaults to English.",
-              "On the FAQ page there is a horizontal table of contents with anchors above the articles, and the search box filters articles by title, keywords and body text."
+              "On the FAQ page there is a horizontal table of contents with anchors above the articles, and the search box filters articles by title, keywords and body text.",
+              "The product icon on the left of the header opens the Gantry page on GitHub in a new window.",
+              "The Operations section holds the Leave schedule and Workload tabs. It is open to every signed-in user; without signing in the app asks the user to sign in.",
+              "The Development section holds the Reports, Archive, Portfolio v2, Jira and WBS reconciliation, PM workspace, Issues, Decision queue, Resource management and Resource settings tabs.",
+              "Changes and Budget are not shown in the row of project sections; those pages open only at the direct addresses /<project code>/changes and /<project code>/budget."
             ]
           },
           {
             "heading": "Page title and section title",
             "points": [
               "The page header renders a single H1. On any project section except the Create project page, that H1 is the name of the selected project, not the name of the section.",
-              "The section name reaches the H1 only on non-project pages: Portfolio, Projects, Archive, FAQ, Administration and Development.",
+              "The section name reaches the H1 only on non-project pages: Portfolio, Projects and FAQ; in Administration and Development it is the name of the open tab, such as Project registry or Closed projects. The PM workspace in Development shows the name of the selected project.",
               "Next to the project name a compact project strip is shown: status, project manager, target date, RAG or delay, and the forecast for the active goal. Non-project pages have no strip.",
-              "On the Reports page the header with the title is not rendered at all.",
+              "On the Reports, Leave schedule and Workload pages the header with the title is not rendered: the section tab names them.",
               "The section name is additionally shown as an H2 inside the workspace: WBS and Gantt, for example, render their own heading and a short description above the toolbar."
             ]
           },
@@ -38,9 +47,10 @@ export const englishWikiGroups: WikiGroup[] = [
             "heading": "Permissions and read-only mode",
             "points": [
               "Writing requires authentication. For project data the backend additionally checks access to the specific project.",
-              "ADMIN can change any project. Other users must have ProjectAccess EDIT or ADMIN.",
+              "ADMIN can change any project. A BU administrator gets the ADMIN level on every project of the BU. Other users must have ProjectAccess EDIT or ADMIN. In the public demo a visitor can change any project that is not closed.",
               "If a project is closed, the project pages switch to read-only and the backend returns a write block.",
-              "For entity routes the backend itself resolves the projectId from the id of a WBS row, dependency, artifact, RAID, issue, milestone or overview, and applies the project permissions."
+              "For entity routes the backend itself resolves the projectId from the id of a WBS row, dependency, artifact, RAID item, change request, open issue, task, milestone or overview, and applies the project permissions.",
+              "The public demo can be turned on only on a cloud installation (DEPLOYMENT_PROFILE=cloud) with PUBLIC_DEMO_MODE=true. Without signing in the visitor works as the built-in Public demo account; on a corporate installation this mode is off."
             ]
           },
           {
@@ -49,13 +59,17 @@ export const englishWikiGroups: WikiGroup[] = [
               "Search starts from two characters and searches across projects, WBS, open issues, decisions, RAID, artifacts and the executive overview.",
               "For WBS the indexed fields are code, title, owner, Jira key, Jira URL and description.",
               "For RAID the indexed fields are title, description, owner, mitigation, contingency and the Jira fields.",
-              "Results are sorted by updatedAt and lead to the corresponding project section."
+              "Results are sorted by updatedAt and lead to the corresponding project section.",
+              "The search field in the header is folded to a magnifier. It opens on hover, on click, when reached with Tab, or with Ctrl K (Cmd K).",
+              "It folds back by itself after 10 seconds without use unless the mouse pointer is over it, and at once when the user goes to another page.",
+              "Results are shown only while the field has focus. The arrows pick a result, Enter opens it, Escape closes the list.",
+              "The request goes 250 ms after typing stops; the answer is limited to 12 results and to the projects the user may read."
             ]
           },
           {
             "heading": "Saved views",
             "points": [
-              "Saved views exist for WBS, Gantt and RAID.",
+              "The buttons to pick and save views are currently hidden: the /api/saved-views API and the settings format remain, but neither WBS, Gantt nor RAID shows them. What a view stores is described below.",
               "For WBS the saved settings are column order, widths and hiding, sorting, hierarchy level and the critical-path filter.",
               "For Gantt the saved settings are the zoom level, the visible window in days, the hierarchy level, the visibility of dependencies, critical path, baseline and forecast, plus the width of the WBS column and the height and width of the panel.",
               "For RAID the saved settings are the filters for type, decisions, overdue items and high risk.",
@@ -73,7 +87,7 @@ export const englishWikiGroups: WikiGroup[] = [
           {
             "heading": "Active and closed projects",
             "points": [
-              "Active projects are all projects whose status is not CLOSED. Closed projects are separated into the archive.",
+              "Active projects are all projects whose status is not CLOSED. Closed projects are left out of the Registry and the project picker and are collected on the Development -> Archive tab, available to the system administrator.",
               "The project list supports a tree built on parentId and is sorted by sortOrder/updatedAt.",
               "For an unauthenticated user, projects are returned with currentUserAccessLevel null. For ADMIN the level is shown as ADMIN.",
               "A closed project remains viewable, but writing is blocked both on the frontend and on the backend."
@@ -87,15 +101,16 @@ export const englishWikiGroups: WikiGroup[] = [
               "Projects with no outstanding goals do not get a row on the scale.",
               "The horizon of the scale runs from four months back to eight months ahead of the current date.",
               "The goal date is taken from dueDate, and if there is none, from forecastDueDate.",
-              "Delay is calculated as the calendar difference between baselineDueDate and the current goal date."
+              "Delay is calculated as the calendar difference between baselineDueDate and the current goal date.",
+              "The Projects to show filter picks the projects on the Portfolio page; it applies to the goal timeline, blocking problems and key risks."
             ]
           },
           {
             "heading": "Roadmap v2",
             "points": [
-              "Roadmap v2 sits at the bottom of the Portfolio page and shows HW, SW and G2M work packages on a shared calendar scale.",
+              "Roadmap v2 opens on the Development -> Portfolio v2 tab and shows the HW, SW and G2M work packages of active projects on a shared calendar scale.",
               "The map offers project search, a portfolio filter, horizons of 6, 12 and 24 months, a jump to the current date and a full-screen mode.",
-              "Old links to Portfolio v2 automatically open the new section on the Portfolio page."
+              "Old /portfolio-v2 links open the Portfolio v2 tab in the Development section. A user without access to Development sees a message that the section is for the administrator only."
             ]
           },
           {
@@ -159,7 +174,7 @@ export const englishWikiGroups: WikiGroup[] = [
             "points": [
               "A project can be closed by ADMIN. Closing an already closed project simply returns the current record.",
               "Project deletion goes through the cascade service and is recorded as an audit event with a full snapshot of the project.",
-              "Closing does not delete data: the project moves to the Closed projects section and becomes read-only."
+              "Closing does not delete data: the project moves to the Development -> Archive tab (the Closed projects page) and becomes read-only."
             ]
           }
         ]
@@ -270,9 +285,11 @@ export const englishWikiGroups: WikiGroup[] = [
             "heading": "Which tasks are shown",
             "points": [
               "The table includes WBS rows of the types Task and Deliverable.",
-              "Work items that are In progress, In review and At risk are shown regardless of their due date.",
+              "Work items that are In progress, In review and At risk are shown regardless of their due date. In the All mode, Failed work and any work due before today are shown too.",
               "Not started work is shown if its due date falls between the next upcoming Monday and the date 10 working days after it.",
-              "Work with the statuses Failed, Done or Cancelled does not appear in Current Work."
+              "Work with the statuses Done and Cancelled does not appear in Current Work.",
+              "Above the table there is a switch: All, Active, Blocked and Overdue. Active is work In progress, In review, At risk and not-started work in the window of the coming days, without Failed. Blocked is Failed only. Overdue is work due before today.",
+              "The search above the table filters by number, name, owner and work package."
             ]
           },
           {
@@ -310,7 +327,8 @@ export const englishWikiGroups: WikiGroup[] = [
               "The EN menu contains Import and Export of translations. Export produces an HTML file with Russian title / English translation pairs, and import accepts the same HTML back.",
               "The English title of a row is chosen by priority: the manual translation from the import, the built-in glossary, the local translation cache, and then the original Russian title. Manual translations and the cache live in the browser, not on the server.",
               "Undo, Redo, Save changes and Capture the baseline plan are shown only when the user has edit permission; in read-only mode they are absent.",
-              "The toolbar also always has the Columns menu, the hierarchy level switch 1..5 and a state indicator: the number of unsaved rows, the saving state or the time of the last save."
+              "The toolbar also always has the Columns menu, the hierarchy level switch 1..5 and a state indicator: the number of unsaved rows, the saving state or the time of the last save.",
+              "The full-screen tip appears once the page is scrolled more than 180 pixels and full screen is off; it has a button that switches to it."
             ]
           },
           {
@@ -332,7 +350,10 @@ export const englishWikiGroups: WikiGroup[] = [
               "Jira and MM require a full URL, but after saving they are displayed as short clickable Jira and MM labels.",
               "The row code is read-only: it is shown from draftWbsCodes and is recalculated from the level/order of the rows.",
               "A dirty cell is highlighted if the draft differs from the source or if the future code differs from the current one.",
-              "Enter saves the cell being edited; Escape rolls the draft back to the current state of the row."
+              "Enter saves the cell being edited; Escape rolls the draft back to the current state of the row.",
+              "Text and number cells of the WBS keep typing locally and hand it to the row draft when the user leaves the cell, presses Enter or pastes, so typing does not redraw the whole table and Escape discards what was typed. If text is still pending in a cell when the user goes to another page, the app asks for confirmation.",
+              "In the Owner column the browser suggests the names of active people from the Leave schedule directory with their department; any other name can be typed too. The directory refreshes when the user comes back to the browser window.",
+              "The type of a phase linked to an open issue cannot be changed: the backend answers 409. A level or order change that would break the link between a work package and an open issue is refused too."
             ]
           },
           {
@@ -387,11 +408,15 @@ export const englishWikiGroups: WikiGroup[] = [
             "heading": "Dependencies",
             "points": [
               "The supported types are FS, SS, FF and SF. In the predecessor1..6 columns the user enters row codes, while the backend stores normalized WbsDependency records by id.",
-              "When predecessor fields are entered, the frontend creates FS dependencies. leadLagDays is applied to all predecessors entered in that save.",
+              "Next to a predecessor code the WBS has a switch for how the date is counted: from the predecessor's finish (FS, the default) or from its start (SS). The row's leadLagDays counts only when there is a single predecessor; with several, each pair takes the lag of its link, or 0 without one.",
+              "FF and SF links are made on the Gantt chart by dragging from the end or start of a bar to the end of another bar. The WBS does not tell them apart and shows such a link as FS, but the link itself stays FF or SF until it is changed on the Gantt chart.",
               "The same predecessor cannot be specified twice, a row cannot be its own predecessor, and the backend forbids dependency cycles.",
               "A single successor can have at most six unique predecessors.",
               "If a link is created between the same pair with a different type, the old link of the other type is deleted and the new one remains.",
-              "If there are no WbsDependency records but the predecessor fields are filled, the critical path and schedule calculations create temporary FS links from those fields."
+              "The schedule takes predecessors from the predecessor1..6 fields: the link type and lag come from the WbsDependency of that pair, otherwise FS and the row's leadLagDays (only when there is a single predecessor). Links without fields are used only when the row's fields give no existing predecessor.",
+              "The critical path merges explicit WbsDependency records with the predecessor fields; pairs without a WbsDependency get temporary FS links.",
+              "If after a WBS save a typed start or finish came back because links set it, a warning appears. It stays 12 seconds, names the link with the predecessor's code and name, and explains that the link or its lag has to change on the Gantt chart or the predecessor has to move. Shifts caused by weekends and calendars are not reported.",
+              "The WBS row PATCH accepts an optional expectedUpdatedAt: if the row was saved after that moment, the backend answers 409 and leaves the row as it is. The Workload page uses this check; the WBS table does not send it."
             ]
           },
           {
@@ -399,7 +424,8 @@ export const englishWikiGroups: WikiGroup[] = [
             "points": [
               "The schedule is recalculated after creation, modification, deletion, reorder, renumber, dependency change, baseline copy and calendar changes.",
               "The topological order is built from the dependencies; if there is a cycle, the remaining rows are appended in plan order.",
-              "FS sets the successor start to the next working day after the predecessor finish plus the lag. SS constrains the start relative to the predecessor start. FF and SF constrain the finish.",
+              "FS sets the start to the next working day after the predecessor's finish plus the lag; SS sets it to the predecessor's start plus the lag.",
+              "FF and SF set the finish: it goes to the predecessor's finish (FF) or start (SF) plus the lag, and a finish typed by hand is replaced by the link's date. With several links, the latest date wins.",
               "If the dates were changed, driver = dates: workDays is recalculated from start/due. If workDays was changed, driver = workDays: dueDate is computed from the start and the duration.",
               "The full-row autosave after a date edit is protected against stale durations: if the dates have not changed but old workDays/calendarDays values arrive, the backend does not overwrite the calculated durations.",
               "MILESTONE and GOAL always have zero duration: startDate = dueDate, workDays = 0. CANCELLED also collapses to a single day with workDays = 0.",
@@ -411,7 +437,7 @@ export const englishWikiGroups: WikiGroup[] = [
             "heading": "Calendars in the calculations",
             "points": [
               "By default the working days are Monday to Friday.",
-              "ProjectCalendarOverride redefines a specific day for the RU or CN calendar as working or non-working.",
+              "ProjectCalendarOverride redefines a specific day for the RU or CN calendar as working or non-working. In the RU+CN calendar a day is working only if it is working in both RU and CN.",
               "addWorkingDays moves only across the working days of the calendar selected for the row.",
               "calendarDays is counted on the calendar and inclusively: both start and due are part of the duration.",
               "workingDays is counted over the calendar's working days, taking overrides into account."
@@ -501,7 +527,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "The baseline overlay is built from baselineStartDate/baselineDueDate.",
               "The forecast overlay is built from forecastStartDate/forecastDueDate.",
               "The variance on a Gantt row is computed as the difference between baselineEnd and forecastEnd.",
-              "The Gantt saved view stores the week/month/quarter zoom level, the 30/90/180-day window or All, the hierarchy level, the visibility of dependencies, critical path, baseline and forecast, the width of the WBS column and the panel sizes."
+              "The Gantt saved-view format (its buttons are currently hidden) stores the week/month/quarter zoom level, the 30/90/180-day window or All, the hierarchy level, the visibility of dependencies, critical path, baseline and forecast, the width of the WBS column and the panel sizes."
             ]
           }
         ]
@@ -567,7 +593,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "The Calendars page shows the RU and CN calendars for three years from the earliest project date.",
               "Clicking a day creates or removes an override: a working day becomes a day off/holiday and vice versa.",
               "Changing an override immediately triggers a recalculation of the WBS schedule.",
-              "RU/CN is selected on each WBS row, so two adjacent tasks can count working days using different calendars."
+              "The RU, CN or RU+CN calendar is chosen on each WBS row, so two adjacent tasks can count working days using different calendars. In RU+CN a day is working only if it is working in both calendars."
             ]
           }
         ]
@@ -611,7 +637,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "All Jira-like data in the demo is synthetic: the tickets, the history and the aggregates are produced by a fixture and live only in the demo database.",
               "The demo data is populated in English: the phases Design, Development, Testing and pilot, Go-live, plus English names for work items, milestones and owners.",
               "Populating a specific project with demo data is done by a dedicated administrative endpoint. Outside the demo runtime it answers 403, so the fixture cannot be run in a corporate installation.",
-              "In the demo runtime requests are made on behalf of the built-in public-demo-user without signing in. Reading is open and writing is allowed outside the administration and user sections.",
+              "The demo turns on only with DEPLOYMENT_PROFILE=cloud and PUBLIC_DEMO_MODE=true. Requests without signing in come from the built-in public-demo-user: reading is open, Administration and Development are view-only, and every other section can be changed.",
               "A corporate installation works differently: there Jira is connected, but strictly read-only under the rules of the Jira is read-only section."
             ]
           },
@@ -623,17 +649,23 @@ export const englishWikiGroups: WikiGroup[] = [
               "For the Jira work sections the backend guarantees at least three sections with sortOrder 0..2.",
               "A section stores a direct JQL and a link to a Jira filter separately; if both fields are filled, the JQL is used.",
               "On sync all old JiraWorkSectionIssue links are deleted, after which new links to the current snapshots are created.",
-              "The JiraIssueSnapshot upsert is done by projectId + issueKey, so a single ticket updates its snapshot instead of creating a duplicate."
+              "The JiraIssueSnapshot upsert is done by projectId + issueKey, so a single ticket updates its snapshot instead of creating a duplicate.",
+              "Snapshots of Jira issues the synchronization no longer finds are not deleted but marked as retired (retiredAt)."
             ]
           },
           {
             "heading": "Open issues",
             "points": [
-              "Issues have a source of INTERNAL or JIRA, plus title, severity, status, owner, impact, decisionRequired, dueDate and Jira links.",
+              "An issue stores a source of INTERNAL or JIRA, a section (category), title, severity, readiness GREEN/AMBER/RED, status (Open, In Progress, Blocked, Resolved, Closed), owner, impact, decisionRequired, dueDate, a reference link, a linked risk, a WBS phase and Jira links.",
               "All statuses other than Done, Closed and Resolved are considered open.",
-              "On creation the primary Jira key/url is merged with the jiraLinks array, and duplicates by jiraKey are removed.",
-              "If the project has jiraIntegration.baseUrl configured, all Jira URLs must start with it.",
-              "The first Jira link becomes the issue's jiraTicketKey/jiraTicketUrl. If the links are deleted, the source returns to INTERNAL."
+              "Jira links are given as issue keys. On creation the primary key is merged with jiraLinks, keys are normalised and duplicates removed; an invalid key is refused with a 400 error.",
+              "The Jira link is built automatically as {baseUrl}/browse/{KEY}: baseUrl comes from the project's Jira settings or, if that is empty, from JIRA_BASE_URL. If the address cannot be built, the issue is not saved.",
+              "The first Jira link becomes the issue's jiraTicketKey/jiraTicketUrl. If the links are deleted, the source returns to INTERNAL.",
+              "If an issue has a WBS phase, a work package (WORK_PACKAGE) is created in it: it goes before the phase's last milestone or goal, or to the end of the phase if there is none.",
+              "The work package's name, owner and due date repeat the issue and follow its changes; when the phase changes, the package moves to the new phase. Once the package exists, the phase cannot be cleared.",
+              "Only the system administrator can choose a phase, and the user needs the right to change the project's WBS.",
+              "While the issue is open, the WBS cannot change the name, owner, due date, type, level or parent of its work package: the server answers 409 and points to the issue register. On the Workload page such a package opens read-only.",
+              "An open issue can be turned into a problem: a DEPENDENCY is created with probability 5 and an impact from the severity (CRITICAL 5, HIGH 4, MEDIUM 3, otherwise 2), and the issue becomes Resolved. A closed issue cannot be turned into a problem."
             ]
           },
           {
@@ -658,18 +690,19 @@ export const englishWikiGroups: WikiGroup[] = [
             "points": [
               "A RAID item has the type RISK, DEPENDENCY or ASSUMPTION. In the interface DEPENDENCY is called Problem.",
               "The main fields are title, description, owner, status, probability, impact, mitigationPlan, contingencyPlan, dueDate, residualRisk, validationDate, Jira key/url, decisionRequired, escalationLevel, scheduleImpactDays and budgetImpact.",
-              "riskScore is calculated from probability and impact and is used in the high-risk filters and in the portfolio.",
+              "riskScore = probability × impact; it is used in the high-risk filter and in the portfolio.",
               "The statuses CLOSED and VALIDATED are considered inactive."
             ]
           },
           {
             "heading": "Summary and filters",
             "points": [
-              "The summary counts active RAID items, high risks with riskScore >= 15, problems, assumptions, decisions and the sum of scheduleImpactDays.",
+              "The summary counts active items, high risks (RISK only, riskScore >= 15), problems and assumptions, items with decisionRequired (closed ones included) and the sum of scheduleImpactDays of active items.",
               "The type filter can show everything, only RISK, only DEPENDENCY or only ASSUMPTION.",
               "Decision-only keeps the records with decisionRequired.",
               "Overdue-only keeps the records whose dueDate is earlier than today.",
-              "High-only keeps the records with riskScore >= 15."
+              "High-only keeps the records with riskScore >= 15.",
+              "The register and filters show active items only; closed RISK and DEPENDENCY items are listed in a separate block."
             ]
           },
           {
@@ -728,7 +761,8 @@ export const englishWikiGroups: WikiGroup[] = [
               "The resource model is built from the active projects of the portfolio. If there are no active projects, the WBS of the current project is used.",
               "Only WBS rows of the types TASK and DELIVERABLE with a status other than CANCELLED enter the calculation.",
               "An empty owner becomes Unassigned and goes into a separate unassigned row.",
-              "DONE rows yield remainingHours = 0 but remain in the done/total counters."
+              "DONE rows yield remainingHours = 0 but remain in the done/total counters.",
+              "Resource management and Resource settings live in the Development section (/development/resources) and are available only to the system administrator."
             ]
           },
           {
@@ -738,7 +772,8 @@ export const englishWikiGroups: WikiGroup[] = [
               "CVTE is automatically treated as a contractor team with fte = 5 and 100% project allocation.",
               "The surname Gladkov automatically receives the coordinator profile: 40% project allocation and 60% operational load.",
               "For everyone else the role is derived from owner/title by the words DevOps, QA, analytics, design, PMO, dev/front/back/API/developer.",
-              "User overrides are normalized and take precedence over the automatic profile for that owner."
+              "User overrides are normalized and take precedence over the automatic profile for that owner.",
+              "Changes in Resource settings live only in the open browser tab and are reset when the page reloads."
             ]
           },
           {
@@ -758,7 +793,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "A critical conflict is created when a resource is overloaded, especially if the resource has a task on the critical path.",
               "A separate critical conflict is created for unassigned work with remainingHours > 0.",
               "Overdue work for a resource produces a warning.",
-              "Resource requests are created for unassigned demand and for role overload, sorted by hours and limited to five requests.",
+              "Resource requests are created for unassigned demand and for each overloaded person (with their role), sorted by hours and limited to five requests.",
               "Recommendations first suggest resolving the critical conflict, then raising resource requests, or maintaining the plan if there are no conflicts."
             ]
           }
@@ -766,189 +801,6 @@ export const englishWikiGroups: WikiGroup[] = [
       }
     ]
   },
-  {
-    "id": "wiki-admin-platform",
-    "title": "Administration and platform",
-    "description": "Back office, integrations, API, audit, security and operations.",
-    "articles": [
-      {
-        "id": "wiki-admin",
-        "title": "Back office: users, roles, dictionaries and modules",
-        "summary": "Which administrative settings exist and which guard rules protect the system.",
-        "keywords": ["admin panel", "users", "roles", "dictionaries", "modules", "project access"],
-        "sections": [
-          {
-            "heading": "Users",
-            "points": [
-              "The administrator creates users with email, name, role and isActive. This form does not set a password; available sign-in methods depend on the installation settings.",
-              "The email is normalized to lower case; a duplicate returns 409.",
-              "The last active ADMIN cannot be disabled or demoted."
-            ]
-          },
-          {
-            "heading": "Roles and permissions",
-            "points": [
-              "The managed system roles are ADMIN and EXECUTIVE_VIEWER, which in the interface are called \"System administrator\" and \"User\".",
-              "ADMIN receives all permissions and its rights cannot be disabled.",
-              "A User sees the projects of all business units and can create projects. Edit rights are determined by access to the specific project.",
-              "The administrator of the selected BU sees the Administration section, but only the Project registry and Access tabs. System settings, users, roles, dictionaries and the BU registry are not available to them.",
-              "A BU administrator can grant and revoke only EDIT access for regular users and only for projects of the selected BU. They cannot grant, change or remove the ADMIN level.",
-              "There are legacy fallback permissions: for example, wbs.update can be satisfied by the old wbs.write."
-            ]
-          },
-          {
-            "heading": "Attendance",
-            "points": [
-              "The Attendance page is available only to the system administrator and shows views for the last 7 days.",
-              "System administrators are not counted. BU administrators are counted as regular authenticated visitors.",
-              "The chart separates the views of authenticated users from those of guests who are not logged in; below it a visitor list and a visitor - project - page aggregation are available.",
-              "Guests are distinguished by a server-side hash of a stable browser identifier. IP addresses, emails and full page URLs are not stored in the analytics.",
-              "Visit events are deleted automatically once the configured retention period expires, by default after 30 days."
-            ]
-          },
-          {
-            "heading": "Project access",
-            "points": [
-              "Viewing all projects is already open to every user, so individual access grants regulate the ability to change a project, not its visibility.",
-              "Access to projects is granted at the VIEW, EDIT and ADMIN levels.",
-              "Grant supports a batch of users and a batch of projects and performs an upsert by projectId/userId.",
-              "Access is not granted to inactive or missing users.",
-              "The access list is sorted by project.code, then level desc, then user name.",
-              "All grant/update/delete actions are written to the audit log."
-            ]
-          },
-          {
-            "heading": "Business units and moving projects",
-            "points": [
-              "The Business units registry is a separate administration tab and is available only to the system administrator.",
-              "In the Project registry the system administrator can move a project to another BU. All child projects, including closed ones, are moved with it.",
-              "During the move the root project is detached from its previous parent, and the individual access grants for all moved projects are deleted. A confirmation is shown before the operation.",
-              "A BU administrator sees a project's BU in the Project registry but cannot perform the move."
-            ]
-          },
-          {
-            "heading": "Dictionaries, RAG, workflow and templates",
-            "points": [
-              "Dictionaries are seeded with the default project_status, project_type, risk_type, wbs_type, wbs_status, issue_severity, raid_type and raid_status.",
-              "Deleting a dictionary in the UI actually deactivates the record with isActive=false rather than deleting it physically.",
-              "The RAG formulas are stored in the system settings rag.formula.green/amber/red as textual rules for the management layer.",
-              "The workflow settings workflow.overview, workflow.baseline and workflow.projectClose store textual approval chains.",
-              "The WBS templates live in the system setting wbs.templates as JSON and describe the starting sets of phases/work."
-            ]
-          },
-          {
-            "heading": "Module management",
-            "points": [
-              "The list of project modules is stored in the system setting project.modules.",
-              "normalizeProjectModules always returns the full list of default modules and takes only enabled from the setting, by known key.",
-              "If a module is disabled, it disappears from the project section row.",
-              "If all modules are disabled, the firstEnabledProjectView fallback is project-overview."
-            ]
-          }
-        ]
-      },
-      {
-        "id": "wiki-integrations-api",
-        "title": "Integrations, API tokens, webhooks and OpenAPI",
-        "summary": "How external integrations, tokens, webhook delivery and API documentation are arranged.",
-        "keywords": ["integrations", "API token", "webhook", "OpenAPI", "GitLab", "GitHub", "BI"],
-        "sections": [
-          {
-            "heading": "Integration settings",
-            "points": [
-              "The admin panel stores the settings for GitLab, GitHub, Azure DevOps and the BI export URL.",
-              "Secret settings are returned from the API with an empty value and a hasValue flag, so that the stored token is not disclosed.",
-              "When a secret setting is updated, an empty value keeps the old value if one was already there.",
-              "Jira credentials are intentionally not part of these settings and are read only from the env of the backend container."
-            ]
-          },
-          {
-            "heading": "API tokens",
-            "points": [
-              "A new token has the format pms_ + random base64url and is shown only in the creation response.",
-              "The database stores a SHA-256 hash and the tokenPrefix, not the original token.",
-              "Token scopes can be *, namespace.* or a specific permission.",
-              "A token can have expiresAt, isActive and rateLimitPerMinute.",
-              "When a token is used, lastUsedAt is updated."
-            ]
-          },
-          {
-            "heading": "Webhooks",
-            "points": [
-              "An endpoint stores name, url, an optional secret, a list of events and isActive.",
-              "events can contain * or a specific eventType.",
-              "The delivery is created in the database before sending and goes out asynchronously via setTimeout.",
-              "If a secret is set, the payload is signed with the header X-PMS-Signature: sha256=<hmac>.",
-              "Attempts, timeout and backoff are controlled by WEBHOOK_TIMEOUT_MS, WEBHOOK_MAX_ATTEMPTS and WEBHOOK_RETRY_BASE_MS.",
-              "The delivery result stores status, statusCode, responseBody/error and attemptedAt."
-            ]
-          },
-          {
-            "heading": "REST API and OpenAPI",
-            "points": [
-              "The OpenAPI spec is published by the backend application and is covered by an integration test that checks it against the concrete Express routes.",
-              "Mutating endpoints must have security responses and must pass the permission/project guards.",
-              "The API covers projects, WBS, WBS dependencies, baseline, calendars, business requirements, Jira sync, issues, RAID, artifacts, saved views, search and the admin back office.",
-              "All application APIs, including read-only views and global search, require authentication."
-            ]
-          }
-        ]
-      },
-      {
-        "id": "wiki-security-ops",
-        "title": "Authentication, audit and operations",
-        "summary": "Sessions, Keycloak/OIDC, the audit trail, health, backup/restore and the deployment pipeline.",
-        "keywords": ["auth", "keycloak", "OIDC", "audit", "health", "backup", "restore", "deploy", "prisma"],
-        "sections": [
-          {
-            "heading": "Application session",
-            "points": [
-              "The session is stored in UserSession as a SHA-256 hash of the cookie token.",
-              "The cookie is HttpOnly, SameSite=Lax, with Max-Age from AUTH_SESSION_DAYS. Secure is enabled in production unless AUTH_COOKIE_SECURE is false.",
-              "If a session has expired, it is deleted. If the user is disabled, the session is not attached to the request.",
-              "Without an active session the interface and all application APIs are unavailable.",
-              "The public cloud demo is the exception: under PUBLIC_DEMO_MODE a request without a session is executed on behalf of the built-in demo user. In a corporate installation that mode is off."
-            ]
-          },
-          {
-            "heading": "Keycloak/OIDC",
-            "points": [
-              "The frontend supports the Keycloak login flow, while the backend works with the resulting application user session.",
-              "Alongside configured Keycloak authentication, local email and password sign-in is supported. Passwords are only ever stored as individually salted scrypt hashes; there is no environment-variable bootstrap path.",
-              "OIDC does not pass the user's password to the application, so Jira cannot be accessed with the user's own login and password.",
-              "Access to Jira is implemented through a service account via JIRA_EMAIL/JIRA_API_TOKEN in the container env."
-            ]
-          },
-          {
-            "heading": "Audit trail",
-            "points": [
-              "AuditEvent records actorId/email/name, action, objectType, objectId, projectId, ipAddress, userAgent, beforeValue, afterValue and metadata.",
-              "Failures to write the audit record do not break the main request, but are logged to console.error.",
-              "The audit covers project create/update/delete/close, target date, ui state, business requirements, users, roles, dictionaries, config import, project access, saved views, api tokens and webhooks.",
-              "The admin log returns the most recent events with a limit of up to 200."
-            ]
-          },
-          {
-            "heading": "Health and backup",
-            "points": [
-              "System health runs SELECT 1 and shows the database status, databaseLatencyMs, uptimeSeconds, startedAt and NODE_ENV.",
-              "Backup status reads BACKUP_DIR or ./backups, looks for .dump files, sorts them by updatedAt and tries to read the .sha256 file next to the latest backup.",
-              "Retention is taken from BACKUP_RETENTION_DAYS, by default 14.",
-              "The admin config export/import transfers rolePermissions, dictionaryItems, systemSettings and projectModules, but secret settings are exported without their value."
-            ]
-          },
-          {
-            "heading": "Deployment and CI",
-            "points": [
-              "Prisma migrations are applied by the startup scripts before the API is launched.",
-              "There are operational scripts for backup, restore, restore drill, migration dry-run, security smoke and performance smoke.",
-              "CI checks the shared build, Prisma generate, integration tests, OpenAPI coverage, migration safety, the Docker/Kubernetes/operations scripts and the corporate runner restrictions.",
-              "The migration safety test forbids dangerous operations such as DELETE FROM without an explicit allow list.",
-              "The SCA job checks the Node.js dependencies, which is why the vulnerable xlsx dependency was removed together with the XLSX WBS import."
-            ]
-          }
-        ]
-      }
-    ]
-  }
+  englishOperationsWikiGroup,
+  englishPlatformWikiGroup,
 ];

@@ -72,7 +72,8 @@ test("FAQ documents the current work selection rules", () => {
   const text = articleTextById(wikiGroups, "wiki-current-work");
 
   assert.match(text, /Задача и Результат/);
-  assert.match(text, /Провалено, Сделано или Отменено/);
+  assert.match(text, /Работы в статусах Сделано и Отменено в Текучку не попадают/);
+  assert.match(text, /Все, Активные, Заблокированные и Просроченные/);
   assert.match(text, /страницы Структура/);
 });
 
@@ -151,4 +152,24 @@ test("FAQ does not claim that the placeholder budget screen is implemented", () 
   assert.doesNotMatch(russian, /для будущего план-факт-прогноза/);
   assert.match(english, /placeholder/);
   assert.doesNotMatch(english, /for a future plan-fact-forecast/);
+});
+
+test("FAQ documents the Operations section in both languages", () => {
+  const russian = articleTextById(wikiGroups, "wiki-navigation-access");
+  const english = articleTextById(englishWikiGroups, "wiki-navigation-access");
+  assert.match(russian, /Портфель, Проекты, Операционка, Администрирование, Разработка и FAQ/);
+  assert.match(english, /Portfolio, Projects, Operations, Administration, Development and FAQ/);
+  assert.doesNotMatch(russian, /всегда доступны глобальные разделы: Портфель, Проекты, Отчёты, Архив/);
+
+  for (const groups of [wikiGroups, englishWikiGroups]) {
+    const operations = groups.find((group) => group.id === "wiki-operations");
+    assert.deepEqual(operations?.articles.map((article) => article.id), ["wiki-leave-schedule", "wiki-workload"]);
+  }
+  assert.match(articleTextById(wikiGroups, "wiki-workload"), /Перетащите полосу на строку другого человека/);
+  assert.match(articleTextById(englishWikiGroups, "wiki-leave-schedule"), /Drag a leave to move it by whole calendar days/);
+});
+
+test("FAQ documents how the header search folds", () => {
+  assert.match(articleTextById(wikiGroups, "wiki-navigation-access"), /после 10 секунд без использования/);
+  assert.match(articleTextById(englishWikiGroups, "wiki-navigation-access"), /after 10 seconds without use/);
 });
