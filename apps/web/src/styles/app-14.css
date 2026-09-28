@@ -183,6 +183,43 @@
   min-height: 46px;
 }
 
+.risk-matrix-cell {
+  gap: 6px;
+}
+
+/* Risks as plain numbers, problems in a dark rounded badge, so both read in one cell. */
+.risk-matrix-risks,
+.risk-matrix-problems {
+  font-style: normal;
+  font-weight: 900;
+}
+
+.risk-matrix-problems {
+  background: var(--text-strong);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 11px;
+  min-width: 20px;
+  padding: 1px 6px;
+  text-align: center;
+}
+
+.risk-matrix-legend {
+  color: var(--text-muted);
+  display: flex;
+  font-size: 12px;
+  gap: 16px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.risk-matrix-legend li {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
 .risk-matrix-cell.green {
   background: var(--success-soft);
 }

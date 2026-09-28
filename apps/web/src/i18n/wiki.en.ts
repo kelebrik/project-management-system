@@ -650,7 +650,7 @@ export const englishWikiGroups: WikiGroup[] = [
       {
         "id": "wiki-raid",
         "title": "Risks, problems and assumptions",
-        "summary": "The RAID register, filters, risk matrix, status history and portfolio impact.",
+        "summary": "The RAID register, filters, risk and problem matrix, status history and portfolio impact.",
         "keywords": ["RAID", "risks", "problems", "assumptions", "riskScore", "matrix"],
         "sections": [
           {
@@ -675,7 +675,7 @@ export const englishWikiGroups: WikiGroup[] = [
           {
             "heading": "Matrix and closed records",
             "points": [
-              "The risk matrix takes only active RISK items and places them in probability:impact cells, clamping the values to the range 1..5.",
+              "The risk and problem matrix takes active RISK and DEPENDENCY (problem) items and places them in probability:impact cells, clamping the values to the range 1..5; risks and problems are counted apart, problems with their own mark.",
               "The closed block shows only inactive RISK and DEPENDENCY items, sorted by validationDate or dueDate from newest to oldest.",
               "The RAID status history is stored as separate RaidItemStatusUpdate records and does not duplicate the record's current status.",
               "The portfolio takes only RISK/DEPENDENCY items with riskScore >= 15 and a status other than CLOSED/VALIDATED."

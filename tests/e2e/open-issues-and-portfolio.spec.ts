@@ -278,12 +278,12 @@ test("risk page keeps the color matrix visible", async ({ page }) => {
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/risks");
 
-  const matrix = page.getByLabel("Матрица рисков");
+  const matrix = page.getByLabel("Матрица рисков и проблем", { exact: true });
   await expect(matrix).toBeVisible();
   await expect(matrix.locator(".risk-matrix-cell")).toHaveCount(25);
   await expect(
     page.getByLabel(
-      "Вероятность 4, влияние 4, высокий риск, записей: 1",
+      "Вероятность 4, влияние 4, высокий риск: рисков 1, проблем 0",
     ),
   ).toBeVisible();
 });

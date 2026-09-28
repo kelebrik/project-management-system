@@ -62,7 +62,7 @@ test("raid filters exclude closed and validated items from active views", () => 
     filtered.map((item) => item.id),
     ["open-risk"],
   );
-  assert.equal(matrix.get("4:4"), 1);
+  assert.deepEqual(matrix.get("4:4"), { risks: 1, problems: 0 });
   assert.equal(summary.activeRaid, 1);
 });
 
@@ -78,4 +78,18 @@ test("closed raid section contains only closed risks and problems", () => {
     closedItems.map((item) => item.id).sort(),
     ["closed-risk", "validated-problem"],
   );
+});
+
+test("the matrix counts active problems apart from risks and leaves assumptions out", () => {
+  const matrix = createRiskMatrix([
+    raidItem({ id: "risk", type: "RISK", probability: 5, impact: 5 }),
+    raidItem({ id: "problem", type: "DEPENDENCY", probability: 5, impact: 5 }),
+    raidItem({ id: "second-problem", type: "DEPENDENCY", probability: 9, impact: 0 }),
+    raidItem({ id: "closed-problem", type: "DEPENDENCY", status: "CLOSED", probability: 5, impact: 5 }),
+    raidItem({ id: "assumption", type: "ASSUMPTION", probability: 5, impact: 5 }),
+  ]);
+  assert.deepEqual(matrix.get("5:5"), { risks: 1, problems: 1 });
+  // Values outside 1..5 are clamped.
+  assert.deepEqual(matrix.get("5:1"), { risks: 0, problems: 1 });
+  assert.equal(matrix.size, 2);
 });

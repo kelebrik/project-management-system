@@ -563,8 +563,8 @@ export const projectsCoreMessages = {
     "ru": "сентябрь"
   },
   "ui.projects.riskMatrixTitle": {
-    "en": "Risk matrix",
-    "ru": "Матрица рисков"
+    "en": "Risk and problem matrix",
+    "ru": "Матрица рисков и проблем"
   },
   "ui.projects.newEntryAction": {
     "en": "New entry",

@@ -6,6 +6,8 @@ import { useI18n } from "../i18n/I18nProvider";
 
 type GlobalSearchProps = {
   className?: string;
+  /** Changes on every page change; the search folds away at once when it does. */
+  routeKey?: string;
   loading: boolean;
   onOpenChange: (open: boolean) => void;
   onQueryChange: (value: string) => void;
@@ -22,7 +24,8 @@ type SearchScope = "all" | SearchResult["type"];
 /**
  * The search folds to its magnifier to leave the header to the sections. It
  * opens on hover, click, Tab or Ctrl K and folds back after this long without
- * use, unless the field has focus or the pointer is over it.
+ * use — typing or moving through results counts as use, a cursor left in the
+ * field does not — unless the pointer is over it. A page change folds it at once.
  */
 export const SEARCH_IDLE_COLLAPSE_MS = 10_000;
 
@@ -36,6 +39,7 @@ const searchScopes: Array<{ value: SearchScope; label: TranslationKey }> = [
 
 export function GlobalSearch({
   className = "",
+  routeKey,
   loading,
   onOpenChange,
   onQueryChange,
@@ -49,26 +53,43 @@ export function GlobalSearch({
   const [activeIndex, setActiveIndex] = useState(0);
   const [scope, setScope] = useState<SearchScope>("all");
   const [expanded, setExpanded] = useState(false);
+  // Results belong to the field in use: hovering a folded search or a late answer must not show them.
+  const [focused, setFocused] = useState(false);
   const collapseTimerRef = useRef(0);
   const hoverRef = useRef(false);
 
   const stopCollapse = () => window.clearTimeout(collapseTimerRef.current);
+  const collapse = () => {
+    stopCollapse();
+    setExpanded(false);
+    onOpenChange(false);
+    if (document.activeElement === inputRef.current) inputRef.current?.blur();
+  };
   /** Waits for a quiet spell before folding; any use of the field restarts the wait. */
   const scheduleCollapse = () => {
     stopCollapse();
     collapseTimerRef.current = window.setTimeout(() => {
-      if (hoverRef.current || document.activeElement === inputRef.current) return;
-      setExpanded(false);
-      onOpenChange(false);
+      // The pointer resting on the search keeps it open; leaving restarts the wait.
+      if (hoverRef.current) return;
+      collapse();
     }, SEARCH_IDLE_COLLAPSE_MS);
   };
   const expand = () => {
     setExpanded(true);
     scheduleCollapse();
   };
+  // Fold away as soon as the user lands on another page.
+  const firstRouteRef = useRef(routeKey);
+  useEffect(() => {
+    if (routeKey === firstRouteRef.current) return;
+    firstRouteRef.current = routeKey;
+    collapse();
+    // collapse reads refs and stable setters; only a new page should trigger it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey]);
   useEffect(() => () => window.clearTimeout(collapseTimerRef.current), []);
   const normalizedQuery = query.trim();
-  const shouldShowPopover = open && normalizedQuery.length >= 2;
+  const shouldShowPopover = expanded && focused && open && normalizedQuery.length >= 2;
   const scopedResults = useMemo(
     () => (scope === "all" ? results : results.filter((result) => result.type === scope)),
     [results, scope],
@@ -130,18 +151,23 @@ export function GlobalSearch({
           aria-label={t("search.placeholder")}
           ref={inputRef}
           value={query}
-          onBlur={scheduleCollapse}
+          onBlur={() => {
+            setFocused(false);
+            scheduleCollapse();
+          }}
           onChange={(event) => {
             setActiveIndex(0);
             onQueryChange(event.target.value);
             scheduleCollapse();
           }}
           onFocus={() => {
+            setFocused(true);
             setExpanded(true);
-            stopCollapse();
+            scheduleCollapse();
             onOpenChange(normalizedQuery.length >= 2);
           }}
           onKeyDown={(event) => {
+            scheduleCollapse();
             if (!shouldShowPopover || scopedResults.length === 0) return;
             if (event.key === "ArrowDown") {
               event.preventDefault();

@@ -34,12 +34,25 @@ test("the header search folds to its magnifier and opens on hover or Ctrl K", as
   await page.clock.runFor(1_500);
   await expect(search).toHaveClass(/collapsed/);
 
-  // Ctrl K opens it with the cursor in the field, and it stays open while focused.
+  // Ctrl K opens it with the cursor in the field; typing keeps it open.
   await page.keyboard.press("Control+k");
   await expect(search).toHaveClass(/expanded/);
-  await expect(page.getByRole("textbox", { name: /Поиск/ }).first()).toBeFocused();
-  await page.clock.runFor(30_000);
+  const field = page.getByRole("textbox", { name: /Поиск/ }).first();
+  await expect(field).toBeFocused();
+  await page.clock.runFor(8_000);
+  await page.keyboard.type("ab");
+  await page.clock.runFor(8_000);
   await expect(search).toHaveClass(/expanded/);
+  // A cursor left in the field does not count as use: ten quiet seconds fold it.
+  await page.clock.runFor(2_500);
+  await expect(search).toHaveClass(/collapsed/);
+  await expect(field).not.toBeFocused();
+
+  // Going to another page folds it at once.
+  await search.hover();
+  await expect(search).toHaveClass(/expanded/);
+  await page.getByRole("button", { name: "Портфель" }).first().click();
+  await expect(search).toHaveClass(/collapsed/);
 });
 
 test("the workload opens full screen, suggests it on scrolling and leaves it on Escape", async ({ page }) => {
@@ -116,4 +129,36 @@ test("messages stay visible over a full-screen page", async ({ page }) => {
   await page.getByRole("button", { name: "На весь экран" }).click();
   const layer = (selector: string) => page.locator(selector).evaluate((element) => Number(getComputedStyle(element).zIndex));
   expect(await layer(".toast-stack")).toBeGreaterThan(await layer(".timeline-page-fullscreen"));
+});
+
+test("results that arrive after the search folded stay hidden", async ({ page }) => {
+  await mockWorkload(page);
+  let release: () => void = () => {};
+  const answered = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/api\/search(\?.*)?$/, async (route) => {
+    await answered;
+    await route.fulfill({
+      json: [{ type: "project", id: "project-1", title: "Телевизор", subtitle: "", projectCode: "TV-OVERVIEW", projectName: "Телевизор" }],
+    });
+  });
+  await page.goto("/operations/workload");
+  const asked = page.waitForRequest(/\/api\/search/);
+  await page.getByRole("textbox", { name: /Поиск/ }).first().focus();
+  await page.keyboard.type("тел");
+  await asked;
+  // The user leaves for another page before the answer comes.
+  await page.getByRole("button", { name: "Портфель" }).first().click();
+  await expect(page.locator(".app-global-header .global-search")).toHaveClass(/collapsed/);
+  const response = page.waitForResponse(/\/api\/search/);
+  release();
+  await response;
+  await page.waitForTimeout(200);
+  await expect(page.locator(".global-search-popover")).toHaveCount(0);
+  // Hovering the folded search opens the field but not the old results.
+  await page.locator(".app-global-header .global-search").hover();
+  await expect(page.locator(".app-global-header .global-search")).toHaveClass(/expanded/);
+  await expect(page.locator(".global-search-popover")).toHaveCount(0);
+  // Back in the field, the results come back.
+  await page.getByRole("textbox", { name: /Поиск/ }).first().focus();
+  await expect(page.locator(".global-search-popover")).toBeVisible();
 });

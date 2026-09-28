@@ -67,14 +67,23 @@ export function filterRaidItems(
   });
 }
 
+export type RiskMatrixCell = { risks: number; problems: number };
+
+/**
+ * Active risks and problems by probability:impact, counted apart so the matrix
+ * can tell them apart. Values are clamped to 1..5.
+ */
 export function createRiskMatrix(raidItems: RaidItem[]) {
-  const cells = new Map<string, number>();
+  const cells = new Map<string, RiskMatrixCell>();
   for (const item of raidItems) {
-    if (item.type !== "RISK" || isInactiveRaidItem(item)) continue;
+    if ((item.type !== "RISK" && item.type !== "DEPENDENCY") || isInactiveRaidItem(item)) continue;
     const probability = Math.max(1, Math.min(5, item.probability));
     const impact = Math.max(1, Math.min(5, item.impact));
     const key = `${probability}:${impact}`;
-    cells.set(key, (cells.get(key) ?? 0) + 1);
+    const cell = cells.get(key) ?? { risks: 0, problems: 0 };
+    if (item.type === "RISK") cell.risks += 1;
+    else cell.problems += 1;
+    cells.set(key, cell);
   }
   return cells;
 }

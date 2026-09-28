@@ -278,5 +278,33 @@ export const projectsRaidMessages = {
   "ui.projects.decisionQueueWeek": {
     "en": "7 days",
     "ru": "7 дней"
+  },
+  "ui.projects.riskMatrixLow": {
+    "en": "low risk",
+    "ru": "низкий риск"
+  },
+  "ui.projects.riskMatrixMedium": {
+    "en": "medium risk",
+    "ru": "средний риск"
+  },
+  "ui.projects.riskMatrixHigh": {
+    "en": "high risk",
+    "ru": "высокий риск"
+  },
+  "ui.projects.riskMatrixCell": {
+    "en": "Probability {probability}, impact {impact}, {zone}",
+    "ru": "Вероятность {probability}, влияние {impact}, {zone}"
+  },
+  "ui.projects.riskMatrixCellCounts": {
+    "en": "{cell}: risks {risks}, problems {problems}",
+    "ru": "{cell}: рисков {risks}, проблем {problems}"
+  },
+  "ui.projects.riskMatrixRisks": {
+    "en": "Risks",
+    "ru": "Риски"
+  },
+  "ui.projects.riskMatrixProblems": {
+    "en": "Problems",
+    "ru": "Проблемы"
   }
 } as const;

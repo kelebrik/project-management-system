@@ -265,6 +265,7 @@ export function AppPresentation({
   const renderGlobalSearch = (className = "") => (
     <GlobalSearch
       className={className}
+      routeKey={`${activeView}:${selectedProjectId ?? ""}`}
       loading={globalSearch.loading}
       onOpenChange={globalSearch.setOpen}
       onQueryChange={globalSearch.setQuery}
