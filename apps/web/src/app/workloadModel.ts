@@ -1,3 +1,4 @@
+import type { ScheduleLink } from "./scheduleLinks";
 import {
   addDays,
   daysBetween,
@@ -23,6 +24,9 @@ export type WorkloadItem = {
   /** Links set the start (finish-to-start, start-to-start) or the finish (finish-to-finish, start-to-finish). */
   startLocked?: boolean;
   finishLocked?: boolean;
+  /** The predecessors that set those dates, to explain why they do not move. */
+  startLinks?: ScheduleLink[];
+  finishLinks?: ScheduleLink[];
   /** An open issue manages this work package from the issue register. */
   lockedByIssue?: boolean;
 };

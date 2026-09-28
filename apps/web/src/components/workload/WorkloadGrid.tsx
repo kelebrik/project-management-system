@@ -10,6 +10,7 @@ import {
 } from "../../app/leaveScheduleModel";
 import type { WorkloadItem, WorkloadLeave, WorkloadProject, WorkloadRow } from "../../app/workloadModel";
 import { workloadEditRights } from "../../app/workloadPlanning";
+import { describeDateHold } from "../../app/scheduleLinks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { intlLocale } from "../../i18n/locale";
 import { TimelineBackdrop } from "../timeline/TimelineBackdrop";
@@ -298,6 +299,21 @@ export function WorkloadGrid({
                                 onPointerDown={(event) => drag.start(event, item, "end", row.key, false)}
                               />
                             )}
+                            {/* An edge a link holds says so instead of silently not moving. */}
+                            {handles && rights.reason === null && item.startLocked && (
+                              <i
+                                aria-hidden="true"
+                                className="workload-lock start"
+                                title={describeDateHold("start", item.startLinks ?? [], t)}
+                              />
+                            )}
+                            {handles && rights.reason === null && item.finishLocked && (
+                              <i
+                                aria-hidden="true"
+                                className="workload-lock end"
+                                title={describeDateHold("finish", item.finishLinks ?? [], t)}
+                              />
+                            )}
                           </button>
                         );
                       })}
@@ -330,6 +346,16 @@ export function WorkloadGrid({
             {dayFormat.format(dayToDate(tooltipItem.startDate))} – {dayFormat.format(dayToDate(tooltipItem.dueDate))} ·{" "}
             {labels.wbsStatusLabel(tooltipItem.status)}
           </span>
+          {tooltipItem.startLocked && (
+            <span className="workload-tooltip-lock">
+              {describeDateHold("start", tooltipItem.startLinks ?? [], t)}
+            </span>
+          )}
+          {tooltipItem.finishLocked && (
+            <span className="workload-tooltip-lock">
+              {describeDateHold("finish", tooltipItem.finishLinks ?? [], t)}
+            </span>
+          )}
         </div>
       )}
     </div>

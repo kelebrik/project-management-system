@@ -14,6 +14,8 @@ type SystemBannersProps = {
 const AUTO_DISMISS_MS: Record<Toast["tone"], number> = {
   success: 4500,
   error: 8000,
+  // Warnings explain something unexpected and take longer to read.
+  warning: 12000,
 };
 
 function ToastItem({
@@ -41,7 +43,9 @@ function ToastItem({
       >
         <X size={14} />
       </button>
-      <strong>{toast.tone === "error" ? t("feedback.error") : t("feedback.done")}</strong>
+      <strong>
+        {toast.tone === "error" ? t("feedback.error") : toast.tone === "warning" ? t("feedback.warning") : t("feedback.done")}
+      </strong>
       <p>{toast.message}</p>
     </div>
   );

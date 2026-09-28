@@ -23,6 +23,7 @@ import {
   type WorkloadRow,
 } from "../app/workloadModel";
 import { reverseWorkloadChange, workloadChange, type WorkloadChange } from "../app/workloadPlanning";
+import { describeDateHold } from "../app/scheduleLinks";
 import { WorkloadGrid, type WorkloadSortKey } from "../components/workload/WorkloadGrid";
 import { WorkloadItemPanel } from "../components/workload/WorkloadItemPanel";
 import type { WorkloadDragPreview } from "../components/workload/useWorkloadDrag";
@@ -43,7 +44,7 @@ function storedHorizon(): LeaveHorizon {
 }
 
 type SavedItem = { item: { owner: string; startDate: string | null; dueDate: string | null; updatedAt?: string } };
-type Feedback = { tone: "done" | "error"; message: string; undo?: { item: WorkloadItem; change: WorkloadChange } };
+type Feedback = { tone: "done" | "error" | "note"; message: string; undo?: { item: WorkloadItem; change: WorkloadChange } };
 
 const day = (value: string | null, fallback: string) => (value ? value.slice(0, 10) : fallback);
 
@@ -216,7 +217,22 @@ export function WorkloadPage() {
   const commitDrag = (preview: WorkloadDragPreview) => {
     const target = preview.rowKey !== preview.fromRowKey ? rows.find((row) => row.key === preview.rowKey) : undefined;
     const change = workloadChange(preview.item, { ...preview.dates, owner: target?.name });
-    if (change) void applyChange(preview.item, change);
+    if (change) {
+      void applyChange(preview.item, change);
+      return;
+    }
+    // The pointer went sideways but links hold the dates: say which ones instead of doing nothing.
+    if (preview.mode === "reassign" && preview.deltaDays !== 0) {
+      const { item } = preview;
+      const reasons = [
+        item.startLocked && describeDateHold("start", item.startLinks ?? [], t),
+        item.finishLocked && describeDateHold("finish", item.finishLinks ?? [], t),
+      ].filter(Boolean);
+      setFeedback({
+        tone: "note",
+        message: `${describe(item)}: ${reasons.join(" ")} ${t("ui.scheduleLinks.howToChange")}`,
+      });
+    }
   };
 
   return (
@@ -339,7 +355,7 @@ export function WorkloadPage() {
         <>
           <p className="leave-hint">{t(editableProjectIds.size > 0 ? "ui.workload.hintEditable" : "ui.workload.hint")}</p>
           {feedback && (
-            <div className={`workload-feedback ${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>
+            <div className={`workload-feedback ${feedback.tone}`} role={feedback.tone === "done" ? "status" : "alert"}>
               <span>{feedback.message}</span>
               {feedback.undo && (
                 <button

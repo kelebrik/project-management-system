@@ -2,6 +2,7 @@ import { useState, type FormEvent, type MouseEvent as ReactMouseEvent } from "re
 import type { WorkloadItem, WorkloadProject } from "../../app/workloadModel";
 import { workloadChange, workloadEditRights, type WorkloadChange } from "../../app/workloadPlanning";
 import { appPathForView } from "../../app/routes";
+import { describeDateHold } from "../../app/scheduleLinks";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { useI18n } from "../../i18n/I18nProvider";
 
@@ -127,8 +128,23 @@ export function WorkloadItemPanel({
               />
             </label>
           </div>
-          {rights.reason === null && item.startLocked && <p className="workload-item-note">{t("ui.workload.startLocked")}</p>}
-          {rights.reason === null && item.finishLocked && <p className="workload-item-note">{t("ui.workload.finishLocked")}</p>}
+          {rights.reason === null && item.startLocked && (
+            <p className="workload-item-note">
+              {item.startLinks?.length
+                ? describeDateHold("start", item.startLinks, t)
+                : t("ui.workload.startLocked")}
+            </p>
+          )}
+          {rights.reason === null && item.finishLocked && (
+            <p className="workload-item-note">
+              {item.finishLinks?.length
+                ? describeDateHold("finish", item.finishLinks, t)
+                : t("ui.workload.finishLocked")}
+            </p>
+          )}
+          {rights.reason === null && (item.startLocked || item.finishLocked) && (
+            <p className="workload-item-note">{t("ui.scheduleLinks.howToChange")}</p>
+          )}
           {!datesValid && <p className="workload-item-error" role="alert">{t("ui.workload.datesInvalid")}</p>}
           <div className="workload-item-actions">
             <a

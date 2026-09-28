@@ -476,3 +476,32 @@ test('the public demo records a leave; the audit keeps its name without a user k
     prismaClientProvider.get = previous;
   }
 });
+
+test('a leave edit based on an older copy is refused, and the answer carries the new version', async () => {
+  const savedAt = new Date('2026-09-28T08:00:00.000Z');
+  let updates = 0;
+  const client = {
+    ...knownPeopleAndTypes,
+    leave: {
+      findUnique: async () => ({ ...leaveRow, updatedAt: savedAt }),
+      findFirst: async () => null,
+      update: async (args: any) => {
+        updates += 1;
+        return { ...leaveRow, ...args.data, updatedAt: new Date('2026-09-28T09:00:00.000Z') };
+      },
+    },
+  };
+  const edit = (expectedUpdatedAt: string) =>
+    call('patch', '/leave-schedule/leaves/:leaveId', { params: { leaveId: 'leave-1' }, body: { endDate: '2026-07-20', expectedUpdatedAt } }, client);
+
+  const stale = await edit('2026-09-28T07:00:00.000Z');
+  assert.equal(stale.statusCode, 409);
+  assert.equal(updates, 0);
+
+  const fresh = await edit(savedAt.toISOString());
+  assert.equal(fresh.statusCode, 200);
+  assert.equal((fresh.body as any).updatedAt, '2026-09-28T09:00:00.000Z');
+
+  const invalid = await edit('not a time');
+  assert.equal(invalid.statusCode, 400);
+});

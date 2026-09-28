@@ -26,6 +26,8 @@ export type LeaveRecord = {
   startDate: string;
   endDate: string;
   comment: string;
+  /** The version read from the server; edits send it back to refuse stale writes. */
+  updatedAt?: string;
 };
 
 export type LeaveCalendarDay = {
@@ -366,4 +368,29 @@ function csvCell(value: string | number) {
 export function leaveCsv(header: string[], rows: Array<Array<string | number>>) {
   // The byte order mark lets Excel open Cyrillic text correctly.
   return `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(";")).join("\r\n")}\r\n`;
+}
+
+export type LeaveDates = { startDate: string; endDate: string };
+
+/**
+ * New dates for a leave dragged by whole calendar days: the body moves both ends,
+ * an edge moves only its own end and never passes the other. Null when nothing changes.
+ */
+export function planLeaveDrag(leave: LeaveDates, mode: "move" | "start" | "end", deltaDays: number): LeaveDates | null {
+  if (deltaDays === 0) return null;
+  const next =
+    mode === "move"
+      ? { startDate: addDays(leave.startDate, deltaDays), endDate: addDays(leave.endDate, deltaDays) }
+      : mode === "start"
+        ? { startDate: minDay(addDays(leave.startDate, deltaDays), leave.endDate), endDate: leave.endDate }
+        : { startDate: leave.startDate, endDate: maxDay(addDays(leave.endDate, deltaDays), leave.startDate) };
+  return next.startDate === leave.startDate && next.endDate === leave.endDate ? null : next;
+}
+
+function minDay(left: string, right: string) {
+  return left < right ? left : right;
+}
+
+function maxDay(left: string, right: string) {
+  return left > right ? left : right;
 }

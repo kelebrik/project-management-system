@@ -26,6 +26,8 @@ import {
 } from "../app/wbsTree";
 import type { WbsScheduleDriver } from "../wbsScheduleDriver";
 import { inferWbsScheduleDriver } from "../wbsScheduleDriver";
+import type { ToastTone } from "./useAppFeedbackState";
+import { useScheduleOverrideWarning } from "./useScheduleOverrideWarning";
 
 type WbsRowActionsDeps = {
   applyWbsItems: (nextItems: WbsItem[]) => void;
@@ -48,6 +50,7 @@ type WbsRowActionsDeps = {
   setDraggedWbsItemId: Dispatch<SetStateAction<string | null>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
+  pushToast: (tone: ToastTone, message: string) => void;
   setSelectedWbsIds: Dispatch<SetStateAction<Set<string>>>;
   setSavingWbsBulk: Dispatch<SetStateAction<boolean>>;
   setWbsDrafts: Dispatch<SetStateAction<Record<string, WbsFormState>>>;
@@ -88,7 +91,9 @@ export function useWbsRowActions({
   wbsUndoStackRef,
   wbsSaveSequenceRef,
   wbsTree,
+  pushToast,
 }: WbsRowActionsDeps) {
+  const warnScheduleOverrides = useScheduleOverrideWarning(pushToast);
   function wbsPayload(
     itemId: string,
     form: WbsFormState,
@@ -290,7 +295,9 @@ export function useWbsRowActions({
         snapshotResult.criticalPath,
         { sentDrafts },
       );
-      setNotice("Изменения Структуры сохранены");
+      if (!warnScheduleOverrides(sentDrafts, activeProject.wbsItems, snapshotResult)) {
+        setNotice("Изменения Структуры сохранены");
+      }
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -544,6 +551,7 @@ export function useWbsRowActions({
 
       if (!isLatestWbsSave(itemId, saveSequence)) return;
 
+      let warned = false;
       if (requiresRenumber) {
         const renumberResult = await apiClient.post<WbsSnapshotResponse>(
           `/api/projects/${activeProject.id}/wbs-items/renumber`,
@@ -558,6 +566,7 @@ export function useWbsRowActions({
             renumberResult.criticalPath,
             { sentDrafts: { [itemId]: draft } },
           );
+          warned = warnScheduleOverrides({ [itemId]: draft }, activeProject.wbsItems, renumberResult);
         } else {
           await refreshProject();
         }
@@ -571,8 +580,9 @@ export function useWbsRowActions({
           snapshotResult.criticalPath,
           { sentDrafts: { [itemId]: draft } },
         );
+        warned = warnScheduleOverrides({ [itemId]: draft }, activeProject.wbsItems, snapshotResult);
       }
-      if (!options.silent) setNotice("Элемент Структуры обновлен");
+      if (!options.silent && !warned) setNotice("Элемент Структуры обновлен");
     } catch (saveError) {
       if (!isLatestWbsSave(itemId, saveSequence)) return;
       setError(

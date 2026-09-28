@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  planLeaveDrag,
   buildLeaveTimeline,
   calendarOverrides,
   filterLeaveEmployees,
@@ -180,4 +181,17 @@ test("the loaded stretch slides instead of growing past five years", () => {
   assert.ok(range.from <= "2025-01-01");
   // A zoom that would overflow loads the stretch around the day instead.
   assert.deepEqual(widenLeaveRange(range, "2026-09-14", 12), initialLeaveRange("2026-09-14", 12));
+});
+
+test("a dragged leave moves by calendar days and an edge never passes the other", () => {
+  const leave = { startDate: "2026-07-06", endDate: "2026-07-10" };
+  assert.deepEqual(planLeaveDrag(leave, "move", 3), { startDate: "2026-07-09", endDate: "2026-07-13" });
+  assert.deepEqual(planLeaveDrag(leave, "move", -7), { startDate: "2026-06-29", endDate: "2026-07-03" });
+  assert.deepEqual(planLeaveDrag(leave, "end", 2), { startDate: "2026-07-06", endDate: "2026-07-12" });
+  assert.deepEqual(planLeaveDrag(leave, "end", -9), { startDate: "2026-07-06", endDate: "2026-07-06" });
+  assert.deepEqual(planLeaveDrag(leave, "start", -1), { startDate: "2026-07-05", endDate: "2026-07-10" });
+  assert.deepEqual(planLeaveDrag(leave, "start", 9), { startDate: "2026-07-10", endDate: "2026-07-10" });
+  assert.equal(planLeaveDrag(leave, "move", 0), null);
+  // A one-day leave pulled past itself stays one day and does not change.
+  assert.equal(planLeaveDrag({ startDate: "2026-07-06", endDate: "2026-07-06" }, "end", -2), null);
 });

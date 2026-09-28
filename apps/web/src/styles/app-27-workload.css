@@ -211,3 +211,38 @@
   display: flex;
   gap: 8px;
 }
+
+/* An edge a link holds: visible on hover, with the reason in its title. */
+.workload-lock {
+  bottom: 0;
+  cursor: not-allowed;
+  position: absolute;
+  top: 0;
+  width: 7px;
+}
+
+.workload-lock.start {
+  border-left: 3px solid transparent;
+  left: 0;
+}
+
+.workload-lock.end {
+  border-right: 3px solid transparent;
+  right: 0;
+}
+
+.workload-bar:hover .workload-lock.start {
+  border-left-color: rgba(15, 23, 42, 0.55);
+}
+
+.workload-bar:hover .workload-lock.end {
+  border-right-color: rgba(15, 23, 42, 0.55);
+}
+
+.workload-tooltip-lock {
+  color: var(--warning, #b45309);
+}
+
+.workload-feedback.note {
+  border-left-color: var(--warning, #c77700);
+}

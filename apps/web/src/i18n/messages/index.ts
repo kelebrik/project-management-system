@@ -9,6 +9,7 @@ import { resourcesMessages } from "./resources";
 import { wikiMessages } from "./wiki";
 import { leaveScheduleMessages } from "./leaveSchedule";
 import { workloadMessages } from "./workload";
+import { scheduleLinksMessages } from "./scheduleLinks";
 export const catalogue = {
   ...commonMessages,
   ...adminMessages,
@@ -21,4 +22,5 @@ export const catalogue = {
   ...wikiMessages,
   ...leaveScheduleMessages,
   ...workloadMessages,
+  ...scheduleLinksMessages,
 } as const;

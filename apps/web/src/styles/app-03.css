@@ -39,6 +39,12 @@
   color: var(--danger-800);
 }
 
+.toast.warning {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
 .toast strong {
   font-size: 13px;
 }

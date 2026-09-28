@@ -125,8 +125,8 @@ export const leaveScheduleMessages = {
     "ru": "Нет сотрудников по заданным фильтрам."
   },
   "ui.leave.dragHint": {
-    "en": "Drag across days in a row to add a leave; click a leave to edit it.",
-    "ru": "Выделите дни в строке мышью, чтобы добавить отсутствие; нажмите на отсутствие, чтобы изменить его."
+    "en": "Drag across days in a row to add a leave; drag a leave to move it or its edge to make it longer or shorter; click a leave to edit it.",
+    "ru": "Выделите дни в строке мышью, чтобы добавить отсутствие; перетащите отсутствие, чтобы сдвинуть его, или его край, чтобы удлинить или сократить; нажмите на отсутствие, чтобы изменить его."
   },
   "ui.leave.archived": {
     "en": "archived",
@@ -359,5 +359,17 @@ export const leaveScheduleMessages = {
   "ui.leave.usersLoadFailed": {
     "en": "Could not load system users",
     "ru": "Не удалось загрузить пользователей системы"
+  },
+  "ui.leave.moved": {
+    "en": "Moved: {employee}, {dates}",
+    "ru": "Перенесено: {employee}, {dates}"
+  },
+  "ui.leave.moveUndone": {
+    "en": "Put back: {employee}, {dates}",
+    "ru": "Возвращено: {employee}, {dates}"
+  },
+  "ui.leave.moveFailed": {
+    "en": "Could not move the leave",
+    "ru": "Не удалось перенести отсутствие"
   }
 } as const;

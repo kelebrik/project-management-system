@@ -1,8 +1,9 @@
-import { CalendarDays, Plus, Settings2, Users } from "lucide-react";
+import { CalendarDays, Plus, Settings2, Undo2, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import {
   buildLeaveTimeline,
+  dayToDate,
   extendLeaveRange,
   initialLeaveRange,
   widenLeaveRange,
@@ -15,6 +16,7 @@ import {
   localDay,
   plannedWorkingDays,
   sortLeaveEmployees,
+  type LeaveDates,
   type LeaveEmployee,
   type LeaveHorizon,
   type LeaveRange,
@@ -32,6 +34,7 @@ import { LeaveTypesDialog } from "../components/leaveSchedule/LeaveTypesDialog";
 import { canEditAppView } from "../app/routes";
 import { useConfirm } from "../hooks/useConfirm";
 import { useI18n } from "../i18n/I18nProvider";
+import { intlLocale } from "../i18n/locale";
 import { usePageContext } from "./PageContext";
 
 type LeaveTab = "schedule" | "list" | "calendar";
@@ -46,6 +49,12 @@ function storedHorizon(): LeaveHorizon {
     return 3;
   }
 }
+
+type MoveFeedback = {
+  tone: "done" | "error";
+  message: string;
+  undo?: { leave: LeaveRecord; dates: LeaveDates };
+};
 
 export function LeaveSchedulePage() {
   const { t, locale } = useI18n();
@@ -73,6 +82,7 @@ export function LeaveSchedulePage() {
   const [showArchived, setShowArchived] = useState(false);
   const [grouped, setGrouped] = useState(true);
   const [sort, setSort] = useState<{ key: LeaveSortKey; direction: "asc" | "desc" }>({ key: "name", direction: "asc" });
+  const [moveFeedback, setMoveFeedback] = useState<MoveFeedback | null>(null);
   const [editor, setEditor] = useState<LeaveDraft | null>(null);
   const [dialog, setDialog] = useState<"employees" | "types" | null>(null);
 
@@ -168,6 +178,39 @@ export function LeaveSchedulePage() {
     setEditor(null);
     setNotice(t("ui.leave.saved"));
     reload();
+  };
+
+  /**
+   * A leave dragged to new dates is saved at once; the message offers to put the
+   * old dates back. The server refuses overlaps with the person's other leaves.
+   */
+  const moveLeave = async (leave: LeaveRecord, dates: LeaveDates, isUndo = false) => {
+    setMoveFeedback(null);
+    setData((current) =>
+      current && {
+        ...current,
+        leaves: current.leaves.map((entry) => (entry.id === leave.id ? { ...entry, ...dates } : entry)),
+      },
+    );
+    try {
+      const saved = await apiClient.patch<LeaveRecord>(`/api/leave-schedule/leaves/${leave.id}`, {
+        ...dates,
+        expectedUpdatedAt: leave.updatedAt,
+      });
+      const format = new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "short", timeZone: "UTC" });
+      setMoveFeedback({
+        tone: "done",
+        message: t(isUndo ? "ui.leave.moveUndone" : "ui.leave.moved", {
+          employee: employeesById.get(leave.employeeId)?.name ?? "",
+          dates: `${format.format(dayToDate(saved.startDate))} – ${format.format(dayToDate(saved.endDate))}`,
+        }),
+        undo: isUndo ? undefined : { leave: saved, dates: { startDate: leave.startDate, endDate: leave.endDate } },
+      });
+    } catch (error) {
+      setMoveFeedback({ tone: "error", message: error instanceof Error ? error.message : t("ui.leave.moveFailed") });
+    } finally {
+      reload();
+    }
   };
 
   const deleteLeave = async (leave: LeaveDraft) => {
@@ -361,6 +404,23 @@ export function LeaveSchedulePage() {
           {data && tab === "schedule" && (
             <>
               {canEdit && data.employees.length > 0 && <p className="leave-hint">{t("ui.leave.dragHint")}</p>}
+              {moveFeedback && (
+                <div className={`workload-feedback ${moveFeedback.tone}`} role={moveFeedback.tone === "error" ? "alert" : "status"}>
+                  <span>{moveFeedback.message}</span>
+                  {moveFeedback.undo && (
+                    <button
+                      onClick={() => moveFeedback.undo && void moveLeave(moveFeedback.undo.leave, moveFeedback.undo.dates, true)}
+                      type="button"
+                    >
+                      <Undo2 aria-hidden="true" size={14} />
+                      {t("ui.workload.undo")}
+                    </button>
+                  )}
+                  <button aria-label={t("ui.workload.dismiss")} onClick={() => setMoveFeedback(null)} type="button">
+                    <X aria-hidden="true" size={14} />
+                  </button>
+                </div>
+              )}
               {data.employees.length === 0 ? (
                 <div className="empty-state">{t("ui.leave.noEmployees")}</div>
               ) : visibleEmployees.length === 0 ? (
@@ -379,6 +439,7 @@ export function LeaveSchedulePage() {
                   horizon={horizon}
                   onCreate={openCreate}
                   onOpen={openEdit}
+                  onMove={(leave, dates) => void moveLeave(leave, dates)}
                   onSort={toggleSort}
                   overrides={overrides}
                   planned={planned}

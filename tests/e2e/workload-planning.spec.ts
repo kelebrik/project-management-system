@@ -47,6 +47,10 @@ async function mockPlanner(page: Page, { conflict = false } = {}) {
           work("1", "project-1", "Иванов", "2026-10-05", "2026-10-09"),
           work("2", "p2", "Петров", "2026-10-12", "2026-10-16", { startLocked: true }),
           work("3", "p3", "Петров", "2026-10-19", "2026-10-20"),
+          work("4", "p2", "Петров", "2026-10-26", "2026-10-30", {
+            finishLocked: true,
+            finishLinks: [{ code: "1.1.5", title: "Приёмка", type: "FF", lagDays: 3 }],
+          }),
         ],
         editableProjectIds: ["project-1", "p2"],
         employees: [
@@ -225,5 +229,19 @@ test("Escape right after pressing a bar cancels it before any drag", async ({ pa
   await page.keyboard.press("Escape");
   await page.mouse.up();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(patches).toHaveLength(0);
+});
+
+test("a finish a link holds says which link, and sliding the bar explains instead of doing nothing", async ({ page }) => {
+  const { patches } = await mockPlanner(page);
+  const lock = bar(page, "4").locator(".workload-lock.end");
+  await expect(lock).toHaveAttribute("title", "Окончание задаёт связь «окончание–окончание» с 1.1.5 «Приёмка» (+3 раб. дн.).");
+  await expect(bar(page, "4").locator(".workload-handle.end")).toHaveCount(0);
+  await expect(bar(page, "4").locator(".workload-handle.start")).toHaveCount(1);
+
+  const box = (await bar(page, "4").boundingBox())!;
+  await dragBy(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 3 * (await dayWidth(page)));
+  await expect(page.getByRole("alert")).toContainText("Окончание задаёт связь «окончание–окончание» с 1.1.5");
+  await expect(page.getByRole("alert")).toContainText("на Ганте");
   expect(patches).toHaveLength(0);
 });

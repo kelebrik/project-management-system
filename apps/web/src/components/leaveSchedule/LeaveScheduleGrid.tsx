@@ -6,7 +6,9 @@ import {
   dayToDate,
   daysBetween,
   leaveTypeLabel,
+  planLeaveDrag,
   workingDaysInRange,
+  type LeaveDates,
   type LeaveCalendarDay,
   type LeaveEmployee,
   type LeaveHorizon,
@@ -21,7 +23,10 @@ import { useI18n } from "../../i18n/I18nProvider";
 import { intlLocale } from "../../i18n/locale";
 import { TimelineBackdrop } from "../timeline/TimelineBackdrop";
 import { TimelineHeader } from "../timeline/TimelineHeader";
+import { useBarDrag, type BarDragPreview } from "../timeline/useBarDrag";
 import { useTimelineViewport } from "../timeline/useTimelineViewport";
+
+export type LeaveDragPreview = BarDragPreview<LeaveRecord, LeaveDates>;
 
 type Timeline = ReturnType<typeof buildLeaveTimeline>;
 type RowGroup = { department: string | null; employees: LeaveEmployee[] };
@@ -29,6 +34,8 @@ type Selection = { employeeId: string; left: number; anchor: number; current: nu
 type Tooltip = { leave: LeaveRecord; x: number; y: number };
 
 const PLANNED_WIDTH = 64;
+/** Bars narrower than this get no edge handles; they can still be moved or opened. */
+const MIN_HANDLE_BAR_WIDTH = 18;
 
 export function LeaveScheduleGrid({
   range,
@@ -47,6 +54,7 @@ export function LeaveScheduleGrid({
   canEdit,
   onCreate,
   onOpen,
+  onMove,
   onExtend,
   onVisibleWindowChange,
   showDepartment,
@@ -68,6 +76,8 @@ export function LeaveScheduleGrid({
   canEdit: boolean;
   onCreate: (employeeId: string, startDate: string, endDate: string) => void;
   onOpen: (leave: LeaveRecord) => void;
+  /** A leave dragged to new dates; the grid has already checked the user may edit. */
+  onMove: (leave: LeaveRecord, dates: LeaveDates) => void;
   onExtend: (side: "before" | "after") => void;
   onVisibleWindowChange: (window: LeaveRange) => void;
   showDepartment: boolean;
@@ -86,6 +96,17 @@ export function LeaveScheduleGrid({
       onExtend,
       onVisibleWindowChange,
     });
+  const drag = useBarDrag<LeaveRecord, LeaveDates>({
+    dayWidth,
+    datesOf: (leave) => ({ startDate: leave.startDate, endDate: leave.endDate }),
+    plan: planLeaveDrag,
+    onCommit: (preview: LeaveDragPreview) => {
+      if (preview.dates.startDate !== preview.item.startDate || preview.dates.endDate !== preview.item.endDate) {
+        onMove(preview.item, preview.dates);
+      }
+    },
+  });
+  const dragPreview = drag.preview;
   const tag = intlLocale(locale);
   const formats = useMemo(
     () => ({ day: new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) }),
@@ -134,7 +155,33 @@ export function LeaveScheduleGrid({
 
   const todayIndex = daysBetween(range.from, today);
 
-  const tooltipLeave = tooltip?.leave;
+  const shortDay = useMemo(() => new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", timeZone: "UTC" }), [tag]);
+  const ghost = (preview: LeaveDragPreview) => {
+    const start = Math.max(0, daysBetween(range.from, preview.dates.startDate));
+    const end = Math.min(totalDays - 1, daysBetween(range.from, preview.dates.endDate));
+    if (end < start) return null;
+    return (
+      <div
+        aria-hidden="true"
+        className="leave-ghost"
+        style={{
+          left: px(start),
+          width: px(end - start + 1),
+          backgroundColor: typesById.get(preview.item.typeId)?.color ?? "var(--text-muted)",
+        }}
+      >
+        <span>
+          {shortDay.format(dayToDate(preview.dates.startDate))} – {shortDay.format(dayToDate(preview.dates.endDate))} ·{" "}
+          {t("ui.leave.tooltipDays", {
+            working: workingDaysInRange(preview.dates.startDate, preview.dates.endDate, overrides),
+            calendar: calendarDaysInRange(preview.dates.startDate, preview.dates.endDate),
+          })}
+        </span>
+      </div>
+    );
+  };
+
+  const tooltipLeave = dragPreview ? undefined : tooltip?.leave;
   const tooltipType = tooltipLeave ? typesById.get(tooltipLeave.typeId) : undefined;
 
   return (
@@ -217,29 +264,42 @@ export function LeaveScheduleGrid({
                           }}
                         />
                       )}
+                      {dragPreview?.item.employeeId === employee.id && ghost(dragPreview)}
                       {(segments.get(employee.id) ?? []).map((segment) => {
                         const type = typesById.get(segment.leave.typeId);
                         const label = `${employee.name}: ${leaveTypeLabel(type, locale)}, ${formats.day.format(
                           dayToDate(segment.leave.startDate),
                         )} – ${formats.day.format(dayToDate(segment.leave.endDate))}`;
+                        const handles = canEdit && segment.span * dayWidth >= MIN_HANDLE_BAR_WIDTH;
                         return (
                           <button
                             aria-label={label}
                             className={`leave-bar ${scale.mode === "day" ? "spaced" : ""} ${segment.continuesBefore ? "cut-start" : ""} ${
                               segment.continuesAfter ? "cut-end" : ""
-                            }`}
+                            } ${canEdit ? "movable" : ""} ${dragPreview?.item.id === segment.leave.id ? "dragging" : ""}`}
+                            data-leave-id={segment.leave.id}
                             key={segment.leave.id}
                             onBlur={() => setTooltip(null)}
                             onClick={() => {
                               setTooltip(null);
+                              if (drag.consumeClick()) return;
                               if (canEdit) onOpen(segment.leave);
                             }}
                             onFocus={(event) => {
                               const rect = event.currentTarget.getBoundingClientRect();
                               setTooltip({ leave: segment.leave, x: rect.left, y: rect.bottom });
                             }}
+                            onPointerCancel={drag.cancel}
+                            onPointerDown={(event) => {
+                              setTooltip(null);
+                              if (canEdit) drag.start(event, segment.leave, "move", employee.id, false);
+                            }}
                             onPointerLeave={() => setTooltip(null)}
-                            onPointerMove={(event) => setTooltip({ leave: segment.leave, x: event.clientX, y: event.clientY })}
+                            onPointerMove={(event) => {
+                              if (drag.move(event)) return;
+                              setTooltip({ leave: segment.leave, x: event.clientX, y: event.clientY });
+                            }}
+                            onPointerUp={drag.end}
                             style={{
                               left: px(segment.start),
                               // Day columns leave a small gap between bars; at week scale a day is
@@ -248,7 +308,23 @@ export function LeaveScheduleGrid({
                               backgroundColor: type?.color ?? "var(--text-muted)",
                             }}
                             type="button"
-                          />
+                          >
+                            {/* A side cut off by the loaded range has no handle: its date is off screen. */}
+                            {handles && !segment.continuesBefore && (
+                              <i
+                                aria-hidden="true"
+                                className="leave-handle start"
+                                onPointerDown={(event) => drag.start(event, segment.leave, "start", employee.id, false)}
+                              />
+                            )}
+                            {handles && !segment.continuesAfter && (
+                              <i
+                                aria-hidden="true"
+                                className="leave-handle end"
+                                onPointerDown={(event) => drag.start(event, segment.leave, "end", employee.id, false)}
+                              />
+                            )}
+                          </button>
                         );
                       })}
                     </div>

@@ -70,6 +70,7 @@ function leaveResponse(leave: {
   startDate: Date;
   endDate: Date;
   comment: string;
+  updatedAt?: Date;
 }) {
   return {
     id: leave.id,
@@ -78,8 +79,14 @@ function leaveResponse(leave: {
     startDate: dateText(leave.startDate),
     endDate: dateText(leave.endDate),
     comment: leave.comment,
+    // The version the client read, so a drag or an undo cannot overwrite a newer edit.
+    ...(leave.updatedAt ? { updatedAt: leave.updatedAt.toISOString() } : {}),
   };
 }
+
+/** Optional optimistic lock for a leave edit: the updatedAt the client last saw. */
+const leaveVersionSchema = z.object({ expectedUpdatedAt: z.string().datetime().optional() });
+const STALE_LEAVE_ERROR = 'Отсутствие изменено другим пользователем, обновите страницу';
 
 function param(req: Request, name: string) {
   const value = req.params[name];
@@ -423,19 +430,24 @@ export function createLeaveScheduleRouter({ currentUser, requireAuth }: LeaveSch
       res.status(404).json({ error: 'Отсутствие не найдено' });
       return;
     }
+    const version = leaveVersionSchema.safeParse(req.body ?? {});
     const parsed = leaveSchema.safeParse({ ...leaveResponse(existing), ...req.body });
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.flatten() });
+    if (!version.success || !parsed.success) {
+      res.status(400).json({ error: (version.success ? parsed.error! : version.error).flatten() });
       return;
     }
+    const expectedUpdatedAt = version.data.expectedUpdatedAt;
     let leave;
     try {
       leave = await withEmployeeLock([existing.employeeId, parsed.data.employeeId], async (client) => {
         // Re-read under the lock: the leave may have been deleted or moved meanwhile.
         const current = await client.leave.findUnique({ where: { id: leaveId } });
         if (!current) throw new LeaveConflict(404, 'Отсутствие не найдено');
-        if (current.employeeId !== existing.employeeId) {
-          throw new LeaveConflict(409, 'Отсутствие изменено другим пользователем, обновите страницу');
+        if (
+          current.employeeId !== existing.employeeId
+          || (expectedUpdatedAt && current.updatedAt.toISOString() !== expectedUpdatedAt)
+        ) {
+          throw new LeaveConflict(409, STALE_LEAVE_ERROR);
         }
         const problem = await leaveProblem(client, parsed.data, existing);
         if (problem) throw new LeaveConflict(problem.status, problem.error);

@@ -5,7 +5,7 @@ import { prisma } from '../db.js';
 import { currentUser, isPublicDemoMode } from '../server/auth.js';
 import { readableProjectWhere } from '../server/business-units.js';
 import { userProjectAccessLevelMap } from '../server/project-access.js';
-import { buildWbsPredecessorRefs } from '../services/wbs-schedule/predecessors.js';
+import { buildWbsPredecessorRefs, wbsDateLinks } from '../services/wbs-schedule/predecessors.js';
 
 type WorkloadContext = {
   requireAuth: RequestHandler;
@@ -53,16 +53,18 @@ async function editableProjectIds(req: Request, projectIds: string[]) {
   return projectIds.filter((id) => ['EDIT', 'ADMIN'].includes(levels.get(id) ?? ''));
 }
 
+type ScheduleLink = { code: string; title: string; type: string; lagDays: number };
+
 /**
- * Which dates of each item its predecessors set: start-to-start and
- * finish-to-start fix the start, finish-to-finish and start-to-finish the finish.
+ * Which dates of each item its predecessors set, and by which links: start-to-start
+ * and finish-to-start fix the start, finish-to-finish and start-to-finish the finish.
  */
 async function scheduleLocks(projectIds: string[]) {
   const [items, dependencies] = await Promise.all([
     prisma.wbsItem.findMany({
       where: { projectId: { in: projectIds } },
       select: {
-        id: true, projectId: true, code: true, leadLagDays: true,
+        id: true, projectId: true, code: true, title: true, leadLagDays: true,
         predecessor1: true, predecessor2: true, predecessor3: true,
         predecessor4: true, predecessor5: true, predecessor6: true,
       },
@@ -72,7 +74,8 @@ async function scheduleLocks(projectIds: string[]) {
       select: { projectId: true, predecessorId: true, successorId: true, type: true, lagDays: true },
     }),
   ]);
-  const locks = new Map<string, { startLocked: boolean; finishLocked: boolean }>();
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const locks = new Map<string, { startLinks: ScheduleLink[]; finishLinks: ScheduleLink[] }>();
   // Codes are unique within a project only, so each project is resolved on its own.
   for (const projectId of projectIds) {
     const refs = buildWbsPredecessorRefs(
@@ -80,10 +83,12 @@ async function scheduleLocks(projectIds: string[]) {
       dependencies.filter((dependency) => dependency.projectId === projectId),
     );
     for (const [itemId, itemRefs] of refs) {
-      locks.set(itemId, {
-        startLocked: itemRefs.some((ref) => ref.type === 'FS' || ref.type === 'SS'),
-        finishLocked: itemRefs.some((ref) => ref.type === 'FF' || ref.type === 'SF'),
-      });
+      const links = wbsDateLinks(itemRefs);
+      const describe = (ref: (typeof itemRefs)[number]): ScheduleLink => {
+        const predecessor = byId.get(ref.predecessorId);
+        return { code: predecessor?.code ?? '', title: predecessor?.title ?? '', type: ref.type, lagDays: ref.lagDays };
+      };
+      locks.set(itemId, { startLinks: links.start.map(describe), finishLinks: links.finish.map(describe) });
     }
   }
   return locks;
@@ -185,8 +190,10 @@ export function createWorkloadRouter({ requireAuth }: WorkloadContext) {
           startDate: dateText(item.startDate!),
           dueDate: dateText(item.dueDate!),
           updatedAt: item.updatedAt.toISOString(),
-          startLocked: lock?.startLocked ?? false,
-          finishLocked: lock?.finishLocked ?? false,
+          startLocked: (lock?.startLinks.length ?? 0) > 0,
+          finishLocked: (lock?.finishLinks.length ?? 0) > 0,
+          startLinks: lock?.startLinks ?? [],
+          finishLinks: lock?.finishLinks ?? [],
           lockedByIssue: managedByIssue.has(item.id),
         };
       });

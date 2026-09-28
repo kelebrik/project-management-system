@@ -174,6 +174,9 @@ test('work says which dates its links set, whether an issue manages it and where
   assert.deepEqual(flags('free'), [false, false, false]);
   assert.deepEqual(flags('dangling'), [false, false, false]);
   assert.deepEqual(flags('issue'), [false, false, true]);
+  // The links are named, so the planner can say why a date is fixed.
+  assert.deepEqual((byId.get('ff') as any).finishLinks, [{ code: '1.1', title: 'head', type: 'FF', lagDays: 0 }]);
+  assert.deepEqual((byId.get('fs') as any).startLinks, [{ code: '1.1', title: 'head', type: 'FS', lagDays: 0 }]);
   assert.deepEqual(issueWhere.status, { notIn: ['Done', 'Closed', 'Resolved'] });
   assert.deepEqual(res.body.editableProjectIds, ['p1']);
 

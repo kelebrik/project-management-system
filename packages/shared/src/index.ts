@@ -2,6 +2,7 @@ import { z } from "zod";
 export * from "./jira-analytics.js";
 export * from "./jira-semantic-analytics.js";
 export * from "./project-automation.js";
+export * from "./wbs-predecessors.js";
 
 /**
  * Identity used for unauthenticated visitors while `PUBLIC_DEMO_MODE` is on.
