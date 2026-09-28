@@ -9,11 +9,13 @@ import {
   type buildLeaveTimeline,
 } from "../../app/leaveScheduleModel";
 import type { WorkloadItem, WorkloadLeave, WorkloadProject, WorkloadRow } from "../../app/workloadModel";
+import { workloadEditRights } from "../../app/workloadPlanning";
 import { useI18n } from "../../i18n/I18nProvider";
 import { intlLocale } from "../../i18n/locale";
 import { TimelineBackdrop } from "../timeline/TimelineBackdrop";
 import { TimelineHeader } from "../timeline/TimelineHeader";
 import { useTimelineViewport } from "../timeline/useTimelineViewport";
+import { useWorkloadDrag, type WorkloadDragPreview } from "./useWorkloadDrag";
 
 export type WorkloadSortKey = "name" | "tasks" | "overlap";
 type Tooltip = { item: WorkloadItem; owner: string; x: number; y: number };
@@ -23,6 +25,8 @@ const COUNTS_WIDTH = 156;
 const LANE_HEIGHT = 24;
 const BAR_HEIGHT = 18;
 const ROW_PADDING = 8;
+/** Bars narrower than this get no edge handles; they can still be moved or opened. */
+const MIN_HANDLE_BAR_WIDTH = 18;
 
 export function WorkloadGrid({
   range,
@@ -39,6 +43,8 @@ export function WorkloadGrid({
   sort,
   onSort,
   onOpenItem,
+  onDragCommit,
+  editableProjectIds,
   onExtend,
   onVisibleWindowChange,
   showDepartment,
@@ -57,6 +63,8 @@ export function WorkloadGrid({
   sort: { key: WorkloadSortKey; direction: "asc" | "desc" };
   onSort: (key: WorkloadSortKey) => void;
   onOpenItem: (item: WorkloadItem) => void;
+  onDragCommit: (preview: WorkloadDragPreview) => void;
+  editableProjectIds: ReadonlySet<string>;
   onExtend: (side: "before" | "after") => void;
   onVisibleWindowChange: (window: LeaveRange) => void;
   showDepartment: boolean;
@@ -73,8 +81,14 @@ export function WorkloadGrid({
       onExtend,
       onVisibleWindowChange,
     });
+  const drag = useWorkloadDrag({ dayWidth, overrides, onCommit: onDragCommit });
+  const dragPreview = drag.preview;
   const dayFormat = useMemo(
     () => new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
+    [locale],
+  );
+  const shortFormat = useMemo(
+    () => new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "short", timeZone: "UTC" }),
     [locale],
   );
   const todayIndex = daysBetween(range.from, today);
@@ -98,6 +112,29 @@ export function WorkloadGrid({
         (sort.direction === "asc" ? <ArrowDown aria-hidden="true" size={13} /> : <ArrowUp aria-hidden="true" size={13} />)}
     </button>
   );
+
+  const shortDay = (day: string) => shortFormat.format(dayToDate(day));
+  const ghost = (preview: WorkloadDragPreview) => {
+    const position = span(preview.dates.startDate, preview.dates.dueDate);
+    if (!position) return null;
+    return (
+      <div
+        aria-hidden="true"
+        className="workload-ghost"
+        style={{
+          left: px(position.start),
+          width: `max(3px, ${position.length * dayWidth}px)`,
+          top: `${ROW_PADDING / 2}px`,
+          height: `${BAR_HEIGHT}px`,
+          backgroundColor: colors.get(preview.item.projectId) ?? "var(--text-muted)",
+        }}
+      >
+        <span>
+          {shortDay(preview.dates.startDate)} – {shortDay(preview.dates.dueDate)}
+        </span>
+      </div>
+    );
+  };
 
   const tooltipItem = tooltip?.item;
   const tooltipProject = tooltipItem ? projectsById.get(tooltipItem.projectId) : undefined;
@@ -144,7 +181,7 @@ export function WorkloadGrid({
                 const height = row.laneCount * LANE_HEIGHT + ROW_PADDING;
                 const rowCounts = counts.get(row.key) ?? { tasks: 0, overlap: 0 };
                 return (
-                  <div className="leave-grid-row leave-person-row workload-row" key={row.key} role="row">
+                  <div className="leave-grid-row leave-person-row workload-row" data-row-owner={row.key} key={row.key} role="row">
                     <div className="leave-name-cell" role="rowheader" style={{ minHeight: `${height}px` }}>
                       <strong>{row.name}</strong>
                       {row.ambiguous && (
@@ -191,32 +228,52 @@ export function WorkloadGrid({
                           />
                         ) : null;
                       })}
+                      {dragPreview?.rowKey === row.key && ghost(dragPreview)}
                       {row.placed.map(({ item, lane }) => {
                         const position = span(item.startDate, item.dueDate);
                         if (!position) return null;
                         const project = projectsById.get(item.projectId);
                         const label = `${project?.code ?? ""} · ${item.code} ${item.title}`;
                         const width = position.length * dayWidth;
+                        const rights = workloadEditRights(item, editableProjectIds);
+                        const handles = width >= MIN_HANDLE_BAR_WIDTH;
+                        const dragged = dragPreview?.item.id === item.id;
                         return (
                           <button
                             aria-label={`${row.name}: ${label}, ${dayFormat.format(dayToDate(item.startDate))} – ${dayFormat.format(
                               dayToDate(item.dueDate),
                             )}`}
-                            className={`workload-bar ${item.status === "DONE" ? "done" : ""}`}
+                            className={[
+                              "workload-bar",
+                              item.status === "DONE" ? "done" : "",
+                              rights.move || rights.owner ? "movable" : "",
+                              dragged ? "dragging" : "",
+                            ].join(" ")}
+                            data-item-id={item.id}
                             key={item.id}
                             onBlur={() => setTooltip(null)}
                             onClick={() => {
                               setTooltip(null);
+                              if (drag.consumeClick()) return;
                               onOpenItem(item);
                             }}
                             onFocus={(event) => {
                               const rect = event.currentTarget.getBoundingClientRect();
                               setTooltip({ item, owner: row.name, x: rect.left, y: rect.bottom });
                             }}
+                            onPointerCancel={drag.cancel}
+                            onPointerDown={(event) => {
+                              setTooltip(null);
+                              if (rights.move || rights.owner) {
+                                drag.start(event, item, rights.move ? "move" : "reassign", row.key, rights.owner);
+                              }
+                            }}
                             onPointerLeave={() => setTooltip(null)}
-                            onPointerMove={(event) =>
-                              setTooltip({ item, owner: row.name, x: event.clientX, y: event.clientY })
-                            }
+                            onPointerMove={(event) => {
+                              if (drag.move(event)) return;
+                              setTooltip({ item, owner: row.name, x: event.clientX, y: event.clientY });
+                            }}
+                            onPointerUp={drag.end}
                             style={{
                               left: px(position.start),
                               width: `max(3px, ${width - (scale.mode === "day" ? 2 : 0)}px)`,
@@ -227,6 +284,20 @@ export function WorkloadGrid({
                             type="button"
                           >
                             {width > 70 && <span>{label}</span>}
+                            {handles && rights.start && (
+                              <i
+                                aria-hidden="true"
+                                className="workload-handle start"
+                                onPointerDown={(event) => drag.start(event, item, "start", row.key, false)}
+                              />
+                            )}
+                            {handles && rights.end && (
+                              <i
+                                aria-hidden="true"
+                                className="workload-handle end"
+                                onPointerDown={(event) => drag.start(event, item, "end", row.key, false)}
+                              />
+                            )}
                           </button>
                         );
                       })}
@@ -238,7 +309,7 @@ export function WorkloadGrid({
           ))}
         </div>
       </div>
-      {tooltipItem && (
+      {tooltipItem && !dragPreview && (
         <div
           className="leave-tooltip"
           role="tooltip"

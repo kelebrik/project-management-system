@@ -111,3 +111,23 @@ test("project colours come from the full sorted list", () => {
   assert.equal(colors.get("p1"), "#2f80ed");
   assert.equal(colors.get("p2"), "#27ae60");
 });
+
+test("people from the directory without work get a row only when asked", () => {
+  const employees = [
+    { id: "e1", name: "Иванов", department: "Разработка" },
+    { id: "e2", name: "Петров", department: "Тестирование" },
+    { id: "e3", name: "Сидоров", department: "" },
+    { id: "e4", name: "сидоров", department: "" },
+  ];
+  const items = [item({ owner: "Иванов" })];
+  assert.deepEqual(buildWorkloadRows(items, employees).map((row) => row.name), ["Иванов"]);
+  const rows = buildWorkloadRows(items, employees, true);
+  assert.deepEqual(rows.map((row) => [row.name, row.items.length, row.laneCount]), [
+    ["Иванов", 1, 1],
+    ["Петров", 0, 1],
+    ["Сидоров", 0, 1],
+  ]);
+  // Two people with one name share a row that says so.
+  assert.equal(rows[2].ambiguous, true);
+  assert.equal(rows[1].department, "Тестирование");
+});

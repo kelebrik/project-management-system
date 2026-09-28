@@ -16,7 +16,8 @@ test("application header uses the product name and plan icon", () => {
   );
 
   assert.match(html, /Управление проектами/);
-  assert.match(html, /lucide-clipboard-check/);
+  // The Gantry icon opens the product page on GitHub in a new window.
+  assert.match(html, /<a[^>]+href="https:\/\/github\.com\/kelebrik\/project-management-system"[^>]+target="_blank"[^>]*><img[^>]+src="\/gantry-icon\.svg"/);
   assert.match(html, /aria-hidden="true"/);
   assert.doesNotMatch(html, /Система УП|Контур управления/);
 });

@@ -20,6 +20,11 @@ export const wbsBaselineSchema = z.object({
   itemIds: z.array(z.string().trim().min(1)).min(1).max(500).optional(),
 });
 
+/** Optional optimistic lock for a single item edit: the updatedAt the client last saw. */
+export const wbsExpectedVersionSchema = z.object({
+  expectedUpdatedAt: z.string().datetime().optional(),
+});
+
 export const wbsBulkUpdateSchema = z.object({
   items: z
     .array(

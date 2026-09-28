@@ -18,7 +18,8 @@ test("authentication page offers password login and optional Keycloak SSO", () =
 
   assert.match(html, /Войти через SSO/);
   assert.match(html, /Управление проектами/);
-  assert.match(html, /lucide-clipboard-check/);
+  // The Gantry icon opens the product page on GitHub in a new window.
+  assert.match(html, /<a[^>]+href="https:\/\/github\.com\/kelebrik\/project-management-system"[^>]+target="_blank"[^>]*><img[^>]+src="\/gantry-icon\.svg"/);
   assert.match(html, /aria-hidden="true"/);
   assert.doesNotMatch(html, /Система УП|Контур управления/);
   assert.match(html, /type="password"/);

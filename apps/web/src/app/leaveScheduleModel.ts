@@ -42,7 +42,7 @@ export type LeaveScheduleData = {
 };
 
 /** How many months fit into the visible width of the grid. */
-export type LeaveHorizon = 3 | 6 | 12;
+export type LeaveHorizon = 1 | 3 | 6 | 12;
 export type LeaveRange = { from: string; to: string };
 export type LeaveScale = { mode: "day" | "week"; dayWidth: number };
 export type LeaveSortKey = "name" | "department" | "planned";

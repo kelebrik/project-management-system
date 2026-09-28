@@ -435,12 +435,14 @@ export const openApiCorePaths = {
       patch: {
         tags: ["WBS"],
         summary: "Update WBS item",
+        description: "Send expectedUpdatedAt (the item's updatedAt as last read) to refuse the edit if someone saved the item since.",
         security: [{ sessionCookie: [] }],
         parameters: [
           { name: "itemId", in: "path", required: true, schema: { type: "string" } },
         ],
         responses: {
           "200": { description: "WBS item updated" },
+          "409": { description: "The item changed after expectedUpdatedAt, or an open issue manages it" },
           "423": { description: "Project is closed and read-only" },
         },
       },

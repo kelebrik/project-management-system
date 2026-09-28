@@ -1,5 +1,5 @@
-import { CalendarDays } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, Undo2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { apiClient } from "../api/client";
 import {
   buildLeaveTimeline,
@@ -22,11 +22,15 @@ import {
   type WorkloadLeave,
   type WorkloadRow,
 } from "../app/workloadModel";
+import { reverseWorkloadChange, workloadChange, type WorkloadChange } from "../app/workloadPlanning";
 import { WorkloadGrid, type WorkloadSortKey } from "../components/workload/WorkloadGrid";
+import { WorkloadItemPanel } from "../components/workload/WorkloadItemPanel";
+import type { WorkloadDragPreview } from "../components/workload/useWorkloadDrag";
 import { useI18n } from "../i18n/I18nProvider";
+import { intlLocale } from "../i18n/locale";
 import { usePageContext } from "./PageContext";
 
-const HORIZONS: LeaveHorizon[] = [3, 6, 12];
+const HORIZONS: LeaveHorizon[] = [1, 3, 6, 12];
 const HORIZON_STORAGE_KEY = "pms-workload-horizon";
 
 function storedHorizon(): LeaveHorizon {
@@ -37,6 +41,11 @@ function storedHorizon(): LeaveHorizon {
     return 3;
   }
 }
+
+type SavedItem = { item: { owner: string; startDate: string | null; dueDate: string | null; updatedAt?: string } };
+type Feedback = { tone: "done" | "error"; message: string; undo?: { item: WorkloadItem; change: WorkloadChange } };
+
+const day = (value: string | null, fallback: string) => (value ? value.slice(0, 10) : fallback);
 
 export function WorkloadPage() {
   const { t, locale } = useI18n();
@@ -53,6 +62,10 @@ export function WorkloadPage() {
   const [projectFilter, setProjectFilter] = useState<string[]>([]);
   const [overlapsOnly, setOverlapsOnly] = useState(false);
   const [grouped, setGrouped] = useState(false);
+  const [showIdle, setShowIdle] = useState(false);
+  const [openItemId, setOpenItemId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [sort, setSort] = useState<{ key: WorkloadSortKey; direction: "asc" | "desc" }>({ key: "name", direction: "asc" });
 
   const extendRange = useCallback(
@@ -88,8 +101,13 @@ export function WorkloadPage() {
   const rows = useMemo(() => {
     const selected = new Set(projectFilter);
     const items = (data?.items ?? []).filter((item) => selected.size === 0 || selected.has(item.projectId));
-    return buildWorkloadRows(items, data?.employees ?? []);
-  }, [data?.employees, data?.items, projectFilter]);
+    return buildWorkloadRows(items, data?.employees ?? [], showIdle);
+  }, [data?.employees, data?.items, projectFilter, showIdle]);
+  const editableProjectIds = useMemo(() => new Set(data?.editableProjectIds ?? []), [data?.editableProjectIds]);
+  const employeeNames = useMemo(
+    () => [...new Set((data?.employees ?? []).map((employee) => employee.name))].sort((left, right) => left.localeCompare(right, locale)),
+    [data?.employees, locale],
+  );
   const counts = useMemo(
     () =>
       new Map(
@@ -132,7 +150,74 @@ export function WorkloadPage() {
 
   const toggleSort = (key: WorkloadSortKey) =>
     setSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" }));
-  const openItem = (item: WorkloadItem) => selectProject(item.projectId, "project-structure");
+  const openItem = (item: WorkloadItem) => setOpenItemId(item.id);
+  const openedItem = data?.items.find((item) => item.id === openItemId) ?? null;
+  const openStructure = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (!openedItem || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    const url = new URL(event.currentTarget.href);
+    selectProject(openedItem.projectId, "project-structure");
+    // Point at the work only once the structure really opened: a guard may keep the user here.
+    if (window.location.pathname === url.pathname) window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+  };
+
+  const describe = (item: WorkloadItem) => {
+    const project = projectsById.get(item.projectId);
+    return `${project ? `${project.code} · ` : ""}${item.code} ${item.title}`;
+  };
+  const dateRange = (item: Pick<WorkloadItem, "startDate" | "dueDate">) => {
+    const format = new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "short", timeZone: "UTC" });
+    const text = (value: string) => format.format(new Date(`${value}T00:00:00Z`));
+    return `${text(item.startDate)} – ${text(item.dueDate)}`;
+  };
+
+  /**
+   * Saves who does the work and when. The item is sent with the version the page
+   * read, so an edit made meanwhile by someone else is refused instead of lost;
+   * the page then reloads, since links may have moved other work too.
+   */
+  const applyChange = async (item: WorkloadItem, change: WorkloadChange, isUndo = false) => {
+    if (saving) return;
+    setSaving(true);
+    setFeedback(null);
+    setData((current) =>
+      current && { ...current, items: current.items.map((entry) => (entry.id === item.id ? { ...entry, ...change } : entry)) },
+    );
+    try {
+      const result = await apiClient.patch<SavedItem>(`/api/wbs-items/${item.id}`, {
+        ...change,
+        ...(change.startDate || change.dueDate ? { scheduleDriver: "dates" } : {}),
+        expectedUpdatedAt: item.updatedAt,
+      });
+      const saved: WorkloadItem = {
+        ...item,
+        owner: result.item.owner,
+        startDate: day(result.item.startDate, item.startDate),
+        dueDate: day(result.item.dueDate, item.dueDate),
+        updatedAt: result.item.updatedAt,
+      };
+      setFeedback({
+        tone: "done",
+        message: t(isUndo ? "ui.workload.undone" : "ui.workload.saved", {
+          work: describe(saved),
+          owner: saved.owner,
+          dates: dateRange(saved),
+        }),
+        undo: isUndo || !saved.updatedAt ? undefined : { item: saved, change: reverseWorkloadChange(item, change) },
+      });
+    } catch (error) {
+      setFeedback({ tone: "error", message: error instanceof Error ? error.message : t("ui.workload.saveFailed") });
+    } finally {
+      setSaving(false);
+      setReloadToken((value) => value + 1);
+    }
+  };
+
+  const commitDrag = (preview: WorkloadDragPreview) => {
+    const target = preview.rowKey !== preview.fromRowKey ? rows.find((row) => row.key === preview.rowKey) : undefined;
+    const change = workloadChange(preview.item, { ...preview.dates, owner: target?.name });
+    if (change) void applyChange(preview.item, change);
+  };
 
   return (
     <section className="v2-page leave-page workload-page">
@@ -230,6 +315,10 @@ export function WorkloadPage() {
             <input checked={grouped} type="checkbox" onChange={(event) => setGrouped(event.target.checked)} />
             {t("ui.workload.groupByDepartment")}
           </label>
+          <label className="leave-check">
+            <input checked={showIdle} type="checkbox" onChange={(event) => setShowIdle(event.target.checked)} />
+            {t("ui.workload.showIdle")}
+          </label>
         </div>
       </div>
 
@@ -248,7 +337,25 @@ export function WorkloadPage() {
       )}
       {data && (
         <>
-          <p className="leave-hint">{t("ui.workload.hint")}</p>
+          <p className="leave-hint">{t(editableProjectIds.size > 0 ? "ui.workload.hintEditable" : "ui.workload.hint")}</p>
+          {feedback && (
+            <div className={`workload-feedback ${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>
+              <span>{feedback.message}</span>
+              {feedback.undo && (
+                <button
+                  disabled={saving}
+                  onClick={() => feedback.undo && void applyChange(feedback.undo.item, feedback.undo.change, true)}
+                  type="button"
+                >
+                  <Undo2 aria-hidden="true" size={14} />
+                  {t("ui.workload.undo")}
+                </button>
+              )}
+              <button aria-label={t("ui.workload.dismiss")} className="workload-feedback-close" onClick={() => setFeedback(null)} type="button">
+                <X aria-hidden="true" size={14} />
+              </button>
+            </div>
+          )}
           {rows.length === 0 ? (
             <div className="empty-state">{t("ui.workload.noWork")}</div>
           ) : visibleRows.length === 0 ? (
@@ -262,6 +369,8 @@ export function WorkloadPage() {
               leavesByEmployee={leavesByEmployee}
               onExtend={extendRange}
               onOpenItem={openItem}
+              onDragCommit={commitDrag}
+              editableProjectIds={editableProjectIds}
               onSort={toggleSort}
               onVisibleWindowChange={setVisibleWindow}
               overrides={overrides}
@@ -275,6 +384,22 @@ export function WorkloadPage() {
             />
           )}
         </>
+      )}
+      {openedItem && (
+        <WorkloadItemPanel
+          editableProjectIds={editableProjectIds}
+          employeeNames={employeeNames}
+          item={openedItem}
+          key={`${openedItem.id}:${openedItem.updatedAt ?? ""}`}
+          onClose={() => setOpenItemId(null)}
+          onOpenStructure={openStructure}
+          onSave={(change) => {
+            setOpenItemId(null);
+            void applyChange(openedItem, change);
+          }}
+          project={projectsById.get(openedItem.projectId)}
+          saving={saving}
+        />
       )}
     </section>
   );

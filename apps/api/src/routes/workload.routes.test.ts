@@ -16,11 +16,20 @@ function route(path: string) {
   return layer.route;
 }
 
-async function call(path: string, query: Record<string, string>, client: Record<string, unknown>) {
+async function call(
+  path: string,
+  query: Record<string, string>,
+  client: Record<string, unknown>,
+  user: Record<string, unknown> = { id: 'u1', role: 'VIEWER' },
+) {
   const previous = prismaClientProvider.get;
   prismaClientProvider.get = () =>
     ({
       businessUnit: { findFirst: async () => null },
+      wbsDependency: { findMany: async () => [] },
+      issue: { findMany: async () => [] },
+      projectAccess: { findMany: async () => [] },
+      project: { findMany: async () => [] },
       ...client,
     }) as unknown as PrismaClient;
   try {
@@ -37,7 +46,7 @@ async function call(path: string, query: Record<string, string>, client: Record<
       },
     };
     await route(path).stack[1].handle(
-      { query, get: () => undefined, header: () => undefined, headers: {}, currentUser: { id: 'u1' } } as unknown as Request,
+      { query, get: () => undefined, header: () => undefined, headers: {}, currentUser: user } as unknown as Request,
       res as unknown as Response,
     );
     return res;
@@ -88,11 +97,14 @@ test('only dated leaf work with an owner in open projects is returned', async ()
       ...empty,
       wbsItem: {
         findMany: async (args: any) => {
+          // The second query reads every item of the projects for their predecessors.
+          if (!args.where.children) return [];
           where = args.where;
           return [
             {
               id: 'w1', projectId: 'p1', code: '1.1', title: 'Задача', owner: ' Иванов ', type: 'TASK', status: 'IN_PROGRESS',
               startDate: new Date('2026-07-06T00:00:00.000Z'), dueDate: new Date('2026-07-10T00:00:00.000Z'), project,
+              updatedAt: new Date('2026-07-01T10:00:00.000Z'),
             },
             {
               id: 'w2', projectId: 'p1', code: '1.2', title: 'Пусто', owner: '   ', type: 'TASK', status: 'NOT_STARTED',
@@ -112,6 +124,61 @@ test('only dated leaf work with an owner in open projects is returned', async ()
   assert.equal(where.dueDate.gte.toISOString(), '2026-07-01T00:00:00.000Z');
   assert.deepEqual(res.body.items.map((item: any) => [item.id, item.owner, item.startDate]), [['w1', 'Иванов', '2026-07-06']]);
   assert.deepEqual(res.body.projects, [project]);
+  assert.equal(res.body.items[0].updatedAt, '2026-07-01T10:00:00.000Z');
+  assert.deepEqual(res.body.editableProjectIds, []);
+});
+
+function leaf(id: string, projectId: string, code: string, extra: Record<string, unknown> = {}) {
+  return {
+    id, projectId, code, title: id, owner: 'Иванов', type: 'TASK', status: 'IN_PROGRESS',
+    startDate: new Date('2026-07-06T00:00:00.000Z'), dueDate: new Date('2026-07-10T00:00:00.000Z'),
+    updatedAt: new Date('2026-07-01T10:00:00.000Z'), leadLagDays: 0,
+    predecessor1: null, predecessor2: null, predecessor3: null, predecessor4: null, predecessor5: null, predecessor6: null,
+    project: { id: projectId, code: projectId.toUpperCase(), name: projectId },
+    ...extra,
+  };
+}
+
+test('work says which dates its links set, whether an issue manages it and where the user may edit', async () => {
+  const items = [
+    leaf('fs', 'p1', '1.2', { predecessor1: '1.1' }),
+    leaf('ff', 'p1', '1.3'),
+    leaf('free', 'p1', '1.4'),
+    // A code in the predecessor field that names nothing does not lock anything.
+    leaf('dangling', 'p1', '1.5', { predecessor1: '9.9' }),
+    leaf('issue', 'p2', '1.1'),
+  ];
+  const all = [...items, leaf('head', 'p1', '1.1')];
+  let issueWhere: any;
+  const client = {
+    ...empty,
+    wbsItem: { findMany: async (args: any) => (args.where.children ? items : all) },
+    wbsDependency: { findMany: async () => [
+      { projectId: 'p1', predecessorId: 'head', successorId: 'ff', type: 'FF', lagDays: 0 },
+    ] },
+    issue: { findMany: async (args: any) => {
+      issueWhere = args.where;
+      return [{ workPackageId: 'issue' }];
+    } },
+    projectAccess: { findMany: async () => [{ projectId: 'p1', level: 'EDIT' }, { projectId: 'p2', level: 'VIEW' }] },
+  };
+  const res = await call('/workload', { from: '2026-07-01', to: '2026-07-31' }, client);
+  assert.equal(res.statusCode, 200);
+  const byId = new Map(res.body.items.map((item: any) => [item.id, item]));
+  const flags = (id: string) => {
+    const item: any = byId.get(id);
+    return [item.startLocked, item.finishLocked, item.lockedByIssue];
+  };
+  assert.deepEqual(flags('fs'), [true, false, false]);
+  assert.deepEqual(flags('ff'), [false, true, false]);
+  assert.deepEqual(flags('free'), [false, false, false]);
+  assert.deepEqual(flags('dangling'), [false, false, false]);
+  assert.deepEqual(flags('issue'), [false, false, true]);
+  assert.deepEqual(issueWhere.status, { notIn: ['Done', 'Closed', 'Resolved'] });
+  assert.deepEqual(res.body.editableProjectIds, ['p1']);
+
+  const admin = await call('/workload', { from: '2026-07-01', to: '2026-07-31' }, client, { id: 'a1', role: 'ADMIN' });
+  assert.deepEqual(admin.body.editableProjectIds.sort(), ['p1', 'p2']);
 });
 
 test('the directory lists active people for pickers', async () => {

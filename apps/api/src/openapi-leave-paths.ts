@@ -72,7 +72,7 @@ export const openApiLeavePaths = {
     get: {
       ...apiSecuredOperation(
         ["LeaveSchedule"],
-        "Leaf work with owners and dates across open projects, with people, leaves and calendar days, for a period of up to six years",
+        "Leaf work with owners and dates across open projects, with people, leaves and calendar days, for a period of up to six years. Each item tells which dates its links set and whether an open issue manages it; editableProjectIds lists the projects the user may change.",
       ),
       parameters: [dateQuery("from", "First day of the period"), dateQuery("to", "Last day of the period, inclusive")],
     },

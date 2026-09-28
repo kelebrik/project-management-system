@@ -18,6 +18,13 @@ export type WorkloadItem = {
   status: string;
   startDate: string;
   dueDate: string;
+  /** Planning fields; absent in older answers, which then read as not editable. */
+  updatedAt?: string;
+  /** Links set the start (finish-to-start, start-to-start) or the finish (finish-to-finish, start-to-finish). */
+  startLocked?: boolean;
+  finishLocked?: boolean;
+  /** An open issue manages this work package from the issue register. */
+  lockedByIssue?: boolean;
 };
 
 export type WorkloadEmployee = { id: string; name: string; department: string };
@@ -29,6 +36,8 @@ export type WorkloadData = {
   employees: WorkloadEmployee[];
   leaves: WorkloadLeave[];
   calendarDays: LeaveCalendarDay[];
+  /** Projects in which the user may change work. */
+  editableProjectIds?: string[];
 };
 
 /** Names as people type them: case, spacing, "ё" and Unicode forms do not matter. */
@@ -127,8 +136,12 @@ export type WorkloadRow = {
   overlaps: LeaveRange[];
 };
 
-/** One row per owner named on work, matched to the directory by normalized name. */
-export function buildWorkloadRows(items: WorkloadItem[], employees: WorkloadEmployee[]) {
+/**
+ * One row per owner named on work, matched to the directory by normalized name.
+ * With `includeIdle`, active people from the directory without work get a row too,
+ * so work can be handed to them.
+ */
+export function buildWorkloadRows(items: WorkloadItem[], employees: WorkloadEmployee[], includeIdle = false) {
   const directory = new Map<string, WorkloadEmployee[]>();
   for (const employee of employees) {
     const key = normalizePersonName(employee.name);
@@ -140,13 +153,16 @@ export function buildWorkloadRows(items: WorkloadItem[], employees: WorkloadEmpl
     if (!key) continue;
     byOwner.set(key, [...(byOwner.get(key) ?? []), item]);
   }
+  if (includeIdle) {
+    for (const key of directory.keys()) if (!byOwner.has(key)) byOwner.set(key, []);
+  }
   return [...byOwner.entries()].map(([key, ownerItems]): WorkloadRow => {
     const matches = directory.get(key) ?? [];
     const person = matches.length === 1 ? matches[0] : null;
     const { placed, laneCount } = packLanes(ownerItems);
     return {
       key,
-      name: person?.name ?? ownerItems[0].owner,
+      name: person?.name ?? ownerItems[0]?.owner ?? matches[0].name,
       department: person?.department ?? "",
       employeeId: person?.id ?? null,
       ambiguous: matches.length > 1,

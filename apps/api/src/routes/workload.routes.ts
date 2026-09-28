@@ -1,7 +1,11 @@
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import { Router, type Request, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
+import { currentUser, isPublicDemoMode } from '../server/auth.js';
 import { readableProjectWhere } from '../server/business-units.js';
+import { userProjectAccessLevelMap } from '../server/project-access.js';
+import { buildWbsPredecessorRefs } from '../services/wbs-schedule/predecessors.js';
 
 type WorkloadContext = {
   requireAuth: RequestHandler;
@@ -20,6 +24,8 @@ const isoDate = z
 const WORK_TYPES = ['TASK', 'WORK_PACKAGE', 'DELIVERABLE'] as const;
 /** The client keeps at most five years loaded; six leave room for rounding to whole weeks. */
 const MAX_RANGE_MONTHS = 72;
+/** Issue statuses that no longer manage their work package. */
+const CLOSED_ISSUE_STATUSES = ['Done', 'Closed', 'Resolved'];
 
 function toDate(value: string) {
   return new Date(`${value}T00:00:00.000Z`);
@@ -36,6 +42,51 @@ function rangeLimit(from: string) {
   const month = start.getUTCMonth() + MAX_RANGE_MONTHS;
   const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
   return new Date(Date.UTC(year, month, Math.min(start.getUTCDate(), lastDay)));
+}
+
+/** Projects the current user may change: the same rule the write middleware applies to WBS items. */
+async function editableProjectIds(req: Request, projectIds: string[]) {
+  const user = currentUser(req);
+  if (!user || projectIds.length === 0) return [];
+  if (user.role === 'ADMIN' || (isPublicDemoMode() && user.id === PUBLIC_DEMO_USER_ID)) return projectIds;
+  const levels = await userProjectAccessLevelMap(user.id, projectIds);
+  return projectIds.filter((id) => ['EDIT', 'ADMIN'].includes(levels.get(id) ?? ''));
+}
+
+/**
+ * Which dates of each item its predecessors set: start-to-start and
+ * finish-to-start fix the start, finish-to-finish and start-to-finish the finish.
+ */
+async function scheduleLocks(projectIds: string[]) {
+  const [items, dependencies] = await Promise.all([
+    prisma.wbsItem.findMany({
+      where: { projectId: { in: projectIds } },
+      select: {
+        id: true, projectId: true, code: true, leadLagDays: true,
+        predecessor1: true, predecessor2: true, predecessor3: true,
+        predecessor4: true, predecessor5: true, predecessor6: true,
+      },
+    }),
+    prisma.wbsDependency.findMany({
+      where: { projectId: { in: projectIds } },
+      select: { projectId: true, predecessorId: true, successorId: true, type: true, lagDays: true },
+    }),
+  ]);
+  const locks = new Map<string, { startLocked: boolean; finishLocked: boolean }>();
+  // Codes are unique within a project only, so each project is resolved on its own.
+  for (const projectId of projectIds) {
+    const refs = buildWbsPredecessorRefs(
+      items.filter((item) => item.projectId === projectId),
+      dependencies.filter((dependency) => dependency.projectId === projectId),
+    );
+    for (const [itemId, itemRefs] of refs) {
+      locks.set(itemId, {
+        startLocked: itemRefs.some((ref) => ref.type === 'FS' || ref.type === 'SS'),
+        finishLocked: itemRefs.some((ref) => ref.type === 'FF' || ref.type === 'SF'),
+      });
+    }
+  }
+  return locks;
 }
 
 function period(req: Request) {
@@ -87,6 +138,7 @@ export function createWorkloadRouter({ requireAuth }: WorkloadContext) {
           status: true,
           startDate: true,
           dueDate: true,
+          updatedAt: true,
           project: { select: { id: true, code: true, name: true } },
         },
         orderBy: [{ startDate: 'asc' }],
@@ -102,11 +154,26 @@ export function createWorkloadRouter({ requireAuth }: WorkloadContext) {
       prisma.leaveCalendarDay.findMany({ orderBy: { date: 'asc' } }),
     ]);
     const projects = new Map<string, { id: string; code: string; name: string }>();
-    const work = items
-      // A blank owner names nobody.
-      .filter((item) => item.owner.trim() && item.startDate && item.dueDate && item.startDate <= item.dueDate)
+    // A blank owner names nobody.
+    const shown = items.filter((item) => item.owner.trim() && item.startDate && item.dueDate && item.startDate <= item.dueDate);
+    const projectIds = [...new Set(shown.map((item) => item.projectId))];
+    const [locks, issueLinks, editable] = await Promise.all([
+      scheduleLocks(projectIds),
+      prisma.issue.findMany({
+        where: {
+          projectId: { in: projectIds },
+          status: { notIn: CLOSED_ISSUE_STATUSES },
+          workPackageId: { in: shown.map((item) => item.id) },
+        },
+        select: { workPackageId: true },
+      }),
+      editableProjectIds(req, projectIds),
+    ]);
+    const managedByIssue = new Set(issueLinks.map((issue) => issue.workPackageId));
+    const work = shown
       .map((item) => {
         projects.set(item.project.id, item.project);
+        const lock = locks.get(item.id);
         return {
           id: item.id,
           projectId: item.projectId,
@@ -117,11 +184,16 @@ export function createWorkloadRouter({ requireAuth }: WorkloadContext) {
           status: item.status,
           startDate: dateText(item.startDate!),
           dueDate: dateText(item.dueDate!),
+          updatedAt: item.updatedAt.toISOString(),
+          startLocked: lock?.startLocked ?? false,
+          finishLocked: lock?.finishLocked ?? false,
+          lockedByIssue: managedByIssue.has(item.id),
         };
       });
     res.json({
       projects: [...projects.values()].sort((left, right) => left.code.localeCompare(right.code, 'ru')),
       items: work,
+      editableProjectIds: editable,
       employees,
       leaves: leaves.map((leave) => ({
         ...leave,

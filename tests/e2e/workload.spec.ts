@@ -74,11 +74,15 @@ test("workload shows owners with work coloured by project and marks overlaps", a
   await expect(page.getByRole("rowheader", { name: /Иванов/ })).toHaveCount(1);
 });
 
-test("clicking work opens the structure of its project", async ({ page }) => {
+test("clicking work opens it, and from there its project structure", async ({ page }) => {
   await mockWorkload(page);
   await page.goto("/operations/workload");
   await page.getByRole("button", { name: /Иванов: TV-OVERVIEW · 1\.1 Работа 1/ }).click();
-  await expect(page).toHaveURL(/\/TV-OVERVIEW\/wbs$/);
+  // An older answer without planning fields is shown read-only.
+  const dialog = page.getByRole("dialog", { name: /1\.1 Работа 1/ });
+  await expect(dialog.getByRole("button", { name: "Сохранить" })).toHaveCount(0);
+  await dialog.getByRole("link", { name: "Открыть в Структуре" }).click();
+  await expect(page).toHaveURL(/\/TV-OVERVIEW\/wbs\?focusWbs=1$/);
 });
 
 test("the structure offers people from the directory as owners", async ({ page }) => {

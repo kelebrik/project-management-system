@@ -25,13 +25,14 @@ import {
   validateWbsProjectAndParent,
   wouldCreateWbsCycle,
 } from './helpers.js';
-import { wbsBulkDeleteSchema, wbsBulkUpdateSchema } from './schemas.js';
+import { wbsBulkDeleteSchema, wbsBulkUpdateSchema, wbsExpectedVersionSchema } from './schemas.js';
 
 function wbsLevelFromItem(item: { code: string; wbsLevel: number | null }) {
   return Math.max(1, item.wbsLevel ?? item.code.split('.').filter(Boolean).length);
 }
 
 const closedIssueStatuses = ['Done', 'Closed', 'Resolved'];
+const staleWbsItemError = 'Работа изменилась, пока вы её правили. Данные обновлены — повторите изменение.';
 
 function datesMatch(left: Date | null, right: string | null | undefined) {
   if (right === undefined) return true;
@@ -627,11 +628,13 @@ export function registerWbsItemRoutes(router: Router) {
   });
 
   router.patch('/wbs-items/:itemId', async (req, res) => {
+    const version = wbsExpectedVersionSchema.safeParse(req.body);
     const parsed = wbsItemBaseSchema.partial().safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.flatten() });
+    if (!version.success || !parsed.success) {
+      res.status(400).json({ error: (version.success ? parsed.error! : version.error).flatten() });
       return;
     }
+    const expectedUpdatedAt = version.data.expectedUpdatedAt;
 
     const existing = await prisma.wbsItem.findUnique({
       where: { id: req.params.itemId },
@@ -639,6 +642,10 @@ export function registerWbsItemRoutes(router: Router) {
 
     if (!existing) {
       res.status(404).json({ error: 'Элемент Структуры не найден' });
+      return;
+    }
+    if (expectedUpdatedAt && existing.updatedAt.toISOString() !== expectedUpdatedAt) {
+      res.status(409).json({ error: staleWbsItemError, itemId: existing.id });
       return;
     }
 
@@ -734,98 +741,108 @@ export function registerWbsItemRoutes(router: Router) {
     const schedulePatch = resolveWbsSchedulePatch(parsed.data, existing);
     const scheduleDateWrites = resolveWbsScheduleDateWrites(parsed.data, schedulePatch);
 
-    const updated = await prisma.wbsItem.update({
-      where: { id: existing.id },
-      data: {
-        parentId: parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
-        code: undefined,
-        title: parsed.data.title,
-        type: parsed.data.type,
-        status: parsed.data.status,
-        owner: parsed.data.owner,
-        startDate:
-          scheduleDateWrites.startDate === undefined
-            ? undefined
-            : scheduleDateWrites.startDate
-              ? new Date(scheduleDateWrites.startDate)
-              : null,
-        dueDate:
-          scheduleDateWrites.dueDate === undefined
-            ? undefined
-            : scheduleDateWrites.dueDate
-              ? new Date(scheduleDateWrites.dueDate)
-              : null,
-        baselineStartDate:
-          parsed.data.baselineStartDate === undefined
-            ? undefined
-            : parsed.data.baselineStartDate
-              ? new Date(parsed.data.baselineStartDate)
-              : null,
-        baselineDueDate:
-          parsed.data.baselineDueDate === undefined
-            ? undefined
-            : parsed.data.baselineDueDate
-              ? new Date(parsed.data.baselineDueDate)
-              : null,
-        forecastStartDate:
-          scheduleDateWrites.forecastStartDate === undefined
-            ? undefined
-            : scheduleDateWrites.forecastStartDate
-              ? new Date(scheduleDateWrites.forecastStartDate)
-              : null,
-        forecastDueDate:
-          scheduleDateWrites.forecastDueDate === undefined
-            ? undefined
-            : scheduleDateWrites.forecastDueDate
-              ? new Date(scheduleDateWrites.forecastDueDate)
-              : null,
-        wbsLevel: parsed.data.wbsLevel === undefined ? undefined : parsed.data.wbsLevel ?? null,
-        predecessor1: parsed.data.predecessor1 === undefined ? undefined : parsed.data.predecessor1 || null,
-        predecessor2: parsed.data.predecessor2 === undefined ? undefined : parsed.data.predecessor2 || null,
-        predecessor3: parsed.data.predecessor3 === undefined ? undefined : parsed.data.predecessor3 || null,
-        predecessor4: parsed.data.predecessor4 === undefined ? undefined : parsed.data.predecessor4 || null,
-        predecessor5: parsed.data.predecessor5 === undefined ? undefined : parsed.data.predecessor5 || null,
-        predecessor6: parsed.data.predecessor6 === undefined ? undefined : parsed.data.predecessor6 || null,
-        leadLagDays: parsed.data.leadLagDays,
-        workDays:
-          !schedulePatch.writeWorkDays || parsed.data.workDays === undefined
-            ? undefined
-            : parsed.data.workDays ?? null,
-        calendarDays:
-          !schedulePatch.writeCalendarDays || parsed.data.calendarDays === undefined
-            ? undefined
-            : parsed.data.calendarDays ?? null,
-        excelStartDate:
-          parsed.data.excelStartDate === undefined
-            ? undefined
-            : parsed.data.excelStartDate
-              ? new Date(parsed.data.excelStartDate)
-              : null,
-        excelEndDate:
-          parsed.data.excelEndDate === undefined
-            ? undefined
-            : parsed.data.excelEndDate
-              ? new Date(parsed.data.excelEndDate)
-              : null,
-        planWorkDays: parsed.data.planWorkDays === undefined ? undefined : parsed.data.planWorkDays ?? null,
-        planCalendarDays:
-          parsed.data.planCalendarDays === undefined ? undefined : parsed.data.planCalendarDays ?? null,
-        calendarCode: parsed.data.calendarCode,
-        templateColor: parsed.data.templateColor === undefined ? undefined : parsed.data.templateColor || null,
-        priority: parsed.data.priority === undefined ? undefined : parsed.data.priority || null,
-        effortPercent: parsed.data.effortPercent,
-        plannedCost: parsed.data.plannedCost,
-        forecastCost: parsed.data.forecastCost,
-        progress: parsed.data.progress,
-        jiraTicketKey: parsed.data.jiraTicketKey === undefined ? undefined : parsed.data.jiraTicketKey || null,
-        jiraTicketUrl: parsed.data.jiraTicketUrl === undefined ? undefined : parsed.data.jiraTicketUrl || null,
-        mattermostUrl: parsed.data.mattermostUrl === undefined ? undefined : parsed.data.mattermostUrl?.trim() || null,
-        description: parsed.data.description === undefined ? undefined : parsed.data.description || null,
-        comment: parsed.data.comment === undefined ? undefined : parsed.data.comment?.trim() || null,
-        closedAt: closedAtForWbsStatus(parsed.data.status, existing),
-        sortOrder: parsed.data.sortOrder,
-      },
-    });
+    let updated;
+    try {
+      updated = await prisma.wbsItem.update({
+        where: { id: existing.id, ...(expectedUpdatedAt ? { updatedAt: new Date(expectedUpdatedAt) } : {}) },
+        data: {
+          parentId: parsed.data.parentId === undefined ? undefined : parsed.data.parentId || null,
+          code: undefined,
+          title: parsed.data.title,
+          type: parsed.data.type,
+          status: parsed.data.status,
+          owner: parsed.data.owner,
+          startDate:
+            scheduleDateWrites.startDate === undefined
+              ? undefined
+              : scheduleDateWrites.startDate
+                ? new Date(scheduleDateWrites.startDate)
+                : null,
+          dueDate:
+            scheduleDateWrites.dueDate === undefined
+              ? undefined
+              : scheduleDateWrites.dueDate
+                ? new Date(scheduleDateWrites.dueDate)
+                : null,
+          baselineStartDate:
+            parsed.data.baselineStartDate === undefined
+              ? undefined
+              : parsed.data.baselineStartDate
+                ? new Date(parsed.data.baselineStartDate)
+                : null,
+          baselineDueDate:
+            parsed.data.baselineDueDate === undefined
+              ? undefined
+              : parsed.data.baselineDueDate
+                ? new Date(parsed.data.baselineDueDate)
+                : null,
+          forecastStartDate:
+            scheduleDateWrites.forecastStartDate === undefined
+              ? undefined
+              : scheduleDateWrites.forecastStartDate
+                ? new Date(scheduleDateWrites.forecastStartDate)
+                : null,
+          forecastDueDate:
+            scheduleDateWrites.forecastDueDate === undefined
+              ? undefined
+              : scheduleDateWrites.forecastDueDate
+                ? new Date(scheduleDateWrites.forecastDueDate)
+                : null,
+          wbsLevel: parsed.data.wbsLevel === undefined ? undefined : parsed.data.wbsLevel ?? null,
+          predecessor1: parsed.data.predecessor1 === undefined ? undefined : parsed.data.predecessor1 || null,
+          predecessor2: parsed.data.predecessor2 === undefined ? undefined : parsed.data.predecessor2 || null,
+          predecessor3: parsed.data.predecessor3 === undefined ? undefined : parsed.data.predecessor3 || null,
+          predecessor4: parsed.data.predecessor4 === undefined ? undefined : parsed.data.predecessor4 || null,
+          predecessor5: parsed.data.predecessor5 === undefined ? undefined : parsed.data.predecessor5 || null,
+          predecessor6: parsed.data.predecessor6 === undefined ? undefined : parsed.data.predecessor6 || null,
+          leadLagDays: parsed.data.leadLagDays,
+          workDays:
+            !schedulePatch.writeWorkDays || parsed.data.workDays === undefined
+              ? undefined
+              : parsed.data.workDays ?? null,
+          calendarDays:
+            !schedulePatch.writeCalendarDays || parsed.data.calendarDays === undefined
+              ? undefined
+              : parsed.data.calendarDays ?? null,
+          excelStartDate:
+            parsed.data.excelStartDate === undefined
+              ? undefined
+              : parsed.data.excelStartDate
+                ? new Date(parsed.data.excelStartDate)
+                : null,
+          excelEndDate:
+            parsed.data.excelEndDate === undefined
+              ? undefined
+              : parsed.data.excelEndDate
+                ? new Date(parsed.data.excelEndDate)
+                : null,
+          planWorkDays: parsed.data.planWorkDays === undefined ? undefined : parsed.data.planWorkDays ?? null,
+          planCalendarDays:
+            parsed.data.planCalendarDays === undefined ? undefined : parsed.data.planCalendarDays ?? null,
+          calendarCode: parsed.data.calendarCode,
+          templateColor: parsed.data.templateColor === undefined ? undefined : parsed.data.templateColor || null,
+          priority: parsed.data.priority === undefined ? undefined : parsed.data.priority || null,
+          effortPercent: parsed.data.effortPercent,
+          plannedCost: parsed.data.plannedCost,
+          forecastCost: parsed.data.forecastCost,
+          progress: parsed.data.progress,
+          jiraTicketKey: parsed.data.jiraTicketKey === undefined ? undefined : parsed.data.jiraTicketKey || null,
+          jiraTicketUrl: parsed.data.jiraTicketUrl === undefined ? undefined : parsed.data.jiraTicketUrl || null,
+          mattermostUrl: parsed.data.mattermostUrl === undefined ? undefined : parsed.data.mattermostUrl?.trim() || null,
+          description: parsed.data.description === undefined ? undefined : parsed.data.description || null,
+          comment: parsed.data.comment === undefined ? undefined : parsed.data.comment?.trim() || null,
+          closedAt: closedAtForWbsStatus(parsed.data.status, existing),
+          sortOrder: parsed.data.sortOrder,
+        },
+      });
+    } catch (error) {
+      // Someone saved the item between the check above and this write.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        res.status(409).json({ error: staleWbsItemError, itemId: existing.id });
+        return;
+      }
+      throw error;
+    }
     await recordWbsCommand({
       projectId: existing.projectId,
       type: 'UPDATE',

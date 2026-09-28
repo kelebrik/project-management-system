@@ -18,8 +18,8 @@ import {
   startFromFinish,
   wbsLevelFromItem,
 } from "./hierarchy.js";
+import { buildWbsPredecessorRefs } from "./predecessors.js";
 import type {
-  WbsPredecessorRef,
   WbsScheduleCalculationOptions,
   WbsScheduleCalendarOverride,
   WbsScheduleDependency,
@@ -50,73 +50,7 @@ function calculateWbsSchedulePass(
   const itemsById = new Map(items.map((item) => [item.id, item]));
   const itemsByCode = new Map(items.map((item) => [item.code, item]));
   const childrenByParent = buildChildrenByParent(items, itemsById, itemsByCode);
-  const dependenciesBySuccessor = new Map<string, WbsScheduleDependency[]>();
-  const dependencyBySuccessorAndPredecessor =
-    new Map<string, WbsScheduleDependency>();
-
-  for (const dependency of dependencies) {
-    dependenciesBySuccessor.set(dependency.successorId, [
-      ...(dependenciesBySuccessor.get(dependency.successorId) ?? []),
-      dependency,
-    ]);
-    dependencyBySuccessorAndPredecessor.set(
-      `${dependency.successorId}:${dependency.predecessorId}`,
-      dependency,
-    );
-  }
-
-  const predecessorRefsByItem = new Map<string, WbsPredecessorRef[]>();
-  for (const item of items) {
-    const fieldPredecessorIds: string[] = [];
-    for (const predecessorCode of [
-      item.predecessor1,
-      item.predecessor2,
-      item.predecessor3,
-      item.predecessor4,
-      item.predecessor5,
-      item.predecessor6,
-    ]) {
-      if (!predecessorCode) continue;
-      const predecessor = itemsByCode.get(predecessorCode);
-      if (
-        predecessor &&
-        predecessor.id !== item.id &&
-        !fieldPredecessorIds.includes(predecessor.id)
-      ) {
-        fieldPredecessorIds.push(predecessor.id);
-      }
-    }
-    const refs: WbsPredecessorRef[] = fieldPredecessorIds.map(
-      (predecessorId) => {
-        const dependency = dependencyBySuccessorAndPredecessor.get(
-          `${item.id}:${predecessorId}`,
-        );
-        return {
-          predecessorId,
-          type: dependency?.type ?? "FS",
-          lagDays:
-            dependency?.lagDays ??
-            (fieldPredecessorIds.length === 1 ? item.leadLagDays ?? 0 : 0),
-        };
-      },
-    );
-    const dependencyRefs = dependenciesBySuccessor.get(item.id) ?? [];
-    if (refs.length === 0 && dependencyRefs.length > 0) {
-      for (const dependency of dependencyRefs) {
-        if (
-          itemsById.has(dependency.predecessorId) &&
-          !refs.some((ref) => ref.predecessorId === dependency.predecessorId)
-        ) {
-          refs.push({
-            predecessorId: dependency.predecessorId,
-            type: dependency.type ?? "FS",
-            lagDays: dependency.lagDays ?? 0,
-          });
-        }
-      }
-    }
-    predecessorRefsByItem.set(item.id, refs);
-  }
+  const predecessorRefsByItem = buildWbsPredecessorRefs(items, dependencies);
 
   const successorsByPredecessor = new Map<string, string[]>();
   const incomingCount = new Map<string, number>();
