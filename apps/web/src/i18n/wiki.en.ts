@@ -665,7 +665,10 @@ export const englishWikiGroups: WikiGroup[] = [
               "The work package's name, owner and due date repeat the issue and follow its changes; when the phase changes, the package moves to the new phase. Once the package exists, the phase cannot be cleared.",
               "Only the system administrator can choose a phase, and the user needs the right to change the project's WBS.",
               "While the issue is open, the WBS cannot change the name, owner, due date, type, level or parent of its work package: the server answers 409 and points to the issue register. On the Workload page such a package opens read-only.",
-              "An open issue can be turned into a problem: a DEPENDENCY is created with probability 5 and an impact from the severity (CRITICAL 5, HIGH 4, MEDIUM 3, otherwise 2), and the issue becomes Resolved. A closed issue cannot be turned into a problem."
+              "An open issue can be turned into a problem: a DEPENDENCY is created with probability 5 and an impact from the severity (CRITICAL 5, HIGH 4, MEDIUM 3, otherwise 2), and the issue becomes Resolved. A closed issue cannot be turned into a problem.",
+              "The From meeting notes button in the issue register header opens a panel: paste the meeting text and the system prepares draft tasks, open issues and risks. Records are created only after review: tick the drafts you need and press Create reviewed records.",
+              "With an AI provider configured (AI_PROVIDER), a model prepares the drafts: each has a quoted source, a description, probability and impact for a risk, and a decision flag for an issue. A draft is marked when its quote is not in the text or its owner is not in the directory. The notes go to the model's provider; the audit log keeps counters only.",
+              "Calling the model needs a user session with the right to change the project; API tokens and the public demo (unless AI_ALLOW_PUBLIC_DEMO allows it) are refused. Call and token budgets are kept in the database. Without AI only labelled lines such as \"Risk: ...\" are parsed, which the Parse lines without AI button also does."
             ]
           },
           {

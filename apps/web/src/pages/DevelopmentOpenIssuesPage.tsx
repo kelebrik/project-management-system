@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, History, MessageSquare, Pencil, Save, ShieldAlert, Tag, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, History, MessageSquare, Pencil, Save, ShieldAlert, Sparkles, Tag, X } from "lucide-react";
 import { Fragment, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
@@ -10,6 +10,7 @@ import {
 } from "../app/openIssueTable";
 import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
+import { MeetingNotesDrawer } from "../components/automation/MeetingNotesPanel";
 
 type ActionKey = "section" | "due" | "phase" | "jira" | "mattermost" | "history";
 type InlineField = "title" | "owner" | "severity" | "readiness";
@@ -48,6 +49,7 @@ export function DevelopmentOpenIssuesPage() {
     updateIssueDraft,
     updateIssueStatusDraft,
   } = usePageContext();
+  const [meetingNotesOpen, setMeetingNotesOpen] = useState(false);
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [expandedClosedIssueId, setExpandedClosedIssueId] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<{ issueId: string; action: ActionKey } | null>(null);
@@ -447,7 +449,8 @@ export function DevelopmentOpenIssuesPage() {
           <h2>{t("ui.projects.openIssuesPrototypeTitle")}</h2>
           <p>{t("ui.projects.openIssuesPrototypeDescription")}</p>
         </div>
-        <div className="open-issues-prototype-heading-actions"><span className="open-issues-prototype-count">{issues.length}</span><button type="button" onClick={() => { setIssueForm(emptyIssueForm); setIssueDrawerMode("create"); }}>{t("ui.projects.createIssue")}</button></div>
+        <div className="open-issues-prototype-heading-actions"><span className="open-issues-prototype-count">{issues.length}</span>{!isReadOnly && <button type="button" onClick={() => setMeetingNotesOpen(true)}><Sparkles aria-hidden="true" size={15} />{t("ui.automation.fromMeetingNotes")}</button>}<button type="button" onClick={() => { setIssueForm(emptyIssueForm); setIssueDrawerMode("create"); }}>{t("ui.projects.createIssue")}</button></div>
+      {meetingNotesOpen && <MeetingNotesDrawer onClose={() => setMeetingNotesOpen(false)} />}
       </div>
       {issues.length === 0 ? <div className="empty-state">{t("ui.projects.noOpenQuestions")}</div> : (
         <div className="open-issues-prototype-table-shell">

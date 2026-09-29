@@ -64,3 +64,10 @@
 .automation-tabs [aria-pressed="true"] { background: var(--brand-soft); border-color: var(--brand-border-strong); color: var(--brand); }
 @media (max-width: 600px) { .automation-actions label { flex: 1 1 100%; max-width: none; } .automation-page { padding: 12px; } }
 @media print { .automation-actions, .automation-tabs { display: none; } .automation-table-wrap { overflow: visible; } }
+/* AI drafts: a note on who prepared them and a badge on each draft. */
+.automation-ai-note svg { flex: none; }
+.automation-ai-note { align-items: center; color: var(--text-secondary); display: flex; font-size: 13px; gap: 6px; }
+.automation-ai-badge { background: var(--brand-soft); border: 1px solid var(--brand-border-strong); border-radius: 999px; color: var(--brand); font-size: 11px; font-weight: 700; margin-left: 6px; padding: 1px 8px; }
+.automation-description { min-height: 64px; }
+.meeting-notes-drawer { align-content: start; max-width: min(720px, 100vw); width: 720px; }
+.open-issues-prototype-heading-actions button { align-items: center; display: inline-flex; gap: 6px; }

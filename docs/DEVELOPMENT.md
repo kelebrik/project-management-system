@@ -67,6 +67,18 @@ Password sign-in checks the salted `scrypt` hash stored in PostgreSQL. There is 
 bootstrap secret: the first administrator of a fresh installation has to be created
 directly in the database, or through Keycloak where it is configured.
 
+## AI meeting notes
+
+The issue register can turn meeting notes into draft tasks, open issues and risks with an AI model. It is off unless configured; without it the tool parses labelled lines ("Risk: ...") as before. Nothing is created until a user reviews and ticks the drafts.
+
+- `AI_PROVIDER` - `openai` to turn it on; unset or `off` keeps it off. GigaChat is planned as a second provider.
+- `AI_API_KEY`, `AI_MODEL` - both required, for example a current small GPT model; without them the feature stays off (a warning is logged, the app still starts).
+- `AI_BASE_URL` - optional, `https://api.openai.com/v1` by default. Only https, and only OpenAI's host or one listed in `AI_ALLOWED_HOSTS`, so the key cannot be sent elsewhere.
+- Budgets, stored in the `AiUsage` table so they hold across restarts: `AI_USER_HOURLY_LIMIT` (10), `AI_DAILY_LIMIT` (200 calls), `AI_DAILY_TOKEN_LIMIT` (2 000 000), `AI_MAX_CONCURRENT` (3), `AI_TIMEOUT_MS` (60000).
+- The public demo cannot call the model unless `AI_ALLOW_PUBLIC_DEMO=true`; then `AI_DEMO_IP_HOURLY_LIMIT` (3) and `AI_DEMO_DAILY_LIMIT` (30) apply.
+- Calls need a user session and the right to change the project; API tokens are refused. The audit log keeps counters only, never the notes or the model's answer.
+- The notes leave the installation for the provider: use it only for text you may share with that provider.
+
 ## Jira Strategy
 
 Jira remains the operational Kanban/Scrum system. This application does not duplicate Jira boards. It stores Jira board links, Jira ticket URLs on tasks, and synchronized issue snapshots for portfolio reporting, open issues, and executive overview evidence. Jira REST API access is configured only through backend container environment variables, not through Admin Back Office.

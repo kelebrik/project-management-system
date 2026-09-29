@@ -4,6 +4,7 @@ import { openApiComponents } from "./openapi-components.js";
 import { openApiCorePaths } from "./openapi-core-paths.js";
 import { openApiJiraPaths } from "./openapi-jira-paths.js";
 import { openApiLeavePaths } from "./openapi-leave-paths.js";
+import { openApiAiPaths } from "./openapi-ai-paths.js";
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -44,5 +45,6 @@ export const openApiDocument = {
     ...openApiJiraPaths,
     ...openApiAdminPaths,
     ...openApiLeavePaths,
+    ...openApiAiPaths,
   },
 } as const;

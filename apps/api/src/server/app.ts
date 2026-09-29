@@ -12,6 +12,7 @@ import { createProjectsRouter } from '../routes/projects.routes.js';
 import { createRisksRouter } from '../routes/risks.routes.js';
 import { createSavedViewsRouter } from '../routes/saved-views.routes.js';
 import { createLeaveScheduleRouter } from '../routes/leave-schedule.routes.js';
+import { createAiRouter } from '../routes/ai.routes.js';
 import { createWorkloadRouter } from '../routes/workload.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
 import { createWbsRouter } from '../routes/wbs.routes.js';
@@ -132,6 +133,7 @@ export function createApp() {
 
   app.use('/api', createLeaveScheduleRouter({ requireAuth, currentUser }));
   app.use('/api', createWorkloadRouter({ requireAuth }));
+  app.use('/api', createAiRouter());
 
   registerClosedProjectWriteGuards(app);
 

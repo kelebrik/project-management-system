@@ -107,14 +107,14 @@ test('meeting drafts require review, create valid payloads and never retry uncer
     expect(raidItemSchema.safeParse(route.request().postDataJSON()).success).toBe(true);
     created.push('risk'); return route.abort();
   });
+  await page.route('**/api/ai/status', (route) => route.fulfill({ json: { enabled: false, allowed: false } }));
   await page.goto('/TV-OVERVIEW/issues');
-  await page.getByText('Из протокола — в поручения', { exact: true }).click();
+  // The notes tool opens from the issue register; without an AI provider it parses labelled lines.
+  await page.getByRole('button', { name: 'Из протокола встречи' }).click();
   await page.getByLabel('Текст протокола').fill('Задача: Проверить новую плату; Ответственный: Анна; Срок: 2026-09-20\nВопрос: Согласовать доставку\nРиск: Задержка поставщика');
   await page.getByRole('button', { name: 'Подготовить черновики' }).click();
   const create = page.getByRole('button', { name: 'Создать проверенные записи' });
   await expect(create).toBeDisabled();
-  await page.getByText('Из протокола — в поручения', { exact: true }).click();
-  await page.getByText('Из протокола — в поручения', { exact: true }).click();
   await expect(page.getByLabel('Название', { exact: true }).first()).toHaveValue('Проверить новую плату');
   for (const checkbox of await page.locator('.automation-body').getByRole('checkbox').all()) await checkbox.check();
   await create.click();

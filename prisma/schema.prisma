@@ -1483,3 +1483,26 @@ model LeaveCalendarDay {
   description  String   @default("")
   updatedAt    DateTime @default(now()) @updatedAt
 }
+
+/// One call to an AI provider: reserved before the request, closed after it.
+/// Budgets count these rows, so limits hold across restarts and instances.
+/// The text sent to the model is never stored.
+model AiUsage {
+  id               String    @id @default(cuid())
+  feature          String
+  status           String    @default("RESERVED")
+  userId           String?
+  clientIp         String?
+  projectId        String?
+  provider         String
+  model            String
+  inputChars       Int
+  promptTokens     Int       @default(0)
+  completionTokens Int       @default(0)
+  createdAt        DateTime  @default(now())
+  finishedAt       DateTime?
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([clientIp, createdAt])
+}

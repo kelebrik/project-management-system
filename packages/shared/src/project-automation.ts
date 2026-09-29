@@ -96,7 +96,26 @@ export type MeetingDraft = {
   owner: string;
   dueDate: string;
   source: string;
+  /** Fields an AI model fills; the line parser leaves them out. */
+  description?: string;
+  probability?: number;
+  impact?: number;
+  decisionRequired?: boolean;
+  /** False when the quoted source was not found in the text. */
+  sourceVerified?: boolean;
+  /** False when the owner is not a known person. */
+  ownerKnown?: boolean;
 };
+
+/** Longest values an AI draft may carry, so one protocol cannot turn into huge records. */
+export const MEETING_DRAFT_LIMITS = {
+  drafts: 40,
+  title: 200,
+  owner: 120,
+  source: 1000,
+  description: 2000,
+  text: 30000,
+} as const;
 
 /** Deterministic fallback: extract only explicit labels; never invent dates or people. */
 export function parseMeetingNotes(text: string): MeetingDraft[] {

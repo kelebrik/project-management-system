@@ -134,12 +134,13 @@ export const apiClient = {
   get<T>(path: string, fallback?: string) {
     return request<T>(path, {}, fallback);
   },
-  post<T>(path: string, body?: unknown, fallback?: string) {
+  post<T>(path: string, body?: unknown, fallback?: string, signal?: AbortSignal) {
     return request<T>(
       path,
       {
         method: "POST",
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal,
       },
       fallback,
     );
