@@ -37,6 +37,7 @@ export const openApiDocument = {
     { name: "Audit" },
     { name: "Analytics" },
     { name: "LeaveSchedule" },
+    { name: "AI" },
   ],
   components: openApiComponents,
   paths: {

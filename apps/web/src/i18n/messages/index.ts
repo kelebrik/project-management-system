@@ -10,6 +10,7 @@ import { wikiMessages } from "./wiki";
 import { leaveScheduleMessages } from "./leaveSchedule";
 import { workloadMessages } from "./workload";
 import { scheduleLinksMessages } from "./scheduleLinks";
+import { aiMessages } from "./ai";
 export const catalogue = {
   ...commonMessages,
   ...adminMessages,
@@ -23,4 +24,5 @@ export const catalogue = {
   ...leaveScheduleMessages,
   ...workloadMessages,
   ...scheduleLinksMessages,
+  ...aiMessages,
 } as const;

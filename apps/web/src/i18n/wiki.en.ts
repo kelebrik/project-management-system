@@ -229,7 +229,10 @@ export const englishWikiGroups: WikiGroup[] = [
               "Publishing is allowed only from APPROVED and sets status = PUBLISHED, publishedAt = the current moment.",
               "The JSON export returns the project and the full overview snapshot with statusLabel, KPIs, gates, risks, nextSteps, decisions and evidence.",
               "The HTML export renders a standalone document and escapes HTML characters in the data.",
-              "All generate/status/publish actions are written to the audit log as overview.generate, overview.status and overview.publish."
+              "All generate/status/publish actions are written to the audit log as overview.generate, overview.status and overview.publish.",
+              "The Report for management button above the Status cards opens a panel: pick a period of 7, 14 or 30 days and press Prepare the report. The model writes a status (green, amber, red), a summary and the sections Done, Slipped, Risks and problems, Decisions needed and Next.",
+              "The report is built only from the project's facts: work closed in the period, overdue work, checkpoints for the next 30 days and those moved against the baseline, open issues needing a decision and critical issues, risks and problems scored 15 and above. These facts go to the model's provider; nothing is saved in the project and the audit log keeps counters only.",
+              "The report text can be edited in the panel, copied or downloaded as a .md file. The button is shown only when a model is connected and AI calls are allowed for the user; a corporate installation has no such button until GigaChat is connected."
             ]
           }
         ]
@@ -328,7 +331,11 @@ export const englishWikiGroups: WikiGroup[] = [
               "The English title of a row is chosen by priority: the manual translation from the import, the built-in glossary, the local translation cache, and then the original Russian title. Manual translations and the cache live in the browser, not on the server.",
               "Undo, Redo, Save changes and Capture the baseline plan are shown only when the user has edit permission; in read-only mode they are absent.",
               "The toolbar also always has the Columns menu, the hierarchy level switch 1..5 and a state indicator: the number of unsaved rows, the saving state or the time of the last save.",
-              "The full-screen tip appears once the page is scrolled more than 180 pixels and full screen is off; it has a button that switches to it."
+              "The full-screen tip appears once the page is scrolled more than 180 pixels and full screen is off; it has a button that switches to it.",
+              "The Draft with AI button in the Structure header opens a panel: describe the project (at least 20 characters) and the model suggests phases, work packages, tasks, milestones, durations in working days and finish-to-start links. Nothing is created in the project until the draft is added.",
+              "In the draft you can fix names and remove a row with everything under it. Invalid and circular links are dropped and the panel shows how many; a row has at most 6 predecessors, the depth is at most 4 levels and the draft at most 150 rows.",
+              "Add to the structure creates the rows in one operation after the existing ones: codes continue after the last top row, existing rows are not renumbered, and the schedule is recalculated from the chosen start date. A second click does not create duplicates. Remove the added rows deletes only the rows that were added.",
+              "The button is shown only when a model is connected and the user may change the project; it is disabled while the Structure has unsaved edits. The project description goes to the model's provider; adding the draft does not call the model."
             ]
           },
           {

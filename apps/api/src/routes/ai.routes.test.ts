@@ -31,7 +31,7 @@ type Setup = {
   body?: unknown;
 };
 
-async function post(setup: Setup) {
+async function post(setup: Setup & { path?: string; report?: unknown; draft?: unknown }) {
   const finished: Array<[string, string, unknown]> = [];
   const audits: any[] = [];
   let extracted: any;
@@ -41,12 +41,24 @@ async function post(setup: Setup) {
     finish: (async (id: string, status: string, usage: unknown) => {
       finished.push([id, status, usage]);
     }) as any,
+    report: (async (input: any) => {
+      extracted = input;
+      return setup.report ?? { report: { status: 'AMBER', headline: 'h', summary: 's', done: [], slipped: [], risks: [], decisions: [], next: [] }, usage: { promptTokens: 1, completionTokens: 1 } };
+    }) as any,
+    draft: (async (input: any) => {
+      extracted = input;
+      return setup.draft ?? { items: [{ ref: '1', title: 'Фаза', type: 'PHASE', workDays: 0, owner: '', predecessors: [] }], droppedLinks: 2, usage: { promptTokens: 1, completionTokens: 1 } };
+    }) as any,
+    loadReportProject: (async () => ({
+      name: 'Телевизор', code: 'TV', status: 'ACTIVE', rag: 'GREEN', targetDate: null, scheduleVariance: 0, progress: 0,
+      jiraIntegration: null, wbsItems: [], issues: [], raidItems: [],
+    })) as any,
     extract: (async (input: any) => {
       extracted = input;
       return (setup.extract ?? (async () => ({ drafts: [{ id: 'ai-0', kind: 'TASK', title: 'Сделать', owner: '', dueDate: '', source: '' }], usage: { promptTokens: 5, completionTokens: 2 } })))(input);
     }) as any,
   });
-  const layer = (router.stack as any[]).find((candidate) => candidate.route?.path === '/projects/:projectId/meeting-drafts');
+  const layer = (router.stack as any[]).find((candidate) => candidate.route?.path === (setup.path ?? '/projects/:projectId/meeting-drafts'));
   const previous = prismaClientProvider.get;
   prismaClientProvider.get = () =>
     ({
@@ -196,4 +208,29 @@ test('without a provider the status asks a corporate installation to connect Gig
   // No profile means the strict corporate one.
   assert.equal(status(undefined).setup, 'gigachat');
   assert.equal(status('cloud').setup, null);
+});
+
+test('the status report goes through the same checks and keeps only counters in the audit', async () => {
+  const path = '/projects/:projectId/ai/status-report';
+  assert.equal((await post({ path, user: null, apiToken: { id: 't' } })).res.statusCode, 403);
+  assert.equal((await post({ path, access: 'VIEW', body: { periodDays: 7 } })).res.statusCode, 403);
+  assert.equal((await post({ path, access: 'EDIT', body: { periodDays: 5 } })).res.statusCode, 400);
+  const ok = await post({ path, access: 'EDIT', body: { periodDays: 14, locale: 'en' } });
+  assert.equal(ok.res.statusCode, 200);
+  assert.equal(ok.res.body.report.status, 'AMBER');
+  assert.equal(ok.res.body.periodDays, 14);
+  assert.equal(ok.extracted.locale, 'en');
+  assert.equal(ok.audits[0].action, 'ai.status_report');
+  assert.doesNotMatch(JSON.stringify(ok.audits[0]), /Телевизор/);
+});
+
+test('the structure draft needs a description and returns the rows without creating them', async () => {
+  const path = '/projects/:projectId/ai/wbs-draft';
+  assert.equal((await post({ path, access: 'EDIT', body: { description: 'коротко' } })).res.statusCode, 400);
+  const ok = await post({ path, access: 'EDIT', body: { description: 'Запуск телевизора новой серии: пилотная партия, сертификация.' } });
+  assert.equal(ok.res.statusCode, 200);
+  assert.equal(ok.res.body.items.length, 1);
+  assert.equal(ok.res.body.droppedLinks, 2);
+  assert.equal(ok.audits[0].action, 'ai.wbs_draft');
+  assert.doesNotMatch(JSON.stringify(ok.audits[0]), /пилотная/);
 });

@@ -166,8 +166,8 @@ export const apiClient = {
       fallback,
     );
   },
-  delete<T = null>(path: string, fallback?: string) {
-    return request<T>(path, { method: "DELETE" }, fallback);
+  delete<T = null>(path: string, fallback?: string, body?: unknown) {
+    return request<T>(path, body === undefined ? { method: "DELETE" } : { method: "DELETE", body: JSON.stringify(body) }, fallback);
   },
   download,
   downloadPost(path: string, body: unknown, fallback = clientText()("ui.common.apiDownloadFailed")) {

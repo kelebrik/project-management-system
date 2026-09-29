@@ -74,3 +74,21 @@
 /* A corporate installation without GigaChat yet: the setup step stands out. */
 .automation-setup-note { align-items: center; background: var(--warning-soft); border: 1px solid var(--warning, #c77700); border-radius: 6px; color: var(--text-strong); display: flex; font-weight: 700; gap: 8px; padding: 10px 12px; }
 .automation-setup-note svg { flex: none; }
+.ai-period { display: inline-flex; }
+.ai-period button { border-radius: 0; margin-left: -1px; }
+.ai-period button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+.ai-period button:last-child { border-radius: 0 6px 6px 0; }
+.ai-period button.active { background: var(--accent-soft, #e8f0fe); font-weight: 700; }
+.status-report-text { min-height: 360px; font-family: inherit; }
+.wbs-draft-tree { display: grid; gap: 4px; list-style: none; margin: 0; max-height: 50vh; overflow: auto; padding: 0; }
+.side-drawer.wbs-draft-drawer { max-width: 100vw; width: 720px; }
+.wbs-draft-row { align-items: center; display: grid; gap: 6px; grid-template-columns: 40px minmax(0, 1fr) 92px 48px 64px 30px; font-size: 13px; }
+.wbs-draft-row input { box-sizing: border-box; min-width: 0; width: 100%; }
+.wbs-draft-row.level-2 input { margin-left: 14px; width: calc(100% - 14px); }
+.wbs-draft-row.level-3 input { margin-left: 28px; width: calc(100% - 28px); }
+.wbs-draft-row.level-4 input { margin-left: 42px; width: calc(100% - 42px); }
+.wbs-draft-row.phase input, .wbs-draft-row.work_package input { font-weight: 700; }
+.wbs-draft-row > button { align-items: center; display: inline-flex; height: 28px; justify-content: center; min-width: 0; padding: 0; width: 28px; }
+.wbs-draft-ref, .wbs-draft-type, .wbs-draft-days, .wbs-draft-links { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-launch-button { align-items: center; display: inline-flex; gap: 6px; white-space: nowrap; }
+.ai-report-bar { display: flex; grid-column: 1 / -1; justify-content: flex-end; }

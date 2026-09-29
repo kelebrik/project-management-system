@@ -3,6 +3,7 @@ import { usePageContext } from "./PageContext";
 import { ProjectGanttSection } from "./ProjectGanttSection";
 import { ProjectStructureSection } from "./ProjectStructureSection";
 import { EmployeeNamesList } from "../components/EmployeeNamesList";
+import { WbsDraftButton } from "../components/ai/AiProjectButtons";
 
 export function ProjectWorkspacePage() {
   const { t: uiText } = useInterfaceTranslation();
@@ -38,6 +39,9 @@ export function ProjectWorkspacePage() {
                           : uiText("ui.projects.ganttTabDescription")}
                       </p>
                     </div>
+                    {activeView === "project-structure" && !ctx.isReadOnly && (
+                      <WbsDraftButton onApplied={() => ctx.refreshProject(ctx.project.id)} projectId={ctx.project.id} unsavedRows={ctx.dirtyWbsItemIds?.size ?? 0} />
+                    )}
                         </div>
                       <div className="wbs-gantt-layout">
                       {activeView === "project-structure" && !ctx.isReadOnly && <EmployeeNamesList />}
