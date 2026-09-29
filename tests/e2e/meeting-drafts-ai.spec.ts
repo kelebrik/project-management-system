@@ -72,3 +72,17 @@ test("a refused call is explained and the lines can still be parsed without AI",
   await expect(drawer.getByLabel("Название", { exact: true })).toHaveValue("Задержка поставщика");
   await expect(drawer.getByText("Черновик ИИ")).toHaveCount(0);
 });
+
+test("a corporate installation without GigaChat shows the setup notice and still parses lines", async ({ page }) => {
+  await mockAdminProject(page);
+  await page.route("**/api/ai/status", (route) => route.fulfill({ json: { enabled: false, allowed: false, setup: "gigachat" } }));
+  await page.goto("/TV-OVERVIEW/issues");
+  await page.getByRole("button", { name: "Из протокола встречи" }).click();
+  const drawer = page.getByRole("dialog");
+  await expect(drawer.getByRole("note")).toHaveText("Настройте подключение к ГигаЧат");
+  await expect(drawer.getByText(/Черновики подготовит модель/)).toHaveCount(0);
+  await drawer.getByLabel("Текст протокола").fill("Риск: Задержка поставщика");
+  await drawer.getByRole("button", { name: "Подготовить черновики" }).click();
+  await expect(drawer.getByLabel("Название", { exact: true })).toHaveValue("Задержка поставщика");
+  await drawer.screenshot({ path: test.info().outputPath("gigachat.png") });
+});

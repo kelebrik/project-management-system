@@ -473,4 +473,5 @@ export const automationMessages = {
   "ui.automation.aiSourceNotFound": { en: "The quoted source is not in the notes: check this draft carefully.", ru: "Цитата не найдена в тексте протокола — проверьте этот черновик особенно внимательно." },
   "ui.automation.aiOwnerUnknown": { en: "This owner is not in the people directory or among the project's owners.", ru: "Такого исполнителя нет в справочнике сотрудников и среди исполнителей проекта." },
   "ui.automation.fromMeetingNotes": { en: "From meeting notes", ru: "Из протокола встречи" },
+  "ui.automation.setupGigaChat": { en: "Set up the GigaChat connection", ru: "Настройте подключение к ГигаЧат" },
 } as const;

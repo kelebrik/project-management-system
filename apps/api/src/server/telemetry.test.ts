@@ -18,6 +18,7 @@ test('Jira sync active and run status endpoints keep separate bounded metric lab
 function limiterRequest(headers: Record<string, string>, extra: Record<string, unknown> = {}) {
   return {
     ip: '10.0.0.7',
+    path: '/projects',
     get: (name: string) => headers[name.toLowerCase()],
     ...extra,
   } as any;

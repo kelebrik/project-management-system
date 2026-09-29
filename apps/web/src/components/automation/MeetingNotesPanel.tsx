@@ -10,7 +10,7 @@ import "../../styles/automation.css";
 import { AutomationError } from "./AutomationPanel";
 
 type DraftRow = MeetingDraft & { selected: boolean; parentId: string; state?: "saved" | "unknown" | "error"; message?: string };
-type AiStatus = { enabled: boolean; allowed: boolean; provider?: string; model?: string };
+type AiStatus = { enabled: boolean; allowed: boolean; provider?: string; model?: string; setup?: "gigachat" | null };
 type Prepared = { by: "ai"; model: string } | { by: "lines" };
 
 const normalized = (value: string) => value.toLocaleLowerCase("ru-RU").replaceAll("ё", "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
@@ -195,7 +195,15 @@ export function MeetingNotesContent() {
           {uiText("ui.automation.aiIntro", { model: ai?.model ?? "" })}
         </p>
       ) : (
-        <p>{uiText("ui.automation.meetingNotesParsingRules")}</p>
+        <>
+          {ai?.setup === "gigachat" && (
+            <p className="automation-setup-note" role="note">
+              <Sparkles aria-hidden="true" size={15} />
+              {uiText("ui.automation.setupGigaChat")}
+            </p>
+          )}
+          <p>{uiText("ui.automation.meetingNotesParsingRules")}</p>
+        </>
       )}
       <label>
         {uiText("ui.automation.meetingNotesText")}

@@ -71,3 +71,6 @@
 .automation-description { min-height: 64px; }
 .meeting-notes-drawer { align-content: start; max-width: min(720px, 100vw); width: 720px; }
 .open-issues-prototype-heading-actions button { align-items: center; display: inline-flex; gap: 6px; }
+/* A corporate installation without GigaChat yet: the setup step stands out. */
+.automation-setup-note { align-items: center; background: var(--warning-soft); border: 1px solid var(--warning, #c77700); border-radius: 6px; color: var(--text-strong); display: flex; font-weight: 700; gap: 8px; padding: 10px 12px; }
+.automation-setup-note svg { flex: none; }

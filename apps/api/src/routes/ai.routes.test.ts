@@ -175,3 +175,25 @@ test('a provider failure is reported and still counted', async () => {
   assert.equal(res.body.error, 'Модель вернула ошибку 500');
   assert.deepEqual(finished, [['usage-1', 'FAILED', { promptTokens: 7, completionTokens: 0 }]]);
 });
+
+test('without a provider the status asks a corporate installation to connect GigaChat', () => {
+  const status = (profile: string | undefined) => {
+    const previous = process.env.DEPLOYMENT_PROFILE;
+    if (profile === undefined) delete process.env.DEPLOYMENT_PROFILE;
+    else process.env.DEPLOYMENT_PROFILE = profile;
+    try {
+      const router = createAiRouter({ config: { enabled: false, reason: 'off' } });
+      const layer = (router.stack as any[]).find((candidate) => candidate.route?.path === '/ai/status');
+      let body: any;
+      layer.route.stack[0].handle({ currentUser: { id: 'u1' } } as unknown as Request, { json: (value: unknown) => (body = value) } as unknown as Response);
+      return body;
+    } finally {
+      if (previous === undefined) delete process.env.DEPLOYMENT_PROFILE;
+      else process.env.DEPLOYMENT_PROFILE = previous;
+    }
+  };
+  assert.equal(status('corporate').setup, 'gigachat');
+  // No profile means the strict corporate one.
+  assert.equal(status(undefined).setup, 'gigachat');
+  assert.equal(status('cloud').setup, null);
+});

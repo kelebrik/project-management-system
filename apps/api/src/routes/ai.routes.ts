@@ -3,6 +3,7 @@ import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { currentApiToken, currentUser, isPublicDemoMode } from '../server/auth.js';
+import { isCloudProfile } from '../server/deployment-profile.js';
 import { logEvent } from '../server/logger.js';
 import { userCanWriteProject } from '../server/project-access.js';
 import { recordAuditEvent } from '../services/audit.js';
@@ -60,7 +61,8 @@ export function createAiRouter(dependencies: Dependencies = {}) {
     res.json(
       config.enabled
         ? { enabled: true, provider: config.provider, model: config.model, allowed: allowedFor(req) }
-        : { enabled: false, allowed: false },
+        : // A corporate installation is meant to use GigaChat; until it is connected the page says so.
+          { enabled: false, allowed: false, setup: isCloudProfile() ? null : 'gigachat' },
     );
   });
 
