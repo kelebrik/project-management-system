@@ -1,4 +1,4 @@
-import type { Express, Request } from 'express';
+import type { Express, Request, Response } from 'express';
 import type { UserRole } from '@prisma/client';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { prisma } from '../db.js';
@@ -210,9 +210,33 @@ async function profileFromToken(discovery: OidcDiscovery, token: TokenResponse) 
   throw new Error('Keycloak profile does not include email');
 }
 
-async function upsertKeycloakUser(profile: KeycloakProfile) {
+const keycloakUserSelect = {
+  id: true,
+  email: true,
+  name: true,
+  role: true,
+  isActive: true,
+  lastLoginAt: true,
+} as const;
+
+/**
+ * The application user for a Keycloak profile. A user switched off in the
+ * application stays off and is returned untouched: signing in through Keycloak
+ * must not undo that decision, nor change the name, role or last sign-in.
+ */
+export async function upsertKeycloakUser(profile: KeycloakProfile) {
   const lastLoginAt = new Date();
   const existing = await prisma.user.findUnique({ where: { email: profile.email } });
+  if (existing && !existing.isActive) {
+    return {
+      id: existing.id,
+      email: existing.email,
+      name: existing.name,
+      role: existing.role,
+      isActive: existing.isActive,
+      lastLoginAt: existing.lastLoginAt,
+    };
+  }
   const activeAdminCount = await prisma.user.count({
     where: { role: 'ADMIN', isActive: true },
   });
@@ -222,7 +246,6 @@ async function upsertKeycloakUser(profile: KeycloakProfile) {
       data: {
         name: existing.name?.trim() ? existing.name : profile.name,
         role: keycloakUserRole(existing.role, activeAdminCount),
-        isActive: true,
         lastLoginAt,
       },
       select: {
@@ -254,6 +277,88 @@ async function upsertKeycloakUser(profile: KeycloakProfile) {
     },
   });
   return user;
+}
+
+const ACCOUNT_OFF_MESSAGE =
+  'Учетная запись отключена администратором. Обратитесь к администратору системы.\nYour account has been switched off by an administrator.';
+
+type SignInUser = Awaited<ReturnType<typeof upsertKeycloakUser>>;
+
+/**
+ * The last step of a Keycloak sign-in. A switched-off account gets no session;
+ * the check is repeated after the session is made, and a session made just as
+ * an administrator switched the account off is removed again.
+ */
+export async function completeKeycloakSignIn({
+  user,
+  req,
+  res,
+  redirectPath,
+  openSession = createSession,
+  stillActive = async (userId: string) => (await prisma.user.findUnique({ where: { id: userId }, select: { isActive: true } }))?.isActive === true,
+  closeSessions = async (userId: string, since: Date) => {
+    await prisma.userSession.deleteMany({ where: { userId, createdAt: { gte: since } } });
+  },
+}: {
+  user: SignInUser;
+  req: Request;
+  res: Response;
+  redirectPath: string;
+  openSession?: typeof createSession;
+  stillActive?: (userId: string) => Promise<boolean>;
+  closeSessions?: (userId: string, since: Date) => Promise<void>;
+}) {
+  const refuse = async () => {
+    res.append('Set-Cookie', clearStateCookie());
+    await recordAuditEvent({
+      req,
+      actor: user,
+      action: 'auth.keycloak_login_refused',
+      objectType: 'User',
+      objectId: user.id,
+      metadata: { email: user.email, reason: 'inactive' },
+    });
+    res.status(403).type('text/plain; charset=utf-8').send(ACCOUNT_OFF_MESSAGE);
+  };
+  if (!user.isActive) {
+    await refuse();
+    return;
+  }
+  const started = new Date();
+  // createSession sets the cookie header, so the state cookie is cleared after it.
+  await openSession(user.id, req, res);
+  // Fail closed: unless the recheck says the account is on, the new session is
+  // dropped and the sign-in refused, a failed recheck included.
+  let active = false;
+  try {
+    active = await stillActive(user.id);
+  } catch (error) {
+    logEvent('error', 'auth.keycloak_recheck_failed', {
+      userId: user.id,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+  if (!active) {
+    res.removeHeader('Set-Cookie');
+    await closeSessions(user.id, started).catch((error) =>
+      logEvent('error', 'auth.keycloak_session_cleanup_failed', {
+        userId: user.id,
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    await refuse();
+    return;
+  }
+  res.append('Set-Cookie', clearStateCookie());
+  await recordAuditEvent({
+    req,
+    actor: user,
+    action: 'auth.keycloak_login',
+    objectType: 'User',
+    objectId: user.id,
+    metadata: { email: user.email },
+  });
+  res.redirect(redirectPath);
 }
 
 export function registerKeycloakAuthRoutes(app: Express) {
@@ -317,17 +422,7 @@ export function registerKeycloakAuthRoutes(app: Express) {
       const token = await exchangeCode(req, code, discovery);
       const profile = await profileFromToken(discovery, token);
       const user = await upsertKeycloakUser(profile);
-      await createSession(user.id, req, res);
-      res.append('Set-Cookie', clearStateCookie());
-      await recordAuditEvent({
-        req,
-        actor: user,
-        action: 'auth.keycloak_login',
-        objectType: 'User',
-        objectId: user.id,
-        metadata: { email: user.email },
-      });
-      res.redirect(safeRedirectPath(parsedState.redirectPath));
+      await completeKeycloakSignIn({ user, req, res, redirectPath: safeRedirectPath(parsedState.redirectPath) });
     } catch (error) {
       logEvent('error', 'auth.keycloak_callback_failed', {
         message: error instanceof Error ? error.message : String(error),

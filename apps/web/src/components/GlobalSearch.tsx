@@ -18,8 +18,9 @@ type GlobalSearchProps = {
 };
 
 import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
+import { SEARCH_TAB_LABEL, searchScopeOf, type SearchTab } from "../app/searchScopes";
 
-type SearchScope = "all" | SearchResult["type"];
+type SearchScope = "all" | SearchTab;
 
 /**
  * The search folds to its magnifier to leave the header to the sections. It
@@ -91,23 +92,14 @@ export function GlobalSearch({
   const normalizedQuery = query.trim();
   const shouldShowPopover = expanded && focused && open && normalizedQuery.length >= 2;
   const scopedResults = useMemo(
-    () => (scope === "all" ? results : results.filter((result) => result.type === scope)),
+    () => (scope === "all" ? results : results.filter((result) => searchScopeOf(result.type) === scope)),
     [results, scope],
   );
   const safeActiveIndex = Math.min(activeIndex, Math.max(0, scopedResults.length - 1));
   const groupedResults = useMemo(() => {
     const groups = new Map<TranslationKey, SearchResult[]>();
     scopedResults.forEach((result) => {
-      const label =
-        result.type === "project"
-          ? "nav.projects"
-          : result.type === "wbs"
-            ? "search.structure"
-            : result.type === "raid"
-              ? "search.raid"
-              : result.type === "issue"
-                ? "search.issues"
-                : "search.other";
+      const label = SEARCH_TAB_LABEL[searchScopeOf(result.type)];
       groups.set(label, [...(groups.get(label) ?? []), result]);
     });
     return Array.from(groups.entries());

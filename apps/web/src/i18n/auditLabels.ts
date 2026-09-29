@@ -46,6 +46,8 @@ const actions: Record<string, LocalizedLabel> = {
   "admin.dictionary.deactivate": { ru: "Отключение элемента справочника", en: "Dictionary item disabled" },
   "admin.system_settings.update": { ru: "Изменение системных настроек", en: "System settings changed" },
   "auth.keycloak_login": { ru: "Вход через Keycloak", en: "Keycloak sign-in" },
+  "ai.meeting_drafts": { ru: "Разбор протокола встречи моделью ИИ", en: "Meeting notes read by AI" },
+  "auth.keycloak_login_refused": { ru: "Отказ во входе через Keycloak: учетная запись отключена", en: "Keycloak sign-in refused: account switched off" },
   "auth.login_failed": { ru: "Неудачная попытка входа", en: "Failed sign-in" },
   "project.artifact_file.create": { ru: "Загрузка файла артефакта", en: "Artifact file uploaded" },
   "project.artifact_file.delete": { ru: "Удаление файла артефакта", en: "Artifact file deleted" },

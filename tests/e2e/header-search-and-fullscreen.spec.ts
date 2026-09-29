@@ -162,3 +162,26 @@ test("results that arrive after the search folded stay hidden", async ({ page })
   await page.getByRole("textbox", { name: /Поиск/ }).first().focus();
   await expect(page.locator(".global-search-popover")).toBeVisible();
 });
+
+test("search tabs show risks under RAID and decisions under issues", async ({ page }) => {
+  await mockWorkload(page);
+  const result = (type: string, id: string, title: string) => ({
+    type, id, title, projectId: "project-1", projectCode: "TV-OVERVIEW", projectName: "Телевизор", subtitle: "", url: "/TV-OVERVIEW", updatedAt: "2026-09-29T10:00:00Z",
+  });
+  await page.route(/\/api\/search(\?.*)?$/, (route) =>
+    route.fulfill({
+      json: [result("risk", "r1", "Риск поставки"), result("decision", "i1", "Решение по бюджету"), result("artifact", "a1", "Протокол")],
+    }),
+  );
+  await page.goto("/operations/workload");
+  await page.getByRole("textbox", { name: /Поиск/ }).first().focus();
+  await page.keyboard.type("пос");
+  const popover = page.locator(".global-search-popover");
+  await expect(popover).toContainText("Риск поставки");
+  await popover.getByRole("tab", { name: "RAID" }).click();
+  await expect(popover).toContainText("Риск поставки");
+  await expect(popover).not.toContainText("Решение по бюджету");
+  await popover.getByRole("tab", { name: "Вопросы" }).click();
+  await expect(popover).toContainText("Решение по бюджету");
+  await expect(popover).not.toContainText("Риск поставки");
+});

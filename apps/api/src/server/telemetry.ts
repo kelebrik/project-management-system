@@ -1,8 +1,8 @@
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import type { NextFunction, Request, Response } from 'express';
 import { prisma } from '../db.js';
 import { isJiraConfigured } from '../jira.js';
 import type { AuthRequest } from './auth.js';
-import { hashApiToken } from './auth.js';
 import { logEvent } from './logger.js';
 
 const metricsToken = process.env.METRICS_TOKEN ?? '';
@@ -48,7 +48,6 @@ async function availableLegacyConversions() {
   ]);
   return legacyConversionGauge.value;
 }
-const rateLimitBuckets = new Map<string, { windowStart: number; count: number }>();
 
 export function metricRoute(req: Pick<Request, 'path'>) {
   if (/^\/api\/projects\/[^/]+\/jira\/sync-runs\/active$/.test(req.path)) {
@@ -71,11 +70,19 @@ export function metricRoute(req: Pick<Request, 'path'>) {
   return req.path;
 }
 
-function rateLimitKey(req: Request) {
-  const authHeader = req.get('authorization') ?? '';
-  if (authHeader.startsWith('Bearer pms_')) {
-    return `token:${hashApiToken(authHeader.slice('Bearer '.length).trim()).slice(0, 16)}`;
-  }
+/**
+ * Whose requests share a budget: a verified API token by its id, a signed-in user by
+ * id, and only anonymous visitors and the shared public demo identity by
+ * address. Counting users by address would put everyone behind a corporate
+ * proxy into one bucket.
+ */
+export function rateLimitKey(req: Request) {
+  // Only a token attachAuth accepted gets its own budget: made-up "pms_" values
+  // must not open a fresh bucket each time.
+  const token = (req as AuthRequest).apiToken;
+  if (token) return `token:${token.id}`;
+  const user = (req as AuthRequest).currentUser;
+  if (user && user.id !== PUBLIC_DEMO_USER_ID) return `user:${user.id}`;
   return `ip:${req.ip}`;
 }
 
@@ -105,34 +112,43 @@ export function httpMetricsMiddleware(req: Request, res: Response, next: NextFun
   next();
 }
 
-export function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
-  if (!req.path.startsWith('/api')) {
-    next();
-    return;
-  }
-  const now = Date.now();
-  const windowMs = 60_000;
-  const authReq = req as AuthRequest;
-  const limit = authReq.apiToken?.rateLimitPerMinute ?? defaultRateLimitPerMinute;
-  const key = rateLimitKey(req);
-  const bucket = rateLimitBuckets.get(key);
-  if (!bucket || now - bucket.windowStart >= windowMs) {
-    rateLimitBuckets.set(key, { windowStart: now, count: 1 });
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+/**
+ * A fixed one-minute window per key. It is mounted on /api only, so it looks at
+ * every request it sees (under a mount point req.path has no /api prefix,
+ * which once made it skip them all). Expired windows are swept once a window.
+ */
+export function createRateLimiter({ defaultLimit, now = Date.now }: { defaultLimit: number; now?: () => number }) {
+  const buckets = new Map<string, { windowStart: number; count: number }>();
+  let lastSweep = now();
+  const middleware = (req: Request, res: Response, next: NextFunction) => {
+    const time = now();
+    if (time - lastSweep >= RATE_LIMIT_WINDOW_MS) {
+      for (const [key, bucket] of buckets) if (time - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) buckets.delete(key);
+      lastSweep = time;
+    }
+    const limit = (req as AuthRequest).apiToken?.rateLimitPerMinute ?? defaultLimit;
+    const key = rateLimitKey(req);
+    let bucket = buckets.get(key);
+    if (!bucket || time - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+      bucket = { windowStart: time, count: 0 };
+      buckets.set(key, bucket);
+    }
+    bucket.count += 1;
     res.setHeader('X-RateLimit-Limit', String(limit));
-    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, limit - 1)));
+    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, limit - bucket.count)));
+    if (bucket.count > limit) {
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil((bucket.windowStart + RATE_LIMIT_WINDOW_MS - time) / 1000))));
+      res.status(429).json({ error: 'Превышен лимит запросов' });
+      return;
+    }
     next();
-    return;
-  }
-  bucket.count += 1;
-  const remaining = Math.max(0, limit - bucket.count);
-  res.setHeader('X-RateLimit-Limit', String(limit));
-  res.setHeader('X-RateLimit-Remaining', String(remaining));
-  if (bucket.count > limit) {
-    res.status(429).json({ error: 'Превышен лимит запросов' });
-    return;
-  }
-  next();
+  };
+  return Object.assign(middleware, { bucketCount: () => buckets.size });
 }
+
+export const rateLimitMiddleware = createRateLimiter({ defaultLimit: defaultRateLimitPerMinute });
 
 export async function metricsHandler(req: Request, res: Response) {
   if (requireMetricsToken && !metricsToken) {

@@ -9,8 +9,10 @@ const requireAuth: RequestHandler = (_req, res) => {
   res.sendStatus(401);
 };
 
+let actingUser: Record<string, unknown> | null = { id: 'admin-1', role: 'ADMIN' };
+
 function route(method: 'get' | 'post' | 'patch' | 'delete' | 'put', path: string) {
-  const router = createLeaveScheduleRouter({ requireAuth, currentUser: () => ({ id: 'admin-1' }) });
+  const router = createLeaveScheduleRouter({ requireAuth, currentUser: () => actingUser });
   const layer = (router.stack as any[]).find(
     (candidate) => candidate.route?.methods[method] && candidate.route.path === path,
   );
@@ -504,4 +506,60 @@ test('a leave edit based on an older copy is refused, and the answer carries the
 
   const invalid = await edit('not a time');
   assert.equal(invalid.statusCode, 400);
+});
+
+test('only the system administrator may link a person to a user account', async () => {
+  const people = {
+    leaveEmployee: {
+      findUnique: async () => ({ id: 'emp-1', name: 'Иванов', userId: 'u-old', isActive: true }),
+      update: async (args: any) => ({ id: 'emp-1', name: 'Иванов', userId: 'u-old', ...args.data }),
+      create: async (args: any) => ({ id: 'emp-2', ...args.data }),
+    },
+    user: { findUnique: async () => ({ id: 'u-new', isActive: true, name: 'Новый' }) },
+  };
+  actingUser = { id: 'pm-1', role: 'PROJECT_MANAGER' };
+  try {
+    const create = await call('post', '/leave-schedule/employees', { body: { name: 'Петров', userId: 'u-new' } }, people);
+    assert.equal(create.statusCode, 403);
+    const relink = await call('patch', '/leave-schedule/employees/:employeeId', { params: { employeeId: 'emp-1' }, body: { userId: 'u-new' } }, people);
+    assert.equal(relink.statusCode, 403);
+    const unlink = await call('patch', '/leave-schedule/employees/:employeeId', { params: { employeeId: 'emp-1' }, body: { userId: null } }, people);
+    assert.equal(unlink.statusCode, 403);
+    // Sending the link that is already there, or no link at all, is an ordinary edit.
+    const same = await call('patch', '/leave-schedule/employees/:employeeId', { params: { employeeId: 'emp-1' }, body: { userId: 'u-old', name: 'Иванов И.' } }, people);
+    assert.equal(same.statusCode, 200);
+    const plain = await call('post', '/leave-schedule/employees', { body: { name: 'Сидоров' } }, people);
+    assert.equal(plain.statusCode, 201);
+  } finally {
+    actingUser = { id: 'admin-1', role: 'ADMIN' };
+  }
+  const byAdmin = await call('patch', '/leave-schedule/employees/:employeeId', { params: { employeeId: 'emp-1' }, body: { userId: null } }, people);
+  assert.equal(byAdmin.statusCode, 200);
+});
+
+test('the public demo may link people, as its page allows', async () => {
+  const previous = { profile: process.env.DEPLOYMENT_PROFILE, demo: process.env.PUBLIC_DEMO_MODE };
+  process.env.DEPLOYMENT_PROFILE = 'cloud';
+  process.env.PUBLIC_DEMO_MODE = 'true';
+  actingUser = { id: 'public-demo-user', role: 'PROJECT_MANAGER' };
+  try {
+    const res = await call(
+      'patch',
+      '/leave-schedule/employees/:employeeId',
+      { params: { employeeId: 'emp-1' }, body: { userId: null } },
+      {
+        leaveEmployee: {
+          findUnique: async () => ({ id: 'emp-1', name: 'Иванов', userId: 'u-old', isActive: true }),
+          update: async (args: any) => ({ id: 'emp-1', name: 'Иванов', ...args.data }),
+        },
+      },
+    );
+    assert.equal(res.statusCode, 200);
+  } finally {
+    actingUser = { id: 'admin-1', role: 'ADMIN' };
+    if (previous.profile === undefined) delete process.env.DEPLOYMENT_PROFILE;
+    else process.env.DEPLOYMENT_PROFILE = previous.profile;
+    if (previous.demo === undefined) delete process.env.PUBLIC_DEMO_MODE;
+    else process.env.PUBLIC_DEMO_MODE = previous.demo;
+  }
 });

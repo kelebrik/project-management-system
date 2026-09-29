@@ -1,7 +1,9 @@
+import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import { Prisma } from '@prisma/client';
 import { Router, type Request, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
+import { isPublicDemoMode } from '../server/deployment-profile.js';
 import { recordAuditEvent } from '../services/audit.js';
 
 type LeaveScheduleContext = {
@@ -186,6 +188,17 @@ async function withEmployeeLock<T>(employeeIds: string[], action: (client: Prism
   });
 }
 
+const USER_LINK_FORBIDDEN = 'Связать сотрудника с учетной записью может только администратор системы';
+
+/**
+ * Linking a person to a user account is an administrator's decision; the page
+ * offers it to the system administrator and, on its synthetic data, the
+ * public demo. The server holds the same line.
+ */
+function mayLinkUsers(user: { id?: string; role?: string } | null | undefined) {
+  return user?.role === 'ADMIN' || (isPublicDemoMode() && user?.id === PUBLIC_DEMO_USER_ID);
+}
+
 export function createLeaveScheduleRouter({ currentUser, requireAuth }: LeaveScheduleContext) {
   const router = Router();
 
@@ -239,6 +252,10 @@ export function createLeaveScheduleRouter({ currentUser, requireAuth }: LeaveSch
       res.status(400).json({ error: parsed.error.flatten() });
       return;
     }
+    if (parsed.data.userId && !mayLinkUsers(currentUser(req))) {
+      res.status(403).json({ error: USER_LINK_FORBIDDEN });
+      return;
+    }
     const linkProblem = await userLinkProblem(parsed.data.userId, null, null);
     if (linkProblem) {
       res.status(linkProblem.status).json({ error: linkProblem.error });
@@ -276,6 +293,10 @@ export function createLeaveScheduleRouter({ currentUser, requireAuth }: LeaveSch
       outcome = await withEmployeeLock([employeeId], async (client) => {
         const existing = await client.leaveEmployee.findUnique({ where: { id: employeeId } });
         if (!existing) return null;
+        // Checked under the lock against the stored link: setting, changing or removing it all count.
+        if (parsed.data.userId !== undefined && (parsed.data.userId ?? null) !== existing.userId && !mayLinkUsers(currentUser(req))) {
+          throw new LeaveConflict(403, USER_LINK_FORBIDDEN);
+        }
         if (parsed.data.userId !== undefined) {
           const linkProblem = await userLinkProblem(parsed.data.userId, employeeId, existing.userId);
           if (linkProblem) throw new LeaveConflict(linkProblem.status, linkProblem.error);
