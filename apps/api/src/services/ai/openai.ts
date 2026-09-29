@@ -17,7 +17,13 @@ export class AiProviderError extends Error {
  * Reads the body while counting bytes, so a huge or endless answer is cut off
  * instead of being buffered whole; aborts and timeouts become provider errors.
  */
-async function readLimited(response: Response, combined: AbortSignal, timeout: AbortSignal, signal?: AbortSignal) {
+async function readLimited(
+  response: Response,
+  combined: AbortSignal,
+  timeout: AbortSignal,
+  signal?: AbortSignal,
+  limit = MAX_RESPONSE_BYTES,
+) {
   const reader = response.body?.getReader();
   if (!reader) return '';
   const decoder = new TextDecoder();
@@ -29,7 +35,7 @@ async function readLimited(response: Response, combined: AbortSignal, timeout: A
       const { done, value } = await reader.read();
       if (done) break;
       received += value.byteLength;
-      if (received > MAX_RESPONSE_BYTES) {
+      if (received > limit) {
         await reader.cancel().catch(() => undefined);
         throw new AiProviderError('Ответ модели слишком большой');
       }
@@ -45,6 +51,71 @@ async function readLimited(response: Response, combined: AbortSignal, timeout: A
 }
 
 export type AiUsageTokens = { promptTokens: number; completionTokens: number };
+
+/** Largest error answer we read: OpenAI's are a few hundred bytes. */
+const MAX_ERROR_BYTES = 64_000;
+
+type ProviderErrorDetail = { code: string; type: string; message: string };
+
+/** The provider's own error code and message, if it sent them as JSON. */
+async function readProviderError(response: Response, combined: AbortSignal, timeout: AbortSignal, signal?: AbortSignal) {
+  const empty: ProviderErrorDetail = { code: '', type: '', message: '' };
+  if (!(response.headers.get('content-type') ?? '').includes('application/json')) return empty;
+  try {
+    const text = await readLimited(response, combined, timeout, signal, MAX_ERROR_BYTES);
+    const error = (JSON.parse(text) as { error?: Record<string, unknown> })?.error ?? {};
+    const field = (value: unknown) => (typeof value === 'string' ? value : '');
+    // Codes and types are short identifiers; anything else is not shown.
+    const identifier = (value: unknown) => (/^[a-z0-9_.]{1,64}$/i.test(field(value)) ? field(value) : '');
+    return { code: identifier(error.code), type: identifier(error.type), message: field(error.message).slice(0, 2000) };
+  } catch {
+    return empty;
+  }
+}
+
+/** Keys can appear in provider messages ("Incorrect API key provided: sk-..."): never pass them on. */
+function redact(message: string) {
+  return message
+    .replace(/\b(sk|rk|pk)[-_][^\s"'`,;)]*/gi, '$1-…')
+    .replace(/[A-Za-z0-9_\-]{32,}/g, '…')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 300);
+}
+
+/** The configured model name, when it looks like one; a mistyped secret must not be echoed. */
+function modelLabel(model: string) {
+  // Model names are short dotted or dashed words ("gpt-4o-mini"); a long unbroken run or a key prefix is not echoed.
+  const looksLikeModel =
+    /^[A-Za-z0-9._:\-/]{1,64}$/.test(model) && !/(sk|rk|pk)[-_]/i.test(model) && !/[A-Za-z0-9]{24,}/.test(model);
+  return looksLikeModel ? `«${model}»` : 'из AI_MODEL';
+}
+
+/**
+ * A provider error in words an administrator can act on: which setting to
+ * check, whether to wait, or what the provider itself said.
+ */
+export function explainProviderError(status: number, detail: ProviderErrorDetail, model: string) {
+  const said = detail.message ? ` Ответ поставщика: ${redact(detail.message)}` : '';
+  const code = detail.code || detail.type;
+  if (status === 401 || code === 'invalid_api_key') {
+    return 'Поставщик модели не принял ключ API. Проверьте AI_API_KEY в настройках сервера.';
+  }
+  if (status === 404 || code === 'model_not_found') {
+    return `Модель ${modelLabel(model)} не найдена у поставщика или недоступна для этого ключа. Проверьте название в AI_MODEL (оно должно совпадать с названием модели в API OpenAI).${said}`;
+  }
+  if (code === 'insufficient_quota') {
+    return 'У поставщика закончились средства на счете или не подключена оплата API. Пополните баланс в кабинете OpenAI.';
+  }
+  if (status === 429) return `Поставщик модели ограничил частоту запросов. Повторите через минуту.${said}`;
+  if (status === 403) return `Поставщик запретил доступ к модели для этого ключа, проекта или региона.${said}`;
+  if (status === 400 && /response_format|json_schema/i.test(detail.message) && /not supported|unsupported/i.test(detail.message)) {
+    return `Модель ${modelLabel(model)} не поддерживает ответ по JSON-схеме (structured outputs). Выберите в AI_MODEL модель, которая его поддерживает.${said}`;
+  }
+  if (status === 400) return `Поставщик модели отклонил запрос.${said}`;
+  if (status >= 500) return `Сервис модели временно недоступен (ошибка ${status}). Повторите позже.`;
+  return `Поставщик модели вернул ошибку ${status}${code ? ` (${code})` : ''}.${said}`;
+}
 
 /**
  * One Chat Completions call that must answer with JSON matching `schema`.
@@ -96,10 +167,8 @@ export async function openAiStructured({
     throw new AiProviderError('Не удалось связаться с моделью');
   }
   if (!response.ok) {
-    throw new AiProviderError(
-      response.status === 429 ? 'Модель перегружена или исчерпан лимит поставщика' : `Модель вернула ошибку ${response.status}`,
-      response.status,
-    );
+    const detail = await readProviderError(response, combined, timeout, signal);
+    throw new AiProviderError(explainProviderError(response.status, detail, config.model), response.status);
   }
   if (!(response.headers.get('content-type') ?? '').includes('application/json')) {
     throw new AiProviderError('Модель вернула ответ неожиданного типа');

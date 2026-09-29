@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readAiConfig } from './config.js';
 import { meetingNotesMessage, normalizeMeetingDrafts } from './meeting-drafts.js';
-import { AiProviderError, openAiStructured } from './openai.js';
+import { AiProviderError, explainProviderError, openAiStructured } from './openai.js';
 
 const env = (values: Record<string, string>) => values as unknown as NodeJS.ProcessEnv;
 
@@ -177,4 +177,49 @@ test('cancelling while the answer is read is a provider error, not a crash', asy
     }),
     (error: unknown) => error instanceof AiProviderError && /отменен/.test(error.message),
   );
+});
+
+test('provider errors say which setting to check, without the key', async () => {
+  const call = (status: number, error: Record<string, string>) =>
+    openAiStructured({
+      config,
+      system: 's',
+      user: 'u',
+      schemaName: 'x',
+      schema: {},
+      maxCompletionTokens: 1,
+      fetchImpl: (async () => reply({ error }, { status })) as unknown as typeof fetch,
+    });
+  await assert.rejects(
+    call(404, { code: 'model_not_found', message: 'The model `gpt-x` does not exist or you do not have access to it.' }),
+    (error: AiProviderError) => {
+      assert.match(error.message, /Модель «gpt-x» не найдена/);
+      assert.match(error.message, /AI_MODEL/);
+      assert.match(error.message, /does not exist/);
+      return true;
+    },
+  );
+  await assert.rejects(call(401, { code: 'invalid_api_key', message: 'Incorrect API key provided: sk-proj-abcdefghijklmnop.' }), (error: AiProviderError) => {
+    assert.match(error.message, /AI_API_KEY/);
+    assert.doesNotMatch(error.message, /abcdefgh/);
+    return true;
+  });
+  await assert.rejects(call(429, { code: 'insufficient_quota', message: 'You exceeded your current quota' }), /Пополните баланс/);
+  await assert.rejects(call(400, { code: '', message: "Invalid parameter: 'response_format' of type 'json_schema' is not supported with this model." }), /structured outputs/);
+  await assert.rejects(call(503, {}), /временно недоступен/);
+  // An unusual code is not echoed, however long.
+  await assert.rejects(call(418, { code: 'sk-live-SECRET', message: '' }), (error: AiProviderError) => {
+    assert.doesNotMatch(error.message, /SECRET/);
+    return true;
+  });
+  // A key inside any provider message, or a secret typed as the model, is cut before it reaches the page.
+  assert.doesNotMatch(explainProviderError(400, { code: '', type: '', message: 'bad key sk-live-1234567890' }, 'm'), /1234567890/);
+  assert.doesNotMatch(explainProviderError(400, { code: '', type: '', message: 'key sk_x' }, 'm'), /sk_x/);
+  assert.doesNotMatch(explainProviderError(404, { code: 'model_not_found', type: '', message: '' }, 'sk-proj-SECRET'), /SECRET/);
+  assert.doesNotMatch(explainProviderError(404, { code: 'model_not_found', type: '', message: '' }, 'A'.repeat(40)), /AAAA/);
+  assert.doesNotMatch(explainProviderError(404, { code: 'model_not_found', type: '', message: '' }, 'mysk_secret'), /mysk_secret/);
+  assert.match(explainProviderError(404, { code: 'model_not_found', type: '', message: '' }, 'gpt-4o-mini-2024-07-18'), /«gpt-4o-mini-2024-07-18»/);
+  assert.doesNotMatch(explainProviderError(400, { code: '', type: '', message: 'token ' + 'A'.repeat(40) }, 'm'), /AAAA/);
+  // A 400 about the schema itself is not blamed on the model.
+  assert.doesNotMatch(explainProviderError(400, { code: '', type: '', message: "Invalid schema for response_format 'x'" }, 'm'), /structured outputs/);
 });

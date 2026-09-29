@@ -114,6 +114,16 @@ test('the public demo is refused unless allowed', async () => {
     assert.equal(refused.res.statusCode, 403);
     const allowed = await post({ user: demoUser, config: { ...enabled, allowPublicDemo: true } as AiConfig });
     assert.equal(allowed.res.statusCode, 200);
+    // A demo visitor is not told which server setting failed.
+    const failed = await post({
+      user: demoUser,
+      config: { ...enabled, allowPublicDemo: true } as AiConfig,
+      extract: async () => {
+        throw new AiProviderError('Проверьте AI_API_KEY в настройках сервера.', 401);
+      },
+    });
+    assert.equal(failed.res.statusCode, 502);
+    assert.doesNotMatch(failed.res.body.error, /AI_API_KEY/);
   } finally {
     process.env.DEPLOYMENT_PROFILE = previous.profile;
     process.env.PUBLIC_DEMO_MODE = previous.demo;

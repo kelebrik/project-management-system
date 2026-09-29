@@ -161,7 +161,9 @@ export function createAiRouter(dependencies: Dependencies = {}) {
       await finish(reservation.id, 'FAILED', usage).catch(() => undefined);
       if (error instanceof AiProviderError) {
         logEvent('warn', 'ai.meeting_drafts_failed', { projectId: project.id, status: error.status ?? null, reason: error.message });
-        if (!res.headersSent && !abort.signal.aborted) res.status(502).json({ error: error.message });
+        // The details name server settings; a demo visitor only learns that it failed.
+        const message = demo ? 'Модель не смогла подготовить черновики. Попробуйте позже.' : error.message;
+        if (!res.headersSent && !abort.signal.aborted) res.status(502).json({ error: message });
         return;
       }
       throw error;
