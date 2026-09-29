@@ -78,6 +78,7 @@ const config = {
   enabled: true as const,
   provider: 'openai' as const,
   model: 'gpt-x',
+  reasoningEffort: null,
   apiKey: 'secret-key',
   baseUrl: new URL('https://api.openai.com/v1/'),
   timeoutMs: 5000,
@@ -222,4 +223,29 @@ test('provider errors say which setting to check, without the key', async () => 
   assert.doesNotMatch(explainProviderError(400, { code: '', type: '', message: 'token ' + 'A'.repeat(40) }, 'm'), /AAAA/);
   // A 400 about the schema itself is not blamed on the model.
   assert.doesNotMatch(explainProviderError(400, { code: '', type: '', message: "Invalid schema for response_format 'x'" }, 'm'), /structured outputs/);
+});
+
+test('the reasoning effort is sent only when set, and a bad value is ignored', async () => {
+  const base = { AI_PROVIDER: 'openai', AI_API_KEY: 'k', AI_MODEL: 'gpt-5.4' };
+  const on = readAiConfig(env({ ...base, AI_REASONING_EFFORT: 'Medium' })).config;
+  assert.equal(on.enabled && on.reasoningEffort, 'medium');
+  const bad = readAiConfig(env({ ...base, AI_REASONING_EFFORT: 'very high!' }));
+  assert.equal(bad.config.enabled && bad.config.reasoningEffort, null);
+  assert.equal(bad.warnings.length, 1);
+
+  const bodies: any[] = [];
+  const fetchImpl = (async (_url: URL, init: RequestInit) => {
+    bodies.push(JSON.parse(String(init.body)));
+    return reply({ choices: [{ message: { content: '{"drafts":[]}' }, finish_reason: 'stop' }] });
+  }) as unknown as typeof fetch;
+  const call = (reasoningEffort: string | null) =>
+    openAiStructured({ config: { ...config, reasoningEffort }, system: 's', user: 'u', schemaName: 'x', schema: {}, maxCompletionTokens: 1, fetchImpl });
+  await call('medium');
+  await call(null);
+  assert.equal(bodies[0].reasoning_effort, 'medium');
+  assert.equal('reasoning_effort' in bodies[1], false);
+  assert.match(
+    explainProviderError(400, { code: '', type: '', message: "Unsupported value: 'reasoning_effort' does not support 'xhigh' with this model." }, 'gpt-5.4'),
+    /AI_REASONING_EFFORT/,
+  );
 });

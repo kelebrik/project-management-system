@@ -109,6 +109,9 @@ export function explainProviderError(status: number, detail: ProviderErrorDetail
   }
   if (status === 429) return `Поставщик модели ограничил частоту запросов. Повторите через минуту.${said}`;
   if (status === 403) return `Поставщик запретил доступ к модели для этого ключа, проекта или региона.${said}`;
+  if (status === 400 && /reasoning_effort|reasoning\.effort/i.test(detail.message)) {
+    return `Модель ${modelLabel(model)} не принимает этот уровень рассуждений. Измените или уберите AI_REASONING_EFFORT.${said}`;
+  }
   if (status === 400 && /response_format|json_schema/i.test(detail.message) && /not supported|unsupported/i.test(detail.message)) {
     return `Модель ${modelLabel(model)} не поддерживает ответ по JSON-схеме (structured outputs). Выберите в AI_MODEL модель, которая его поддерживает.${said}`;
   }
@@ -159,6 +162,7 @@ export async function openAiStructured({
         ],
         response_format: { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } },
         max_completion_tokens: maxCompletionTokens,
+        ...(config.reasoningEffort ? { reasoning_effort: config.reasoningEffort } : {}),
       }),
     });
   } catch (error) {

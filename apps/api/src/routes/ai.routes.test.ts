@@ -12,6 +12,7 @@ const enabled: AiConfig = {
   enabled: true,
   provider: 'openai',
   model: 'gpt-x',
+  reasoningEffort: null,
   apiKey: 'k',
   baseUrl: new URL('https://api.openai.com/v1/'),
   timeoutMs: 1000,

@@ -18,6 +18,8 @@ export type AiConfig =
       enabled: true;
       provider: 'openai';
       model: string;
+      /** How hard a reasoning model thinks (for example low, medium, high); unset leaves the model's default. */
+      reasoningEffort: string | null;
       apiKey: string;
       baseUrl: URL;
       timeoutMs: number;
@@ -80,6 +82,9 @@ export function readAiConfig(env: NodeJS.ProcessEnv = process.env): { config: Ai
     warnings.push('AI_PROVIDER=openai needs AI_API_KEY and AI_MODEL; AI is off');
     return { config: { enabled: false, reason: 'missing key or model' }, warnings };
   }
+  const effortRaw = env.AI_REASONING_EFFORT?.trim().toLowerCase() || '';
+  const reasoningEffort = /^[a-z]{2,16}$/.test(effortRaw) ? effortRaw : null;
+  if (effortRaw && !reasoningEffort) warnings.push('AI_REASONING_EFFORT must be a single word such as low, medium or high; ignored');
   const baseUrl = aiBaseUrl(env);
   if (typeof baseUrl === 'string') {
     warnings.push(`${baseUrl}; AI is off`);
@@ -98,6 +103,7 @@ export function readAiConfig(env: NodeJS.ProcessEnv = process.env): { config: Ai
       enabled: true,
       provider: 'openai',
       model,
+      reasoningEffort,
       apiKey,
       baseUrl,
       timeoutMs: positive(env, 'AI_TIMEOUT_MS', 60_000, warnings),
