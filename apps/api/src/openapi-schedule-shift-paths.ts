@@ -137,4 +137,32 @@ export const openApiScheduleShiftPaths = {
       },
     },
   },
+  "/api/wbs-items/{itemId}/date-drivers": {
+    get: {
+      ...securedOperation(tags, "What holds a row's dates: the link that sets them, the duration and days off, the children of a summary row", [pathParam("itemId")], "Date drivers"),
+      responses: {
+        "200": {
+          description: "Explained by the same rules as the schedule calculation; consistent is false when the saved dates wait for a recalculation",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  itemId: { type: "string" },
+                  kind: { type: "string", enum: ["SUMMARY", "CHECKPOINT", "TASK"] },
+                  startDate: { type: ["string", "null"], format: "date" },
+                  dueDate: { type: ["string", "null"], format: "date" },
+                  start: { type: "object" },
+                  finish: { type: "object" },
+                  children: { type: ["object", "null"] },
+                  consistent: { type: "boolean" },
+                },
+              },
+            },
+          },
+        },
+        "404": { description: "Row not found or its project not readable" },
+      },
+    },
+  },
 };

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { registerWbsDateDriverRoutes } from './wbs/date-drivers.routes.js';
 import { registerWbsDependencyRoutes } from './wbs/dependencies.routes.js';
 import { registerWbsItemOrderRoutes } from './wbs/item-order.routes.js';
 import { registerWbsItemRoutes } from './wbs/items.routes.js';
@@ -17,6 +18,7 @@ export function createWbsRouter(context: WbsRoutesContext) {
   registerWbsSnapshotRoutes(router);
   registerWbsItemRoutes(router);
   registerWbsDependencyRoutes(router, context);
+  registerWbsDateDriverRoutes(router);
 
   return router;
 }

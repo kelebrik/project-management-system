@@ -19,6 +19,7 @@ import {
   wbsLevelFromItem,
 } from "./hierarchy.js";
 import { buildWbsPredecessorRefs } from "./predecessors.js";
+import { predecessorConstraints } from "./constraints.js";
 import type {
   WbsScheduleCalculationOptions,
   WbsScheduleCalendarOverride,
@@ -115,58 +116,17 @@ function calculateWbsSchedulePass(
       ].some((field) => changedFields.has(field));
 
     const earliestStart = options.startNotBeforeById?.get(item.id);
-    const startConstraints: Date[] = earliestStart ? [earliestStart] : [];
-    const finishConstraints: Date[] = [];
-    for (const predecessorRef of predecessorRefs) {
-      const predecessor = itemsById.get(predecessorRef.predecessorId);
-      const predecessorSchedule = computedById.get(predecessorRef.predecessorId);
-      const predecessorStartDate =
-        predecessorSchedule?.forecastStartDate ??
-        predecessorSchedule?.startDate ??
-        normalizedDate(predecessor?.forecastStartDate ?? predecessor?.startDate ?? null);
-      const predecessorDueDate =
-        predecessorSchedule?.forecastDueDate ??
-        predecessorSchedule?.dueDate ??
-        normalizedDate(predecessor?.forecastDueDate ?? predecessor?.dueDate ?? null);
-
-      if (predecessorRef.type === "FS" && predecessorDueDate) {
-        startConstraints.push(
-          addWorkingDays(
-            predecessorDueDate,
-            (item.status === "CANCELLED" ? 0 : 1) + predecessorRef.lagDays,
-            item.calendarCode,
-            overridesByKey,
-          ),
-        );
-      } else if (predecessorRef.type === "SS" && predecessorStartDate) {
-        startConstraints.push(
-          addWorkingDays(
-            predecessorStartDate,
-            predecessorRef.lagDays,
-            item.calendarCode,
-            overridesByKey,
-          ),
-        );
-      } else if (predecessorRef.type === "FF" && predecessorDueDate) {
-        finishConstraints.push(
-          addWorkingDays(
-            predecessorDueDate,
-            predecessorRef.lagDays,
-            item.calendarCode,
-            overridesByKey,
-          ),
-        );
-      } else if (predecessorRef.type === "SF" && predecessorStartDate) {
-        finishConstraints.push(
-          addWorkingDays(
-            predecessorStartDate,
-            predecessorRef.lagDays,
-            item.calendarCode,
-            overridesByKey,
-          ),
-        );
-      }
-    }
+    const linked = predecessorConstraints(
+      item,
+      predecessorRefs,
+      { item: (id) => itemsById.get(id), computed: (id) => computedById.get(id) },
+      overridesByKey,
+    );
+    const startConstraints: Date[] = [
+      ...(earliestStart ? [earliestStart] : []),
+      ...linked.filter((constraint) => constraint.kind === 'start').map((constraint) => constraint.date),
+    ];
+    const finishConstraints: Date[] = linked.filter((constraint) => constraint.kind === 'finish').map((constraint) => constraint.date);
 
     if (durationWorkDays !== null && !isDateDrivenChange) {
       const constrainedDurationWorkDays = durationWorkDays;

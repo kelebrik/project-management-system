@@ -49,11 +49,18 @@ export function createSortedStructureWbsTree(
   wbsTree: WbsTreeItem[],
   wbsDrafts: Record<string, WbsFormState>,
   wbsSort: WbsSortState | null,
+  criticalPath?: WbsCriticalPath | null,
 ) {
   return sortWbsTreeForDisplay(wbsTree, wbsDrafts, wbsSort, {
     typeLabel: (type) => wbsTypeLabel(type as WbsItemType),
     statusLabel: (status) => wbsStatusLabel(status as WbsItemStatus),
+    floatById: createFloatById(criticalPath),
   });
+}
+
+/** Total float by row from the critical path calculation; rows it did not reach have none. */
+export function createFloatById(criticalPath: WbsCriticalPath | null | undefined) {
+  return new Map((criticalPath?.items ?? []).map((item) => [item.itemId, item.totalFloatWorkDays]));
 }
 
 export function createCriticalPathIdSet(

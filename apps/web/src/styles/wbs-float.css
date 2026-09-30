@@ -1,0 +1,18 @@
+.wbs-float { display: inline-block; font-variant-numeric: tabular-nums; font-weight: 600; min-width: 28px; padding: 1px 6px; border-radius: 8px; text-align: right; }
+.wbs-float-critical { background: var(--danger-soft, #fdecea); color: var(--danger, #c0392b); }
+.wbs-float-near { background: var(--warning-soft, #fff4e5); color: var(--warning-strong, #9a5b00); }
+.wbs-float-free { color: var(--text-secondary); font-weight: 400; }
+.wbs-float-none { color: var(--text-muted); font-weight: 400; }
+.wbs-float-cell { position: relative; }
+button.wbs-float { border: 0; cursor: pointer; font: inherit; font-variant-numeric: tabular-nums; }
+.date-drivers-popover { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); display: grid; font-size: 13px; font-weight: 400; gap: 8px; padding: 10px 12px; position: fixed; text-align: left; white-space: normal; width: 380px; z-index: 96; }
+.date-drivers-head { align-items: center; display: flex; justify-content: space-between; }
+.date-drivers-close { background: none; border: 0; cursor: pointer; padding: 2px; }
+.date-drivers-popover h4 { font-size: 13px; margin: 0 0 2px; }
+.date-drivers-popover p { margin: 0; }
+.date-driver-links { display: grid; gap: 2px; list-style: none; margin: 4px 0 0; padding: 0; }
+.date-driver-links li { color: var(--text-muted); }
+.date-driver-links li.binding { color: var(--text); font-weight: 600; }
+.date-driver-meta { white-space: nowrap; }
+.date-driver-daysoff { color: var(--text-secondary); }
+.date-drivers-popover .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }

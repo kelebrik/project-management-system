@@ -300,8 +300,8 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     [collapsedWbsIds, wbsTree],
   );
   const sortedStructureWbsTree = useMemo(
-    () => createSortedStructureWbsTree(wbsTree, wbsDrafts, wbsSort),
-    [wbsDrafts, wbsSort, wbsTree],
+    () => createSortedStructureWbsTree(wbsTree, wbsDrafts, wbsSort, project?.criticalPath),
+    [project?.criticalPath, wbsDrafts, wbsSort, wbsTree],
   );
   const visibleStructureBaseWbsTree = useMemo(
     () => createVisibleWbsTree(sortedStructureWbsTree, collapsedWbsIds),

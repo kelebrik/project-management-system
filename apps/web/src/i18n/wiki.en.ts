@@ -368,7 +368,9 @@ export const englishWikiGroups: WikiGroup[] = [
               "Enter saves the cell being edited; Escape rolls the draft back to the current state of the row.",
               "Text and number cells of the WBS keep typing locally and hand it to the row draft when the user leaves the cell, presses Enter or pastes, so typing does not redraw the whole table and Escape discards what was typed. If text is still pending in a cell when the user goes to another page, the app asks for confirmation.",
               "In the Owner column the browser suggests the names of active people from the Leave schedule directory with their department; any other name can be typed too. The directory refreshes when the user comes back to the browser window.",
-              "The type of a phase linked to an open issue cannot be changed: the backend answers 409. A level or order change that would break the link between a work package and an open issue is refused too."
+              "The type of a phase linked to an open issue cannot be changed: the backend answers 409. A level or order change that would break the link between a work package and an open issue is refused too.",
+              "The Float column shows how many working days a row can slip before the project's last scheduled date moves. Zero or less (in red) means the row holds the project finish, a negative value means the plan is already late by that many days; up to five days is amber. Float comes from the links and calendar of the current plan and is not shown for done or cancelled rows. The column can be sorted.",
+              "Clicking the float value opens What holds these dates: which link (type and lag) sets the start or finish, shown in bold, which links do not hold the date now, the duration in working days and the days off inside it with holiday names, the rows inside that set a phase's or package's dates, and for a milestone its link or a date set by hand. Clicking a predecessor opens its row. When the saved dates differ from the links, a warning says the plan will be recalculated at the next change."
             ]
           },
           {

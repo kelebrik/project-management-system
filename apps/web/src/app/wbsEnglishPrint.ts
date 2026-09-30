@@ -12,6 +12,7 @@ export const WBS_COLUMN_EN_LABELS: Record<WbsTableColumnKey, string> = {
   due: "Due date",
   workDays: "Work days",
   calendarDays: "Calendar days",
+  float: "Float",
   calendar: "Calendar",
   effortPercent: "Effort, %",
   progress: "%",

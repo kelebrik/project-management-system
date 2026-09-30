@@ -50,7 +50,7 @@ function isBaseCalendarWorkingDay(
   return override ?? isDefaultWorkingDay(value);
 }
 
-function isWorkingDay(
+export function isWorkingDay(
   value: Date,
   calendarCode: ProjectCalendarCode,
   overridesByKey: Map<string, boolean>,

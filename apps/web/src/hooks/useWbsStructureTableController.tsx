@@ -1,3 +1,4 @@
+import { WbsFloatCell } from "../components/wbs/WbsFloatCell";
 import {
   type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEventHandler,
@@ -244,6 +245,7 @@ export function useWbsStructureTableController({
     item: WbsTreeItem,
     draft: WbsFormState,
   ) => {
+    if (columnKey === "float") return <WbsFloatCell item={{ id: item.id, status: draft.status ?? item.status }} />;
     if (isReadOnly) {
       if (columnKey === "structure") {
         return (

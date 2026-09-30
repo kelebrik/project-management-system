@@ -15,6 +15,7 @@ export const WBS_TABLE_COLUMNS = [
   { key: "due", label: "Срок", width: 138 },
   { key: "workDays", label: "Раб. дни", width: 96 },
   { key: "calendarDays", label: "Кал. дни", width: 96 },
+  { key: "float", label: "Запас", width: 92 },
   { key: "calendar", label: "Календарь", width: 110 },
   { key: "effortPercent", label: "Трудоемк., %", width: 112 },
   { key: "progress", label: "%", width: 72 },
@@ -121,6 +122,8 @@ export const WBS_COLUMN_FIELDS: Record<WbsTableColumnKey, WbsFormFieldKey[]> = {
   due: ["dueDate"],
   workDays: ["workDays"],
   calendarDays: ["calendarDays"],
+  // Calculated from the links and calendar; nothing to edit.
+  float: [],
   calendar: ["calendarCode"],
   effortPercent: ["effortPercent"],
   progress: ["progress"],
@@ -185,7 +188,24 @@ export type SortableWbsTreeItem = {
 export type WbsSortLabels = {
   typeLabel?: (type: string) => string;
   statusLabel?: (status: string) => string;
+  /** Total float in working days by row, from the critical path calculation. */
+  floatById?: ReadonlyMap<string, number>;
 };
+
+/** Float is shown for open work only: done or cancelled rows have none left to spend. */
+export function wbsFloatValue(item: { id: string; status: string }, floatById: ReadonlyMap<string, number> | undefined) {
+  if (item.status === "DONE" || item.status === "CANCELLED") return null;
+  return floatById?.get(item.id) ?? null;
+}
+
+/** Red at or below zero (the row holds the finish), amber within the near-critical margin. */
+export const WBS_NEAR_CRITICAL_FLOAT_DAYS = 5;
+export function wbsFloatTone(value: number | null) {
+  if (value === null) return "none";
+  if (value <= 0) return "critical";
+  if (value <= WBS_NEAR_CRITICAL_FLOAT_DAYS) return "near";
+  return "free";
+}
 
 const WBS_SORT_COLLATOR = new Intl.Collator("ru", {
   numeric: true,
@@ -333,6 +353,8 @@ function wbsSortValue(
       return sortableNumberValue(draft?.calendarDays ?? item.calendarDays);
     case "calendar":
       return sortableTextValue(draft?.calendarCode ?? item.calendarCode);
+    case "float":
+      return wbsFloatValue({ id: item.id, status: draft?.status ?? item.status }, labels.floatById);
     case "effortPercent":
       return sortableNumberValue(draft?.effortPercent ?? item.effortPercent);
     case "progress":
@@ -367,11 +389,15 @@ function compareWbsItemsForSort<TItem extends SortableWbsTreeItem>(
   sort: WbsSortState,
   labels: WbsSortLabels,
 ) {
+  const leftValue = wbsSortValue(sort.columnKey, left, drafts[left.id], labels);
+  const rightValue = wbsSortValue(sort.columnKey, right, drafts[right.id], labels);
+  // Rows without a value stay at the bottom whichever way the column is sorted.
+  const leftEmpty = leftValue === null || leftValue === "";
+  const rightEmpty = rightValue === null || rightValue === "";
   const sorted =
-    compareWbsSortValues(
-      wbsSortValue(sort.columnKey, left, drafts[left.id], labels),
-      wbsSortValue(sort.columnKey, right, drafts[right.id], labels),
-    ) * (sort.direction === "asc" ? 1 : -1);
+    leftEmpty || rightEmpty
+      ? compareWbsSortValues(leftValue, rightValue)
+      : compareWbsSortValues(leftValue, rightValue) * (sort.direction === "asc" ? 1 : -1);
   if (sorted !== 0) return sorted;
   const orderDiff = left.sortOrder - right.sortOrder;
   if (orderDiff !== 0) return orderDiff;

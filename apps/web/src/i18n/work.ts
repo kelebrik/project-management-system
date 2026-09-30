@@ -131,6 +131,10 @@ export const work = {
     "en": "Start",
     "ru": "Старт"
   },
+  "work.column.float": {
+    "en": "Float",
+    "ru": "Запас"
+  },
   "work.column.due": {
     "en": "Due date",
     "ru": "Срок"
