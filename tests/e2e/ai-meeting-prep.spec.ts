@@ -29,7 +29,7 @@ test("the meeting agenda is prepared, links to the issue and hands over to the m
   await expect(text).toHaveValue(/1\. \*\*Кто платит за доставку\*\* — 15 мин, Иванов/);
   await expect(text).toHaveValue(/Решение нужно до 5 октября \(Открытый вопрос обзора\)/);
   await expect(text).toHaveValue(/- \*\*Петров\*\*: Готов ли второй поставщик\?/);
-  await expect(drawer.getByText("Отброшено ссылок и имен, которых нет в данных проекта: 2")).toBeVisible();
+  await expect(drawer.getByText("Отброшено из ответа модели (ссылки и имена не из данных проекта, лишние пункты): 2")).toBeVisible();
   expect(calls).toEqual([{ horizonDays: 14, locale: "ru" }]);
   await drawer.screenshot({ path: test.info().outputPath("meeting-prep.png") });
 

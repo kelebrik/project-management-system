@@ -196,6 +196,41 @@ export type OpenIssueStatus = (typeof openIssueStatuses)[number];
  * browser while the generated executive summary computes it on the server, and
  * the two must not drift apart.
  */
+/** Names as people type them: case, spacing, "ё" and Unicode forms do not matter. */
+export function normalizePersonName(value: string) {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase().replaceAll("ё", "е");
+}
+
+function addIsoDays(value: string, days: number) {
+  return new Date(Date.parse(`${value}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Stretches of days (YYYY-MM-DD, both ends included) on which two or more
+ * unfinished pieces of work run at once. The workload page and the AI
+ * rebalancing count overlaps the same way.
+ */
+export function overlapRanges(items: Array<{ startDate: string; dueDate: string; status: string }>) {
+  const events = new Map<string, number>();
+  for (const item of items.filter((candidate) => candidate.status !== "DONE")) {
+    events.set(item.startDate, (events.get(item.startDate) ?? 0) + 1);
+    const after = addIsoDays(item.dueDate, 1);
+    events.set(after, (events.get(after) ?? 0) - 1);
+  }
+  const ranges: Array<{ from: string; to: string }> = [];
+  let running = 0;
+  let openedAt: string | null = null;
+  for (const day of [...events.keys()].sort()) {
+    running += events.get(day)!;
+    if (running >= 2 && openedAt === null) openedAt = day;
+    if (running < 2 && openedAt !== null) {
+      ranges.push({ from: openedAt, to: addIsoDays(day, -1) });
+      openedAt = null;
+    }
+  }
+  return ranges;
+}
+
 export function isOverviewDecisionIssue(issue: {
   severity: IssueSeverity;
   readiness: RagStatus;

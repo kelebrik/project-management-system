@@ -247,4 +247,165 @@ export const openApiAiPaths = {
       },
     },
   },
+  "/api/projects/{projectId}/ai/risk-suggestions": {
+    post: {
+      ...securedOperation(
+        tags,
+        "Suggest new risks, scores and mitigation plans from slips, overlaps and stale Jira snapshots; nothing is created",
+        [pathParam("projectId")],
+        "Suggestions",
+      ),
+      requestBody: {
+        required: false,
+        content: { "application/json": { schema: { type: "object", properties: { locale: { type: "string", enum: ["ru", "en"], default: "ru" } } } } },
+      },
+      responses: {
+        "200": {
+          description: "Suggestions; references are checked against the facts sent, a score or plan only goes to an active risk that lacks one",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  newRisks: {
+                    type: "array",
+                    maxItems: 10,
+                    items: {
+                      type: "object",
+                      properties: {
+                        title: { type: "string" },
+                        description: { type: "string" },
+                        probability: { type: "integer", minimum: 1, maximum: 5 },
+                        impact: { type: "integer", minimum: 1, maximum: 5 },
+                        owner: { type: "string" },
+                        mitigationPlan: { type: "string" },
+                        basisRefs: { type: "array", minItems: 1, items: { type: "string" } },
+                      },
+                    },
+                  },
+                  scores: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        riskRef: { type: "string" },
+                        probability: { type: "integer", minimum: 1, maximum: 5 },
+                        impact: { type: "integer", minimum: 1, maximum: 5 },
+                        reason: { type: "string" },
+                      },
+                    },
+                  },
+                  mitigations: { type: "array", items: { type: "object", properties: { riskRef: { type: "string" }, mitigationPlan: { type: "string" } } } },
+                  refs: { type: "object", additionalProperties: factRef },
+                  droppedRefs: { type: "integer" },
+                  provider: { type: "string" },
+                  model: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        ...aiRefusals,
+      },
+    },
+  },
+  "/api/projects/{projectId}/ai/ask": {
+    post: {
+      ...securedOperation(tags, "Answer one question about the project only from its data; nothing is saved", [pathParam("projectId")], "Answer"),
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["question"],
+              properties: { question: { type: "string", minLength: 5, maxLength: 500 }, locale: { type: "string", enum: ["ru", "en"], default: "ru" } },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Answer; citations are checked against the rows sent, the rest are dropped and counted",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  answer: { type: "string", maxLength: 2000 },
+                  citations: { type: "array", maxItems: 15, items: { type: "string" } },
+                  insufficientData: { type: "boolean" },
+                  refs: { type: "object", additionalProperties: factRef },
+                  droppedRefs: { type: "integer" },
+                  provider: { type: "string" },
+                  model: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        ...aiRefusals,
+      },
+    },
+  },
+  "/api/ai/workload-rebalance": {
+    post: {
+      ...securedOperation(
+        tags,
+        "Suggest owners and dates that remove overlaps and work on leave, across the projects the user may change; nothing is saved",
+        [],
+        "Suggestions",
+      ),
+      requestBody: {
+        required: false,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: { horizonDays: { type: "integer", enum: [30, 60, 90], default: 30 }, locale: { type: "string", enum: ["ru", "en"], default: "ru" } },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Suggestions for movable work with the version each was read at; the rest are dropped and counted",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  suggestions: {
+                    type: "array",
+                    maxItems: 20,
+                    items: {
+                      type: "object",
+                      properties: {
+                        itemId: { type: "string" },
+                        newOwner: { type: ["string", "null"] },
+                        newStartDate: { type: ["string", "null"], format: "date" },
+                        newDueDate: { type: ["string", "null"], format: "date" },
+                        reason: { type: "string" },
+                      },
+                    },
+                  },
+                  items: { type: "object", additionalProperties: { type: "object" } },
+                  droppedRefs: { type: "integer" },
+                  horizonDays: { type: "integer" },
+                  nothingToMove: { type: "boolean", description: "No work the user may move in the period; the model was not called" },
+                  provider: { type: "string" },
+                  model: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        "400": { description: "Invalid request" },
+        "403": { description: "API token, public demo without permission, or no project the user may change" },
+        "429": { description: "An AI budget is spent" },
+        "502": { description: "The provider failed" },
+        "503": { description: "AI is not configured" },
+      },
+    },
+  },
 };

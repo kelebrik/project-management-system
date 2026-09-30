@@ -12,6 +12,11 @@ import { draftWbs, WBS_DRAFT_LIMITS } from '../services/ai/wbs-draft.js';
 import { getProjectForOverviewGeneration } from '../services/executive-overview.js';
 import { createAiKit, isDemoVisitor, type AiKitDependencies } from './ai/common.js';
 import { registerMeetingPrep, type MeetingPrepDependencies } from './ai/meeting-prep.routes.js';
+import { registerRiskAssistant, type RiskAssistantDependencies } from './ai/risk-assistant.routes.js';
+import { registerAskProject, type AskProjectDependencies } from './ai/ask-project.routes.js';
+import { registerWorkloadRebalance, type WorkloadRebalanceDependencies } from './ai/workload-rebalance.routes.js';
+import type { AskProject } from '../services/ai/ask-project.js';
+import type { RiskAssistantProject } from '../services/ai/risk-assistant.js';
 import type { MeetingPrepProject } from '../services/ai/meeting-prep.js';
 
 const bodySchema = z.object({ text: z.string().trim().min(1).max(MEETING_DRAFT_LIMITS.text) });
@@ -26,11 +31,16 @@ type Dependencies = {
   extract?: typeof extractMeetingDrafts;
   report?: typeof writeStatusReport;
   draft?: typeof draftWbs;
-  loadReportProject?: (projectId: string) => Promise<(Parameters<typeof buildReportFacts>[0] & MeetingPrepProject) | null>;
+  loadReportProject?: (projectId: string) => Promise<(Parameters<typeof buildReportFacts>[0] & MeetingPrepProject & RiskAssistantProject & AskProject) | null>;
   reserve?: AiKitDependencies['reserve'];
   finish?: AiKitDependencies['finish'];
   hasEditableProject?: AiKitDependencies['hasEditableProject'];
   prepareMeeting?: MeetingPrepDependencies['prepare'];
+  suggestRisks?: RiskAssistantDependencies['suggest'];
+  askProject?: AskProjectDependencies['ask'];
+  loadLeaves?: AskProjectDependencies['loadLeaves'];
+  suggestRebalance?: WorkloadRebalanceDependencies['suggest'];
+  loadWorkload?: WorkloadRebalanceDependencies['loadWorkload'];
   now?: () => Date;
 };
 
@@ -136,6 +146,9 @@ export function createAiRouter(dependencies: Dependencies = {}) {
   });
 
   registerMeetingPrep(router, kit, { prepare: dependencies.prepareMeeting, loadProject: loadReportProject, now });
+  registerRiskAssistant(router, kit, { suggest: dependencies.suggestRisks, loadProject: loadReportProject, now });
+  registerAskProject(router, kit, { ask: dependencies.askProject, loadProject: loadReportProject, loadLeaves: dependencies.loadLeaves, now });
+  registerWorkloadRebalance(router, kit, { suggest: dependencies.suggestRebalance, loadWorkload: dependencies.loadWorkload, now });
 
   return router;
 }

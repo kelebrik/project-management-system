@@ -2,7 +2,7 @@ import { isOverviewDecisionIssue, type IssueSeverity, type RagStatus } from '@pm
 import type { AiConfig } from './config.js';
 import { MAX_COMPLETION_TOKENS } from './budget.js';
 import { openAiStructured, type AiUsageTokens } from './openai.js';
-import { cutText, dataBlock, DAY_MS, day, FactRefs, fitFacts, isActiveRaid, isOpenWork, sentValues, utcDay, type FactRef } from './report-facts.js';
+import { cutText, dataBlock, DAY_MS, day, FactRefs, fitFacts, isActiveRaid, isOpenWork, sentValues, utcDay, capped, type FactRef } from './report-facts.js';
 
 type EnabledConfig = Extract<AiConfig, { enabled: true }>;
 
@@ -175,7 +175,7 @@ export function normalizeMeetingPrep(answer: unknown, refs: FactRefs, people: Se
     counter.dropped += 1;
     return '';
   };
-  const agenda = (Array.isArray(raw.agenda) ? raw.agenda : [])
+  const agenda = capped((Array.isArray(raw.agenda) ? raw.agenda : [])
     .map((entry) => {
       const row = (entry ?? {}) as Record<string, unknown>;
       const minutes = Math.round(Number(row.minutes));
@@ -187,16 +187,24 @@ export function normalizeMeetingPrep(answer: unknown, refs: FactRefs, people: Se
         refs: refs.keep(row.refs, counter, MEETING_PREP_LIMITS.refs),
       };
     })
-    .filter((row) => row.topic)
-    .slice(0, MEETING_PREP_LIMITS.agenda);
-  const askWhom = (Array.isArray(raw.askWhom) ? raw.askWhom : [])
+    .filter((row) => {
+      if (row.topic) return true;
+      counter.dropped += 1;
+      return false;
+    }), MEETING_PREP_LIMITS.agenda, counter);
+  const askWhom = capped((Array.isArray(raw.askWhom) ? raw.askWhom : [])
     .map((entry) => {
       const row = (entry ?? {}) as Record<string, unknown>;
-      return { person: person(row.person), question: line(row.question), refs: refs.keep(row.refs, counter, MEETING_PREP_LIMITS.refs) };
+      const named = Boolean(line(row.person));
+      return { person: person(row.person), question: line(row.question), refs: refs.keep(row.refs, counter, MEETING_PREP_LIMITS.refs), named };
     })
-    // A question needs someone to ask.
-    .filter((row) => row.person && row.question)
-    .slice(0, MEETING_PREP_LIMITS.askWhom);
+    // A question needs someone to ask; an unknown name was counted already.
+    .filter((row) => {
+      if (row.person && row.question) return true;
+      if (!(row.named && !row.person)) counter.dropped += 1;
+      return false;
+    })
+    .map(({ named: _named, ...row }) => row), MEETING_PREP_LIMITS.askWhom, counter);
   const used = new Set([...agenda, ...askWhom].flatMap((row) => row.refs));
   return { prep: { agenda, askWhom } satisfies MeetingPrep, droppedRefs: counter.dropped, refs: refs.resolve(used) as Record<string, FactRef> };
 }

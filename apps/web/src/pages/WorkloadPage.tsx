@@ -1,4 +1,5 @@
 import { CalendarDays, Undo2, X } from "lucide-react";
+import { WorkloadRebalanceButton } from "../components/ai/AiProjectButtons";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { apiClient } from "../api/client";
 import {
@@ -294,6 +295,7 @@ export function WorkloadPage() {
             ))}
           </div>
           {fullscreen.button}
+          {editableProjectIds.size > 0 && <WorkloadRebalanceButton onApplied={() => setReloadToken((value) => value + 1)} />}
         </div>
         <div className="leave-filters">
           <input

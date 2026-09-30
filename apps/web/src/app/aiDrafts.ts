@@ -85,3 +85,64 @@ export function meetingPrepText(prep: MeetingPrep, projectName: string, t: Trans
   }
   return lines.join("\n");
 }
+
+export type RiskSuggestions = {
+  newRisks: Array<{ title: string; description: string; probability: number; impact: number; owner: string; mitigationPlan: string; basisRefs: string[] }>;
+  scores: Array<{ riskRef: string; probability: number; impact: number; reason: string }>;
+  mitigations: Array<{ riskRef: string; mitigationPlan: string }>;
+  refs: Record<string, FactRef>;
+};
+
+/** One reviewed suggestion as the register's own create or update request. */
+export type RiskSuggestionRow =
+  | { key: string; kind: "new"; body: RiskSuggestions["newRisks"][number] }
+  | { key: string; kind: "score"; riskId: string; body: { probability: number; impact: number }; reason: string }
+  | { key: string; kind: "mitigation"; riskId: string; body: { mitigationPlan: string } };
+
+export function riskSuggestionRows(suggestions: RiskSuggestions): RiskSuggestionRow[] {
+  const riskId = (ref: string) => suggestions.refs[ref]?.id ?? ref.replace(/^risk:/, "");
+  return [
+    ...suggestions.newRisks.map((body, index) => ({ key: `new-${index}`, kind: "new" as const, body })),
+    ...suggestions.scores.map((row) => ({
+      key: `score-${row.riskRef}`,
+      kind: "score" as const,
+      riskId: riskId(row.riskRef),
+      body: { probability: row.probability, impact: row.impact },
+      reason: row.reason,
+    })),
+    ...suggestions.mitigations.map((row) => ({
+      key: `mitigation-${row.riskRef}`,
+      kind: "mitigation" as const,
+      riskId: riskId(row.riskRef),
+      body: { mitigationPlan: row.mitigationPlan },
+    })),
+  ];
+}
+
+export type RebalanceSuggestion = { itemId: string; newOwner: string | null; newStartDate: string | null; newDueDate: string | null; reason: string };
+export type RebalanceItem = {
+  id: string;
+  projectId: string;
+  projectCode: string;
+  code: string;
+  title: string;
+  owner: string;
+  startDate: string;
+  dueDate: string;
+  updatedAt: string;
+};
+export type WorkChange = { owner?: string; startDate?: string; dueDate?: string };
+
+/** The planner's edit for one suggestion: only the fields it changes. */
+export function rebalanceChange(suggestion: RebalanceSuggestion): WorkChange {
+  return {
+    ...(suggestion.newOwner ? { owner: suggestion.newOwner } : {}),
+    ...(suggestion.newStartDate ? { startDate: suggestion.newStartDate } : {}),
+    ...(suggestion.newDueDate ? { dueDate: suggestion.newDueDate } : {}),
+  };
+}
+
+/** The request body the workload planner sends for the same edit. */
+export function workChangeBody(change: WorkChange, expectedUpdatedAt: string) {
+  return { ...change, ...(change.startDate || change.dueDate ? { scheduleDriver: "dates" } : {}), expectedUpdatedAt };
+}

@@ -63,8 +63,8 @@ test('the answer keeps only known references and owners, and counts what it drop
     ['Прошивка', '', 1, ['wbs:w1']],
   ]);
   assert.deepEqual(result.prep.askWhom.map((row) => row.person), ['Иванов']);
-  // One made-up reference and two unknown people.
-  assert.equal(result.droppedRefs, 3);
+  // One made-up reference, the agenda row without a topic, and two unknown people.
+  assert.equal(result.droppedRefs, 4);
   assert.deepEqual(Object.keys(result.refs).sort(), ['issue:i1', 'risk:r1', 'wbs:w1']);
   assert.deepEqual(result.refs['risk:r1'], { kind: 'risk', id: 'r1', label: 'Срыв поставки', type: 'RISK' });
 });
@@ -101,5 +101,16 @@ test('only facts that survive the trimming can be referred to, and checkpoint ow
     facts.refs,
     facts.people,
   );
+  assert.equal(result.droppedRefs, 2);
+});
+
+test('everything past the limits counts as dropped too', () => {
+  const { refs, people } = buildMeetingPrepFacts(project, 7, now);
+  const result = normalizeMeetingPrep(
+    { agenda: Array.from({ length: 14 }, (_, index) => ({ topic: `Тема ${index}`, why: '', owner: '', minutes: 5, refs: [] })), askWhom: [] },
+    refs,
+    people,
+  );
+  assert.equal(result.prep.agenda.length, 12);
   assert.equal(result.droppedRefs, 2);
 });

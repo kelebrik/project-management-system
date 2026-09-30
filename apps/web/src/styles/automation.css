@@ -94,3 +94,22 @@
 .ai-report-bar { display: flex; grid-column: 1 / -1; justify-content: flex-end; }
 .ai-ref-links { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; }
 .ai-ref-links button { font-size: 12px; padding: 2px 8px; }
+.risk-suggestion { display: grid; gap: 8px; }
+.automation-body .risk-suggestion-pick { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.automation-body .risk-suggestion-grades { align-items: center; display: flex; gap: 12px; }
+.automation-body .risk-suggestion-grades label { align-items: center; display: flex; gap: 6px; }
+.risk-suggestion-grades input { width: 64px; }
+.risk-suggestion-basis + .risk-suggestion-basis::before { content: "; "; }
+.raid-register-head { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.automation-body .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; padding: 0; text-decoration: underline; }
+.risk-suggestion-pick input[type="checkbox"] { flex: none; width: auto; }
+.ai-report-bar { gap: 8px; }
+.ask-question { min-height: 72px; }
+.ask-answer { display: grid; gap: 8px; }
+.ask-answer-question { color: var(--text-secondary); font-size: 12px; font-weight: 600; margin: 0; }
+.ask-answer-text { margin: 0; white-space: pre-wrap; }
+.ai-ref-jira { color: var(--text-secondary); font-size: 12px; }
+.rebalance-suggestion { display: grid; gap: 6px; }
+.rebalance-change { display: grid; gap: 4px 12px; grid-template-columns: max-content 1fr; margin: 0; font-size: 13px; }
+.rebalance-change dt { color: var(--text-secondary); }
+.rebalance-change dd { margin: 0; }

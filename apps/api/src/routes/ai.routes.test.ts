@@ -31,7 +31,7 @@ type Setup = {
   body?: unknown;
 };
 
-async function post(setup: Setup & { path?: string; report?: unknown; draft?: unknown; prep?: unknown }) {
+async function post(setup: Setup & { path?: string; report?: unknown; draft?: unknown; prep?: unknown; editable?: boolean }) {
   const finished: Array<[string, string, unknown]> = [];
   const audits: any[] = [];
   let extracted: any;
@@ -60,9 +60,43 @@ async function post(setup: Setup & { path?: string; report?: unknown; draft?: un
         }
       );
     }) as any,
+    suggestRisks: (async (input: any) => {
+      extracted = input;
+      return {
+        suggestions: { newRisks: [], scores: [{ riskRef: 'risk:r1', probability: 4, impact: 4, reason: 'r' }], mitigations: [] },
+        refs: { 'risk:r1': { kind: 'risk', id: 'r1', label: 'Срыв', type: 'RISK' } },
+        droppedRefs: 3,
+        usage: { promptTokens: 2, completionTokens: 2 },
+      };
+    }) as any,
+    askProject: (async (input: any) => {
+      extracted = input;
+      return {
+        answer: { answer: 'Мешает стенд', citations: ['issue:i1'], insufficientData: false },
+        refs: { 'issue:i1': { kind: 'issue', id: 'i1', label: 'Нет стенда' } },
+        droppedRefs: 0,
+        usage: { promptTokens: 2, completionTokens: 2 },
+      };
+    }) as any,
+    loadLeaves: (async () => []) as any,
+    hasEditableProject: async () => setup.editable ?? true,
+    loadWorkload: (async () => ({
+      projects: [{ id: 'p1', code: 'TV', name: 'Телевизор' }],
+      items: [
+        { id: 'a', projectId: 'p1', code: '1.1', title: 'Работа', owner: 'Иванов', type: 'TASK', status: 'IN_PROGRESS', startDate: '2026-10-02', dueDate: '2026-10-10', updatedAt: 'v1', startLocked: false, finishLocked: false, startLinks: [], finishLinks: [], lockedByIssue: false },
+      ],
+      editableProjectIds: ['p1'],
+      employees: [{ id: 'e1', name: 'Иванов', department: '' }, { id: 'e2', name: 'Сидорова', department: '' }],
+      leaves: [],
+      calendarDays: [],
+    })) as any,
+    suggestRebalance: (async (input: any) => {
+      extracted = input;
+      return { suggestions: [{ itemId: 'a', newOwner: 'Сидорова', newStartDate: null, newDueDate: null, reason: 'r' }], items: { a: { id: 'a' } }, droppedRefs: 1, usage: { promptTokens: 2, completionTokens: 2 } };
+    }) as any,
     loadReportProject: (async () => ({
       name: 'Телевизор', code: 'TV', status: 'ACTIVE', rag: 'GREEN', targetDate: null, scheduleVariance: 0, progress: 0,
-      jiraIntegration: null, wbsItems: [], issues: [], raidItems: [],
+      jiraIntegration: null, wbsItems: [], issues: [], raidItems: [], jiraSnapshots: [],
     })) as any,
     extract: (async (input: any) => {
       extracted = input;
@@ -261,4 +295,48 @@ test('meeting preparation sends the project facts and keeps only counters in the
     ['completionTokens', 'droppedRefs', 'inputChars', 'model', 'promptTokens', 'provider', 'questions', 'topics'],
   );
   assert.equal((await post({ path: '/projects/:projectId/ai/meeting-prep', access: 'EDIT', body: { horizonDays: 30 } })).res.statusCode, 400);
+});
+
+test('risk suggestions go through the same checks and keep only counters in the audit', async () => {
+  const { res, audits, extracted } = await post({ path: '/projects/:projectId/ai/risk-suggestions', access: 'EDIT', body: { locale: 'en' } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(extracted.locale, 'en');
+  assert.equal(typeof extracted.facts.text, 'string');
+  assert.equal(res.body.scores[0].riskRef, 'risk:r1');
+  assert.equal(res.body.refs['risk:r1'].type, 'RISK');
+  assert.equal(audits[0].action, 'ai.risk_suggestions');
+  assert.deepEqual(audits[0].metadata.droppedRefs, 3);
+  assert.equal(JSON.stringify(audits[0].metadata).includes('Срыв'), false);
+  assert.equal((await post({ path: '/projects/:projectId/ai/risk-suggestions', access: 'VIEW', body: {} })).res.statusCode, 403);
+  assert.equal((await post({ path: '/projects/:projectId/ai/risk-suggestions', access: 'EDIT', body: { locale: 'de' } })).res.statusCode, 400);
+});
+
+test('a question about the project is answered from its data and only its length is audited', async () => {
+  const question = 'Что мешает запуску продукта?';
+  const { res, audits, extracted } = await post({ path: '/projects/:projectId/ai/ask', access: 'EDIT', body: { question } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(extracted.question, question);
+  assert.equal(extracted.locale, 'ru');
+  assert.deepEqual(res.body.citations, ['issue:i1']);
+  assert.equal(res.body.refs['issue:i1'].label, 'Нет стенда');
+  assert.equal(audits[0].action, 'ai.ask_project');
+  assert.equal(audits[0].metadata.questionChars, question.length);
+  assert.equal(JSON.stringify(audits[0].metadata).includes('мешает'), false);
+  assert.equal((await post({ path: '/projects/:projectId/ai/ask', access: 'EDIT', body: { question: 'Что' } })).res.statusCode, 400);
+  assert.equal((await post({ path: '/projects/:projectId/ai/ask', user: null, apiToken: { id: 't' }, body: { question } })).res.statusCode, 403);
+});
+
+test('workload rebalancing works across projects, needs one the user may change, and audits counters only', async () => {
+  const { res, audits, extracted } = await post({ path: '/ai/workload-rebalance', body: { horizonDays: 60, locale: 'en' } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(extracted.locale, 'en');
+  assert.equal(JSON.parse(extracted.facts.text).window.days, 60);
+  assert.deepEqual(res.body.suggestions[0], { itemId: 'a', newOwner: 'Сидорова', newStartDate: null, newDueDate: null, reason: 'r' });
+  assert.equal(audits[0].action, 'ai.workload_rebalance');
+  assert.equal(audits[0].projectId, null);
+  assert.equal(audits[0].objectType, 'User');
+  assert.deepEqual(Object.keys(audits[0].metadata).sort(), ['completionTokens', 'droppedRefs', 'horizonDays', 'inputChars', 'model', 'promptTokens', 'provider', 'suggestions']);
+  assert.equal((await post({ path: '/ai/workload-rebalance', editable: false, body: {} })).res.statusCode, 403);
+  assert.equal((await post({ path: '/ai/workload-rebalance', body: { horizonDays: 45 } })).res.statusCode, 400);
+  assert.equal((await post({ path: '/ai/workload-rebalance', user: null, apiToken: { id: 't' }, body: {} })).res.statusCode, 403);
 });

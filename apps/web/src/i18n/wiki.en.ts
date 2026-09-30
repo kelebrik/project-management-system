@@ -232,7 +232,9 @@ export const englishWikiGroups: WikiGroup[] = [
               "All generate/status/publish actions are written to the audit log as overview.generate, overview.status and overview.publish.",
               "The Report for management button above the Status cards opens a panel: pick a period of 7, 14 or 30 days and press Prepare the report. The model writes a status (green, amber, red), a summary and the sections Done, Slipped, Risks and problems, Decisions needed and Next.",
               "The report is built only from the project's facts: work closed in the period, overdue work, checkpoints for the next 30 days and those moved against the baseline, open issues needing a decision and critical issues, risks and problems scored 15 and above. These facts go to the model's provider; nothing is saved in the project and the audit log keeps counters only.",
-              "The report text can be edited in the panel, copied or downloaded as a .md file. The button is shown only when a model is connected and AI calls are allowed for the user; a corporate installation has no such button until GigaChat is connected."
+              "The report text can be edited in the panel, copied or downloaded as a .md file. The button is shown only when a model is connected and AI calls are allowed for the user; a corporate installation has no such button until GigaChat is connected.",
+              "The Ask the project button above the Status cards opens a panel for questions in plain words: \"what blocks the launch?\", \"who is on leave in October?\". The model answers only from this project's data: the Structure, open issues, active risks and problems, leaves of its people from a month back to half a year ahead, and the latest synced Jira tickets.",
+              "An answer has buttons for the rows it relies on; they open the Structure row, issue or risk. References are checked against the data sent and made-up ones are dropped. When the data is not enough, the panel says so. The question and the data go to the model's provider; answers are not saved and the audit log keeps only the question length and counters. The button is shown only when a model is connected."
             ]
           }
         ]
@@ -715,7 +717,10 @@ export const englishWikiGroups: WikiGroup[] = [
               "Decision-only keeps the records with decisionRequired.",
               "Overdue-only keeps the records whose dueDate is earlier than today.",
               "High-only keeps the records with riskScore >= 15.",
-              "The register and filters show active items only; closed RISK and DEPENDENCY items are listed in a separate block."
+              "The register and filters show active items only; closed RISK and DEPENDENCY items are listed in a separate block.",
+              "The Risk assistant button in the register heading opens a panel: press Find risks and the model suggests new risks, probability and impact for active risks without a score, and mitigation plans for risks without one.",
+              "Suggestions come from work that slipped against the baseline or is overdue, overlapping work of one owner in the next 90 days, and Jira tickets without movement for 14 days. Jira is read only from the synced snapshots; the assistant never calls Jira itself. A new risk is kept only if it has a basis in these facts, and its owner only if it is one of the project's owners. The rest is dropped and the panel shows how much.",
+              "Suggestions can be edited; only the ticked ones are applied, one by one, through the register's usual create and update with their checks. A high risk without an owner, for example, is not saved and the reason is shown on the suggestion. The button is shown only when a model is connected."
             ]
           },
           {

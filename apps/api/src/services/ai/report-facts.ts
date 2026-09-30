@@ -46,6 +46,12 @@ export function sentValues(text: string, keys: string[]) {
   return found;
 }
 
+/** The first `limit` entries; the rest count as dropped. */
+export function capped<T>(list: T[], limit: number, counter: { dropped: number }) {
+  if (list.length > limit) counter.dropped += list.length - limit;
+  return list.slice(0, limit);
+}
+
 /** Data between tags the model is told never to obey; with every "<" disarmed, nothing inside can open or close a tag. */
 export function dataBlock(tag: string, data: string) {
   return [`<${tag}>`, data.replaceAll('<', '‹'), `</${tag}>`].join('\n');
@@ -91,7 +97,10 @@ export class FactRefs {
         counter.dropped += 1;
         continue;
       }
-      if (!kept.includes(ref) && kept.length < limit) kept.push(ref);
+      if (kept.includes(ref)) continue;
+      // Known, but past the limit per row: dropped too.
+      if (kept.length < limit) kept.push(ref);
+      else counter.dropped += 1;
     }
     return kept;
   }

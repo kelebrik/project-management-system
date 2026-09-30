@@ -1,7 +1,7 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { ChevronDown, ChevronRight, Link as LinkIcon } from "lucide-react";
 import { ReadinessPanel } from '../components/automation/ReadinessPanel';
-import { StatusReportButton } from "../components/ai/AiProjectButtons";
+import { AskProjectButton, StatusReportButton } from "../components/ai/AiProjectButtons";
 import { useEffect, useState } from "react";
 import type { IssueStatusUpdate, RaidItemStatusUpdate } from "../app/domainTypes";
 import { JiraCurrentFreshnessNotice } from "../components/JiraCurrentFreshnessNotice";
@@ -109,6 +109,7 @@ export function ProjectOverviewSummaryPage() {
   return (
     <section className="executive-overview-grid">
       <div className="ai-report-bar">
+        <AskProjectButton projectId={project.id} />
         <StatusReportButton projectId={project.id} projectName={project.name} />
       </div>
       <ReadinessPanel key={project.id} projectId={project.id} />

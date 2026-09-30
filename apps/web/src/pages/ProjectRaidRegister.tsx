@@ -1,6 +1,7 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import { onRaidReveal, takeRaidReveal } from "../app/raidReveal";
+import { RiskAssistantButton } from "../components/ai/AiProjectButtons";
 import { useConfirm } from "../hooks/useConfirm";
 import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -41,6 +42,9 @@ export function ProjectRaidRegister() {
     setRaidTypeFilter,
     updateRaidDraft,
     updateRaidStatusDraft,
+    isReadOnly,
+    project,
+    refreshProject,
   } = usePageContext();
   const [query, setQuery] = usePersistedViewState(`pms:raid:${window.location.pathname}:query`, "");
   const normalizedQuery = query.trim().toLowerCase();
@@ -127,7 +131,10 @@ export function ProjectRaidRegister() {
                       </div>
                     </div>
                     <section className="raid-register">
-                      <div className="subhead">{uiText("ui.projects.raidRegisterTitle")}</div>
+                      <div className="subhead raid-register-head">
+                        {uiText("ui.projects.raidRegisterTitle")}
+                        {!isReadOnly && <RiskAssistantButton onApplied={() => refreshProject(project.id)} projectId={project.id} />}
+                      </div>
                       <section className="raid-filter-card">
                         <ListToolbar label={uiText("ui.projects.raidRegisterSearchLabel")} query={query} onQueryChange={setQuery} />
                         <div className="subhead">{uiText("ui.projects.filtersLabel")}</div>

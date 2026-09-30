@@ -1,3 +1,4 @@
+import { normalizePersonName, overlapRanges as sharedOverlapRanges } from "@pms/shared";
 import type { ScheduleLink } from "./scheduleLinks";
 import {
   addDays,
@@ -44,10 +45,7 @@ export type WorkloadData = {
   editableProjectIds?: string[];
 };
 
-/** Names as people type them: case, spacing, "ё" and Unicode forms do not matter. */
-export function normalizePersonName(value: string) {
-  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase().replaceAll("ё", "е");
-}
+export { normalizePersonName };
 
 const PROJECT_COLORS = [
   "#2f80ed",
@@ -91,27 +89,9 @@ export function packLanes(items: WorkloadItem[]) {
   return { placed, laneCount: Math.max(1, laneEnds.length) };
 }
 
-/** Stretches of days on which two or more unfinished pieces of work run at once. */
+/** Stretches of days on which two or more unfinished pieces of work run at once; shared with the server. */
 export function overlapRanges(items: WorkloadItem[]): LeaveRange[] {
-  const active = items.filter((item) => item.status !== "DONE");
-  const events = new Map<string, number>();
-  for (const item of active) {
-    events.set(item.startDate, (events.get(item.startDate) ?? 0) + 1);
-    const after = addDays(item.dueDate, 1);
-    events.set(after, (events.get(after) ?? 0) - 1);
-  }
-  const ranges: LeaveRange[] = [];
-  let running = 0;
-  let openedAt: string | null = null;
-  for (const day of [...events.keys()].sort()) {
-    running += events.get(day)!;
-    if (running >= 2 && openedAt === null) openedAt = day;
-    if (running < 2 && openedAt !== null) {
-      ranges.push({ from: openedAt, to: addDays(day, -1) });
-      openedAt = null;
-    }
-  }
-  return ranges;
+  return sharedOverlapRanges(items);
 }
 
 /** Working days inside the window covered by the overlap ranges, each day once. */

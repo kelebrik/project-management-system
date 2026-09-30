@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTranslator } from "../i18n/translate";
-import { meetingPrepText, statusReportText, withoutDraftRow, type WbsDraftItem } from "./aiDrafts";
+import { meetingPrepText, riskSuggestionRows, statusReportText, withoutDraftRow, type WbsDraftItem } from "./aiDrafts";
 
 const row = (ref: string, predecessors: string[] = []): WbsDraftItem => ({ ref, title: `Row ${ref}`, type: "TASK", workDays: 2, owner: "", predecessors });
 
@@ -69,5 +69,22 @@ test("the meeting agenda becomes Markdown with row names instead of references",
       "## Whom to ask what",
       "- **Petrov**: When is the second supplier ready? (Supply)",
     ].join("\n"),
+  );
+});
+
+test("risk suggestions become create and update requests for the register", () => {
+  const rows = riskSuggestionRows({
+    newRisks: [{ title: "Overload", description: "d", probability: 4, impact: 3, owner: "Ivanov", mitigationPlan: "m", basisRefs: ["wbs:a"] }],
+    scores: [{ riskRef: "risk:r1", probability: 2, impact: 5, reason: "why" }],
+    mitigations: [{ riskRef: "risk:r2", mitigationPlan: "Second supplier" }],
+    refs: { "risk:r1": { kind: "risk", id: "r1", label: "Supply", type: "RISK" } },
+  });
+  assert.deepEqual(
+    rows.map((row) => [row.kind, row.kind === "new" ? row.body.title : row.riskId, row.kind === "new" ? null : row.body]),
+    [
+      ["new", "Overload", null],
+      ["score", "r1", { probability: 2, impact: 5 }],
+      ["mitigation", "r2", { mitigationPlan: "Second supplier" }],
+    ],
   );
 });

@@ -1,9 +1,12 @@
-import { CalendarClock, FileText, Sparkles } from "lucide-react";
+import { CalendarClock, FileText, MessageCircleQuestion, Scale, ShieldAlert, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useAiStatus } from "../../hooks/useAiStatus";
 import { useI18n } from "../../i18n/I18nProvider";
+import { AskProjectDrawer } from "./AskProjectDrawer";
 import { MeetingPrepDrawer } from "./MeetingPrepDrawer";
+import { RiskAssistantDrawer } from "./RiskAssistantDrawer";
 import { StatusReportDrawer } from "./StatusReportDrawer";
+import { WorkloadRebalanceDrawer } from "./WorkloadRebalanceDrawer";
 import { WbsDraftDrawer } from "./WbsDraftDrawer";
 
 /**
@@ -77,6 +80,57 @@ export function MeetingPrepButton({ projectId, projectName, onOpenMeetingNotes }
           projectName={projectName}
         />
       )}
+    </>
+  );
+}
+
+/** "Risk assistant" in the risk register; the suggestions are applied through the register's own requests. */
+export function RiskAssistantButton({ projectId, onApplied }: { projectId: string; onApplied: () => Promise<void> | void }) {
+  const { t } = useI18n();
+  const { status, usable } = useAiStatus();
+  const [open, setOpen] = useState(false);
+  if (!status || !usable) return null;
+  return (
+    <>
+      <button className="ai-launch-button" onClick={() => setOpen(true)} type="button">
+        <ShieldAlert aria-hidden="true" size={15} />
+        {t("ui.ai.riskButton")}
+      </button>
+      {open && <RiskAssistantDrawer ai={status} onApplied={onApplied} onClose={() => setOpen(false)} projectId={projectId} />}
+    </>
+  );
+}
+
+/** "Ask the project" on the project overview, next to the report for management. */
+export function AskProjectButton({ projectId }: { projectId: string }) {
+  const { t } = useI18n();
+  const { status, usable } = useAiStatus();
+  const [open, setOpen] = useState(false);
+  if (!status || !usable) return null;
+  return (
+    <>
+      <button className="ai-launch-button" onClick={() => setOpen(true)} type="button">
+        <MessageCircleQuestion aria-hidden="true" size={14} />
+        {t("ui.ai.askOpen")}
+      </button>
+      {open && <AskProjectDrawer ai={status} onClose={() => setOpen(false)} projectId={projectId} />}
+    </>
+  );
+}
+
+/** "Even out the load" on the workload page, for someone who may change at least one project there. */
+export function WorkloadRebalanceButton({ onApplied }: { onApplied: () => void }) {
+  const { t } = useI18n();
+  const { status, usable } = useAiStatus();
+  const [open, setOpen] = useState(false);
+  if (!status || !usable) return null;
+  return (
+    <>
+      <button className="ai-launch-button" onClick={() => setOpen(true)} type="button">
+        <Scale aria-hidden="true" size={15} />
+        {t("ui.ai.rebalanceButton")}
+      </button>
+      {open && <WorkloadRebalanceDrawer ai={status} onApplied={onApplied} onClose={() => setOpen(false)} />}
     </>
   );
 }
