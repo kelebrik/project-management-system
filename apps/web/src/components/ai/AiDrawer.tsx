@@ -34,7 +34,7 @@ export function AiDrawer({ title, labelId, onClose, children, className = "" }: 
 }
 
 /** Which model answers and where the text goes. */
-export function AiModelNote({ model, textKey }: { model: string; textKey: "ui.ai.reportIntro" | "ui.ai.wbsIntro" }) {
+export function AiModelNote({ model, textKey }: { model: string; textKey: "ui.ai.reportIntro" | "ui.ai.wbsIntro" | "ui.ai.prepIntro" }) {
   const { t } = useI18n();
   return (
     <p className="automation-ai-note">

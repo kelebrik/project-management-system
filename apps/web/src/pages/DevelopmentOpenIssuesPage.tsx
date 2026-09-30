@@ -11,6 +11,7 @@ import {
 import { useI18n } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import { MeetingNotesDrawer } from "../components/automation/MeetingNotesPanel";
+import { MeetingPrepButton } from "../components/ai/AiProjectButtons";
 
 type ActionKey = "section" | "due" | "phase" | "jira" | "mattermost" | "history";
 type InlineField = "title" | "owner" | "severity" | "readiness";
@@ -449,7 +450,7 @@ export function DevelopmentOpenIssuesPage() {
           <h2>{t("ui.projects.openIssuesPrototypeTitle")}</h2>
           <p>{t("ui.projects.openIssuesPrototypeDescription")}</p>
         </div>
-        <div className="open-issues-prototype-heading-actions"><span className="open-issues-prototype-count">{issues.length}</span>{!isReadOnly && <button type="button" onClick={() => setMeetingNotesOpen(true)}><Sparkles aria-hidden="true" size={15} />{t("ui.automation.fromMeetingNotes")}</button>}<button type="button" onClick={() => { setIssueForm(emptyIssueForm); setIssueDrawerMode("create"); }}>{t("ui.projects.createIssue")}</button></div>
+        <div className="open-issues-prototype-heading-actions"><span className="open-issues-prototype-count">{issues.length}</span>{!isReadOnly && <MeetingPrepButton onOpenMeetingNotes={() => setMeetingNotesOpen(true)} projectId={project.id} projectName={project.name} />}{!isReadOnly && <button type="button" onClick={() => setMeetingNotesOpen(true)}><Sparkles aria-hidden="true" size={15} />{t("ui.automation.fromMeetingNotes")}</button>}<button type="button" onClick={() => { setIssueForm(emptyIssueForm); setIssueDrawerMode("create"); }}>{t("ui.projects.createIssue")}</button></div>
       {meetingNotesOpen && <MeetingNotesDrawer onClose={() => setMeetingNotesOpen(false)} />}
       </div>
       {issues.length === 0 ? <div className="empty-state">{t("ui.projects.noOpenQuestions")}</div> : (
@@ -500,7 +501,7 @@ export function DevelopmentOpenIssuesPage() {
                 const isSaving = (field: InlineField) => savingFields.has(`${issue.id}:${field}`);
                 return (
                   <Fragment key={issue.id}>
-                    <tr className={`open-issues-prototype-row ${expanded ? "is-expanded" : ""}`}>
+                    <tr className={`open-issues-prototype-row ${expanded ? "is-expanded" : ""}`} id={`issue-item-${issue.id}`}>
                       <td className="open-issues-prototype-number">{index + 1}</td>
                       <td>
                         {/* An input cannot wrap, so an expanded row swaps in a textarea

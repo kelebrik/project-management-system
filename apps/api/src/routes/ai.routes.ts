@@ -1,28 +1,18 @@
-import { MEETING_DRAFT_LIMITS, PUBLIC_DEMO_USER_ID } from '@pms/shared';
-import { Router, type Request, type Response } from 'express';
+import { MEETING_DRAFT_LIMITS } from '@pms/shared';
+import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { currentApiToken, currentUser, isPublicDemoMode } from '../server/auth.js';
+import { currentApiToken, currentUser } from '../server/auth.js';
 import { isCloudProfile } from '../server/deployment-profile.js';
 import { logEvent } from '../server/logger.js';
-import { userCanWriteProject } from '../server/project-access.js';
-import { recordAuditEvent } from '../services/audit.js';
-import { finishAiCall, reserveAiCall, type AiBudgetRefusal } from '../services/ai/budget.js';
 import { readAiConfig, type AiConfig } from '../services/ai/config.js';
 import { extractMeetingDrafts } from '../services/ai/meeting-drafts.js';
-import { AiProviderError, type AiUsageTokens } from '../services/ai/openai.js';
 import { buildReportFacts, writeStatusReport } from '../services/ai/status-report.js';
 import { draftWbs, WBS_DRAFT_LIMITS } from '../services/ai/wbs-draft.js';
 import { getProjectForOverviewGeneration } from '../services/executive-overview.js';
-
-const REFUSALS: Record<AiBudgetRefusal, string> = {
-  concurrent: 'Сейчас модель занята другими запросами. Повторите через минуту.',
-  user_hourly: 'Исчерпан лимит обращений к модели на час. Повторите позже.',
-  daily: 'Исчерпан суточный лимит обращений к модели.',
-  tokens: 'Исчерпан суточный бюджет модели.',
-  demo_ip: 'В демо можно обратиться к модели несколько раз в час. Повторите позже.',
-  demo_daily: 'Суточный лимит демо исчерпан.',
-};
+import { createAiKit, isDemoVisitor, type AiKitDependencies } from './ai/common.js';
+import { registerMeetingPrep, type MeetingPrepDependencies } from './ai/meeting-prep.routes.js';
+import type { MeetingPrepProject } from '../services/ai/meeting-prep.js';
 
 const bodySchema = z.object({ text: z.string().trim().min(1).max(MEETING_DRAFT_LIMITS.text) });
 const reportSchema = z.object({
@@ -36,15 +26,13 @@ type Dependencies = {
   extract?: typeof extractMeetingDrafts;
   report?: typeof writeStatusReport;
   draft?: typeof draftWbs;
-  loadReportProject?: (projectId: string) => Promise<Parameters<typeof buildReportFacts>[0] | null>;
-  reserve?: typeof reserveAiCall;
-  finish?: typeof finishAiCall;
+  loadReportProject?: (projectId: string) => Promise<(Parameters<typeof buildReportFacts>[0] & MeetingPrepProject) | null>;
+  reserve?: AiKitDependencies['reserve'];
+  finish?: AiKitDependencies['finish'];
+  hasEditableProject?: AiKitDependencies['hasEditableProject'];
+  prepareMeeting?: MeetingPrepDependencies['prepare'];
   now?: () => Date;
 };
-
-function isDemoVisitor(req: Request) {
-  return isPublicDemoMode() && currentUser(req)?.id === PUBLIC_DEMO_USER_ID;
-}
 
 /**
  * AI helpers: meeting notes to drafts, a status report, a draft structure. The
@@ -65,8 +53,8 @@ export function createAiRouter(dependencies: Dependencies = {}) {
   const report = dependencies.report ?? writeStatusReport;
   const draft = dependencies.draft ?? draftWbs;
   const loadReportProject = dependencies.loadReportProject ?? getProjectForOverviewGeneration;
-  const reserve = dependencies.reserve ?? reserveAiCall;
-  const finish = dependencies.finish ?? finishAiCall;
+  const kit = createAiKit({ config, reserve: dependencies.reserve, finish: dependencies.finish, hasEditableProject: dependencies.hasEditableProject });
+  const { guard, runAiCall } = kit;
   const now = dependencies.now ?? (() => new Date());
 
   const allowedFor = (req: Request) =>
@@ -80,119 +68,6 @@ export function createAiRouter(dependencies: Dependencies = {}) {
           { enabled: false, allowed: false, setup: isCloudProfile() ? null : 'gigachat' },
     );
   });
-
-  /**
-   * Checks every model call shares: a user session (not an API token), a
-   * configured provider, the demo only when allowed, an open project the user
-   * may change. Answers the request itself and returns null when one fails.
-   */
-  const guard = async (req: Request, res: Response) => {
-    const user = currentUser(req);
-    if (!user || currentApiToken(req)) {
-      res.status(403).json({ error: 'Помощь ИИ доступна только из сессии пользователя' });
-      return null;
-    }
-    if (!config.enabled) {
-      res.status(503).json({ error: 'Помощь ИИ не настроена' });
-      return null;
-    }
-    const demo = isDemoVisitor(req);
-    if (demo && !config.allowPublicDemo) {
-      res.status(403).json({ error: 'В публичном демо помощь ИИ выключена' });
-      return null;
-    }
-    const project = await prisma.project.findUnique({ where: { id: String(req.params.projectId) }, select: { id: true, name: true, status: true } });
-    if (!project) {
-      res.status(404).json({ error: 'Проект не найден' });
-      return null;
-    }
-    // This router runs before the shared closed-project guard, so it checks itself.
-    if (project.status === 'CLOSED') {
-      res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
-      return null;
-    }
-    if (!demo && user.role !== 'ADMIN' && !(await userCanWriteProject(user.id, project.id))) {
-      res.status(403).json({ error: 'Нет доступа на изменение этого проекта' });
-      return null;
-    }
-    return { config, user, demo, project };
-  };
-
-  /**
-   * One budgeted model call: reserve a slot, stop the provider when the page
-   * goes away, close the reservation with the tokens spent, keep counters (never
-   * the text) in the audit log, and turn provider errors into safe messages.
-   */
-  const runAiCall = async <T extends { usage: AiUsageTokens }>(
-    req: Request,
-    res: Response,
-    context: NonNullable<Awaited<ReturnType<typeof guard>>>,
-    call: {
-      feature: string;
-      inputChars: number;
-      failure: string;
-      run: (signal: AbortSignal) => Promise<T>;
-      counters: (result: T) => Record<string, unknown>;
-      respond: (result: T) => unknown;
-    },
-  ) => {
-    const { user, demo, project } = context;
-    const reservation = await reserve(
-      {
-        feature: call.feature,
-        userId: user.id,
-        clientIp: req.ip ?? null,
-        projectId: project.id,
-        provider: context.config.provider,
-        model: context.config.model,
-        inputChars: call.inputChars,
-        isDemo: demo,
-      },
-      context.config.limits,
-    );
-    if (!reservation.ok) {
-      res.status(429).json({ error: REFUSALS[reservation.reason] });
-      return;
-    }
-    // Stop paying for an answer nobody waits for any more.
-    const abort = new AbortController();
-    res.on('close', () => {
-      if (!res.writableEnded) abort.abort();
-    });
-    try {
-      const result = await call.run(abort.signal);
-      await finish(reservation.id, 'DONE', result.usage);
-      await recordAuditEvent({
-        req,
-        actor: user,
-        action: `ai.${call.feature.replaceAll('-', '_')}`,
-        objectType: 'Project',
-        objectId: project.id,
-        projectId: project.id,
-        // Counters only: what was sent and what the model said are never stored.
-        metadata: {
-          provider: context.config.provider,
-          model: context.config.model,
-          inputChars: call.inputChars,
-          promptTokens: result.usage.promptTokens,
-          completionTokens: result.usage.completionTokens,
-          ...call.counters(result),
-        },
-      });
-      res.json({ ...(call.respond(result) as object), provider: context.config.provider, model: context.config.model });
-    } catch (error) {
-      const usage = (error as { usage?: AiUsageTokens }).usage;
-      await finish(reservation.id, 'FAILED', usage).catch(() => undefined);
-      if (error instanceof AiProviderError) {
-        logEvent('warn', `ai.${call.feature}_failed`, { projectId: project.id, status: error.status ?? null, reason: error.message });
-        // The details name server settings; a demo visitor only learns that it failed.
-        const message = demo ? `${call.failure} Попробуйте позже.` : error.message;
-        if (!res.headersSent && !abort.signal.aborted) res.status(502).json({ error: message });
-        return;
-      }
-      throw error;
-    }
-  };
 
   router.post('/projects/:projectId/meeting-drafts', async (req, res) => {
     const context = await guard(req, res);
@@ -259,6 +134,8 @@ export function createAiRouter(dependencies: Dependencies = {}) {
       respond: (result) => ({ items: result.items, droppedLinks: result.droppedLinks }),
     });
   });
+
+  registerMeetingPrep(router, kit, { prepare: dependencies.prepareMeeting, loadProject: loadReportProject, now });
 
   return router;
 }

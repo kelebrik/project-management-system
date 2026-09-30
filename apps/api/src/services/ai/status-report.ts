@@ -1,6 +1,7 @@
 import type { AiConfig } from './config.js';
 import { MAX_COMPLETION_TOKENS } from './budget.js';
 import { openAiStructured, type AiUsageTokens } from './openai.js';
+import { cutText, dataBlock, DAY_MS, day, fitFacts, isActiveRaid, isOpenWork, utcDay } from './report-facts.js';
 
 type EnabledConfig = Extract<AiConfig, { enabled: true }>;
 
@@ -55,9 +56,7 @@ export type ReportProject = {
   raidItems: Array<{ type: string; title: string; owner: string; status: string; riskScore: number; mitigationPlan: string | null }>;
 };
 
-const DAY_MS = 86_400_000;
-const day = (value: Date | null | undefined) => (value ? value.toISOString().slice(0, 10) : null);
-const cut = (value: string | null | undefined) => (value ?? '').replace(/\s+/g, ' ').trim().slice(0, STATUS_REPORT_LIMITS.factText);
+const cut = (value: string | null | undefined) => cutText(value, STATUS_REPORT_LIMITS.factText);
 
 /**
  * What the model is allowed to know: counts, dates and short titles, each cut
@@ -66,10 +65,10 @@ const cut = (value: string | null | undefined) => (value ?? '').replace(/\s+/g, 
  * problems scored 15 or more.
  */
 export function buildReportFacts(project: ReportProject, periodDays: number, now: Date) {
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const today = utcDay(now);
   const from = new Date(today.getTime() - periodDays * DAY_MS);
   const horizon = new Date(today.getTime() + 30 * DAY_MS);
-  const open = (status: string) => status !== 'DONE' && status !== 'CANCELLED';
+  const open = isOpenWork;
   const checkpoints = project.wbsItems.filter((item) => item.type === 'MILESTONE' || item.type === 'GOAL');
   const lists = {
     doneInPeriod: project.wbsItems
@@ -97,7 +96,7 @@ export function buildReportFacts(project: ReportProject, periodDays: number, now
       .filter((issue) => issue.severity === 'CRITICAL' || issue.severity === 'HIGH')
       .map((issue) => ({ title: cut(issue.title), owner: cut(issue.owner), severity: issue.severity, status: issue.status })),
     redRisksAndProblems: project.raidItems
-      .filter((item) => (item.type === 'RISK' || item.type === 'DEPENDENCY') && !['CLOSED', 'VALIDATED'].includes(item.status) && item.riskScore >= 15)
+      .filter((item) => (item.type === 'RISK' || item.type === 'DEPENDENCY') && isActiveRaid(item.status) && item.riskScore >= 15)
       .map((item) => ({
         kind: item.type === 'RISK' ? 'risk' : 'problem',
         title: cut(item.title),
@@ -126,18 +125,9 @@ export function buildReportFacts(project: ReportProject, periodDays: number, now
       atRisk: project.wbsItems.filter((item) => item.status === 'AT_RISK').length,
       ...Object.fromEntries(Object.entries(lists).map(([key, value]) => [key, value.length])),
     },
-    ...Object.fromEntries(Object.entries(lists).map(([key, value]) => [key, value.slice(0, STATUS_REPORT_LIMITS.listItems)])),
+    ...lists,
   } as Record<string, unknown>;
-  // Trim the lists, longest first, until the facts fit.
-  let text = JSON.stringify(facts);
-  while (text.length > STATUS_REPORT_LIMITS.facts) {
-    const longest = Object.keys(lists).sort((left, right) => (facts[right] as unknown[]).length - (facts[left] as unknown[]).length)[0];
-    const list = facts[longest] as unknown[];
-    if (list.length === 0) break;
-    facts[longest] = list.slice(0, Math.floor(list.length / 2));
-    text = JSON.stringify(facts);
-  }
-  return text;
+  return fitFacts(facts, Object.keys(lists), { maxChars: STATUS_REPORT_LIMITS.facts, listItems: STATUS_REPORT_LIMITS.listItems });
 }
 
 const SYSTEM_PROMPT = `You write a weekly status report of a project for its management.
@@ -152,9 +142,7 @@ Each line is short and concrete, with codes or dates where the facts have them. 
 export function statusReportMessage(facts: string, locale: 'ru' | 'en') {
   return [
     `Write the report in ${locale === 'ru' ? 'Russian' : 'English'}.`,
-    '<project_facts>',
-    facts.replace(/<(\s*\/?\s*project_facts)/gi, '‹$1'),
-    '</project_facts>',
+    dataBlock('project_facts', facts),
   ].join('\n');
 }
 

@@ -54,3 +54,34 @@ export function statusReportText(report: StatusReport, projectName: string, peri
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+
+/** A row an AI answer points to, checked by the server against the facts it sent. */
+export type FactRef = { kind: "wbs" | "issue" | "risk" | "jira"; id: string; label: string; type?: string };
+
+export type MeetingPrep = {
+  agenda: Array<{ topic: string; why: string; owner: string; minutes: number; refs: string[] }>;
+  askWhom: Array<{ person: string; question: string; refs: string[] }>;
+  refs: Record<string, FactRef>;
+};
+
+/** The agenda as Markdown to edit and send; references become the row names. */
+export function meetingPrepText(prep: MeetingPrep, projectName: string, t: Translator) {
+  const named = (refs: string[]) => {
+    const labels = refs.map((ref) => prep.refs[ref]?.label).filter(Boolean);
+    return labels.length > 0 ? ` (${labels.join("; ")})` : "";
+  };
+  const total = prep.agenda.reduce((sum, row) => sum + row.minutes, 0);
+  const lines = [`# ${t("ui.ai.prepTitleFor", { project: projectName })}`, t("ui.ai.prepTotal", { minutes: total })];
+  if (prep.agenda.length > 0) {
+    lines.push("", `## ${t("ui.ai.prepAgenda")}`);
+    prep.agenda.forEach((row, index) => {
+      const owner = row.owner ? `, ${row.owner}` : "";
+      lines.push(`${index + 1}. **${row.topic}** — ${t("ui.ai.prepMinutes", { minutes: row.minutes })}${owner}`);
+      if (row.why) lines.push(`   ${row.why}${named(row.refs)}`);
+    });
+  }
+  if (prep.askWhom.length > 0) {
+    lines.push("", `## ${t("ui.ai.prepAskWhom")}`, ...prep.askWhom.map((row) => `- **${row.person}**: ${row.question}${named(row.refs)}`));
+  }
+  return lines.join("\n");
+}

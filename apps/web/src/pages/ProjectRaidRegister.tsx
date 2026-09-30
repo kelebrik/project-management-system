@@ -1,5 +1,6 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
+import { onRaidReveal, takeRaidReveal } from "../app/raidReveal";
 import { useConfirm } from "../hooks/useConfirm";
 import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -84,6 +85,23 @@ export function ProjectRaidRegister() {
     });
     return () => window.cancelAnimationFrame(animationFrame);
   }, [groupedRaidItems, requestedFocusRaidId]);
+
+  // A row opened from an AI answer is shown whatever the saved search and filters hide.
+  useEffect(() => {
+    const reveal = () => {
+      const itemId = takeRaidReveal();
+      if (!itemId) return;
+      setQuery("");
+      setRaidTypeFilter("ALL");
+      setRaidDecisionOnly(false);
+      setRaidHighOnly(false);
+      setRaidOverdueOnly(false);
+      setExpandedRaidId(itemId);
+      window.setTimeout(() => document.getElementById(`raid-item-${itemId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+    };
+    reveal();
+    return onRaidReveal(reveal);
+  }, [setExpandedRaidId, setQuery, setRaidDecisionOnly, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter]);
 
   return <div className="raid-main-column">
                     <div className="wbs-kpis raid-kpis">

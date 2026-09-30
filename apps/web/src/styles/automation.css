@@ -92,3 +92,5 @@
 .wbs-draft-ref, .wbs-draft-type, .wbs-draft-days, .wbs-draft-links { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-launch-button { align-items: center; display: inline-flex; gap: 6px; white-space: nowrap; }
 .ai-report-bar { display: flex; grid-column: 1 / -1; justify-content: flex-end; }
+.ai-ref-links { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; }
+.ai-ref-links button { font-size: 12px; padding: 2px 8px; }

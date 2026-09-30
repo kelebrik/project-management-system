@@ -12,6 +12,16 @@ const aiRefusals = {
   "503": { description: "AI is not configured" },
 };
 
+const factRef = {
+  type: "object",
+  properties: {
+    kind: { type: "string", enum: ["wbs", "issue", "risk", "jira"] },
+    id: { type: "string" },
+    label: { type: "string" },
+    type: { type: "string", description: "RAID type of a risk reference" },
+  },
+};
+
 const wbsDraftItem = {
   type: "object",
   required: ["ref", "title", "type"],
@@ -179,6 +189,61 @@ export const openApiAiPaths = {
         "403": { description: "API token or no right to change the project" },
         "404": { description: "Project not found" },
         "423": { description: "Project is closed and read-only" },
+      },
+    },
+  },
+  "/api/projects/{projectId}/ai/meeting-prep": {
+    post: {
+      ...securedOperation(tags, "Draft a meeting agenda and whom to ask what from the project's facts; nothing is saved", [pathParam("projectId")], "Agenda"),
+      requestBody: {
+        required: false,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: { horizonDays: { type: "integer", enum: [7, 14], default: 7 }, locale: { type: "string", enum: ["ru", "en"], default: "ru" } },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Agenda; refs are checked against the facts sent, unknown ones and unknown people are dropped and counted",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  agenda: {
+                    type: "array",
+                    maxItems: 12,
+                    items: {
+                      type: "object",
+                      properties: {
+                        topic: { type: "string" },
+                        why: { type: "string" },
+                        owner: { type: "string" },
+                        minutes: { type: "integer", minimum: 1, maximum: 60 },
+                        refs: { type: "array", items: { type: "string" } },
+                      },
+                    },
+                  },
+                  askWhom: {
+                    type: "array",
+                    maxItems: 15,
+                    items: { type: "object", properties: { person: { type: "string" }, question: { type: "string" }, refs: { type: "array", items: { type: "string" } } } },
+                  },
+                  refs: { type: "object", additionalProperties: factRef },
+                  droppedRefs: { type: "integer" },
+                  horizonDays: { type: "integer" },
+                  provider: { type: "string" },
+                  model: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        ...aiRefusals,
       },
     },
   },

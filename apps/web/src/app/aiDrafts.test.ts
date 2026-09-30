@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTranslator } from "../i18n/translate";
-import { statusReportText, withoutDraftRow, type WbsDraftItem } from "./aiDrafts";
+import { meetingPrepText, statusReportText, withoutDraftRow, type WbsDraftItem } from "./aiDrafts";
 
 const row = (ref: string, predecessors: string[] = []): WbsDraftItem => ({ ref, title: `Row ${ref}`, type: "TASK", workDays: 2, owner: "", predecessors });
 
@@ -40,4 +40,34 @@ test("the status report becomes Markdown with only the sections that have lines"
     ].join("\n"),
   );
   assert.match(statusReportText({ status: "RED", headline: "", summary: "", done: [], slipped: [], risks: [], decisions: [], next: [] }, "A", 7, createTranslator("ru")), /\*\*Красный\.\*\*/);
+});
+
+test("the meeting agenda becomes Markdown with row names instead of references", () => {
+  const text = meetingPrepText(
+    {
+      agenda: [
+        { topic: "Delivery", why: "A decision is due", owner: "Ivanov", minutes: 10, refs: ["issue:i1"] },
+        { topic: "Firmware", why: "", owner: "", minutes: 5, refs: [] },
+      ],
+      askWhom: [{ person: "Petrov", question: "When is the second supplier ready?", refs: ["risk:r1", "risk:gone"] }],
+      refs: { "issue:i1": { kind: "issue", id: "i1", label: "Who pays" }, "risk:r1": { kind: "risk", id: "r1", label: "Supply", type: "RISK" } },
+    },
+    "Apollo",
+    createTranslator("en"),
+  );
+  assert.equal(
+    text,
+    [
+      "# Meeting agenda: Apollo",
+      "About 15 min",
+      "",
+      "## Agenda",
+      "1. **Delivery** — 10 min, Ivanov",
+      "   A decision is due (Who pays)",
+      "2. **Firmware** — 5 min",
+      "",
+      "## Whom to ask what",
+      "- **Petrov**: When is the second supplier ready? (Supply)",
+    ].join("\n"),
+  );
 });

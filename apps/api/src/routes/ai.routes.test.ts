@@ -31,7 +31,7 @@ type Setup = {
   body?: unknown;
 };
 
-async function post(setup: Setup & { path?: string; report?: unknown; draft?: unknown }) {
+async function post(setup: Setup & { path?: string; report?: unknown; draft?: unknown; prep?: unknown }) {
   const finished: Array<[string, string, unknown]> = [];
   const audits: any[] = [];
   let extracted: any;
@@ -48,6 +48,17 @@ async function post(setup: Setup & { path?: string; report?: unknown; draft?: un
     draft: (async (input: any) => {
       extracted = input;
       return setup.draft ?? { items: [{ ref: '1', title: 'Фаза', type: 'PHASE', workDays: 0, owner: '', predecessors: [] }], droppedLinks: 2, usage: { promptTokens: 1, completionTokens: 1 } };
+    }) as any,
+    prepareMeeting: (async (input: any) => {
+      extracted = input;
+      return (
+        setup.prep ?? {
+          prep: { agenda: [{ topic: 'Доставка', why: 'Нужно решение', owner: 'Иванов', minutes: 10, refs: ['issue:i1'] }], askWhom: [] },
+          refs: { 'issue:i1': { kind: 'issue', id: 'i1', label: 'Кто платит' } },
+          droppedRefs: 1,
+          usage: { promptTokens: 3, completionTokens: 2 },
+        }
+      );
     }) as any,
     loadReportProject: (async () => ({
       name: 'Телевизор', code: 'TV', status: 'ACTIVE', rag: 'GREEN', targetDate: null, scheduleVariance: 0, progress: 0,
@@ -233,4 +244,21 @@ test('the structure draft needs a description and returns the rows without creat
   assert.equal(ok.res.body.droppedLinks, 2);
   assert.equal(ok.audits[0].action, 'ai.wbs_draft');
   assert.doesNotMatch(JSON.stringify(ok.audits[0]), /пилотная/);
+});
+
+test('meeting preparation sends the project facts and keeps only counters in the audit', async () => {
+  const { res, audits, extracted } = await post({ path: '/projects/:projectId/ai/meeting-prep', access: 'EDIT', body: { horizonDays: 14, locale: 'en' } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(extracted.locale, 'en');
+  assert.match(extracted.facts.text, /"days":14/);
+  assert.deepEqual(res.body.agenda[0].refs, ['issue:i1']);
+  assert.equal(res.body.refs['issue:i1'].label, 'Кто платит');
+  assert.equal(res.body.droppedRefs, 1);
+  assert.equal(res.body.horizonDays, 14);
+  assert.equal(audits[0].action, 'ai.meeting_prep');
+  assert.deepEqual(
+    Object.keys(audits[0].metadata).sort(),
+    ['completionTokens', 'droppedRefs', 'inputChars', 'model', 'promptTokens', 'provider', 'questions', 'topics'],
+  );
+  assert.equal((await post({ path: '/projects/:projectId/ai/meeting-prep', access: 'EDIT', body: { horizonDays: 30 } })).res.statusCode, 400);
 });

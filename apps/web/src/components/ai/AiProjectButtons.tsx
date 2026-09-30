@@ -1,7 +1,8 @@
-import { FileText, Sparkles } from "lucide-react";
+import { CalendarClock, FileText, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useAiStatus } from "../../hooks/useAiStatus";
 import { useI18n } from "../../i18n/I18nProvider";
+import { MeetingPrepDrawer } from "./MeetingPrepDrawer";
 import { StatusReportDrawer } from "./StatusReportDrawer";
 import { WbsDraftDrawer } from "./WbsDraftDrawer";
 
@@ -48,6 +49,34 @@ export function WbsDraftButton({ projectId, unsavedRows, onApplied }: { projectI
         {t("ui.ai.wbsButton")}
       </button>
       {open && <WbsDraftDrawer ai={status} onApplied={onApplied} onClose={() => setOpen(false)} projectId={projectId} />}
+    </>
+  );
+}
+
+/** "Prepare the meeting" in the issue register header; hands over to the meeting notes after the meeting. */
+export function MeetingPrepButton({ projectId, projectName, onOpenMeetingNotes }: { projectId: string; projectName: string; onOpenMeetingNotes: () => void }) {
+  const { t } = useI18n();
+  const { status, usable } = useAiStatus();
+  const [open, setOpen] = useState(false);
+  if (!status || !usable) return null;
+  return (
+    <>
+      <button className="ai-launch-button" onClick={() => setOpen(true)} type="button">
+        <CalendarClock aria-hidden="true" size={15} />
+        {t("ui.ai.prepButton")}
+      </button>
+      {open && (
+        <MeetingPrepDrawer
+          ai={status}
+          onClose={() => setOpen(false)}
+          onOpenMeetingNotes={() => {
+            setOpen(false);
+            onOpenMeetingNotes();
+          }}
+          projectId={projectId}
+          projectName={projectName}
+        />
+      )}
     </>
   );
 }

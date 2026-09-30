@@ -5,6 +5,7 @@ import type { AiStatus } from "../../hooks/useAiStatus";
 import { useI18n } from "../../i18n/I18nProvider";
 import { AutomationError } from "../automation/AutomationPanel";
 import { AiDrawer, AiModelNote } from "./AiDrawer";
+import { downloadMarkdown } from "./download";
 import { statusReportText, type StatusReport } from "../../app/aiDrafts";
 
 const PERIODS = [7, 14, 30] as const;
@@ -59,15 +60,6 @@ export function StatusReportDrawer({ projectId, projectName, ai, onClose }: { pr
     }
   };
 
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `status-report-${new Date().toISOString().slice(0, 10)}.md`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <AiDrawer labelId="status-report-title" onClose={onClose} title={t("ui.ai.reportTitle")}>
       {usable && <AiModelNote model={ai.model ?? ""} textKey="ui.ai.reportIntro" />}
@@ -110,7 +102,7 @@ export function StatusReportDrawer({ projectId, projectName, ai, onClose }: { pr
               <Copy aria-hidden="true" size={14} />
               {t("ui.ai.copy")}
             </button>
-            <button onClick={download} type="button">
+            <button onClick={() => downloadMarkdown(text, "status-report")} type="button">
               <Download aria-hidden="true" size={14} />
               {t("ui.ai.download")}
             </button>
