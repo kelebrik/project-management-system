@@ -13,7 +13,7 @@ const step = {
     deltaDays: { type: ["integer", "null"], description: "Calendar days; null when the checkpoint had or has no date" },
     trigger: {
       type: "string",
-      enum: ["MANUAL_EDIT", "BULK_EDIT", "STRUCTURE", "LINKS", "RESTORE", "CALENDAR", "TARGET_DATE", "ISSUE", "DRAFT", "RESTORE_DELETED", "SYSTEM"],
+      enum: ["MANUAL_EDIT", "BULK_EDIT", "STRUCTURE", "LINKS", "RESTORE", "CALENDAR", "TARGET_DATE", "ISSUE", "DRAFT", "IMPORT", "RESTORE_DELETED", "SYSTEM"],
     },
     sourceItemId: { type: ["string", "null"] },
     sourceCode: { type: ["string", "null"] },

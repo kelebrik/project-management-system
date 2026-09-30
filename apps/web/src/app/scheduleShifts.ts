@@ -59,6 +59,8 @@ export function shiftStepCause(step: ShiftStep, checkpointId: string, t: Transla
       return t("ui.shifts.causeIssue", { issue: step.sourceNote ?? "" });
     case "DRAFT":
       return t("ui.shifts.causeDraft");
+    case "IMPORT":
+      return t("ui.shifts.causeImport");
     case "RESTORE_DELETED":
       return t("ui.shifts.causeRestoreDeleted");
     case "SYSTEM":

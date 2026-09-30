@@ -20,6 +20,7 @@ import { createLessonsRouter } from '../routes/lessons.routes.js';
 import { createRaciRouter } from '../routes/raci.routes.js';
 import { createMyWorkRouter } from '../routes/my-work.routes.js';
 import { createWbsDraftRouter } from '../routes/wbs-draft.routes.js';
+import { createWbsImportRouter } from '../routes/wbs-import.routes.js';
 import { createWorkloadRouter } from '../routes/workload.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
 import { createWbsRouter } from '../routes/wbs.routes.js';
@@ -150,6 +151,7 @@ export function createApp() {
   app.use('/api', createLessonsRouter());
   app.use('/api', createRaciRouter());
   app.use('/api', createMyWorkRouter());
+  app.use('/api', createWbsImportRouter());
 
   registerClosedProjectWriteGuards(app);
 

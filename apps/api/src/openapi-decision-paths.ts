@@ -170,4 +170,57 @@ export const openApiDecisionPaths = {
   "/api/projects/{projectId}/check-ins": {
     get: securedOperation(["Projects"], "A week's check-ins of the project (week=YYYY-MM-DD, any day of it) and owners with open work who have not checked in", [pathParam("projectId")], "Check-ins"),
   },
+  "/api/projects/{projectId}/wbs-import": {
+    post: {
+      ...securedOperation(
+        ["WBS"],
+        "Import table rows (from Excel, Google Sheets or CSV) into the Structure. dryRun returns the plan without writing; otherwise all rows are written in one transaction or none, nothing is deleted, and the same importKey returns the first result",
+        [pathParam("projectId")],
+        "Plan, or the plan with created ids and the Structure",
+      ),
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["rows", "importKey"],
+              properties: {
+                rows: {
+                  type: "array",
+                  maxItems: 3000,
+                  items: {
+                    type: "object",
+                    required: ["code"],
+                    properties: {
+                      id: { type: "string" },
+                      code: { type: "string", example: "1.2" },
+                      title: { type: "string" },
+                      type: { type: "string", enum: ["PHASE", "WORK_PACKAGE", "DELIVERABLE", "MILESTONE", "GOAL", "TASK"] },
+                      status: { type: "string", enum: ["NOT_STARTED", "IN_PROGRESS", "IN_REVIEW", "AT_RISK", "BLOCKED", "DONE", "CANCELLED"] },
+                      owner: { type: "string" },
+                      startDate: { type: "string", format: "date", nullable: true },
+                      dueDate: { type: "string", format: "date", nullable: true },
+                      workDays: { type: "integer", nullable: true },
+                      predecessors: { type: "array", maxItems: 6, items: { type: "string" } },
+                      progress: { type: "integer", minimum: 0, maximum: 100 },
+                      priority: { type: "string", nullable: true },
+                      comment: { type: "string", nullable: true },
+                    },
+                  },
+                },
+                dryRun: { type: "boolean" },
+                importKey: { type: "string", pattern: "^[A-Za-z0-9_-]{8,64}$" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Dry-run plan, or the result of an earlier import with this key" },
+        "201": { description: "Imported" },
+        "422": { description: "The plan has errors; nothing was written" },
+      },
+    },
+  },
 };

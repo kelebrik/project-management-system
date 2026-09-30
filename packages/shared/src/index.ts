@@ -3,6 +3,7 @@ export * from "./jira-analytics.js";
 export * from "./jira-semantic-analytics.js";
 export * from "./project-automation.js";
 export * from "./wbs-predecessors.js";
+export * from "./wbs-import.js";
 
 /**
  * Identity used for unauthenticated visitors while `PUBLIC_DEMO_MODE` is on.

@@ -283,16 +283,17 @@ model Project {
   artifactTable            ProjectArtifactTable?
   artifactFiles            ProjectArtifactFile[]
   businessRequirements     ProjectBusinessRequirements?
-
-  @@index([parentId])
-  @@index([businessUnitId, status])
-  @@index([sortOrder])
   scheduleShifts           ScheduleShift[]
   decisions                Decision[]
   planSnapshots            PlanSnapshot[]
   lessons                  Lesson[]
   raciAssignments          RaciAssignment[]
   workCheckIns             WorkCheckIn[]
+  wbsImports               WbsImport[]
+
+  @@index([parentId])
+  @@index([businessUnitId, status])
+  @@index([sortOrder])
 }
 
 model ProjectTargetDateChange {
@@ -823,13 +824,13 @@ model WbsItem {
   successors        WbsDependency[]     @relation("WbsDependencyPredecessor")
   phaseIssues       Issue[]             @relation("IssuePhase")
   workPackageIssue  Issue?              @relation("IssueWorkPackage")
+  raciAssignments   RaciAssignment[]
+  workCheckIns      WorkCheckIn[]
 
   @@unique([projectId, code])
   @@index([projectId, parentId])
   @@index([projectId, sortOrder])
   @@index([projectId, closedAt])
-  raciAssignments   RaciAssignment[]
-  workCheckIns      WorkCheckIn[]
 }
 
 model WbsCommand {
@@ -1436,7 +1437,7 @@ model ProjectArtifactFile {
   data      Bytes
   size      Int
   createdAt DateTime @default(now())
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
 }
@@ -1662,4 +1663,20 @@ model WorkCheckIn {
 
   @@unique([wbsItemId, userId, weekStart])
   @@index([projectId, weekStart])
+}
+
+/**
+ * One import of a table into a project's Structure; the key makes a repeated send a no-op.
+ */
+model WbsImport {
+  id         String   @id @default(cuid())
+  projectId  String
+  importKey  String
+  userId     String?
+  summary    Json
+  createdIds String[] @default([])
+  createdAt  DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, importKey])
 }

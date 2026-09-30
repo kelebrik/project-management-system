@@ -5,6 +5,7 @@ import { ProjectStructureSection } from "./ProjectStructureSection";
 import { EmployeeNamesList } from "../components/EmployeeNamesList";
 import { WbsDraftButton } from "../components/ai/AiProjectButtons";
 import { PlanSnapshotsButton } from "../components/planSnapshots/PlanSnapshotsButton";
+import { WbsTableButton } from "../components/wbsTable/WbsTableButton";
 import { hasPendingWbsBuffers } from "../components/WbsBufferedInput";
 
 export function ProjectWorkspacePage() {
@@ -45,6 +46,16 @@ export function ProjectWorkspacePage() {
                       <PlanSnapshotsButton
                         canWrite={!ctx.isReadOnly && !ctx.isClosedProject}
                         hasUnsavedEdits={() => (ctx.dirtyWbsItemIds?.size ?? 0) > 0 || hasPendingWbsBuffers() || Boolean(ctx.savingWbsBulk)}
+                        projectId={ctx.project.id}
+                      />
+                    )}
+                    {activeView === "project-structure" && (
+                      <WbsTableButton
+                        canWrite={!ctx.isReadOnly && !ctx.isClosedProject}
+                        hasUnsavedEdits={() => (ctx.dirtyWbsItemIds?.size ?? 0) > 0 || hasPendingWbsBuffers() || Boolean(ctx.savingWbsBulk)}
+                        items={ctx.project.wbsItems}
+                        onImported={() => ctx.refreshProject(ctx.project.id)}
+                        projectCode={ctx.project.code}
                         projectId={ctx.project.id}
                       />
                     )}
