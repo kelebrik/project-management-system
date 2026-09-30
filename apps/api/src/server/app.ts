@@ -18,6 +18,7 @@ import { createDecisionsRouter } from '../routes/decisions.routes.js';
 import { createPlanSnapshotsRouter } from '../routes/plan-snapshots.routes.js';
 import { createLessonsRouter } from '../routes/lessons.routes.js';
 import { createRaciRouter } from '../routes/raci.routes.js';
+import { createMyWorkRouter } from '../routes/my-work.routes.js';
 import { createWbsDraftRouter } from '../routes/wbs-draft.routes.js';
 import { createWorkloadRouter } from '../routes/workload.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
@@ -148,6 +149,7 @@ export function createApp() {
   app.use('/api', createPlanSnapshotsRouter());
   app.use('/api', createLessonsRouter());
   app.use('/api', createRaciRouter());
+  app.use('/api', createMyWorkRouter());
 
   registerClosedProjectWriteGuards(app);
 

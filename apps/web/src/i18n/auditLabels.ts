@@ -53,6 +53,7 @@ const actions: Record<string, LocalizedLabel> = {
   "ai.meeting_prep": { ru: "Подготовка к встрече моделью ИИ", en: "Meeting agenda by AI" },
   "ai.status_report": { ru: "Отчет для руководства моделью ИИ", en: "Status report written by AI" },
   "ai.wbs_draft": { ru: "Черновик Структуры моделью ИИ", en: "Structure draft by AI" },
+  "check_in.save": { ru: "Еженедельная отметка по работе", en: "Weekly check-in on work" },
   "raci.set": { ru: "Изменена роль в матрице RACI", en: "RACI role changed" },
   "lesson.create": { ru: "Сохранен урок проекта", en: "Project lesson saved" },
   "lesson.update": { ru: "Изменен урок проекта", en: "Project lesson edited" },

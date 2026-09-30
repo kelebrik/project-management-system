@@ -56,6 +56,11 @@ const WorkloadPage = lazy(() =>
     default: module.WorkloadPage,
   })),
 );
+const MyWorkPage = lazy(() =>
+  import("./MyWorkPage").then((module) => ({
+    default: module.MyWorkPage,
+  })),
+);
 const RaciMatrixPage = lazy(() =>
   import("./RaciMatrixPage").then((module) => ({
     default: module.RaciMatrixPage,
@@ -109,6 +114,11 @@ export function AppPages() {
       {activeView === "leave-schedule" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <LeaveSchedulePage />
+        </Suspense>
+      )}
+      {activeView === "my-work" && (
+        <Suspense fallback={<DevelopmentPageFallback />}>
+          <MyWorkPage />
         </Suspense>
       )}
       {activeView === "raci-matrix" && (

@@ -292,6 +292,7 @@ model Project {
   planSnapshots            PlanSnapshot[]
   lessons                  Lesson[]
   raciAssignments          RaciAssignment[]
+  workCheckIns             WorkCheckIn[]
 }
 
 model ProjectTargetDateChange {
@@ -828,6 +829,7 @@ model WbsItem {
   @@index([projectId, sortOrder])
   @@index([projectId, closedAt])
   raciAssignments   RaciAssignment[]
+  workCheckIns      WorkCheckIn[]
 }
 
 model WbsCommand {
@@ -1639,4 +1641,25 @@ model RaciAssignment {
 
   @@unique([wbsItemId, personKey])
   @@index([projectId])
+}
+
+/// A person's weekly word on one piece of their work: whether it is on track,
+/// what got done, what is in the way. One per work item, person and week.
+model WorkCheckIn {
+  id         String   @id @default(cuid())
+  projectId  String
+  wbsItemId  String
+  userId     String
+  personName String
+  weekStart  DateTime @db.Date
+  confidence String
+  done       String   @default("")
+  blocker    String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wbsItem    WbsItem  @relation(fields: [wbsItemId], references: [id], onDelete: Cascade)
+
+  @@unique([wbsItemId, userId, weekStart])
+  @@index([projectId, weekStart])
 }

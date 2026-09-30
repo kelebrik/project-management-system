@@ -146,4 +146,28 @@ export const openApiDecisionPaths = {
       responses: { "200": { description: "Saved" }, "400": { description: "Not a phase, package or deliverable of this project" }, "409": { description: "The row already has an Accountable" }, "423": { description: "Project is closed" } },
     },
   },
+  "/api/my-work": {
+    get: securedOperation(["Projects"], "The signed-in user's unfinished work across readable open projects (overdue or within four weeks) with this week's check-in; NOT_LINKED when no person of the leave schedule is linked", [], "Person, week and work"),
+  },
+  "/api/my-work/check-ins": {
+    put: {
+      ...securedOperation(["Projects"], "Save this week's check-in on one's own work", [], "Check-in"),
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["wbsItemId", "confidence"],
+              properties: { wbsItemId: { type: "string" }, confidence: { type: "string", enum: ["ON_TRACK", "AT_RISK", "OFF_TRACK"] }, done: { type: "string", maxLength: 1000 }, blocker: { type: "string", maxLength: 1000 } },
+            },
+          },
+        },
+      },
+      responses: { "200": { description: "Saved" }, "403": { description: "Not linked, or not one's own work" } },
+    },
+  },
+  "/api/projects/{projectId}/check-ins": {
+    get: securedOperation(["Projects"], "A week's check-ins of the project (week=YYYY-MM-DD, any day of it) and owners with open work who have not checked in", [pathParam("projectId")], "Check-ins"),
+  },
 };

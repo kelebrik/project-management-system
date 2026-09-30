@@ -107,6 +107,8 @@ export const englishOperationsWikiGroup: WikiGroup = {
             "If several people match, the row carries a warning and shows no leaves. An owner outside the directory goes to the Not in the directory group when grouping.",
             "The Everyone in the directory check box adds rows for active people without work, so work can be handed to them.",
             "Overlapping work of one person is laid out on separate lanes so bars do not cover each other.",
+            "The My work page (Development section) shows your unfinished work across all readable open projects: overdue work and work running or starting within four weeks. You are the person of the leave schedule linked to your account; a row's owner is compared by name ignoring case, spaces and \"ё/е\". Without a link the page suggests asking an administrator to link the account on the leave schedule.",
+            "Once a week each piece of work can get a confidence (on track, at risk, off track) and a note on what got done and what is in the way. There is one check-in per piece of work and week (weeks start on Monday); checking in again updates it, and only one's own work can be checked in. The Team check-ins tab shows the chosen project's check-ins of a week and who has unfinished work but no check-in.",
           ],
         },
         {

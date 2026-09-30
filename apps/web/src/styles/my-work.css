@@ -1,0 +1,23 @@
+.my-work-page { display: grid; gap: 12px; grid-column: 1 / -1; max-width: 1100px; width: 100%; }
+.my-work-hint { color: var(--text-secondary); font-size: 13px; margin: 0; }
+.my-work-group { display: grid; gap: 8px; }
+.my-work-group h3 { font-size: 14px; margin: 6px 0 0; }
+.my-work-row { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: grid; gap: 8px; padding: 10px 12px; }
+.my-work-row.overdue { border-left: 4px solid var(--danger, #c0392b); }
+.my-work-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.my-work-head small { color: var(--text-muted); }
+.my-work-overdue { color: var(--danger, #c0392b); }
+.my-work-confidence { display: flex; flex-wrap: wrap; gap: 6px; }
+.my-work-confidence button { border-radius: 14px; font-size: 12px; padding: 3px 12px; }
+.my-work-confidence button.active.ON_TRACK { background: var(--success-soft, #e8f5e9); border-color: var(--success, #1e8449); font-weight: 700; }
+.my-work-confidence button.active.AT_RISK { background: var(--warning-soft, #fff4e5); border-color: var(--warning, #c77700); font-weight: 700; }
+.my-work-confidence button.active.OFF_TRACK { background: var(--danger-soft, #fdecea); border-color: var(--danger, #c0392b); font-weight: 700; }
+.my-work-notes { display: grid; gap: 8px; grid-template-columns: 1fr 1fr auto; }
+.my-work-notes input { font: inherit; font-size: 13px; }
+.my-work-week { align-items: center; display: flex; gap: 10px; }
+.my-work-missing { color: var(--danger, #c0392b); font-size: 13px; margin: 0; }
+.my-work-team { border-collapse: collapse; font-size: 13px; width: 100%; }
+.my-work-team th, .my-work-team td { border-bottom: 1px solid var(--border); padding: 5px 6px; text-align: left; vertical-align: top; }
+.my-work-team td.AT_RISK { color: var(--warning-strong, #9a5b00); font-weight: 600; }
+.my-work-team td.OFF_TRACK { color: var(--danger, #c0392b); font-weight: 600; }
+.my-work-page .automation-error { color: var(--danger, #c0392b); margin: 0; }

@@ -139,6 +139,7 @@ function createViewTitle(project: any, t: Translator): Record<AppView, string> {
     "decision-queue": t("view.decision-queue"),
     "lessons-register": t("view.lessons-register"),
     "raci-matrix": t("view.raci-matrix"),
+    "my-work": t("view.my-work"),
     "jira-reconciliation": t("view.jira-reconciliation"),
     projects: t("view.projects"),
     reports: t("view.reports"),

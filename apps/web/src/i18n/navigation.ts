@@ -176,6 +176,10 @@ export const navigation = {
     "en": "Questions",
     "ru": "Вопросы"
   },
+  "view.my-work": {
+    "en": "My work",
+    "ru": "Мои задачи"
+  },
   "view.raci-matrix": {
     "en": "RACI",
     "ru": "RACI"
