@@ -288,6 +288,7 @@ model Project {
   @@index([businessUnitId, status])
   @@index([sortOrder])
   scheduleShifts           ScheduleShift[]
+  decisions                Decision[]
 }
 
 model ProjectTargetDateChange {
@@ -1543,4 +1544,37 @@ model ScheduleShift {
   @@index([projectId, createdAt])
   @@index([checkpointId, createdAt])
   @@index([operationId])
+}
+
+/// A decision of the project: proposed, sent to one approver, or recorded as taken.
+/// Links to an issue, risk, structure row or change request are checked to be in
+/// the same project when written; a decision that replaces another supersedes it.
+model Decision {
+  id              String    @id @default(cuid())
+  projectId       String
+  title           String
+  context         String    @default("")
+  decision        String    @default("")
+  status          String    @default("PROPOSED")
+  decidedBy       String?
+  decidedAt       DateTime?
+  createdById     String?
+  createdByName   String?
+  approverUserId  String?
+  approverName    String?
+  requestedAt     DateTime?
+  approvalComment String?
+  answeredAt      DateTime?
+  issueId         String?
+  raidItemId      String?
+  wbsItemId       String?
+  changeRequestId String?
+  supersedesId    String?   @unique
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@index([approverUserId, status])
 }

@@ -16,9 +16,9 @@ const project: MeetingPrepProject = {
     { id: 'w4', code: '1', title: 'Фаза', type: 'PHASE', status: 'IN_PROGRESS', owner: '', dueDate: day('2026-09-01'), baselineDueDate: null },
   ],
   issues: [
-    { id: 'i1', title: 'Кто платит за доставку', owner: 'Сидоров', severity: 'MEDIUM', readiness: 'GREEN', status: 'Open', dueDate: null, decisionRequired: true },
-    { id: 'i2', title: 'Горит прошивка', owner: 'Иванов', severity: 'CRITICAL', readiness: 'RED', status: 'Open', dueDate: null, decisionRequired: false },
-    { id: 'i3', title: 'Мелочь', owner: '', severity: 'LOW', readiness: 'GREEN', status: 'Open', dueDate: null, decisionRequired: false },
+    { id: 'i1', title: 'Кто платит за доставку', owner: 'Сидоров', severity: 'CRITICAL', readiness: 'AMBER', status: 'Open', dueDate: null },
+    { id: 'i2', title: 'Горит прошивка', owner: 'Иванов', severity: 'CRITICAL', readiness: 'RED', status: 'Open', dueDate: null },
+    { id: 'i3', title: 'Мелочь', owner: '', severity: 'LOW', readiness: 'GREEN', status: 'Open', dueDate: null },
   ],
   raidItems: [
     { id: 'r1', type: 'RISK', title: 'Срыв поставки', owner: 'Иванов', status: 'OPEN', probability: 4, impact: 5, riskScore: 20, dueDate: null, mitigationPlan: 'Второй поставщик' },
@@ -32,7 +32,7 @@ test('meeting facts pick decisions, critical issues, overdue work, near and move
   const { text, refs } = buildMeetingPrepFacts(project, 7, now);
   const facts = JSON.parse(text);
   assert.deepEqual(facts.decisionsNeeded.map((row: any) => row.ref), ['issue:i1', 'issue:i2']);
-  assert.deepEqual(facts.criticalIssues.map((row: any) => row.ref), ['issue:i2']);
+  assert.deepEqual(facts.criticalIssues.map((row: any) => row.ref), ['issue:i1', 'issue:i2']);
   assert.deepEqual(facts.overdueWork.map((row: any) => row.code), ['1.3']);
   assert.deepEqual(facts.checkpointsInHorizon.map((row: any) => row.code), ['1.4']);
   assert.deepEqual(facts.movedCheckpoints.map((row: any) => [row.code, row.slipDays]), [['1.4', 4]]);

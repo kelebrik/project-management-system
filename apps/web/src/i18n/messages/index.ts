@@ -12,6 +12,7 @@ import { workloadMessages } from "./workload";
 import { scheduleLinksMessages } from "./scheduleLinks";
 import { aiMessages } from "./ai";
 import { scheduleShiftsMessages } from "./scheduleShifts";
+import { decisionsMessages } from "./decisions";
 export const catalogue = {
   ...commonMessages,
   ...adminMessages,
@@ -27,4 +28,5 @@ export const catalogue = {
   ...scheduleLinksMessages,
   ...aiMessages,
   ...scheduleShiftsMessages,
+  ...decisionsMessages,
 } as const;

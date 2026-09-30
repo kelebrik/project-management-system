@@ -142,7 +142,6 @@ export function MeetingNotesContent() {
               impact: details,
               severity: "MEDIUM",
               phaseId: null,
-              decisionRequired: row.decisionRequired === true,
             },
             uiText("meeting.createIssueError"),
           );
@@ -306,17 +305,6 @@ export function MeetingNotesContent() {
                     </select>
                   </label>
                 </>
-              )}
-              {row.kind === "ISSUE" && (
-                <label className="automation-check">
-                  <input
-                    checked={row.decisionRequired === true}
-                    disabled={rowLocked}
-                    onChange={(event) => edit(row.id, { decisionRequired: event.target.checked })}
-                    type="checkbox"
-                  />
-                  {uiText("ui.automation.decisionRequired")}
-                </label>
               )}
             </div>
             {prepared?.by === "ai" && (

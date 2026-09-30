@@ -4,8 +4,11 @@ import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
 import { useMemo, useState } from "react";
 import { signedDaysUntil } from "../app/dateUtils";
 import type { Issue } from "../app/domainTypes";
+import { isOverviewDecisionIssue } from "@pms/shared";
 import { usePageContext } from "./PageContext";
 import { SegmentedFilter } from "../components/SegmentedFilter";
+import { AwaitingMyAnswer } from "../components/decisions/AwaitingMyAnswer";
+import "../styles/decisions.css";
 
 type DecisionRow = Issue & {
   projectName: string;
@@ -13,8 +16,9 @@ type DecisionRow = Issue & {
 
 type DecisionFilter = "all" | "overdue" | "week";
 
+/** An open issue that needs a decision by its criticality and readiness, as on the overview. */
 function isOpenDecision(issue: Issue) {
-  return issue.decisionRequired && issue.status !== "Closed" && issue.status !== "Resolved";
+  return isOverviewDecisionIssue(issue) && issue.status !== "Closed" && issue.status !== "Resolved";
 }
 
 export function DecisionQueuePage() {
@@ -63,6 +67,7 @@ export function DecisionQueuePage() {
           ]}
         />
       </div>
+      <AwaitingMyAnswer />
       <div className="decision-queue-table">
         <div className="decision-queue-head">
           <span>{uiText("ui.admin.project")}</span><span>{uiText("ui.projects.issue")}</span><span>{uiText("ui.automation.owner")}</span><span>{uiText("ui.automation.dueDate")}</span>

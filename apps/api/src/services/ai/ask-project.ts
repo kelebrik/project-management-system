@@ -1,4 +1,4 @@
-import { normalizePersonName } from '@pms/shared';
+import { isOverviewDecisionIssue, normalizePersonName, type IssueSeverity, type RagStatus } from '@pms/shared';
 import type { AiConfig } from './config.js';
 import { MAX_COMPLETION_TOKENS } from './budget.js';
 import { openAiStructured, type AiUsageTokens } from './openai.js';
@@ -35,7 +35,7 @@ export type AskProject = {
     dueDate: Date | null;
     baselineDueDate: Date | null;
   }>;
-  issues: Array<{ id: string; title: string; owner: string; severity: string; readiness: string; status: string; dueDate: Date | null; decisionRequired: boolean }>;
+  issues: Array<{ id: string; title: string; owner: string; severity: string; readiness: string; status: string; dueDate: Date | null }>;
   raidItems: Array<{ id: string; type: string; title: string; owner: string; status: string; riskScore: number; dueDate: Date | null; mitigationPlan: string | null }>;
   jiraSnapshots: Array<{ issueKey: string; summary: string; status: string; assignee: string | null; updatedAt: Date | null }>;
 };
@@ -94,7 +94,7 @@ export function buildAskFacts(project: AskProject, leaves: AskLeave[], now: Date
       readiness: issue.readiness,
       status: issue.status,
       due: day(issue.dueDate),
-      decisionRequired: issue.decisionRequired,
+      needsDecision: isOverviewDecisionIssue({ severity: issue.severity as IssueSeverity, readiness: issue.readiness as RagStatus }),
     })),
     risksAndProblems: project.raidItems
       .filter((item) => (item.type === 'RISK' || item.type === 'DEPENDENCY') && isActiveRaid(item.status))

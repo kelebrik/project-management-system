@@ -122,6 +122,8 @@ export const projectModuleKeyByView: Record<
   "project-gantt": "gantt",
   "project-jira-work": "jiraWork",
   "project-issues": "issues",
+  // Decisions live with the issues they settle.
+  "project-decisions": "issues",
   "project-raid": "raid",
   "project-changes": "changes",
   "project-budget": "budget",

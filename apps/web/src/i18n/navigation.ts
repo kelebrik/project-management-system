@@ -76,6 +76,10 @@ export const navigation = {
     "en": "Open issues",
     "ru": "Открытые вопросы"
   },
+  "view.project-decisions": {
+    "en": "Decisions",
+    "ru": "Решения"
+  },
   "view.project-raid": {
     "en": "Risks and issues",
     "ru": "Риски и проблемы"
@@ -219,6 +223,10 @@ export const navigation = {
   "tab.project-issues": {
     "en": "Issues",
     "ru": "Вопросы"
+  },
+  "tab.project-decisions": {
+    "en": "Decisions",
+    "ru": "Решения"
   },
   "tab.project-raid": {
     "en": "Risks",

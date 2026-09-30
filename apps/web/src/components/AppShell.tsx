@@ -1,36 +1,6 @@
 import type { FocusEventHandler, KeyboardEventHandler, ReactNode } from "react";
 import { ShiftReasonPrompt } from "./scheduleShifts/ShiftReasonPrompt";
-import {
-  Archive,
-  BarChart3,
-  BookOpen,
-  BriefcaseBusiness,
-  CalendarDays,
-  ClipboardList,
-  CircleHelp,
-  FileArchive,
-  FileSpreadsheet,
-  FileText,
-  FolderTree,
-  GanttChartSquare,
-  GitBranch,
-  HardDriveDownload,
-  HeartPulse,
-  Import,
-  Code2,
-  KeyRound,
-  LayoutDashboard,
-  ListChecks,
-  ListTodo,
-  NotebookText,
-  Plus,
-  Settings,
-  Settings2,
-  ShieldAlert,
-  ShieldCheck,
-  SlidersHorizontal,
-  Users,
-} from "lucide-react";
+import { Archive, BarChart3, BookOpen, BriefcaseBusiness, CalendarDays, CircleHelp, ClipboardList, Code2, FileArchive, FileSpreadsheet, FileText, FolderTree, GanttChartSquare, Gavel, GitBranch, HardDriveDownload, HeartPulse, Import, KeyRound, LayoutDashboard, ListChecks, ListTodo, NotebookText, Plus, Settings, Settings2, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 
 import type { Toast } from "../hooks/useAppFeedbackState";
 import type { CurrentUser } from "../app/adminTypes";
@@ -181,6 +151,12 @@ const projectNavItems: ProjectNavItem[] = [
     view: "project-issues",
     label: "view.project-issues",
     icon: <ShieldAlert size={17} />,
+  },
+  {
+    key: "issues",
+    view: "project-decisions",
+    label: "view.project-decisions",
+    icon: <Gavel size={17} />,
   },
   {
     key: "raid",
@@ -339,6 +315,7 @@ const projectNavShortLabels: Partial<Record<ProjectSectionView, TranslationKey>>
   "project-gantt": "tab.project-gantt",
   "project-jira-work": "tab.project-jira-work",
   "project-issues": "tab.project-issues",
+  "project-decisions": "tab.project-decisions",
   "project-raid": "tab.project-raid",
   "project-changes": "tab.project-changes",
   "project-budget": "tab.project-budget",

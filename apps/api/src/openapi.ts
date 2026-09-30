@@ -6,6 +6,7 @@ import { openApiJiraPaths } from "./openapi-jira-paths.js";
 import { openApiLeavePaths } from "./openapi-leave-paths.js";
 import { openApiAiPaths } from "./openapi-ai-paths.js";
 import { openApiScheduleShiftPaths } from "./openapi-schedule-shift-paths.js";
+import { openApiDecisionPaths } from "./openapi-decision-paths.js";
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -39,6 +40,7 @@ export const openApiDocument = {
     { name: "Analytics" },
     { name: "LeaveSchedule" },
     { name: "AI" },
+    { name: "Decisions" },
   ],
   components: openApiComponents,
   paths: {
@@ -49,5 +51,6 @@ export const openApiDocument = {
     ...openApiLeavePaths,
     ...openApiAiPaths,
     ...openApiScheduleShiftPaths,
+    ...openApiDecisionPaths,
   },
 } as const;

@@ -1,3 +1,4 @@
+import { isOverviewDecisionIssue } from "@pms/shared";
 import type { Issue, ProjectDetails, RaidItem, WbsItem } from "./domainTypes";
 import { createDomainLabels } from "../i18n/domainLabels";
 import { createTranslator } from "../i18n/translate";
@@ -362,7 +363,8 @@ export function reportFieldText(
     case "impact":
       return issue.impact || t("report.valueNotSet");
     case "decisionRequired":
-      return issue.decisionRequired ? t("report.yes") : t("report.no");
+      // Needs a decision by criticality and readiness; the old flag is no longer set on issues.
+      return isOverviewDecisionIssue(issue) ? t("report.yes") : t("report.no");
     default:
       return "—";
   }

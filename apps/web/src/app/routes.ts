@@ -13,6 +13,7 @@ export type ProjectSectionView = Extract<
   | "project-gantt"
   | "project-jira-work"
   | "project-issues"
+  | "project-decisions"
   | "project-raid"
   | "project-changes"
   | "project-budget"
@@ -181,6 +182,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-gantt": "gantt",
   "project-jira-work": "jira-work",
   "project-issues": "issues",
+  "project-decisions": "decisions",
   "project-raid": "risks",
   "project-changes": "changes",
   "project-budget": "budget",
@@ -212,6 +214,7 @@ export const appViewPaths: Record<AppView, string> = {
   "project-gantt": "/gantt",
   "project-jira-work": "/jira-work",
   "project-issues": "/issues",
+  "project-decisions": "/decisions",
   "project-raid": "/risks",
   "project-changes": "/changes",
   "project-budget": "/budget",
@@ -254,6 +257,7 @@ export const projectPathViews: Record<string, ProjectSectionView | DevelopmentSe
   jirawork: "project-jira-work",
   issues: "project-issues",
   "open-issues": "project-issues",
+  decisions: "project-decisions",
   risks: "project-raid",
   raid: "project-raid",
   changes: "project-changes",
@@ -323,6 +327,7 @@ export const appPathViews: Record<string, AppView> = {
   "/jirawork": "project-jira-work",
   "/issues": "project-issues",
   "/open-issues": "project-issues",
+  "/decisions": "project-decisions",
   "/risks": "project-raid",
   "/raid": "project-raid",
   "/changes": "project-changes",

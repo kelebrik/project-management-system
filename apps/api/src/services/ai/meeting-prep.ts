@@ -21,7 +21,6 @@ export type MeetingPrepProject = {
     readiness: string;
     status: string;
     dueDate: Date | null;
-    decisionRequired: boolean;
   }>;
   raidItems: Array<{
     id: string;
@@ -92,7 +91,7 @@ export function buildMeetingPrepFacts(project: MeetingPrepProject, horizonDays: 
   const checkpoints = project.wbsItems.filter((item) => (item.type === 'MILESTONE' || item.type === 'GOAL') && isOpenWork(item.status));
   const lists = {
     decisionsNeeded: project.issues
-      .filter((issue) => issue.decisionRequired || isOverviewDecisionIssue({ severity: issue.severity as IssueSeverity, readiness: issue.readiness as RagStatus }))
+      .filter((issue) => isOverviewDecisionIssue({ severity: issue.severity as IssueSeverity, readiness: issue.readiness as RagStatus }))
       .map((issue) => ({ ref: issueRef(issue), title: cut(issue.title), owner: cut(issue.owner), severity: issue.severity, due: day(issue.dueDate) })),
     criticalIssues: project.issues
       .filter((issue) => issue.severity === 'CRITICAL' || issue.severity === 'HIGH')

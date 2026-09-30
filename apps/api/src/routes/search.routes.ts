@@ -1,3 +1,4 @@
+import { isOverviewDecisionIssue } from '@pms/shared';
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -135,14 +136,21 @@ export function createSearchRouter() {
         where: {
           ...(projectId ? { projectId } : {}),
           project: projectScope,
-          ...(types.has('decision') && !types.has('issue') ? { decisionRequired: true } : {}),
-          OR: [
-            { title: contains(q) },
-            { owner: contains(q) },
-            { impact: contains(q) },
-            { jiraTicketKey: contains(q) },
-            { jiraTicketUrl: contains(q) },
-            { jiraLinks: { some: { OR: [{ jiraKey: contains(q) }, { jiraUrl: contains(q) }] } } },
+          AND: [
+            // Decisions are issues that need one by criticality and readiness, as on the overview.
+            ...(types.has('decision') && !types.has('issue')
+              ? [{ OR: [{ severity: 'CRITICAL' as const, readiness: { in: ['RED' as const, 'AMBER' as const] } }, { severity: 'HIGH' as const, readiness: 'RED' as const }] }]
+              : []),
+            {
+              OR: [
+                { title: contains(q) },
+                { owner: contains(q) },
+                { impact: contains(q) },
+                { jiraTicketKey: contains(q) },
+                { jiraTicketUrl: contains(q) },
+                { jiraLinks: { some: { OR: [{ jiraKey: contains(q) }, { jiraUrl: contains(q) }] } } },
+              ],
+            },
           ],
         },
         include: { project: { select: { code: true, name: true } } },
@@ -151,7 +159,7 @@ export function createSearchRouter() {
       });
       results.push(
         ...issues.map((issue) => ({
-          type: issue.decisionRequired ? 'decision' : 'issue',
+          type: isOverviewDecisionIssue(issue) ? 'decision' : 'issue',
           id: issue.id,
           projectId: issue.projectId,
           projectCode: issue.project.code,

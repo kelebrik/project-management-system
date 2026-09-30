@@ -14,7 +14,7 @@ const project: AskProject = {
     { id: 'w1', code: '1.1', title: 'Прошивка', type: 'TASK', status: 'IN_PROGRESS', owner: 'Алёна Зуева', startDate: day('2026-09-01'), dueDate: day('2026-09-20'), baselineDueDate: day('2026-09-15') },
     { id: 'w2', code: '1.2', title: 'Сборка', type: 'TASK', status: 'DONE', owner: 'Петров', startDate: day('2026-08-01'), dueDate: day('2026-08-20'), baselineDueDate: null },
   ],
-  issues: [{ id: 'i1', title: 'Нет стенда', owner: 'Петров', severity: 'HIGH', readiness: 'RED', status: 'Open', dueDate: null, decisionRequired: true }],
+  issues: [{ id: 'i1', title: 'Нет стенда', owner: 'Петров', severity: 'HIGH', readiness: 'RED', status: 'Open', dueDate: null }],
   raidItems: [
     { id: 'r1', type: 'RISK', title: 'Срыв поставки', owner: '', status: 'OPEN', riskScore: 20, dueDate: null, mitigationPlan: null },
     { id: 'r2', type: 'RISK', title: 'Закрыт', owner: '', status: 'CLOSED', riskScore: 25, dueDate: null, mitigationPlan: null },

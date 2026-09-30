@@ -1,4 +1,5 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { ProjectDecisionsPage } from "./ProjectDecisionsPage";
 import { JiraReconciliationPage } from './JiraReconciliationPage';
 import { lazy, Suspense } from "react";
 import { PageSkeleton } from "../components/Skeleton";
@@ -150,6 +151,7 @@ export function AppPages() {
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
         {project && activeView === "project-jira-work" && <ProjectJiraWorkPage key={project.id} />}
         {project && activeView === "project-issues" && <DevelopmentOpenIssuesPage />}
+        {project && activeView === "project-decisions" && <ProjectDecisionsPage />}
         {project && activeView === "project-raid" && <ProjectRaidPage />}
         {project && activeView === "project-artifacts" && <ProjectArtifactsPage />}
       </section>

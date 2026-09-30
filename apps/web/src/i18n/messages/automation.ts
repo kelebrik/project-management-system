@@ -468,7 +468,6 @@ export const automationMessages = {
   "ui.automation.aiDraft": { en: "AI draft", ru: "Черновик ИИ" },
   "ui.automation.probability": { en: "Probability", ru: "Вероятность" },
   "ui.automation.impact": { en: "Impact", ru: "Влияние" },
-  "ui.automation.decisionRequired": { en: "Decision needed", ru: "Нужно решение" },
   "ui.automation.description": { en: "Description", ru: "Описание" },
   "ui.automation.aiSourceNotFound": { en: "The quoted source is not in the notes: check this draft carefully.", ru: "Цитата не найдена в тексте протокола — проверьте этот черновик особенно внимательно." },
   "ui.automation.aiOwnerUnknown": { en: "This owner is not in the people directory or among the project's owners.", ru: "Такого исполнителя нет в справочнике сотрудников и среди исполнителей проекта." },

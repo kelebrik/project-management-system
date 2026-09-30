@@ -3,7 +3,7 @@ import type { WeeklyActor, WeeklyChange, WeeklyValue } from '@pms/shared';
 /** Business fields exposed per audited object type. Order drives report order. */
 export const briefFields: Record<string, readonly string[]> = {
   WbsItem: ['title', 'status', 'owner', 'startDate', 'dueDate', 'forecastDueDate', 'baselineDueDate', 'progress'],
-  Issue: ['title', 'status', 'owner', 'dueDate', 'decisionRequired', 'severity'],
+  Issue: ['title', 'status', 'owner', 'dueDate', 'severity', 'readiness'],
   RaidItem: ['title', 'status', 'owner', 'dueDate', 'probability', 'impact', 'riskScore'],
   Project: ['name', 'status', 'targetDate', 'rag', 'projectManager'],
 };

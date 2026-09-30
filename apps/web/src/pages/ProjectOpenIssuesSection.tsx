@@ -866,21 +866,7 @@ export function ProjectOpenIssuesSection({ issueSearch = "", issueFilter = "all"
                           <span>{uiText("ui.projects.dateShiftLabel")} {delayDays > 0 ? "+" : ""}{delayDays} {uiText("ui.projects.calendarDaysShortUnit")}</span>
                         ) : null}
                       </div>
-                      <label className="issue-inline-decision">
-                        <input
-                          type="checkbox"
-                          checked={draft.decisionRequired}
-                          disabled={isReadOnly}
-                          aria-busy={isSaving("decisionRequired")}
-                          onChange={(event) => {
-                            const decisionRequired = event.target.checked;
-                            patchDraft(issue, { decisionRequired });
-                            void persistField(issue, "decisionRequired", decisionRequired);
-                          }}
-                        />
-                        {uiText("ui.projects.requiresDecision")}
-                      </label>
-                      {fieldError("dueDate", "decisionRequired")}
+                      {fieldError("dueDate")}
                       {!isReadOnly ? (
                         <div className="issue-inline-actions">
                           <button type="button" className="secondary-button" onClick={() => void convertIssueToProblem(issue.id)}>{uiText("ui.projects.convertToIssueAction")}</button>

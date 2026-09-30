@@ -23,7 +23,7 @@ function project(overrides: Partial<ReportProject> = {}): ReportProject {
       { code: '1.3', title: 'Просроченная', type: 'TASK', status: 'IN_PROGRESS', owner: 'Петров', dueDate: day('2026-09-20'), baselineDueDate: null, closedAt: null },
       { code: '1.4', title: 'Сертификация', type: 'MILESTONE', status: 'NOT_STARTED', owner: '', dueDate: day('2026-10-10'), baselineDueDate: day('2026-10-01'), closedAt: null },
     ],
-    issues: [{ title: 'Кто платит за доставку', owner: 'РП', severity: 'HIGH', dueDate: null, decisionRequired: true, status: 'Open' }],
+    issues: [{ title: 'Кто платит за доставку', owner: 'РП', severity: 'HIGH', readiness: 'RED', dueDate: null, status: 'Open' }],
     raidItems: [
       { type: 'RISK', title: 'Срыв поставки', owner: '', status: 'OPEN', riskScore: 20, mitigationPlan: 'Второй поставщик' },
       { type: 'DEPENDENCY', title: 'Нет стенда', owner: '', status: 'OPEN', riskScore: 16, mitigationPlan: null },

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { FactRef } from "../app/aiDrafts";
+import type { FactRef } from "../app/factRefs";
 import { requestRaidReveal } from "../app/raidReveal";
 import { focusedWbsBranchState } from "../app/wbsTree";
 import { usePageContext } from "../pages/PageContext";

@@ -56,7 +56,8 @@ export function statusReportText(report: StatusReport, projectName: string, peri
 
 
 /** A row an AI answer points to, checked by the server against the facts it sent. */
-export type FactRef = { kind: "wbs" | "issue" | "risk" | "jira"; id: string; label: string; type?: string };
+export type { FactRef } from "./factRefs";
+import type { FactRef } from "./factRefs";
 
 export type MeetingPrep = {
   agenda: Array<{ topic: string; why: string; owner: string; minutes: number; refs: string[] }>;

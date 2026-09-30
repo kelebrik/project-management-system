@@ -48,7 +48,8 @@ test("the model prepares drafts, marks doubtful ones, and only reviewed drafts a
   await expect(drawer.getByText(/Цитата не найдена в тексте протокола/)).toHaveCount(1);
   await expect(drawer.getByText(/Такого исполнителя нет в справочнике/)).toHaveCount(1);
   await expect(drawer.getByLabel("Вероятность")).toHaveValue("3");
-  await expect(drawer.getByLabel("Нужно решение")).toBeChecked();
+  // Issues need a decision by criticality and readiness now; drafts no longer carry a flag.
+  await expect(drawer.getByLabel("Нужно решение")).toHaveCount(0);
 
   // Nothing is created before the user ticks drafts.
   expect(created).toEqual([]);

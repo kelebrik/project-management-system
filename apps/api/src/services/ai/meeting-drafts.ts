@@ -18,7 +18,7 @@ export const MEETING_DRAFTS_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['kind', 'title', 'owner', 'dueDate', 'source', 'description', 'probability', 'impact', 'decisionRequired'],
+        required: ['kind', 'title', 'owner', 'dueDate', 'source', 'description', 'probability', 'impact'],
         properties: {
           kind: { type: 'string', enum: [...KINDS] },
           title: { type: 'string' },
@@ -28,7 +28,6 @@ export const MEETING_DRAFTS_SCHEMA = {
           description: { type: 'string' },
           probability: { type: 'integer' },
           impact: { type: 'integer' },
-          decisionRequired: { type: 'boolean' },
         },
       },
     },
@@ -45,7 +44,6 @@ Rules:
 - source: an exact, verbatim quote from the notes that the record comes from.
 - title: short and specific, in the language of the notes. description: one or two sentences of context, or "".
 - RISK: probability and impact from 1 to 5 when the notes allow an estimate, else 0. Other kinds: 0.
-- ISSUE: decisionRequired true if a decision by management or the team is needed. Other kinds: false.
 - At most ${MEETING_DRAFT_LIMITS.drafts} records. If there is nothing to extract, return an empty list.`;
 
 /** Collapses whitespace and case so a quote can be found in the text however lines were wrapped. */
@@ -95,7 +93,6 @@ export function normalizeMeetingDrafts(answer: unknown, notes: string, people: s
       description: text(item.description, MEETING_DRAFT_LIMITS.description),
       probability: kind === 'RISK' ? clampScore(item.probability) : 0,
       impact: kind === 'RISK' ? clampScore(item.impact) : 0,
-      decisionRequired: kind === 'ISSUE' && item.decisionRequired === true,
       sourceVerified: Boolean(source) && haystack.includes(comparable(source)),
       ownerKnown: !owner || known.has(comparable(owner)),
     });

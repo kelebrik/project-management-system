@@ -236,19 +236,6 @@ export function IssueDrawer() {
                         }
                       />
                     </label>
-                    <label className="checkbox-line">
-                      <input
-                        type="checkbox"
-                        checked={issueForm.decisionRequired}
-                        onChange={(event) =>
-                          setIssueForm({
-                            ...issueForm,
-                            decisionRequired: event.target.checked,
-                          })
-                        }
-                      />
-                      {uiText("ui.projects.requiresDecision")}
-                    </label>
                   </div>
                   <div className="jira-links-editor">
                     <div className="subhead">{uiText("ui.projects.ticketLink")}</div>

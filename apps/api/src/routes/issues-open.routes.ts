@@ -1,3 +1,4 @@
+import { isOverviewDecisionIssue } from '@pms/shared';
 import {
   createIssueSchema,
   issueStatusUpdateSchema,
@@ -86,7 +87,7 @@ router.get('/projects/:projectId/open-issues', async (req, res) => {
       projectId: req.params.projectId,
       status: { notIn: ['Done', 'Closed', 'Resolved'] },
     },
-    orderBy: [{ decisionRequired: 'desc' }, { severity: 'desc' }, { updatedAt: 'desc' }],
+    orderBy: [{ severity: 'desc' }, { readiness: 'desc' }, { updatedAt: 'desc' }],
     include: issueInclude,
   });
 
@@ -562,7 +563,8 @@ router.post('/open-issues/:issueId/convert-to-problem', async (req, res) => {
         supplier: null,
         jiraTicketKey: primaryJiraLink?.jiraKey ?? null,
         jiraTicketUrl: primaryJiraLink?.jiraUrl ?? null,
-        decisionRequired: issue.decisionRequired,
+        // A problem needs a decision when its issue did, by criticality and readiness.
+        decisionRequired: isOverviewDecisionIssue(issue),
         escalationLevel: 'Проект',
         scheduleImpactDays: 0,
         budgetImpact: 0,

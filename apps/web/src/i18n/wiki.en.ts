@@ -190,7 +190,7 @@ export const englishWikiGroups: WikiGroup[] = [
             "points": [
               "When the overview loads, the backend guarantees the presence of three Jira work sections and returns the full project card, closed issues, the critical path and currentUserAccessLevel.",
               "The red zone shows up to five active RISK/DEPENDENCY items with riskScore >= 15, sorted by riskScore desc and then by title.",
-              "Open decisions are taken from open issues with decisionRequired, sorted by due date and then limited to five records.",
+              "Open decisions are open issues that need a decision by criticality and readiness: critical ones with red or amber readiness and high ones with red. They are sorted by due date and limited to five records.",
               "Tickets at risk are calculated from the currently published revision of the critical-blocker-risk system aggregate; the Jira work sections do not affect this section.",
               "The nearest milestone is searched among WBS MILESTONE/GOAL items whose dueDate is not earlier than the current date."
             ]
@@ -673,7 +673,7 @@ export const englishWikiGroups: WikiGroup[] = [
           {
             "heading": "Open issues",
             "points": [
-              "An issue stores a source of INTERNAL or JIRA, a section (category), title, severity, readiness GREEN/AMBER/RED, status (Open, In Progress, Blocked, Resolved, Closed), owner, impact, decisionRequired, dueDate, a reference link, a linked risk, a WBS phase and Jira links.",
+              "An issue stores a source of INTERNAL or JIRA, a section (category), title, criticality (severity), readiness GREEN/AMBER/RED, status (Open, In Progress, Blocked, Resolved, Closed), owner, impact, dueDate, a reference link, a linked risk, a WBS phase and Jira links. An issue has no separate \"needs a decision\" flag: criticality and readiness decide whether a decision is needed.",
               "All statuses other than Done, Closed and Resolved are considered open.",
               "Jira links are given as issue keys. On creation the primary key is merged with jiraLinks, keys are normalised and duplicates removed; an invalid key is refused with a 400 error.",
               "The Jira link is built automatically as {baseUrl}/browse/{KEY}: baseUrl comes from the project's Jira settings or, if that is empty, from JIRA_BASE_URL. If the address cannot be built, the issue is not saved.",
@@ -697,7 +697,11 @@ export const englishWikiGroups: WikiGroup[] = [
               "An issue status update stores statusAt and text and is sorted by statusAt desc, then createdAt desc.",
               "On the first transition into a closed status the backend computes closedDelayDays as max(0, dueDate - initialDueDate) in calendar days.",
               "If there was no initialDueDate yet, it is captured on the first change of dueDate, from the old dueDate or from the new value.",
-              "Open decisions are open issues with decisionRequired; they are used in the project overview."
+              "Open decisions are open issues that need a decision by criticality and readiness; they are used in the project overview, the decision queue, the PM workspace, search and reports. Decisions taken are kept in the project's decision log.",
+              "The decision log is the project's Decisions page next to Issues. A decision keeps what it is about, what was decided, why (context and options) and a link to an issue, risk or problem, Structure row or change request of the same project.",
+              "A new decision can be saved as a draft or recorded as taken right away, with who took it and when. A draft can be edited, deleted, recorded as taken or sent for approval to one person: any active user who can see the project, such as a sponsor with read-only access.",
+              "Only the chosen approver can approve or reject, and a comment is required. Until the answer the decision can be withdrawn to draft. If two answers arrive at once, one is taken and the other is told the decision has already changed. A decision in force can be replaced by a new one; the old one is marked Replaced.",
+              "The Awaiting me filter shows the project's decisions waiting for your answer; all such decisions across projects are listed in \"Decisions awaiting my answer\" on the Decision queue in the Development section. Every step is written to the audit log."
             ]
           }
         ]

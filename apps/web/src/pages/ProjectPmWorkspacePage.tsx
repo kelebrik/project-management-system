@@ -1,3 +1,4 @@
+import { isOverviewDecisionIssue } from "@pms/shared";
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { useMemo, useState } from "react";
 import { signedDaysUntil } from "../app/dateUtils";
@@ -97,7 +98,7 @@ export function ProjectPmWorkspacePage() {
     [draftMap, project.wbsItems],
   );
   const openDecisions = (project.issues as Issue[])
-    .filter((issue) => openIssue(issue) && issue.decisionRequired)
+    .filter((issue) => openIssue(issue) && isOverviewDecisionIssue(issue))
     .sort(
       (left, right) =>
         (signedDaysUntil(left.dueDate) ?? Number.POSITIVE_INFINITY) -

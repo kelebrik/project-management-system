@@ -41,13 +41,6 @@ export function weeklyValue(
 ) {
   if ('token' in value) return weeklyText(value, translator);
   const raw = value.text;
-  if (row.fieldKey === 'Issue.decisionRequired') {
-    return raw === 'true'
-      ? translator.t('ui.automation.yes')
-      : raw === 'false'
-        ? translator.t('ui.automation.no')
-        : raw;
-  }
   if (dateFieldKeys.has(row.fieldKey) && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(raw)) {
     return raw.slice(0, 10).split('-').reverse().join('.');
   }

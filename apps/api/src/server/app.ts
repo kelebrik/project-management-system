@@ -14,6 +14,7 @@ import { createSavedViewsRouter } from '../routes/saved-views.routes.js';
 import { createLeaveScheduleRouter } from '../routes/leave-schedule.routes.js';
 import { createAiRouter } from '../routes/ai.routes.js';
 import { createScheduleShiftsRouter } from '../routes/schedule-shifts.routes.js';
+import { createDecisionsRouter } from '../routes/decisions.routes.js';
 import { createWbsDraftRouter } from '../routes/wbs-draft.routes.js';
 import { createWorkloadRouter } from '../routes/workload.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
@@ -140,6 +141,7 @@ export function createApp() {
   app.use('/api', createAiRouter());
   app.use('/api', createWbsDraftRouter());
   app.use('/api', createScheduleShiftsRouter());
+  app.use('/api', createDecisionsRouter());
 
   registerClosedProjectWriteGuards(app);
 

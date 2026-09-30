@@ -1,3 +1,4 @@
+import { isOverviewDecisionIssue, type IssueSeverity, type RagStatus } from '@pms/shared';
 import type { AiConfig } from './config.js';
 import { MAX_COMPLETION_TOKENS } from './budget.js';
 import { openAiStructured, type AiUsageTokens } from './openai.js';
@@ -52,7 +53,7 @@ export type ReportProject = {
     baselineDueDate: Date | null;
     closedAt: Date | null;
   }>;
-  issues: Array<{ title: string; owner: string; severity: string; dueDate: Date | null; decisionRequired: boolean; status: string }>;
+  issues: Array<{ title: string; owner: string; severity: string; readiness: string; dueDate: Date | null; status: string }>;
   raidItems: Array<{ type: string; title: string; owner: string; status: string; riskScore: number; mitigationPlan: string | null }>;
 };
 
@@ -92,8 +93,9 @@ export function buildReportFacts(project: ReportProject, periodDays: number, now
         baseline: day(item.baselineDueDate),
         slipDays: Math.round((item.dueDate!.getTime() - item.baselineDueDate!.getTime()) / DAY_MS),
       })),
+    // Issues that need a decision by criticality and readiness, as on the overview.
     decisionsNeeded: project.issues
-      .filter((issue) => issue.decisionRequired)
+      .filter((issue) => isOverviewDecisionIssue({ severity: issue.severity as IssueSeverity, readiness: issue.readiness as RagStatus }))
       .map((issue) => ({ title: cut(issue.title), owner: cut(issue.owner), severity: issue.severity, due: day(issue.dueDate) })),
     criticalIssues: project.issues
       .filter((issue) => issue.severity === 'CRITICAL' || issue.severity === 'HIGH')

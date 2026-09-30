@@ -1,3 +1,4 @@
+import { isOverviewDecisionIssue } from "@pms/shared";
 import { useI18n } from "../i18n/I18nProvider";
 import {
   BriefcaseBusiness,
@@ -35,7 +36,7 @@ export function ProjectChangesPage() {
                         {
                           project.issues.filter(
                             (issue) =>
-                              issue.decisionRequired && issue.status !== "Closed",
+                              isOverviewDecisionIssue(issue) && issue.status !== "Closed" && issue.status !== "Resolved",
                           ).length
                         }
                       </b>

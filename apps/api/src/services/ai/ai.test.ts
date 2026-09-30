@@ -57,7 +57,6 @@ test('drafts keep only what fits: known kinds, real dates, scores 0..5, cut leng
   assert.equal(task.ownerKnown, true);
   // Scores and decisions belong to their own kinds only.
   assert.equal(task.probability, 0);
-  assert.equal(task.decisionRequired, false);
   assert.equal(risk.dueDate, '');
   assert.equal(risk.probability, 5);
   assert.equal(risk.impact, 0);
