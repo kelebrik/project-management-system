@@ -56,6 +56,7 @@ export type DevelopmentSectionView = Extract<
   | "jira-reconciliation"
   | "decision-queue"
   | "lessons-register"
+  | "raci-matrix"
   | "project-pm-workspace"
   | "open-issues-redesign"
   | ResourceSectionView
@@ -108,6 +109,7 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "jira-reconciliation",
   "decision-queue",
   "lessons-register",
+  "raci-matrix",
   "project-pm-workspace",
   "open-issues-redesign",
   "resources",
@@ -199,6 +201,7 @@ export const appViewPaths: Record<AppView, string> = {
   workload: "/operations/workload",
   "decision-queue": "/development/decision-queue",
   "lessons-register": "/development/lessons",
+  "raci-matrix": "/development/raci",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
   reports: "/development/reports",
@@ -299,6 +302,7 @@ export const appPathViews: Record<string, AppView> = {
   "/development/archive": "closed-projects",
   "/development/decision-queue": "decision-queue",
   "/development/lessons": "lessons-register",
+  "/development/raci": "raci-matrix",
   "/development/jira-reconciliation": "jira-reconciliation",
   "/development/pm-workspace": "project-pm-workspace",
   "/development/workspace": "project-pm-workspace",

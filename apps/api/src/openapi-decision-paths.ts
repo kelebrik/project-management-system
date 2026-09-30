@@ -125,4 +125,25 @@ export const openApiDecisionPaths = {
   "/api/lessons": {
     get: securedOperation(["Projects"], "Lessons of all readable projects, newest first; category, q and page filters, 50 per page", [], "Page of lessons with their project"),
   },
+  "/api/projects/{projectId}/raci": {
+    get: securedOperation(["Projects"], "RACI matrix: phases, work packages and deliverables, the people named, their roles", [pathParam("projectId")], "Rows, people and assignments"),
+  },
+  "/api/projects/{projectId}/raci/cell": {
+    put: {
+      ...securedOperation(["Projects"], "Set or clear one person's role for one row; one Accountable per row", [pathParam("projectId")], "Saved"),
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["wbsItemId", "personName", "role"],
+              properties: { wbsItemId: { type: "string" }, personName: { type: "string", minLength: 2, maxLength: 120 }, role: { type: ["string", "null"], enum: ["R", "A", "C", "I", null] } },
+            },
+          },
+        },
+      },
+      responses: { "200": { description: "Saved" }, "400": { description: "Not a phase, package or deliverable of this project" }, "409": { description: "The row already has an Accountable" }, "423": { description: "Project is closed" } },
+    },
+  },
 };

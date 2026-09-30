@@ -358,7 +358,9 @@ export const englishWikiGroups: WikiGroup[] = [
               "TASK - regular work with a duration, owner, progress, calendar and dependencies.",
               "DELIVERABLE - a deliverable. In the resource calculation it is counted as work together with TASK.",
               "MILESTONE - a checkpoint with zero duration. It is used in the project schedule.",
-              "GOAL - a management goal of the project with zero duration. It participates in the portfolio goal scale and in the target summary calculation."
+              "GOAL - a management goal of the project with zero duration. It participates in the portfolio goal scale and in the target summary calculation.",
+              "The RACI matrix (Development section, project picker at the top) shows who is Responsible (R), Accountable (A), Consulted (C) and Informed (I) for each phase, work package and deliverable of the project. Columns are the owners on the Structure and people with roles; a person can be added from the people directory. Names are compared ignoring case, spaces and \"ё/е\".",
+              "A row has only one A: a second one is refused with who is already accountable, even when two people set A at once. Rows without an A or an R are marked. Roles are changed by users who may change the project; the matrix exports to CSV for Excel, with values that look like formulas escaped."
             ]
           },
           {

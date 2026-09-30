@@ -1,0 +1,16 @@
+.raci-page { display: grid; gap: 10px; grid-column: 1 / -1; min-width: 0; width: 100%; }
+.raci-page .v2-compact-header button, .raci-export { align-items: center; display: inline-flex; gap: 6px; white-space: nowrap; }
+.raci-legend { color: var(--text-secondary); font-size: 13px; margin: 0; }
+.raci-add { align-items: end; display: flex; gap: 8px; }
+.raci-add label { display: grid; font-size: 12px; font-weight: 600; gap: 4px; }
+.raci-scroll { overflow: auto; max-width: 100%; }
+.raci-table { border-collapse: collapse; font-size: 13px; }
+.raci-table th, .raci-table td { border: 1px solid var(--border); padding: 4px 6px; text-align: center; white-space: nowrap; }
+.raci-table tbody th { background: var(--surface); font-weight: 400; left: 0; position: sticky; text-align: left; z-index: 1; }
+.raci-table thead th:first-child { background: var(--surface); left: 0; position: sticky; z-index: 2; }
+.raci-code { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.raci-missing { color: var(--danger, #c0392b); display: block; font-size: 11px; }
+.raci-table td.raci-A { background: var(--accent-soft, #e8f0fe); font-weight: 700; }
+.raci-table td.raci-R { background: var(--success-soft, #e8f5e9); }
+.raci-table select { font: inherit; }
+.raci-page .automation-error { color: var(--danger, #c0392b); font-weight: 600; margin: 0; }

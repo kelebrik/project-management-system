@@ -1,6 +1,6 @@
 import type { FocusEventHandler, KeyboardEventHandler, ReactNode } from "react";
 import { ShiftReasonPrompt } from "./scheduleShifts/ShiftReasonPrompt";
-import { Archive, BarChart3, BookOpen, BriefcaseBusiness, CalendarDays, CircleHelp, ClipboardList, Code2, FileArchive, FileSpreadsheet, FileText, FolderTree, GanttChartSquare, Gavel, GitBranch, GraduationCap, HardDriveDownload, HeartPulse, Import, KeyRound, LayoutDashboard, ListChecks, ListTodo, NotebookText, Plus, Settings, Settings2, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { Archive, BarChart3, BookOpen, BriefcaseBusiness, CalendarDays, CircleHelp, ClipboardList, Code2, FileArchive, FileSpreadsheet, FileText, FolderTree, GanttChartSquare, Gavel, GitBranch, GraduationCap, Grid3x3, HardDriveDownload, HeartPulse, Import, KeyRound, LayoutDashboard, ListChecks, ListTodo, NotebookText, Plus, Settings, Settings2, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 
 import type { Toast } from "../hooks/useAppFeedbackState";
 import type { CurrentUser } from "../app/adminTypes";
@@ -294,6 +294,11 @@ const developmentNavItems: AdminNavItem[] = [
     icon: <GraduationCap size={15} />,
   },
   {
+    view: "raci-matrix",
+    label: "view.raci-matrix",
+    icon: <Grid3x3 size={15} />,
+  },
+  {
     view: "resources",
     label: "view.resources",
     icon: <Users size={15} />,
@@ -528,8 +533,10 @@ export function AppShell({
 
       {shouldShowDevelopmentMenu && (
         <div className="section-navigation development-section-navigation">
-          {(activeView === "project-pm-workspace" || activeView === "open-issues-redesign" || activeView === "decision-queue") && (
-            <div className="section-project-picker">{projectPicker(activeView === "open-issues-redesign" ? "open-issues-redesign" : "project-pm-workspace")}</div>
+          {(activeView === "project-pm-workspace" || activeView === "open-issues-redesign" || activeView === "decision-queue" || activeView === "raci-matrix") && (
+            <div className="section-project-picker">
+              {projectPicker(activeView === "open-issues-redesign" || activeView === "raci-matrix" ? activeView : "project-pm-workspace")}
+            </div>
           )}
           <nav className="section-tabs" aria-label={t("nav.development")}>
             {developmentNavItems

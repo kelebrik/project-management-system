@@ -291,6 +291,7 @@ model Project {
   decisions                Decision[]
   planSnapshots            PlanSnapshot[]
   lessons                  Lesson[]
+  raciAssignments          RaciAssignment[]
 }
 
 model ProjectTargetDateChange {
@@ -826,6 +827,7 @@ model WbsItem {
   @@index([projectId, parentId])
   @@index([projectId, sortOrder])
   @@index([projectId, closedAt])
+  raciAssignments   RaciAssignment[]
 }
 
 model WbsCommand {
@@ -1617,4 +1619,24 @@ model Lesson {
 
   @@index([projectId])
   @@index([category, createdAt])
+}
+
+/// Who does what for a phase, work package or deliverable: Responsible,
+/// Accountable, Consulted or Informed. People are named as on the structure
+/// (compared by their normalised name); a row has at most one Accountable,
+/// which a partial unique index in the migration enforces.
+model RaciAssignment {
+  id         String   @id @default(cuid())
+  projectId  String
+  wbsItemId  String
+  personName String
+  personKey  String
+  role       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wbsItem    WbsItem  @relation(fields: [wbsItemId], references: [id], onDelete: Cascade)
+
+  @@unique([wbsItemId, personKey])
+  @@index([projectId])
 }

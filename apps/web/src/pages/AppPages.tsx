@@ -56,6 +56,11 @@ const WorkloadPage = lazy(() =>
     default: module.WorkloadPage,
   })),
 );
+const RaciMatrixPage = lazy(() =>
+  import("./RaciMatrixPage").then((module) => ({
+    default: module.RaciMatrixPage,
+  })),
+);
 const LessonsRegisterPage = lazy(() =>
   import("./LessonsRegisterPage").then((module) => ({
     default: module.LessonsRegisterPage,
@@ -104,6 +109,11 @@ export function AppPages() {
       {activeView === "leave-schedule" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <LeaveSchedulePage />
+        </Suspense>
+      )}
+      {activeView === "raci-matrix" && (
+        <Suspense fallback={<DevelopmentPageFallback />}>
+          <RaciMatrixPage />
         </Suspense>
       )}
       {activeView === "lessons-register" && (
