@@ -5,6 +5,8 @@ import { prisma } from './db.js';
 import { createApp } from './server/app.js';
 import { logEvent } from './server/logger.js';
 import { recalculateProjectWbsSchedule } from './services/wbs-schedule.js';
+import { trackScheduleShifts } from './services/schedule-shifts.js';
+import { runWithWbsWriteQueue } from './routes/wbs/write-queue.js';
 import { createJiraSyncRunner } from './services/jira-sync-runner.js';
 import {
   assertDeploymentProfileConfigured,
@@ -67,7 +69,10 @@ async function recalculateActiveProjectSchedulesOnStartup() {
   let updatedItems = 0;
   for (const project of projects) {
     try {
-      updatedItems += await recalculateProjectWbsSchedule(project.id);
+      // A start-up recalculation can move checkpoints too; the journal shows it as the system's doing.
+      updatedItems += await runWithWbsWriteQueue(project.id, () =>
+        trackScheduleShifts(project.id, { trigger: 'SYSTEM' }, () => recalculateProjectWbsSchedule(project.id)),
+      );
     } catch (error) {
       logEvent('error', 'wbs.schedule.startup_recalculate_failed', {
         projectId: project.id,

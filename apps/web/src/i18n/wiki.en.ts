@@ -205,7 +205,10 @@ export const englishWikiGroups: WikiGroup[] = [
               "Reportable delay is computed only over leaf TASK rows, so that the parent variance and the child contribution are not double-counted.",
               "For delays an incremental impact is applied: the already explained contribution of the upstream cause is subtracted from the task's delay, so a downstream delay does not duplicate the upstream problem.",
               "Up to three work items with the largest contribution to delay and up to three work items with the largest contribution to acceleration are shown.",
-              "The resulting scheduleVarianceFromStructure equals the delay of the active goal if it can be computed; otherwise it is the maximum open variance across the structure."
+              "The resulting scheduleVarianceFromStructure equals the delay of the active goal if it can be computed; otherwise it is the maximum open variance across the structure.",
+              "The Why checkpoints moved card on the Status page shows, for every open milestone and goal that left its baseline or moved, the baseline date, the steps with days, date and author, and the current date. The active goal comes first.",
+              "Each step names the cause the system knows when the change happens: an edit of the checkpoint itself, an edit of another row carried over by links (the row is a link), a bulk edit, rows or links changed, undo or redo, a working day or day off in the calendar, a new target date with its reason, an open issue, a Structure draft, restored deleted rows, or a recalculation at server start.",
+              "The line \"before the journal or without a record\" holds the days the journal does not explain: moves before it existed. Saving the baseline for a checkpoint restarts its history; a baseline saved for selected rows leaves the others' history alone. The latest 30 steps are shown and older ones fold into one line."
             ]
           },
           {

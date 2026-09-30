@@ -9,6 +9,7 @@ import { normalizeWbsDraft, type WbsDraftItem } from '../services/ai/wbs-draft.j
 import { getProjectWbsSnapshot, recalculateProjectWbsHierarchyStatuses } from '../services/wbs.js';
 import { recalculateProjectWbsSchedule } from '../services/wbs-schedule.js';
 import { runWithWbsWriteQueue } from './wbs/write-queue.js';
+import { shiftActor, trackScheduleShifts } from '../services/schedule-shifts.js';
 
 const applySchema = z.object({
   items: z.array(z.unknown()).min(1).max(500),
@@ -74,7 +75,8 @@ export function createWbsDraftRouter() {
     const startDate = new Date(`${body.data.startDate ?? new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
     const draftKey = body.data.draftKey;
 
-    const { createdIds, replayed, snapshot } = await runWithWbsWriteQueue(project.id, async () => {
+    const { createdIds, replayed, snapshot } = await runWithWbsWriteQueue(project.id, () =>
+      trackScheduleShifts(project.id, { trigger: 'DRAFT', actor: shiftActor(demo ? null : user) }, async () => {
       const written = await prisma.$transaction(
         async (tx) => {
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`wbs:${project.id}`}))`;
@@ -153,7 +155,8 @@ export function createWbsDraftRouter() {
       await recalculateProjectWbsSchedule(project.id);
       await recalculateProjectWbsHierarchyStatuses(project.id);
       return { ...written, snapshot: await getProjectWbsSnapshot(project.id) };
-    });
+    }),
+    );
     res.status(replayed ? 200 : 201).json({ createdIds, replayed, ...snapshot });
   });
 

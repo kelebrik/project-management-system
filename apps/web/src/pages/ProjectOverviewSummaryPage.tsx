@@ -2,6 +2,7 @@ import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { ChevronDown, ChevronRight, Link as LinkIcon } from "lucide-react";
 import { ReadinessPanel } from '../components/automation/ReadinessPanel';
 import { AskProjectButton, StatusReportButton } from "../components/ai/AiProjectButtons";
+import { ScheduleShiftsCard } from "../components/scheduleShifts/ScheduleShiftsCard";
 import { useEffect, useState } from "react";
 import type { IssueStatusUpdate, RaidItemStatusUpdate } from "../app/domainTypes";
 import { JiraCurrentFreshnessNotice } from "../components/JiraCurrentFreshnessNotice";
@@ -348,6 +349,7 @@ export function ProjectOverviewSummaryPage() {
             )}
         </div>
       </article>
+      <ScheduleShiftsCard projectId={project.id} refreshKey={project.updatedAt} />
     </section>
   );
 }

@@ -1,0 +1,12 @@
+.schedule-shifts-card { grid-column: 1 / -1; }
+.schedule-shift-ladder { border-top: 1px solid var(--border); display: grid; gap: 6px; padding: 10px 0; }
+.schedule-shift-ladder header { align-items: baseline; display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.schedule-shift-goal { background: var(--accent-soft, #e8f0fe); border-radius: 10px; font-size: 11px; font-weight: 700; padding: 1px 8px; }
+.schedule-shift-total { color: var(--text-secondary); font-size: 13px; margin-left: auto; }
+.schedule-shift-steps { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0 0 0 14px; }
+.schedule-shift-step { align-items: baseline; display: grid; gap: 10px; grid-template-columns: 64px minmax(0, 1fr) auto; font-size: 13px; }
+.schedule-shift-step small { color: var(--text-muted); white-space: nowrap; }
+.schedule-shift-step.unexplained, .schedule-shift-step.folded { color: var(--text-muted); font-style: italic; }
+.schedule-shifts-card .late { color: var(--danger, #c0392b); }
+.schedule-shifts-card .early { color: var(--success, #1e8449); }
+.schedule-shifts-card .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; font: inherit; padding: 0; text-align: left; text-decoration: underline; }

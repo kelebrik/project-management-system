@@ -287,6 +287,7 @@ model Project {
   @@index([parentId])
   @@index([businessUnitId, status])
   @@index([sortOrder])
+  scheduleShifts           ScheduleShift[]
 }
 
 model ProjectTargetDateChange {
@@ -1505,4 +1506,41 @@ model AiUsage {
   @@index([createdAt])
   @@index([userId, createdAt])
   @@index([clientIp, createdAt])
+}
+
+/// A date change of a milestone or goal, with what caused it. Written when an
+/// operation moves a checkpoint (or resets its baseline: kind BASELINE); kept
+/// when the row is deleted, so the code and title are copied.
+model ScheduleShift {
+  id               String    @id @default(cuid())
+  projectId        String
+  kind             String    @default("SHIFT")
+  checkpointId     String?
+  checkpointCode   String
+  checkpointTitle  String
+  checkpointType   String
+  previousDate     DateTime? @db.Date
+  newDate          DateTime? @db.Date
+  deltaDays        Int?
+  baselineDate     DateTime? @db.Date
+  trigger          String
+  sourceItemId     String?
+  sourceCode       String?
+  sourceTitle      String?
+  sourceIssueId    String?
+  sourceNote       String?
+  actorId          String?
+  actorName        String?
+  operationId      String
+  reasonCategory   String?
+  reasonText       String?
+  reasonRaidItemId String?
+  reasonSetById    String?
+  reasonSetAt      DateTime?
+  createdAt        DateTime  @default(now())
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([checkpointId, createdAt])
+  @@index([operationId])
 }

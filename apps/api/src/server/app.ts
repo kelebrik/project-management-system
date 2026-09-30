@@ -13,6 +13,7 @@ import { createRisksRouter } from '../routes/risks.routes.js';
 import { createSavedViewsRouter } from '../routes/saved-views.routes.js';
 import { createLeaveScheduleRouter } from '../routes/leave-schedule.routes.js';
 import { createAiRouter } from '../routes/ai.routes.js';
+import { createScheduleShiftsRouter } from '../routes/schedule-shifts.routes.js';
 import { createWbsDraftRouter } from '../routes/wbs-draft.routes.js';
 import { createWorkloadRouter } from '../routes/workload.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
@@ -59,6 +60,8 @@ export function createApp() {
     cors({
       origin: corsOrigin(),
       credentials: true,
+      // The page reads which journal operation a structure edit made and whether it needs a reason.
+      exposedHeaders: ['X-Schedule-Shift-Operation-Id', 'X-Schedule-Shift-Reason-Needed'],
     }),
   );
   app.use('/api', (_req, res, next) => {
@@ -136,6 +139,7 @@ export function createApp() {
   app.use('/api', createWorkloadRouter({ requireAuth }));
   app.use('/api', createAiRouter());
   app.use('/api', createWbsDraftRouter());
+  app.use('/api', createScheduleShiftsRouter());
 
   registerClosedProjectWriteGuards(app);
 

@@ -6,6 +6,8 @@ import { getProjectWbsSnapshot } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { copyCurrentStructuresToProject } from '../../services/wbs-current-structure-copy.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
+import { shiftActor, trackScheduleShifts } from '../../services/schedule-shifts.js';
+import { runWithWbsWriteQueue } from '../wbs/write-queue.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
 import { projectBusinessUnitFields } from '../../services/project-business-unit.js';
 import {
@@ -527,45 +529,54 @@ export function registerProjectCrudRoutes(
     }
 
     const beforeSnapshot = await projectAuditSnapshot(project.id);
-    await prisma.$transaction(async (tx) => {
-      await tx.project.update({
-        where: { id: project.id },
-        data: {
-          initialTargetDate: project.initialTargetDate ?? previousTargetDate,
-          targetDate: nextTargetDate,
-        },
-      });
-      if (activeGoal) {
-        await tx.wbsItem.update({
-          where: { id: activeGoal.id },
-          data: {
-            startDate: nextTargetDate,
-            dueDate: nextTargetDate,
-            forecastStartDate: nextTargetDate,
-            forecastDueDate: nextTargetDate,
-            workDays: 0,
-            calendarDays: 1,
-          },
-        });
-      }
-      await tx.projectTargetDateChange.create({
-        data: {
-          projectId: project.id,
-          previousDate: previousTargetDate,
-          newDate: nextTargetDate,
-          reason: parsed.data.reason,
-          approvedBy: parsed.data.approvedBy || null,
-          createdById: currentUser(req)?.id ?? null,
-        },
-      });
-    });
+    // The goal's new date is journaled with the reason given here, queued like any structure write.
+    await runWithWbsWriteQueue(project.id, () =>
+      trackScheduleShifts(
+        project.id,
+        { trigger: 'TARGET_DATE', sourceItemId: activeGoal?.id ?? null, sourceNote: parsed.data.reason, actor: shiftActor(currentUser(req)) },
+        async () => {
+          await prisma.$transaction(async (tx) => {
+            await tx.project.update({
+              where: { id: project.id },
+              data: {
+                initialTargetDate: project.initialTargetDate ?? previousTargetDate,
+                targetDate: nextTargetDate,
+              },
+            });
+            if (activeGoal) {
+              await tx.wbsItem.update({
+                where: { id: activeGoal.id },
+                data: {
+                  startDate: nextTargetDate,
+                  dueDate: nextTargetDate,
+                  forecastStartDate: nextTargetDate,
+                  forecastDueDate: nextTargetDate,
+                  workDays: 0,
+                  calendarDays: 1,
+                },
+              });
+            }
+            await tx.projectTargetDateChange.create({
+              data: {
+                projectId: project.id,
+                previousDate: previousTargetDate,
+                newDate: nextTargetDate,
+                reason: parsed.data.reason,
+                approvedBy: parsed.data.approvedBy || null,
+                createdById: currentUser(req)?.id ?? null,
+              },
+            });
+          });
 
-    if (activeGoal) {
-      await recalculateProjectWbsSchedule(project.id, {
-        changedItemId: activeGoal.id,
-        changedFields: ['startDate', 'dueDate', 'forecastStartDate', 'forecastDueDate'],
-      });
-    }
+          if (activeGoal) {
+            await recalculateProjectWbsSchedule(project.id, {
+              changedItemId: activeGoal.id,
+              changedFields: ['startDate', 'dueDate', 'forecastStartDate', 'forecastDueDate'],
+            });
+          }
+        },
+      ),
+    );
 
     const updated = await prisma.project.findUnique({
       where: { id: project.id },

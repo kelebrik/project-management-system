@@ -51,6 +51,8 @@ test("the meeting preparation is hidden without a connected model", async ({ pag
 });
 
 test("links from the agenda reveal a nested structure row and a low overdue risk", async ({ page }) => {
+  // Four full page loads: under a busy full run the default half minute is too tight.
+  test.setTimeout(60_000);
   await mockAdminProject(page, (fixture) => {
     const task = fixture.wbsItems[0];
     fixture.wbsItems.unshift(

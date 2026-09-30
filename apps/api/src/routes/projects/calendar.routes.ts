@@ -1,6 +1,9 @@
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
+import { currentUser } from '../../server/auth.js';
+import { shiftActor, trackScheduleShifts } from '../../services/schedule-shifts.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
+import { runWithWbsWriteQueue } from '../wbs/write-queue.js';
 import { calendarOverrideSchema, deleteCalendarOverrideSchema } from './schemas.js';
 import type { ProjectsRoutesContext } from './types.js';
 
@@ -27,28 +30,41 @@ export function registerProjectCalendarRoutes(
     const date = new Date(parsed.data.date);
     date.setUTCHours(0, 0, 0, 0);
 
-    const override = await prisma.projectCalendarOverride.upsert({
-      where: {
-        projectId_calendarCode_date: {
-          projectId: project.id,
-          calendarCode: parsed.data.calendarCode,
-          date,
+    // A changed working day moves work, and so checkpoints: queued and journaled like a structure edit.
+    const override = await runWithWbsWriteQueue(project.id, () =>
+      trackScheduleShifts(
+        project.id,
+        {
+          trigger: 'CALENDAR',
+          sourceNote: `${date.toISOString().slice(0, 10)} ${parsed.data.isWorkingDay ? 'working' : 'day off'}`,
+          actor: shiftActor(currentUser(req)),
         },
-      },
-      create: {
-        projectId: project.id,
-        calendarCode: parsed.data.calendarCode,
-        date,
-        isWorkingDay: parsed.data.isWorkingDay,
-        description: parsed.data.description || null,
-      },
-      update: {
-        isWorkingDay: parsed.data.isWorkingDay,
-        description: parsed.data.description || null,
-      },
-    });
-
-    await recalculateProjectWbsSchedule(project.id);
+        async () => {
+          const saved = await prisma.projectCalendarOverride.upsert({
+            where: {
+              projectId_calendarCode_date: {
+                projectId: project.id,
+                calendarCode: parsed.data.calendarCode,
+                date,
+              },
+            },
+            create: {
+              projectId: project.id,
+              calendarCode: parsed.data.calendarCode,
+              date,
+              isWorkingDay: parsed.data.isWorkingDay,
+              description: parsed.data.description || null,
+            },
+            update: {
+              isWorkingDay: parsed.data.isWorkingDay,
+              description: parsed.data.description || null,
+            },
+          });
+          await recalculateProjectWbsSchedule(project.id);
+          return saved;
+        },
+      ),
+    );
 
     res.json(override);
   });
@@ -67,15 +83,22 @@ export function registerProjectCalendarRoutes(
       return;
     }
 
-    await prisma.projectCalendarOverride.deleteMany({
-      where: {
-        projectId: project.id,
-        calendarCode: parsed.data.calendarCode,
-        date,
-      },
-    });
-
-    await recalculateProjectWbsSchedule(project.id);
+    await runWithWbsWriteQueue(project.id, () =>
+      trackScheduleShifts(
+        project.id,
+        { trigger: 'CALENDAR', sourceNote: `${date.toISOString().slice(0, 10)} reset`, actor: shiftActor(currentUser(req)) },
+        async () => {
+          await prisma.projectCalendarOverride.deleteMany({
+            where: {
+              projectId: project.id,
+              calendarCode: parsed.data.calendarCode,
+              date,
+            },
+          });
+          await recalculateProjectWbsSchedule(project.id);
+        },
+      ),
+    );
 
     res.status(204).send();
   });

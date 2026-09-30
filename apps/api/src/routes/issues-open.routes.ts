@@ -62,6 +62,7 @@ import {
 import { emitWebhookEvent } from '../services/webhooks.js';
 import { registerJiraSemanticAggregateRoutes } from './jira-semantic-aggregates.routes.js';
 import { runWithWbsWriteQueue } from './wbs/write-queue.js';
+import { shiftActor, trackScheduleShifts } from '../services/schedule-shifts.js';
 import {
   calendarDelayDays,
   ensureIssuePhaseSelectionAccess,
@@ -152,9 +153,10 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
   }
 
   const dueDate = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
+  // A work package follows the issue's due date, so checkpoints may move: journaled as the issue's doing.
   const { issue, workPackageMutation } = await runWithWbsWriteQueue(
     project.id,
-    async () => {
+    () => trackScheduleShifts(project.id, { trigger: 'ISSUE', sourceNote: parsed.data.title, actor: shiftActor(currentUser(req)) }, async () => {
       const result = await prisma.$transaction(async (tx) => {
         const mutation = phaseId
           ? await upsertIssueWorkPackage(tx, {
@@ -205,7 +207,7 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
       });
       await finalizeIssueWorkPackage(project.id, result.workPackageMutation);
       return result;
-    },
+    }),
   );
 
   await recordAuditEvent({
@@ -271,7 +273,7 @@ router.patch('/open-issues/:issueId', async (req, res) => {
   }
   const result = await runWithWbsWriteQueue(
     issue.projectId,
-    async () => {
+    () => trackScheduleShifts(issue.projectId, { trigger: 'ISSUE', sourceIssueId: issue.id, sourceNote: issue.title, actor: shiftActor(currentUser(req)) }, async () => {
       const transactionResult = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw(Prisma.sql`
           SELECT "id" FROM "Issue" WHERE "id" = ${issue.id} FOR UPDATE
@@ -485,7 +487,7 @@ router.patch('/open-issues/:issueId', async (req, res) => {
       if (!transactionResult) return null;
       await finalizeIssueWorkPackage(issue.projectId, transactionResult.workPackageMutation);
       return transactionResult;
-    },
+    }),
   );
   if (!result) return;
   const { beforeIssue, updated } = result;
