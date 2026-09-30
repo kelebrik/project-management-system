@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Link as LinkIcon } from "lucide-react";
 import { ReadinessPanel } from '../components/automation/ReadinessPanel';
 import { AskProjectButton, StatusReportButton } from "../components/ai/AiProjectButtons";
 import { ScheduleShiftsCard } from "../components/scheduleShifts/ScheduleShiftsCard";
+import { LessonsButton } from "../components/lessons/LessonsButton";
 import { useEffect, useState } from "react";
 import type { IssueStatusUpdate, RaidItemStatusUpdate } from "../app/domainTypes";
 import { JiraCurrentFreshnessNotice } from "../components/JiraCurrentFreshnessNotice";
@@ -69,6 +70,7 @@ function OverviewStatusHistory({
 export function ProjectOverviewSummaryPage() {
   const { t: uiText } = useInterfaceTranslation();
   const {
+    canWriteSelectedProject,
     date,
     openRaidItemFromOverview,
     openView,
@@ -110,6 +112,7 @@ export function ProjectOverviewSummaryPage() {
   return (
     <section className="executive-overview-grid">
       <div className="ai-report-bar">
+        <LessonsButton canWrite={Boolean(canWriteSelectedProject)} projectId={project.id} />
         <AskProjectButton projectId={project.id} />
         <StatusReportButton projectId={project.id} projectName={project.name} />
       </div>

@@ -56,6 +56,11 @@ const WorkloadPage = lazy(() =>
     default: module.WorkloadPage,
   })),
 );
+const LessonsRegisterPage = lazy(() =>
+  import("./LessonsRegisterPage").then((module) => ({
+    default: module.LessonsRegisterPage,
+  })),
+);
 const DecisionQueuePage = lazy(() =>
   import("./DecisionQueuePage").then((module) => ({
     default: module.DecisionQueuePage,
@@ -99,6 +104,11 @@ export function AppPages() {
       {activeView === "leave-schedule" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <LeaveSchedulePage />
+        </Suspense>
+      )}
+      {activeView === "lessons-register" && (
+        <Suspense fallback={<DevelopmentPageFallback />}>
+          <LessonsRegisterPage />
         </Suspense>
       )}
       {activeView === "decision-queue" && (

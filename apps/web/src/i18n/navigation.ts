@@ -176,6 +176,10 @@ export const navigation = {
     "en": "Questions",
     "ru": "Вопросы"
   },
+  "view.lessons-register": {
+    "en": "Project lessons",
+    "ru": "Уроки проектов"
+  },
   "view.decision-queue": {
     "en": "Decision queue",
     "ru": "Очередь решений"

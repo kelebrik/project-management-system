@@ -504,7 +504,7 @@ export function useProjectRegistryController({
       if (
         !(await confirm({
           title: "Закрыть проект?",
-          message: `Проект ${sourceProject.code} станет доступен только для чтения, в том числе для администраторов.`,
+          message: `Проект ${sourceProject.code} станет доступен только для чтения, в том числе для администраторов. Перед закрытием сохраните уроки проекта: Состояние → Уроки проекта (их можно дописать и после закрытия).`,
           confirmLabel: "Закрыть",
           tone: "default",
         }))

@@ -568,6 +568,8 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
   }, [project?.calendarOverrides]);
 
   return {
+    // Whether the user may change the selected project at all, closed or not: lessons are written after closure.
+    canWriteSelectedProject: isAuthenticated && !isDemoLookOnlySection && canWriteSelectedProject,
     activeGanttLinkIds,
     activeMilestoneLabelDrag,
     activeProjectTree,

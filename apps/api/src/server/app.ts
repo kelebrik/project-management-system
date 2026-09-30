@@ -16,6 +16,7 @@ import { createAiRouter } from '../routes/ai.routes.js';
 import { createScheduleShiftsRouter } from '../routes/schedule-shifts.routes.js';
 import { createDecisionsRouter } from '../routes/decisions.routes.js';
 import { createPlanSnapshotsRouter } from '../routes/plan-snapshots.routes.js';
+import { createLessonsRouter } from '../routes/lessons.routes.js';
 import { createWbsDraftRouter } from '../routes/wbs-draft.routes.js';
 import { createWorkloadRouter } from '../routes/workload.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
@@ -144,6 +145,7 @@ export function createApp() {
   app.use('/api', createScheduleShiftsRouter());
   app.use('/api', createDecisionsRouter());
   app.use('/api', createPlanSnapshotsRouter());
+  app.use('/api', createLessonsRouter());
 
   registerClosedProjectWriteGuards(app);
 

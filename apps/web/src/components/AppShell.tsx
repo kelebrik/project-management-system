@@ -1,6 +1,6 @@
 import type { FocusEventHandler, KeyboardEventHandler, ReactNode } from "react";
 import { ShiftReasonPrompt } from "./scheduleShifts/ShiftReasonPrompt";
-import { Archive, BarChart3, BookOpen, BriefcaseBusiness, CalendarDays, CircleHelp, ClipboardList, Code2, FileArchive, FileSpreadsheet, FileText, FolderTree, GanttChartSquare, Gavel, GitBranch, HardDriveDownload, HeartPulse, Import, KeyRound, LayoutDashboard, ListChecks, ListTodo, NotebookText, Plus, Settings, Settings2, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { Archive, BarChart3, BookOpen, BriefcaseBusiness, CalendarDays, CircleHelp, ClipboardList, Code2, FileArchive, FileSpreadsheet, FileText, FolderTree, GanttChartSquare, Gavel, GitBranch, GraduationCap, HardDriveDownload, HeartPulse, Import, KeyRound, LayoutDashboard, ListChecks, ListTodo, NotebookText, Plus, Settings, Settings2, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 
 import type { Toast } from "../hooks/useAppFeedbackState";
 import type { CurrentUser } from "../app/adminTypes";
@@ -287,6 +287,11 @@ const developmentNavItems: AdminNavItem[] = [
     view: "decision-queue",
     label: "view.decision-queue",
     icon: <CircleHelp size={15} />,
+  },
+  {
+    view: "lessons-register",
+    label: "view.lessons-register",
+    icon: <GraduationCap size={15} />,
   },
   {
     view: "resources",

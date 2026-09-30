@@ -8,11 +8,12 @@ import { userCanWriteProject } from '../server/project-access.js';
 export type ProjectWriter = { user: NonNullable<ReturnType<typeof currentUser>>; project: { id: string; status: string }; demo: boolean };
 
 /**
- * A signed-in user who may change this open project: an administrator, the
+ * A signed-in user who may change this open project (or, with allowClosed, a
+ * closed one, for what is written after closure): an administrator, the
  * public demo visitor, or someone with edit access. Answers the request itself
  * (401, 404, 423 closed, 403) and returns null otherwise.
  */
-export async function projectWriter(req: Request, res: Response, projectId: string): Promise<ProjectWriter | null> {
+export async function projectWriter(req: Request, res: Response, projectId: string, options: { allowClosed?: boolean } = {}): Promise<ProjectWriter | null> {
   const user = currentUser(req);
   if (!user) {
     res.status(401).json({ error: 'Требуется вход в систему' });
@@ -23,7 +24,7 @@ export async function projectWriter(req: Request, res: Response, projectId: stri
     res.status(404).json({ error: 'Проект не найден' });
     return null;
   }
-  if (project.status === 'CLOSED') {
+  if (project.status === 'CLOSED' && !options.allowClosed) {
     res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
     return null;
   }

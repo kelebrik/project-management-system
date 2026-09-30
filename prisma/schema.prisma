@@ -290,6 +290,7 @@ model Project {
   scheduleShifts           ScheduleShift[]
   decisions                Decision[]
   planSnapshots            PlanSnapshot[]
+  lessons                  Lesson[]
 }
 
 model ProjectTargetDateChange {
@@ -1594,4 +1595,26 @@ model PlanSnapshot {
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, takenAt])
+}
+
+/// A lesson of a project: what happened and what to do next time, with the
+/// record it came from (a move of the schedule, a risk or problem, an issue,
+/// a decision) or written by hand. Kept after the project closes, for the next ones.
+model Lesson {
+  id             String   @id @default(cuid())
+  projectId      String
+  category       String
+  title          String
+  text           String   @default("")
+  recommendation String   @default("")
+  sourceKind     String   @default("MANUAL")
+  sourceRef      String?
+  createdById    String?
+  createdByName  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([category, createdAt])
 }

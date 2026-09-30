@@ -90,4 +90,39 @@ export const openApiDecisionPaths = {
   "/api/plan-snapshots/{snapshotId}": {
     delete: { ...securedOperation(["WBS"], "Delete a snapshot (administrators only)", [pathParam("snapshotId")], "Deleted"), responses: { "204": { description: "Deleted" }, "403": { description: "Not an administrator" } } },
   },
+  "/api/projects/{projectId}/lessons": {
+    get: securedOperation(["Projects"], "Lessons of the project", [pathParam("projectId")], "Lessons"),
+    post: {
+      ...securedOperation(["Projects"], "Save a lesson; allowed after the project closes too", [pathParam("projectId")], "Lesson"),
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["category", "title"],
+              properties: {
+                category: { type: "string", enum: ["CUSTOMER", "SUPPLIER", "RESOURCES", "ESTIMATE", "TECHNICAL", "EXTERNAL", "OTHER", "GOOD_PRACTICE"] },
+                title: { type: "string", minLength: 3, maxLength: 300 },
+                text: { type: "string", maxLength: 4000 },
+                recommendation: { type: "string", maxLength: 4000 },
+                sourceKind: { type: "string", enum: ["MANUAL", "SHIFT", "RISK", "ISSUE", "DECISION"] },
+                sourceRef: { type: ["string", "null"] },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  "/api/projects/{projectId}/lessons/draft": {
+    get: securedOperation(["Projects"], "A draft of lessons from the project's records (goal moves by reason, problems, risks that came true, critical issues, decisions); no model", [pathParam("projectId")], "Draft lessons with their sources"),
+  },
+  "/api/lessons/{lessonId}": {
+    patch: securedOperation(["Projects"], "Change a lesson", [pathParam("lessonId")], "Lesson"),
+    delete: securedOperation(["Projects"], "Delete a lesson", [pathParam("lessonId")], "Deleted"),
+  },
+  "/api/lessons": {
+    get: securedOperation(["Projects"], "Lessons of all readable projects, newest first; category, q and page filters, 50 per page", [], "Page of lessons with their project"),
+  },
 };
