@@ -4,8 +4,8 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { currentUser, isPublicDemoMode } from '../server/auth.js';
 import { readableProjectWhere } from '../server/business-units.js';
-import { userCanWriteProject } from '../server/project-access.js';
 import { recordAuditEvent } from '../services/audit.js';
+import { projectWriter, readableProject } from './project-writer.js';
 
 export const DECISION_STATUSES = ['PROPOSED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SUPERSEDED'] as const;
 
@@ -46,32 +46,8 @@ class Refusal extends Error {
   }
 }
 
-/** A signed-in user who may change this open project; answers the request itself otherwise. */
-async function writer(req: Request, res: Response, projectId: string) {
-  const user = currentUser(req);
-  if (!user) {
-    res.status(401).json({ error: 'Требуется вход в систему' });
-    return null;
-  }
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true, status: true } });
-  if (!project) {
-    res.status(404).json({ error: 'Проект не найден' });
-    return null;
-  }
-  if (project.status === 'CLOSED') {
-    res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
-    return null;
-  }
-  if (!isDemo(user) && user.role !== 'ADMIN' && !(await userCanWriteProject(user.id, project.id))) {
-    res.status(403).json({ error: 'Нет доступа на изменение этого проекта' });
-    return null;
-  }
-  return { user, project };
-}
-
-async function readable(req: Request, projectId: string) {
-  return prisma.project.findFirst({ where: { id: projectId, ...(await readableProjectWhere(req)) }, select: { id: true } });
-}
+const writer = projectWriter;
+const readable = (req: Request, projectId: string) => readableProject(req, projectId);
 
 /** Links must point into the same project; a link to another project's record is refused. */
 async function checkLinks(projectId: string, input: { issueId?: string | null; raidItemId?: string | null; wbsItemId?: string | null; changeRequestId?: string | null }) {

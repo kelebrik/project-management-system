@@ -4,6 +4,8 @@ import { ProjectGanttSection } from "./ProjectGanttSection";
 import { ProjectStructureSection } from "./ProjectStructureSection";
 import { EmployeeNamesList } from "../components/EmployeeNamesList";
 import { WbsDraftButton } from "../components/ai/AiProjectButtons";
+import { PlanSnapshotsButton } from "../components/planSnapshots/PlanSnapshotsButton";
+import { hasPendingWbsBuffers } from "../components/WbsBufferedInput";
 
 export function ProjectWorkspacePage() {
   const { t: uiText } = useInterfaceTranslation();
@@ -39,6 +41,13 @@ export function ProjectWorkspacePage() {
                           : uiText("ui.projects.ganttTabDescription")}
                       </p>
                     </div>
+                    {activeView === "project-structure" && (
+                      <PlanSnapshotsButton
+                        canWrite={!ctx.isReadOnly && !ctx.isClosedProject}
+                        hasUnsavedEdits={() => (ctx.dirtyWbsItemIds?.size ?? 0) > 0 || hasPendingWbsBuffers() || Boolean(ctx.savingWbsBulk)}
+                        projectId={ctx.project.id}
+                      />
+                    )}
                     {activeView === "project-structure" && !ctx.isReadOnly && (
                       <WbsDraftButton onApplied={() => ctx.refreshProject(ctx.project.id)} projectId={ctx.project.id} unsavedRows={ctx.dirtyWbsItemIds?.size ?? 0} />
                     )}

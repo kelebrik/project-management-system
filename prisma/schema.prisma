@@ -289,6 +289,7 @@ model Project {
   @@index([sortOrder])
   scheduleShifts           ScheduleShift[]
   decisions                Decision[]
+  planSnapshots            PlanSnapshot[]
 }
 
 model ProjectTargetDateChange {
@@ -1577,4 +1578,20 @@ model Decision {
 
   @@index([projectId, status])
   @@index([approverUserId, status])
+}
+
+/// A named copy of the plan taken for a committee or a review. It never changes
+/// and never touches the baseline or the current plan; rows are kept as JSON.
+model PlanSnapshot {
+  id            String   @id @default(cuid())
+  projectId     String
+  name          String
+  takenAt       DateTime @default(now())
+  createdById   String?
+  createdByName String?
+  rowCount      Int
+  rows          Json
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, takenAt])
 }

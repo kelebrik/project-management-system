@@ -73,4 +73,21 @@ export const openApiDecisionPaths = {
       responses: { "200": { description: "Answered" }, "403": { description: "Not the approver" }, ...conflict },
     },
   },
+  "/api/projects/{projectId}/plan-snapshots": {
+    get: securedOperation(["WBS"], "Named plan snapshots of the project, newest first (without rows)", [pathParam("projectId")], "Snapshots"),
+    post: {
+      ...securedOperation(["WBS"], "Save the plan as it is under a name; changes neither the baseline nor the plan", [pathParam("projectId")], "Snapshot"),
+      requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["name"], properties: { name: { type: "string", minLength: 2, maxLength: 120 } } } } } },
+      responses: { "201": { description: "Saved" }, "409": { description: "50 snapshots already" }, "413": { description: "The structure is too large for a snapshot" }, "423": { description: "Project is closed" } },
+    },
+  },
+  "/api/projects/{projectId}/plan-snapshots/compare": {
+    get: {
+      ...securedOperation(["WBS"], "Compare two snapshots, or a snapshot with the plan today (from, to: snapshot id or current)", [pathParam("projectId")], "Changes, added and removed rows"),
+      responses: { "200": { description: "Comparison; rows matched by id, then by code" }, "400": { description: "A snapshot of another project or none" } },
+    },
+  },
+  "/api/plan-snapshots/{snapshotId}": {
+    delete: { ...securedOperation(["WBS"], "Delete a snapshot (administrators only)", [pathParam("snapshotId")], "Deleted"), responses: { "204": { description: "Deleted" }, "403": { description: "Not an administrator" } } },
+  },
 };

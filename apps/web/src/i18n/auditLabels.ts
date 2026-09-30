@@ -53,6 +53,8 @@ const actions: Record<string, LocalizedLabel> = {
   "ai.meeting_prep": { ru: "Подготовка к встрече моделью ИИ", en: "Meeting agenda by AI" },
   "ai.status_report": { ru: "Отчет для руководства моделью ИИ", en: "Status report written by AI" },
   "ai.wbs_draft": { ru: "Черновик Структуры моделью ИИ", en: "Structure draft by AI" },
+  "plan_snapshot.create": { ru: "Сохранен срез плана", en: "Plan snapshot saved" },
+  "plan_snapshot.delete": { ru: "Удален срез плана", en: "Plan snapshot deleted" },
   "decision.create": { ru: "Предложение решения", en: "Decision proposed" },
   "decision.record": { ru: "Решение зафиксировано как принятое", en: "Decision recorded as taken" },
   "decision.update": { ru: "Изменение черновика решения", en: "Decision draft edited" },

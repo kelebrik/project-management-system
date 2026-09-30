@@ -1,0 +1,16 @@
+.side-drawer.plan-snapshots-drawer { align-content: start; max-width: 100vw; width: 780px; }
+.plan-snapshots-intro { color: var(--text-secondary); font-size: 13px; margin: 0; }
+.plan-snapshots-row { align-items: end; display: flex; flex-wrap: wrap; gap: 10px; }
+.plan-snapshots-row label { display: grid; font-size: 12px; font-weight: 600; gap: 4px; color: var(--text-secondary); }
+.plan-snapshots-row input, .plan-snapshots-row select { font: inherit; font-size: 13px; font-weight: 400; min-width: 220px; }
+.plan-snapshots-empty { color: var(--text-muted); }
+.plan-comparison { display: grid; gap: 8px; font-size: 13px; }
+.plan-comparison p { margin: 0; }
+.plan-comparison-summary { font-weight: 600; }
+.plan-comparison-table { border-collapse: collapse; width: 100%; }
+.plan-comparison-table th, .plan-comparison-table td { border-bottom: 1px solid var(--border); padding: 4px 6px; text-align: left; vertical-align: top; }
+.plan-comparison-table tr.checkpoint td:first-child { font-weight: 700; }
+.plan-comparison-table .late { color: var(--danger, #c0392b); }
+.plan-comparison-table .early { color: var(--success, #1e8449); }
+.plan-snapshots-drawer .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; font: inherit; padding: 0; text-align: left; text-decoration: underline; }
+.plan-snapshots-button { align-items: center; display: inline-flex; gap: 6px; white-space: nowrap; }
