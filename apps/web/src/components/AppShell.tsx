@@ -1,4 +1,5 @@
 import type { FocusEventHandler, KeyboardEventHandler, ReactNode } from "react";
+import { ShiftReasonPrompt } from "./scheduleShifts/ShiftReasonPrompt";
 import {
   Archive,
   BarChart3,
@@ -627,6 +628,7 @@ export function AppShell({
             <AppPages />
           </PageBoundary>
           <IssueDrawer />
+          <ShiftReasonPrompt />
         </PageContextProvider>
       </main>
     </div>

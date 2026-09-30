@@ -46,6 +46,7 @@ const actions: Record<string, LocalizedLabel> = {
   "admin.dictionary.deactivate": { ru: "Отключение элемента справочника", en: "Dictionary item disabled" },
   "admin.system_settings.update": { ru: "Изменение системных настроек", en: "System settings changed" },
   "auth.keycloak_login": { ru: "Вход через Keycloak", en: "Keycloak sign-in" },
+  "schedule_shift.reason": { ru: "Причина сдвига вехи", en: "Checkpoint move reason" },
   "ai.workload_rebalance": { ru: "Перераспределение загрузки моделью ИИ", en: "Workload rebalancing by AI" },
   "ai.ask_project": { ru: "Вопрос о проекте модели ИИ", en: "Question about the project to AI" },
   "ai.risk_suggestions": { ru: "Предложения по рискам от модели ИИ", en: "Risk suggestions by AI" },

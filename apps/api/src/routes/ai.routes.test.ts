@@ -79,6 +79,9 @@ async function post(setup: Setup & { path?: string; report?: unknown; draft?: un
       };
     }) as any,
     loadLeaves: (async () => []) as any,
+    loadShiftLadders: (async () => [
+      { isActiveGoal: true, code: '3', title: 'Запуск', varianceDays: 9, unexplainedDays: 2, reasonDays: { SUPPLIER: 5, NONE: 2 } },
+    ]) as any,
     hasEditableProject: async () => setup.editable ?? true,
     loadWorkload: (async () => ({
       projects: [{ id: 'p1', code: 'TV', name: 'Телевизор' }],
@@ -339,4 +342,11 @@ test('workload rebalancing works across projects, needs one the user may change,
   assert.equal((await post({ path: '/ai/workload-rebalance', editable: false, body: {} })).res.statusCode, 403);
   assert.equal((await post({ path: '/ai/workload-rebalance', body: { horizonDays: 45 } })).res.statusCode, 400);
   assert.equal((await post({ path: '/ai/workload-rebalance', user: null, apiToken: { id: 't' }, body: {} })).res.statusCode, 403);
+});
+
+test('the status report is told how many days of the goal move come from which reason', async () => {
+  const { res, extracted } = await post({ path: '/projects/:projectId/ai/status-report', access: 'EDIT', body: { periodDays: 7 } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const facts = JSON.parse(extracted.facts);
+  assert.deepEqual(facts.activeGoalShiftDays, { goal: '3 Запуск', varianceDays: 9, beforeJournalDays: 2, byReason: { SUPPLIER: 5, NONE: 2 } });
 });

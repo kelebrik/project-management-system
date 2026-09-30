@@ -236,6 +236,21 @@ export function buildShiftLadders(checkpointRows: LadderCheckpoint[], journal: J
     const steps = since.filter((row) => row.kind === 'SHIFT');
     const varianceDays = item.dueDate && item.baselineDueDate ? calendarDaysBetween(item.baselineDueDate, item.dueDate) : null;
     const explainedDays = steps.reduce((sum, row) => sum + (row.deltaDays ?? 0), 0);
+    // Days by reason: each operation once for this checkpoint, by its net move, and only when it moved it later;
+    // the rest is "no reason" or "before the journal".
+    const byOperation = new Map<string, { days: number; category: string | null }>();
+    for (const row of steps) {
+      const entry = byOperation.get(row.operationId) ?? { days: 0, category: null };
+      entry.days += row.deltaDays ?? 0;
+      entry.category = row.reasonCategory ?? entry.category;
+      byOperation.set(row.operationId, entry);
+    }
+    const reasonDays: Record<string, number> = {};
+    for (const { days, category } of byOperation.values()) {
+      if (days <= 0) continue;
+      const key = category ?? 'NONE';
+      reasonDays[key] = (reasonDays[key] ?? 0) + days;
+    }
     const shown = steps.slice(-LADDER_STEPS);
     const folded = steps.slice(0, steps.length - shown.length);
     return {
@@ -249,6 +264,7 @@ export function buildShiftLadders(checkpointRows: LadderCheckpoint[], journal: J
       varianceDays,
       // What the journal does not account for: moves before it existed, or a baseline set outside it.
       unexplainedDays: varianceDays === null ? null : varianceDays - explainedDays,
+      reasonDays,
       earlierSteps: folded.length > 0 ? { count: folded.length, deltaDays: folded.reduce((sum, row) => sum + (row.deltaDays ?? 0), 0) } : null,
       steps: shown.map((row) => ({
         id: row.id,
@@ -285,4 +301,22 @@ export async function projectShiftLadders(projectId: string) {
     orderBy: { createdAt: 'asc' },
   });
   return buildShiftLadders(items, journal);
+}
+
+/** The later-than-baseline moves of one operation that still have no reason, for the prompt after a save. */
+export async function operationShiftsNeedingReason(operationId: string) {
+  const rows = await prisma.scheduleShift.findMany({ where: { operationId, kind: 'SHIFT', reasonCategory: null }, orderBy: { checkpointCode: 'asc' } });
+  const open = rows.filter((row) => needsReason(row as Parameters<typeof needsReason>[0]));
+  return {
+    projectId: open[0]?.projectId ?? rows[0]?.projectId ?? null,
+    shifts: open.map((row) => ({
+      id: row.id,
+      checkpointId: row.checkpointId,
+      checkpointCode: row.checkpointCode,
+      checkpointTitle: row.checkpointTitle,
+      deltaDays: row.deltaDays,
+      newDate: isoDay(row.newDate),
+      baselineDate: isoDay(row.baselineDate),
+    })),
+  };
 }

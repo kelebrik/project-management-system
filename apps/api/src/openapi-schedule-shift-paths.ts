@@ -54,6 +54,11 @@ export const openApiScheduleShiftPaths = {
                         varianceDays: { type: ["integer", "null"] },
                         unexplainedDays: { type: ["integer", "null"], description: "Days no journaled step explains, such as moves before the journal" },
                         earlierSteps: { type: ["object", "null"], properties: { count: { type: "integer" }, deltaDays: { type: "integer" } } },
+                        reasonDays: {
+                          type: "object",
+                          additionalProperties: { type: "integer" },
+                          description: "Days of later moves since the baseline by reason category; NONE has no reason yet",
+                        },
                         steps: { type: "array", items: step },
                       },
                     },
@@ -64,6 +69,71 @@ export const openApiScheduleShiftPaths = {
           },
         },
         "404": { description: "Project not found or not readable" },
+      },
+    },
+  },
+  "/api/schedule-shifts/operations/{operationId}": {
+    get: {
+      ...securedOperation(tags, "The moves past the baseline one operation made that still have no reason", [pathParam("operationId")], "Moves to ask about"),
+      responses: {
+        "200": {
+          description: "Empty when the project is not readable or nothing needs a reason",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  projectId: { type: ["string", "null"] },
+                  shifts: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        checkpointId: { type: ["string", "null"] },
+                        checkpointCode: { type: "string" },
+                        checkpointTitle: { type: "string" },
+                        deltaDays: { type: ["integer", "null"] },
+                        newDate: { type: ["string", "null"], format: "date" },
+                        baselineDate: { type: ["string", "null"], format: "date" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  "/api/projects/{projectId}/schedule-shifts/reason": {
+    patch: {
+      ...securedOperation(tags, "Give moves of the project a reason; can be changed later", [pathParam("projectId")], "Number of moves updated"),
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["shiftIds", "category"],
+              properties: {
+                shiftIds: { type: "array", minItems: 1, maxItems: 50, items: { type: "string" } },
+                category: { type: "string", enum: ["CUSTOMER", "SUPPLIER", "RESOURCES", "ESTIMATE", "TECHNICAL", "EXTERNAL", "OTHER"] },
+                text: { type: "string", maxLength: 500 },
+                raidItemId: { type: ["string", "null"], description: "A risk or problem of the same project" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": { description: "Reason saved" },
+        "400": { description: "Invalid request, moves of another project or a risk of another project" },
+        "401": { description: "Not signed in" },
+        "403": { description: "No right to change the project" },
+        "404": { description: "Project not found" },
+        "423": { description: "Project is closed and read-only" },
       },
     },
   },

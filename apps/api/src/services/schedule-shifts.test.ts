@@ -108,6 +108,9 @@ test('each checkpoint counts steps from its own baseline; the rest is what the j
   assert.deepEqual(milestone.steps[0].reason, { category: 'SUPPLIER', text: null, raidItemId: null });
   assert.equal(milestone.steps[0].needsReason, false);
   assert.equal(milestone.steps[1].needsReason, true);
+  // Days by reason count later moves since the baseline, once per operation of this checkpoint.
+  assert.deepEqual(milestone.reasonDays, { SUPPLIER: 5, NONE: 3 });
+  assert.deepEqual(goal.reasonDays, { NONE: 9 });
 });
 
 test('long histories fold the older steps into one line', () => {
@@ -118,4 +121,17 @@ test('long histories fold the older steps into one line', () => {
   assert.equal(ladder.steps.length, LADDER_STEPS);
   assert.deepEqual(ladder.earlierSteps, { count: 5, deltaDays: 5 });
   assert.equal(ladder.unexplainedDays, 34 - 35);
+});
+
+test('days by reason count one operation once for a checkpoint, by its net move', () => {
+  const [ladder] = buildShiftLadders(
+    [checkpoint('m', '2026-11-08', '2026-11-01')],
+    [
+      row('m', 'SHIFT', 'twice', 4, '2026-09-01T10:00:00Z', { reasonCategory: 'CUSTOMER' }),
+      row('m', 'SHIFT', 'twice', 1, '2026-09-01T10:00:01Z'),
+      row('m', 'SHIFT', 'back', -2, '2026-09-02T10:00:00Z'),
+      row('m', 'SHIFT', 'late', 4, '2026-09-03T10:00:00Z'),
+    ],
+  );
+  assert.deepEqual(ladder.reasonDays, { CUSTOMER: 5, NONE: 4 });
 });

@@ -1,4 +1,5 @@
 import { businessUnitHeaders } from "./businessUnitContext";
+import { noticeScheduleShift } from "./scheduleShiftNotice";
 import { viewSectionHeaders } from "./sectionHeader";
 
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -20,6 +21,7 @@ export async function authenticatedFetch(
   if (response.status === 401) {
     window.dispatchEvent(new CustomEvent("pms-auth-required"));
   }
+  if (response.ok) noticeScheduleShift(response);
   return response;
 }
 

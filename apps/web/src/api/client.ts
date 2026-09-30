@@ -1,4 +1,5 @@
 import { businessUnitHeaders } from "../app/businessUnitContext";
+import { noticeScheduleShift } from "../app/scheduleShiftNotice";
 import { viewSectionHeaders } from "../app/sectionHeader";
 import { readLocale } from "../i18n/locale";
 import { createTranslator } from "../i18n/translate";
@@ -63,6 +64,7 @@ async function request<T>(
       ...options.headers,
     },
   });
+  if (response.ok) noticeScheduleShift(response);
   const text = response.status === 204 ? "" : await response.text();
   let result: unknown = null;
   if (text) {

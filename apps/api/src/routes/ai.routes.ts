@@ -10,6 +10,7 @@ import { extractMeetingDrafts } from '../services/ai/meeting-drafts.js';
 import { buildReportFacts, writeStatusReport } from '../services/ai/status-report.js';
 import { draftWbs, WBS_DRAFT_LIMITS } from '../services/ai/wbs-draft.js';
 import { getProjectForOverviewGeneration } from '../services/executive-overview.js';
+import { projectShiftLadders } from '../services/schedule-shifts.js';
 import { createAiKit, isDemoVisitor, type AiKitDependencies } from './ai/common.js';
 import { registerMeetingPrep, type MeetingPrepDependencies } from './ai/meeting-prep.routes.js';
 import { registerRiskAssistant, type RiskAssistantDependencies } from './ai/risk-assistant.routes.js';
@@ -39,6 +40,7 @@ type Dependencies = {
   suggestRisks?: RiskAssistantDependencies['suggest'];
   askProject?: AskProjectDependencies['ask'];
   loadLeaves?: AskProjectDependencies['loadLeaves'];
+  loadShiftLadders?: typeof projectShiftLadders;
   suggestRebalance?: WorkloadRebalanceDependencies['suggest'];
   loadWorkload?: WorkloadRebalanceDependencies['loadWorkload'];
   now?: () => Date;
@@ -66,6 +68,7 @@ export function createAiRouter(dependencies: Dependencies = {}) {
   const kit = createAiKit({ config, reserve: dependencies.reserve, finish: dependencies.finish, hasEditableProject: dependencies.hasEditableProject });
   const { guard, runAiCall } = kit;
   const now = dependencies.now ?? (() => new Date());
+  const loadShiftLadders = dependencies.loadShiftLadders ?? projectShiftLadders;
 
   const allowedFor = (req: Request) =>
     config.enabled && Boolean(currentUser(req)) && !currentApiToken(req) && (!isDemoVisitor(req) || config.allowPublicDemo);
@@ -116,7 +119,11 @@ export function createAiRouter(dependencies: Dependencies = {}) {
       res.status(404).json({ error: 'Проект не найден' });
       return;
     }
-    const facts = buildReportFacts(project, body.data.periodDays, now());
+    const goal = (await loadShiftLadders(context.project.id).catch(() => [])).find((ladder) => ladder.isActiveGoal);
+    const goalShifts = goal
+      ? { goal: `${goal.code} ${goal.title}`, varianceDays: goal.varianceDays, beforeJournalDays: goal.unexplainedDays, byReason: goal.reasonDays }
+      : null;
+    const facts = buildReportFacts(project, body.data.periodDays, now(), goalShifts);
     await runAiCall(req, res, context, {
       feature: 'status-report',
       inputChars: facts.length,

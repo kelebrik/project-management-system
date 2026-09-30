@@ -64,6 +64,24 @@ test('structure edits, calendar days and baselines are journaled against the che
     assert.equal(ladders[0].steps[0].needsReason, true);
     assert.equal(ladders[0].unexplainedDays, 0);
 
+    // The page asks why, and the reason is kept on the move and counted by category.
+    const operation = await (await request(`/api/schedule-shifts/operations/${operationId}`)).json();
+    assert.deepEqual([operation.projectId, operation.shifts.map((row: any) => row.id)], [project.id, [shift.id]]);
+    const reason = await request(`/api/projects/${project.id}/schedule-shifts/reason`, {
+      method: 'PATCH',
+      body: JSON.stringify({ shiftIds: [shift.id], category: 'SUPPLIER', text: 'Платы пришли позже' }),
+    });
+    assert.equal(reason.status, 200, await reason.clone().text());
+    const reasoned = (await (await request(`/api/projects/${project.id}/schedule-shifts`)).json()).checkpoints[0];
+    assert.deepEqual(reasoned.reasonDays, { SUPPLIER: shift.deltaDays });
+    assert.equal(reasoned.steps[0].needsReason, false);
+    assert.deepEqual((await (await request(`/api/schedule-shifts/operations/${operationId}`)).json()).shifts, []);
+    const foreign = await request(`/api/projects/${project.id}/schedule-shifts/reason`, {
+      method: 'PATCH',
+      body: JSON.stringify({ shiftIds: [shift.id, 'not-in-project'], category: 'OTHER' }),
+    });
+    assert.equal(foreign.status, 400);
+
     // Two edits at once: both are journaled, each as its own operation.
     const [a, b] = await Promise.all([
       request(`/api/wbs-items/${task.id}`, { method: 'PATCH', body: JSON.stringify({ workDays: 10 }) }),

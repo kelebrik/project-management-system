@@ -10,3 +10,19 @@
 .schedule-shifts-card .late { color: var(--danger, #c0392b); }
 .schedule-shifts-card .early { color: var(--success, #1e8449); }
 .schedule-shifts-card .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; font: inherit; padding: 0; text-align: left; text-decoration: underline; }
+.schedule-shift-reason { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 2 / -1; font-size: 12px; }
+.schedule-shift-step .shift-reason-form { grid-column: 2 / -1; }
+.schedule-shift-reasons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; font-size: 12px; color: var(--text-secondary); }
+.schedule-shift-reason-chip { background: var(--surface-2, #f1f3f5); border-radius: 10px; padding: 1px 8px; font-size: 12px; }
+.schedule-shift-reason-chip.missing { background: var(--warning-soft, #fff4e5); }
+.shift-reason-form { display: grid; gap: 8px; }
+.shift-reason-categories { display: flex; flex-wrap: wrap; gap: 6px; }
+.shift-reason-categories button { font-size: 12px; padding: 3px 10px; border-radius: 12px; }
+.shift-reason-categories button.active { background: var(--accent-soft, #e8f0fe); border-color: var(--accent, #1a56db); font-weight: 700; }
+.shift-reason-form input, .shift-reason-form select { font: inherit; font-size: 13px; }
+.shift-reason-actions { display: flex; gap: 8px; }
+.shift-reason-prompt { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--danger, #c0392b); border-radius: 8px; bottom: 20px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); display: grid; gap: 8px; max-width: min(460px, calc(100vw - 40px)); padding: 12px 14px; position: fixed; right: 20px; z-index: 95; }
+.shift-reason-head { align-items: flex-start; display: flex; gap: 8px; justify-content: space-between; }
+.shift-reason-close { background: none; border: 0; cursor: pointer; padding: 2px; }
+.shift-reason-list { font-size: 13px; margin: 0; padding-left: 18px; }
+.shift-reason-prompt .late { color: var(--danger, #c0392b); }

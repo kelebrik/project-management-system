@@ -29,6 +29,8 @@ export type ShiftLadder = {
   varianceDays: number | null;
   unexplainedDays: number | null;
   earlierSteps: { count: number; deltaDays: number } | null;
+  /** Days of later moves since the baseline by reason category; NONE has no reason yet. */
+  reasonDays: Record<string, number>;
   steps: ShiftStep[];
 };
 
@@ -65,3 +67,5 @@ export function shiftStepCause(step: ShiftStep, checkpointId: string, t: Transla
       return step.trigger;
   }
 }
+
+export const SHIFT_REASON_CATEGORIES = ["CUSTOMER", "SUPPLIER", "RESOURCES", "ESTIMATE", "TECHNICAL", "EXTERNAL", "OTHER"] as const;
