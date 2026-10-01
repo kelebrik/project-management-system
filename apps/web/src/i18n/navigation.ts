@@ -180,6 +180,10 @@ export const navigation = {
     "en": "My work",
     "ru": "Мои задачи"
   },
+  "view.automation-rules": {
+    "en": "Rules",
+    "ru": "Правила"
+  },
   "view.raci-matrix": {
     "en": "RACI",
     "ru": "RACI"

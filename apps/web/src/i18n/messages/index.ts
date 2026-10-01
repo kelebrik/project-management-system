@@ -14,6 +14,7 @@ import { aiMessages } from "./ai";
 import { scheduleShiftsMessages } from "./scheduleShifts";
 import { decisionsMessages } from "./decisions";
 import { wbsTableMessages } from "./wbsTable";
+import { automationRulesMessages } from "./automationRules";
 export const catalogue = {
   ...commonMessages,
   ...adminMessages,
@@ -31,4 +32,5 @@ export const catalogue = {
   ...scheduleShiftsMessages,
   ...decisionsMessages,
   ...wbsTableMessages,
+  ...automationRulesMessages,
 } as const;

@@ -22,13 +22,15 @@ function currentHashId() {
   }
 }
 
-function scrollToHashSection(sectionId: string) {
+const SCHEDULE_SHIFTS_SECTION_ID = "schedule-shifts";
+
+/** Scrolls to a section; a card that loads its own data appears a moment later, so it is looked for a few times. */
+function scrollToHashSection(sectionId: string, attempts = 10) {
   if (typeof window === "undefined") return;
   window.requestAnimationFrame(() => {
-    document.getElementById(sectionId)?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+    const section = document.getElementById(sectionId);
+    if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+    else if (attempts > 1) window.setTimeout(() => scrollToHashSection(sectionId, attempts - 1), 200);
   });
 }
 
@@ -98,7 +100,8 @@ export function ProjectOverviewSummaryPage() {
       const hashId = currentHashId();
       if (
         hashId === RISK_TICKETS_SECTION_ID ||
-        hashId === SCHEDULE_VARIANCE_SECTION_ID
+        hashId === SCHEDULE_VARIANCE_SECTION_ID ||
+        hashId === SCHEDULE_SHIFTS_SECTION_ID
       ) {
         scrollToHashSection(hashId);
       }

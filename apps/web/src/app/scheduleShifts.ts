@@ -61,6 +61,8 @@ export function shiftStepCause(step: ShiftStep, checkpointId: string, t: Transla
       return t("ui.shifts.causeDraft");
     case "IMPORT":
       return t("ui.shifts.causeImport");
+    case "AUTOMATION":
+      return t("ui.shifts.causeAutomation");
     case "RESTORE_DELETED":
       return t("ui.shifts.causeRestoreDeleted");
     case "SYSTEM":

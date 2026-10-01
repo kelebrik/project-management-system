@@ -4,6 +4,7 @@ export * from "./jira-semantic-analytics.js";
 export * from "./project-automation.js";
 export * from "./wbs-predecessors.js";
 export * from "./wbs-import.js";
+export * from "./automation-rules.js";
 
 /**
  * Identity used for unauthenticated visitors while `PUBLIC_DEMO_MODE` is on.
@@ -21,6 +22,7 @@ export const appViewKeys = [
   "lessons-register",
   "raci-matrix",
   "my-work",
+  "automation-rules",
   "jira-reconciliation",
   "projects",
   "reports",
@@ -95,6 +97,7 @@ export const appViewLabels: Record<AppViewKey, string> = {
   "lessons-register": "Уроки проектов",
   "raci-matrix": "RACI",
   "my-work": "Мои задачи",
+  "automation-rules": "Правила",
   "jira-reconciliation": "Сверка Jira и WBS",
   projects: "Проекты",
   reports: "Отчёты",

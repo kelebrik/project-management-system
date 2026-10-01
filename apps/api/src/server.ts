@@ -1,3 +1,4 @@
+import { createAutomationRunner } from './services/automation/engine.js';
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -89,10 +90,12 @@ async function recalculateActiveProjectSchedulesOnStartup() {
 }
 
 const jiraSyncRunner = createJiraSyncRunner(prisma);
+const automationRunner = createAutomationRunner();
 const server = app.listen(port, () => {
   logEvent('info', 'api.listen', { port });
   void recalculateActiveProjectSchedulesOnStartup();
   jiraSyncRunner.start();
+  automationRunner.start();
 });
 
 let shuttingDown = false;
@@ -102,6 +105,7 @@ async function shutdown(signal: NodeJS.Signals) {
   logEvent('info', 'api.shutdown', { signal });
   server.close();
   await jiraSyncRunner.stop();
+  await automationRunner.stop();
   await prisma.$disconnect();
 }
 

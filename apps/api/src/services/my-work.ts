@@ -1,4 +1,5 @@
 import { normalizePersonName } from '@pms/shared';
+import { automationTimeZone, localMoment, localWeekStart } from './automation/time.js';
 
 export const MY_WORK_WEEKS_AHEAD = 4;
 export const CHECK_IN_CONFIDENCE = ['ON_TRACK', 'AT_RISK', 'OFF_TRACK'] as const;
@@ -7,11 +8,15 @@ export type CheckInConfidence = (typeof CHECK_IN_CONFIDENCE)[number];
 const DAY_MS = 86_400_000;
 const day = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null);
 
-/** Monday of the week containing the moment, as a UTC day: weeks of check-ins start there. */
-export function weekStartOf(now: Date) {
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const offset = (today.getUTCDay() + 6) % 7;
-  return new Date(today.getTime() - offset * DAY_MS);
+/**
+ * Monday of the week containing the moment in the teams' time zone (the
+ * same zone the rules run in), stored as that calendar day: a check-in made on
+ * Monday morning belongs to the new week, and the Friday reminder looks at it.
+ * Check-ins saved before October 2, 2026 used the UTC Monday; they are left as
+ * they are: only those made on a Monday before 03:00 Moscow time differ.
+ */
+export function weekStartOf(now: Date, timeZone = automationTimeZone()) {
+  return new Date(`${localWeekStart(localMoment(now, timeZone).date)}T00:00:00.000Z`);
 }
 
 type Item = {

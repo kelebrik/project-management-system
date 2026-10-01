@@ -21,6 +21,7 @@ export const scheduleShiftsMessages = {
   "ui.shifts.causeTargetWithReason": { en: "New project target date: {reason}", ru: "Новая целевая дата проекта: {reason}" },
   "ui.shifts.causeIssue": { en: "Open issue \u201c{issue}\u201d", ru: "Открытый вопрос \u00ab{issue}\u00bb" },
   "ui.shifts.causeDraft": { en: "Structure draft added", ru: "Добавлен черновик Структуры" },
+  "ui.shifts.causeAutomation": { en: "Rule proposal applied", ru: "Применено предложение правила" },
   "ui.shifts.causeImport": { en: "Table imported into the Structure", ru: "Импорт таблицы в Структуру" },
   "ui.shifts.causeRestoreDeleted": { en: "Deleted rows restored", ru: "Восстановлены удаленные строки" },
   "ui.shifts.causeSystem": { en: "Recalculation at server start", ru: "Пересчет при запуске сервера" },

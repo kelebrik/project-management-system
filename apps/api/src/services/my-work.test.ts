@@ -15,9 +15,12 @@ const item = (id: string, owner: string, startDate: string | null, dueDate: stri
   project: { code: 'TV', name: 'Телевизор' },
 });
 
-test('weeks start on Monday in UTC', () => {
-  assert.equal(weekStartOf(new Date('2026-10-04T23:30:00Z')).toISOString().slice(0, 10), '2026-09-28');
-  assert.equal(weekStartOf(new Date('2026-10-05T00:10:00Z')).toISOString().slice(0, 10), '2026-10-05');
+test('weeks start on Monday in the teams\' time zone', () => {
+  // 23:30 UTC on Sunday is already 02:30 on Monday in Moscow.
+  assert.equal(weekStartOf(new Date('2026-10-04T23:30:00Z'), 'Europe/Moscow').toISOString().slice(0, 10), '2026-10-05');
+  assert.equal(weekStartOf(new Date('2026-10-04T20:00:00Z'), 'Europe/Moscow').toISOString().slice(0, 10), '2026-09-28');
+  assert.equal(weekStartOf(new Date('2026-10-04T23:30:00Z'), 'UTC').toISOString().slice(0, 10), '2026-09-28');
+  assert.equal(weekStartOf(new Date('2026-10-04T11:00:00Z'), 'Pacific/Kiritimati').toISOString().slice(0, 10), '2026-10-05');
 });
 
 test('my work is my unfinished rows, overdue or within four weeks, soonest first, whatever the spelling', () => {

@@ -290,6 +290,8 @@ model Project {
   raciAssignments          RaciAssignment[]
   workCheckIns             WorkCheckIn[]
   wbsImports               WbsImport[]
+  automationRules          AutomationRule[]
+  notifications            Notification[]
 
   @@index([parentId])
   @@index([businessUnitId, status])
@@ -337,6 +339,7 @@ model User {
   businessUnitMemberships BusinessUnitMembership[]
   leaveEmployees          LeaveEmployee[]
   pageVisits              PageVisit[]
+  notifications           Notification[]
 
   @@index([role, isActive])
 }
@@ -1679,4 +1682,89 @@ model WbsImport {
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, importKey])
+}
+
+/**
+ * A rule template switched on in a project, with its parameters, recipients and the runner's cursors.
+ */
+model AutomationRule {
+  id           String               @id @default(cuid())
+  projectId    String
+  template     String
+  enabled      Boolean              @default(true)
+  params       Json                 @default("{}")
+  recipientIds String[]             @default([])
+  state        Json                 @default("{}")
+  createdById  String?
+  version      Int                  @default(1)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  firings      AutomationFiring[]
+  proposals    AutomationProposal[]
+
+  @@unique([projectId, template])
+}
+
+/**
+ * One time a rule fired; the key makes the same event fire once.
+ */
+model AutomationFiring {
+  id            String               @id @default(cuid())
+  ruleId        String
+  projectId     String
+  template      String
+  dedupeKey     String
+  summary       Json                 @default("{}")
+  firedAt       DateTime             @default(now())
+  rule          AutomationRule       @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+  proposals     AutomationProposal[]
+
+  @@unique([ruleId, dedupeKey])
+  @@index([projectId, firedAt])
+}
+
+/**
+ * A message in a user's bell.
+ */
+model Notification {
+  id        String            @id @default(cuid())
+  userId    String
+  projectId String
+  firingId  String?
+  kind      String
+  params    Json              @default("{}")
+  href      String
+  createdAt DateTime          @default(now())
+  readAt    DateTime?
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  firing    AutomationFiring? @relation(fields: [firingId], references: [id], onDelete: SetNull)
+
+  @@unique([firingId, userId, kind])
+  @@index([userId, readAt, createdAt])
+}
+
+/**
+ * Something a rule prepared for a person to apply or reject.
+ */
+model AutomationProposal {
+  id            String           @id @default(cuid())
+  projectId     String
+  ruleId        String
+  firingId      String
+  kind          String
+  wbsItemId     String?
+  payload       Json             @default("{}")
+  status        String           @default("PENDING")
+  decidedById   String?
+  decidedAt     DateTime?
+  resultIssueId String?
+  version       Int              @default(1)
+  createdAt     DateTime         @default(now())
+  rule          AutomationRule   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  firing        AutomationFiring @relation(fields: [firingId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
 }

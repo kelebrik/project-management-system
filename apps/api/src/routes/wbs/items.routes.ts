@@ -19,6 +19,7 @@ import { resolveWbsScheduleDateWrites, resolveWbsSchedulePatch } from '../../ser
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { invalidIssueLinkedWbsPlan } from '../../services/wbs-issue-links.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
+import { jiraSourceIsFresh } from '../../services/jira-source-freshness.js';
 import {
   closedAtForWbsStatus,
   collectDescendantLevelUpdates,
@@ -374,8 +375,7 @@ export function registerWbsItemRoutes(router: Router) {
       for (const item of parsed.data.items) {
         const existing = existingById.get(item.id)!;
         if (item.expectedJira) {
-          const source = await tx.jiraIssueSnapshot.findUnique({ where: { projectId_issueKey: { projectId: project.id, issueKey: item.expectedJira.key } } });
-          if (!item.expectedUpdatedAt || existing.jiraTicketKey?.trim().toUpperCase() !== item.expectedJira.key || !source || source.retiredAt || source.projectionUnversionedSince || source.updatedAt.toISOString() !== item.expectedJira.updatedAt || Date.now() - source.syncedAt.getTime() > 86400000) {
+          if (!item.expectedUpdatedAt || !(await jiraSourceIsFresh(tx, project.id, existing, item.expectedJira))) {
             throw new Error('AUTOMATION_STALE_SOURCE');
           }
         }

@@ -61,6 +61,7 @@ const MyWorkPage = lazy(() =>
     default: module.MyWorkPage,
   })),
 );
+const AutomationRulesPage = lazy(() => import("./AutomationRulesPage"));
 const RaciMatrixPage = lazy(() =>
   import("./RaciMatrixPage").then((module) => ({
     default: module.RaciMatrixPage,
@@ -119,6 +120,11 @@ export function AppPages() {
       {activeView === "my-work" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <MyWorkPage />
+        </Suspense>
+      )}
+      {activeView === "automation-rules" && (
+        <Suspense fallback={<DevelopmentPageFallback />}>
+          <AutomationRulesPage />
         </Suspense>
       )}
       {activeView === "raci-matrix" && (

@@ -1,0 +1,31 @@
+.notifications-bell { position: relative; }
+.notifications-bell-button { align-items: center; background: none; border: 0; color: inherit; cursor: pointer; display: inline-flex; padding: 6px; position: relative; }
+.notifications-bell-count { background: var(--danger, #c0392b); border-radius: 9px; color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; min-width: 16px; padding: 0 4px; position: absolute; right: -2px; text-align: center; top: 0; }
+.notifications-panel { background: var(--surface, #fff); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); color: var(--text-primary, #1f2328); max-height: 70vh; overflow: auto; position: absolute; right: 0; top: calc(100% + 6px); width: 380px; z-index: 60; }
+.notifications-panel-head { align-items: center; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; padding: 8px 12px; }
+.notifications-panel ul { list-style: none; margin: 0; padding: 0; }
+.notifications-panel li button { background: none; border: 0; border-bottom: 1px solid var(--border); color: inherit; cursor: pointer; display: grid; font: inherit; font-size: 13px; gap: 2px; padding: 8px 12px; text-align: left; width: 100%; }
+.notifications-panel li.unread button { background: var(--accent-soft, #eef4ff); font-weight: 600; }
+.notifications-panel time, .notifications-project { color: var(--text-secondary); font-size: 11px; font-weight: 400; }
+.notifications-empty { color: var(--text-muted); margin: 0; padding: 12px; }
+.notifications-bell .link-button, .rules-page .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; font: inherit; font-size: 12px; padding: 0; text-decoration: underline; }
+.rules-page { display: grid; gap: 12px; }
+.rules-tabs { display: flex; gap: 6px; }
+.rules-tabs button[aria-pressed="true"] { background: var(--accent-soft, #eef4ff); font-weight: 600; }
+.rules-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.rule-card { border: 1px solid var(--border); border-radius: 8px; display: grid; gap: 8px; padding: 12px; }
+.rule-card.on { border-color: var(--accent, #1a56db); }
+.rule-card h3 { align-items: center; display: flex; font-size: 15px; justify-content: space-between; margin: 0; }
+.rule-card p { color: var(--text-secondary); font-size: 12px; margin: 0; }
+.rule-card label { display: grid; font-size: 12px; gap: 4px; }
+.rule-card .rule-toggle { align-items: center; display: inline-flex; font-size: 12px; font-weight: 400; gap: 6px; }
+.rule-recipients { display: flex; flex-wrap: wrap; gap: 4px; }
+.rule-recipients span { align-items: center; background: var(--surface-muted, #f5f6f8); border-radius: 12px; display: inline-flex; font-size: 12px; gap: 4px; padding: 2px 8px; }
+.rule-recipients span button { background: none; border: 0; cursor: pointer; padding: 0; }
+.rule-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.rule-preview { border-top: 1px dashed var(--border); font-size: 12px; margin: 0; padding: 6px 0 0 16px; }
+.rules-list { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.rules-list > li { border: 1px solid var(--border); border-radius: 8px; display: grid; gap: 6px; font-size: 13px; padding: 10px 12px; }
+.rules-list .proposal-fields { display: grid; gap: 6px; grid-template-columns: 2fr 1fr 140px; }
+.rules-list .proposal-fields label { display: grid; font-size: 12px; gap: 2px; }
+.rules-list small { color: var(--text-secondary); }

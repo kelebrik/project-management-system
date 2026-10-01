@@ -14,6 +14,7 @@ export const SHIFT_TRIGGERS = [
   'ISSUE',
   'DRAFT',
   'IMPORT',
+  'AUTOMATION',
   'RESTORE_DELETED',
   'BASELINE',
   'SYSTEM',

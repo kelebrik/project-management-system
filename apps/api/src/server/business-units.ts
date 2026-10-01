@@ -42,6 +42,24 @@ export async function userCanReadProject(req: Request, projectId: string) {
   return Boolean(project);
 }
 
+/**
+ * The users among these who may see a project, for messages sent without a
+ * request: active users, as every signed-in user reads every project today.
+ * Rules and the bell ask here, so a narrower read access changes one place.
+ */
+export async function usersWhoCanReadProject(userIds: string[], projectId: string) {
+  if (userIds.length === 0) return [];
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  if (!project) return [];
+  const users = await prisma.user.findMany({ where: { id: { in: userIds }, isActive: true }, select: { id: true } });
+  return users.map((user) => user.id);
+}
+
+/** Projects a user may see in the bell; the same rule as usersWhoCanReadProject. */
+export function projectsReadableByUserWhere(): Prisma.ProjectWhereInput {
+  return {};
+}
+
 export async function userCanCreateInBusinessUnit(req: Request, businessUnitId: string) {
   const user = currentUser(req);
   if (!user) return false;

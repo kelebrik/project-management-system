@@ -58,6 +58,7 @@ export type DevelopmentSectionView = Extract<
   | "lessons-register"
   | "raci-matrix"
   | "my-work"
+  | "automation-rules"
   | "project-pm-workspace"
   | "open-issues-redesign"
   | ResourceSectionView
@@ -112,6 +113,7 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "lessons-register",
   "raci-matrix",
   "my-work",
+  "automation-rules",
   "project-pm-workspace",
   "open-issues-redesign",
   "resources",
@@ -205,6 +207,7 @@ export const appViewPaths: Record<AppView, string> = {
   "lessons-register": "/development/lessons",
   "raci-matrix": "/development/raci",
   "my-work": "/development/my-work",
+  "automation-rules": "/development/rules",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
   reports: "/development/reports",
@@ -307,6 +310,7 @@ export const appPathViews: Record<string, AppView> = {
   "/development/lessons": "lessons-register",
   "/development/raci": "raci-matrix",
   "/development/my-work": "my-work",
+  "/development/rules": "automation-rules",
   "/development/jira-reconciliation": "jira-reconciliation",
   "/development/pm-workspace": "project-pm-workspace",
   "/development/workspace": "project-pm-workspace",
