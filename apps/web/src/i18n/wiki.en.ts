@@ -29,8 +29,9 @@ export const englishWikiGroups: WikiGroup[] = [
               "On the FAQ page there is a horizontal table of contents with anchors above the articles, and the search box filters articles by title, keywords and body text.",
               "The product icon on the left of the header opens the Gantry page on GitHub in a new window.",
               "The Operations section holds the Leave schedule and Workload tabs. It is open to every signed-in user; without signing in the app asks the user to sign in.",
-              "The Development section holds the Reports, Archive, Portfolio v2, Jira and WBS reconciliation, PM workspace, Issues, Decision queue, Resource management and Resource settings tabs.",
-              "Changes and Budget are not shown in the row of project sections; those pages open only at the direct addresses /<project code>/changes and /<project code>/budget."
+              "The Development section holds the Reports, Archive, Portfolio v2, Jira and WBS reconciliation, PM workspace, Issues, Decision queue, Project lessons, RACI, My work, Rules, Resource management and Resource settings tabs.",
+              "Changes and Budget are not shown in the row of project sections; those pages open only at the direct addresses /<project code>/changes and /<project code>/budget.",
+              "The bell in the header, next to the language switch, shows notifications from project rules (the Rules page in the Development section) and the unread count. The list refreshes every minute while the tab is open; clicking a notification marks it read and opens the milestone, the Structure row, the proposals or My work. Mark all as read clears them all. Everyone sees only their own notifications."
             ]
           },
           {
@@ -207,10 +208,11 @@ export const englishWikiGroups: WikiGroup[] = [
               "Up to three work items with the largest contribution to delay and up to three work items with the largest contribution to acceleration are shown.",
               "The resulting scheduleVarianceFromStructure equals the delay of the active goal if it can be computed; otherwise it is the maximum open variance across the structure.",
               "The Why checkpoints moved card on the Status page shows, for every open milestone and goal that left its baseline or moved, the baseline date, the steps with days, date and author, and the current date. The active goal comes first.",
-              "Each step names the cause the system knows when the change happens: an edit of the checkpoint itself, an edit of another row carried over by links (the row is a link), a bulk edit, rows or links changed, undo or redo, a working day or day off in the calendar, a new target date with its reason, an open issue, a Structure draft, restored deleted rows, or a recalculation at server start.",
+              "Each step names the cause the system knows at the moment of the change: an edit of the checkpoint itself, an edit of another row carried over by links (the row is a link), a bulk edit, a change of rows or links, undo or redo, a day off or working day in the calendar, a new target date with its justification, an open issue, a Structure draft, a table imported into the Structure, an applied rule proposal, restored deleted rows, a recalculation at server start.",
               "The line \"before the journal or without a record\" holds the days the journal does not explain: moves before it existed. Saving the baseline for a checkpoint restarts its history; a baseline saved for selected rows leaves the others' history alone. The latest 30 steps are shown and older ones fold into one line.",
               "When a save in the Structure, the Gantt or the Workload moves a milestone or goal later than its baseline, a note at the bottom right asks \"A checkpoint moved past its baseline. Why?\" with the checkpoints and days. Pick a category: customer, supplier, people or leave, re-estimate, technical risk, external, other; add a comment and a risk or problem of the project if you like. Without a reason closes the note; it does not block work.",
               "A reason can also be given later: a step without one in the Why checkpoints moved card has Give a reason, a step with one has Change. Reasons need the right to change the project; the audit log keeps the category and the number of moves.",
+              "If the rule \"A milestone moved\" is on in the project, the milestone's owner gets a request for the reason in the bell while there is none; the link leads to this card.",
               "The By reason line under a checkpoint adds up the days moved past the baseline by category, with \"no reason\" and \"before the journal\" apart. For the active goal these sums go into the facts of the status report for management, so the Slipped section names the reasons."
             ]
           },
