@@ -85,6 +85,16 @@ const TYPE_BY_NAME = reverseLabels(wbsItemTypes, (locale) => createDomainLabels(
 const STATUS_BY_NAME = reverseLabels(wbsItemStatuses, (locale) => createDomainLabels(locale).wbsStatusLabel);
 const CODE = /^\d{1,4}(\.\d{1,4}){0,9}$/;
 
+/**
+ * A number as a spreadsheet shows it: digits with one optional decimal point
+ * or comma, and for percentages one optional trailing "%". Anything else,
+ * such as "1,5,0" or "50%%", is not a number.
+ */
+export function readNumber(text: string, options: { percent?: boolean } = {}) {
+  const match = (options.percent ? /^\s*(\d+(?:[.,]\d+)?)\s*%?\s*$/ : /^\s*(\d+(?:[.,]\d+)?)\s*$/).exec(text);
+  return match ? Number(match[1].replace(/,/g, ".")) : Number.NaN;
+}
+
 /** A date as YYYY-MM-DD from 2026-10-01 or 01.10.2026; undefined when it is neither. */
 export function readDate(text: string) {
   const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
@@ -151,7 +161,7 @@ export function tableToWbsRows(table: TableDocument, fields: Array<WbsImportFiel
     }
     const workDays = get("workDays");
     if (workDays !== undefined) {
-      const number = workDays === "" ? null : Number(workDays.replace(",", "."));
+      const number = workDays === "" ? null : readNumber(workDays);
       if (number !== null && (!Number.isInteger(number) || number < 0)) problem("workDays", workDays, "number");
       else row.workDays = number;
     }
@@ -164,7 +174,7 @@ export function tableToWbsRows(table: TableDocument, fields: Array<WbsImportFiel
     }
     const progress = get("progress");
     if (progress) {
-      const number = Number(progress.replace("%", "").replace(",", ".").trim());
+      const number = readNumber(progress, { percent: true });
       if (!Number.isFinite(number) || number < 0 || number > 100) problem("progress", progress, "percent");
       else row.progress = Math.round(number);
     }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { WbsItem } from "../domainTypes";
-import { guessColumnFields, readDate, tableToWbsRows, wbsToTable } from "./wbsTable";
+import { guessColumnFields, readDate, readNumber, tableToWbsRows, wbsToTable } from "./wbsTable";
 
 const item = (extra: Partial<WbsItem>) => ({ id: "a", code: "1", title: "Фаза", type: "PHASE", status: "IN_PROGRESS", owner: "", startDate: "2026-10-01T00:00:00.000Z", dueDate: null, workDays: null, progress: 40, priority: null, comment: null, sortOrder: 10, predecessor1: null, predecessor2: null, predecessor3: null, predecessor4: null, predecessor5: null, predecessor6: null, ...extra }) as WbsItem;
 
@@ -30,4 +30,15 @@ test("a foreign table is matched by its headers and read cell by cell", () => {
   assert.equal(readDate("2026-10-01 00:00:00"), "2026-10-01");
   assert.equal(readDate("32.13.2026"), undefined);
   assert.equal(readDate("2026-99-99"), undefined);
+});
+
+test("numbers and percentages are read strictly, as a spreadsheet shows them", () => {
+  assert.equal(readNumber("5"), 5);
+  assert.equal(readNumber(" 1,5 "), 1.5);
+  assert.equal(readNumber("50 %", { percent: true }), 50);
+  assert.equal(readNumber("12.5%", { percent: true }), 12.5);
+  for (const text of ["50%%", "1,5,0", "5%", "-3", "", "1e3", "0x10"]) assert.ok(Number.isNaN(readNumber(text)), text);
+  assert.ok(Number.isNaN(readNumber("%50%", { percent: true })));
+  const { problems } = tableToWbsRows({ headers: [], rows: [["1", "50%%", "1,5,0"]] }, ["code", "progress", "workDays"]);
+  assert.deepEqual(problems.map((problem) => [problem.field, problem.kind]), [["workDays", "number"], ["progress", "percent"]]);
 });
