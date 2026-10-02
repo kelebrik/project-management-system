@@ -29,7 +29,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "On the FAQ page there is a horizontal table of contents with anchors above the articles, and the search box filters articles by title, keywords and body text.",
               "The product icon on the left of the header opens the Gantry page on GitHub in a new window.",
               "The Operations section holds the Leave schedule and Workload tabs. It is open to every signed-in user; without signing in the app asks the user to sign in.",
-              "The Development section holds the Reports, Archive, Portfolio v2, Jira and WBS reconciliation, PM workspace, Issues, Decision queue, Project lessons, RACI, My work, Rules, Resource management and Resource settings tabs.",
+              "The Development section holds the Reports, Archive, Portfolio v2, Jira and WBS reconciliation, PM workspace, Decision queue, Project lessons, RACI, My work, Rules, Resource management and Resource settings tabs.",
               "Changes and Budget are not shown in the row of project sections; those pages open only at the direct addresses /<project code>/changes and /<project code>/budget.",
               "The bell in the header, next to the language switch, shows notifications from project rules (the Rules page in the Development section) and the unread count. The list refreshes every minute while the tab is open; clicking a notification marks it read and opens the milestone, the Structure row, the proposals or My work. Mark all as read clears them all. Everyone sees only their own notifications."
             ]

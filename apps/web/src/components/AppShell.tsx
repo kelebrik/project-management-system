@@ -280,11 +280,6 @@ const developmentNavItems: AdminNavItem[] = [
     icon: <LayoutDashboard size={15} />,
   },
   {
-    view: "open-issues-redesign",
-    label: "view.open-issues-redesign",
-    icon: <ShieldAlert size={15} />,
-  },
-  {
     view: "decision-queue",
     label: "view.decision-queue",
     icon: <CircleHelp size={15} />,
@@ -545,9 +540,9 @@ export function AppShell({
 
       {shouldShowDevelopmentMenu && (
         <div className="section-navigation development-section-navigation">
-          {(activeView === "project-pm-workspace" || activeView === "open-issues-redesign" || activeView === "decision-queue" || activeView === "raci-matrix" || activeView === "my-work" || activeView === "automation-rules") && (
+          {(activeView === "project-pm-workspace" || activeView === "decision-queue" || activeView === "raci-matrix" || activeView === "my-work" || activeView === "automation-rules") && (
             <div className="section-project-picker">
-              {projectPicker(activeView === "open-issues-redesign" || activeView === "raci-matrix" || activeView === "my-work" || activeView === "automation-rules" ? activeView : "project-pm-workspace")}
+              {projectPicker(activeView === "raci-matrix" || activeView === "my-work" || activeView === "automation-rules" ? activeView : "project-pm-workspace")}
             </div>
           )}
           <nav className="section-tabs" aria-label={t("nav.development")}>

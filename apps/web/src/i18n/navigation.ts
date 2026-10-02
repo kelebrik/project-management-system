@@ -172,10 +172,6 @@ export const navigation = {
     "en": "PM workspace",
     "ru": "Рабочий стол PM"
   },
-  "view.open-issues-redesign": {
-    "en": "Questions",
-    "ru": "Вопросы"
-  },
   "view.my-work": {
     "en": "My work",
     "ru": "Мои задачи"

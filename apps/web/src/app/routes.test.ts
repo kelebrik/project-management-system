@@ -7,6 +7,7 @@ import {
   canAccessAdminView,
   canEditAppView,
   canViewAppView,
+  developmentSectionViews,
   isDevelopmentSectionViewName,
   isOperationsSectionViewName,
   noSectionAccess,
@@ -45,13 +46,10 @@ test("roadmap v2 is a development section with its own route", () => {
   assert.equal(appViewFromPath("/portfolio"), "portfolio");
 });
 
-test("open issues redesign is isolated in Development", () => {
-  assert.equal(isDevelopmentSectionViewName("open-issues-redesign"), true);
-  assert.equal(writeProtectedViews.has("open-issues-redesign"), true);
-  assert.equal(appPathForView("open-issues-redesign"), "/development/open-issues-redesign");
-  assert.equal(appViewFromPath("/development/open-issues-redesign"), "open-issues-redesign");
-  assert.equal(canViewAppView("open-issues-redesign", demoVisitor), true);
-  assert.equal(canEditAppView("open-issues-redesign", demoVisitor), false);
+test("the issues prototype left Development: issues live in the project", () => {
+  assert.equal((developmentSectionViews as readonly string[]).includes("open-issues-redesign"), false);
+  assert.notEqual(appViewFromPath("/development/open-issues-redesign"), "open-issues-redesign");
+  assert.equal(appViewFromPath(appPathForView("project-issues", "TV")), "project-issues");
 });
 
 test("public demo visitor only reads administration and development and edits everything else", () => {

@@ -142,7 +142,6 @@ export function AppPages() {
           <DecisionQueuePage />
         </Suspense>
       )}
-      {activeView === "open-issues-redesign" && project && <DevelopmentOpenIssuesPage />}
       {activeView === "projects" && <ProjectsPage />}
       {activeView === "reports" && <ReportsPage />}
       {activeView === "jira-reconciliation" && <JiraReconciliationPage />}
