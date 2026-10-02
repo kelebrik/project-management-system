@@ -35,7 +35,9 @@ export function LeaveCalendarTab({
   const { t, locale } = useI18n();
   const tag = intlLocale(locale);
   const [year, setYear] = useState(initialYear);
-  const [days, setDays] = useState<LeaveCalendarDay[] | null>(null);
+  // The days loaded for one year: another year shows nothing until its own days arrive.
+  const [loaded, setLoaded] = useState<{ year: number; days: LeaveCalendarDay[] } | null>(null);
+  const days = loaded?.year === year ? loaded.days : null;
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -43,13 +45,23 @@ export function LeaveCalendarTab({
 
   const load = useCallback(async () => {
     const data = await apiClient.get<LeaveScheduleData>(`/api/leave-schedule?from=${year}-01-01&to=${year}-12-31`);
-    setDays(data.calendarDays);
+    setLoaded({ year, days: data.calendarDays });
   }, [year]);
 
   useEffect(() => {
-    setDays(null);
-    load().catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : String(loadError)));
-  }, [load]);
+    let cancelled = false;
+    apiClient
+      .get<LeaveScheduleData>(`/api/leave-schedule?from=${year}-01-01&to=${year}-12-31`)
+      .then((data) => {
+        if (!cancelled) setLoaded({ year, days: data.calendarDays });
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : String(loadError));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [year]);
 
   const overrides = useMemo(() => calendarOverrides(days ?? []), [days]);
   const formats = useMemo(

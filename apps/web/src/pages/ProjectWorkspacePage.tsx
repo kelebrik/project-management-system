@@ -6,7 +6,7 @@ import { EmployeeNamesList } from "../components/EmployeeNamesList";
 import { WbsDraftButton } from "../components/ai/AiProjectButtons";
 import { PlanSnapshotsButton } from "../components/planSnapshots/PlanSnapshotsButton";
 import { WbsTableButton } from "../components/wbsTable/WbsTableButton";
-import { hasPendingWbsBuffers } from "../components/WbsBufferedInput";
+import { hasPendingWbsBuffers } from "../app/wbsBuffers";
 
 export function ProjectWorkspacePage() {
   const { t: uiText } = useInterfaceTranslation();

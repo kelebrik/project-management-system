@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { CSSProperties } from "react";
 import type { MilestoneTimelineModel } from "../app/milestoneTimeline";
-import { phaseAxisTitleStyle } from "./MilestoneSections";
+import { phaseAxisTitleStyle } from "../app/milestonePhaseAxis";
 
 test("phase title uses the marker-free position closest to the timeline center", () => {
   const lane = {

@@ -3,7 +3,7 @@ import { intlLocale } from "../i18n/locale";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
 import type { Locale, SimpleTranslationKey, Translator } from "../i18n/types";
 import { Settings2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import type {
   ResourceAllocationProfile,
@@ -121,9 +121,10 @@ export function ResourceOverviewPage() {
     (peak, cell) => (cell.utilization > peak.utilization ? cell : peak),
     row.cells[0],
   );
-  const skillTags = useMemo(() => {
-    if (!row) return [];
-    return [
+  // Cheap to build; the compiler memoizes it.
+  const skillTags = !row
+    ? []
+    : [
       row.role,
       uiText(resourceKindLabelKeys[row.profile.kind]),
       row.calendarCode ? `${row.calendarCode} calendar` : "calendar TBD",
@@ -131,8 +132,7 @@ export function ResourceOverviewPage() {
       uiText(row.overdue > 0
         ? "ui.resources.resourceHasOverdueWork"
         : "ui.resources.resourceNoOverdueWork"),
-    ];
-  }, [row, uiText]);
+      ];
 
   if (!row) {
     return (

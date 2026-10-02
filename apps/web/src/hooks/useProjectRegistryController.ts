@@ -549,7 +549,7 @@ export function useProjectRegistryController({
     },
     [
       confirm,
-      currentUser?.role,
+      currentUser,
       openView,
       projects,
       reloadAuditEvents,

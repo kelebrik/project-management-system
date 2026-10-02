@@ -1,6 +1,8 @@
+import type { AppStateBag } from "../app/appStateBag";
 import { useCallback, useMemo } from "react";
 import { useI18n } from "../i18n/I18nProvider";
-import type { ProjectCalendarOverride } from "../app/domainTypes";
+import type { DictionaryItem } from "../app/adminTypes";
+import type { ProjectCalendarOverride, ProjectDetails, ProjectListItem } from "../app/domainTypes";
 import { savedWbsForm } from "../app/formState";
 import { projectScheduleHealth } from "../app/labels";
 import {
@@ -73,7 +75,7 @@ import { useMilestoneLabelLayoutState } from "./useMilestoneLabelLayoutState";
 import { useSavedViewsController } from "./useSavedViewsController";
 import { useWorkspaceFullscreen } from "./useWorkspaceFullscreen";
 
-type AppDerivedDataDeps = Record<string, any>;
+type AppDerivedDataDeps = AppStateBag;
 
 export function useAppDerivedData(deps: AppDerivedDataDeps) {
   const { locale, t: uiText } = useI18n();
@@ -157,7 +159,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     [closedProjects],
   );
   const selectedProjectListItem = useMemo(
-    () => projects.find((item: any) => item.id === selectedProjectId) ?? null,
+    () => (projects as ProjectListItem[]).find((item) => item.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   );
   const selectedProjectAccessLevel =
@@ -181,7 +183,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     Boolean(isSelectedProjectSection && (isClosedProject || !canWriteSelectedProject));
   const filteredDictionaryItems = useMemo(
     () =>
-      dictionaryItems.filter((item: any) => item.dictionary === selectedDictionary),
+      (dictionaryItems as DictionaryItem[]).filter((item) => item.dictionary === selectedDictionary),
     [dictionaryItems, selectedDictionary],
   );
   const normalizedProjectModules = useMemo(
@@ -202,15 +204,18 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     return enabledModule ? projectModuleViewByKey[enabledModule.key] : "project-overview";
   }, [normalizedProjectModules]);
   const activeResourceProjects = useMemo(
-    () => activeProjects.filter((item: any) => item.status !== "CLOSED"),
+    () => (activeProjects as ProjectDetails[]).filter((item) => item.status !== "CLOSED"),
     [activeProjects],
   );
-  const resourceSource = activeResourceProjects.length > 0 ? activeResourceProjects : project?.wbsItems ?? [];
+  const resourceSource = useMemo(
+    () => (activeResourceProjects.length > 0 ? activeResourceProjects : project?.wbsItems ?? []),
+    [activeResourceProjects, project?.wbsItems],
+  );
   const resourceSummaryRows = useMemo(
     () =>
       createResourceSummaryRows(
         activeResourceProjects.length > 0
-          ? activeResourceProjects.flatMap((item: any) => item.wbsItems ?? [])
+          ? activeResourceProjects.flatMap((item) => item.wbsItems ?? [])
           : project?.wbsItems ?? [],
         new Date(),
         uiText,

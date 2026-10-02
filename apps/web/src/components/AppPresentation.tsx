@@ -1,7 +1,14 @@
 import { useMemo } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import type { Translator } from "../i18n/types";
-import type { FocusEventHandler, KeyboardEventHandler } from "react";
+import type { ComponentProps, FocusEventHandler, KeyboardEventHandler } from "react";
+import type { CurrentUser } from "../app/adminTypes";
+import type { ProjectDetails, ProjectListItem, SavedView, SearchResult } from "../app/domainTypes";
+import type { ProjectModuleKey } from "../app/projectModules";
+import type { ProjectSectionView } from "../app/routes";
+import type { useGlobalSearch } from "../app/useGlobalSearch";
+import type { useAppDerivedData } from "../hooks/useAppDerivedData";
+import type { PageContextValue } from "../pages/PageContext";
 import type { AuthMode } from "../app/adminTypes";
 import type { Toast } from "../hooks/useAppFeedbackState";
 import { PageSkeleton } from "./Skeleton";
@@ -82,21 +89,21 @@ import { SavedViewControls } from "./SavedViewControls";
 
 type AppPresentationProps = {
   authMode: AuthMode;
-  context: Record<string, any>;
-  currentUser: any;
+  context: PageContextValue;
+  currentUser: CurrentUser | null;
   error: string | null;
   toasts: Toast[];
   onDismissToast: (id: number) => void;
-  filteredProjectOptions: any[];
-  firstEnabledProjectView: any;
-  globalSearch: any;
+  filteredProjectOptions: ProjectListItem[];
+  firstEnabledProjectView: ProjectSectionView;
+  globalSearch: ReturnType<typeof useGlobalSearch>;
   handleEditableFocus: FocusEventHandler<HTMLDivElement>;
   handleEditableKeyDown: KeyboardEventHandler<HTMLDivElement>;
   isAdminUser: boolean;
   isAuthenticated: boolean;
   sectionAccess: SectionAccess;
   isClosedProject: boolean;
-  isProjectModuleEnabled: (key: any) => boolean;
+  isProjectModuleEnabled: (key: ProjectModuleKey) => boolean;
   isReadOnly: boolean;
   keycloakEnabled: boolean;
   loading: boolean;
@@ -106,31 +113,31 @@ type AppPresentationProps = {
   onKeycloakLogin: () => void;
   onPasswordLogin: (email: string, password: string) => Promise<void>;
   onNoticeChange: (value: string | null) => void;
-  onSelectSearchResult: (result: any) => void;
+  onSelectSearchResult: (result: SearchResult) => void;
   openView: (nextView: AppView, options?: { replace?: boolean; projectCode?: string | null }) => void;
-  project: any;
+  project: ProjectDetails | null;
   projectSearch: string;
-  projectTargetSummary: any;
-  recentProjects: any[];
+  projectTargetSummary: ComponentProps<typeof AppShell>["projectTargetSummary"];
+  recentProjects: ProjectListItem[];
   savedViewType: string | null;
   saveCurrentSavedView: () => Promise<void> | void;
-  applySavedView: (view: any) => void;
+  applySavedView: (view: SavedView) => void;
   savedViewName: string;
-  savedViews: any[];
+  savedViews: SavedView[];
   savingSavedView: boolean;
   selectProject: (projectId: string, nextView?: AppView) => void;
   selectedProjectId: string | null;
-  selectedProjectListItem: any;
+  selectedProjectListItem: ProjectListItem | null;
   setProjectSearch: (value: string) => void;
   setSavedViewName: (value: string) => void;
   setShowProjectPicker: (value: boolean) => void;
   showProjectPicker: boolean;
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
-  topbarScheduleHealth: any;
+  topbarScheduleHealth: ReturnType<typeof useAppDerivedData>["topbarScheduleHealth"];
 };
 
-function createViewTitle(project: any, t: Translator): Record<AppView, string> {
+function createViewTitle(project: ProjectDetails | null, t: Translator): Record<AppView, string> {
   return {
     portfolio: t("view.portfolio"),
     "portfolio-v2": t("view.portfolio-v2"),

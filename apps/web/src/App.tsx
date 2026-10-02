@@ -50,7 +50,7 @@ import { useWbsColumnActions } from "./hooks/useWbsColumnActions";
 import { useWbsRowActions } from "./hooks/useWbsRowActions";
 import { useWbsSnapshotActions } from "./hooks/useWbsSnapshotActions";
 import { useWbsWorkspaceState } from "./hooks/useWbsWorkspaceState";
-import { hasPendingWbsBuffers } from "./components/WbsBufferedInput";
+import { hasPendingWbsBuffers } from "./app/wbsBuffers";
 import "./App.css";
 
 function AppController() {
@@ -358,17 +358,17 @@ function AppController() {
     if (!notice) return;
     const timeoutId = window.setTimeout(() => setNotice(null), 4500);
     return () => window.clearTimeout(timeoutId);
-  }, [notice]);
+  }, [notice, setNotice]);
 
   const setWbsUndoHistory = useCallback((nextStack: WbsSnapshot[]) => {
     wbsUndoStackRef.current = nextStack;
     setWbsUndoStack(nextStack);
-  }, []);
+  }, [setWbsUndoStack, wbsUndoStackRef]);
 
   const setWbsRedoHistory = useCallback((nextStack: WbsSnapshot[]) => {
     wbsRedoStackRef.current = nextStack;
     setWbsRedoStack(nextStack);
-  }, []);
+  }, [setWbsRedoStack, wbsRedoStackRef]);
 
   const derived = useAppDerivedData({ activeView, activeWbsItemId, authMode, collapsedWbsIds, currentUser, dictionaryItems, ganttPanelHeight, ganttPanelWidth, ganttRangeDays, ganttScale, ganttWbsWidth, hoveredGanttItemId, isAdminUser, isAuthenticated, isClosedProject, project, projectModules, projectRef, projectSearch, projects, raidDecisionOnly, raidHighOnly, raidOverdueOnly, raidTypeFilter, recentProjectIds, resourceProfileOverrides, savedViewName, selectedCalendarYear, selectedDictionary, selectedProjectId, setCollapsedWbsIds, setError, setGanttPanelHeight, setGanttPanelWidth, setGanttRangeDays, setGanttScale, setGanttWbsWidth, setNotice, setProject, setRaidDecisionOnly, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter, setResourceProfileOverrides, setSavedViewName, setSavedViews, setSavingSavedView, setShowGanttBaseline, setShowGanttCriticalPath, setShowGanttDependencies, setShowGanttForecast, setShowStructureCriticalPath, setWbsColumnOrder, setWbsColumnWidths, setWbsHiddenColumns, setWbsSort, showGanttBaseline, showGanttCriticalPath, showGanttDependencies, showGanttForecast, showStructureCriticalPath, wbsColumnOrder, wbsColumnWidths, wbsDrafts, wbsHiddenColumns, wbsSort });
   const { applySavedView, calendarOverridesByKey, dirtyWbsItemIds, draftWbsCodes, filteredProjectOptions, firstEnabledProjectView, isProjectModuleEnabled, isReadOnly, normalizedProjectModules, orderedWbsColumns, projectTargetSummary, recentProjects, saveCurrentSavedView, savedViewType, selectedProjectListItem, topbarScheduleHealth, visibleStructureWbsTree, visibleWbsTree, wbsTree } = derived;

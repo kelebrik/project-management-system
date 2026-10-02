@@ -1,5 +1,5 @@
 import { Plus, Save, Table2, Trash2, Paperclip } from 'lucide-react';
-import { useEffect, useEffectEvent, useState, type CSSProperties } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState, type CSSProperties } from 'react';
 import { apiClient, ApiError } from '../api/client';
 import { useI18n } from '../i18n/I18nProvider';
 import { usePageContext } from './PageContext';
@@ -23,31 +23,35 @@ function ArtifactTableEditor() {
   ], rows: [emptyArtifactRow()] });
   const loadDefaults = useEffectEvent(defaults);
   const [table, setTable] = useState<ArtifactTable>(defaults);
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
+  // Which load finished, and which failed: a new endpoint, a return to a project or a reload starts
+  // a new load that is loading by itself.
+  const [loadedIn, setLoadedIn] = useState<object | null>(null);
+  const [failedIn, setFailedIn] = useState<object | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [reload, setReload] = useState(0);
   const endpoint = `/api/projects/${project.id}/artifact-table`;
+  const load = useMemo(() => ({ endpoint, reload }), [endpoint, reload]);
+  const failed = failedIn === load;
+  const loading = loadedIn !== load && !failed;
   const canEdit = !isReadOnly && !loading && !failed && !saving && !uploading;
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setFailed(false);
     apiClient.get<(ArtifactTable & { defaultTitles?: boolean }) | null>(endpoint, tEffect('artifacts.loadError')).then(data => {
       if (cancelled) return;
       if (data) setTable({ ...data, columns: data.defaultTitles ? data.columns.map(column => ({ ...column, title: tEffect(column.id === 'date' ? 'artifacts.date' : column.id === 'title' ? 'artifacts.artifact' : column.id === 'details' ? 'artifacts.details' : 'artifacts.links') })) : data.columns });
       else setTable(loadDefaults());
       setDirty(false);
       setConflict(false);
+      setLoadedIn(load);
     }).catch(() => {
-      if (!cancelled) { setFailed(true); setError(tEffect('artifacts.loadError')); }
-    }).finally(() => { if (!cancelled) setLoading(false); });
+      if (!cancelled) { setFailedIn(load); setError(tEffect('artifacts.loadError')); }
+    });
     return () => { cancelled = true; };
-  }, [endpoint, reload, setError]);
+  }, [endpoint, load, setError]);
 
   useEffect(() => {
     const state = window as Window & { __pmsUnsaved?: boolean };

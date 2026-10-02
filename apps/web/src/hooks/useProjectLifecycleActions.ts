@@ -1,3 +1,4 @@
+import type { AppStateBag } from "../app/appStateBag";
 import { useCallback, useEffect, useRef, type FormEvent } from "react";
 import { apiClient } from "../api/client";
 import type { ProjectDetails, ProjectUiState } from "../app/domainTypes";
@@ -30,7 +31,7 @@ import {
 } from "../app/wbsTable";
 import { shouldApplyProjectSnapshotAfterWbsSave } from "../wbsProjectLoadGuard";
 
-type ProjectLifecycleActionsDeps = Record<string, any>;
+type ProjectLifecycleActionsDeps = AppStateBag;
 
 type JiraSyncRunState = {
   status?: string;
@@ -449,7 +450,8 @@ const applyProject = useCallback(
         : null,
     );
   },
-  [setWbsRedoHistory, setWbsUndoHistory],
+  // All of these are state setters and refs, stable between renders.
+  [projectRef, setActiveWbsItemId, setArtifactDrafts, setCollapsedWbsIds, setExpandedArtifactId, setExpandedIssueId, setExpandedRaidId, setGanttPanelHeight, setGanttPanelWidth, setGanttWbsWidth, setIssueEditDrafts, setIssueLinkDrafts, setJiraForm, setJiraWorkSectionDrafts, setPassportRows, setProject, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, setRaidDrafts, setRaidStatusDrafts, setSelectedCalendarYear, setSelectedWbsIds, setSidebarCollapsed, setTaskDrafts, setWbsColumnOrder, setWbsColumnWidths, setWbsDrafts, setWbsHiddenColumns, setWbsRedoHistory, setWbsSort, setWbsUndoHistory, wbsDraftsRef],
 );
 
 useEffect(() => {
@@ -483,7 +485,7 @@ useEffect(() => {
   return () => {
     cancelled = true;
   };
-}, [applyProject, authMode, selectedProjectId]);
+}, [applyProject, authMode, pendingWbsSaveCountRef, projectLoadSequenceRef, selectedProjectId, setError, wbsSaveSequenceRef]);
 
 useEffect(() => {
   if (!selectedProjectId || activeView !== "project-overview") {
@@ -526,7 +528,7 @@ useEffect(() => {
   return () => {
     cancelled = true;
   };
-}, [activeView, applyProject, selectedProjectId]);
+}, [activeView, applyProject, pendingWbsSaveCountRef, projectLoadSequenceRef, selectedProjectId, setError, wbsSaveSequenceRef]);
 
 async function toggleCalendarDay(
   calendarCode: ProjectCalendarCode,

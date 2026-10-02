@@ -18,5 +18,11 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Leaving fields out with `const { a, ...rest } = value` is intended; so is a name starting with "_".
+      // The provider file also exports its hook, as React context modules do.
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true, allowExportNames: ['useI18n'] }],
+      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true, argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
   },
 ])

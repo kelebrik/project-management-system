@@ -268,7 +268,7 @@ export function ProjectStructureSection() {
       window.removeEventListener("afterprint", reset);
       window.clearTimeout(fallbackTimer);
     };
-  }, [englishPrintRequested, englishPrintTitle]);
+  }, [englishPrintRequested, englishPrintTitle, printSectionAsPdf]);
 
   const editableEnglishRows = useMemo(() => {
     const seenTitles = new Set<string>();

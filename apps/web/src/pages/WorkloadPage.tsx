@@ -60,7 +60,8 @@ export function WorkloadPage() {
   const [visibleWindow, setVisibleWindow] = useState<LeaveRange>({ from: today, to: today });
   const [todayRequest, setTodayRequest] = useState(0);
   const [data, setData] = useState<WorkloadData | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  // The request that failed, so a new range or a reload clears the message by itself.
+  const [failedRequest, setFailedRequest] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState<string[]>([]);
@@ -79,18 +80,19 @@ export function WorkloadPage() {
 
   // Only the latest request may replace the data; the old data stays up meanwhile.
   const requestRef = useRef(0);
+  const requestKey = `${range.from}|${range.to}|${reloadToken}`;
+  const loadError = failedRequest === requestKey;
   useEffect(() => {
     const request = ++requestRef.current;
-    setLoadError(false);
     apiClient
       .get<WorkloadData>(`/api/workload?from=${range.from}&to=${range.to}`)
       .then((next) => {
         if (request === requestRef.current) setData(next);
       })
       .catch(() => {
-        if (request === requestRef.current) setLoadError(true);
+        if (request === requestRef.current) setFailedRequest(requestKey);
       });
-  }, [range.from, range.to, reloadToken]);
+  }, [range.from, range.to, requestKey]);
 
   const overrides = useMemo(() => calendarOverrides(data?.calendarDays ?? []), [data?.calendarDays]);
   const timeline = useMemo(() => buildLeaveTimeline(range.from, range.to, overrides, today), [overrides, range, today]);

@@ -70,15 +70,19 @@ export function ProjectBusinessRequirementsPage() {
   const { isReadOnly, project, setError, setNotice } = usePageContext();
   const confirm = useConfirm();
   const [{ columns, rows }, setTable] = useState(() => normalizeTable(null));
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  // Edits and the finished load belong to one visit of a project: switching projects, even back to one
+  // seen before, starts a new visit that is clean and loading.
+  const visit = useMemo(() => ({ projectId: project?.id ?? null }), [project?.id]);
+  const [dirtyIn, setDirtyIn] = useState<object | null>(null);
+  const [loadedIn, setLoadedIn] = useState<object | null>(null);
+  const dirty = Boolean(visit.projectId) && dirtyIn === visit;
+  const loading = Boolean(visit.projectId) && loadedIn !== visit;
+  const setDirty = (value: boolean) => setDirtyIn(value ? visit : null);
 
   useEffect(() => {
     if (!project?.id) return;
     let cancelled = false;
-    setLoading(true);
-    setDirty(false);
     apiClient
       .get<BusinessRequirementsTable>(
         `/api/projects/${project.id}/business-requirements`,
@@ -94,12 +98,12 @@ export function ProjectBusinessRequirementsPage() {
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLoadedIn(visit);
       });
     return () => {
       cancelled = true;
     };
-  }, [project?.id, setError]);
+  }, [project?.id, setError, visit]);
 
   useEffect(() => {
     (window as Window & { __pmsUnsaved?: boolean }).__pmsUnsaved = dirty;

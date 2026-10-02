@@ -1,3 +1,4 @@
+import type { AppStateBag } from "../app/appStateBag";
 import { useCallback, useEffect, useRef } from "react";
 import { apiClient } from "../api/client";
 import type { ProjectListItem } from "../app/domainTypes";
@@ -19,9 +20,9 @@ import {
 } from "../app/routes";
 import { projectModuleKeyByView } from "../app/projectModules";
 import { useI18n } from "../i18n/I18nProvider";
-import { hasPendingWbsBuffers } from "../components/WbsBufferedInput";
+import { hasPendingWbsBuffers } from "../app/wbsBuffers";
 
-type AppRoutingDeps = Record<string, any>;
+type AppRoutingDeps = AppStateBag;
 
 export function useAppRouting({
   activeView,

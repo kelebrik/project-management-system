@@ -74,7 +74,9 @@ export function LeaveSchedulePage() {
   const [visibleWindow, setVisibleWindow] = useState<LeaveRange>({ from: today, to: today });
   const [todayRequest, setTodayRequest] = useState(0);
   const [data, setData] = useState<LeaveScheduleData | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  // The range request that failed (a new range or a reload clears it by itself), and today's leaves failing.
+  const [failedRequest, setFailedRequest] = useState<string | null>(null);
+  const [todayLoadError, setTodayLoadError] = useState(false);
   // Today may lie outside the visible period, so "away today" has its own small request.
   const [todayLeaves, setTodayLeaves] = useState<LeaveRecord[]>([]);
   const [reloadToken, setReloadToken] = useState(0);
@@ -97,9 +99,10 @@ export function LeaveSchedulePage() {
   // Only the latest request may replace the data: scrolling can grow the range
   // again before an earlier answer arrives. The old data stays up meanwhile.
   const rangeRequestRef = useRef(0);
+  const requestKey = `${range.from}|${range.to}|${reloadToken}`;
+  const loadError = failedRequest === requestKey || todayLoadError;
   useEffect(() => {
     const request = ++rangeRequestRef.current;
-    setLoadError(false);
     apiClient
       .get<LeaveScheduleData>(`/api/leave-schedule?from=${range.from}&to=${range.to}`)
       .then((next) => {
@@ -107,9 +110,9 @@ export function LeaveSchedulePage() {
       })
       .catch(() => {
         // Stored as a flag so the message follows the interface language.
-        if (request === rangeRequestRef.current) setLoadError(true);
+        if (request === rangeRequestRef.current) setFailedRequest(requestKey);
       });
-  }, [range.from, range.to, reloadToken]);
+  }, [range.from, range.to, requestKey]);
 
   useEffect(() => {
     if (!absentToday) return;
@@ -117,10 +120,13 @@ export function LeaveSchedulePage() {
     apiClient
       .get<LeaveScheduleData>(`/api/leave-schedule?from=${today}&to=${today}`)
       .then((next) => {
-        if (!cancelled) setTodayLeaves(next.leaves);
+        if (!cancelled) {
+          setTodayLeaves(next.leaves);
+          setTodayLoadError(false);
+        }
       })
       .catch(() => {
-        if (!cancelled) setLoadError(true);
+        if (!cancelled) setTodayLoadError(true);
       });
     return () => {
       cancelled = true;

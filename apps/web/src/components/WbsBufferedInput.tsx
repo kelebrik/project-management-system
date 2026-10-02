@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState, type InputHTMLAttributes } from "react";
+import { pendingBuffers } from "../app/wbsBuffers";
 
-const pendingBuffers = new Set<object>();
-
-/** True while a WBS cell holds typed text that has not reached the drafts yet. */
-export function hasPendingWbsBuffers() {
-  return pendingBuffers.size > 0;
-}
 
 type WbsBufferedInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & {
   value: string;
@@ -30,7 +25,8 @@ export function WbsBufferedInput({
   const localRef = useRef<string | null>(null);
   // Escape restores the saved value itself; the blur that follows must not commit.
   const discardOnBlurRef = useRef(false);
-  const bufferId = useRef({}).current;
+  // One identity per mounted cell, made once.
+  const [bufferId] = useState(() => ({}));
 
   useEffect(() => () => {
     pendingBuffers.delete(bufferId);
